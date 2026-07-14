@@ -3,7 +3,7 @@
 import {
   Bell,
   CalendarDays,
- ChevronDown,
+  ChevronDown,
   Command,
   Moon,
   Search,
@@ -16,40 +16,28 @@ type HeaderProps = {
 
 export default function Header({
   title,
-  description,
 }: HeaderProps) {
   return (
-    <header className="sticky top-0 z-40 border-b border-white/5 bg-[#11151A]/90 backdrop-blur-xl">
-      <div className="flex h-24 items-center justify-between px-10">
+    <header className="sticky top-0 z-40 border-b border-white/5 bg-[#11151A]/95 backdrop-blur-xl">
+      <div className="flex h-20 items-center justify-between px-8">
         {/* Left */}
 
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white">
-            {title}
-          </h1>
-
-          {description && (
-            <p className="mt-2 text-sm text-slate-500">
-              {description}
-            </p>
-          )}
-        </div>
-
-        {/* Right */}
-
-        <div className="flex items-center gap-4">
-          {/* Search */}
+        <div className="flex items-center gap-8">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-white">
+              {title}
+            </h1>
+          </div>
 
           <div className="hidden xl:flex">
-            <div className="flex h-14 w-[360px] items-center gap-3 rounded-2xl border border-white/5 bg-white/[0.03] px-5 transition hover:border-[#54BFB4]/30">
+            <div className="flex h-12 w-[340px] items-center gap-3 rounded-2xl border border-white/5 bg-white/[0.03] px-4 transition hover:border-cyan-400/20">
               <Search
                 size={18}
                 className="text-slate-500"
               />
 
               <input
-                type="text"
-                placeholder="Search anything..."
+                placeholder="Search..."
                 className="flex-1 bg-transparent text-sm text-white outline-none placeholder:text-slate-600"
               />
 
@@ -59,31 +47,27 @@ export default function Header({
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Calendar */}
+        {/* Right */}
 
-          <button className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/5 bg-white/[0.03] text-slate-400 transition hover:border-[#54BFB4]/20 hover:text-white">
-            <CalendarDays size={20} />
+        <div className="flex items-center gap-3">
+          <button className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/5 bg-white/[0.03] text-slate-400 transition hover:border-cyan-400/20 hover:text-white">
+            <CalendarDays size={18} />
           </button>
 
-          {/* Dark Mode */}
-
-          <button className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/5 bg-white/[0.03] text-slate-400 transition hover:border-[#54BFB4]/20 hover:text-white">
-            <Moon size={20} />
+          <button className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/5 bg-white/[0.03] text-slate-400 transition hover:border-cyan-400/20 hover:text-white">
+            <Moon size={18} />
           </button>
 
-          {/* Notification */}
+          <button className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-white/5 bg-white/[0.03] text-slate-400 transition hover:border-cyan-400/20 hover:text-white">
+            <Bell size={18} />
 
-          <button className="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-white/5 bg-white/[0.03] text-slate-400 transition hover:border-[#54BFB4]/20 hover:text-white">
-            <Bell size={20} />
-
-            <span className="absolute right-4 top-4 h-2.5 w-2.5 rounded-full bg-[#54BFB4]" />
+            <span className="absolute right-3 top-3 h-2 w-2 rounded-full bg-cyan-400" />
           </button>
 
-          {/* User */}
-
-          <button className="flex items-center gap-4 rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-3 transition hover:border-[#54BFB4]/20">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#54BFB4] to-[#586BB7] text-sm font-bold text-white">
+          <button className="ml-2 flex items-center gap-3 rounded-2xl border border-white/5 bg-white/[0.03] px-3 py-2 transition hover:border-cyan-400/20">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-indigo-500 text-sm font-bold text-white">
               VL
             </div>
 
@@ -98,7 +82,7 @@ export default function Header({
             </div>
 
             <ChevronDown
-              size={18}
+              size={16}
               className="text-slate-500"
             />
           </button>

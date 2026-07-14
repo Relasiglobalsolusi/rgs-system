@@ -60,7 +60,7 @@ model Department {
   description String?
 
   companyId   String
-  company     Company @relation(fields: [companyId], references: [id])
+  company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   employees   Employee[]
 
@@ -73,28 +73,58 @@ model Department {
 model Employee {
   id String @id @default(cuid())
 
+  // Identity
   employeeNo String @unique
 
   firstName String
   lastName  String
 
+  // Contact
   email String?
   phone String?
 
+  avatar String?
+
+  // Personal
+  gender String?
+
+  dateOfBirth DateTime?
+
+  address String?
+
+  city String?
+
+  country String?
+
+  emergencyContact String?
+
+  emergencyPhone String?
+
+  // Employment
   position String?
 
   status EmploymentStatus @default(ACTIVE)
 
+  hiredAt DateTime?
+
   companyId String
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company Company @relation(
+    fields: [companyId],
+    references: [id],
+    onDelete: Cascade
+  )
 
   departmentId String?
-  department Department? @relation(fields: [departmentId], references: [id])
+  department Department? @relation(
+    fields: [departmentId],
+    references: [id]
+  )
 
   userId String? @unique
-  user User? @relation(fields: [userId], references: [id])
-
-  hiredAt DateTime?
+  user User? @relation(
+    fields: [userId],
+    references: [id]
+  )
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

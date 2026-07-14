@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+
 import {
   BarChart3,
   Building2,
@@ -21,7 +22,7 @@ import {
 
 const menu = [
   {
-    title: "MAIN",
+    title: "Overview",
     items: [
       {
         icon: LayoutDashboard,
@@ -31,7 +32,7 @@ const menu = [
     ],
   },
   {
-    title: "PROJECTS",
+    title: "Projects",
     items: [
       {
         icon: FolderKanban,
@@ -46,7 +47,7 @@ const menu = [
     ],
   },
   {
-    title: "HR",
+    title: "Human Resources",
     items: [
       {
         icon: CalendarDays,
@@ -66,7 +67,7 @@ const menu = [
     ],
   },
   {
-    title: "BUSINESS",
+    title: "Business",
     items: [
       {
         icon: Package,
@@ -91,7 +92,7 @@ const menu = [
     ],
   },
   {
-    title: "SYSTEM",
+    title: "System",
     items: [
       {
         icon: Settings,
@@ -106,22 +107,26 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden h-screen w-80 shrink-0 border-r border-white/5 bg-[#11151a] lg:flex lg:flex-col">
-      <div className="flex min-h-60 items-center justify-center border-b border-white/5 px-6 py-7">
+    <aside className="hidden lg:flex lg:w-[290px] xl:w-[300px] flex-col border-r border-white/5 bg-[#0F141A]">
+      {/* Logo */}
+
+      <div className="border-b border-white/5 px-8 py-10">
         <Image
           src="/rgs-one-logo.svg"
           alt="RGS ONE"
-          width={800}
-          height={800}
+          width={280}
+          height={80}
           priority
-          className="h-auto w-full max-w-[255px] object-contain"
+          className="mx-auto h-auto w-full max-w-[220px]"
         />
       </div>
+
+      {/* Navigation */}
 
       <div className="flex-1 overflow-y-auto px-5 py-6">
         {menu.map((section) => (
           <div key={section.title} className="mb-8">
-            <p className="mb-3 px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">
+            <p className="mb-3 px-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-600">
               {section.title}
             </p>
 
@@ -134,25 +139,25 @@ export default function Sidebar() {
                   <Link
                     key={item.label}
                     href={item.href}
-                    className={`group flex items-center justify-between rounded-2xl px-3 py-3 transition-all duration-200 ${
+                    className={`group flex items-center justify-between rounded-xl px-4 py-3 transition-all duration-200 ${
                       active
-                        ? "bg-gradient-to-r from-[#54bfb4]/15 to-[#586bb7]/15 ring-1 ring-[#54bfb4]/20"
+                        ? "bg-cyan-500/10 border border-cyan-500/20"
                         : "hover:bg-white/[0.04]"
                     }`}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-4">
                       <div
-                        className={`flex h-11 w-11 items-center justify-center rounded-xl transition ${
+                        className={`flex h-10 w-10 items-center justify-center rounded-xl transition ${
                           active
-                            ? "bg-gradient-to-br from-[#54bfb4] to-[#586bb7] text-white shadow-lg"
-                            : "bg-white/[0.05] text-slate-400 group-hover:text-white"
+                            ? "bg-cyan-500 text-white shadow-lg shadow-cyan-500/20"
+                            : "bg-white/[0.04] text-slate-400 group-hover:text-white"
                         }`}
                       >
                         <Icon size={19} />
                       </div>
 
                       <span
-                        className={`text-sm font-medium ${
+                        className={`text-[14px] font-medium ${
                           active
                             ? "text-white"
                             : "text-slate-400 group-hover:text-white"
@@ -165,7 +170,7 @@ export default function Sidebar() {
                     {active && (
                       <ChevronRight
                         size={18}
-                        className="text-[#54bfb4]"
+                        className="text-cyan-400"
                       />
                     )}
                   </Link>
@@ -176,19 +181,21 @@ export default function Sidebar() {
         ))}
       </div>
 
+      {/* User */}
+
       <div className="border-t border-white/5 p-5">
-        <div className="rounded-3xl border border-white/5 bg-white/[0.03] p-4">
+        <div className="rounded-2xl bg-white/[0.03] p-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#54bfb4] to-[#586bb7] text-sm font-bold text-white">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-indigo-500 font-bold text-white">
               VL
             </div>
 
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-white">
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-white">
                 Vicko Liem
               </p>
 
-              <p className="truncate text-xs text-slate-500">
+              <p className="text-xs text-slate-500">
                 System Administrator
               </p>
             </div>
@@ -196,7 +203,7 @@ export default function Sidebar() {
 
           <Link
             href="/api/auth/signout"
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-red-500/10 bg-red-500/5 py-3 text-sm font-medium text-red-300 transition hover:bg-red-500/10"
+            className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-red-500/10 bg-red-500/5 py-3 text-sm text-red-300 transition hover:bg-red-500/10"
           >
             <LogOut size={18} />
             Sign out
