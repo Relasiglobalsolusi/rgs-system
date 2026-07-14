@@ -2,8 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   BarChart3,
+  Building2,
   CalendarDays,
   CheckSquare,
   ChevronRight,
@@ -52,6 +54,11 @@ const menu = [
         href: "/attendance",
       },
       {
+        icon: Building2,
+        label: "Departments",
+        href: "/departments",
+      },
+      {
         icon: Users,
         label: "Employees",
         href: "/employees",
@@ -96,6 +103,8 @@ const menu = [
 ];
 
 export default function Sidebar() {
+  const pathname = usePathname();
+
   return (
     <aside className="hidden h-screen w-80 shrink-0 border-r border-white/5 bg-[#11151a] lg:flex lg:flex-col">
       <div className="flex min-h-60 items-center justify-center border-b border-white/5 px-6 py-7">
@@ -117,11 +126,9 @@ export default function Sidebar() {
             </p>
 
             <div className="space-y-1">
-              {section.items.map((item, index) => {
+              {section.items.map((item) => {
                 const Icon = item.icon;
-
-                const active =
-                  section.title === "MAIN" && index === 0;
+                const active = pathname === item.href;
 
                 return (
                   <Link
