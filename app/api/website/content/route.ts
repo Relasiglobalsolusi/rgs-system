@@ -5,15 +5,27 @@ import {
   parseWebsiteContent,
 } from "@/lib/website-content";
 
+function allowedCorsOrigins(): string[] {
+  const fromEnv = process.env.WEBSITE_CORS_ORIGIN?.split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (fromEnv?.length) {
+    return fromEnv;
+  }
+  return ["https://rgs.co.id", "https://www.rgs.co.id"];
+}
+
 function corsHeaders(origin?: string | null) {
+  const allowed = allowedCorsOrigins();
   const allowedOrigin =
-    process.env.WEBSITE_CORS_ORIGIN?.trim() || origin || "*";
+    origin && allowed.includes(origin) ? origin : allowed[0] ?? "*";
 
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Methods": "GET, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, x-api-key",
     "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+    Vary: "Origin",
   };
 }
 

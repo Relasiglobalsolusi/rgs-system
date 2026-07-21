@@ -54,9 +54,10 @@ npm install
 if [ ! -f .env ]; then
   cat > .env << EOF
 DATABASE_URL="postgresql://rgs_user:${DB_PASSWORD}@localhost:5432/rgs_system"
+DIRECT_URL="postgresql://rgs_user:${DB_PASSWORD}@localhost:5432/rgs_system"
 NEXTAUTH_SECRET="$(openssl rand -base64 32)"
 NEXTAUTH_URL="https://${ERP_DOMAIN}"
-WEBSITE_CORS_ORIGIN="https://${WEB_DOMAIN}"
+WEBSITE_CORS_ORIGIN="https://${WEB_DOMAIN},https://www.${WEB_DOMAIN}"
 # WEBSITE_CMS_API_KEY="shared-secret-with-website"
 #
 # AI payment / tax verification (server-side only; fail-closed if unset)
@@ -80,13 +81,13 @@ fi
 mkdir -p public/uploads public/proofs public/progress public/uploads/website
 
 npx prisma generate
-# Prefer migrate deploy when migrations are committed; fallback for fresh DB:
+# Prefer migrate deploy; db push only for greenfield DBs with incomplete migration history.
 npx prisma migrate deploy || npx prisma db push
 # Seed only on first install (comment out after go-live if you have real data)
 # npm run db:seed
 npm run build
 
-echo "=== 4. Clone & build corporate website ==="
+echo "=== 4. Clone & build corporate website (optional — production site is on Vercel) ==="
 if [ ! -d "$WEB_DIR" ]; then
   git clone "$WEB_REPO" "$WEB_DIR"
 fi
@@ -104,6 +105,7 @@ SMTP_HOST="smtp.example.com"
 SMTP_PORT="465"
 SMTP_USER="noreply@rgs.co.id"
 SMTP_PASS="CHANGE_THIS"
+CONTACT_TO="contact@rgs.co.id"
 EOF
   echo "Created website .env.local — set real SMTP before contact form works!"
 fi
@@ -113,11 +115,12 @@ npm run build
 echo "=== 5. Start with PM2 ==="
 cd "$ERP_DIR"
 pm2 delete rgs-system 2>/dev/null || true
-pm2 start npm --name "rgs-system" -- start
+pm2 start npm --name "rgs-system" --cwd "$ERP_DIR" -- start
 
 cd "$WEB_DIR"
 pm2 delete rgs-website 2>/dev/null || true
-pm2 start npm --name "rgs-website" -- start
+# Corporate site uses port 3001 when hosted on this VPS (production uses Vercel).
+PORT=3001 pm2 start npm --name "rgs-website" --cwd "$WEB_DIR" -- start
 
 pm2 save
 pm2 startup
@@ -179,4 +182,4 @@ echo "=== Done ==="
 echo "ERP:     https://${ERP_DOMAIN}   (PM2: rgs-system)"
 echo "Website: https://${WEB_DOMAIN}   (PM2: rgs-website)"
 echo "Uploads: ${ERP_DIR}/public/uploads (and proofs/, progress/) — back these up"
-echo "Default seed login (if seeded): admin@rgs.co.id / admin123 — change immediately"
+echo "Default seed login (if seeded): vicko / admin123 — change immediately"

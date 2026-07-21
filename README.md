@@ -66,7 +66,7 @@ Use `updatedAt` for cache busting (e.g. `revalidate` in Next.js or `?v=` query p
 
 ```env
 # Optional: restrict CORS to your public site
-WEBSITE_CORS_ORIGIN="https://rgs.co.id"
+WEBSITE_CORS_ORIGIN="https://rgs.co.id,https://www.rgs.co.id"
 
 # Optional: require x-api-key header on the public API
 WEBSITE_CMS_API_KEY="your-secret-key"
@@ -191,88 +191,56 @@ Admins and managers can **Lock Report** to snapshot data into `InvoiceCompilatio
 
 Users with the **Client** role see a limited sidebar (Dashboard, Projects, Monthly Reports). All project queries are scoped to their linked client record. Internal staff (Admin/Manager) manage clients at `/clients` and assign clients when creating or editing projects.
 
-## Deploy — ERP at `one.rgs.co.id` (Vercel)
+## Deploy — ERP at `one.rgs.co.id` (RumahWeb VPS)
 
-Target architecture:
+**Production architecture (current):**
 
 | Surface | Host | Domain |
 |---------|------|--------|
-| Public site | Rumahweb | `rgs.co.id` |
-| ERP (this app) | Vercel (or similar Node host) | `one.rgs.co.id` |
+| Public site | **Vercel** | `https://rgs.co.id` |
+| ERP (this app) | **RumahWeb VPS** (Nginx + PM2 + local Postgres) | `https://one.rgs.co.id` |
 
-Login on the public site should point to `https://one.rgs.co.id/login`.
+Corporate Login / CMS must point at `https://one.rgs.co.id` (not `app.rgs.co.id`).
 
-### #1 blocker: production PostgreSQL
+### First-time VPS setup
 
-Vercel **cannot** use your local Postgres. Create a cloud database first, then set `DATABASE_URL` in Vercel:
+Use `scripts/deploy-rumahweb.sh` (Node 20, Nginx, PM2, Postgres on the VPS). Or install manually:
 
-| Option | Notes |
-|--------|--------|
-| [Neon](https://neon.tech) | Free tier, easy Prisma, use pooled + `?sslmode=require` |
-| [Vercel Postgres](https://vercel.com/storage/postgres) | Same dashboard as the app |
-| [Supabase](https://supabase.com) | Use the connection string (prefer pooled/transaction mode for serverless) |
-| Rumahweb Postgres | Only if they offer a remotely reachable Postgres host/port (not localhost-only) |
-
-Then apply schema (from your machine with the production URL, or via Vercel build):
-
-```bash
-# with production DATABASE_URL in the environment
-npx prisma migrate deploy
-# optional demo data — skip on a real production DB if you already have users
-# npm run db:seed
-```
-
-### Vercel project setup
-
-1. Push this repo to GitHub and import it in [Vercel](https://vercel.com).
-2. Framework preset: **Next.js**. Build uses `vercel.json` (`prisma migrate deploy && next build`). `postinstall` runs `prisma generate`.
-3. **Environment variables** (Production):
+1. Ubuntu VPS, DNS **A** record: `one` → VPS IP
+2. Postgres on the same machine (`DATABASE_URL` + `DIRECT_URL` both `localhost`)
+3. App env (example):
 
 | Variable | Example |
 |----------|---------|
-| `DATABASE_URL` | `postgresql://…?sslmode=require` |
+| `DATABASE_URL` | `postgresql://rgs_user:…@127.0.0.1:5432/rgs_system` |
+| `DIRECT_URL` | same as `DATABASE_URL` on local Postgres |
 | `NEXTAUTH_SECRET` | `openssl rand -base64 32` |
 | `NEXTAUTH_URL` | `https://one.rgs.co.id` |
-| `WEBSITE_CORS_ORIGIN` | `https://rgs.co.id` (optional) |
-| `WEBSITE_CMS_API_KEY` | shared secret (optional) |
-| SMTP_* | if you send invoice / reset emails |
+| `WEBSITE_CORS_ORIGIN` | `https://rgs.co.id,https://www.rgs.co.id` |
+| `OPENAI_API_KEY` | required before AI payment/tax verification works |
+| SMTP_* | optional (invoice / reset emails) |
 
-4. Deploy once to get a `*.vercel.app` URL and confirm login works against the cloud DB.
-5. **Custom domain**: Vercel → Project → Settings → Domains → add `one.rgs.co.id`.
-6. **Rumahweb DNS** (domain for `rgs.co.id`): create a **CNAME** record:
+4. `npx prisma db push` or `migrate deploy` → `npm run db:seed` (first time) → `npm run build` → PM2 `rgs-system` on port **3000**
+5. Nginx reverse proxy + Certbot for HTTPS
+6. Seed admin login: **`vicko` / `admin123`** — change immediately
 
-| Type | Name/Host | Value |
-|------|-----------|--------|
-| CNAME | `one` | `cname.vercel-dns.com` |
+Uploads live under `public/uploads`, `public/proofs`, `public/progress` — back these up; they are not in Git.
 
-   (Use the exact target Vercel shows after you add the domain — often `cname.vercel-dns.com`.)
-
-7. Wait for DNS + SSL (Vercel issues the certificate automatically).
-8. On the public site (Rumahweb / `rgs-corporate-website`): set Login → `https://one.rgs.co.id/login` and CMS URL → `https://one.rgs.co.id/api/website/content`.
-
-### Uploads caveat (Vercel)
-
-Progress photos, employee files, and invoice PDFs are stored under `public/uploads` on disk. On Vercel that filesystem is **ephemeral** (files can disappear between deploys/instances). For go-live MVP you can still open the app; for durable media plan **Vercel Blob / S3 / R2**, or host the ERP on a VPS with persistent disk (see below).
-
-### CLI deploy (optional)
+### Redeploy (VPS)
 
 ```bash
-npx vercel login
-npx vercel link
-npx vercel env pull   # or set env in the dashboard
-npx vercel --prod
+cd /var/www/rgs-system
+git pull origin main
+npm install
+npx prisma generate
+npx prisma migrate deploy || npx prisma db push
+npm run build
+pm2 restart rgs-system --update-env
 ```
 
-### Alternative: Rumahweb VPS (Nginx + PM2)
+### Optional: Vercel
 
-If you prefer a single VPS (persistent uploads + local Postgres): `scripts/deploy-rumahweb.sh`. Update `ERP_DOMAIN` in that script to `one.rgs.co.id` if you use this path instead of Vercel.
-
-| App | Domain | PM2 name | Port |
-|-----|--------|----------|------|
-| ERP (`rgs-system`) | `one.rgs.co.id` | `rgs-system` | 3000 |
-| Website (`rgs-corporate-website`) | `rgs.co.id` | `rgs-website` | 3001 |
-
-**Redeploy (VPS)** — `cd /var/www/rgs-system && git pull && npm install && npx prisma migrate deploy && npm run build && pm2 restart rgs-system`.
+Vercel is **not** the production host for this ERP. Hobby plans hit serverless function limits; Neon outbound `5432` was blocked from the VPS. Keep `vercel.json` only as a non-destructive build helper (`prisma generate && next build`) if you experiment — do **not** run `db push --accept-data-loss` in production builds.
 
 ## Scripts
 

@@ -41,9 +41,9 @@ echo   Setup complete! Opening at:
 echo   http://localhost:3000
 echo.
 echo   Login accounts:
-echo   Admin:   admin@rgs.co.id / admin123
-echo   Manager: manager@rgs.co.id / manager123
-echo   Staff:   staff@rgs.co.id / staff123
+echo   Admin:   vicko / admin123
+echo   Manager: manager / manager123
+echo   Site:    site / staff123
 echo ========================================
 echo.
 call npm run dev
