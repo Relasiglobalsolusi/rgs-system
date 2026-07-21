@@ -280,12 +280,3 @@ export async function acknowledgeProgressWarnings(
 
   return { count: rows.length };
 }
-
-/** @deprecated Use createProgressReport — kept as alias for older callers. */
-export async function createDailyProgress(formData: FormData) {
-  // Map legacy field names.
-  if (!formData.get("notes") && formData.get("activity")) {
-    formData.set("notes", String(formData.get("activity")));
-  }
-  return createProgressReport(formData);
-}

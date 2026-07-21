@@ -219,50 +219,6 @@ export async function provisionClientUser(
 }
 
 /**
- * Hard-delete existing portal User(s) for a client and create a replacement
- * login from the new contact person name (mustSetPassword + no recovery email
- * → first-login setup). Username uses contact first name (+ last initial on
- * collision). Call after the Client row has the updated contact fields.
- *
- * Callers must only invoke this when linked portal users already exist and the
- * client will remain active — never to invent a login that did not exist, and
- * never to hard-delete without provisioning a replacement.
- */
-export async function resetClientPortalLoginForContactNameChange(
-  tx: Tx,
-  options: {
-    companyId: string;
-    clientId: string;
-    clientName: string;
-    contactPersonFirstName: string;
-    contactPersonLastName?: string | null;
-    linkedUserIds: string[];
-    /** Must be true for contact-name reset; kept for call-site clarity. */
-    provisionReplacement: boolean;
-  }
-) {
-  if (options.linkedUserIds.length === 0) {
-    return null;
-  }
-
-  await hardDeleteLinkedUserLogins(tx, options.linkedUserIds);
-
-  if (!options.provisionReplacement) {
-    throw new Error(
-      "Contact-person portal reset requires provisioning a replacement login."
-    );
-  }
-
-  return provisionClientUser(tx, {
-    companyId: options.companyId,
-    clientId: options.clientId,
-    clientName: options.clientName,
-    contactPersonFirstName: options.contactPersonFirstName,
-    contactPersonLastName: options.contactPersonLastName,
-  });
-}
-
-/**
  * Creates or restores a portal login for a vendor.
  * Username is derived from the contact person's first name (never company/vendor name).
  * Password is unusable until first-login setup; recovery email is left unset.

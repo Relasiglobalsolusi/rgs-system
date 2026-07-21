@@ -1110,18 +1110,6 @@ export function getMenuForUser(
     .filter((section) => section.items.length > 0);
 }
 
-
-
-/** @deprecated Use getMenuForUser instead */
-
-export function getMenuForRole(role: UserRole) {
-
-  return getMenuForUser({ role, employeeType: null });
-
-}
-
-
-
 export const MODULE_LABELS: Record<ModuleKey, string> = {
 
   dashboard: "Dashboard",

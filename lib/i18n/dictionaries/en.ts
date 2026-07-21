@@ -1552,7 +1552,7 @@ export const en = {
       generateEmployeeConfirm: "Generate portal login",
       generateClientTitle: "Generate portal login?",
       generateClientDescription:
-        "Create a linked Users portal login for this client. Username is based on contact person first name.",
+        "Create a linked Users portal login for this client. Login ID is an 8-letter id from the client name.",
       generateClientConfirm: "Generate portal login",
       generateFailed: "Failed to generate portal login.",
       withoutPortalSearch: "Search clients or employees...",

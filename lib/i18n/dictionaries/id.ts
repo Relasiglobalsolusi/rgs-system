@@ -901,7 +901,7 @@ export const id = {
       emptyDeletedList: "Tidak ada klien yang dihapus",
       emptySearch: 'Tidak ada hasil untuk "{query}"',
       emptySearchDesc:
-        "Coba nama perusahaan, alamat, kontak, atau contact person lain.",
+        "Coba nama perusahaan, alamat, kontak, atau narahubung lain.",
       deleteTitle: "Hapus klien?",
       deleteConfirm: "Hapus klien",
       deleteDescription:
@@ -996,9 +996,9 @@ export const id = {
         contactPhone: "Telepon Narahubung",
         portalAccess: "Akses Portal",
         portalAccessDesc:
-          "Login ID portal selalu dibuat dari nama perusahaan. Cabut akses nanti di Users jika diperlukan.",
+          "Login ID portal selalu dibuat dari nama perusahaan. Cabut akses nanti di Pengguna jika diperlukan.",
         portalAccessDescIndividual:
-          "Login ID portal selalu dibuat dari nama mereka. Cabut akses nanti di Users jika diperlukan.",
+          "Login ID portal selalu dibuat dari nama mereka. Cabut akses nanti di Pengguna jika diperlukan.",
         clientType: "Tipe Klien",
         clientTypeCompany: "Perusahaan",
         clientTypeIndividual: "Perorangan",
@@ -1084,7 +1084,7 @@ export const id = {
       emptyDeletedList: "Tidak ada pemasok yang dihapus",
       emptySearch: 'Tidak ada hasil untuk "{query}"',
       emptySearchDesc:
-        "Coba nama perusahaan, alamat, kontak, atau contact person lain.",
+        "Coba nama perusahaan, alamat, kontak, atau narahubung lain.",
       deleteTitle: "Hapus pemasok?",
       deleteConfirm: "Hapus pemasok",
       deleteDescription:
@@ -1572,7 +1572,7 @@ export const id = {
       generateEmployeeConfirm: "Buat login portal",
       generateClientTitle: "Buat login portal?",
       generateClientDescription:
-        "Buat login portal Users terkait untuk klien ini. Nama pengguna berdasarkan nama depan kontak.",
+        "Buat login portal Users terkait untuk klien ini. Login ID adalah 8 huruf dari nama klien.",
       generateClientConfirm: "Buat login portal",
       generateFailed: "Gagal membuat login portal.",
       withoutPortalSearch: "Cari klien atau karyawan...",

@@ -35,8 +35,8 @@ export default async function BillingClientPage({
     where: {
       id: clientId,
       companyId: session.user.companyId,
-      // Soft-deleted clients are gated out of active Billing.
-      ...(session.user.clientId ? {} : { active: true }),
+      // Soft-deleted clients stay out of Billing (portal sessions are also kicked).
+      active: true,
     },
     include: {
       projects: {

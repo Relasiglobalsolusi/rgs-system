@@ -221,10 +221,8 @@ export async function previewBulkImportClients(
 
 /**
  * Excel import is create-only: duplicate client names are skipped and existing
- * clients are never updated. Contact-person name changes therefore do not run
- * portal-login reset here. If import later supports updating existing clients,
- * call `resetClientPortalLoginForContactNameChange` when the name parts change
- * and linked portal users exist (auto-reset; note in the import summary toast).
+ * clients are never updated. Contact-person renames never reset client Login IDs
+ * (Login ID stays company-based; revoke/restore lives in Users).
  */
 export async function confirmBulkImportClients(
   formData: FormData

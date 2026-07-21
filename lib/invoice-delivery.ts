@@ -94,9 +94,8 @@ Status: Awaiting Payment
 
   const host = process.env.SMTP_HOST?.trim();
   if (!host) {
-    // TODO: wire production SMTP (set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM).
     console.info(
-      `[invoice-email:STUB] Would email ${to} for "${payload.projectName}" (${payload.periodLabel}). PDF: ${pdfUrl}${
+      `[invoice-email:STUB] SMTP not configured (set SMTP_HOST). Would email ${to} for "${payload.projectName}" (${payload.periodLabel}). PDF: ${pdfUrl}${
         pdfFsPath ? ` (attach ${pdfFileName})` : ""
       }`
     );
@@ -105,8 +104,7 @@ Status: Awaiting Payment
   }
 
   try {
-    // Dynamic import so the app runs without nodemailer until SMTP is configured.
-    // Variable module name avoids a hard dependency while nodemailer stays optional.
+    // Dynamic import keeps cold paths light; nodemailer is a declared dependency.
     const nodemailerModuleId = "nodemailer";
     const nodemailer = (await import(
       /* webpackIgnore: true */ nodemailerModuleId
@@ -114,10 +112,7 @@ Status: Awaiting Payment
 
     if (!nodemailer) {
       console.info(
-        `[invoice-email:STUB] SMTP_HOST set but nodemailer is not installed. Would email ${to}. PDF: ${pdfUrl}`
-      );
-      console.info(
-        "[invoice-email:TODO] Run `npm i nodemailer` and `@types/nodemailer` to enable real sends."
+        `[invoice-email:STUB] SMTP_HOST set but nodemailer failed to load. Would email ${to}. PDF: ${pdfUrl}`
       );
       return { sent: false, reason: "nodemailer_missing" };
     }
