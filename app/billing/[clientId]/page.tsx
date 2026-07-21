@@ -32,7 +32,12 @@ export default async function BillingClientPage({
   }
 
   const client = await prisma.client.findFirst({
-    where: { id: clientId, companyId: session.user.companyId },
+    where: {
+      id: clientId,
+      companyId: session.user.companyId,
+      // Soft-deleted clients are gated out of active Billing.
+      ...(session.user.clientId ? {} : { active: true }),
+    },
     include: {
       projects: {
         include: {

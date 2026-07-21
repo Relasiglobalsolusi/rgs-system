@@ -878,11 +878,11 @@ export const id = {
       description: "Kelola organisasi klien.",
       descriptionAdmin: "Kelola organisasi klien dan akses portal.",
       descriptionManage:
-        "Kelola organisasi klien. Pilih akses login portal saat membuat klien.",
+        "Kelola organisasi klien. Login ID portal selalu dibuat; cabut akses nanti di Pengguna jika perlu.",
       descriptionReadonly: "Lihat organisasi klien (hanya baca).",
       directoryTitle: "Direktori Klien",
       directoryDesc:
-        "Data organisasi, penugasan proyek, dan kontak. Login portal opsional saat membuat dan dikelola di Pengguna.",
+        "Data organisasi, penugasan proyek, dan kontak. Login ID portal selalu dibuat saat menambah; akses dikelola di Pengguna.",
       companyNotFound: "Perusahaan tidak ditemukan.",
       addClient: "Tambah Klien",
       addBulk: "Tambah Massal",

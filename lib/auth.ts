@@ -15,6 +15,7 @@ import {
   type SidebarOrder,
 } from "@/lib/sidebar-order";
 import { prisma } from "@/lib/prisma";
+import { fetchSessionAccessState } from "@/lib/session-access";
 import type { EmployeeType } from "@prisma/client";
 
 export const authOptions: NextAuthOptions = {
@@ -212,6 +213,7 @@ export const authOptions: NextAuthOptions = {
         token.mustSetPassword = authenticatedUser.mustSetPassword ?? false;
         token.mustSetRecoveryEmail =
           authenticatedUser.mustSetRecoveryEmail ?? false;
+        delete token.error;
       } else if (trigger === "update" && session) {
         // Client session.update() — apply payload first so sidebarOrder
         // (and other prefs) land in the JWT without waiting for a re-login.
@@ -227,7 +229,15 @@ export const authOptions: NextAuthOptions = {
         if ("sidebarOrder" in session) {
           token.sidebarOrder = parseSidebarOrder(session.sidebarOrder);
         }
-      } else if (token.id) {
+      }
+
+      // Re-check access on every JWT refresh so revoke / soft-delete kicks
+      // sessions immediately (do not wait for 8h maxAge).
+      if (token.id && !token.error) {
+        const access = await fetchSessionAccessState(String(token.id));
+        if (!access.allowed) {
+          return { ...token, error: "AccessRevoked" };
+        }
         // Keep permissions / sidebar prefs in sync after DB changes.
         const prefs = await fetchUserNavPreferences(String(token.id));
         token.moduleOverrides = prefs.moduleOverrides;
@@ -238,6 +248,11 @@ export const authOptions: NextAuthOptions = {
     },
 
     async session({ session, token }) {
+      if (token.error === "AccessRevoked" || !token.id) {
+        // Force unauthenticated so middleware / requireSession redirect to login.
+        return { ...session, user: undefined };
+      }
+
       if (session.user) {
         Object.assign(session.user, {
           id: String(token.id),

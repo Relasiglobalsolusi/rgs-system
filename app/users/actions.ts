@@ -28,6 +28,7 @@ import { formatEmployeeName } from "@/lib/employee-user-link";
 import { hardDeleteLinkedUserLogin } from "@/lib/hard-delete-linked-user";
 import { capitalizeName } from "@/lib/text-case";
 import { isRosterActiveEmployeeStatus } from "@/lib/user-directory-status";
+import { assertClientCanBeSoftDeleted } from "@/lib/client-soft-delete";
 
 export async function createUser(formData: FormData) {
   await requireModule("users");
@@ -546,6 +547,7 @@ async function deactivateUserRecord(id: string, currentUserId: string) {
     }
 
     if (user.client && user.client.active) {
+      await assertClientCanBeSoftDeleted(user.client.id, tx);
       await tx.client.update({
         where: { id: user.client.id },
         data: { active: false },

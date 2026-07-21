@@ -49,6 +49,7 @@ export default async function BillingPage() {
       prisma.client.findMany({
         where: {
           companyId: session.user.companyId,
+          active: true,
           ...(portalClientId ? { id: portalClientId } : {}),
           projects: {
             some: billingActiveProjectWhere(),

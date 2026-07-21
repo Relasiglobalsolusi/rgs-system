@@ -451,10 +451,14 @@ export async function createProject(formData: FormData) {
 
     // Ignore form tax fields — derive With/Without tax from the client NPWP.
     const client = await prisma.client.findFirst({
-      where: { id: clientId, companyId: company.id },
+      where: { id: clientId, companyId: company.id, active: true },
       select: { id: true, npwp: true },
     });
-    if (!client) throw new Error("Client not found.");
+    if (!client) {
+      throw new Error(
+        "Client not found or is deleted. Choose an active client."
+      );
+    }
     const { requiresTaxInvoice } = taxInvoiceDefaultsFromClient(client);
 
     const project = await prisma.$transaction(async (tx) => {
@@ -675,10 +679,14 @@ export async function updateProject(id: string, formData: FormData) {
     let requiresTaxInvoice = false;
     if (clientId) {
       const client = await prisma.client.findFirst({
-        where: { id: clientId, companyId: existing.companyId },
+        where: { id: clientId, companyId: existing.companyId, active: true },
         select: { id: true, npwp: true },
       });
-      if (!client) throw new Error("Client not found.");
+      if (!client) {
+        throw new Error(
+          "Client not found or is deleted. Choose an active client."
+        );
+      }
       requiresTaxInvoice = taxInvoiceDefaultsFromClient(client).requiresTaxInvoice;
     }
 

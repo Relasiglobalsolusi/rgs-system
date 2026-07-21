@@ -859,11 +859,11 @@ export const en = {
       description: "Manage client organizations.",
       descriptionAdmin: "Manage client organizations and portal access.",
       descriptionManage:
-        "Manage client organizations. Choose portal login access when creating a client.",
+        "Manage client organizations. A portal Login ID is always created; revoke access later in Users if needed.",
       descriptionReadonly: "View client organizations (read-only).",
       directoryTitle: "Client Directory",
       directoryDesc:
-        "Organization records, project assignments, and contact details. Portal logins are optional on create and managed in Users.",
+        "Organization records, project assignments, and contact details. A portal Login ID is always created on add; access is managed in Users.",
       companyNotFound: "Company not found.",
       addClient: "Add Client",
       addBulk: "Add Bulk",

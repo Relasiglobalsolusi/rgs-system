@@ -22,6 +22,8 @@ import {
   readSpreadsheetFile,
 } from "@/lib/bulk-import/xlsx";
 import { getNextClientShortCode } from "@/lib/client-short-code";
+import { assertClientNameAvailable } from "@/lib/client-name";
+import { normalizeClientName } from "@/lib/client-login-id";
 import { prisma } from "@/lib/prisma";
 import { canManageClients } from "@/lib/project-access";
 import { provisionClientUser } from "@/lib/provision-linked-user";
@@ -153,11 +155,13 @@ async function loadClientImportContext(file: File) {
 
   const existingClients = await prisma.client.findMany({
     where: { companyId: company.id },
-    select: { name: true },
+    select: { name: true, nameNormalized: true },
   });
 
   const seenNames = new Set(
-    existingClients.map((client) => client.name.trim().toLowerCase())
+    existingClients.map(
+      (client) => client.nameNormalized || normalizeClientName(client.name)
+    )
   );
 
   return { company, rows, seenNames };
@@ -183,7 +187,7 @@ export async function previewBulkImportClients(
 
     try {
       const parsed = parseClientImportRow(values, locale);
-      const nameKey = parsed.name.toLowerCase();
+      const nameKey = normalizeClientName(parsed.name);
 
       if (previewNames.has(nameKey)) {
         previewRows.push({
@@ -240,7 +244,7 @@ export async function confirmBulkImportClients(
   for (const { rowNumber, values } of rows) {
     try {
       const parsed = parseClientImportRow(values, locale);
-      const nameKey = parsed.name.toLowerCase();
+      const nameKey = normalizeClientName(parsed.name);
 
       if (seenNames.has(nameKey)) {
         recordImportSkipped(
@@ -255,12 +259,15 @@ export async function confirmBulkImportClients(
       nextSortOrder += SORT_ORDER_STEP;
 
       await prisma.$transaction(async (tx) => {
+        const nameNormalized = await assertClientNameAvailable(
+          { companyId: company.id, name: parsed.name },
+          tx
+        );
         const shortCode = await getNextClientShortCode(company.id, tx);
-        const { normalizeClientName } = await import("@/lib/client-login-id");
         const client = await tx.client.create({
           data: {
             name: parsed.name,
-            nameNormalized: normalizeClientName(parsed.name),
+            nameNormalized,
             clientType: parsed.clientType,
             shortCode,
             email: parsed.email,

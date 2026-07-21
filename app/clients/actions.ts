@@ -33,6 +33,8 @@ import {
   PAYMENT_TERMS_DAYS_OPTIONS,
 } from "@/lib/invoice-period";
 import { formatContactPersonName } from "@/lib/contact-person";
+import { assertClientNameAvailable } from "@/lib/client-name";
+import { assertClientCanBeSoftDeleted } from "@/lib/client-soft-delete";
 
 const ALLOWED_PAYMENT_TERMS_DAYS = new Set<number>(PAYMENT_TERMS_DAYS_OPTIONS);
 
@@ -177,10 +179,12 @@ export async function createClient(formData: FormData) {
     if (!company) throw new Error("Company not found.");
 
     const sortOrder = await nextCompanyScopedSortOrder("client", company.id);
-    const { normalizeClientName } = await import("@/lib/client-login-id");
-    const nameNormalized = normalizeClientName(identity.name);
 
     await prisma.$transaction(async (tx) => {
+      const nameNormalized = await assertClientNameAvailable(
+        { companyId: company.id, name: identity.name },
+        tx
+      );
       const shortCode = await getNextClientShortCode(company.id, tx);
       const client = await tx.client.create({
         data: {
@@ -270,20 +274,31 @@ export async function updateClient(id: string, formData: FormData) {
     await prisma.$transaction(async (tx) => {
       const existing = await tx.client.findUnique({
         where: { id },
-        select: { id: true },
+        select: { id: true, companyId: true, active: true },
       });
 
       if (!existing) {
         throw new Error("Client not found.");
       }
 
-      const { normalizeClientName } = await import("@/lib/client-login-id");
+      if (existing.active && !active) {
+        await assertClientCanBeSoftDeleted(id, tx);
+      }
+
+      const nameNormalized = await assertClientNameAvailable(
+        {
+          companyId: existing.companyId,
+          name: identity.name,
+          excludeId: id,
+        },
+        tx
+      );
 
       await tx.client.update({
         where: { id },
         data: {
           name: identity.name,
-          nameNormalized: normalizeClientName(identity.name),
+          nameNormalized,
           clientType,
           email: identity.email || null,
           phone: identity.phone || null,
@@ -308,6 +323,7 @@ export async function updateClient(id: string, formData: FormData) {
     });
 
     revalidatePath("/clients");
+    revalidatePath("/billing");
     revalidatePath("/users");
   } catch (error) {
     throw toActionError(error, "Failed to update client.");
@@ -315,27 +331,34 @@ export async function updateClient(id: string, formData: FormData) {
 }
 
 export async function deactivateClient(id: string) {
-  await assertCanManageClients();
+  try {
+    await assertCanManageClients();
 
-  const client = await prisma.client.findUnique({
-    where: { id },
-    select: { active: true },
-  });
-  if (!client) throw new Error("Client not found.");
-  if (!client.active) throw new Error("Client is already deleted.");
-
-  await prisma.$transaction(async (tx) => {
-    await tx.client.update({
+    const client = await prisma.client.findUnique({
       where: { id },
-      data: { active: false },
+      select: { active: true },
+    });
+    if (!client) throw new Error("Client not found.");
+    if (!client.active) throw new Error("Client is already deleted.");
+
+    await prisma.$transaction(async (tx) => {
+      await assertClientCanBeSoftDeleted(id, tx);
+
+      await tx.client.update({
+        where: { id },
+        data: { active: false },
+      });
+
+      // Soft-delete portal logins (credentials kept; clientId stays linked).
+      await softDeactivateClientLogins(tx, id);
     });
 
-    // Soft-delete portal logins (credentials kept; clientId stays linked).
-    await softDeactivateClientLogins(tx, id);
-  });
-
-  revalidatePath("/clients");
-  revalidatePath("/users");
+    revalidatePath("/clients");
+    revalidatePath("/billing");
+    revalidatePath("/users");
+  } catch (error) {
+    throw toActionError(error, "Failed to delete client.");
+  }
 }
 
 export async function bulkDeactivateClients(
@@ -356,6 +379,8 @@ export async function bulkDeactivateClients(
       if (!client.active) throw new Error("Client is already deleted.");
 
       await prisma.$transaction(async (tx) => {
+        await assertClientCanBeSoftDeleted(id, tx);
+
         await tx.client.update({
           where: { id },
           data: { active: false },
@@ -375,6 +400,7 @@ export async function bulkDeactivateClients(
 
   if (result.successCount > 0) {
     revalidatePath("/clients");
+    revalidatePath("/billing");
     revalidatePath("/users");
   }
 

@@ -1,7 +1,7 @@
 import { getToken } from "next-auth/jwt";
 import { NextRequest, NextResponse } from "next/server";
 
-import { fetchUserModuleOverrides } from "@/lib/module-overrides";
+import { fetchSessionAccessState } from "@/lib/session-access";
 import { canAccessRoute, type PermissionUser } from "@/lib/permissions";
 import type { EmployeeType, UserRole } from "@prisma/client";
 
@@ -62,13 +62,21 @@ export async function proxy(request: NextRequest) {
   }
 
   const userId = token.id ? String(token.id) : "";
-  const moduleOverrides = userId
-    ? await fetchUserModuleOverrides(userId)
-    : token.moduleOverrides &&
-        typeof token.moduleOverrides === "object" &&
-        !Array.isArray(token.moduleOverrides)
-      ? (token.moduleOverrides as Record<string, boolean>)
-      : null;
+  const access = userId ? await fetchSessionAccessState(userId) : null;
+
+  // getToken only decodes the cookie — re-check DB so revoke / soft-delete
+  // logs the user out on the next protected navigation.
+  if (!access?.allowed) {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("callbackUrl", pathname);
+    const response = NextResponse.redirect(loginUrl);
+    // Clear NextAuth session cookies so a stale JWT cannot bounce them back in.
+    response.cookies.delete("next-auth.session-token");
+    response.cookies.delete("__Secure-next-auth.session-token");
+    return response;
+  }
+
+  const moduleOverrides = access.moduleOverrides;
 
   const user: PermissionUser & {
     username?: string;
