@@ -1,26 +1,48 @@
+"use client";
+
 import { Inbox } from "lucide-react";
 
+import { useT } from "@/lib/i18n/use-t";
+import type { TranslateParams } from "@/lib/i18n/translate";
+
 type EmptyStateProps = {
-  title: string;
-  description: string;
+  /** Plain title (used when titleKey is omitted). */
+  title?: string;
+  /** Plain description (used when descriptionKey is omitted). */
+  description?: string;
+  /** Message key — preferred for server pages so locale switches work. */
+  titleKey?: string;
+  descriptionKey?: string;
+  titleParams?: TranslateParams;
+  descriptionParams?: TranslateParams;
 };
 
 export default function EmptyState({
   title,
   description,
+  titleKey,
+  descriptionKey,
+  titleParams,
+  descriptionParams,
 }: EmptyStateProps) {
+  const { t } = useT();
+  const resolvedTitle = titleKey ? t(titleKey, titleParams) : (title ?? "");
+  const resolvedDescription = descriptionKey
+    ? t(descriptionKey, descriptionParams)
+    : (description ?? "");
+
   return (
-    <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-white/10 bg-[#151b22] px-10 py-20 text-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#1c242d]">
-        <Inbox size={30} className="text-slate-500" />
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-accent-cyan/25 bg-card px-8 py-16 text-center sm:px-10">
+      <div className="flex h-14 w-14 items-center justify-center rounded-md bg-elevated text-accent-cyan">
+        <Inbox size={26} />
       </div>
 
-      <h3 className="mt-6 text-xl font-semibold text-white">
-        {title}
+      <h3 className="mt-5 text-lg font-semibold tracking-tight text-text">
+        {resolvedTitle}
       </h3>
 
-      <p className="mt-3 max-w-md text-sm leading-7 text-slate-500">
-        {description}
+      <p className="mt-2 max-w-md text-sm leading-6 text-muted">
+        {resolvedDescription}
       </p>
     </div>
   );

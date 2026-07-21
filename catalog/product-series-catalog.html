@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Product Series Catalog | PT Relasi Global Solusi</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --card: #151b22;
+      --primary: #54bfb4;
+      --purple: #586bb7;
+      --text: #ffffff;
+      --muted: #94a3b8;
+      --subtle: #64748b;
+      --border: rgba(255,255,255,0.06);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    @page portrait { size: A4 portrait; margin: 0; }
+    @page landscape { size: A4 landscape; margin: 0; }
+
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: #06090d;
+      color: var(--text);
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .page {
+      margin: 12px auto;
+      background: var(--bg);
+      box-shadow: 0 8px 32px rgba(0,0,0,.45);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .page.portrait {
+      width: 210mm;
+      min-height: 297mm;
+      page: portrait;
+    }
+
+    .page.sheet {
+      width: 297mm;
+      min-height: 210mm;
+      page: landscape;
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+    }
+
+    @media print {
+      body { background: var(--bg); }
+      .page {
+        margin: 0;
+        box-shadow: none;
+        page-break-after: always;
+        break-after: page;
+      }
+      .page:last-child { page-break-after: auto; }
+    }
+
+    .logo { height: 56px; width: auto; object-fit: contain; }
+    .logo-lg { height: 80px; }
+    .logo-xs { height: 18px; width: auto; opacity: .85; }
+
+    .gradient-text {
+      background: linear-gradient(135deg, var(--primary), var(--purple));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .gradient-bar { height: 4px; background: linear-gradient(90deg, var(--primary), var(--purple)); }
+
+    /* Cover */
+    .cover {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 48px 56px;
+      background:
+        radial-gradient(ellipse 80% 60% at 100% 0%, rgba(84,191,180,.12) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 0% 100%, rgba(88,107,183,.14) 0%, transparent 55%),
+        var(--bg);
+      min-height: 297mm;
+    }
+
+    .cover-top { display: flex; justify-content: space-between; align-items: flex-start; }
+    .cover-year {
+      font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+      color: var(--subtle); padding: 6px 12px;
+      border: 1px solid var(--border); border-radius: 999px;
+    }
+    .cover-center { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 40px 0; }
+    .cover-tag { font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: var(--primary); margin-bottom: 18px; font-weight: 600; }
+    .cover h1 { font-size: 46px; font-weight: 700; line-height: 1.1; letter-spacing: -.03em; max-width: 520px; }
+    .cover-sub { margin-top: 20px; font-size: 15px; color: var(--muted); max-width: 460px; line-height: 1.7; }
+    .cover-bottom { border-top: 1px solid var(--border); padding-top: 22px; }
+    .cover-contact { font-size: 12px; color: var(--muted); line-height: 1.8; }
+    .cover-contact strong { color: var(--text); }
+
+    /* TOC */
+    .toc-page { padding: 44px 52px; min-height: 297mm; }
+    .toc-page h2 { font-size: 28px; margin-bottom: 6px; }
+    .toc-page .toc-sub { color: var(--muted); font-size: 13px; margin-bottom: 28px; }
+    .toc-list { list-style: none; }
+    .toc-list li {
+      display: flex; align-items: baseline; padding: 10px 0;
+      border-bottom: 1px solid var(--border); font-size: 13px;
+    }
+    .toc-list .num { color: var(--primary); font-weight: 700; width: 36px; flex-shrink: 0; }
+    .toc-list .title { flex: 1; font-weight: 600; }
+    .toc-list .page-num { color: var(--subtle); font-size: 12px; }
+    .intro-note {
+      margin-top: 28px; padding: 14px 18px; background: var(--card);
+      border: 1px solid var(--border); border-left: 3px solid var(--primary);
+      border-radius: 0 10px 10px 0; font-size: 12px; color: var(--muted); line-height: 1.7;
+    }
+
+    /* Full PDF sheet pages */
+    .sheet-img {
+      flex: 1;
+      width: 100%;
+      height: calc(210mm - 28px);
+      object-fit: contain;
+      background: #ffffff;
+      display: block;
+    }
+
+    .sheet-footer {
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      background: var(--card);
+      border-top: 1px solid var(--border);
+      font-size: 8px;
+      color: var(--subtle);
+      letter-spacing: .04em;
+    }
+  </style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="page portrait cover">
+  <div class="cover-top">
+    <img class="logo logo-lg" src="assets/rgs-logo.png" alt="PT Relasi Global Solusi" />
+    <span class="cover-year">2026 Edition</span>
+  </div>
+  <div class="cover-center">
+    <span class="cover-tag">Equipment Catalog</span>
+    <h1>Professional <span class="gradient-text">Cleaning</span> &amp; Facility Equipment</h1>
+    <p class="cover-sub">Complete product series catalog — cleaning machines, vacuums, plastic products, jet sprayers, blowers, dispensers, and chemicals.</p>
+  </div>
+  <div class="cover-bottom">
+    <div class="cover-contact">
+      <strong>PT Relasi Global Solusi</strong><br />
+      Jalan Daan Mogot KM 14.5, Ruko Point 8 Blok F6<br />
+      Duri Kosambi, Cengkareng, West Jakarta, Indonesia<br />
+      Tel: +62 21 2295 2228 &nbsp;|&nbsp; contact@rgs.co.id
+    </div>
+  </div>
+</div>
+<div class="gradient-bar" style="width:210mm;margin:0 auto;"></div>
+
+<!-- TOC -->
+<div class="page portrait toc-page">
+  <img class="logo" src="assets/rgs-logo.png" alt="RGS" style="margin-bottom:28px;" />
+  <h2>Table of Contents</h2>
+  <p class="toc-sub">Product Series Catalog — Revised July 2026 · 117 product pages</p>
+  <ul class="toc-list">
+    <li><span class="num">01</span><span class="title">Cleaning Machine Series</span><span class="page-num">PDF p.1–17</span></li>
+    <li><span class="num">02</span><span class="title">Carpet & Sofa Cleaners / Vacuums</span><span class="page-num">PDF p.18–34</span></li>
+    <li><span class="num">03</span><span class="title">Plastic Products</span><span class="page-num">PDF p.35–65</span></li>
+    <li><span class="num">04</span><span class="title">High-Pressure Jet Sprayers</span><span class="page-num">PDF p.66–71</span></li>
+    <li><span class="num">05</span><span class="title">Blowers</span><span class="page-num">PDF p.72–75</span></li>
+    <li><span class="num">06</span><span class="title">Hand Dryers & Dispensers</span><span class="page-num">PDF p.76–105</span></li>
+    <li><span class="num">07</span><span class="title">Lithium Electric Mowers</span><span class="page-num">PDF p.106–111</span></li>
+    <li><span class="num">08</span><span class="title">Cleaning Chemicals</span><span class="page-num">PDF p.112–117</span></li>
+  </ul>
+  <div class="intro-note">
+    <strong>Complete catalog.</strong> All 117 pages from the official product series are included with original product photos, specifications, and model numbers — presented with RGS branding.
+  </div>
+</div>
+
+<!-- ALL PDF PAGES (1–117) -->
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-001.png" alt="Catalog page 1" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 3</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-002.png" alt="Catalog page 2" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 4</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-003.png" alt="Catalog page 3" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 5</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-004.png" alt="Catalog page 4" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 6</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-005.png" alt="Catalog page 5" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 7</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-006.png" alt="Catalog page 6" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 8</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-007.png" alt="Catalog page 7" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 9</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-008.png" alt="Catalog page 8" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 10</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-009.png" alt="Catalog page 9" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 11</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-010.png" alt="Catalog page 10" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 12</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-011.png" alt="Catalog page 11" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 13</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-012.png" alt="Catalog page 12" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 14</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-013.png" alt="Catalog page 13" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 15</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-014.png" alt="Catalog page 14" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 16</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-015.png" alt="Catalog page 15" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 17</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-016.png" alt="Catalog page 16" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 18</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-017.png" alt="Catalog page 17" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 19</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-018.png" alt="Catalog page 18" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 20</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-019.png" alt="Catalog page 19" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 21</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-020.png" alt="Catalog page 20" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 22</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-021.png" alt="Catalog page 21" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 23</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-022.png" alt="Catalog page 22" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 24</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-023.png" alt="Catalog page 23" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 25</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-024.png" alt="Catalog page 24" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 26</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-025.png" alt="Catalog page 25" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 27</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-026.png" alt="Catalog page 26" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 28</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-027.png" alt="Catalog page 27" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 29</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-028.png" alt="Catalog page 28" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 30</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-029.png" alt="Catalog page 29" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 31</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-030.png" alt="Catalog page 30" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 32</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-031.png" alt="Catalog page 31" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 33</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-032.png" alt="Catalog page 32" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 34</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-033.png" alt="Catalog page 33" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 35</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-034.png" alt="Catalog page 34" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 36</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-035.png" alt="Catalog page 35" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 37</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-036.png" alt="Catalog page 36" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 38</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-037.png" alt="Catalog page 37" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 39</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-038.png" alt="Catalog page 38" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 40</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-039.png" alt="Catalog page 39" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 41</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-040.png" alt="Catalog page 40" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 42</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-041.png" alt="Catalog page 41" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 43</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-042.png" alt="Catalog page 42" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 44</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-043.png" alt="Catalog page 43" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 45</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-044.png" alt="Catalog page 44" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 46</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-045.png" alt="Catalog page 45" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 47</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-046.png" alt="Catalog page 46" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 48</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-047.png" alt="Catalog page 47" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 49</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-048.png" alt="Catalog page 48" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 50</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-049.png" alt="Catalog page 49" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 51</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-050.png" alt="Catalog page 50" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 52</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-051.png" alt="Catalog page 51" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 53</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-052.png" alt="Catalog page 52" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 54</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-053.png" alt="Catalog page 53" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 55</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-054.png" alt="Catalog page 54" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 56</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-055.png" alt="Catalog page 55" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 57</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-056.png" alt="Catalog page 56" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 58</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-057.png" alt="Catalog page 57" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 59</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-058.png" alt="Catalog page 58" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 60</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-059.png" alt="Catalog page 59" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 61</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-060.png" alt="Catalog page 60" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 62</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-061.png" alt="Catalog page 61" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 63</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-062.png" alt="Catalog page 62" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 64</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-063.png" alt="Catalog page 63" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 65</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-064.png" alt="Catalog page 64" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 66</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-065.png" alt="Catalog page 65" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 67</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-066.png" alt="Catalog page 66" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 68</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-067.png" alt="Catalog page 67" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 69</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-068.png" alt="Catalog page 68" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 70</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-069.png" alt="Catalog page 69" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 71</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-070.png" alt="Catalog page 70" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 72</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-071.png" alt="Catalog page 71" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 73</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-072.png" alt="Catalog page 72" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 74</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-073.png" alt="Catalog page 73" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 75</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-074.png" alt="Catalog page 74" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 76</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-075.png" alt="Catalog page 75" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 77</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-076.png" alt="Catalog page 76" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 78</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-077.png" alt="Catalog page 77" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 79</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-078.png" alt="Catalog page 78" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 80</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-079.png" alt="Catalog page 79" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 81</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-080.png" alt="Catalog page 80" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 82</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-081.png" alt="Catalog page 81" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 83</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-082.png" alt="Catalog page 82" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 84</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-083.png" alt="Catalog page 83" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 85</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-084.png" alt="Catalog page 84" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 86</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-085.png" alt="Catalog page 85" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 87</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-086.png" alt="Catalog page 86" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 88</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-087.png" alt="Catalog page 87" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 89</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-088.png" alt="Catalog page 88" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 90</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-089.png" alt="Catalog page 89" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 91</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-090.png" alt="Catalog page 90" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 92</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-091.png" alt="Catalog page 91" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 93</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-092.png" alt="Catalog page 92" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 94</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-093.png" alt="Catalog page 93" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 95</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-094.png" alt="Catalog page 94" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 96</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-095.png" alt="Catalog page 95" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 97</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-096.png" alt="Catalog page 96" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 98</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-097.png" alt="Catalog page 97" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 99</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-098.png" alt="Catalog page 98" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 100</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-099.png" alt="Catalog page 99" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 101</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-100.png" alt="Catalog page 100" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 102</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-101.png" alt="Catalog page 101" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 103</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-102.png" alt="Catalog page 102" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 104</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-103.png" alt="Catalog page 103" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 105</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-104.png" alt="Catalog page 104" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 106</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-105.png" alt="Catalog page 105" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 107</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-106.png" alt="Catalog page 106" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 108</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-107.png" alt="Catalog page 107" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 109</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-108.png" alt="Catalog page 108" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 110</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-109.png" alt="Catalog page 109" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 111</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-110.png" alt="Catalog page 110" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 112</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-111.png" alt="Catalog page 111" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 113</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-112.png" alt="Catalog page 112" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 114</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-113.png" alt="Catalog page 113" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 115</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-114.png" alt="Catalog page 114" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 116</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-115.png" alt="Catalog page 115" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 117</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-116.png" alt="Catalog page 116" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 118</span>
+  </div>
+</div>
+<div class="page sheet">
+  <img class="sheet-img" src="assets/pages/page-117.png" alt="Catalog page 117" />
+  <div class="sheet-footer">
+    <img class="logo-xs" src="assets/rgs-logo.png" alt="RGS" />
+    <span>PT Relasi Global Solusi · Product Catalog 2026 · Page 119</span>
+  </div>
+</div>
+
+<!-- BACK COVER -->
+<div class="page portrait cover">
+  <div class="cover-top">
+    <img class="logo logo-lg" src="assets/rgs-logo.png" alt="PT Relasi Global Solusi" />
+  </div>
+  <div class="cover-center">
+    <span class="cover-tag">Get in Touch</span>
+    <h1>Reliable Equipment.<br /><span class="gradient-text">Professional</span> Results.</h1>
+    <p class="cover-sub">For product inquiries, pricing, and technical specifications, contact our team today.</p>
+  </div>
+  <div class="cover-bottom">
+    <div class="cover-contact">
+      <strong>PT Relasi Global Solusi</strong><br />
+      Tel: +62 21 2295 2228 · Email: contact@rgs.co.id
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

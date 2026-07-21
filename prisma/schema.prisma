@@ -7,25 +7,27 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserType {
-  INTERNAL
-  CLIENT
+enum UserRole {
+  ADMIN
 }
 
-enum UserRole {
-  SUPER_ADMIN
-  ADMIN
-  HR
-  SALES
-  PURCHASING
-  WAREHOUSE
-  FINANCE
-  PROJECT_MANAGER
-  ENGINEER
-  TECHNICIAN
-  CLIENT_OWNER
-  CLIENT_MANAGER
-  CLIENT_USER
+enum EmployeeType {
+  HEAD_OFFICE
+  PROJECT_SITE
+}
+
+/// Full-time vs part-time employment (workforce model).
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+}
+
+/// Where the employee currently works — system-driven (Assign / Release), not a free dropdown.
+enum Placement {
+  AVAILABLE
+  ON_PROJECT
+  HEAD_OFFICE
+  FIELD
 }
 
 enum EmploymentStatus {
@@ -35,6 +37,111 @@ enum EmploymentStatus {
   ON_LEAVE
 }
 
+enum ProjectStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  ON_HOLD
+  CANCELLED
+}
+
+enum ProjectSubCategory {
+  REGULAR_CLEANING
+  GENERAL_CLEANING
+  FACADE_CLEANING
+}
+
+/// Project work lane — matched to OM Approval Areas for approve/dashboard scope.
+enum ServiceArea {
+  CLEANING
+  PARKING
+  SECURITY
+}
+
+/// Client organization type (tax identity + Multi-Project defaults).
+enum ClientType {
+  COMPANY
+  INDIVIDUAL
+}
+
+/// When Multi-Project Access is on: group codes, or master + group codes.
+enum MultiProjectSecurityMode {
+  GROUP_ONLY
+  MASTER_AND_GROUP
+}
+
+/// Regular project billing period basis.
+enum BillingPeriodBasis {
+  CALENDAR_MONTH
+  CONTRACT_CYCLE
+}
+
+/// Client portal security code kind.
+enum ClientSecurityCodeKind {
+  MASTER
+  GROUP
+}
+
+enum ProgressReportStatus {
+  SUBMITTED
+}
+
+enum InvoicePeriodStatus {
+  ONGOING
+  COMPILING
+  /// Reconcile / progress package sent; waiting for client Approve or Revise.
+  AWAITING_CLIENT_REVIEW
+  AWAITING_PAYMENT
+  /// Client submitted proof of payment; awaiting admin/ops verification.
+  PENDING_VERIFICATION
+  PAID
+  OVERDUE
+}
+
+/// What the client is reviewing before an invoice is issued.
+enum ClientReviewKind {
+  /// Regular Cleaning — CICO reconciliation report for the billing period.
+  RECONCILIATION
+  /// General / Facade — compiled progress reports for the billing period.
+  PROGRESS
+}
+
+/// Client ↔ HO approval loop before invoice issue.
+enum ClientReviewStatus {
+  NONE
+  /// Package sent; client must Approve or Revise.
+  AWAITING_CLIENT
+  /// Client approved — invoice should be (or was) auto-generated.
+  CLIENT_APPROVED
+  /// Client requested changes; waiting for HO under Finance → Reconciliation.
+  CLIENT_REVISED
+  /// HO accepted the client revision (revised amount/number may be set).
+  HO_APPROVED_REVISION
+  /// HO rejected the revision; back with HO note/proof for the client.
+  HO_REJECTED_REVISION
+}
+
+/// How a project is billed.
+/// MONTHLY — Regular Cleaning contracts (calendar-month periods).
+/// ON_COMPLETION — short General/Facade: full invoice when work is done.
+/// MILESTONE — General/Facade only: payment schedule (N periods at cumulative %) invoiced when ready.
+enum BillingMode {
+  MONTHLY
+  ON_COMPLETION
+  MILESTONE
+}
+
+enum LeaveType {
+  PERMISSION
+  SICK
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model Company {
   id        String   @id @default(cuid())
   name      String
@@ -42,127 +149,792 @@ model Company {
   phone     String?
   address   String?
 
-  users       User[]
-  employees   Employee[]
-  departments Department[]
-  projects    Project[]
-  auditLogs   AuditLog[]
+  /// Recipient bank for client transfers (shown on invoice + proof verification).
+  bankName          String?
+  bankAccountNumber String?
+  /// Account holder name as printed on bank transfer proofs (optional).
+  bankAccountName   String?
+
+  users               User[]
+  employees           Employee[]
+  employeeCategories  EmployeeCategory[]
+  positions           Position[]
+  departments         Department[]
+  clients             Client[]
+  vendors             Vendor[]
+  projects            Project[]
+  invoiceCompilations InvoiceCompilation[]
+  purchaseInvoices    PurchaseInvoice[]
+  auditLogs           AuditLog[]
+  websiteContent      WebsiteContent?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-model Department {
-  id          String   @id @default(cuid())
+model WebsiteContent {
+  id        String  @id @default(cuid())
+  content   Json
+  published Boolean @default(false)
 
+  companyId String  @unique
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EmployeeCategory {
+  id        String  @id @default(cuid())
+  name      String
+  slug      String
+  prefix    String
+  active    Boolean @default(true)
+  sortOrder Int     @default(100)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  employees Employee[]
+  positions Position[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, slug])
+  @@unique([companyId, prefix])
+}
+
+/// Job title / role within a department (e.g. Operations → Cleaning staff).
+model Position {
+  id          String  @id @default(cuid())
   name        String
-  code        String   @unique
+  slug        String
   description String?
-
-  companyId   String
-  company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
-  employees   Employee[]
-
+  sortOrder   Int     @default(100)
   active      Boolean @default(true)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  categoryId String
+  category   EmployeeCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  employees Employee[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([categoryId, slug])
+  @@unique([categoryId, name])
+  @@index([companyId, categoryId])
+}
+
+model Department {
+  id          String  @id @default(cuid())
+  name        String
+  code        String  @unique
+  description String?
+  sortOrder   Int     @default(0)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  employees Employee[]
+
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Employee {
   id String @id @default(cuid())
 
-  // Identity
   employeeNo String @unique
+  firstName  String
+  lastName   String
 
-  firstName String
-  lastName  String
-
-  // Contact
   email String?
   phone String?
-
   avatar String?
+  idDocumentUrl String?
 
-  // Personal
-  gender String?
+  gender              String?
+  dateOfBirth         DateTime?
+  address             String?
+  city                String?
+  country             String?
+  emergencyContact    String?
+  emergencyPhone      String?
 
-  dateOfBirth DateTime?
+  /// Denormalized display title from Position.name (kept for history / exports).
+  position         String?
+  positionId       String?
+  jobPosition      Position?       @relation(fields: [positionId], references: [id], onDelete: SetNull)
 
-  address String?
+  employmentType      EmploymentType   @default(FULL_TIME)
+  placement           Placement        @default(AVAILABLE)
+  /// Excel / form portal Yes/No — especially used for Corporate overrides.
+  portalAccessRequested Boolean        @default(false)
+  /// Optional note shown on login when access was revoked (e.g. PT off-project).
+  loginRevokedReason  String?
 
-  city String?
+  /// OM only: which Service Areas this manager may approve and see.
+  omApprovalAreas     ServiceArea[]    @default([])
 
-  country String?
-
-  emergencyContact String?
-
-  emergencyPhone String?
-
-  // Employment
-  position String?
-
-  status EmploymentStatus @default(ACTIVE)
-
-  hiredAt DateTime?
+  employeeType        EmployeeType     @default(PROJECT_SITE)
+  status              EmploymentStatus @default(ACTIVE)
+  archivedFromDirectory Boolean @default(false)
+  hiredAt      DateTime?
 
   companyId String
-  company Company @relation(
-    fields: [companyId],
-    references: [id],
-    onDelete: Cascade
-  )
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   departmentId String?
-  department Department? @relation(
-    fields: [departmentId],
-    references: [id]
-  )
+  department   Department? @relation(fields: [departmentId], references: [id])
+
+  categoryId String?
+  category   EmployeeCategory? @relation(fields: [categoryId], references: [id])
 
   userId String? @unique
-  user User? @relation(
-    fields: [userId],
-    references: [id]
-  )
+  user   User?   @relation(fields: [userId], references: [id])
+
+  projectAssignments ProjectAssignment[]
+  dailyProgress      DailyProgress[]
+  progressReports    ProgressReport[]
+  attendances        Attendance[]
+  leaveRequests      LeaveRequest[]
+
+  /// Manual directory order (lower = higher in lists).
+  sortOrder Int @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model User {
-  id           String   @id @default(cuid())
-
+  id           String @id @default(cuid())
   name         String
-  email        String   @unique
+  username     String @unique
+  email        String? @unique
   passwordHash String
+  passwordDisplay String?
 
-  type UserType
-  role UserRole
+  mustSetPassword Boolean @default(false)
 
-  active Boolean @default(true)
+  role             UserRole
+  active           Boolean @default(true)
+  moduleOverrides  Json?
+  /// Per-user sidebar item order within sections: { "Operations": ["projects", ...], ... }
+  sidebarOrder     Json?
+  /// Manual directory order (lower = higher in lists).
+  sortOrder        Int     @default(0)
 
   companyId String
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id])
+
+  vendorId String?
+  vendor   Vendor? @relation(fields: [vendorId], references: [id])
 
   employee Employee?
 
-  auditLogs AuditLog[]
+  reviewedLeaves        LeaveRequest[]       @relation("LeaveReviewer")
+  auditLogs             AuditLog[]
+  invoiceCompilations   InvoiceCompilation[] @relation("CompilationCreator")
+  passwordResetTokens   PasswordResetToken[]
+  compiledInvoicePeriods ProjectInvoicePeriod[] @relation("InvoicePeriodCompiler")
+  taxInvoiceDonePeriods  ProjectInvoicePeriod[] @relation("TaxInvoiceAcknowledger")
+  verifiedInvoicePeriods ProjectInvoicePeriod[] @relation("InvoicePaymentVerifier")
+  reconciledInvoicePeriods ProjectInvoicePeriod[] @relation("InvoicePeriodReconciler")
+  hoReviewedInvoicePeriods ProjectInvoicePeriod[] @relation("InvoicePeriodHoReviewer")
+  createdPurchaseInvoices PurchaseInvoice[] @relation("PurchaseInvoiceCreator")
+  progressWarningAcks   ProgressWarningAck[]
+  leaveApprovalAcks     LeaveApprovalAck[]
+  billingClientReviewEvents BillingClientReviewEvent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-model Project {
-  id String @id @default(cuid())
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 
-  name        String
-  description String?
+  @@index([userId])
+}
 
-  progress Int @default(0)
+model Client {
+  id                    String  @id @default(cuid())
+  name                  String
+  /// Normalized name for uniqueness (trim, collapse spaces, lowercase).
+  nameNormalized        String?
+  /// Short uniform code for filenames / refs (e.g. C001). Auto-assigned; not editable.
+  shortCode             String
+  /// Company vs Individual — drives tax ID rules and Multi-Project defaults.
+  clientType            ClientType @default(COMPANY)
+  email                 String?
+  phone                 String?
+  address               String?
+  /// Company tax ID (NPWP) — required when a project uses tax invoice (faktur).
+  npwp                  String?
+  /// Individual clients without NPWP may use NIK/KTP for tax identity.
+  nationalId            String?
+  contactPersonFirstName String?
+  contactPersonLastName  String?
+  contactPersonPosition  String?
+  contactPersonEmail     String?
+  contactPersonPhone     String?
+  /// When the organization became an RGS client (tenure tracking).
+  clientSince            DateTime @default(now())
+  /// Payment terms in days after invoice submit (0 = Cash; e.g. 14, 30). Used for dueAt.
+  paymentTermsDays       Int      @default(14)
+  /// Manual directory order (lower = higher in lists).
+  sortOrder              Int      @default(0)
+  /// Opt-in Multi-Project Access (Security Codes after login).
+  multiProjectAccess     Boolean @default(false)
+  multiProjectSecurityMode MultiProjectSecurityMode?
 
   companyId String
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  projects       Project[]
+  users          User[]
+  projectGroups  ClientProjectGroup[]
+  securityCodes  ClientSecurityCode[]
+
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, shortCode])
+  @@index([companyId, nameNormalized])
+}
+
+/// Project group for Multi-Project Access (one Security Code per group).
+model ClientProjectGroup {
+  id        String @id @default(cuid())
+  name      String
+  sortOrder Int    @default(0)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  projects      Project[]
+  securityCodes ClientSecurityCode[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clientId])
+}
+
+/// Hashed Security Code for Master or Group unlock (letters + numbers).
+model ClientSecurityCode {
+  id             String                 @id @default(cuid())
+  codeHash       String
+  /// Last 2 chars hint for Admin UI only (optional).
+  codeHint       String?
+  kind           ClientSecurityCodeKind
+  failedAttempts Int                    @default(0)
+  lockedUntil    DateTime?
+  active         Boolean                @default(true)
+  /// Future face-verification enrollment placeholder.
+  faceTemplateRef String?
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  groupId String?
+  group   ClientProjectGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clientId])
+}
+
+model Vendor {
+  id                     String  @id @default(cuid())
+  name                   String
+  /// Short uniform code for filenames / refs (e.g. V001). Auto-assigned; not editable.
+  shortCode              String
+  email                  String?
+  phone                  String?
+  address                String?
+  /// Company tax ID (NPWP).
+  npwp                   String?
+  contactPersonFirstName String?
+  contactPersonLastName  String?
+  contactPersonPosition  String?
+  contactPersonEmail     String?
+  contactPersonPhone     String?
+  /// When the organization became an RGS vendor/supplier (tenure tracking).
+  vendorSince            DateTime @default(now())
+  /// Payment terms in days after supplier invoice (0 = Cash; e.g. 14, 30).
+  paymentTermsDays       Int      @default(14)
+  /// Manual directory order (lower = higher in lists).
+  sortOrder              Int      @default(0)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  users User[]
+
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  purchaseInvoices PurchaseInvoice[]
+
+  @@unique([companyId, shortCode])
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  location    String?
+  latitude    Float?
+  longitude   Float?
+  locationRadiusMeters Int? @default(50)
+  /// Planning estimate (contract/job). Kept when moving to In Progress / back to Planning.
+  estimatedStartDate DateTime?
+  /// General/Facade: initial estimated duration in days (planning / create). Kept for completed comparison.
+  estimatedDurationDays Int?
+  /// Real contract/job start — set when work order is received (Move to In Progress).
+  startDate   DateTime?
+  /// Real contract/job end (or expected completion for General/Facade).
+  endDate     DateTime?
+  /// Legacy field — cleaning projects use stage/progress reports instead of %.
+  progress    Int           @default(0)
+  /// Preferred day-of-month for anniversary auto-invoice (day after cycle period ends; derived from real startDate).
+  invoicingDay Int          @default(1)
+  /// Total / monthly contract value (IDR). Set in Invoice and Billing; used when compiling invoices unless a period has its own amount.
+  contractPrice Decimal?    @db.Decimal(14, 2)
+  billingMode BillingMode   @default(MONTHLY)
+  status      ProjectStatus @default(PLANNED)
+  subCategory ProjectSubCategory @default(REGULAR_CLEANING)
+  /// Work lane for OM Approval Areas / dashboard scope.
+  serviceArea ServiceArea @default(CLEANING)
+  /// Regular: Calendar Month vs Contract Cycle (anniversary from start day).
+  billingPeriodBasis BillingPeriodBasis?
+  /// Signed contract proof — required before Planning → In Progress.
+  contractDocumentUrl String?
+  /// When true, each issued commercial invoice is queued for a tax invoice (faktur).
+  requiresTaxInvoice Boolean @default(false)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id])
+
+  /// Multi-Project Access group (optional).
+  groupId String?
+  group   ClientProjectGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  assignments    ProjectAssignment[]
+  dailyProgress  DailyProgress[]
+  progressReports ProgressReport[]
+  invoicePeriods ProjectInvoicePeriod[]
+  attendances    Attendance[]
+  progressWarningAcks ProgressWarningAck[]
+  contractExtensions ClientContractExtension[]
+
+  /// Manual directory order (lower = higher in lists).
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([serviceArea])
+  @@index([groupId])
+}
+
+/// History of Regular contract extensions (proof required; lengthen only).
+model ClientContractExtension {
+  id              String   @id @default(cuid())
+  extendedOn      DateTime @default(now())
+  previousEndDate DateTime
+  newEndDate      DateTime
+  proofUrl        String
+  notes           String?
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([projectId])
+}
+
+model InvoiceCompilation {
+  id           String  @id @default(cuid())
+  year         Int
+  month        Int
+  locked       Boolean @default(false)
+  snapshotData Json?
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  createdById String?
+  createdBy   User?   @relation("CompilationCreator", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, year, month])
+}
+
+/// Supplier bill / purchase invoice uploaded by RGS as buyer (PPN Masukan later).
+model PurchaseInvoice {
+  id String @id @default(cuid())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  /// Vendor display name (snapshot from Vendor, or free-text when entered manually).
+  supplierName String
+  /// Optional link to the company vendor directory.
+  vendorId String?
+  vendor   Vendor? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  /// Vendor invoice number or reference.
+  invoiceRef   String
+  invoiceDate  DateTime @db.Date
+  amount       Decimal  @db.Decimal(14, 2)
+  /// Stored under /uploads/purchase-invoices.
+  filePath     String
+  /// Optional faktur pajak (input VAT) — separate from the commercial purchase invoice.
+  taxInvoiceFilePath    String?
+  taxInvoiceUploadedAt  DateTime?
+  /// Digits-only Kode dan Nomor Seri Faktur Pajak (duplicate detection across purchases).
+  taxInvoiceSerial       String?
+  /// Issued date printed on the Faktur Pajak (calendar day).
+  taxInvoiceIssuedAt     DateTime? @db.Date
+  /// SHA-256 of the uploaded tax invoice file (reuse detection).
+  taxInvoiceDocumentHash String?
+  notes        String?
+  /// Whether the document includes PPN (input VAT) — for later PPN Masukan workflows.
+  includesPpn  Boolean  @default(false)
+
+  createdById String?
+  createdBy   User?   @relation("PurchaseInvoiceCreator", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([companyId, invoiceDate])
+  @@index([vendorId])
+  @@index([taxInvoiceSerial])
+  @@index([taxInvoiceDocumentHash])
+  @@index([taxInvoiceIssuedAt, amount])
+}
+
+model ProjectAssignment {
+  id String @id @default(cuid())
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  /// Staff shift start as HH:mm (local). Expected clock-in is before this time.
+  shiftStart String?
+  /// Staff shift end as HH:mm (local). May be earlier than start for overnight shifts.
+  shiftEnd String?
+
+  assignedAt DateTime @default(now())
+
+  @@unique([projectId, employeeId])
+}
+
+model DailyProgress {
+  id String @id @default(cuid())
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  date            DateTime @db.Date
+  activity        String
+  progressPercent Int      @default(0)
+
+  photos ProgressPhoto[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, employeeId, date])
+}
+
+model ProgressPhoto {
+  id String @id @default(cuid())
+
+  dailyProgressId String
+  dailyProgress   DailyProgress @relation(fields: [dailyProgressId], references: [id], onDelete: Cascade)
+
+  url     String
+  caption String?
+
+  createdAt DateTime @default(now())
+}
+
+/// Staff stage / progress report with photo documentation for cleaning projects.
+model ProgressReport {
+  id String @id @default(cuid())
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  reportDate DateTime @db.Date
+  /// UI: "Service area" — where/what zone was cleaned (lobby, restrooms).
+  stageLabel String?
+  notes      String?
+  status     ProgressReportStatus @default(SUBMITTED)
+
+  invoicePeriodId String?
+  invoicePeriod   ProjectInvoicePeriod? @relation(fields: [invoicePeriodId], references: [id], onDelete: SetNull)
+
+  photos ProgressReportPhoto[]
+
+  /// Manual directory order (lower = higher in lists).
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId, reportDate])
+  @@index([invoicePeriodId])
+}
+
+model ProgressReportPhoto {
+  id String @id @default(cuid())
+
+  progressReportId String
+  progressReport   ProgressReport @relation(fields: [progressReportId], references: [id], onDelete: Cascade)
+
+  url     String
+  caption String?
+
+  createdAt DateTime @default(now())
+}
+
+/// Persisted dismissal of a "missing progress report" warning for a user.
+model ProgressWarningAck {
+  id String @id @default(cuid())
+
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  /// Calendar day that had no progress report (Asia/Jakarta date-only).
+  reportDate DateTime @db.Date
+
+  acknowledgedAt DateTime @default(now())
+
+  @@unique([userId, projectId, reportDate])
+  @@index([userId])
+}
+
+/// Persisted dismissal of a "leave approved" dashboard notification for a user.
+model LeaveApprovalAck {
+  id String @id @default(cuid())
+
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  leaveRequestId String
+  leaveRequest   LeaveRequest @relation(fields: [leaveRequestId], references: [id], onDelete: Cascade)
+
+  acknowledgedAt DateTime @default(now())
+
+  @@unique([userId, leaveRequestId])
+  @@index([userId])
+}
+
+/// Monthly, milestone, or completion billing period for a cleaning project.
+model ProjectInvoicePeriod {
+  id String @id @default(cuid())
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  periodStart DateTime @db.Date
+  periodEnd   DateTime @db.Date
+  label       String?
+  status      InvoicePeriodStatus @default(ONGOING)
+
+  /// Invoice amount for this period (IDR). Null for legacy monthly compiles without a price.
+  amount           Decimal? @db.Decimal(14, 2)
+  /// Cumulative project progress % this milestone represents (e.g. 30, 60, 100).
+  milestonePercent Float?
+
+  invoicePdfPath String?
+  reportCount    Int     @default(0)
+  submittedAt    DateTime?
+  /// Payment due date — set on submit (issue date + client paymentTermsDays; 0 = Cash).
+  dueAt          DateTime?
+  paidAt         DateTime?
+  compileNote    String?
+
+  /// Staff reconciled the cycle (progress/amount check) before submitting the invoice.
+  /// Required for MONTHLY (Regular Cleaning) in-progress invoicing.
+  reconciledAt   DateTime?
+  reconciledById String?
+  reconciledBy   User?     @relation("InvoicePeriodReconciler", fields: [reconciledById], references: [id])
+
+  /// Client portal review of reconcile / progress package before invoice issue.
+  clientReviewKind   ClientReviewKind?
+  clientReviewStatus ClientReviewStatus @default(NONE)
+  /// PDF of the reconciliation (CICO) or progress package sent to the client.
+  reviewReportPdfPath String?
+  reviewSentToClientAt DateTime?
+  clientReviewedAt     DateTime?
+  clientRevisionNote   String?
+  /// Client upload under /uploads/client-review-proofs.
+  clientRevisionProofPath String?
+  hoReviewNote         String?
+  hoReviewProofPath    String?
+  hoReviewedAt         DateTime?
+  hoReviewedById       String?
+  hoReviewedBy         User?     @relation("InvoicePeriodHoReviewer", fields: [hoReviewedById], references: [id])
+  /// When HO approves a client revision, they may set a revised commercial amount/number.
+  revisedInvoiceAmount Decimal? @db.Decimal(14, 2)
+  revisedInvoiceNumber String?
+
+  reviewEvents BillingClientReviewEvent[]
+
+  /// Client-uploaded proof of payment (image or PDF under /uploads/payment-proofs).
+  paymentProofPath       String?
+  paymentProofUploadedAt DateTime?
+  paymentVerifiedAt      DateTime?
+  paymentVerifiedById    String?
+  paymentVerifiedBy      User?     @relation("InvoicePaymentVerifier", fields: [paymentVerifiedById], references: [id])
+
+  /// Copied from project.requiresTaxInvoice when the invoice is issued.
+  taxInvoiceRequired Boolean   @default(false)
+  /// Uploaded tax invoice (faktur pajak) document under /uploads/tax-invoices.
+  taxInvoiceDocumentPath       String?
+  taxInvoiceDocumentUploadedAt DateTime?
+  /// Digits-only Kode dan Nomor Seri Faktur Pajak (for duplicate detection).
+  taxInvoiceSerial             String?
+  /// Issued date printed on the Faktur Pajak (calendar day).
+  taxInvoiceIssuedAt           DateTime? @db.Date
+  /// SHA-256 of the uploaded tax invoice file (reuse detection).
+  taxInvoiceDocumentHash       String?
+  /// When set, this period leaves the Tax Invoice reminder queue.
+  taxInvoiceDoneAt   DateTime?
+  taxInvoiceDoneById String?
+  taxInvoiceDoneBy   User?     @relation("TaxInvoiceAcknowledger", fields: [taxInvoiceDoneById], references: [id])
+
+  compiledById String?
+  compiledBy   User?   @relation("InvoicePeriodCompiler", fields: [compiledById], references: [id])
+
+  reports ProgressReport[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, periodStart, periodEnd])
+  @@index([projectId, status])
+  @@index([clientReviewStatus])
+  @@index([taxInvoiceRequired, taxInvoiceDoneAt])
+  @@index([taxInvoiceSerial])
+  @@index([taxInvoiceDocumentHash])
+  @@index([taxInvoiceIssuedAt, amount])
+}
+
+/// Audit trail for client ↔ HO reconcile / progress approval rounds.
+model BillingClientReviewEvent {
+  id String @id @default(cuid())
+
+  invoicePeriodId String
+  invoicePeriod   ProjectInvoicePeriod @relation(fields: [invoicePeriodId], references: [id], onDelete: Cascade)
+
+  /// Actor role for the event: CLIENT | HO | SYSTEM
+  actorRole String
+  userId    String?
+  user      User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  /// e.g. SENT_TO_CLIENT, CLIENT_APPROVED, CLIENT_REVISED, HO_APPROVED, HO_REJECTED, INVOICE_ISSUED
+  action String
+  note   String?
+  proofPath String?
+  /// Snapshot of review status after this event.
+  statusAfter ClientReviewStatus?
+
+  createdAt DateTime @default(now())
+
+  @@index([invoicePeriodId, createdAt])
+  @@index([userId])
+}
+
+model Attendance {
+  id String @id @default(cuid())
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id])
+
+  date     DateTime  @db.Date
+  checkIn  DateTime?
+  checkOut DateTime?
+  note     String?
+
+  checkInLat            Float?
+  checkInLng            Float?
+  checkOutLat           Float?
+  checkOutLng           Float?
+  checkInDistanceMeters  Float?
+  checkOutDistanceMeters Float?
+
+  /** On-site proof photo captured at check-in (public path under /uploads/cico). */
+  checkInPhotoUrl String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([employeeId, date])
+}
+
+model LeaveRequest {
+  id String @id @default(cuid())
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  type      LeaveType
+  startDate DateTime  @db.Date
+  endDate   DateTime  @db.Date
+  reason    String
+  proofUrl  String?
+
+  status     ApprovalStatus @default(PENDING)
+  reviewNote String?
+
+  reviewedById String?
+  reviewedBy   User?     @relation("LeaveReviewer", fields: [reviewedById], references: [id])
+  reviewedAt   DateTime?
+
+  approvalAcks LeaveApprovalAck[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -171,20 +943,19 @@ model Project {
 model AuditLog {
   id String @id @default(cuid())
 
-  action String
-  entity String
-  entityId String?
-
+  action      String
+  entity      String
+  entityId    String?
   description String?
 
   ipAddress String?
   userAgent String?
 
   companyId String
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   userId String?
-  user User? @relation(fields: [userId], references: [id])
+  user   User? @relation(fields: [userId], references: [id])
 
   createdAt DateTime @default(now())
 

@@ -1,7 +1,6 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # dependencies
 /node_modules
+/catalog/node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -24,21 +23,36 @@
 .DS_Store
 *.pem
 
+# uploads
+/public/uploads/
+/public/proofs/
+/public/progress/
+
 # debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env
 .env*
+!.env.example
 
 # vercel
 .vercel
 
 # typescript
 *.tsbuildinfo
-next-env.d.ts
 
-/app/generated/prisma
+# stale generated output
+/app/generated/
+
+# editor
 .vscode/
+.cursor/
+
+# local scratch
+/tmp-*/
+/tmp-*.txt
+/tmp-*.xlsx
+/assets/
