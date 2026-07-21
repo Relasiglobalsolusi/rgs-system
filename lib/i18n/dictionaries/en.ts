@@ -1117,17 +1117,17 @@ export const en = {
           "Cash is due when the supplier invoice is recorded; Net terms are due within the selected number of days.",
         paymentTermsCash: "Cash — due when invoice is submitted",
         paymentTermsNet: "Net {days} — due within {days} days of invoice",
-        contactPerson: "Contact person",
+        contactPerson: "Contact Person",
         contactPersonDescCreate:
           "Primary point of contact at the vendor organization. If portal login is Yes, the username uses the contact person first name.",
         contactPersonDescEdit:
           "Primary point of contact at the vendor organization.",
-        contactFirstName: "Contact person first name",
-        contactLastName: "Contact person last name",
-        contactPosition: "Contact person position",
+        contactFirstName: "Contact Person First Name",
+        contactLastName: "Contact Person Last Name",
+        contactPosition: "Contact Person Position",
         contactEmail: "Contact Person Email",
-        contactPhone: "Contact person phone",
-        portalAccess: "Portal access",
+        contactPhone: "Contact Person Phone",
+        portalAccess: "Portal Access",
         portalAccessDesc:
           "Optional. Choose whether to create a linked Users portal login for this vendor.",
         createPortalLogin: "Create portal login access for this vendor?",
@@ -2572,6 +2572,8 @@ export const en = {
       "If an account exists for that username, a password reset link has been sent to the recovery email on file.",
     forgotNoEmail:
       "This account has no recovery email on file. Please contact your administrator.",
+    forgotSendFailed:
+      "We could not send the reset email. Check SMTP settings or try again later.",
     forgotFailed: "We could not process your request. Please try again.",
     resetTitle: "Set new password",
     resetSubtitle: "Choose a new password for your account.",
@@ -2604,7 +2606,7 @@ export const en = {
     enterNewPassword: "Enter new password",
     confirmNewPassword: "Confirm new password",
     passwordsDoNotMatch: "Passwords do not match.",
-    passwordTooShort: "Password must be at least 6 characters.",
+    passwordTooShort: "Password must be at least 8 characters.",
     invalidRecoveryEmail: "Enter a valid recovery email address.",
     recoveryEmailTaken: "That recovery email is already in use.",
     savePasswordFailed: "We could not save your password. Please try again.",

@@ -17,10 +17,12 @@ const PROTECTED_PREFIXES = [
   "/users",
   "/departments",
   "/clients",
+  "/vendors",
   "/reports",
   "/billing",
   "/invoicing",
   "/website",
+  "/multi-project-unlock",
 ];
 
 function isProtectedPath(pathname: string) {
@@ -112,6 +114,8 @@ export const config = {
     "/departments/:path*",
     "/clients",
     "/clients/:path*",
+    "/vendors",
+    "/vendors/:path*",
     "/reports",
     "/reports/:path*",
     "/billing",
@@ -120,5 +124,7 @@ export const config = {
     "/invoicing/:path*",
     "/website",
     "/website/:path*",
+    "/multi-project-unlock",
+    "/multi-project-unlock/:path*",
   ],
 };

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { getCurrentSession } from "@/lib/auth";
 import { searchAddressNominatim } from "@/lib/nominatim";
 
 type SearchSuccess = {
@@ -18,7 +19,18 @@ function jsonError(message: string, status = 400) {
   });
 }
 
+async function requireSession() {
+  const session = await getCurrentSession();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  }
+  return null;
+}
+
 export async function GET(request: NextRequest) {
+  const unauthorized = await requireSession();
+  if (unauthorized) return unauthorized;
+
   const q = request.nextUrl.searchParams.get("q")?.trim() ?? "";
   if (!q) {
     return jsonError("Missing q query parameter.");
@@ -48,6 +60,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const unauthorized = await requireSession();
+  if (unauthorized) return unauthorized;
+
   let body: unknown;
   try {
     body = await request.json();

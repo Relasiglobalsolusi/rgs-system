@@ -1108,7 +1108,7 @@ export const id = {
         contact: "Kontak",
         vendorSince: "Pemasok sejak",
         paymentTerms: "Syarat Pembayaran",
-        portalLogin: "Akses login portal",
+        portalLogin: "Akses Login Portal",
         actions: "Tindakan",
       },
       form: {
@@ -1139,12 +1139,12 @@ export const id = {
         contactPersonDescCreate:
           "Narahubung utama di organisasi pemasok. Jika login portal Ya, nama pengguna memakai nama depan narahubung.",
         contactPersonDescEdit: "Narahubung utama di organisasi pemasok.",
-        contactFirstName: "Nama depan narahubung",
-        contactLastName: "Nama belakang narahubung",
-        contactPosition: "Jabatan narahubung",
-        contactEmail: "Email narahubung",
-        contactPhone: "Telepon narahubung",
-        portalAccess: "Akses portal",
+        contactFirstName: "Nama Depan Narahubung",
+        contactLastName: "Nama Belakang Narahubung",
+        contactPosition: "Jabatan Narahubung",
+        contactEmail: "Email Narahubung",
+        contactPhone: "Telepon Narahubung",
+        portalAccess: "Akses Portal",
         portalAccessDesc:
           "Opsional. Pilih apakah membuat login portal Users terkait untuk pemasok ini.",
         createPortalLogin: "Buat akses login portal untuk pemasok ini?",
@@ -2597,6 +2597,8 @@ export const id = {
       "Jika akun dengan nama pengguna itu ada, tautan reset kata sandi telah dikirim ke email pemulihan yang terdaftar.",
     forgotNoEmail:
       "Akun ini tidak memiliki email pemulihan. Silakan hubungi administrator Anda.",
+    forgotSendFailed:
+      "Kami tidak dapat mengirim email reset. Periksa pengaturan SMTP atau coba lagi nanti.",
     forgotFailed: "Kami tidak dapat memproses permintaan Anda. Silakan coba lagi.",
     resetTitle: "Atur kata sandi baru",
     resetSubtitle: "Pilih kata sandi baru untuk akun Anda.",
@@ -2629,7 +2631,7 @@ export const id = {
     enterNewPassword: "Masukkan kata sandi baru",
     confirmNewPassword: "Konfirmasi kata sandi baru",
     passwordsDoNotMatch: "Kata sandi tidak cocok.",
-    passwordTooShort: "Kata sandi minimal 6 karakter.",
+    passwordTooShort: "Kata sandi minimal 8 karakter.",
     invalidRecoveryEmail: "Masukkan alamat email pemulihan yang valid.",
     recoveryEmailTaken: "Email pemulihan itu sudah digunakan.",
     savePasswordFailed: "Kami tidak dapat menyimpan kata sandi Anda. Silakan coba lagi.",

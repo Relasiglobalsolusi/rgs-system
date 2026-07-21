@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { getCurrentSession } from "@/lib/auth";
 import { reverseGeocodeNominatim } from "@/lib/nominatim";
 
 type ReverseSuccess = {
@@ -27,7 +28,18 @@ function parseCoord(value: unknown): number | null {
   return null;
 }
 
+async function requireSession() {
+  const session = await getCurrentSession();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  }
+  return null;
+}
+
 export async function GET(request: NextRequest) {
+  const unauthorized = await requireSession();
+  if (unauthorized) return unauthorized;
+
   const { searchParams } = request.nextUrl;
   const lat = parseCoord(searchParams.get("lat"));
   const lng = parseCoord(
@@ -65,6 +77,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const unauthorized = await requireSession();
+  if (unauthorized) return unauthorized;
+
   let body: unknown;
   try {
     body = await request.json();

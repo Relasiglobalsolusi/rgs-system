@@ -17,16 +17,21 @@ function allowedCorsOrigins(): string[] {
 
 function corsHeaders(origin?: string | null) {
   const allowed = allowedCorsOrigins();
-  const allowedOrigin =
-    origin && allowed.includes(origin) ? origin : allowed[0] ?? "*";
-
-  return {
-    "Access-Control-Allow-Origin": allowedOrigin,
+  const headers: Record<string, string> = {
     "Access-Control-Allow-Methods": "GET, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, x-api-key",
     "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
     Vary: "Origin",
   };
+
+  if (origin && allowed.includes(origin)) {
+    headers["Access-Control-Allow-Origin"] = origin;
+  } else if (!origin) {
+    // Non-browser / same-origin style callers (no Origin header)
+    headers["Access-Control-Allow-Origin"] = allowed[0] ?? "*";
+  }
+
+  return headers;
 }
 
 function unauthorizedResponse(origin?: string | null) {

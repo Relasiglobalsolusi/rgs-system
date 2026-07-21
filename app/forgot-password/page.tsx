@@ -31,6 +31,11 @@ export default function ForgotPasswordPage() {
           return;
         }
 
+        if (result.status === "send_failed") {
+          setErrorMessage(t("auth.forgotSendFailed"));
+          return;
+        }
+
         setMessage(t("auth.forgotSuccess"));
         setUsername("");
       } catch {

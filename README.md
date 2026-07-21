@@ -131,7 +131,7 @@ cp .env.example .env
 ```
 
 ```env
-DATABASE_URL="postgresql://user:password@localhost:5432/rgs_one"
+DATABASE_URL="postgresql://user:password@localhost:5432/rgs_system"
 NEXTAUTH_SECRET="your-secret-key"
 NEXTAUTH_URL="http://localhost:3000"
 ```
@@ -197,8 +197,8 @@ Users with the **Client** role see a limited sidebar (Dashboard, Projects, Month
 
 | Surface | Host | Domain |
 |---------|------|--------|
-| Public site | **Vercel** | `https://rgs.co.id` |
-| ERP (this app) | **RumahWeb VPS** (Nginx + PM2 + local Postgres) | `https://one.rgs.co.id` |
+| Public site | **RumahWeb VPS** (Nginx + PM2 `rgs-website` → `127.0.0.1:3001`) | `https://rgs.co.id` |
+| ERP (this app) | **RumahWeb VPS** (Nginx + PM2 `rgs-system` → `127.0.0.1:3000` + local Postgres) | `https://one.rgs.co.id` |
 
 Corporate Login / CMS must point at `https://one.rgs.co.id` (not `app.rgs.co.id`).
 
@@ -238,9 +238,9 @@ npm run build
 pm2 restart rgs-system --update-env
 ```
 
-### Optional: Vercel
+### Not for production: Vercel
 
-Vercel is **not** the production host for this ERP. Hobby plans hit serverless function limits; Neon outbound `5432` was blocked from the VPS. Keep `vercel.json` only as a non-destructive build helper (`prisma generate && next build`) if you experiment — do **not** run `db push --accept-data-loss` in production builds.
+Do **not** host this ERP on Vercel (function limits + ephemeral uploads). `vercel.json` is only a non-destructive build helper (`prisma generate && next build`) for experiments — do **not** run `db push --accept-data-loss` in production builds.
 
 ## Scripts
 

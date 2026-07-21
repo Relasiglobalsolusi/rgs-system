@@ -133,11 +133,21 @@ export async function saveUpload(
   folder = "uploads",
   options?: SaveUploadOptions
 ) {
+  // Only allow nested public/ folders (no path traversal).
+  const safeFolder = folder
+    .replace(/\\/g, "/")
+    .split("/")
+    .filter((part) => part && part !== "." && part !== "..")
+    .join("/");
+  if (!safeFolder) {
+    throw new Error("Invalid upload folder.");
+  }
+
   const bytes = await file.arrayBuffer();
   const buffer = Buffer.from(bytes);
 
   const ext = path.extname(file.name) || ".jpg";
-  const uploadDir = path.join(process.cwd(), "public", folder);
+  const uploadDir = path.join(process.cwd(), "public", ...safeFolder.split("/"));
   await mkdir(uploadDir, { recursive: true });
 
   const filename = options?.fileBaseName
@@ -147,7 +157,7 @@ export async function saveUpload(
   const filepath = path.join(uploadDir, filename);
   await writeFile(filepath, buffer);
 
-  return `/${folder}/${filename}`;
+  return `/${safeFolder}/${filename}`;
 }
 
 /**

@@ -35,7 +35,7 @@ export async function setInitialPassword(
     return { status: "not_found" };
   }
 
-  if (!password || password.length < 6) {
+  if (!password || password.length < 8) {
     return { status: "weak_password" };
   }
 
@@ -76,7 +76,7 @@ export async function setInitialPassword(
     where: { id: user.id },
     data: {
       passwordHash,
-      passwordDisplay: password,
+      passwordDisplay: null,
       mustSetPassword: false,
       email: recoveryEmail,
     },

@@ -34,7 +34,7 @@ export async function setPassword(formData: FormData): Promise<SetPasswordResult
     String(formData.get("recoveryEmail") ?? "")
   );
 
-  if (!password || password.length < 6) {
+  if (!password || password.length < 8) {
     return { status: "weak_password" };
   }
 
@@ -74,7 +74,7 @@ export async function setPassword(formData: FormData): Promise<SetPasswordResult
     where: { id: session.user.id },
     data: {
       passwordHash,
-      passwordDisplay: password,
+      passwordDisplay: null,
       mustSetPassword: false,
       ...(requiresEmail ? { email: recoveryEmail } : {}),
     },
