@@ -3,12 +3,11 @@
 # Run on Ubuntu VPS as root or with sudo.
 #
 # Shared hosting (PHP-only) will NOT work. Use VPS / Cloud with Node.js.
-# Corporate site can stay on LaunchUniversal (or any host); only ERP needs this VPS
-# unless you also want to host the website here (optional block below).
+# Hosts both ERP and corporate website on this VPS (replaces Vercel for the site).
 #
-# Domains (examples):
+# Domains:
 #   ERP:     one.rgs.co.id  → PM2 rgs-system  → 127.0.0.1:3000
-#   Website: rgs.co.id      → PM2 rgs-website → 127.0.0.1:3001 (optional)
+#   Website: rgs.co.id      → PM2 rgs-website → 127.0.0.1:3001
 #
 # Before first run:
 #   1. Point DNS A record for the ERP subdomain to this VPS
@@ -87,7 +86,7 @@ npx prisma migrate deploy || npx prisma db push
 # npm run db:seed
 npm run build
 
-echo "=== 4. Clone & build corporate website (optional — production site is on Vercel) ==="
+echo "=== 4. Clone & build corporate website (rgs.co.id on port 3001) ==="
 if [ ! -d "$WEB_DIR" ]; then
   git clone "$WEB_REPO" "$WEB_DIR"
 fi
@@ -119,7 +118,7 @@ pm2 start npm --name "rgs-system" --cwd "$ERP_DIR" -- start
 
 cd "$WEB_DIR"
 pm2 delete rgs-website 2>/dev/null || true
-# Corporate site uses port 3001 when hosted on this VPS (production uses Vercel).
+# Corporate site listens on 3001 (see package.json start script).
 PORT=3001 pm2 start npm --name "rgs-website" --cwd "$WEB_DIR" -- start
 
 pm2 save
