@@ -152,13 +152,20 @@ export const CLIENT_HEADER_LABELS: Record<string, LocalizedHeader> = {
     ],
   },
   address: {
-    en: "Company Address",
-    id: "Alamat Perusahaan",
-    aliases: ["address", "company address", "office address", "client address"],
+    en: "Address",
+    id: "Alamat",
+    aliases: [
+      "address",
+      "company address",
+      "office address",
+      "client address",
+      "alamat",
+      "alamat perusahaan",
+    ],
   },
   npwp: {
-    en: "Company Tax ID",
-    id: "NPWP Perusahaan",
+    en: "NPWP / NIK",
+    id: "NPWP / NIK",
     aliases: [
       "tax id",
       "company tax id",
@@ -169,6 +176,7 @@ export const CLIENT_HEADER_LABELS: Record<string, LocalizedHeader> = {
       "npwp or nik",
       "npwp / nik",
       "nik",
+      "npwp perusahaan",
     ],
   },
   clientSince: {
@@ -264,14 +272,21 @@ export function clientTemplateTitle(locale: AppLocale): string {
 /** Short note on the Data sheet title cell (no Instructions tab). */
 export function clientTemplateHeaderNote(locale: AppLocale): string {
   return locale === "id"
-    ? "Isi satu klien per baris mulai baris 3. Kolom bertanda * wajib. Tipe Klien: Perusahaan atau Perorangan. Untuk Perorangan, narahubung tidak wajib (klien = dirinya sendiri; isi Nama Klien atau Nama Depan). Login ID portal selalu dibuat. Tanggal DD/MM/YYYY. Telepon: nomor nasional saja (kode negara di kolom terpisah). Syarat pembayaran mencakup Tunai. Unggah di RGS ONE lalu Konfirmasi tambah."
-    : "Enter one client per row from row 3. Columns marked * are required. Client Type: Company or Individual. For Individual, Contact Person is not required (the client is themselves; use Client Name or First Name). A portal Login ID is always created. Dates: DD/MM/YYYY. Phone: national number only (country code in its own column). Payment Terms include Cash. Upload in RGS ONE, then Confirm add.";
+    ? "Isi satu klien per baris mulai baris 3. Kolom bertanda * wajib. Tipe Klien: Perusahaan atau Perorangan. Untuk Perorangan: isi Nama Klien (atau Nama Depan), Alamat, dan NPWP / NIK; kolom Email Perusahaan, Telepon Perusahaan, dan Narahubung tulis Tidak berlaku. Login ID portal selalu dibuat. Tanggal DD/MM/YYYY. Telepon: nomor nasional saja (kode negara di kolom terpisah). Syarat pembayaran mencakup Tunai. Unggah di RGS ONE lalu Konfirmasi tambah. Dokumen NPWP/NIK diunggah saat menambah/mengubah klien di formulir (bukan lewat Excel)."
+    : "Enter one client per row from row 3. Columns marked * are required. Client Type: Company or Individual. For Individual: fill Client Name (or First Name), Address, and NPWP / NIK; enter Not Applicable in Company Email, Company Phone, and Contact Person columns. A portal Login ID is always created. Dates: DD/MM/YYYY. Phone: national number only (country code in its own column). Payment Terms include Cash. Upload in RGS ONE, then Confirm add. NPWP/NIK documents are uploaded in the client form (not via Excel).";
 }
 
 export function clientTypeDropdown(locale: AppLocale): [string, string] {
   return locale === "id"
     ? ["Perusahaan", "Perorangan"]
     : ["Company", "Individual"];
+}
+
+/** N/A guidance for Individual rows on company-only / contact columns. */
+export function clientIndividualNotApplicableNote(locale: AppLocale): string {
+  return locale === "id"
+    ? "Untuk Perorangan: isi Tidak berlaku."
+    : "For Individual: enter Not Applicable.";
 }
 
 // ── Vendor ──────────────────────────────────────────────────────────────────

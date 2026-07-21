@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Upload } from "lucide-react";
 
 import ProjectOptionPills from "@/components/projects/ProjectOptionPills";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,7 @@ export type ClientFormDefaults = {
   phone?: string;
   address?: string;
   npwp?: string;
+  taxIdDocumentUrl?: string | null;
   clientSince?: Date | string | null;
   /** Payment terms in days; 0 = Cash (default 14). */
   paymentTermsDays?: number | null;
@@ -119,10 +121,15 @@ export default function ClientFormFields({
   );
   const [loginIdAvoid, setLoginIdAvoid] = useState<string[]>([]);
   const [loginId, setLoginId] = useState("");
+  const taxIdFileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedTaxIdFileName, setSelectedTaxIdFileName] = useState("");
 
   const isIndividual = clientType === "INDIVIDUAL";
   const individualDisplayName = `${firstName} ${lastName}`.trim();
   const loginSourceName = isIndividual ? individualDisplayName : clientName;
+  const hasExistingTaxIdDocument = Boolean(defaults?.taxIdDocumentUrl);
+  const taxIdDocumentRequired =
+    mode === "create" || !hasExistingTaxIdDocument;
 
   const loginSuggestions = useMemo(
     () =>
@@ -333,9 +340,7 @@ export default function ClientFormFields({
               htmlFor="client-address"
               className={employeeDialogLabelClass}
             >
-              {isIndividual
-                ? t("pages.clients.form.address")
-                : t("pages.clients.form.companyAddress")}
+              {t("pages.clients.form.address")}
             </label>
             <Textarea
               id="client-address"
@@ -384,6 +389,67 @@ export default function ClientFormFields({
               {isIndividual
                 ? t("pages.clients.form.clientNpwpOrNikHint")
                 : t("pages.clients.form.companyNpwpHint")}
+            </p>
+          </div>
+
+          <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+            <label
+              htmlFor="client-tax-id-document"
+              className={employeeDialogLabelClass}
+            >
+              {isIndividual
+                ? t("pages.clients.form.taxIdDocumentIndividual")
+                : t("pages.clients.form.taxIdDocumentCompany")}
+            </label>
+            {hasExistingTaxIdDocument ? (
+              <p className="mb-2 text-xs text-muted">
+                {t("pages.clients.form.taxIdDocumentCurrent")}{" "}
+                <a
+                  href={defaults?.taxIdDocumentUrl ?? "#"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary-dark hover:text-accent-teal"
+                >
+                  {t("pages.clients.form.taxIdDocumentView")}
+                </a>
+              </p>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => taxIdFileInputRef.current?.click()}
+              className="flex h-11 w-full items-center gap-3 rounded-xl border border-dashed border-border bg-elevated px-4 text-left text-sm text-muted transition hover:border-accent-cyan/40 hover:text-text"
+            >
+              <Upload className="h-4 w-4 shrink-0 text-muted" />
+              <span>
+                {selectedTaxIdFileName
+                  ? selectedTaxIdFileName
+                  : hasExistingTaxIdDocument
+                    ? t("pages.clients.form.taxIdDocumentReplace")
+                    : isIndividual
+                      ? t("pages.clients.form.taxIdDocumentUploadIndividual")
+                      : t("pages.clients.form.taxIdDocumentUploadCompany")}
+              </span>
+            </button>
+            <input
+              ref={taxIdFileInputRef}
+              id="client-tax-id-document"
+              name="taxIdDocument"
+              type="file"
+              accept="image/*,.pdf"
+              required={taxIdDocumentRequired}
+              className="sr-only"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                setSelectedTaxIdFileName(file?.name ?? "");
+                onFormValuesChange?.();
+              }}
+            />
+            <p className={employeeDialogHintClass}>
+              {hasExistingTaxIdDocument
+                ? t("pages.clients.form.taxIdDocumentHintEdit")
+                : isIndividual
+                  ? t("pages.clients.form.taxIdDocumentHintIndividual")
+                  : t("pages.clients.form.taxIdDocumentHintCompany")}
             </p>
           </div>
 

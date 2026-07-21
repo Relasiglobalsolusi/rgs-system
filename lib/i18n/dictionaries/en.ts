@@ -938,12 +938,25 @@ export const en = {
         email: "Email",
         phone: "Phone",
         address: "Address",
-        companyNpwp: "Company Tax ID (NPWP)",
+        companyNpwp: "NPWP",
         companyNpwpHint:
           "Optional. If filled, must be exactly 15 or 16 digits (dots/dashes OK). Other lengths are rejected.",
-        clientNpwpOrNik: "Client NPWP Or NIK",
+        clientNpwpOrNik: "NPWP / NIK",
         clientNpwpOrNikHint:
           "Optional. If filled, must be exactly 15 or 16 digits (dots/dashes OK). Other lengths are rejected.",
+        taxIdDocumentCompany: "NPWP Document",
+        taxIdDocumentIndividual: "NPWP / NIK Document",
+        taxIdDocumentUploadCompany: "Upload NPWP Document (Photo Or Scan)",
+        taxIdDocumentUploadIndividual: "Upload NPWP Or NIK Document (Photo Or Scan)",
+        taxIdDocumentReplace: "Replace Tax ID Document (Photo Or Scan)",
+        taxIdDocumentCurrent: "Current Tax ID Document:",
+        taxIdDocumentView: "View File",
+        taxIdDocumentHintCompany:
+          "Required. Upload a clear photo or PDF of the company NPWP.",
+        taxIdDocumentHintIndividual:
+          "Required. Upload a clear photo or PDF of the NPWP or NIK.",
+        taxIdDocumentHintEdit:
+          "Keep the current file, or upload a replacement photo or PDF.",
         clientSince: "Client Since",
         clientSinceHint: "When this organization became an RGS client.",
         clientSinceHintIndividual: "When this person became an RGS client.",

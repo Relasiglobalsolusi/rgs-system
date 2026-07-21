@@ -958,12 +958,26 @@ export const id = {
         email: "Email",
         phone: "Telepon",
         address: "Alamat",
-        companyNpwp: "NPWP Perusahaan",
+        companyNpwp: "NPWP",
         companyNpwpHint:
           "Opsional. Jika diisi, harus tepat 15 atau 16 digit (titik/strip OK). Panjang lain ditolak.",
-        clientNpwpOrNik: "NPWP Atau NIK Klien",
+        clientNpwpOrNik: "NPWP / NIK",
         clientNpwpOrNikHint:
           "Opsional. Jika diisi, harus tepat 15 atau 16 digit (titik/strip OK). Panjang lain ditolak.",
+        taxIdDocumentCompany: "Dokumen NPWP",
+        taxIdDocumentIndividual: "Dokumen NPWP / NIK",
+        taxIdDocumentUploadCompany: "Unggah Dokumen NPWP (Foto Atau Scan)",
+        taxIdDocumentUploadIndividual:
+          "Unggah Dokumen NPWP Atau NIK (Foto Atau Scan)",
+        taxIdDocumentReplace: "Ganti Dokumen Identitas Pajak (Foto Atau Scan)",
+        taxIdDocumentCurrent: "Dokumen Identitas Pajak Saat Ini:",
+        taxIdDocumentView: "Lihat File",
+        taxIdDocumentHintCompany:
+          "Wajib. Unggah foto atau PDF NPWP perusahaan yang jelas.",
+        taxIdDocumentHintIndividual:
+          "Wajib. Unggah foto atau PDF NPWP atau NIK yang jelas.",
+        taxIdDocumentHintEdit:
+          "Pertahankan file saat ini, atau unggah foto atau PDF pengganti.",
         clientSince: "Klien Sejak",
         clientSinceHint: "Kapan organisasi ini menjadi klien RGS.",
         clientSinceHintIndividual: "Kapan orang ini menjadi klien RGS.",

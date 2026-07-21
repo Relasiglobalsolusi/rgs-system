@@ -35,6 +35,7 @@ import {
 import { formatContactPersonName } from "@/lib/contact-person";
 import { assertClientNameAvailable } from "@/lib/client-name";
 import { assertClientCanBeSoftDeleted } from "@/lib/client-soft-delete";
+import { deleteLocalUpload, saveUpload } from "@/lib/upload";
 
 const ALLOWED_PAYMENT_TERMS_DAYS = new Set<number>(PAYMENT_TERMS_DAYS_OPTIONS);
 
@@ -137,6 +138,35 @@ async function parseOptionalNpwp(
   );
 }
 
+function taxIdDocumentMissingMessage(clientType: ClientTypeValue): string {
+  return clientType === "INDIVIDUAL"
+    ? "Upload an NPWP or NIK document."
+    : "Upload an NPWP document.";
+}
+
+/**
+ * Soft-require: create always needs a file; edit keeps the existing file unless
+ * a replacement is uploaded. Returns undefined when no new file was chosen.
+ */
+async function saveTaxIdDocument(
+  formData: FormData,
+  options?: { shortCode?: string | null; fileBasePrefix?: string }
+): Promise<string | null | undefined> {
+  const file = formData.get("taxIdDocument");
+
+  if (!(file instanceof File) || file.size === 0) {
+    return undefined;
+  }
+
+  const prefix = options?.fileBasePrefix ?? "Tax-ID";
+  const code = options?.shortCode?.trim();
+  const fileBaseName = code ? `${prefix}_${code}` : prefix;
+
+  return saveUpload(file, "uploads/clients", {
+    fileBaseName,
+  });
+}
+
 async function assertCanManageClients() {
   const session = await requireModule("clients");
   if (!canManageClients(toPermissionUser(session))) {
@@ -178,6 +208,13 @@ export async function createClient(formData: FormData) {
     const company = await prisma.company.findFirst();
     if (!company) throw new Error("Company not found.");
 
+    const taxIdDocumentUrl = await saveTaxIdDocument(formData, {
+      fileBasePrefix: clientType === "INDIVIDUAL" ? "NPWP-NIK" : "NPWP",
+    });
+    if (!taxIdDocumentUrl) {
+      throw new Error(taxIdDocumentMissingMessage(clientType));
+    }
+
     const sortOrder = await nextCompanyScopedSortOrder("client", company.id);
 
     await prisma.$transaction(async (tx) => {
@@ -196,6 +233,7 @@ export async function createClient(formData: FormData) {
           phone: identity.phone || null,
           address: address || null,
           npwp,
+          taxIdDocumentUrl,
           contactPersonFirstName: identity.contactPersonFirstName,
           contactPersonLastName: identity.contactPersonLastName,
           contactPersonPosition: identity.contactPersonPosition,
@@ -271,16 +309,34 @@ export async function updateClient(id: string, formData: FormData) {
       }) ?? new Date();
     const paymentTermsDays = parsePaymentTermsDays(formData);
 
+    const existing = await prisma.client.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        companyId: true,
+        active: true,
+        shortCode: true,
+        taxIdDocumentUrl: true,
+      },
+    });
+
+    if (!existing) {
+      throw new Error("Client not found.");
+    }
+
+    const uploadedTaxIdDocumentUrl = await saveTaxIdDocument(formData, {
+      shortCode: existing.shortCode,
+      fileBasePrefix: clientType === "INDIVIDUAL" ? "NPWP-NIK" : "NPWP",
+    });
+    const taxIdDocumentUrl =
+      uploadedTaxIdDocumentUrl !== undefined
+        ? uploadedTaxIdDocumentUrl
+        : existing.taxIdDocumentUrl;
+    if (!taxIdDocumentUrl) {
+      throw new Error(taxIdDocumentMissingMessage(clientType));
+    }
+
     await prisma.$transaction(async (tx) => {
-      const existing = await tx.client.findUnique({
-        where: { id },
-        select: { id: true, companyId: true, active: true },
-      });
-
-      if (!existing) {
-        throw new Error("Client not found.");
-      }
-
       if (existing.active && !active) {
         await assertClientCanBeSoftDeleted(id, tx);
       }
@@ -304,6 +360,9 @@ export async function updateClient(id: string, formData: FormData) {
           phone: identity.phone || null,
           address: address || null,
           npwp,
+          ...(uploadedTaxIdDocumentUrl !== undefined
+            ? { taxIdDocumentUrl: uploadedTaxIdDocumentUrl }
+            : {}),
           contactPersonFirstName: identity.contactPersonFirstName,
           contactPersonLastName: identity.contactPersonLastName,
           contactPersonPosition: identity.contactPersonPosition,
@@ -321,6 +380,14 @@ export async function updateClient(id: string, formData: FormData) {
         await softDeactivateClientLogins(tx, id);
       }
     });
+
+    if (
+      uploadedTaxIdDocumentUrl &&
+      existing.taxIdDocumentUrl &&
+      existing.taxIdDocumentUrl !== uploadedTaxIdDocumentUrl
+    ) {
+      await deleteLocalUpload(existing.taxIdDocumentUrl);
+    }
 
     revalidatePath("/clients");
     revalidatePath("/billing");
@@ -568,6 +635,7 @@ export async function deleteClient(id: string) {
   }
 
   const userIds = client.users.map((user) => user.id);
+  const taxIdDocumentUrl = client.taxIdDocumentUrl;
 
   await prisma.$transaction(async (tx) => {
     await tx.project.updateMany({
@@ -582,6 +650,8 @@ export async function deleteClient(id: string) {
 
     await tx.client.delete({ where: { id } });
   });
+
+  await deleteLocalUpload(taxIdDocumentUrl);
 
   revalidatePath("/clients");
   revalidatePath("/users");
@@ -613,6 +683,7 @@ export async function bulkDeleteClients(
       }
 
       const userIds = client.users.map((user) => user.id);
+      const taxIdDocumentUrl = client.taxIdDocumentUrl;
 
       await prisma.$transaction(async (tx) => {
         await tx.project.updateMany({
@@ -626,6 +697,8 @@ export async function bulkDeleteClients(
 
         await tx.client.delete({ where: { id } });
       });
+
+      await deleteLocalUpload(taxIdDocumentUrl);
 
       recordBulkSuccess(result);
     } catch (error) {

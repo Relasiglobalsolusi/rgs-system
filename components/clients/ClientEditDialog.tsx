@@ -38,6 +38,7 @@ type Client = {
   phone: string | null;
   address: string | null;
   npwp: string | null;
+  taxIdDocumentUrl?: string | null;
   contactPersonFirstName: string | null;
   contactPersonLastName: string | null;
   contactPersonPosition: string | null;
@@ -231,6 +232,7 @@ export default function ClientEditDialog({
                 phone: client.phone ?? "",
                 address: client.address ?? "",
                 npwp: client.npwp ?? "",
+                taxIdDocumentUrl: client.taxIdDocumentUrl ?? null,
                 clientSince: client.clientSince,
                 paymentTermsDays: client.paymentTermsDays,
                 contactPersonFirstName: client.contactPersonFirstName ?? "",

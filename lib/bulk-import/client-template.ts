@@ -5,6 +5,7 @@ import { paymentTermsDropdown } from "@/lib/bulk-import/payment-terms-import";
 import {
   applyLocalizedHeaders,
   CLIENT_HEADER_LABELS,
+  clientIndividualNotApplicableNote,
   clientTemplateHeaderNote,
   clientTemplateTitle,
   clientTypeDropdown,
@@ -146,6 +147,17 @@ export function getClientImportColumns(locale: AppLocale): ColumnDef[] {
   const paymentTerms = paymentTermsDropdown(locale);
   const countryCodes = importCountryCodeDropdownValues();
   const countryCodeNote = countryCodeColumnHeaderNote(locale);
+  const individualNaNote = clientIndividualNotApplicableNote(locale);
+  const companyOnlyKeys = new Set([
+    "email",
+    "countryCode",
+    "phone",
+    "contactPersonPosition",
+    "contactPersonEmail",
+    "contactPersonCountryCode",
+    "contactPersonPhone",
+  ]);
+
   return withDateColumnHeaderNotes(
     applyLocalizedHeaders(
       BASE_CLIENT_IMPORT_COLUMNS,
@@ -162,16 +174,41 @@ export function getClientImportColumns(locale: AppLocale): ColumnDef[] {
         column.key === "countryCode" ||
         column.key === "contactPersonCountryCode"
       ) {
+        const notes = [countryCodeNote];
+        if (companyOnlyKeys.has(column.key)) {
+          notes.push(individualNaNote);
+        }
         return {
           ...column,
           dropdownValues: countryCodes,
-          headerNote: countryCodeNote,
+          headerNote: notes.join(" "),
+          headerSubline: companyOnlyKeys.has(column.key)
+            ? locale === "id"
+              ? "(Tidak berlaku — Perorangan)"
+              : "(N/A — Individual)"
+            : column.headerSubline,
         };
       }
       if (column.key === "phone" || column.key === "contactPersonPhone") {
         return {
           ...column,
           placeholder: localizedPhoneFormatPlaceholder(locale),
+          headerNote: companyOnlyKeys.has(column.key)
+            ? individualNaNote
+            : column.headerNote,
+          headerSubline: companyOnlyKeys.has(column.key)
+            ? locale === "id"
+              ? "(Tidak berlaku — Perorangan)"
+              : "(N/A — Individual)"
+            : column.headerSubline,
+        };
+      }
+      if (companyOnlyKeys.has(column.key)) {
+        return {
+          ...column,
+          headerNote: individualNaNote,
+          headerSubline:
+            locale === "id" ? "(Tidak berlaku — Perorangan)" : "(N/A — Individual)",
         };
       }
       return column;

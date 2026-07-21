@@ -9,6 +9,7 @@ import { normalizeImportPhoneWithCountryCode } from "@/lib/phone-normalize";
 import { capitalizeName, capitalizeProper } from "@/lib/text-case";
 import { parseImportDateWithDefault } from "@/lib/bulk-import/parse-import-date";
 import { parsePaymentTermsImportValue } from "@/lib/bulk-import/payment-terms-import";
+import { isNotApplicableImportValue } from "@/lib/bulk-import/template-i18n";
 import { todayDateInput } from "@/lib/project-contract";
 import { parseDateInput } from "@/lib/invoice-period";
 import type { SpreadsheetRow } from "@/lib/bulk-import/xlsx";
@@ -53,37 +54,47 @@ function parseClientTypeImportValue(
   );
 }
 
+/** Empty string when the cell is blank or an N/A token. */
+function importCellValue(raw: string | undefined): string {
+  const value = raw?.trim() ?? "";
+  if (!value || isNotApplicableImportValue(value)) {
+    return "";
+  }
+  return value;
+}
+
 export function parseClientImportRow(
   values: SpreadsheetRow,
   locale: AppLocale = DEFAULT_LOCALE
 ): ParsedClientImportRow {
   const clientType = parseClientTypeImportValue(values.clientType);
-  const nameRaw = capitalizeProper(values.name?.trim() ?? "");
+  const nameRaw = capitalizeProper(importCellValue(values.name));
   let contactPersonFirstName = capitalizeName(
-    values.contactPersonFirstName?.trim() ?? ""
+    importCellValue(values.contactPersonFirstName)
   );
-  let contactPersonLastName = values.contactPersonLastName?.trim()
-    ? capitalizeName(values.contactPersonLastName.trim())
+  let contactPersonLastName = importCellValue(values.contactPersonLastName)
+    ? capitalizeName(importCellValue(values.contactPersonLastName))
     : null;
-  const contactPersonPositionRaw = values.contactPersonPosition?.trim()
-    ? capitalizeProper(values.contactPersonPosition.trim())
+  const contactPersonPositionRaw = importCellValue(values.contactPersonPosition)
+    ? capitalizeProper(importCellValue(values.contactPersonPosition))
     : null;
-  const contactPersonEmailRaw = values.contactPersonEmail?.trim() || null;
-  const email = values.email?.trim() || null;
-  const address = values.address?.trim()
-    ? capitalizeProper(values.address.trim())
+  const contactPersonEmailRaw =
+    importCellValue(values.contactPersonEmail) || null;
+  const email = importCellValue(values.email) || null;
+  const address = importCellValue(values.address)
+    ? capitalizeProper(importCellValue(values.address))
     : null;
 
   const phone =
     normalizeImportPhoneWithCountryCode(
-      values.countryCode,
-      values.phone,
+      importCellValue(values.countryCode) || undefined,
+      importCellValue(values.phone) || undefined,
       clientType === "INDIVIDUAL" ? "Phone" : "Company phone"
     ) || null;
   const contactPersonPhoneRaw =
     normalizeImportPhoneWithCountryCode(
-      values.contactPersonCountryCode,
-      values.contactPersonPhone,
+      importCellValue(values.contactPersonCountryCode) || undefined,
+      importCellValue(values.contactPersonPhone) || undefined,
       "Contact person phone"
     ) || null;
 
@@ -112,6 +123,8 @@ export function parseClientImportRow(
       throw new Error("First Name is required for Individual clients.");
     }
     // Individual has no separate contact person — mirror self.
+    // Company Email / Phone / Contact Person columns are N/A for Individual;
+    // if provided (legacy sheets), still accept email/phone for the person.
     contactPersonPosition = null;
     contactPersonEmail = contactPersonEmailRaw || email;
     contactPersonPhone = contactPersonPhoneRaw || phone;
@@ -125,7 +138,7 @@ export function parseClientImportRow(
   }
 
   const npwp = parseOptionalNpwpValue(
-    values.npwp,
+    importCellValue(values.npwp),
     locale,
     clientType === "INDIVIDUAL" ? "client" : "company"
   );

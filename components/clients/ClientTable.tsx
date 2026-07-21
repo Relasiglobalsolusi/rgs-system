@@ -39,6 +39,7 @@ export type ClientRow = {
   phone: string | null;
   address: string | null;
   npwp: string | null;
+  taxIdDocumentUrl?: string | null;
   contactPersonFirstName: string | null;
   contactPersonLastName: string | null;
   contactPersonPosition: string | null;

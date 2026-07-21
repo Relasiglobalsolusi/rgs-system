@@ -388,6 +388,8 @@ model Client {
   npwp                  String?
   /// Individual clients without NPWP may use NIK/KTP for tax identity.
   nationalId            String?
+  /// Uploaded NPWP (company) or NPWP/NIK (individual) document under /uploads/clients.
+  taxIdDocumentUrl      String?
   contactPersonFirstName String?
   contactPersonLastName  String?
   contactPersonPosition  String?
