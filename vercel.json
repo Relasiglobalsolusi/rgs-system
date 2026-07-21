@@ -1,5 +1,5 @@
-{
+﻿{
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "buildCommand": "npx prisma migrate deploy && next build"
+  "buildCommand": "npx prisma db push && next build"
 }
