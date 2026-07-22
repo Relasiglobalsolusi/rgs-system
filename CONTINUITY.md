@@ -2,7 +2,7 @@
 
 > **For any AI assistant (including Cursor) opening this project with no prior chat history.**  
 > Treat this file as the source of truth for production architecture and how to continue work.  
-> Last updated: 2026-07-21 (Asia/Jakarta).
+> Last updated: 2026-07-22 (Asia/Jakarta).
 
 ---
 
@@ -25,8 +25,9 @@
 | Process | PM2 name **`rgs-system`** → `npm start` → **port 3000** |
 | Reverse proxy | Nginx → `127.0.0.1:3000` + Let’s Encrypt |
 | Database | **PostgreSQL on the same VPS** (localhost) |
-| Sibling site | Corporate **https://www.rgs.co.id** on same VPS, PM2 **`rgs-website`**, port **3001** (apex → www) |
-| Code remote | `https://github.com/Relasiglobalsolusi/rgs-system.git` (branch `main`; local may track as `master`→`main`) |
+| Sibling site | Corporate **https://www.rgs.co.id** on same VPS, PM2 **`rgs-website`**, port **3001** (apex `rgs.co.id` 301 → www) |
+| Company profile PDF | **https://www.rgs.co.id/RGS-Company-Profile.pdf** (lives in corporate repo `public/`) |
+| Code remote | Prefer GitHub: `https://github.com/Relasiglobalsolusi/rgs-system.git` (branch `main`; local may track as `master`→`main`) |
 
 ### What we abandoned (do not revive unless asked)
 
