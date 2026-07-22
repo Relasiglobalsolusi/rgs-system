@@ -3,7 +3,7 @@ import { ImageResponse } from "next/og";
 export const size = { width: 64, height: 64 };
 export const contentType = "image/png";
 
-/** Teal RGS ONE favicon (generated fallback when static PNG is unavailable). */
+/** Teal RGS ONE favicon on transparent background (no black plate). */
 export default function Icon() {
   return new ImageResponse(
     (
@@ -14,8 +14,7 @@ export default function Icon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#0B0F14",
-          borderRadius: 14,
+          background: "transparent",
         }}
       >
         <div
@@ -23,7 +22,8 @@ export default function Icon() {
             width: 44,
             height: 44,
             borderRadius: 11,
-            background: "#54BFB4",
+            border: "8px solid #54BFB4",
+            background: "transparent",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -31,24 +31,12 @@ export default function Icon() {
         >
           <div
             style={{
-              width: 28,
-              height: 28,
-              borderRadius: 7,
-              background: "#0B0F14",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              width: 16,
+              height: 16,
+              borderRadius: 4,
+              background: "#54BFB4",
             }}
-          >
-            <div
-              style={{
-                width: 16,
-                height: 16,
-                borderRadius: 4,
-                background: "#54BFB4",
-              }}
-            />
-          </div>
+          />
         </div>
       </div>
     ),

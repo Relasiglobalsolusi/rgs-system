@@ -3,8 +3,8 @@
 import { RGS_ONE_PRODUCT_NAME } from "@/lib/brand";
 
 /** RGS ONE tab / home-screen mark (teal site-plate). */
-export const RGS_FAVICON_SRC = "/favicon-rgs.png?v=2";
-export const RGS_APPLE_ICON_SRC = "/apple-touch-icon-rgs.png?v=2";
+export const RGS_FAVICON_SRC = "/favicon-rgs.png?v=3";
+export const RGS_APPLE_ICON_SRC = "/apple-touch-icon-rgs.png?v=3";
 
 /** Browser chrome for RGS ONE ERP (cleaning / Relasi Global Solusi). */
 export const rgsMetadata: Metadata = {
