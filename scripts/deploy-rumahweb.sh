@@ -147,9 +147,10 @@ server {
 NGINX
 
 cat > /etc/nginx/sites-available/rgs-website << NGINX
+# Canonical host: www.${WEB_DOMAIN} (apex redirects). Certbot will add SSL later.
 server {
     listen 80;
-    server_name ${WEB_DOMAIN} www.${WEB_DOMAIN};
+    server_name www.${WEB_DOMAIN};
 
     client_max_body_size 10M;
 
@@ -157,13 +158,19 @@ server {
         proxy_pass http://127.0.0.1:3001;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
+        proxy_set_header Connection "upgrade";
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_cache_bypass \$http_upgrade;
     }
+}
+
+server {
+    listen 80;
+    server_name ${WEB_DOMAIN};
+    return 301 https://www.${WEB_DOMAIN}\$request_uri;
 }
 NGINX
 
@@ -175,10 +182,11 @@ nginx -t && systemctl reload nginx
 echo "=== 7. SSL ==="
 echo "Install certbot if needed, then:"
 echo "  certbot --nginx -d ${ERP_DOMAIN} -d ${WEB_DOMAIN} -d www.${WEB_DOMAIN}"
+echo "After SSL, ensure apex HTTPS returns 301 → https://www.${WEB_DOMAIN}"
 
 echo ""
 echo "=== Done ==="
 echo "ERP:     https://${ERP_DOMAIN}   (PM2: rgs-system)"
-echo "Website: https://${WEB_DOMAIN}   (PM2: rgs-website)"
+echo "Website: https://www.${WEB_DOMAIN}   (PM2: rgs-website; apex → www)"
 echo "Uploads: ${ERP_DIR}/public/uploads (and proofs/, progress/) — back these up"
 echo "Default seed login (if seeded): vicko / admin123 — change immediately"

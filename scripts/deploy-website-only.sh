@@ -52,11 +52,17 @@ fi
 pm2 save
 pm2 list
 
-echo "=== Nginx site for rgs.co.id / www ==="
-cat > /etc/nginx/sites-available/rgs-website << 'NGINX'
+echo "=== Nginx (canonical www; apex → www) — skip rewrite if SSL already configured ==="
+NGINX_SITE="/etc/nginx/sites-available/rgs-website"
+if [ -f "$NGINX_SITE" ] && grep -q "listen 443" "$NGINX_SITE"; then
+  echo "Existing SSL nginx site left intact: $NGINX_SITE"
+  echo "(Ensure apex HTTPS returns 301 → https://www.rgs.co.id)"
+else
+  cat > "$NGINX_SITE" << 'NGINX'
+# Canonical host: www.rgs.co.id (apex redirects here). Run certbot after first HTTP deploy.
 server {
     listen 80;
-    server_name rgs.co.id www.rgs.co.id;
+    server_name www.rgs.co.id;
 
     client_max_body_size 10M;
 
@@ -64,7 +70,7 @@ server {
         proxy_pass http://127.0.0.1:3001;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
+        proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -72,11 +78,17 @@ server {
         proxy_cache_bypass $http_upgrade;
     }
 }
-NGINX
 
-ln -sf /etc/nginx/sites-available/rgs-website /etc/nginx/sites-enabled/
-nginx -t
-systemctl reload nginx
+server {
+    listen 80;
+    server_name rgs.co.id;
+    return 301 https://www.rgs.co.id$request_uri;
+}
+NGINX
+  ln -sf "$NGINX_SITE" /etc/nginx/sites-enabled/
+  nginx -t
+  systemctl reload nginx
+fi
 
 echo "=== Verify local ports ==="
 sleep 2
@@ -86,8 +98,10 @@ curl -sS -I http://127.0.0.1:3001/ | head -n 15 || true
 echo "--- curl :3000 ---"
 curl -sS -o /dev/null -w "HTTP %{http_code} time %{time_total}s\n" http://127.0.0.1:3000/login || true
 curl -sS -I http://127.0.0.1:3000/login | head -n 15 || true
-echo "--- nginx Host rgs.co.id ---"
-curl -sS -o /dev/null -w "HTTP %{http_code}\n" -H "Host: rgs.co.id" http://127.0.0.1/ || true
+echo "--- nginx Host www.rgs.co.id ---"
+curl -sS -o /dev/null -w "HTTP %{http_code}\n" -H "Host: www.rgs.co.id" http://127.0.0.1/ || true
+echo "--- nginx Host rgs.co.id (expect 301) ---"
+curl -sS -I -H "Host: rgs.co.id" http://127.0.0.1/ | head -n 8 || true
 
-echo "=== Done (no certbot — DNS must point here first) ==="
+echo "=== Done ==="
 pm2 list

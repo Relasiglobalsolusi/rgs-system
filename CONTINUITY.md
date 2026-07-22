@@ -25,7 +25,7 @@
 | Process | PM2 name **`rgs-system`** → `npm start` → **port 3000** |
 | Reverse proxy | Nginx → `127.0.0.1:3000` + Let’s Encrypt |
 | Database | **PostgreSQL on the same VPS** (localhost) |
-| Sibling site | Corporate **https://rgs.co.id** on same VPS, PM2 **`rgs-website`**, port **3001** |
+| Sibling site | Corporate **https://www.rgs.co.id** on same VPS, PM2 **`rgs-website`**, port **3001** (apex → www) |
 | Code remote | `https://github.com/Relasiglobalsolusi/rgs-system.git` (branch `main`; local may track as `master`→`main`) |
 
 ### What we abandoned (do not revive unless asked)

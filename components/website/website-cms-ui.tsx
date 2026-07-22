@@ -210,7 +210,7 @@ export function CmsToolbar({
             </span>
           )}
           <a
-            href="https://rgs.co.id"
+            href="https://www.rgs.co.id"
             target="_blank"
             rel="noopener noreferrer"
             className="text-xs font-medium text-cyan-400 transition hover:text-cyan-300"
