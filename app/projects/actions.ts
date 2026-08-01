@@ -60,6 +60,8 @@ import {
   availableFullTimeCrewWhere,
   markEmployeesOnProject,
   partTimeRosterWhere,
+  releaseAllProjectCrew,
+  releaseEmployeesFromProject,
 } from "@/lib/workforce-crew";
 
 const projectDeleteSelect = {
@@ -141,6 +143,8 @@ async function permanentlyDeleteProject(project: {
   const filePaths = collectProjectUploadPaths(project);
 
   await prisma.$transaction(async (tx) => {
+    // Release crew to AVAILABLE + portal sync before cascade removes assignments.
+    await releaseAllProjectCrew(tx, project.id);
     await tx.attendance.updateMany({
       where: { projectId: project.id },
       data: { projectId: null },
@@ -154,6 +158,9 @@ async function permanentlyDeleteProject(project: {
     projectId: project.id,
     clientId: project.clientId,
   });
+  revalidatePath("/employees");
+  revalidatePath("/users");
+  revalidatePath("/shifts");
 
   return { id: project.id, name: project.name };
 }
@@ -529,24 +536,28 @@ export async function createProject(formData: FormData) {
         });
       }
 
+      // Planning: assign staff only when moving to In Progress (not at create).
+      if (!isPlanning && employeeIds.length > 0) {
+        await tx.projectAssignment.createMany({
+          data: employeeIds.map((employeeId) => ({
+            projectId: created.id,
+            employeeId,
+          })),
+          skipDuplicates: true,
+        });
+        await markEmployeesOnProject(tx, employeeIds, company.id);
+      }
+
       return created;
     });
-
-    // Planning: assign staff only when moving to In Progress (not at create).
-    if (!isPlanning && employeeIds.length > 0) {
-      await prisma.projectAssignment.createMany({
-        data: employeeIds.map((employeeId) => ({
-          projectId: project.id,
-          employeeId,
-        })),
-        skipDuplicates: true,
-      });
-    }
 
     revalidatePath("/projects");
     revalidatePath("/dashboard");
     revalidatePath("/clients");
     revalidatePath("/billing");
+    revalidatePath("/employees");
+    revalidatePath("/users");
+    revalidatePath("/shifts");
   } catch (error) {
     throw toActionError(error, "Failed to create project.");
   }
@@ -733,14 +744,35 @@ export async function updateProject(id: string, formData: FormData) {
 
     // Planning: staff is assigned at Move to In Progress — do not clear/rewrite here.
     if (!isPlanningProjectStatus(existing.status)) {
-      await prisma.projectAssignment.deleteMany({ where: { projectId: id } });
+      const nextIds = [...new Set(employeeIds.filter(Boolean))];
+      const previous = await prisma.projectAssignment.findMany({
+        where: { projectId: id },
+        select: { employeeId: true },
+      });
+      const previousIds = previous.map((row) => row.employeeId);
+      const previousSet = new Set(previousIds);
+      const nextSet = new Set(nextIds);
+      const addedIds = nextIds.filter((employeeId) => !previousSet.has(employeeId));
+      const removedIds = previousIds.filter(
+        (employeeId) => !nextSet.has(employeeId)
+      );
 
-      if (employeeIds.length > 0) {
-        await prisma.projectAssignment.createMany({
-          data: employeeIds.map((employeeId) => ({
-            projectId: id,
-            employeeId,
-          })),
+      if (addedIds.length > 0 || removedIds.length > 0) {
+        await prisma.$transaction(async (tx) => {
+          // Kept rows are left untouched so shiftStart/shiftEnd stay intact.
+          if (removedIds.length > 0) {
+            await releaseEmployeesFromProject(tx, id, removedIds);
+          }
+          if (addedIds.length > 0) {
+            await tx.projectAssignment.createMany({
+              data: addedIds.map((employeeId) => ({
+                projectId: id,
+                employeeId,
+              })),
+              skipDuplicates: true,
+            });
+            await markEmployeesOnProject(tx, addedIds, existing.companyId);
+          }
         });
       }
     }
@@ -750,6 +782,9 @@ export async function updateProject(id: string, formData: FormData) {
     revalidatePath("/dashboard");
     revalidatePath("/clients");
     revalidatePath("/billing");
+    revalidatePath("/employees");
+    revalidatePath("/users");
+    revalidatePath("/shifts");
   } catch (error) {
     throw toActionError(error, "Failed to update project.");
   }
@@ -1259,7 +1294,16 @@ export async function startProject(
 
     // Assign staff when provided; "Assign staff later" leaves existing assignments.
     if (!assignStaffLater && employeeIds.length > 0) {
-      await tx.projectAssignment.deleteMany({ where: { projectId: id } });
+      const previous = await tx.projectAssignment.findMany({
+        where: { projectId: id },
+        select: { employeeId: true },
+      });
+      const previousIds = previous.map((row) => row.employeeId);
+      const nextSet = new Set(employeeIds);
+      const removedIds = previousIds.filter((employeeId) => !nextSet.has(employeeId));
+      if (removedIds.length > 0) {
+        await releaseEmployeesFromProject(tx, id, removedIds);
+      }
       await tx.projectAssignment.createMany({
         data: employeeIds.map((employeeId) => ({
           projectId: id,
@@ -1280,6 +1324,7 @@ export async function startProject(
   });
   revalidatePath("/employees");
   revalidatePath("/users");
+  revalidatePath("/shifts");
 }
 
 /**
@@ -1444,12 +1489,16 @@ export async function finishProject(id: string): Promise<FinishProjectResult> {
       ? parseOptionalDateInput(todayDateInput(), "completion date")
       : null;
 
-  await prisma.project.update({
-    where: { id },
-    data: {
-      status: "COMPLETED",
-      ...(actualEndDate ? { endDate: actualEndDate } : {}),
-    },
+  await prisma.$transaction(async (tx) => {
+    await tx.project.update({
+      where: { id },
+      data: {
+        status: "COMPLETED",
+        ...(actualEndDate ? { endDate: actualEndDate } : {}),
+      },
+    });
+    // End Contract / Finish: release all crew → Unassigned (AVAILABLE) + portal.
+    await releaseAllProjectCrew(tx, id);
   });
 
   const billingPath = project.clientId
@@ -1473,6 +1522,9 @@ export async function finishProject(id: string): Promise<FinishProjectResult> {
     projectId: id,
     clientId: project.clientId,
   });
+  revalidatePath("/employees");
+  revalidatePath("/users");
+  revalidatePath("/shifts");
 
   return {
     invoice: {

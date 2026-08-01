@@ -14,7 +14,6 @@ import { prisma } from "@/lib/prisma";
 export const EMPLOYEE_TEMPLATE_ASSIGNABLE_PROJECT_STATUSES: ProjectStatus[] = [
   "PLANNED",
   "IN_PROGRESS",
-  "ON_HOLD",
 ];
 
 /** Active departments (EmployeeCategory) — excludes inactive / soft-off. */

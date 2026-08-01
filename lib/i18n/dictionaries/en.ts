@@ -223,6 +223,7 @@ export const en = {
       "Progress Reports": "Progress Reports",
       CICO: "CICO",
       "Attendance Report": "Attendance Report",
+      Shifts: "Shifts",
       "Leave & Sick": "Leave & Sick",
       Approvals: "Approvals",
       "Monthly Reports": "Monthly Reports",
@@ -2600,7 +2601,7 @@ export const en = {
       clockInBeforeHint:
         "Clock in before {time} when possible — late check-ins are still allowed.",
       noShiftAssigned:
-        "No shift assigned yet — ask HO to set your shift times on your employee record.",
+        "No shift assigned yet — ask Head Office to set your shift under Human Resources → Shifts.",
       onSitePhoto: "On-site photo",
       required: "(required)",
       photoHelp:
@@ -2652,6 +2653,30 @@ export const en = {
         checkIn: "Check-in",
         checkOut: "Check-out",
         status: "Status",
+      },
+    },
+    shifts: {
+      title: "Shifts",
+      description:
+        "Set planned shift times for staff already assigned to a project. Assign who works a site under Projects; set when they work here. CICO still records actual punch times.",
+      searchPlaceholder: "Search Employees Or Projects...",
+      emptyTitle: "No Project Assignments",
+      emptyDescription:
+        "Assign staff to a Planning or In Progress project first, then set their shifts here.",
+      emptySearch: 'No Results For "{query}"',
+      emptySearchDesc: "Try a different employee or project name.",
+      shiftStart: "Shift Start",
+      shiftEnd: "Shift End",
+      save: "Save",
+      saving: "Saving...",
+      clear: "Clear",
+      saveFailed: "Failed to update shift.",
+      columns: {
+        employee: "Employee",
+        employmentType: "Employment Type",
+        project: "Project",
+        shift: "Shift",
+        actions: "Actions",
       },
     },
     leaves: {
@@ -2880,6 +2905,7 @@ export const en = {
     progress: "Progress Reports",
     cico: "CICO",
     attendance: "Attendance Report",
+    shifts: "Shifts",
     leaves: "Leave & Sick",
     approvals: "Approvals",
     reports: "Monthly Reports",

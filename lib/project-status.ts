@@ -24,12 +24,11 @@ export const PROJECT_FIELD_STATUSES = [
 ] as const satisfies readonly ProjectStatus[];
 
 /**
- * In Progress sidebar view — work-order active (not Planning / History).
- * ON_HOLD stays with operational work so paused sites are still findable here.
+ * In Progress sidebar view — work-order active only.
+ * Legacy ON_HOLD is not listed here (find under All Projects).
  */
 export const PROJECT_IN_PROGRESS_LIST_STATUSES = [
   "IN_PROGRESS",
-  "ON_HOLD",
 ] as const satisfies readonly ProjectStatus[];
 
 /** Canonical Projects sidebar view URLs (for navigation + revalidation). */
@@ -45,14 +44,14 @@ export const PROJECT_LIST_VIEW_PATHS = {
 } as const;
 
 /**
- * All Projects overview — every live project except History (COMPLETED).
- * Includes Planning, In Progress, On Hold, and Cancelled.
+ * All Projects overview — live projects except History (COMPLETED).
+ * Excludes CANCELLED from the product surface. Legacy ON_HOLD may still appear
+ * with a clear On Hold label; app actions no longer write ON_HOLD / CANCELLED.
  */
 export const PROJECT_ALL_LIST_STATUSES = [
   "PLANNED",
   "IN_PROGRESS",
   "ON_HOLD",
-  "CANCELLED",
 ] as const satisfies readonly ProjectStatus[];
 
 /** @deprecated Prefer PROJECT_IN_PROGRESS_LIST_STATUSES */
@@ -90,7 +89,8 @@ export type ProjectWorkflowStatusLabel =
 
 /**
  * Map DB status (+ payment-due context) to directory workflow labels.
- * ON_HOLD is shown as In Progress; subcategory is never included.
+ * Legacy ON_HOLD / CANCELLED keep distinct labels when they appear; subcategory
+ * is never included.
  */
 export function getProjectWorkflowStatusLabel(opts: {
   status: ProjectStatus | string | null | undefined;
@@ -102,8 +102,9 @@ export function getProjectWorkflowStatusLabel(opts: {
     case "PLANNED":
       return "Planning";
     case "IN_PROGRESS":
-    case "ON_HOLD":
       return "In Progress";
+    case "ON_HOLD":
+      return "On Hold";
     case "COMPLETED":
       return "Completed";
     case "CANCELLED":
@@ -123,6 +124,8 @@ export function projectWorkflowStatusBadge(
       return "success";
     case "Payment Due":
       return "warning";
+    case "On Hold":
+      return "inactive";
     case "Cancelled":
       return "danger";
     case "Planning":

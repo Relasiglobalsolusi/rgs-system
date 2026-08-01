@@ -9,7 +9,7 @@ import T from "@/components/i18n/T";
 
 import EmployeeDirectory from "@/components/employees/EmployeeDirectory";
 
-const ASSIGNABLE_STATUSES = ["PLANNED", "IN_PROGRESS", "ON_HOLD"] as const;
+const ASSIGNABLE_STATUSES = ["PLANNED", "IN_PROGRESS"] as const;
 
 export default async function EmployeesPage() {
   const session = await requireModule("employees");

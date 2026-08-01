@@ -50,40 +50,45 @@ export function isDefaultCrewEmployee(employee: {
   return isCrewPickerPosition(employee.jobPosition);
 }
 
+const employeeReleaseSelect = {
+  id: true,
+  companyId: true,
+  firstName: true,
+  lastName: true,
+  employeeNo: true,
+  employmentType: true,
+  portalAccessRequested: true,
+  userId: true,
+  status: true,
+} as const;
+
 /**
- * After GC/Facade progress review is approved: release assigned staff → AVAILABLE.
- * Regular Cleaning keeps staff after reconcile — do not call this for MONTHLY/RC.
+ * Drop project assignments for the given employees and release to AVAILABLE
+ * (Unassigned) + Portal 2A sync when they have no remaining project links.
+ * Same placement/portal outcome as Employees → Release.
  */
-export async function releaseProjectCrewAfterProgressApproved(
+export async function releaseEmployeesFromProject(
   db: Prisma.TransactionClient,
-  projectId: string
+  projectId: string,
+  employeeIds: string[]
 ) {
-  const assignments = await db.projectAssignment.findMany({
-    where: { projectId },
-    select: {
-      employeeId: true,
-      employee: {
-        select: {
-          id: true,
-          companyId: true,
-          firstName: true,
-          lastName: true,
-          employeeNo: true,
-          employmentType: true,
-          portalAccessRequested: true,
-          userId: true,
-          status: true,
-          category: { select: { slug: true, prefix: true } },
-        },
-      },
-    },
+  const uniqueIds = [...new Set(employeeIds.filter(Boolean))];
+  if (uniqueIds.length === 0) return;
+
+  await db.projectAssignment.deleteMany({
+    where: { projectId, employeeId: { in: uniqueIds } },
   });
 
-  for (const row of assignments) {
-    const employee = row.employee;
-    await db.projectAssignment.deleteMany({
-      where: { projectId, employeeId: employee.id },
+  const employees = await db.employee.findMany({
+    where: { id: { in: uniqueIds } },
+    select: employeeReleaseSelect,
+  });
+
+  for (const employee of employees) {
+    const remaining = await db.projectAssignment.count({
+      where: { employeeId: employee.id },
     });
+    if (remaining > 0) continue;
 
     // Ops → AVAILABLE (never auto HEAD_OFFICE on project release)
     await db.employee.update({
@@ -108,6 +113,33 @@ export async function releaseProjectCrewAfterProgressApproved(
       employeeType: "PROJECT_SITE",
     });
   }
+}
+
+/** Release every assignee on a project → AVAILABLE + portal sync. */
+export async function releaseAllProjectCrew(
+  db: Prisma.TransactionClient,
+  projectId: string
+) {
+  const assignments = await db.projectAssignment.findMany({
+    where: { projectId },
+    select: { employeeId: true },
+  });
+  await releaseEmployeesFromProject(
+    db,
+    projectId,
+    assignments.map((row) => row.employeeId)
+  );
+}
+
+/**
+ * After GC/Facade progress review is approved: release assigned staff → AVAILABLE.
+ * Regular Cleaning keeps staff after reconcile — do not call this for MONTHLY/RC.
+ */
+export async function releaseProjectCrewAfterProgressApproved(
+  db: Prisma.TransactionClient,
+  projectId: string
+) {
+  await releaseAllProjectCrew(db, projectId);
 }
 
 /** Mark selected employees ON_PROJECT and sync portal (PT restore). */

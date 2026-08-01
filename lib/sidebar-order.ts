@@ -39,7 +39,7 @@ export const DEFAULT_SECTION_ORDER: string[] = menu.map(
 const KNOWN_SECTION_TITLES = new Set(DEFAULT_SECTION_ORDER);
 
 /** Nav keys that moved from Operations → Human Resources. */
-const HR_NAV_KEYS = new Set(["attendance", "leaves", "approvals"]);
+const HR_NAV_KEYS = new Set(["attendance", "shifts", "leaves", "approvals"]);
 
 const NAV_KEY_SET = new Set<string>([...MODULES, ...EXTRA_MENU_NAV_KEYS]);
 

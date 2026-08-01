@@ -235,6 +235,7 @@ export const id = {
       "Progress Reports": "Laporan Progress",
       CICO: "CICO",
       "Attendance Report": "Laporan Kehadiran",
+      Shifts: "Shift",
       "Leave & Sick": "Izin & Sakit",
       Approvals: "Persetujuan",
       "Monthly Reports": "Laporan Bulanan",
@@ -2630,7 +2631,7 @@ export const id = {
       clockInBeforeHint:
         "Clock-in sebelum {time} jika memungkinkan — check-in terlambat tetap diizinkan.",
       noShiftAssigned:
-        "Belum ada shift — minta HO mengatur jam shift pada data karyawan Anda.",
+        "Belum ada shift — minta Kantor Pusat mengatur shift di Sumber Daya Manusia → Shift.",
       onSitePhoto: "Foto di lokasi",
       required: "(wajib)",
       photoHelp:
@@ -2682,6 +2683,30 @@ export const id = {
         checkIn: "Check-in",
         checkOut: "Check-out",
         status: "Status",
+      },
+    },
+    shifts: {
+      title: "Shift",
+      description:
+        "Atur jam shift yang direncanakan untuk staf yang sudah ditugaskan ke proyek. Tentukan siapa yang bekerja di situs lewat Proyek; atur kapan mereka bekerja di sini. CICO tetap mencatat waktu absensi aktual.",
+      searchPlaceholder: "Cari Karyawan Atau Proyek...",
+      emptyTitle: "Tidak Ada Penugasan Proyek",
+      emptyDescription:
+        "Tugaskan staf ke proyek Perencanaan atau Berjalan terlebih dahulu, lalu atur shift mereka di sini.",
+      emptySearch: 'Tidak Ada Hasil Untuk "{query}"',
+      emptySearchDesc: "Coba nama karyawan atau proyek lain.",
+      shiftStart: "Mulai Shift",
+      shiftEnd: "Selesai Shift",
+      save: "Simpan",
+      saving: "Menyimpan...",
+      clear: "Hapus",
+      saveFailed: "Gagal memperbarui shift.",
+      columns: {
+        employee: "Karyawan",
+        employmentType: "Jenis Kepegawaian",
+        project: "Proyek",
+        shift: "Shift",
+        actions: "Aksi",
       },
     },
     leaves: {
@@ -2911,6 +2936,7 @@ export const id = {
     progress: "Laporan Progress",
     cico: "CICO",
     attendance: "Laporan Kehadiran",
+    shifts: "Shift",
     leaves: "Izin & Sakit",
     approvals: "Persetujuan",
     reports: "Laporan Bulanan",

@@ -1,10 +1,27 @@
 import type { Placement, Prisma, ProjectStatus } from "@prisma/client";
 
+/** Live projects staff may still be linked to. */
 const ASSIGNABLE_STATUSES: ProjectStatus[] = [
   "PLANNED",
   "IN_PROGRESS",
-  "ON_HOLD",
 ];
+
+/**
+ * Release specific employees from one project only.
+ * Callers that need AVAILABLE + portal sync should use
+ * `releaseEmployeesFromProject` from `lib/workforce-crew.ts`.
+ */
+export async function clearEmployeesFromProject(
+  db: DbClient,
+  projectId: string,
+  employeeIds: string[]
+) {
+  const uniqueIds = [...new Set(employeeIds.filter(Boolean))];
+  if (uniqueIds.length === 0) return;
+  await db.projectAssignment.deleteMany({
+    where: { projectId, employeeId: { in: uniqueIds } },
+  });
+}
 
 type DbClient = {
   project: Prisma.ProjectDelegate;

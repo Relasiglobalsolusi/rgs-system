@@ -8,6 +8,8 @@ import {
 
   ClipboardCheck,
 
+  Clock,
+
   FileSpreadsheet,
 
   FileText,
@@ -56,6 +58,8 @@ export const MODULES = [
   "cico",
 
   "attendance",
+
+  "shifts",
 
   "leaves",
 
@@ -205,6 +209,7 @@ export function getClientModuleOverrides(): Record<ModuleKey, boolean> {
     progress: true,
     cico: false,
     attendance: true,
+    shifts: false,
     leaves: false,
     approvals: false,
     reports: true,
@@ -234,6 +239,7 @@ export function getVendorModuleOverrides(): Record<ModuleKey, boolean> {
     progress: false,
     cico: false,
     attendance: false,
+    shifts: false,
     leaves: false,
     approvals: false,
     reports: false,
@@ -401,6 +407,7 @@ export function getEmployeeModuleOverrides(
     // Field staff use CICO; HO/desk staff use Attendance Report.
     cico: !isHo,
     attendance: isHo,
+    shifts: isHo,
     leaves: true,
     approvals: false,
     reports: false,
@@ -738,6 +745,8 @@ export const ROUTE_MODULE_MAP: Record<string, ModuleKey> = {
 
   "/attendance": "attendance",
 
+  "/shifts": "shifts",
+
   "/leaves": "leaves",
 
   "/approvals": "approvals",
@@ -954,6 +963,16 @@ export const menu: MenuSection[] = [
 
           {
 
+            label: "Payment Due",
+
+            href: "/projects?view=payment-due",
+
+            primary: true,
+
+          },
+
+          {
+
             label: "Completed Projects",
 
             href: "/projects?view=completed",
@@ -1020,6 +1039,18 @@ export const menu: MenuSection[] = [
         href: "/attendance",
 
         module: "attendance",
+
+      },
+
+      {
+
+        icon: Clock,
+
+        label: "Shifts",
+
+        href: "/shifts",
+
+        module: "shifts",
 
       },
 
@@ -1121,6 +1152,8 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
   cico: "CICO",
 
   attendance: "Attendance Report",
+
+  shifts: "Shifts",
 
   leaves: "Leave & Sick",
 

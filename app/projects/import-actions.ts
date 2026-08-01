@@ -49,6 +49,7 @@ import { PROJECT_LIST_VIEW_PATHS } from "@/lib/project-status";
 import { SORT_ORDER_STEP } from "@/lib/reorder";
 import { requireModule, toPermissionUser } from "@/lib/session";
 import { capitalizeProper } from "@/lib/text-case";
+import { markEmployeesOnProject } from "@/lib/workforce-crew";
 
 type ImportClient = {
   id: string;
@@ -577,7 +578,7 @@ export async function confirmBulkImportProjects(
       const sortOrder = nextSortOrder;
       nextSortOrder += SORT_ORDER_STEP;
 
-      const project = await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx) => {
         const created = await tx.project.create({
           data: {
             name: parsed.name,
@@ -616,18 +617,17 @@ export async function confirmBulkImportProjects(
           });
         }
 
-        return created;
+        if (employeeIds.length > 0) {
+          await tx.projectAssignment.createMany({
+            data: employeeIds.map((employeeId) => ({
+              projectId: created.id,
+              employeeId,
+            })),
+            skipDuplicates: true,
+          });
+          await markEmployeesOnProject(tx, employeeIds, company.id);
+        }
       });
-
-      if (employeeIds.length > 0) {
-        await prisma.projectAssignment.createMany({
-          data: employeeIds.map((employeeId) => ({
-            projectId: project.id,
-            employeeId,
-          })),
-          skipDuplicates: true,
-        });
-      }
 
       recordImportCreated(result);
     } catch (error) {
@@ -642,9 +642,13 @@ export async function confirmBulkImportProjects(
   revalidatePath(PROJECT_LIST_VIEW_PATHS.all);
   revalidatePath(PROJECT_LIST_VIEW_PATHS.planning);
   revalidatePath(PROJECT_LIST_VIEW_PATHS.inProgress);
+  revalidatePath(PROJECT_LIST_VIEW_PATHS.paymentDue);
   revalidatePath("/dashboard");
   revalidatePath("/clients");
   revalidatePath("/billing");
+  revalidatePath("/employees");
+  revalidatePath("/users");
+  revalidatePath("/shifts");
 
   return result;
 }

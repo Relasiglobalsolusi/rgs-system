@@ -529,7 +529,7 @@ export default async function ProjectsPage({
       const eligibleForMoveBack =
         canManage &&
         (filterView === "in-progress" || filterView === undefined) &&
-        (project.status === "IN_PROGRESS" || project.status === "ON_HOLD");
+        project.status === "IN_PROGRESS";
       const canMoveToPlanning = eligibleForMoveBack && !hasOpenCollection;
       const moveBackBlockedByCollection =
         eligibleForMoveBack && hasOpenCollection;
