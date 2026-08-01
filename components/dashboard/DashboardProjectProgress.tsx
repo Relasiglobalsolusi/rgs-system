@@ -27,11 +27,10 @@ function statusTone(
 ): "active" | "success" | "warning" | "inactive" | "pending" {
   switch (status) {
     case "IN_PROGRESS":
+    case "ON_HOLD":
       return "active";
     case "COMPLETED":
       return "success";
-    case "ON_HOLD":
-      return "warning";
     case "PLANNED":
       return "pending";
     default:

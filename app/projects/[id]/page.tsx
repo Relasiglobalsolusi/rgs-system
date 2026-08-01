@@ -83,11 +83,10 @@ function statusTone(
 ): "active" | "success" | "warning" | "inactive" | "pending" {
   switch (status) {
     case "IN_PROGRESS":
+    case "ON_HOLD":
       return "active";
     case "COMPLETED":
       return "success";
-    case "ON_HOLD":
-      return "warning";
     case "PLANNED":
       return "pending";
     default:
@@ -204,8 +203,7 @@ export default async function ProjectDetailPage({
     (OPEN_COLLECTION_STATUSES as readonly string[]).includes(period.status)
   );
   const eligibleForMoveBack =
-    canManage &&
-    (project.status === "IN_PROGRESS" || project.status === "ON_HOLD");
+    canManage && project.status === "IN_PROGRESS";
   const canMoveBackToPlanning = eligibleForMoveBack && !hasOpenCollection;
   const moveBackBlockedByCollection =
     eligibleForMoveBack && hasOpenCollection;
@@ -238,7 +236,7 @@ export default async function ProjectDetailPage({
     ? "/projects?view=completed"
     : inPlanning
       ? "/projects?view=planning"
-      : project.status === "IN_PROGRESS" || project.status === "ON_HOLD"
+      : project.status === "IN_PROGRESS"
         ? "/projects?view=in-progress"
         : "/projects";
 
@@ -271,7 +269,7 @@ export default async function ProjectDetailPage({
     ? t("pages.projects.completedTitle")
     : inPlanning
       ? t("pages.projects.planningTitle")
-      : project.status === "IN_PROGRESS" || project.status === "ON_HOLD"
+      : project.status === "IN_PROGRESS"
         ? t("pages.projects.inProgressTitle")
         : t("pages.projects.filterAllProjects");
   const statusLabel = localizeProjectStatus(project.status, locale);

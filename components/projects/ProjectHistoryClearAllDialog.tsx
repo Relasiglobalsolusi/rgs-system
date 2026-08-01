@@ -42,12 +42,17 @@ export default function ProjectHistoryClearAllDialog({ projects }: Props) {
           toast.message(t("pages.projects.historyClear.noProjects"));
         } else {
           toast.success(
-            `Cleared ${result.deletedCount} completed project${result.deletedCount !== 1 ? "s" : ""}.`
+            t("pages.projects.historyClear.clearedCount", {
+              count: result.deletedCount,
+            })
           );
         }
         setOpen(false);
       } catch (error) {
-        showRejectionFromError(error, "Failed to clear completed projects.");
+        showRejectionFromError(
+          error,
+          t("pages.projects.historyClear.clearFailed")
+        );
       }
     });
   }
@@ -88,7 +93,7 @@ export default function ProjectHistoryClearAllDialog({ projects }: Props) {
               disabled={pending}
               onClick={() => setOpen(false)}
             >
-              Cancel
+              {t("common.actions.cancel")}
             </EmployeeSecondaryButton>
           </div>
         }
@@ -96,7 +101,7 @@ export default function ProjectHistoryClearAllDialog({ projects }: Props) {
         <div>
           <div className="rounded-xl border border-border bg-elevated px-4 py-4">
             <p className="text-sm font-medium text-text">
-              {count} completed project{count !== 1 ? "s" : ""}
+              {t("pages.projects.historyClear.completedCount", { count })}
             </p>
 
             <ul className="mt-3 max-h-40 space-y-2 overflow-y-auto">
@@ -117,9 +122,7 @@ export default function ProjectHistoryClearAllDialog({ projects }: Props) {
           <div className="mt-4 flex gap-3 rounded-xl border border-amber-500/25 bg-card-tint-amber px-4 py-3">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
             <p className="text-sm leading-6 text-muted">
-              Invoice periods, PDFs, progress reports, photos, and assignments are
-              removed. Attendance records are kept but unlinked. Payment Due and
-              active projects are not affected.
+              {t("pages.projects.historyClear.warningNote")}
             </p>
           </div>
         </div>

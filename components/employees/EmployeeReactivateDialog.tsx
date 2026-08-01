@@ -48,7 +48,7 @@ export default function EmployeeReactivateDialog({
         setOpen(false);
         router.refresh();
       } catch (error) {
-        showRejectionFromError(error, "Failed to restore employee.");
+        showRejectionFromError(error, t("pages.employees.restoreFailed"));
       }
     });
   }

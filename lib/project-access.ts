@@ -19,7 +19,7 @@ type SessionUser = {
   clientId?: string | null;
 };
 
-/** Planning + In Progress (incl. On Hold) — admin-only hard delete. */
+/** Planning + In Progress — admin-only hard delete. */
 export const PROJECT_ADMIN_DELETE_STATUSES = [
   ...PROJECT_PLANNING_LIST_STATUSES,
   ...PROJECT_IN_PROGRESS_LIST_STATUSES,
@@ -108,7 +108,7 @@ export function canManageProjects(
 }
 
 /**
- * Permanent delete of Planning / In Progress / On Hold projects.
+ * Permanent delete of Planning / In Progress projects.
  * Admins only — HO employees and clients cannot delete these stages.
  */
 export function canDeleteActiveStageProjects(user: ProjectAdminUser): boolean {

@@ -333,7 +333,7 @@ export function useProjectReturnToPlanningAction({
         }
         router.refresh();
       } catch (error) {
-        showRejectionFromError(error, "Failed to send project Back to Planning.");
+        showRejectionFromError(error, t("pages.projects.backToPlanningFailed"));
       }
     });
   }

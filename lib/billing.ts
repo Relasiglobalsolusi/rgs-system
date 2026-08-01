@@ -124,13 +124,13 @@ export function projectHistoryWhere(): Prisma.ProjectWhereInput {
 
 /**
  * Prisma filter: projects that belong in Invoice and Billing directories.
- * In Progress (and On Hold) always; COMPLETED only while collection / issuing
- * remains. Planning is excluded — invoicing starts after Move to In Progress.
+ * In Progress always; COMPLETED only while collection / issuing remains.
+ * Planning is excluded — invoicing starts after Move to In Progress.
  */
 export function billingActiveProjectWhere(): Prisma.ProjectWhereInput {
   return {
     OR: [
-      { status: { in: ["IN_PROGRESS", "ON_HOLD"] } },
+      { status: "IN_PROGRESS" },
       {
         status: "COMPLETED",
         NOT: projectFullyPaidInvoiceWhere(),
@@ -207,7 +207,7 @@ export function isBillingActiveProject(input: {
   status: ProjectStatus | string;
   invoicePeriods: { status: string }[];
 }): boolean {
-  if (input.status === "IN_PROGRESS" || input.status === "ON_HOLD") {
+  if (input.status === "IN_PROGRESS") {
     return true;
   }
   if (input.status === "COMPLETED") {

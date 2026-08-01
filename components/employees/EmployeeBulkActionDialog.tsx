@@ -28,21 +28,6 @@ type Props = {
   selectedIds: string[];
 };
 
-function formatBulkResultMessage(
-  actionLabel: string,
-  result: Awaited<ReturnType<typeof bulkDeactivateEmployees>>
-) {
-  if (result.failureCount === 0) {
-    return `${result.successCount} employee${result.successCount !== 1 ? "s" : ""} ${actionLabel}.`;
-  }
-
-  if (result.successCount === 0) {
-    return `Could not ${actionLabel} selected employees. ${result.errors[0] ?? "Please try again."}`;
-  }
-
-  return `${result.successCount} employee${result.successCount !== 1 ? "s" : ""} ${actionLabel}. ${result.failureCount} failed.`;
-}
-
 export default function EmployeeBulkActionDialog({
   open,
   onOpenChange,
@@ -53,6 +38,40 @@ export default function EmployeeBulkActionDialog({
   const { t } = useT();
   const [pending, startTransition] = useTransition();
 
+  function formatBulkResultMessage(
+    result: Awaited<ReturnType<typeof bulkDeactivateEmployees>>
+  ) {
+    if (result.failureCount === 0) {
+      return mode === "deactivate"
+        ? t("pages.employees.bulkDeactivateSuccess", {
+            count: result.successCount,
+          })
+        : t("pages.employees.bulkDeleteForeverSuccess", {
+            count: result.successCount,
+          });
+    }
+
+    if (result.successCount === 0) {
+      return mode === "deactivate"
+        ? t("pages.employees.bulkDeactivateAllFailed", {
+            detail: result.errors[0] ?? t("common.errors.tryAgain"),
+          })
+        : t("pages.employees.bulkDeleteForeverAllFailed", {
+            detail: result.errors[0] ?? t("common.errors.tryAgain"),
+          });
+    }
+
+    return mode === "deactivate"
+      ? t("pages.employees.bulkDeactivatePartial", {
+          success: result.successCount,
+          failed: result.failureCount,
+        })
+      : t("pages.employees.bulkDeleteForeverPartial", {
+          success: result.successCount,
+          failed: result.failureCount,
+        });
+  }
+
   function handleConfirm() {
     startTransition(async () => {
       try {
@@ -61,17 +80,12 @@ export default function EmployeeBulkActionDialog({
             ? await bulkDeactivateEmployees(selectedIds)
             : await bulkArchiveEmployeesFromDirectory(selectedIds);
 
-        const actionPastTense =
-          mode === "deactivate"
-            ? "moved to Deleted Employees"
-            : "permanently removed from directory";
-
         if (result.failureCount === 0) {
-          toast.success(formatBulkResultMessage(actionPastTense, result));
+          toast.success(formatBulkResultMessage(result));
         } else if (result.successCount === 0) {
-          showRejection({ reasons: formatBulkResultMessage(actionPastTense, result) });
+          showRejection({ reasons: formatBulkResultMessage(result) });
         } else {
-          toast.warning(formatBulkResultMessage(actionPastTense, result));
+          toast.warning(formatBulkResultMessage(result));
         }
 
         onOpenChange(false);

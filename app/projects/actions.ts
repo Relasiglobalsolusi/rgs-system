@@ -161,6 +161,8 @@ async function permanentlyDeleteProject(project: {
   revalidatePath("/employees");
   revalidatePath("/users");
   revalidatePath("/shifts");
+  revalidatePath("/cico");
+  revalidatePath("/attendance");
 
   return { id: project.id, name: project.name };
 }
@@ -967,11 +969,15 @@ function revalidateAfterProjectLifecycle(opts: {
   revalidatePath(PROJECT_LIST_VIEW_PATHS.inProgress);
   revalidatePath(PROJECT_LIST_VIEW_PATHS.paymentDue);
   revalidatePath(PROJECT_LIST_VIEW_PATHS.completed);
-  revalidatePath(PROJECT_LIST_VIEW_PATHS.history);
   revalidatePath(`/projects/${opts.projectId}`);
   revalidatePath("/dashboard");
   revalidatePath("/billing");
   revalidatePath("/clients");
+  revalidatePath("/employees");
+  revalidatePath("/users");
+  revalidatePath("/shifts");
+  revalidatePath("/cico");
+  revalidatePath("/attendance");
   if (opts.clientId) {
     revalidatePath(`/billing/${opts.clientId}`);
     revalidatePath(`/billing/${opts.clientId}/${opts.projectId}`);
@@ -1359,7 +1365,7 @@ export async function moveProjectToPlanning(id: string): Promise<void> {
   if (!project) {
     throw new Error("Project not found.");
   }
-  if (project.status !== "IN_PROGRESS" && project.status !== "ON_HOLD") {
+  if (project.status !== "IN_PROGRESS") {
     throw new Error("Only In Progress projects can move back to Planning.");
   }
   if (project.invoicePeriods.length > 0) {

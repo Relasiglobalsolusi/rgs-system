@@ -45,7 +45,7 @@ export default function EmployeeArchiveDialog({
         await archiveEmployeeFromDirectory(employee.id);
         setOpen(false);
       } catch (error) {
-        showRejectionFromError(error, "Failed to permanently remove employee from directory.");
+        showRejectionFromError(error, t("pages.employees.deleteForeverFailed"));
       }
     });
   }
@@ -96,11 +96,7 @@ export default function EmployeeArchiveDialog({
           </div>
 
           <p className="mt-4 text-sm leading-6 text-muted">
-            Linked user login is permanently deleted and cannot be restored. The
-            employee number becomes available for the next new hire in this
-            department. Attendance, leave, progress, and other historical records
-            remain in the system. This action cannot be undone from the directory
-            UI.
+            {t("pages.employees.bulkDeleteForeverNote")}
           </p>
         </div>
       </EmployeeDialogShell>

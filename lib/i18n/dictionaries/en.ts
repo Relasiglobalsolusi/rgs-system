@@ -679,6 +679,7 @@ export const en = {
         "Work order received for “{name}”. Enter the real job dates. Staff can be assigned now or later.",
       backToPlanningConfirm:
         "Back to Planning for “{name}”? Field ops pause until a work order is received again. Estimated and real dates are kept.",
+      backToPlanningFailed: "Failed to send project Back to Planning.",
       subCategoryProjects: "{type} Projects",
       projectOne: "{count} project",
       projectOther: "{count} projects",
@@ -848,6 +849,12 @@ export const en = {
       historyClear: {
         noProjects: "No projects to clear.",
         cleared: "Project history cleared.",
+        clearedCount:
+          "Cleared {count} completed project(s).",
+        completedCount: "{count} completed project(s)",
+        clearFailed: "Failed to clear completed projects.",
+        warningNote:
+          "Invoice periods, PDFs, progress reports, photos, and assignments are removed. Attendance records are kept but unlinked. Payment Due and active projects are not affected.",
         title: "Clear all project history?",
         description:
           "This permanently clears completed and cancelled project history from this view. Active projects are not affected.",
@@ -1454,6 +1461,23 @@ export const en = {
       bulkRestoreAllFailed: "Could not restore selected employees. {detail}",
       bulkRestorePartial:
         "{success} employee(s) restored. Linked logins stay off until Restore Access. {failed} failed.",
+      bulkDeactivateSuccess:
+        "{count} employee(s) moved to Deleted Employees.",
+      bulkDeactivateAllFailed:
+        "Could not delete selected employees. {detail}",
+      bulkDeactivatePartial:
+        "{success} employee(s) moved to Deleted Employees. {failed} failed.",
+      bulkDeleteForeverSuccess:
+        "{count} employee(s) permanently removed from directory.",
+      bulkDeleteForeverAllFailed:
+        "Could not permanently remove selected employees. {detail}",
+      bulkDeleteForeverPartial:
+        "{success} employee(s) permanently removed from directory. {failed} failed.",
+      deleteFailed: "Failed to delete employee.",
+      restoreFailed: "Failed to restore employee.",
+      deleteForeverFailed:
+        "Failed to permanently remove employee from directory.",
+      reorderFailed: "Failed to reorder employees.",
       portalStatus: {
         yes: "Yes",
         revoked: "Revoked",
@@ -1540,6 +1564,7 @@ export const en = {
         createFailed: "Failed to create department.",
         updateFailed: "Failed to update department.",
         deleteFailed: "Failed to delete department.",
+        reorderFailed: "Failed to reorder departments.",
         deleteTitle: "Delete Department?",
         deleteConfirm: "Delete Department",
         deleteDescWithEmployees:

@@ -6,7 +6,6 @@ import { prisma } from "@/lib/prisma";
 const COUNTABLE_STATUSES = [
   "PLANNED",
   "IN_PROGRESS",
-  "ON_HOLD",
   "COMPLETED",
 ] as const;
 

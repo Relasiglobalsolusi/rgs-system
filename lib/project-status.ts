@@ -45,13 +45,11 @@ export const PROJECT_LIST_VIEW_PATHS = {
 
 /**
  * All Projects overview — live projects except History (COMPLETED).
- * Excludes CANCELLED from the product surface. Legacy ON_HOLD may still appear
- * with a clear On Hold label; app actions no longer write ON_HOLD / CANCELLED.
+ * Excludes CANCELLED and legacy ON_HOLD from the product surface.
  */
 export const PROJECT_ALL_LIST_STATUSES = [
   "PLANNED",
   "IN_PROGRESS",
-  "ON_HOLD",
 ] as const satisfies readonly ProjectStatus[];
 
 /** @deprecated Prefer PROJECT_IN_PROGRESS_LIST_STATUSES */
@@ -89,8 +87,7 @@ export type ProjectWorkflowStatusLabel =
 
 /**
  * Map DB status (+ payment-due context) to directory workflow labels.
- * Legacy ON_HOLD / CANCELLED keep distinct labels when they appear; subcategory
- * is never included.
+ * Legacy ON_HOLD / CANCELLED map to nearest live stages (no product chrome).
  */
 export function getProjectWorkflowStatusLabel(opts: {
   status: ProjectStatus | string | null | undefined;
@@ -102,13 +99,12 @@ export function getProjectWorkflowStatusLabel(opts: {
     case "PLANNED":
       return "Planning";
     case "IN_PROGRESS":
-      return "In Progress";
     case "ON_HOLD":
-      return "On Hold";
+      return "In Progress";
     case "COMPLETED":
       return "Completed";
     case "CANCELLED":
-      return "Cancelled";
+      return "Planning";
     default:
       return getProjectStatusLabel(opts.status);
   }
@@ -124,10 +120,6 @@ export function projectWorkflowStatusBadge(
       return "success";
     case "Payment Due":
       return "warning";
-    case "On Hold":
-      return "inactive";
-    case "Cancelled":
-      return "danger";
     case "Planning":
     default:
       return "pending";

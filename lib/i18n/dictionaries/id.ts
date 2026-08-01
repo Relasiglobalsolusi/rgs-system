@@ -697,6 +697,7 @@ export const id = {
         "Surat perintah kerja diterima untuk “{name}”. Masukkan tanggal pekerjaan nyata. Staf dapat ditugaskan sekarang atau nanti.",
       backToPlanningConfirm:
         "Kembali ke Perencanaan untuk “{name}”? Operasi lapangan ditunda hingga surat perintah kerja diterima lagi. Tanggal estimasi dan nyata tetap disimpan.",
+      backToPlanningFailed: "Gagal mengirim proyek kembali ke Perencanaan.",
       subCategoryProjects: "Proyek {type}",
       projectOne: "{count} proyek",
       projectOther: "{count} proyek",
@@ -867,6 +868,12 @@ export const id = {
       historyClear: {
         noProjects: "Tidak ada proyek untuk dibersihkan.",
         cleared: "Riwayat proyek dibersihkan.",
+        clearedCount:
+          "{count} proyek selesai dibersihkan.",
+        completedCount: "{count} proyek selesai",
+        clearFailed: "Gagal membersihkan proyek selesai.",
+        warningNote:
+          "Periode invoice, PDF, laporan progres, foto, dan penugasan dihapus. Catatan kehadiran disimpan tetapi dilepas tautannya. Menunggu Pembayaran dan proyek aktif tidak terpengaruh.",
         title: "Hapus semua riwayat proyek?",
         description:
           "Ini menghapus permanen riwayat proyek selesai dan dibatalkan dari tampilan ini. Proyek aktif tidak terpengaruh.",
@@ -1478,6 +1485,23 @@ export const id = {
         "Tidak dapat memulihkan karyawan terpilih. {detail}",
       bulkRestorePartial:
         "{success} karyawan dipulihkan. Login terkait tetap nonaktif hingga Pulihkan Akses. {failed} gagal.",
+      bulkDeactivateSuccess:
+        "{count} karyawan dipindah ke Karyawan Dihapus.",
+      bulkDeactivateAllFailed:
+        "Tidak dapat menghapus karyawan terpilih. {detail}",
+      bulkDeactivatePartial:
+        "{success} karyawan dipindah ke Karyawan Dihapus. {failed} gagal.",
+      bulkDeleteForeverSuccess:
+        "{count} karyawan dihapus permanen dari direktori.",
+      bulkDeleteForeverAllFailed:
+        "Tidak dapat menghapus permanen karyawan terpilih. {detail}",
+      bulkDeleteForeverPartial:
+        "{success} karyawan dihapus permanen dari direktori. {failed} gagal.",
+      deleteFailed: "Gagal menghapus karyawan.",
+      restoreFailed: "Gagal memulihkan karyawan.",
+      deleteForeverFailed:
+        "Gagal menghapus permanen karyawan dari direktori.",
+      reorderFailed: "Gagal menyusun ulang karyawan.",
       portalStatus: {
         yes: "Ya",
         revoked: "Dicabut",
@@ -1510,7 +1534,7 @@ export const id = {
       manageDepartments: "Kelola Departemen",
       employeeDepartmentsTitle: "Departemen Karyawan",
       employeeDepartmentsDescription:
-        "Tentukan departemen seperti Corporate atau Operasi. Departemen mengatur organisasi dan penomoran karyawan. Penempatan (Tersedia / Di proyek / Kantor pusat / Lapangan) diatur sistem melalui Assign / Release. Peran keuangan menjadi jabatan di bawah Corporate.",
+        "Tentukan departemen seperti Corporate atau Operasi. Departemen mengatur organisasi dan penomoran karyawan. Penempatan (Tersedia / Di Proyek / Kantor Pusat / Lapangan) diatur sistem melalui Tugaskan / Lepaskan. Peran keuangan menjadi jabatan di bawah Corporate.",
       departmentCount: "{count} departemen",
       departmentCountOne: "{count} departemen",
       addDepartment: "Tambah Departemen",
@@ -1518,7 +1542,7 @@ export const id = {
         "Belum ada departemen. Tambahkan satu untuk mengelompokkan karyawan.",
       assignmentScopes: "Kelola Jabatan",
       assignmentScopesDescription:
-        "Jabatan adalah posisi dalam departemen (misalnya Operasi → Cleaning staff). Penempatan adalah tempat bekerja dan diatur oleh Assign / Release, bukan dropdown bebas.",
+        "Jabatan adalah posisi dalam departemen (misalnya Operasi → Cleaning Staff). Penempatan adalah tempat bekerja dan diatur oleh Tugaskan / Lepaskan, bukan dropdown bebas.",
       unassignedCannotDelete: "Jabatan sistem tidak dapat dihapus saat masih dipakai",
       assign: "Tugaskan",
       positionDialog: {
@@ -1565,6 +1589,7 @@ export const id = {
         createFailed: "Gagal membuat departemen.",
         updateFailed: "Gagal memperbarui departemen.",
         deleteFailed: "Gagal menghapus departemen.",
+        reorderFailed: "Gagal menyusun ulang departemen.",
         deleteTitle: "Hapus departemen?",
         deleteConfirm: "Hapus departemen",
         deleteDescWithEmployees:
@@ -1654,7 +1679,7 @@ export const id = {
         placementHint:
           "Departemen untuk organisasi dan penomoran; penempatan menunjukkan tempat kerja.",
         placementManaged:
-          "{label} — dikelola melalui Assign / Release.",
+          "{label} — dikelola melalui Tugaskan / Lepaskan.",
         employmentType: "Jenis Kepegawaian",
         selectEmploymentType: "Pilih Jenis Kepegawaian",
         departmentHint:
@@ -2985,7 +3010,7 @@ export const id = {
     willAdd: "Akan ditambah",
     willAddWithWarning: "Akan ditambah · peringatan",
     inProgressEmptyStaffWarning:
-      "Staff Assigned kosong — Anda dapat menugaskan staf nanti. Baris ini tetap dapat diimpor.",
+      "Staf Ditugaskan kosong — Anda dapat menugaskan staf nanti. Baris ini tetap dapat diimpor.",
     example: "Contoh",
     reviewImport: "Tinjau impor",
     readingFile: "Membaca file...",

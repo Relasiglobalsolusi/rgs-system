@@ -123,7 +123,7 @@ export default function EmployeeTable({
         router.refresh();
       } catch (error) {
         toast.error(
-          error instanceof Error ? error.message : "Failed to reorder employees."
+          error instanceof Error ? error.message : t("pages.employees.reorderFailed")
         );
         router.refresh();
       }

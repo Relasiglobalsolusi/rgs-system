@@ -540,6 +540,9 @@ export async function assignEmployeeToProject(
   revalidatePath("/employees");
   revalidatePath("/users");
   revalidatePath("/projects");
+  revalidatePath("/shifts");
+  revalidatePath("/cico");
+  revalidatePath("/attendance");
 }
 
 /**
@@ -602,6 +605,9 @@ export async function assignEmployeeToHeadOffice(id: string) {
   revalidatePath("/employees");
   revalidatePath("/users");
   revalidatePath("/projects");
+  revalidatePath("/shifts");
+  revalidatePath("/cico");
+  revalidatePath("/attendance");
 }
 
 /**
@@ -656,6 +662,9 @@ export async function releaseEmployeeFromProject(id: string) {
   revalidatePath("/employees");
   revalidatePath("/users");
   revalidatePath("/projects");
+  revalidatePath("/shifts");
+  revalidatePath("/cico");
+  revalidatePath("/attendance");
 }
 
 /** Set placement to FIELD (no required project). */

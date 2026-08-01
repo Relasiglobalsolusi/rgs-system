@@ -48,7 +48,7 @@ export default function EmployeeDeleteDialog({
         onDeleted?.();
         setOpen(false);
       } catch (error) {
-        showRejectionFromError(error, "Failed to delete employee.");
+        showRejectionFromError(error, t("pages.employees.deleteFailed"));
       }
     });
   }
@@ -99,11 +99,7 @@ export default function EmployeeDeleteDialog({
           </div>
 
           <p className="mt-4 text-sm leading-6 text-muted">
-            Linked user login is disabled (not permanently deleted) and moves to
-            Deleted users. Credentials are kept. After you restore this
-            employee, use Users → Revoked Access → Restore Access to re-enable
-            portal login. Historical records (attendance, leave, progress) are
-            not deleted.
+            {t("pages.employees.bulkDeactivateNote")}
           </p>
         </div>
       </EmployeeDialogShell>

@@ -80,7 +80,9 @@ export default function EmployeeCategoryTable({ categories }: Props) {
         router.refresh();
       } catch (error) {
         toast.error(
-          error instanceof Error ? error.message : "Failed to reorder departments."
+          error instanceof Error
+            ? error.message
+            : t("pages.employees.deptDialog.reorderFailed")
         );
         router.refresh();
       }
