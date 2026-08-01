@@ -12,22 +12,27 @@ import {
   countCountableClientProjects,
   defaultSecurityMode,
 } from "@/lib/multi-project-access";
+import type { AppLocale } from "@/lib/i18n/locale";
+import { getServerLocale } from "@/lib/i18n/locale";
+import { translate } from "@/lib/i18n/translate";
 import { prisma } from "@/lib/prisma";
 import { toActionError } from "@/lib/prisma-errors";
 import { canManageClients } from "@/lib/project-access";
 import { requireModule, toPermissionUser } from "@/lib/session";
 import { capitalizeProper } from "@/lib/text-case";
 
-async function assertClientManage() {
+async function assertClientManage(locale: AppLocale) {
   const session = await requireModule("clients");
   const user = toPermissionUser(session);
   if (!canManageClients(user)) {
-    throw new Error("Not authorized to manage clients.");
+    throw new Error(
+      translate(locale, "pages.clients.multiProject.notAuthorized")
+    );
   }
   return session;
 }
 
-async function loadClientOrThrow(clientId: string) {
+async function loadClientOrThrow(clientId: string, locale: AppLocale) {
   const client = await prisma.client.findUnique({
     where: { id: clientId },
     select: {
@@ -38,7 +43,9 @@ async function loadClientOrThrow(clientId: string) {
       name: true,
     },
   });
-  if (!client) throw new Error("Client not found.");
+  if (!client) {
+    throw new Error(translate(locale, "pages.clients.notFound"));
+  }
   return client;
 }
 
@@ -46,9 +53,10 @@ export async function updateMultiProjectSettings(
   clientId: string,
   formData: FormData
 ): Promise<{ readyPrompt: boolean }> {
+  const locale = await getServerLocale();
   try {
-    await assertClientManage();
-    const client = await loadClientOrThrow(clientId);
+    await assertClientManage(locale);
+    await loadClientOrThrow(clientId, locale);
 
     const enabled =
       String(formData.get("multiProjectAccess") ?? "").toLowerCase() ===
@@ -78,7 +86,10 @@ export async function updateMultiProjectSettings(
     revalidatePath(`/billing/${clientId}`);
     return { readyPrompt };
   } catch (error) {
-    throw toActionError(error, "Failed to update Multi-Project Access.");
+    throw toActionError(
+      error,
+      translate(locale, "pages.clients.multiProject.updateFailed")
+    );
   }
 }
 
@@ -86,12 +97,17 @@ export async function createClientProjectGroup(
   clientId: string,
   formData: FormData
 ) {
+  const locale = await getServerLocale();
   try {
-    await assertClientManage();
-    await loadClientOrThrow(clientId);
+    await assertClientManage(locale);
+    await loadClientOrThrow(clientId, locale);
 
     const name = capitalizeProper(String(formData.get("name") ?? "").trim());
-    if (!name) throw new Error("Group name is required.");
+    if (!name) {
+      throw new Error(
+        translate(locale, "pages.clients.multiProject.groupNameRequired")
+      );
+    }
 
     const top = await prisma.clientProjectGroup.findFirst({
       where: { clientId },
@@ -109,18 +125,26 @@ export async function createClientProjectGroup(
 
     revalidatePath("/clients");
   } catch (error) {
-    throw toActionError(error, "Failed to create project group.");
+    throw toActionError(
+      error,
+      translate(locale, "pages.clients.multiProject.createGroupFailed")
+    );
   }
 }
 
 export async function deleteClientProjectGroup(groupId: string) {
+  const locale = await getServerLocale();
   try {
-    await assertClientManage();
+    await assertClientManage(locale);
     const group = await prisma.clientProjectGroup.findUnique({
       where: { id: groupId },
       select: { id: true, clientId: true },
     });
-    if (!group) throw new Error("Group not found.");
+    if (!group) {
+      throw new Error(
+        translate(locale, "pages.clients.multiProject.groupNotFound")
+      );
+    }
 
     await prisma.$transaction(async (tx) => {
       await tx.project.updateMany({
@@ -132,7 +156,10 @@ export async function deleteClientProjectGroup(groupId: string) {
 
     revalidatePath("/clients");
   } catch (error) {
-    throw toActionError(error, "Failed to delete project group.");
+    throw toActionError(
+      error,
+      translate(locale, "pages.clients.multiProject.deleteGroupActionFailed")
+    );
   }
 }
 
@@ -141,16 +168,21 @@ export async function assignProjectsToGroup(
   groupId: string | null,
   projectIds: string[]
 ) {
+  const locale = await getServerLocale();
   try {
-    await assertClientManage();
-    await loadClientOrThrow(clientId);
+    await assertClientManage(locale);
+    await loadClientOrThrow(clientId, locale);
 
     if (groupId) {
       const group = await prisma.clientProjectGroup.findFirst({
         where: { id: groupId, clientId },
         select: { id: true },
       });
-      if (!group) throw new Error("Group not found.");
+      if (!group) {
+        throw new Error(
+          translate(locale, "pages.clients.multiProject.groupNotFound")
+        );
+      }
     }
 
     const ids = projectIds.map(String).filter(Boolean);
@@ -164,7 +196,10 @@ export async function assignProjectsToGroup(
     revalidatePath("/clients");
     revalidatePath("/projects");
   } catch (error) {
-    throw toActionError(error, "Failed to assign projects to group.");
+    throw toActionError(
+      error,
+      translate(locale, "pages.clients.multiProject.assignGroupFailed")
+    );
   }
 }
 
@@ -176,19 +211,30 @@ export async function generateClientSecurityCode(options: {
   kind: "MASTER" | "GROUP";
   groupId?: string | null;
 }): Promise<{ code: string; codeId: string }> {
+  const locale = await getServerLocale();
   try {
-    await assertClientManage();
-    const client = await loadClientOrThrow(options.clientId);
+    await assertClientManage(locale);
+    const client = await loadClientOrThrow(options.clientId, locale);
 
     if (options.kind === "GROUP") {
-      if (!options.groupId) throw new Error("Group is required for a Group code.");
+      if (!options.groupId) {
+        throw new Error(
+          translate(locale, "pages.clients.multiProject.groupRequiredForCode")
+        );
+      }
       const group = await prisma.clientProjectGroup.findFirst({
         where: { id: options.groupId, clientId: options.clientId },
         select: { id: true },
       });
-      if (!group) throw new Error("Group not found.");
+      if (!group) {
+        throw new Error(
+          translate(locale, "pages.clients.multiProject.groupNotFound")
+        );
+      }
     } else if (options.groupId) {
-      throw new Error("Master Security Code cannot be tied to a group.");
+      throw new Error(
+        translate(locale, "pages.clients.multiProject.masterCodeNoGroup")
+      );
     }
 
     if (
@@ -196,7 +242,7 @@ export async function generateClientSecurityCode(options: {
       client.multiProjectSecurityMode === "GROUP_ONLY"
     ) {
       throw new Error(
-        "Master Security Code is not used in Group Only mode. Switch to Master And Group first."
+        translate(locale, "pages.clients.multiProject.masterCodeGroupOnlyMode")
       );
     }
 
@@ -233,7 +279,10 @@ export async function generateClientSecurityCode(options: {
     revalidatePath("/clients");
     return { code, codeId: created.id };
   } catch (error) {
-    throw toActionError(error, "Failed to generate Security Code.");
+    throw toActionError(
+      error,
+      translate(locale, "pages.clients.multiProject.generateCodeFailed")
+    );
   }
 }
 
@@ -249,8 +298,9 @@ function isNextRedirectError(error: unknown): boolean {
 }
 
 export async function getClientMultiProjectAdminState(clientId: string) {
+  const locale = await getServerLocale();
   try {
-    await assertClientManage();
+    await assertClientManage(locale);
     const client = await prisma.client.findUnique({
       where: { id: clientId },
       select: {
@@ -307,7 +357,9 @@ export async function getClientMultiProjectAdminState(clientId: string) {
         },
       },
     });
-    if (!client) throw new Error("Client not found.");
+    if (!client) {
+      throw new Error(translate(locale, "pages.clients.notFound"));
+    }
 
     const countableProjects = await countCountableClientProjects(clientId);
     const active = client.multiProjectAccess && countableProjects >= 2;
@@ -323,6 +375,9 @@ export async function getClientMultiProjectAdminState(clientId: string) {
     };
   } catch (error) {
     if (isNextRedirectError(error)) throw error;
-    throw toActionError(error, "Failed to load Multi-Project Access.");
+    throw toActionError(
+      error,
+      translate(locale, "pages.clients.multiProject.loadFailed")
+    );
   }
 }

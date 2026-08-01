@@ -493,7 +493,7 @@ export default function BulkImportDialog({
 
         if (!isBulkImportPreview(nextPreview)) {
           showRejectionFromError(
-            new Error("Import review returned an invalid response."),
+            new Error(t("bulkImport.invalidReviewResponse")),
             t("bulkImport.reviewFailed", { plural }),
             {
               title: t("ui.rejectionNotice.importTitle"),

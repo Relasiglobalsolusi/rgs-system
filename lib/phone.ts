@@ -344,7 +344,8 @@ export function normalizePhone(value: string): string {
  */
 export function normalizeAndValidatePhone(
   value: string,
-  fieldLabel = "Phone"
+  fieldLabel = "Phone",
+  invalidMessage?: string
 ): string {
   const trimmed = value.trim();
   if (!trimmed) return "";
@@ -369,7 +370,7 @@ export function normalizeAndValidatePhone(
     if (again?.isValid()) return again.format("E.164");
   }
 
-  throw new Error(`${fieldLabel} is invalid.`);
+  throw new Error(invalidMessage ?? `${fieldLabel} is invalid.`);
 }
 
 /**
@@ -379,7 +380,8 @@ export function normalizeAndValidatePhoneForCountry(
   countryCode: string,
   localOrFull: string,
   countryId?: string | null,
-  fieldLabel = "Phone"
+  fieldLabel = "Phone",
+  invalidMessage?: string
 ): string {
   const trimmed = localOrFull.trim();
   if (!trimmed) return "";
@@ -389,7 +391,7 @@ export function normalizeAndValidatePhoneForCountry(
     return parsed.format("E.164");
   }
 
-  throw new Error(`${fieldLabel} is invalid.`);
+  throw new Error(invalidMessage ?? `${fieldLabel} is invalid.`);
 }
 
 export function parsePhoneValue(value: string | null | undefined): {

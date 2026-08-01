@@ -1,6 +1,9 @@
 import type { Prisma } from "@prisma/client";
 
 import { normalizeClientName } from "@/lib/client-login-id";
+import type { AppLocale } from "@/lib/i18n/locale";
+import { DEFAULT_LOCALE } from "@/lib/i18n/locale";
+import { translate } from "@/lib/i18n/translate";
 import { prisma } from "@/lib/prisma";
 
 type Tx = Prisma.TransactionClient | typeof prisma;
@@ -18,12 +21,14 @@ export async function assertClientNameAvailable(
     companyId: string;
     name: string;
     excludeId?: string;
+    locale?: AppLocale;
   },
   db: Tx = prisma
 ): Promise<string> {
+  const locale = options.locale ?? DEFAULT_LOCALE;
   const nameNormalized = normalizeClientName(options.name);
   if (!nameNormalized) {
-    throw new Error("Client name is required.");
+    throw new Error(translate(locale, "pages.clients.clientNameRequired"));
   }
 
   const existing = await db.client.findFirst({
@@ -37,10 +42,16 @@ export async function assertClientNameAvailable(
 
   if (existing) {
     if (existing.active) {
-      throw new Error(`A client named "${existing.name}" already exists.`);
+      throw new Error(
+        translate(locale, "pages.clients.nameAlreadyExists", {
+          name: existing.name,
+        })
+      );
     }
     throw new Error(
-      `A client named "${existing.name}" already exists in Deleted clients. Restore it or permanently delete it before reusing the name.`
+      translate(locale, "pages.clients.nameExistsInDeleted", {
+        name: existing.name,
+      })
     );
   }
 

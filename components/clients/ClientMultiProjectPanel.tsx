@@ -227,7 +227,7 @@ export default function ClientMultiProjectPanel({ clientId, open }: Props) {
             } catch (error) {
               showRejectionFromError(
                 error,
-                "Failed to save Multi-Project settings."
+                t("pages.clients.multiProject.saveFailed")
               );
             }
           });
@@ -267,7 +267,7 @@ export default function ClientMultiProjectPanel({ clientId, open }: Props) {
                     } catch (error) {
                       showRejectionFromError(
                         error,
-                        "Failed to generate Security Code."
+                        t("pages.clients.multiProject.generateCodeFailed")
                       );
                     }
                   });
@@ -302,7 +302,10 @@ export default function ClientMultiProjectPanel({ clientId, open }: Props) {
                       setNewGroupName("");
                       await reload();
                     } catch (error) {
-                      showRejectionFromError(error, "Failed to add group.");
+                      showRejectionFromError(
+                        error,
+                        t("pages.clients.multiProject.addGroupFailed")
+                      );
                     }
                   });
                 }}
@@ -332,7 +335,7 @@ export default function ClientMultiProjectPanel({ clientId, open }: Props) {
                           } catch (error) {
                             showRejectionFromError(
                               error,
-                              "Failed to delete group."
+                              t("pages.clients.multiProject.deleteGroupFailed")
                             );
                           }
                         });
@@ -376,7 +379,7 @@ export default function ClientMultiProjectPanel({ clientId, open }: Props) {
                         } catch (error) {
                           showRejectionFromError(
                             error,
-                            "Failed to generate Security Code."
+                            t("pages.clients.multiProject.generateCodeFailed")
                           );
                         }
                       });
@@ -453,7 +456,7 @@ export default function ClientMultiProjectPanel({ clientId, open }: Props) {
                       } catch (error) {
                         showRejectionFromError(
                           error,
-                          "Failed to assign projects."
+                          t("pages.clients.multiProject.assignFailed")
                         );
                       }
                     });
@@ -483,9 +486,9 @@ export default function ClientMultiProjectPanel({ clientId, open }: Props) {
             onClick={async () => {
               try {
                 await navigator.clipboard.writeText(plaintextCode);
-                toast.success("Security Code copied.");
+                toast.success(t("pages.clients.multiProject.codeCopied"));
               } catch {
-                toast.error("Could not copy. Select and copy manually.");
+                toast.error(t("pages.clients.multiProject.copyFailed"));
               }
             }}
           >

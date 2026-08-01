@@ -222,7 +222,9 @@ export default function ClientTable({
         router.refresh();
       } catch (error) {
         toast.error(
-          error instanceof Error ? error.message : "Failed to reorder clients."
+          error instanceof Error
+            ? error.message
+            : t("pages.clients.reorderFailed")
         );
         router.refresh();
       }
@@ -235,8 +237,9 @@ export default function ClientTable({
     if (showSelection) {
       cols.push(
         createSelectionColumn<ClientRow>({
-          ariaLabelAll: "Select all clients",
-          getRowAriaLabel: (client) => `Select ${client.name}`,
+          ariaLabelAll: t("pages.clients.selectAll"),
+          getRowAriaLabel: (client) =>
+            t("pages.clients.selectRow", { name: client.name }),
           getRowId: (client) => client.id,
           allVisibleSelected,
           someVisibleSelected,

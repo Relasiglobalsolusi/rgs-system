@@ -39,7 +39,8 @@ import { saveUpload } from "@/lib/upload";
 async function assertCanManageClients() {
   const session = await requireModule("clients");
   if (!canManageClients(toPermissionUser(session))) {
-    throw new Error("You do not have permission to manage clients.");
+    const locale = await getServerLocale();
+    throw new Error(translate(locale, "pages.clients.permissionDenied"));
   }
 }
 
@@ -147,16 +148,17 @@ function previewFieldsFromParsed(
 }
 
 async function loadClientImportContext(file: File) {
+  const locale = await getServerLocale();
   const company = await prisma.company.findFirst();
   if (!company) {
-    throw new Error("Company not found.");
+    throw new Error(translate(locale, "pages.clients.companyNotFound"));
   }
 
   const buffer = await readSpreadsheetFile(file);
   const { rows } = parseSpreadsheetRows(buffer, CLIENT_IMPORT_COLUMNS);
 
   if (rows.length === 0) {
-    throw new Error("No data rows found. Add clients below the header row.");
+    throw new Error(translate(locale, "pages.clients.import.noDataRows"));
   }
 
   const existingClients = await prisma.client.findMany({
@@ -202,13 +204,13 @@ export async function previewBulkImportClients(
 ): Promise<BulkImportPreview> {
   await assertCanManageClients();
 
+  const locale = await getServerLocale();
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
-    throw new Error("Choose an Excel file to upload.");
+    throw new Error(translate(locale, "bulkImport.chooseExcel"));
   }
 
   const { rows, seenNames } = await loadClientImportContext(file);
-  const locale = await getServerLocale();
   const previewNames = new Set(seenNames);
   const previewRows: BulkImportPreviewRow[] = [];
 
@@ -223,7 +225,9 @@ export async function previewBulkImportClients(
         previewRows.push({
           rowNumber,
           status: "duplicate",
-          message: `Client "${parsed.name}" already exists or is duplicated in this file.`,
+          message: translate(locale, "pages.clients.import.duplicateInFile", {
+            name: parsed.name,
+          }),
           fields: previewFieldsFromParsed(parsed),
         });
         continue;
@@ -240,7 +244,9 @@ export async function previewBulkImportClients(
         rowNumber,
         status: "invalid",
         message:
-          error instanceof Error ? error.message : "Invalid client row.",
+          error instanceof Error
+            ? error.message
+            : translate(locale, "pages.clients.import.invalidRow"),
         fields,
       });
     }
@@ -262,13 +268,13 @@ export async function confirmBulkImportClients(
 ): Promise<BulkImportResult> {
   await assertCanManageClients();
 
+  const locale = await getServerLocale();
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
-    throw new Error("Choose an Excel file to upload.");
+    throw new Error(translate(locale, "bulkImport.chooseExcel"));
   }
 
   const { company, rows, seenNames } = await loadClientImportContext(file);
-  const locale = await getServerLocale();
   const result = createBulkImportResult();
   let nextSortOrder = await nextCompanyScopedSortOrder("client", company.id);
 
@@ -281,7 +287,9 @@ export async function confirmBulkImportClients(
         recordImportSkipped(
           result,
           rowNumber,
-          `Client "${parsed.name}" already exists.`
+          translate(locale, "pages.clients.import.alreadyExists", {
+            name: parsed.name,
+          })
         );
         continue;
       }
@@ -299,7 +307,7 @@ export async function confirmBulkImportClients(
 
       await prisma.$transaction(async (tx) => {
         const nameNormalized = await assertClientNameAvailable(
-          { companyId: company.id, name: parsed.name },
+          { companyId: company.id, name: parsed.name, locale },
           tx
         );
         const shortCode = await getNextClientShortCode(company.id, tx);
@@ -344,7 +352,9 @@ export async function confirmBulkImportClients(
       recordImportFailed(
         result,
         rowNumber,
-        error instanceof Error ? error.message : "Failed to create client."
+        error instanceof Error
+          ? error.message
+          : translate(locale, "pages.clients.createFailed")
       );
     }
   }

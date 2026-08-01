@@ -926,9 +926,31 @@ export const id = {
         "Perbarui detail kontak organisasi. Hapus sementara hanya lewat Hapus. Kelola login portal di Pengguna.",
       activeOrganization: "Organisasi klien aktif",
       savedToast: "Klien disimpan.",
+      createFailed: "Gagal membuat klien.",
       updateFailed: "Gagal memperbarui klien.",
       deleteFailed: "Gagal menghapus klien.",
       restoreFailed: "Gagal memulihkan klien.",
+      reorderFailed: "Gagal mengubah urutan klien.",
+      reorderInvalid: "Satu atau lebih klien tidak valid untuk diurutkan ulang.",
+      notFound: "Klien tidak ditemukan.",
+      alreadyDeleted: "Klien sudah dihapus.",
+      alreadyActive: "Klien sudah aktif.",
+      permissionDenied: "Anda tidak punya izin untuk mengelola klien.",
+      firstNameRequired: "Nama depan wajib diisi.",
+      clientNameRequired: "Nama klien wajib diisi.",
+      contactFirstNameRequired: "Nama depan narahubung wajib diisi.",
+      nameAlreadyExists: 'Klien bernama "{name}" sudah ada.',
+      nameExistsInDeleted:
+        'Klien bernama "{name}" sudah ada di Klien Dihapus. Pulihkan atau hapus permanen dulu sebelum memakai nama itu lagi.',
+      permanentDeleteRequiresDeleted:
+        "Hanya klien yang sudah dihapus yang dapat dihapus permanen. Hapus klien terlebih dahulu.",
+      portalLoginDeletedClient:
+        "{name}: login portal tidak dapat dibuat untuk klien yang dihapus. Pulihkan klien terlebih dahulu.",
+      portalLoginContactRequired:
+        "{name}: nama depan narahubung wajib diisi.",
+      generatePortalFailed: "Gagal membuat login portal.",
+      selectAll: "Pilih Semua Klien",
+      selectRow: "Pilih {name}",
       projectCount: "{count} proyek",
       portalUserCount: "{count} pengguna portal",
       checkingSoftDelete: "Memeriksa apakah klien ini dapat dihapus…",
@@ -940,6 +962,21 @@ export const id = {
           "{count} proyek terbuka (belum Selesai dan lunas)",
         unsettledBilling: "penagihan belum selesai pada {count} proyek",
         pendingTaxInvoices: "{count} faktur pajak belum selesai",
+      },
+      import: {
+        clientTypeInvalid:
+          'Tipe Klien harus "Perusahaan" atau "Perorangan" (atau Company / Individual).',
+        nameOrFirstRequired: "Nama Klien atau Nama Depan wajib diisi.",
+        individualFirstRequired:
+          "Nama Depan wajib diisi untuk klien Perorangan.",
+        nameRequired: "Nama Klien wajib diisi.",
+        contactFirstRequired: "Nama Depan Narahubung wajib diisi.",
+        duplicateInFile:
+          'Klien "{name}" sudah ada atau diduplikasi dalam file ini.',
+        alreadyExists: 'Klien "{name}" sudah ada.',
+        invalidRow: "Baris klien tidak valid.",
+        noDataRows:
+          "Tidak ada baris data. Tambahkan klien di bawah baris header.",
       },
       bulkDeleteTitle: "Hapus {count} klien?",
       bulkDeleteForeverTitle: "Hapus {count} klien selamanya?",
@@ -1094,6 +1131,25 @@ export const id = {
         activeBadge: "Aktif",
         armedBadge: "Siap",
         saveSettings: "Simpan Pengaturan Multi-Proyek",
+        saveFailed: "Gagal menyimpan pengaturan Multi-Proyek.",
+        updateFailed: "Gagal memperbarui Akses Multi-Proyek.",
+        generateCodeFailed: "Gagal membuat Kode Keamanan.",
+        addGroupFailed: "Gagal menambah grup.",
+        createGroupFailed: "Gagal membuat grup proyek.",
+        deleteGroupFailed: "Gagal menghapus grup.",
+        deleteGroupActionFailed: "Gagal menghapus grup proyek.",
+        assignFailed: "Gagal menugaskan proyek.",
+        assignGroupFailed: "Gagal menugaskan proyek ke grup.",
+        codeCopied: "Kode Keamanan disalin.",
+        copyFailed: "Tidak dapat menyalin. Pilih dan salin secara manual.",
+        groupNameRequired: "Nama grup wajib diisi.",
+        groupNotFound: "Grup tidak ditemukan.",
+        groupRequiredForCode: "Grup wajib untuk kode Grup.",
+        masterCodeNoGroup:
+          "Kode Keamanan Master tidak dapat diikat ke grup.",
+        masterCodeGroupOnlyMode:
+          "Kode Keamanan Master tidak dipakai di mode Hanya Grup. Ganti ke Master Dan Grup terlebih dahulu.",
+        notAuthorized: "Tidak diizinkan mengelola klien.",
       },
     },
     multiProjectUnlock: {
@@ -2616,6 +2672,7 @@ export const id = {
     noDataRows:
       "Tidak ada baris data di spreadsheet. Tambahkan baris di bawah header.",
     invalidRow: "Baris tidak valid.",
+    invalidReviewResponse: "Tinjauan impor mengembalikan respons tidak valid.",
     reviewFailed: "Tidak dapat meninjau file impor {plural}.",
     importFailed: "Tidak dapat mengimpor {plural}.",
     templateDownloadFailed: "Tidak dapat mengunduh template Excel.",
@@ -2729,5 +2786,6 @@ export const id = {
       "NPWP Atau NIK Klien harus 15 atau 16 digit (titik, strip, dan spasi opsional).",
     npwpRequired: "NPWP wajib diisi.",
     npwpOrNikRequired: "NPWP atau NIK wajib diisi.",
+    fieldInvalid: "{field} tidak valid.",
   },
 } as const satisfies DeepStringLeaves<EnMessages>;

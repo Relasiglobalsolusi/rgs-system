@@ -145,7 +145,7 @@ export default function ClientDialog({
         setExitConfirmOpen(false);
         closeDialog();
       } catch (error) {
-        showRejectionFromError(error, "Failed to create client.");
+        showRejectionFromError(error, t("pages.clients.createFailed"));
       }
     });
   }

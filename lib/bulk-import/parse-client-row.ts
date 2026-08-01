@@ -4,6 +4,7 @@ import {
 } from "@/lib/contact-person";
 import type { AppLocale } from "@/lib/i18n/locale";
 import { DEFAULT_LOCALE } from "@/lib/i18n/locale";
+import { translate } from "@/lib/i18n/translate";
 import { parseRequiredClientNpwpValue } from "@/lib/npwp";
 import { normalizeImportPhoneWithCountryCode } from "@/lib/phone-normalize";
 import { capitalizeName, capitalizeProper } from "@/lib/text-case";
@@ -31,7 +32,8 @@ export type ParsedClientImportRow = {
 };
 
 function parseClientTypeImportValue(
-  raw: string | undefined
+  raw: string | undefined,
+  locale: AppLocale
 ): "COMPANY" | "INDIVIDUAL" {
   const normalized = (raw ?? "").trim().toLowerCase();
   if (
@@ -49,9 +51,7 @@ function parseClientTypeImportValue(
   ) {
     return "INDIVIDUAL";
   }
-  throw new Error(
-    'Client Type must be "Company" or "Individual" (or Perusahaan / Perorangan).'
-  );
+  throw new Error(translate(locale, "pages.clients.import.clientTypeInvalid"));
 }
 
 /** Empty string when the cell is blank or an N/A token. */
@@ -67,7 +67,7 @@ export function parseClientImportRow(
   values: SpreadsheetRow,
   locale: AppLocale = DEFAULT_LOCALE
 ): ParsedClientImportRow {
-  const clientType = parseClientTypeImportValue(values.clientType);
+  const clientType = parseClientTypeImportValue(values.clientType, locale);
   const nameRaw = capitalizeProper(importCellValue(values.name));
   let contactPersonFirstName = capitalizeName(
     importCellValue(values.contactPersonFirstName)
@@ -85,17 +85,34 @@ export function parseClientImportRow(
     ? capitalizeProper(importCellValue(values.address))
     : null;
 
+  const phoneLabel =
+    clientType === "INDIVIDUAL"
+      ? translate(locale, "pages.clients.form.phone")
+      : translate(locale, "pages.clients.form.companyPhone");
+  const contactPhoneLabel = translate(
+    locale,
+    "pages.clients.form.contactPhone"
+  );
+  const phoneInvalid = translate(locale, "validation.fieldInvalid", {
+    field: phoneLabel,
+  });
+  const contactPhoneInvalid = translate(locale, "validation.fieldInvalid", {
+    field: contactPhoneLabel,
+  });
+
   const phone =
     normalizeImportPhoneWithCountryCode(
       importCellValue(values.countryCode) || undefined,
       importCellValue(values.phone) || undefined,
-      clientType === "INDIVIDUAL" ? "Phone" : "Company phone"
+      phoneLabel,
+      phoneInvalid
     ) || null;
   const contactPersonPhoneRaw =
     normalizeImportPhoneWithCountryCode(
       importCellValue(values.contactPersonCountryCode) || undefined,
       importCellValue(values.contactPersonPhone) || undefined,
-      "Contact person phone"
+      contactPhoneLabel,
+      contactPhoneInvalid
     ) || null;
 
   let name = nameRaw;
@@ -117,10 +134,14 @@ export function parseClientImportRow(
         ) || contactPersonFirstName;
     }
     if (!name) {
-      throw new Error("Client Name or First Name is required.");
+      throw new Error(
+        translate(locale, "pages.clients.import.nameOrFirstRequired")
+      );
     }
     if (!contactPersonFirstName) {
-      throw new Error("First Name is required for Individual clients.");
+      throw new Error(
+        translate(locale, "pages.clients.import.individualFirstRequired")
+      );
     }
     // Individual has no separate contact person — mirror self.
     // Company Email / Phone / Contact Person columns are N/A for Individual;
@@ -130,10 +151,12 @@ export function parseClientImportRow(
     contactPersonPhone = contactPersonPhoneRaw || phone;
   } else {
     if (!name) {
-      throw new Error("Client Name is required.");
+      throw new Error(translate(locale, "pages.clients.import.nameRequired"));
     }
     if (!contactPersonFirstName) {
-      throw new Error("Contact Person First Name is required.");
+      throw new Error(
+        translate(locale, "pages.clients.import.contactFirstRequired")
+      );
     }
   }
 
@@ -147,7 +170,7 @@ export function parseClientImportRow(
   );
   const clientSince = parseImportDateWithDefault(
     values.clientSince ?? "",
-    "Client Since",
+    translate(locale, "pages.clients.form.clientSince"),
     parseDateInput(todayDateInput())
   );
 

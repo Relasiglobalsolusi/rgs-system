@@ -161,7 +161,8 @@ export function toNationalDigitsForImport(
 export function normalizeImportPhoneWithCountryCode(
   countryCodeRaw: string | undefined | null,
   phoneRaw: string | undefined | null,
-  fieldLabel = "Phone"
+  fieldLabel = "Phone",
+  invalidMessage?: string
 ): string {
   const phone = (phoneRaw ?? "").trim();
   if (!phone || isPhoneFormatPlaceholder(phone)) return "";
@@ -174,7 +175,8 @@ export function normalizeImportPhoneWithCountryCode(
     countryCode,
     phone,
     countryId,
-    fieldLabel
+    fieldLabel,
+    invalidMessage
   );
 }
 

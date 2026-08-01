@@ -20,7 +20,9 @@ import {
 import { prisma } from "@/lib/prisma";
 import { toActionError } from "@/lib/prisma-errors";
 import { parseRequiredClientNpwpValue } from "@/lib/npwp";
+import type { AppLocale } from "@/lib/i18n/locale";
 import { getServerLocale } from "@/lib/i18n/locale";
+import { translate } from "@/lib/i18n/translate";
 import { canManageClients } from "@/lib/project-access";
 import { provisionClientUser } from "@/lib/provision-linked-user";
 import { requireModule, toPermissionUser } from "@/lib/session";
@@ -64,7 +66,11 @@ function parseClientType(formData: FormData): ClientTypeValue {
  * Company: client name + separate contact person.
  * Individual: first/last are the client; contactPerson* mirrors self (schema).
  */
-function resolveClientFormIdentity(formData: FormData, clientType: ClientTypeValue) {
+function resolveClientFormIdentity(
+  formData: FormData,
+  clientType: ClientTypeValue,
+  locale: AppLocale
+) {
   const contactPersonFirstName = capitalizeName(
     String(formData.get("contactPersonFirstName") ?? "").trim()
   );
@@ -73,15 +79,18 @@ function resolveClientFormIdentity(formData: FormData, clientType: ClientTypeVal
   );
   const email = String(formData.get("email") ?? "").trim();
   const phoneLabel =
-    clientType === "INDIVIDUAL" ? "Phone" : "Company phone";
+    clientType === "INDIVIDUAL"
+      ? translate(locale, "pages.clients.form.phone")
+      : translate(locale, "pages.clients.form.companyPhone");
   const phone = normalizeAndValidatePhone(
     String(formData.get("phone") ?? ""),
-    phoneLabel
+    phoneLabel,
+    translate(locale, "validation.fieldInvalid", { field: phoneLabel })
   );
 
   if (clientType === "INDIVIDUAL") {
     if (!contactPersonFirstName) {
-      throw new Error("First name is required.");
+      throw new Error(translate(locale, "pages.clients.firstNameRequired"));
     }
     const composedName =
       formatContactPersonName(contactPersonFirstName, contactPersonLastName) ||
@@ -108,14 +117,23 @@ function resolveClientFormIdentity(formData: FormData, clientType: ClientTypeVal
   const contactPersonEmail = String(
     formData.get("contactPersonEmail") ?? ""
   ).trim();
+  const contactPhoneLabel = translate(
+    locale,
+    "pages.clients.form.contactPhone"
+  );
   const contactPersonPhone = normalizeAndValidatePhone(
     String(formData.get("contactPersonPhone") ?? ""),
-    "Contact person phone"
+    contactPhoneLabel,
+    translate(locale, "validation.fieldInvalid", { field: contactPhoneLabel })
   );
 
-  if (!name) throw new Error("Client name is required.");
+  if (!name) {
+    throw new Error(translate(locale, "pages.clients.clientNameRequired"));
+  }
   if (!contactPersonFirstName) {
-    throw new Error("Contact person first name is required.");
+    throw new Error(
+      translate(locale, "pages.clients.contactFirstNameRequired")
+    );
   }
 
   return {
@@ -132,9 +150,9 @@ function resolveClientFormIdentity(formData: FormData, clientType: ClientTypeVal
 
 async function parseRequiredClientNpwp(
   formData: FormData,
-  clientType: ClientTypeValue
+  clientType: ClientTypeValue,
+  locale: AppLocale
 ): Promise<string> {
-  const locale = await getServerLocale();
   return parseRequiredClientNpwpValue(
     String(formData.get("npwp") ?? ""),
     locale,
@@ -142,10 +160,16 @@ async function parseRequiredClientNpwp(
   );
 }
 
-function taxIdDocumentMissingMessage(clientType: ClientTypeValue): string {
-  return clientType === "INDIVIDUAL"
-    ? "Upload an NPWP or NIK document."
-    : "Upload an NPWP document.";
+function taxIdDocumentMissingMessage(
+  clientType: ClientTypeValue,
+  locale: AppLocale
+): string {
+  return translate(
+    locale,
+    clientType === "INDIVIDUAL"
+      ? "bulkImport.taxIdDocumentRequiredIndividual"
+      : "bulkImport.taxIdDocumentRequiredCompany"
+  );
 }
 
 /**
@@ -171,36 +195,43 @@ async function saveTaxIdDocument(
   });
 }
 
-async function assertCanManageClients() {
+async function assertCanManageClients(locale?: AppLocale) {
   const session = await requireModule("clients");
   if (!canManageClients(toPermissionUser(session))) {
-    throw new Error("You do not have permission to manage clients.");
+    throw new Error(
+      translate(
+        locale ?? (await getServerLocale()),
+        "pages.clients.permissionDenied"
+      )
+    );
   }
 }
 
 /** Preview next auto Client ID (C001…). Create still allocates via getNextClientShortCode. */
 export async function previewClientShortCode() {
-  await assertCanManageClients();
+  const locale = await getServerLocale();
+  await assertCanManageClients(locale);
 
   const company = await prisma.company.findFirst();
   if (!company) {
-    throw new Error("Company not found.");
+    throw new Error(translate(locale, "pages.clients.companyNotFound"));
   }
 
   return getNextClientShortCode(company.id);
 }
 
 export async function createClient(formData: FormData) {
+  const locale = await getServerLocale();
   try {
-    await assertCanManageClients();
+    await assertCanManageClients(locale);
 
     const clientType = parseClientType(formData);
-    const identity = resolveClientFormIdentity(formData, clientType);
+    const identity = resolveClientFormIdentity(formData, clientType, locale);
     const address = capitalizeProper(String(formData.get("address") ?? "").trim());
-    const npwp = await parseRequiredClientNpwp(formData, clientType);
+    const npwp = await parseRequiredClientNpwp(formData, clientType, locale);
     const clientSince =
       parseFormDateInput(formData.get("clientSince"), {
-        fieldLabel: "Client since",
+        fieldLabel: translate(locale, "pages.clients.form.clientSince"),
       }) ?? new Date();
     const paymentTermsDays = parsePaymentTermsDays(formData);
     const preferredLoginId = String(formData.get("loginId") ?? "").trim();
@@ -210,20 +241,22 @@ export async function createClient(formData: FormData) {
       String(formData.get("multiProjectAccess") ?? "") === "true";
 
     const company = await prisma.company.findFirst();
-    if (!company) throw new Error("Company not found.");
+    if (!company) {
+      throw new Error(translate(locale, "pages.clients.companyNotFound"));
+    }
 
     const taxIdDocumentUrl = await saveTaxIdDocument(formData, {
       fileBasePrefix: clientType === "INDIVIDUAL" ? "NPWP-NIK" : "NPWP",
     });
     if (!taxIdDocumentUrl) {
-      throw new Error(taxIdDocumentMissingMessage(clientType));
+      throw new Error(taxIdDocumentMissingMessage(clientType, locale));
     }
 
     const sortOrder = await nextCompanyScopedSortOrder("client", company.id);
 
     await prisma.$transaction(async (tx) => {
       const nameNormalized = await assertClientNameAvailable(
-        { companyId: company.id, name: identity.name },
+        { companyId: company.id, name: identity.name, locale },
         tx
       );
       const shortCode = await getNextClientShortCode(company.id, tx);
@@ -270,27 +303,36 @@ export async function createClient(formData: FormData) {
     revalidatePath("/billing");
     revalidatePath("/users");
   } catch (error) {
-    throw toActionError(error, "Failed to create client.");
+    throw toActionError(
+      error,
+      translate(locale, "pages.clients.createFailed")
+    );
   }
 }
 
 export async function reorderClients(ids: string[]) {
+  const locale = await getServerLocale();
   try {
-    await assertCanManageClients();
+    await assertCanManageClients(locale);
 
     const company = await prisma.company.findFirst({ select: { id: true } });
-    if (!company) throw new Error("Company not found.");
+    if (!company) {
+      throw new Error(translate(locale, "pages.clients.companyNotFound"));
+    }
 
     await persistCompanyScopedReorder("client", {
       companyId: company.id,
       ids,
-      mismatchError: "One or more clients are invalid for reorder.",
+      mismatchError: translate(locale, "pages.clients.reorderInvalid"),
     });
 
     revalidatePath("/clients");
     revalidatePath("/billing");
   } catch (error) {
-    throw toActionError(error, "Failed to reorder clients.");
+    throw toActionError(
+      error,
+      translate(locale, "pages.clients.reorderFailed")
+    );
   }
 }
 
@@ -299,16 +341,17 @@ export async function reorderClients(ids: string[]) {
  * Soft-deactivate portal logins when the client is marked inactive.
  */
 export async function updateClient(id: string, formData: FormData) {
+  const locale = await getServerLocale();
   try {
-    await assertCanManageClients();
+    await assertCanManageClients(locale);
 
     const clientType = parseClientType(formData);
-    const identity = resolveClientFormIdentity(formData, clientType);
+    const identity = resolveClientFormIdentity(formData, clientType, locale);
     const address = capitalizeProper(String(formData.get("address") ?? "").trim());
-    const npwp = await parseRequiredClientNpwp(formData, clientType);
+    const npwp = await parseRequiredClientNpwp(formData, clientType, locale);
     const clientSince =
       parseFormDateInput(formData.get("clientSince"), {
-        fieldLabel: "Client since",
+        fieldLabel: translate(locale, "pages.clients.form.clientSince"),
       }) ?? new Date();
     const paymentTermsDays = parsePaymentTermsDays(formData);
 
@@ -323,7 +366,7 @@ export async function updateClient(id: string, formData: FormData) {
     });
 
     if (!existing) {
-      throw new Error("Client not found.");
+      throw new Error(translate(locale, "pages.clients.notFound"));
     }
 
     const uploadedTaxIdDocumentUrl = await saveTaxIdDocument(formData, {
@@ -335,7 +378,7 @@ export async function updateClient(id: string, formData: FormData) {
         ? uploadedTaxIdDocumentUrl
         : existing.taxIdDocumentUrl;
     if (!taxIdDocumentUrl) {
-      throw new Error(taxIdDocumentMissingMessage(clientType));
+      throw new Error(taxIdDocumentMissingMessage(clientType, locale));
     }
 
     await prisma.$transaction(async (tx) => {
@@ -344,6 +387,7 @@ export async function updateClient(id: string, formData: FormData) {
           companyId: existing.companyId,
           name: identity.name,
           excludeId: id,
+          locale,
         },
         tx
       );
@@ -385,7 +429,10 @@ export async function updateClient(id: string, formData: FormData) {
     revalidatePath("/billing");
     revalidatePath("/users");
   } catch (error) {
-    throw toActionError(error, "Failed to update client.");
+    throw toActionError(
+      error,
+      translate(locale, "pages.clients.updateFailed")
+    );
   }
 }
 
@@ -393,23 +440,27 @@ export async function updateClient(id: string, formData: FormData) {
 export async function fetchClientSoftDeleteBlockers(
   clientId: string
 ): Promise<string[]> {
-  await assertCanManageClients();
   const locale = await getServerLocale();
+  await assertCanManageClients(locale);
   const blockers = await getClientSoftDeleteBlockers(clientId);
   return formatClientSoftDeleteBlockers(blockers, locale);
 }
 
 export async function deactivateClient(id: string) {
+  const locale = await getServerLocale();
   try {
-    await assertCanManageClients();
-    const locale = await getServerLocale();
+    await assertCanManageClients(locale);
 
     const client = await prisma.client.findUnique({
       where: { id },
       select: { active: true },
     });
-    if (!client) throw new Error("Client not found.");
-    if (!client.active) throw new Error("Client is already deleted.");
+    if (!client) {
+      throw new Error(translate(locale, "pages.clients.notFound"));
+    }
+    if (!client.active) {
+      throw new Error(translate(locale, "pages.clients.alreadyDeleted"));
+    }
 
     await prisma.$transaction(async (tx) => {
       await assertClientCanBeSoftDeleted(id, tx, locale);
@@ -427,15 +478,18 @@ export async function deactivateClient(id: string) {
     revalidatePath("/billing");
     revalidatePath("/users");
   } catch (error) {
-    throw toActionError(error, "Failed to delete client.");
+    throw toActionError(
+      error,
+      translate(locale, "pages.clients.deleteFailed")
+    );
   }
 }
 
 export async function bulkDeactivateClients(
   ids: string[]
 ): Promise<BulkActionResult> {
-  await assertCanManageClients();
   const locale = await getServerLocale();
+  await assertCanManageClients(locale);
 
   const result = createBulkActionResult();
   const uniqueIds = [...new Set(ids.filter(Boolean))];
@@ -446,8 +500,12 @@ export async function bulkDeactivateClients(
         where: { id },
         select: { active: true },
       });
-      if (!client) throw new Error("Client not found.");
-      if (!client.active) throw new Error("Client is already deleted.");
+      if (!client) {
+        throw new Error(translate(locale, "pages.clients.notFound"));
+      }
+      if (!client.active) {
+        throw new Error(translate(locale, "pages.clients.alreadyDeleted"));
+      }
 
       await prisma.$transaction(async (tx) => {
         await assertClientCanBeSoftDeleted(id, tx, locale);
@@ -464,7 +522,9 @@ export async function bulkDeactivateClients(
     } catch (error) {
       recordBulkFailure(
         result,
-        error instanceof Error ? error.message : "Failed to delete client."
+        error instanceof Error
+          ? error.message
+          : translate(locale, "pages.clients.deleteFailed")
       );
     }
   }
@@ -478,13 +538,17 @@ export async function bulkDeactivateClients(
   return result;
 }
 
-async function reactivateClientRecord(id: string) {
+async function reactivateClientRecord(id: string, locale: AppLocale) {
   const client = await prisma.client.findUnique({
     where: { id },
     select: { active: true },
   });
-  if (!client) throw new Error("Client not found.");
-  if (client.active) throw new Error("Client is already active.");
+  if (!client) {
+    throw new Error(translate(locale, "pages.clients.notFound"));
+  }
+  if (client.active) {
+    throw new Error(translate(locale, "pages.clients.alreadyActive"));
+  }
 
   // Restore parent only — linked portal logins stay inactive (Revoked Access)
   // until an admin uses Users → Revoked Access → Restore Access.
@@ -498,8 +562,9 @@ async function reactivateClientRecord(id: string) {
 }
 
 export async function reactivateClient(id: string) {
-  await assertCanManageClients();
-  await reactivateClientRecord(id);
+  const locale = await getServerLocale();
+  await assertCanManageClients(locale);
+  await reactivateClientRecord(id, locale);
   revalidatePath("/clients");
   revalidatePath("/users");
 }
@@ -507,19 +572,22 @@ export async function reactivateClient(id: string) {
 export async function bulkReactivateClients(
   ids: string[]
 ): Promise<BulkActionResult> {
-  await assertCanManageClients();
+  const locale = await getServerLocale();
+  await assertCanManageClients(locale);
 
   const result = createBulkActionResult();
   const uniqueIds = [...new Set(ids.filter(Boolean))];
 
   for (const id of uniqueIds) {
     try {
-      await reactivateClientRecord(id);
+      await reactivateClientRecord(id, locale);
       recordBulkSuccess(result);
     } catch (error) {
       recordBulkFailure(
         result,
-        error instanceof Error ? error.message : "Failed to restore client."
+        error instanceof Error
+          ? error.message
+          : translate(locale, "pages.clients.restoreFailed")
       );
     }
   }
@@ -542,7 +610,8 @@ export async function bulkReactivateClients(
 export async function generateClientPortalLogins(
   ids: string[]
 ): Promise<BulkActionResult> {
-  await assertCanManageClients();
+  const locale = await getServerLocale();
+  await assertCanManageClients(locale);
 
   const result = createBulkActionResult();
   const uniqueIds = [...new Set(ids.filter(Boolean))];
@@ -553,7 +622,7 @@ export async function generateClientPortalLogins(
 
   const company = await prisma.company.findFirst({ select: { id: true } });
   if (!company) {
-    throw new Error("Company not found.");
+    throw new Error(translate(locale, "pages.clients.companyNotFound"));
   }
 
   for (const id of uniqueIds) {
@@ -571,12 +640,14 @@ export async function generateClientPortalLogins(
         });
 
         if (!client) {
-          throw new Error("Client not found.");
+          throw new Error(translate(locale, "pages.clients.notFound"));
         }
 
         if (!client.active) {
           throw new Error(
-            `${client.name}: portal login cannot be generated for deleted clients. Restore the client first.`
+            translate(locale, "pages.clients.portalLoginDeletedClient", {
+              name: client.name,
+            })
           );
         }
 
@@ -584,7 +655,9 @@ export async function generateClientPortalLogins(
           client.contactPersonFirstName?.trim() ?? "";
         if (!contactPersonFirstName) {
           throw new Error(
-            `${client.name}: contact person first name is required.`
+            translate(locale, "pages.clients.portalLoginContactRequired", {
+              name: client.name,
+            })
           );
         }
 
@@ -607,7 +680,7 @@ export async function generateClientPortalLogins(
         result,
         error instanceof Error
           ? error.message
-          : "Failed to generate portal login."
+          : translate(locale, "pages.clients.generatePortalFailed")
       );
     }
   }
@@ -622,7 +695,8 @@ export async function generateClientPortalLogins(
 
 /** Permanent delete — only for deleted (soft-deleted) clients. Unlinks projects; hard-deletes portal users. */
 export async function deleteClient(id: string) {
-  await assertCanManageClients();
+  const locale = await getServerLocale();
+  await assertCanManageClients(locale);
 
   const client = await prisma.client.findUnique({
     where: { id },
@@ -631,10 +705,12 @@ export async function deleteClient(id: string) {
     },
   });
 
-  if (!client) throw new Error("Client not found.");
+  if (!client) {
+    throw new Error(translate(locale, "pages.clients.notFound"));
+  }
   if (client.active) {
     throw new Error(
-      "Only deleted clients can be permanently deleted. Delete the client first."
+      translate(locale, "pages.clients.permanentDeleteRequiresDeleted")
     );
   }
 
@@ -665,7 +741,8 @@ export async function deleteClient(id: string) {
 export async function bulkDeleteClients(
   ids: string[]
 ): Promise<BulkActionResult> {
-  await assertCanManageClients();
+  const locale = await getServerLocale();
+  await assertCanManageClients(locale);
 
   const result = createBulkActionResult();
   const uniqueIds = [...new Set(ids.filter(Boolean))];
@@ -679,10 +756,12 @@ export async function bulkDeleteClients(
         },
       });
 
-      if (!client) throw new Error("Client not found.");
+      if (!client) {
+        throw new Error(translate(locale, "pages.clients.notFound"));
+      }
       if (client.active) {
         throw new Error(
-          "Only deleted clients can be permanently deleted. Delete the client first."
+          translate(locale, "pages.clients.permanentDeleteRequiresDeleted")
         );
       }
 
@@ -708,7 +787,9 @@ export async function bulkDeleteClients(
     } catch (error) {
       recordBulkFailure(
         result,
-        error instanceof Error ? error.message : "Failed to delete client."
+        error instanceof Error
+          ? error.message
+          : translate(locale, "pages.clients.deleteFailed")
       );
     }
   }
