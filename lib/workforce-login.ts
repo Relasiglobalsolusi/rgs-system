@@ -12,10 +12,10 @@ import { provisionEmployeeUser } from "@/lib/provision-linked-user";
 type Tx = Prisma.TransactionClient;
 
 export const LOGIN_REVOKED_PT_OFF_PROJECT =
-  "Part-time portal access is only available while you are assigned to a project (On project). Contact operations if you believe this is a mistake.";
+  "Part Time portal access is only available while you are assigned to a project (On Project). Contact operations if you believe this is a mistake.";
 
 export const LOGIN_REVOKED_PT_OFF_PROJECT_ID =
-  "Akses portal paruh waktu hanya tersedia saat Anda ditugaskan ke proyek (Di proyek). Hubungi operasional jika ini keliru.";
+  "Akses portal Paruh Waktu hanya tersedia saat Anda ditugaskan ke proyek (Di Proyek). Hubungi operasional jika ini keliru.";
 
 /**
  * Whether this employee should currently have an active portal login.

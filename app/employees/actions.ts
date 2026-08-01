@@ -989,7 +989,7 @@ export async function generateEmployeePortalLogins(
         ) {
           const label = `${employee.firstName} ${employee.lastName}`.trim();
           throw new Error(
-            `${label}: part-time login is only available while On project.`
+            `${label}: Part Time login is only available while On Project.`
           );
         }
 

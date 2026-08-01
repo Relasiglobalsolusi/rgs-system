@@ -1360,6 +1360,8 @@ export const id = {
       companyNotFound: "Perusahaan tidak ditemukan.",
       addEmployee: "Tambah Karyawan",
       addBulk: "Tambah Massal",
+      addBulkFullTime: "Tambah Massal Penuh Waktu",
+      addBulkPartTime: "Tambah Massal Paruh Waktu",
       editEmployee: "Ubah Karyawan",
       searchPlaceholder: "Cari Karyawan...",
       deleted: "Dihapus",
@@ -1671,7 +1673,7 @@ export const id = {
         portalLogin: "Login Portal",
         createPortalLogin: "Buat akses login portal untuk karyawan ini?",
         createPortalLoginHint:
-          "Ya membuat login Users terkait (nama pengguna dari nama depan). Login penuh waktu tetap aktif jika diminta. Login paruh waktu hanya aktif saat Di proyek. Corporate/Kantor pusat dapat memakai Ya untuk akses meja.",
+          "Ya membuat login Users terkait (nama pengguna dari nama depan). Login Penuh Waktu tetap aktif jika diminta. Login Paruh Waktu hanya aktif saat Di Proyek. Corporate/Kantor Pusat dapat memakai Ya untuk akses meja.",
         idDocumentCurrent: "Dokumen identitas saat ini:",
         idDocumentView: "Lihat berkas",
         idDocumentUpload: "Unggah dokumen identitas (foto atau pindaian)",

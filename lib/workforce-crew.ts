@@ -134,11 +134,11 @@ export async function markEmployeesOnProject(
   });
 
   for (const employee of employees) {
-    // PT always needs portal while On project; FT keep existing / default Yes for site work.
+    // Portal 2A: PT forced Yes On Project; FT keep existing Yes/No (do not force).
     const portalAccessRequested =
       employee.employmentType === "PART_TIME"
         ? true
-        : employee.portalAccessRequested || true;
+        : employee.portalAccessRequested;
 
     await db.employee.update({
       where: { id: employee.id },

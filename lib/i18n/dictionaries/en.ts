@@ -1340,6 +1340,8 @@ export const en = {
       companyNotFound: "Company not found.",
       addEmployee: "Add Employee",
       addBulk: "Add Bulk",
+      addBulkFullTime: "Add Bulk Full Time",
+      addBulkPartTime: "Add Bulk Part Time",
       editEmployee: "Edit Employee",
       searchPlaceholder: "Search Employees...",
       deleted: "Deleted",
@@ -1645,7 +1647,7 @@ export const en = {
         portalLogin: "Portal Login",
         createPortalLogin: "Create portal login access for this employee?",
         createPortalLoginHint:
-          "Yes creates a linked Users login (username from first name). Full-time logins stay on when requested. Part-time logins are active only while On project. Corporate/Head Office can use Yes for desk access overrides.",
+          "Yes creates a linked Users login (username from first name). Full Time logins stay on when requested. Part Time logins are active only while On Project. Corporate/Head Office can use Yes for desk access overrides.",
         idDocumentCurrent: "Current ID document:",
         idDocumentView: "View file",
         idDocumentUpload: "Upload ID document (photo or scan)",

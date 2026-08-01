@@ -111,7 +111,7 @@ export default function EmployeeDirectory({
       ),
     [employees]
   );
-  /** Assigned FT only — never AVAILABLE / Unassigned pool. */
+  /** Assigned Full Time only — never AVAILABLE / Unassigned pool. */
   const fullTime = useMemo(
     () =>
       allEmployees.filter(
@@ -122,7 +122,7 @@ export default function EmployeeDirectory({
       ),
     [allEmployees]
   );
-  /** Assigned PT only — never AVAILABLE / Unassigned pool. */
+  /** Assigned Part Time only — never AVAILABLE / Unassigned pool. */
   const partTime = useMemo(
     () =>
       allEmployees.filter(
@@ -408,7 +408,7 @@ export default function EmployeeDirectory({
             />
             {showBulkImportFt ? (
               <DirectoryAddButton
-                label={t("pages.employees.addBulk")}
+                label={t("pages.employees.addBulkFullTime")}
                 variant="infoBadge"
                 icon={<FileSpreadsheet className="h-3.5 w-3.5" />}
                 onClick={() => openBulkImport("FULL_TIME")}
@@ -416,7 +416,7 @@ export default function EmployeeDirectory({
             ) : null}
             {showBulkImportPt ? (
               <DirectoryAddButton
-                label={t("pages.employees.addBulk")}
+                label={t("pages.employees.addBulkPartTime")}
                 variant="infoBadge"
                 icon={<FileSpreadsheet className="h-3.5 w-3.5" />}
                 onClick={() => openBulkImport("PART_TIME")}

@@ -1198,7 +1198,7 @@ export async function startProject(
     });
     if (validCount !== employeeIds.length) {
       throw new Error(
-        "Select Available full-time Operations crew (Cleaning/GC) and/or Part Time Roster staff only."
+        "Select Available Full Time Operations crew (Cleaning/GC) and/or Part Time staff only."
       );
     }
   }
