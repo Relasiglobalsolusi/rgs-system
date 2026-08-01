@@ -50,7 +50,7 @@ export default function AttendanceSiteTable({ data }: Props) {
       },
       {
         key: "staff",
-        title: t("pages.projects.detail.staff"),
+        title: t("pages.attendance.staff"),
         width: "8rem",
         className: "min-w-[8rem] whitespace-nowrap",
         render: (row) => (
@@ -72,7 +72,7 @@ export default function AttendanceSiteTable({ data }: Props) {
             </p>
             {row.lateCount > 0 && (
               <p className="text-xs text-amber-400">
-                {t("pages.billing.lateCount", { count: row.lateCount })}
+                {t("pages.attendance.lateCount", { count: row.lateCount })}
               </p>
             )}
           </div>

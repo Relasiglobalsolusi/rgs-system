@@ -25,7 +25,7 @@ export const PROJECT_FIELD_STATUSES = [
 
 /**
  * In Progress sidebar view — work-order active only.
- * Legacy ON_HOLD is not listed here (find under All Projects).
+ * Legacy ON_HOLD is excluded from product lists (DB enum retained).
  */
 export const PROJECT_IN_PROGRESS_LIST_STATUSES = [
   "IN_PROGRESS",

@@ -116,10 +116,14 @@ function revalidateAfterProjectDelete(opts: {
   revalidatePath(PROJECT_LIST_VIEW_PATHS.inProgress);
   revalidatePath(PROJECT_LIST_VIEW_PATHS.paymentDue);
   revalidatePath(PROJECT_LIST_VIEW_PATHS.completed);
-  revalidatePath(PROJECT_LIST_VIEW_PATHS.history);
   revalidatePath("/dashboard");
   revalidatePath("/clients");
   revalidatePath("/billing");
+  revalidatePath("/employees");
+  revalidatePath("/users");
+  revalidatePath("/shifts");
+  revalidatePath("/cico");
+  revalidatePath("/attendance");
   if (opts.projectId) {
     revalidatePath(`/projects/${opts.projectId}`);
   }

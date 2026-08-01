@@ -2672,6 +2672,8 @@ export const en = {
       checkedIn: "Checked in",
       noCheckInToday: "No check-in today",
       noCheckInsYet: "No check-ins yet",
+      lateCount: "{count} Late",
+      staff: "Staff",
       columns: {
         employee: "Employee",
         project: "Project",
