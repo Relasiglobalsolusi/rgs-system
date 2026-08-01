@@ -134,14 +134,14 @@ export default function EmployeeBulkActionDialog({
               {t("pages.employees.bulkSelected", { count: selectedCount })}
             </p>
             <p className="mt-1 text-sm text-muted">
-              This action applies to all selected rows in the current view.
+              {t("pages.employees.bulkActionApplies")}
             </p>
           </div>
 
           <p className="mt-4 text-sm leading-6 text-muted">
             {isSoftDelete
-              ? "Linked user logins are disabled (not permanently deleted) and move to Deleted users. Credentials are kept. After restoring employees, use Users → Revoked Access → Restore Access to re-enable portal login. Historical records (attendance, leave, progress) are not deleted."
-              : "Linked user logins are permanently deleted and cannot be restored. Employee numbers become available for the next new hires in those departments. Attendance, leave, progress, and other historical records remain in the system. This action cannot be undone from the directory UI."}
+              ? t("pages.employees.bulkDeactivateNote")
+              : t("pages.employees.bulkDeleteForeverNote")}
           </p>
         </div>
       </EmployeeDialogShell>

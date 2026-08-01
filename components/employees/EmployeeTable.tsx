@@ -14,7 +14,14 @@ import type {
   ProjectOption,
 } from "@/components/employees/EmployeeFormFields";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
+import { createSelectionColumn } from "@/components/ui/data-table-selection";
 import StatusBadge from "@/components/ui/StatusBadge";
+import {
+  ACTIONS_SINGLE_CHIP_COLUMN_WIDTH,
+  TrashPermanentDeleteChip,
+  TrashRestoreChip,
+  TRASH_ACTIONS_COLUMN_WIDTH,
+} from "@/components/ui/trash-action-buttons";
 import { Button } from "@/components/ui/button";
 import {
   formatEmploymentTypeLabel,
@@ -46,6 +53,25 @@ type Employee = {
   }[];
   user: { username: string; active: boolean } | null;
 };
+
+export type EmployeeDirectoryView =
+  | "allEmployees"
+  | "fullTime"
+  | "partTime"
+  | "unassigned"
+  | "trash";
+
+/** Portal Login column: Yes (active), Revoked (linked but inactive), No (never provisioned). */
+export type EmployeePortalLoginStatus = "yes" | "revoked" | "no";
+
+export function getEmployeePortalLoginStatus(
+  employee: Pick<Employee, "user">
+): EmployeePortalLoginStatus {
+  if (!employee.user) return "no";
+  if (employee.user.active) return "yes";
+  return "revoked";
+}
+
 type Props = {
   employees: Employee[];
   categories: EmployeeCategoryOption[];
@@ -53,7 +79,14 @@ type Props = {
   projects: ProjectOption[];
   canManage?: boolean;
   canArchive?: boolean;
-  directoryView?: "available" | "partTime" | "trash";
+  directoryView?: EmployeeDirectoryView;
+  showSelection?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
+  onToggleSelectAll?: () => void;
+  allVisibleSelected?: boolean;
+  someVisibleSelected?: boolean;
+  selectableIds?: Set<string>;
 };
 
 export default function EmployeeTable({
@@ -63,7 +96,14 @@ export default function EmployeeTable({
   projects,
   canManage = false,
   canArchive = false,
-  directoryView = "available",
+  directoryView = "allEmployees",
+  showSelection = false,
+  selectedIds,
+  onToggleSelect,
+  onToggleSelectAll,
+  allVisibleSelected = false,
+  someVisibleSelected = false,
+  selectableIds,
 }: Props) {
   const { t, locale } = useT();
   const router = useRouter();
@@ -73,8 +113,10 @@ export default function EmployeeTable({
   const [restoring, setRestoring] = useState<Employee | null>(null);
   const [archiving, setArchiving] = useState<Employee | null>(null);
 
+  const isTrash = directoryView === "trash";
+
   function reorder(ids: string[]) {
-    if (!canManage) return;
+    if (!canManage || isTrash) return;
     startTransition(async () => {
       try {
         await reorderEmployees(ids);
@@ -88,8 +130,29 @@ export default function EmployeeTable({
     });
   }
 
-  const columns = useMemo<DataTableColumn<Employee>[]>(
-    () => [
+  const columns = useMemo(() => {
+    const cols: DataTableColumn<Employee>[] = [];
+
+    if (showSelection) {
+      cols.push(
+        createSelectionColumn<Employee>({
+          ariaLabelAll: t("pages.employees.selectAll"),
+          getRowAriaLabel: (employee) =>
+            t("pages.employees.selectRow", {
+              name: `${employee.firstName} ${employee.lastName}`,
+            }),
+          getRowId: (employee) => employee.id,
+          allVisibleSelected,
+          someVisibleSelected,
+          onToggleSelectAll,
+          onToggleSelect,
+          selectedIds,
+          selectableIds,
+        })
+      );
+    }
+
+    cols.push(
       {
         key: "name",
         title: t("pages.employees.columns.employee"),
@@ -132,7 +195,9 @@ export default function EmployeeTable({
         title: t("pages.employees.columns.employmentType"),
         render: (employee) => (
           <StatusBadge
-            status={employee.employmentType === "FULL_TIME" ? "active" : "warning"}
+            status={
+              employee.employmentType === "FULL_TIME" ? "active" : "warning"
+            }
             compact
           >
             {formatEmploymentTypeLabel(employee.employmentType, locale)}
@@ -151,68 +216,91 @@ export default function EmployeeTable({
       {
         key: "portal",
         title: t("pages.employees.columns.portalLogin"),
+        render: (employee) => {
+          const portalStatus = getEmployeePortalLoginStatus(employee);
+          const badgeStatus =
+            portalStatus === "yes"
+              ? "active"
+              : portalStatus === "revoked"
+                ? "revoked"
+                : "inactive";
+          const label =
+            portalStatus === "yes"
+              ? t("pages.employees.portalStatus.yes")
+              : portalStatus === "revoked"
+                ? t("pages.employees.portalStatus.revoked")
+                : t("pages.employees.portalStatus.no");
+          return (
+            <StatusBadge status={badgeStatus} compact>
+              {label}
+            </StatusBadge>
+          );
+        },
+      }
+    );
+
+    if (canManage) {
+      cols.push({
+        key: "actions",
+        title: t("pages.employees.columns.actions"),
+        width: isTrash
+          ? TRASH_ACTIONS_COLUMN_WIDTH
+          : ACTIONS_SINGLE_CHIP_COLUMN_WIDTH,
+        align: "center",
+        className: isTrash
+          ? "min-w-[22rem] overflow-visible whitespace-nowrap max-xl:min-w-[20rem] max-xl:px-2"
+          : "min-w-[12.5rem] overflow-visible whitespace-nowrap max-xl:min-w-[11rem] max-xl:px-2",
         render: (employee) => (
-          <StatusBadge
-            status={employee.user?.active ? "active" : "danger"}
-            compact
-          >
-            {employee.user?.active ? t("common.actions.yes") : t("common.actions.no")}
-          </StatusBadge>
+          <div className="flex shrink-0 items-center justify-center gap-2 whitespace-nowrap">
+            {isTrash ? (
+              <>
+                <TrashRestoreChip
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setRestoring(employee);
+                  }}
+                />
+                {canArchive ? (
+                  <TrashPermanentDeleteChip
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setArchiving(employee);
+                    }}
+                  />
+                ) : null}
+              </>
+            ) : (
+              <Button
+                size="badge"
+                variant="destructiveBadge"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setDeleting(employee);
+                }}
+              >
+                {t("common.actions.delete")}
+              </Button>
+            )}
+          </div>
         ),
-      },
-      ...(canManage
-        ? [
-            {
-              key: "actions",
-              title: t("pages.employees.columns.actions"),
-              align: "center" as const,
-              render: (employee: Employee) => (
-                <div className="flex justify-center gap-2">
-                  {directoryView === "trash" ? (
-                    <>
-                      <Button
-                        size="badge"
-                        variant="successBadge"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setRestoring(employee);
-                        }}
-                      >
-                        {t("common.actions.restore")}
-                      </Button>
-                      {canArchive ? (
-                        <Button
-                          size="badge"
-                          variant="destructiveBadge"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setArchiving(employee);
-                          }}
-                        >
-                          {t("common.actions.delete")}
-                        </Button>
-                      ) : null}
-                    </>
-                  ) : (
-                    <Button
-                      size="badge"
-                      variant="destructiveBadge"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setDeleting(employee);
-                      }}
-                    >
-                      {t("common.actions.delete")}
-                    </Button>
-                  )}
-                </div>
-              ),
-            },
-          ]
-        : []),
-    ],
-    [canManage, directoryView, canArchive, t, locale]
-  );
+      });
+    }
+
+    return cols;
+  }, [
+    showSelection,
+    allVisibleSelected,
+    someVisibleSelected,
+    onToggleSelectAll,
+    selectableIds,
+    selectedIds,
+    onToggleSelect,
+    canManage,
+    canArchive,
+    isTrash,
+    t,
+    locale,
+  ]);
 
   return (
     <>
@@ -220,11 +308,10 @@ export default function EmployeeTable({
         columns={columns}
         data={employees}
         getRowKey={(employee) => employee.id}
-        onRowClick={
-          canManage && directoryView !== "trash" ? setEditing : undefined
-        }
-        reorderable={canManage && directoryView !== "trash"}
+        onRowClick={canManage && !isTrash ? setEditing : undefined}
+        reorderable={canManage && !isTrash}
         onReorder={reorder}
+        isRowSelected={(employee) => selectedIds?.has(employee.id) ?? false}
         emptyMessage={t("pages.employees.emptyActiveListDesc")}
       />
       {editing ? (

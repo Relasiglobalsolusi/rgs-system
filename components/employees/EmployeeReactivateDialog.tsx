@@ -98,10 +98,7 @@ export default function EmployeeReactivateDialog({
           </div>
 
           <p className="mt-4 text-sm leading-6 text-muted">
-            Username and credentials stay preserved. After restore, the linked
-            login appears under Revoked Access until you restore access.
-            Historical records (attendance, leave, progress) remain intact.
-            Employees deleted forever cannot be restored.
+            {t("pages.employees.restoreNote")}
           </p>
         </div>
       </EmployeeDialogShell>

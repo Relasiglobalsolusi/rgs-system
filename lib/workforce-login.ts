@@ -19,23 +19,26 @@ export const LOGIN_REVOKED_PT_OFF_PROJECT_ID =
 
 /**
  * Whether this employee should currently have an active portal login.
- * - FT: yes when portalAccessRequested (or already has an account to keep on)
- * - PT: only when ON_PROJECT and portal is requested / needed
+ * - FT: yes only when portalAccessRequested (Portal No must revoke even if linked)
+ * - PT: only when ON_PROJECT and portal is requested
+ * hasLinkedUser is kept for call-site compatibility; it must not keep FT active.
  */
 export function shouldHaveActivePortalLogin(options: {
   employmentType: EmploymentType;
   placement: Placement;
   portalAccessRequested: boolean;
+  /** Retained for call sites; must not keep Full Time login active when portal is No. */
   hasLinkedUser: boolean;
   status: string;
 }): boolean {
-  if (options.status !== "ACTIVE") {
+  void options.hasLinkedUser;
+
+  if (options.status !== "ACTIVE" && options.status !== "ON_LEAVE") {
     return false;
   }
 
   if (options.employmentType === "FULL_TIME") {
-    // FT: login always on when they have (or requested) an account
-    return options.portalAccessRequested || options.hasLinkedUser;
+    return options.portalAccessRequested;
   }
 
   // PT: revoke when not ON_PROJECT; restore/create when ON_PROJECT

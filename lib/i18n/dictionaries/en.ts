@@ -1345,25 +1345,48 @@ export const en = {
       deleted: "Deleted",
       active: "Active",
       activeSubtitle: "Employees currently on the roster",
-      availableFt: "Available Full Time Employees",
+      allEmployees: "All Employees",
+      allEmployeesSubtitle: "All active staff on the roster",
+      allActive: "All Employees",
+      allActiveSubtitle: "All active staff on the roster",
+      fullTime: "Full Time",
+      fullTimeSubtitle: "Assigned Full Time staff (Head Office or On Project)",
+      partTime: "Part Time",
+      partTimeSubtitle: "Assigned Part Time staff (On Project or Head Office)",
+      availableFt: "Available Full Time",
       availableFtSubtitle: "Full Time employees available for assignment",
-      partTimeRoster: "Part Time Roster",
-      partTimeRosterSubtitle: "Active Part Time employees",
+      onProject: "On Project",
+      onProjectSubtitle: "Staff currently assigned to a project",
+      headOffice: "Head Office",
+      headOfficeSubtitle: "Corporate and Head Office placements",
+      partTimeRoster: "Part Time",
+      partTimeRosterSubtitle: "Assigned Part Time staff",
       managePositions: "Manage Positions",
       deletedSubtitle: "Soft-deleted employees until restored",
       unassigned: "Unassigned",
-      unassignedSubtitle: "Employees waiting for a department",
+      unassignedSubtitle: "Active staff waiting for Head Office or a project",
       assignSelected: "Assign Selected",
       allDepartments: "All Departments",
       filterDepartment: "Filter By Department",
+      selectAll: "Select All Employees",
+      selectRow: "Select {name}",
       emptyTrash:
         "Deleted employees appear here until restored or permanently removed from the directory.",
       emptyAvailableFt: "No Available Full Time Employees",
       emptyAvailableFtDesc:
         "Full Time employees become available after they are released from a project.",
-      emptyPartTime: "No Part Time Employees",
+      emptyOnProject: "No On Project Employees",
+      emptyOnProjectDesc:
+        "Staff assigned to a project appear here until released.",
+      emptyHeadOffice: "No Head Office Employees",
+      emptyHeadOfficeDesc:
+        "Corporate and Head Office placements appear here.",
+      emptyFullTime: "No Assigned Full Time Employees",
+      emptyFullTimeDesc:
+        "Full Time staff assigned to Head Office or a project appear here.",
+      emptyPartTime: "No Assigned Part Time Employees",
       emptyPartTimeDesc:
-        "Part Time staff are listed here regardless of project placement.",
+        "Part Time staff assigned to a project or Head Office appear here.",
       emptyActive: "No Employees Yet",
       emptyActiveDesc: "Add an employee to get started.",
       emptyActiveList: "No Active Employees",
@@ -1371,7 +1394,13 @@ export const en = {
       emptyDeletedList: "No Deleted Employees",
       emptyUnassigned: "No Unassigned Employees",
       emptyUnassignedDesc:
-        "Employees without a department appear here until assigned.",
+        "Staff with Available placement appear here until assigned.",
+      emptyUnassignedFt: "No Unassigned Full Time Employees",
+      emptyUnassignedFtDesc:
+        "Full Time staff waiting for Head Office or a project appear here.",
+      emptyUnassignedPt: "No Unassigned Part Time Employees",
+      emptyUnassignedPtDesc:
+        "Part Time staff waiting for a project or Head Office appear here.",
       emptySearch: 'No Results For "{query}"',
       emptySearchDesc:
         "Try a different name, employee number, position, department, email, or phone.",
@@ -1392,6 +1421,8 @@ export const en = {
       restoreConfirm: "Restore Employee",
       restoreDescription:
         "This restores the employee from Deleted Employees. Linked login stays off — use Users → Revoked Access → Restore Access before they can sign in again.",
+      restoreNote:
+        "Username and credentials stay preserved. After restore, the linked login appears under Revoked Access until you restore access. Historical records (attendance, leave, progress) remain intact. Employees deleted forever cannot be restored.",
       editDescription:
         "Update employee details, department, and site assignments.",
       bulkDeleteTitle: "Delete {count} employees?",
@@ -1401,6 +1432,35 @@ export const en = {
       bulkRestoreTitle: "Restore {count} employees?",
       bulkRestoreConfirm: "Restore {count} employees",
       bulkSelected: "{count} employees selected",
+      bulkActionApplies:
+        "This action applies to all selected rows in the current view.",
+      bulkDeactivateNote:
+        "Linked user logins are disabled (not permanently deleted) and move to Deleted users. Credentials are kept. After restoring employees, use Users → Revoked Access → Restore Access to re-enable portal login. Historical records (attendance, leave, progress) are not deleted.",
+      bulkDeleteForeverNote:
+        "Linked user logins are permanently deleted and cannot be restored. Employee numbers become available for the next new hires in those departments. Attendance, leave, progress, and other historical records remain in the system. This action cannot be undone from the directory UI.",
+      bulkRestoreNote:
+        "Username and credentials stay preserved. Restored employees appear in the active directory; linked logins move to Revoked Access. Employees deleted forever cannot be restored.",
+      bulkRestoreSuccess:
+        "{count} employee(s) restored. Linked logins stay off until Restore Access.",
+      bulkRestoreAllFailed: "Could not restore selected employees. {detail}",
+      bulkRestorePartial:
+        "{success} employee(s) restored. Linked logins stay off until Restore Access. {failed} failed.",
+      portalStatus: {
+        yes: "Yes",
+        revoked: "Revoked",
+        no: "No",
+      },
+      projectAssignDialog: {
+        title: "Assign Placement",
+        description:
+          "Choose Head Office or one or more active projects. Head Office sets placement to Head Office; projects set placement to On Project.",
+        headOffice: "Head Office",
+        projectsHeading: "Projects",
+        assign: "Assign",
+        assigning: "Assigning…",
+        assignFailed: "Failed to assign employee.",
+        noActiveProjects: "No active projects are available.",
+      },
       columns: {
         employee: "Employee",
         employeeNo: "ID",
@@ -1410,7 +1470,7 @@ export const en = {
         placement: "Placement",
         username: "Username",
         roleDept: "Role / Dept",
-        portalLogin: "Portal Login Access",
+        portalLogin: "Portal Login",
         actions: "Actions",
       },
       departments: "Departments",
@@ -1593,8 +1653,10 @@ export const en = {
         createFailed: "Failed to create employee.",
         updateFailed: "Failed to update employee.",
         releaseFailed: "Failed to release employee.",
-        assignToProject: "Assign to project",
-        releaseFromProject: "Release from project",
+        assignToProject: "Assign Placement",
+        assignToPlacement: "Assign Placement",
+        releaseFromProject: "Release Assignment",
+        releaseFromAssignment: "Release Assignment",
       },
     },
     users: {

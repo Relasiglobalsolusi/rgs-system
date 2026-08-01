@@ -464,6 +464,7 @@ export async function updateEmployee(id: string, formData: FormData) {
 
 /**
  * Assign selected projects → placement ON_PROJECT; sync PT/FT portal access.
+ * Portal 2A: PT forced Yes On Project; FT keeps existing Yes/No.
  */
 export async function assignEmployeeToProject(
   id: string,
@@ -491,7 +492,7 @@ export async function assignEmployeeToProject(
   if (!employee) {
     throw new Error("Employee not found.");
   }
-  if (employee.status !== "ACTIVE") {
+  if (employee.status !== "ACTIVE" && employee.status !== "ON_LEAVE") {
     throw new Error("Only active employees can be assigned to a project.");
   }
 
@@ -507,10 +508,11 @@ export async function assignEmployeeToProject(
 
   await prisma.$transaction(async (tx) => {
     await assignEmployeeToProjects(tx, id, projectIds, projectShifts);
+    // PT: portal Yes while On Project (site app). FT: keep existing Yes/No — do not force.
     const portalAccessRequested =
-      employee.portalAccessRequested ||
-      employee.employmentType === "PART_TIME" ||
-      true;
+      employee.employmentType === "PART_TIME"
+        ? true
+        : employee.portalAccessRequested;
 
     await tx.employee.update({
       where: { id },
@@ -541,7 +543,69 @@ export async function assignEmployeeToProject(
 }
 
 /**
- * Release from all projects → AVAILABLE (or HEAD_OFFICE for corporate soft path).
+ * Assign to Head Office → placement HEAD_OFFICE; clear project links.
+ * Do not force FT or PT portal Yes (PT portal only forced On Project).
+ */
+export async function assignEmployeeToHeadOffice(id: string) {
+  await assertCanManageEmployees();
+
+  const employee = await prisma.employee.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      companyId: true,
+      status: true,
+      firstName: true,
+      lastName: true,
+      employeeNo: true,
+      employmentType: true,
+      portalAccessRequested: true,
+      userId: true,
+    },
+  });
+
+  if (!employee) {
+    throw new Error("Employee not found.");
+  }
+  if (employee.status !== "ACTIVE" && employee.status !== "ON_LEAVE") {
+    throw new Error("Only active employees can be assigned to Head Office.");
+  }
+
+  const employeeType = employeeTypeFromPlacement("HEAD_OFFICE");
+
+  await prisma.$transaction(async (tx) => {
+    await syncProjectAssignments(tx, id, []);
+    await tx.employee.update({
+      where: { id },
+      data: {
+        placement: "HEAD_OFFICE",
+        employeeType,
+        // Keep existing portal Yes/No — do not force for HO (esp. PT).
+      },
+    });
+
+    await syncEmployeePortalLogin(tx, {
+      companyId: employee.companyId,
+      employeeId: id,
+      firstName: employee.firstName,
+      lastName: employee.lastName,
+      employeeNo: employee.employeeNo,
+      employmentType: employee.employmentType,
+      placement: "HEAD_OFFICE",
+      portalAccessRequested: employee.portalAccessRequested,
+      status: employee.status,
+      userId: employee.userId,
+      employeeType,
+    });
+  });
+
+  revalidatePath("/employees");
+  revalidatePath("/users");
+  revalidatePath("/projects");
+}
+
+/**
+ * Release from assignment (project or Head Office) → AVAILABLE (Unassigned pool).
  */
 export async function releaseEmployeeFromProject(id: string) {
   await assertCanManageEmployees();
@@ -558,7 +622,6 @@ export async function releaseEmployeeFromProject(id: string) {
       employmentType: true,
       portalAccessRequested: true,
       userId: true,
-      category: { select: { slug: true, prefix: true } },
     },
   });
 
@@ -566,13 +629,7 @@ export async function releaseEmployeeFromProject(id: string) {
     throw new Error("Employee not found.");
   }
 
-  const nextPlacement: Placement = placementOnSoftRestore({
-    categorySlug: employee.category?.slug,
-    categoryPrefix: employee.category?.prefix,
-  });
-  // Ops crew → AVAILABLE; Corporate → HEAD_OFFICE
-  const releasePlacement: Placement =
-    nextPlacement === "HEAD_OFFICE" ? "HEAD_OFFICE" : "AVAILABLE";
+  const releasePlacement: Placement = "AVAILABLE";
   const employeeType = employeeTypeFromPlacement(releasePlacement);
 
   await prisma.$transaction(async (tx) => {
@@ -696,12 +753,6 @@ async function reactivateEmployeeRecord(id: string) {
       status: true,
       archivedFromDirectory: true,
       category: { select: { slug: true, prefix: true } },
-      employmentType: true,
-      portalAccessRequested: true,
-      firstName: true,
-      lastName: true,
-      employeeNo: true,
-      companyId: true,
       userId: true,
     },
   });
@@ -737,28 +788,9 @@ async function reactivateEmployeeRecord(id: string) {
       select: { userId: true },
     });
 
-    // Soft restore keeps login revoked until sync / Users restore for FT with portal flag.
+    // Like Clients/Vendors: soft restore keeps portal login revoked until
+    // Users → Revoked Access → Restore Access (do not auto-sync FT login on).
     await ensureEmployeeLoginStaysInactive(tx, updated.userId);
-
-    // FT with portal requested → restore login; PT stays revoked until ON_PROJECT
-    if (
-      employee.employmentType === "FULL_TIME" &&
-      employee.portalAccessRequested
-    ) {
-      await syncEmployeePortalLogin(tx, {
-        companyId: employee.companyId,
-        employeeId: id,
-        firstName: employee.firstName,
-        lastName: employee.lastName,
-        employeeNo: employee.employeeNo,
-        employmentType: employee.employmentType,
-        placement,
-        portalAccessRequested: employee.portalAccessRequested,
-        status: "ACTIVE",
-        userId: updated.userId,
-        employeeType,
-      });
-    }
   });
 }
 

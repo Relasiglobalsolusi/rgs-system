@@ -25,20 +25,6 @@ type Props = {
   selectedIds: string[];
 };
 
-function formatBulkResultMessage(
-  result: Awaited<ReturnType<typeof bulkReactivateEmployees>>
-) {
-  if (result.failureCount === 0) {
-    return `${result.successCount} employee${result.successCount !== 1 ? "s" : ""} restored. Linked logins stay off until Restore Access.`;
-  }
-
-  if (result.successCount === 0) {
-    return `Could not restore selected employees. ${result.errors[0] ?? "Please try again."}`;
-  }
-
-  return `${result.successCount} employee${result.successCount !== 1 ? "s" : ""} restored. Linked logins stay off until Restore Access. ${result.failureCount} failed.`;
-}
-
 export default function EmployeeBulkReactivateDialog({
   open,
   onOpenChange,
@@ -48,6 +34,27 @@ export default function EmployeeBulkReactivateDialog({
   const { t } = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+
+  function formatBulkResultMessage(
+    result: Awaited<ReturnType<typeof bulkReactivateEmployees>>
+  ) {
+    if (result.failureCount === 0) {
+      return t("pages.employees.bulkRestoreSuccess", {
+        count: result.successCount,
+      });
+    }
+
+    if (result.successCount === 0) {
+      return t("pages.employees.bulkRestoreAllFailed", {
+        detail: result.errors[0] ?? t("common.errors.tryAgain"),
+      });
+    }
+
+    return t("pages.employees.bulkRestorePartial", {
+      success: result.successCount,
+      failed: result.failureCount,
+    });
+  }
 
   function handleConfirm() {
     startTransition(async () => {
@@ -108,9 +115,7 @@ export default function EmployeeBulkReactivateDialog({
               {t("pages.employees.bulkSelected", { count: selectedCount })}
             </p>
             <p className="mt-1 text-sm text-muted">
-              Username and credentials stay preserved. Restored employees appear
-              in the active directory; linked logins move to Revoked Access.
-              Employees deleted forever cannot be restored.
+              {t("pages.employees.bulkRestoreNote")}
             </p>
           </div>
         </div>

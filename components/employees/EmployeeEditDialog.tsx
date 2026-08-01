@@ -69,7 +69,15 @@ export default function EmployeeEditDialog({ employee, categories, positions, pr
       {showTrigger ? <DialogTrigger asChild><Button variant="infoBadge" size="badge">{t("common.actions.edit")}</Button></DialogTrigger> : null}
       <EmployeeDialogShell icon={UserCog} title={t("pages.employees.editEmployee")} description={t("pages.employees.editDescription")} footer={
         <div className="flex w-full flex-col gap-3">
-          {employee.placement === "ON_PROJECT" ? <EmployeePrimaryButton type="button" variant="danger" disabled={pending} onClick={release}>{t("pages.employees.form.releaseFromProject")}</EmployeePrimaryButton> : <EmployeePrimaryButton type="button" disabled={pending} onClick={() => setAssignOpen(true)}>{t("pages.employees.form.assignToProject")}</EmployeePrimaryButton>}
+          {employee.placement === "ON_PROJECT" || employee.placement === "HEAD_OFFICE" ? (
+            <EmployeePrimaryButton type="button" variant="danger" disabled={pending} onClick={release}>
+              {t("pages.employees.form.releaseFromAssignment")}
+            </EmployeePrimaryButton>
+          ) : (
+            <EmployeePrimaryButton type="button" disabled={pending} onClick={() => setAssignOpen(true)}>
+              {t("pages.employees.form.assignToPlacement")}
+            </EmployeePrimaryButton>
+          )}
           {showDelete ? <EmployeePrimaryButton type="button" variant="danger" disabled={pending} onClick={() => setDeleteOpen(true)}>{t("common.actions.delete")}</EmployeePrimaryButton> : null}
           <EmployeePrimaryButton form={EDIT_FORM_ID} disabled={pending}>{pending ? t("common.actions.saving") : t("common.actions.saveChanges")}</EmployeePrimaryButton>
         </div>

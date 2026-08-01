@@ -1365,25 +1365,51 @@ export const id = {
       deleted: "Dihapus",
       active: "Aktif",
       activeSubtitle: "Karyawan yang saat ini ada di daftar",
-      availableFt: "Karyawan Penuh Waktu Tersedia",
+      allEmployees: "Semua Karyawan",
+      allEmployeesSubtitle: "Semua staf aktif di daftar",
+      allActive: "Semua Karyawan",
+      allActiveSubtitle: "Semua staf aktif di daftar",
+      fullTime: "Penuh Waktu",
+      fullTimeSubtitle:
+        "Staf Penuh Waktu yang ditugaskan (Kantor Pusat atau Di Proyek)",
+      partTime: "Paruh Waktu",
+      partTimeSubtitle:
+        "Staf Paruh Waktu yang ditugaskan (Di Proyek atau Kantor Pusat)",
+      availableFt: "Penuh Waktu Tersedia",
       availableFtSubtitle: "Karyawan Penuh Waktu yang tersedia untuk penugasan",
-      partTimeRoster: "Daftar Paruh Waktu",
-      partTimeRosterSubtitle: "Karyawan Paruh Waktu aktif",
+      onProject: "Di Proyek",
+      onProjectSubtitle: "Staf yang sedang ditugaskan ke proyek",
+      headOffice: "Kantor Pusat",
+      headOfficeSubtitle: "Penempatan Corporate dan Kantor Pusat",
+      partTimeRoster: "Paruh Waktu",
+      partTimeRosterSubtitle: "Staf Paruh Waktu yang ditugaskan",
       managePositions: "Kelola Jabatan",
       deletedSubtitle: "Karyawan yang dihapus sementara hingga dipulihkan",
       unassigned: "Belum Ditugaskan",
-      unassignedSubtitle: "Karyawan yang menunggu departemen",
+      unassignedSubtitle:
+        "Staf aktif yang menunggu Kantor Pusat atau proyek",
       assignSelected: "Tugaskan Terpilih",
       allDepartments: "Semua Departemen",
       filterDepartment: "Filter Berdasarkan Departemen",
+      selectAll: "Pilih Semua Karyawan",
+      selectRow: "Pilih {name}",
       emptyTrash:
         "Karyawan yang dihapus muncul di sini hingga dipulihkan atau dihapus permanen dari direktori.",
       emptyAvailableFt: "Tidak Ada Karyawan Penuh Waktu Tersedia",
       emptyAvailableFtDesc:
         "Karyawan Penuh Waktu menjadi tersedia setelah dilepas dari proyek.",
-      emptyPartTime: "Tidak Ada Karyawan Paruh Waktu",
+      emptyOnProject: "Tidak Ada Karyawan Di Proyek",
+      emptyOnProjectDesc:
+        "Staf yang ditugaskan ke proyek muncul di sini hingga dilepas.",
+      emptyHeadOffice: "Tidak Ada Karyawan Kantor Pusat",
+      emptyHeadOfficeDesc:
+        "Penempatan Corporate dan Kantor Pusat muncul di sini.",
+      emptyFullTime: "Tidak Ada Karyawan Penuh Waktu Yang Ditugaskan",
+      emptyFullTimeDesc:
+        "Staf Penuh Waktu yang ditugaskan ke Kantor Pusat atau proyek muncul di sini.",
+      emptyPartTime: "Tidak Ada Karyawan Paruh Waktu Yang Ditugaskan",
       emptyPartTimeDesc:
-        "Staf Paruh Waktu ditampilkan di sini terlepas dari penempatan proyek.",
+        "Staf Paruh Waktu yang ditugaskan ke proyek atau Kantor Pusat muncul di sini.",
       emptyActive: "Belum Ada Karyawan",
       emptyActiveDesc: "Tambahkan karyawan untuk memulai.",
       emptyActiveList: "Tidak Ada Karyawan Aktif",
@@ -1391,7 +1417,13 @@ export const id = {
       emptyDeletedList: "Tidak Ada Karyawan Yang Dihapus",
       emptyUnassigned: "Tidak Ada Karyawan Yang Belum Ditugaskan",
       emptyUnassignedDesc:
-        "Karyawan tanpa departemen muncul di sini hingga ditugaskan.",
+        "Staf dengan penempatan Tersedia muncul di sini hingga ditugaskan.",
+      emptyUnassignedFt: "Tidak Ada Karyawan Penuh Waktu Yang Belum Ditugaskan",
+      emptyUnassignedFtDesc:
+        "Staf Penuh Waktu yang menunggu Kantor Pusat atau proyek muncul di sini.",
+      emptyUnassignedPt: "Tidak Ada Karyawan Paruh Waktu Yang Belum Ditugaskan",
+      emptyUnassignedPtDesc:
+        "Staf Paruh Waktu yang menunggu proyek atau Kantor Pusat muncul di sini.",
       emptySearch: 'Tidak Ada Hasil Untuk "{query}"',
       emptySearchDesc:
         "Coba nama, nomor karyawan, jabatan, departemen, email, atau telepon lain.",
@@ -1408,10 +1440,12 @@ export const id = {
       deleteForeverConfirm: "Hapus selamanya",
       deleteForeverDescription:
         "Karyawan ini akan disembunyikan permanen dari direktori. Login pengguna terkait dan nomor karyawan dilepas permanen. Data database dan riwayat disimpan untuk audit.",
-      restoreTitle: "Pulihkan karyawan?",
-      restoreConfirm: "Pulihkan karyawan",
+      restoreTitle: "Pulihkan Karyawan?",
+      restoreConfirm: "Pulihkan Karyawan",
       restoreDescription:
         "Ini memulihkan karyawan dari Karyawan Dihapus. Login terkait tetap nonaktif — gunakan Pengguna → Akses Dicabut → Pulihkan Akses sebelum mereka dapat masuk lagi.",
+      restoreNote:
+        "Nama pengguna dan kredensial tetap disimpan. Setelah dipulihkan, login terkait muncul di Akses Dicabut hingga Anda memulihkan akses. Catatan historis (kehadiran, cuti, progres) tetap utuh. Karyawan yang dihapus selamanya tidak dapat dipulihkan.",
       editDescription:
         "Perbarui detail karyawan, departemen, dan penugasan lokasi.",
       bulkDeleteTitle: "Hapus {count} karyawan?",
@@ -1421,6 +1455,36 @@ export const id = {
       bulkRestoreTitle: "Pulihkan {count} karyawan?",
       bulkRestoreConfirm: "Pulihkan {count} karyawan",
       bulkSelected: "{count} karyawan dipilih",
+      bulkActionApplies:
+        "Tindakan ini berlaku untuk semua baris terpilih di tampilan saat ini.",
+      bulkDeactivateNote:
+        "Login pengguna terkait dinonaktifkan (tidak dihapus permanen) dan dipindah ke Pengguna Dihapus. Kredensial disimpan. Setelah memulihkan karyawan, gunakan Pengguna → Akses Dicabut → Pulihkan Akses untuk mengaktifkan lagi login portal. Catatan historis (kehadiran, cuti, progres) tidak dihapus.",
+      bulkDeleteForeverNote:
+        "Login pengguna terkait dihapus permanen dan tidak dapat dipulihkan. Nomor karyawan tersedia lagi untuk perekrutan berikutnya di departemen tersebut. Kehadiran, cuti, progres, dan catatan historis lainnya tetap di sistem. Tindakan ini tidak dapat dibatalkan dari UI direktori.",
+      bulkRestoreNote:
+        "Nama pengguna dan kredensial tetap disimpan. Karyawan yang dipulihkan muncul di direktori aktif; login terkait pindah ke Akses Dicabut. Karyawan yang dihapus selamanya tidak dapat dipulihkan.",
+      bulkRestoreSuccess:
+        "{count} karyawan dipulihkan. Login terkait tetap nonaktif hingga Pulihkan Akses.",
+      bulkRestoreAllFailed:
+        "Tidak dapat memulihkan karyawan terpilih. {detail}",
+      bulkRestorePartial:
+        "{success} karyawan dipulihkan. Login terkait tetap nonaktif hingga Pulihkan Akses. {failed} gagal.",
+      portalStatus: {
+        yes: "Ya",
+        revoked: "Dicabut",
+        no: "Tidak",
+      },
+      projectAssignDialog: {
+        title: "Tugaskan Penempatan",
+        description:
+          "Pilih Kantor Pusat atau satu atau beberapa proyek aktif. Kantor Pusat mengatur penempatan ke Kantor Pusat; proyek mengatur penempatan ke Di Proyek.",
+        headOffice: "Kantor Pusat",
+        projectsHeading: "Proyek",
+        assign: "Tugaskan",
+        assigning: "Menugaskan…",
+        assignFailed: "Gagal menugaskan karyawan.",
+        noActiveProjects: "Tidak ada proyek aktif yang tersedia.",
+      },
       columns: {
         employee: "Karyawan",
         employeeNo: "ID",
@@ -1430,7 +1494,7 @@ export const id = {
         placement: "Penempatan",
         username: "Nama pengguna",
         roleDept: "Peran / Dept",
-        portalLogin: "Akses login portal",
+        portalLogin: "Login Portal",
         actions: "Tindakan",
       },
       departments: "Departemen",
@@ -1615,8 +1679,10 @@ export const id = {
         createFailed: "Gagal membuat karyawan.",
         updateFailed: "Gagal memperbarui karyawan.",
         releaseFailed: "Gagal melepas karyawan dari proyek.",
-        assignToProject: "Tugaskan ke proyek",
-        releaseFromProject: "Lepas dari proyek",
+        assignToProject: "Tugaskan Penempatan",
+        assignToPlacement: "Tugaskan Penempatan",
+        releaseFromProject: "Lepas Penugasan",
+        releaseFromAssignment: "Lepas Penugasan",
       },
     },
     users: {
