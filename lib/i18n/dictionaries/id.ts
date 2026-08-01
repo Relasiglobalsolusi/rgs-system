@@ -1386,6 +1386,12 @@ export const id = {
       partTimeRoster: "Paruh Waktu",
       partTimeRosterSubtitle: "Staf Paruh Waktu yang ditugaskan",
       managePositions: "Kelola Jabatan",
+      employeePositionsDescription:
+        "Tentukan jabatan dalam setiap departemen.",
+      positionCount: "{count} jabatan",
+      positionCountOne: "{count} jabatan",
+      addPosition: "Tambah Jabatan",
+      emptyPositions: "Belum ada jabatan yang dikonfigurasi.",
       deletedSubtitle: "Karyawan yang dihapus sementara hingga dipulihkan",
       unassigned: "Belum Ditugaskan",
       unassignedSubtitle:
@@ -1514,6 +1520,30 @@ export const id = {
         "Jabatan adalah posisi dalam departemen (misalnya Operasi → Cleaning staff). Penempatan adalah tempat bekerja dan diatur oleh Assign / Release, bukan dropdown bebas.",
       unassignedCannotDelete: "Jabatan sistem tidak dapat dihapus saat masih dipakai",
       assign: "Tugaskan",
+      positionDialog: {
+        createTitle: "Tambah Jabatan",
+        createDescription: "Tambahkan jabatan untuk sebuah departemen.",
+        createButton: "Tambah Jabatan",
+        creating: "Menambahkan…",
+        editTitle: "Ubah Jabatan",
+        positionName: "Nama Jabatan",
+        selectDepartment: "Pilih Departemen",
+        availableForNew: "Tersedia Untuk Karyawan Baru",
+        employeeCountOne: "{count} karyawan memakai jabatan ini.",
+        employeeCountOther: "{count} karyawan memakai jabatan ini.",
+        createFailed: "Gagal membuat jabatan.",
+        updateFailed: "Gagal memperbarui jabatan.",
+        deleteFailed: "Gagal menghapus jabatan.",
+        reorderFailed: "Gagal mengurutkan ulang jabatan.",
+        deleteTitle: "Hapus Jabatan",
+        deleteConfirm: "Hapus Jabatan",
+        deleteDescWithEmployees:
+          "Tugaskan ulang karyawan sebelum menghapus jabatan ini.",
+        deleteDescEmpty: "Jabatan ini tidak memiliki karyawan.",
+        employeesReassignedOne: "{count} karyawan akan ditugaskan ulang.",
+        employeesReassignedOther: "{count} karyawan akan ditugaskan ulang.",
+        selectReplacement: "Pilih Jabatan Pengganti",
+      },
       deptDialog: {
         createTitle: "Buat Departemen",
         createDescription:

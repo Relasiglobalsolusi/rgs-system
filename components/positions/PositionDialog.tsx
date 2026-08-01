@@ -23,11 +23,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { showRejectionFromError } from "@/components/ui/rejection-notice";
+import { localizeDepartmentLabel } from "@/lib/i18n/labels";
+import { useT } from "@/lib/i18n/use-t";
 import { titleCaseWords } from "@/lib/text-case";
-
-function formatDepartmentLabel(category: EmployeeCategoryOption): string {
-  return `${titleCaseWords(category.name)} (${category.prefix.toUpperCase()})`;
-}
 
 export default function PositionDialog({
   categories,
@@ -36,6 +34,7 @@ export default function PositionDialog({
   categories: EmployeeCategoryOption[];
   onCreated?: () => void;
 }) {
+  const { t, locale } = useT();
   const [open, setOpen] = useState(false);
   const [categoryId, setCategoryId] = useState("");
   const [pending, startTransition] = useTransition();
@@ -47,6 +46,11 @@ export default function PositionDialog({
       ),
     [categories]
   );
+
+  function formatDepartmentLabel(category: EmployeeCategoryOption): string {
+    const name = localizeDepartmentLabel(category.slug, category.name, locale);
+    return `${titleCaseWords(name)} (${category.prefix.toUpperCase()})`;
+  }
 
   // Same pattern as ProgressDialog / CicoActions: Base UI Select.Value shows the
   // raw value unless Root `items` maps id → label, and SelectValue renders the label.
@@ -64,7 +68,10 @@ export default function PositionDialog({
         setCategoryId("");
         onCreated?.();
       } catch (error) {
-        showRejectionFromError(error, "Failed to create position.");
+        showRejectionFromError(
+          error,
+          t("pages.employees.positionDialog.createFailed")
+        );
       }
     });
   }
@@ -73,34 +80,42 @@ export default function PositionDialog({
     <Dialog open={open} onOpenChange={setOpen} disablePointerDismissal>
       <DialogTrigger asChild>
         <Button variant="successBadge" size="badge">
-          Add Position
+          {t("pages.employees.addPosition")}
         </Button>
       </DialogTrigger>
       <EmployeeDialogShell
         icon={BriefcaseBusiness}
-        title="Add Position"
-        description="Add a job position for a department."
+        title={t("pages.employees.positionDialog.createTitle")}
+        description={t("pages.employees.positionDialog.createDescription")}
         maxWidth="lg"
         footer={
           <EmployeePrimaryButton
             form="create-position-form"
             disabled={pending || !categoryId}
           >
-            {pending ? "Adding…" : "Add Position"}
+            {pending
+              ? t("pages.employees.positionDialog.creating")
+              : t("pages.employees.positionDialog.createButton")}
           </EmployeePrimaryButton>
         }
       >
         <form id="create-position-form" action={submit}>
           <div className={employeeDialogFormClass}>
             <div className={employeeDialogFieldClass}>
-              <label className="text-sm font-medium text-muted">Department</label>
+              <label className="text-sm font-medium text-muted">
+                {t("common.labels.department")}
+              </label>
               <Select
                 value={categoryId}
                 onValueChange={(value) => setCategoryId(value ?? "")}
                 items={departmentSelectItems}
               >
                 <SelectTrigger className={employeeSelectTriggerClass}>
-                  <SelectValue placeholder="Select Department">
+                  <SelectValue
+                    placeholder={t(
+                      "pages.employees.positionDialog.selectDepartment"
+                    )}
+                  >
                     {(value) => {
                       if (!value) return null;
                       const category = selectableCategories.find(
@@ -122,11 +137,15 @@ export default function PositionDialog({
               </Select>
             </div>
             <div className={employeeDialogFieldClass}>
-              <label className="text-sm font-medium text-muted">Position Name</label>
+              <label className="text-sm font-medium text-muted">
+                {t("pages.employees.positionDialog.positionName")}
+              </label>
               <Input name="name" required className={employeeInputClass} />
             </div>
             <div className={employeeDialogFieldClass}>
-              <label className="text-sm font-medium text-muted">Description</label>
+              <label className="text-sm font-medium text-muted">
+                {t("common.labels.description")}
+              </label>
               <Input name="description" className={employeeInputClass} />
             </div>
           </div>

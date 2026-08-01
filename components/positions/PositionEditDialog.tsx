@@ -14,6 +14,8 @@ import {
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { showRejectionFromError } from "@/components/ui/rejection-notice";
+import { localizeDepartmentLabel } from "@/lib/i18n/labels";
+import { useT } from "@/lib/i18n/use-t";
 import { titleCaseWords } from "@/lib/text-case";
 
 export type PositionRow = {
@@ -23,7 +25,7 @@ export type PositionRow = {
   description: string | null;
   active: boolean;
   sortOrder: number;
-  category: { name: string; prefix: string };
+  category: { name: string; prefix: string; slug?: string | null };
   _count: { employees: number };
 };
 
@@ -40,11 +42,18 @@ export default function PositionEditDialog({
   onOpenChange: (open: boolean) => void;
   onUpdated?: () => void;
 }) {
+  const { t, locale } = useT();
   const [active, setActive] = useState(position.active);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  const departmentLabel = `${titleCaseWords(position.category.name)} (${position.category.prefix.toUpperCase()})`;
+  const departmentLabel = `${titleCaseWords(
+    localizeDepartmentLabel(
+      position.category.slug,
+      position.category.name,
+      locale
+    )
+  )} (${position.category.prefix.toUpperCase()})`;
 
   function submit(formData: FormData) {
     formData.set("active", String(active));
@@ -54,10 +63,18 @@ export default function PositionEditDialog({
         onOpenChange(false);
         onUpdated?.();
       } catch (error) {
-        showRejectionFromError(error, "Failed to update position.");
+        showRejectionFromError(
+          error,
+          t("pages.employees.positionDialog.updateFailed")
+        );
       }
     });
   }
+
+  const employeeCountKey =
+    position._count.employees === 1
+      ? "pages.employees.positionDialog.employeeCountOne"
+      : "pages.employees.positionDialog.employeeCountOther";
 
   return (
     <>
@@ -71,7 +88,7 @@ export default function PositionEditDialog({
       >
         <EmployeeDialogShell
           icon={BriefcaseBusiness}
-          title="Edit Position"
+          title={t("pages.employees.positionDialog.editTitle")}
           description={departmentLabel}
           maxWidth="lg"
           footer={
@@ -82,10 +99,12 @@ export default function PositionEditDialog({
                 disabled={pending}
                 onClick={() => setDeleteOpen(true)}
               >
-                Delete
+                {t("common.actions.delete")}
               </EmployeePrimaryButton>
               <EmployeePrimaryButton form="edit-position-form" disabled={pending}>
-                {pending ? "Saving…" : "Save Changes"}
+                {pending
+                  ? t("common.actions.saving")
+                  : t("common.actions.saveChanges")}
               </EmployeePrimaryButton>
             </div>
           }
@@ -93,7 +112,9 @@ export default function PositionEditDialog({
           <form id="edit-position-form" action={submit}>
             <div className={employeeDialogFormClass}>
               <div className={employeeDialogFieldClass}>
-                <label className="text-sm font-medium text-muted">Position Name</label>
+                <label className="text-sm font-medium text-muted">
+                  {t("pages.employees.positionDialog.positionName")}
+                </label>
                 <Input
                   name="name"
                   defaultValue={position.name}
@@ -102,7 +123,9 @@ export default function PositionEditDialog({
                 />
               </div>
               <div className={employeeDialogFieldClass}>
-                <label className="text-sm font-medium text-muted">Description</label>
+                <label className="text-sm font-medium text-muted">
+                  {t("common.labels.description")}
+                </label>
                 <Input
                   name="description"
                   defaultValue={position.description ?? ""}
@@ -115,10 +138,10 @@ export default function PositionEditDialog({
                   checked={active}
                   onChange={(event) => setActive(event.target.checked)}
                 />
-                Available For New Employees
+                {t("pages.employees.positionDialog.availableForNew")}
               </label>
               <p className="text-xs text-subtle">
-                {position._count.employees} employee(s) use this position.
+                {t(employeeCountKey, { count: position._count.employees })}
               </p>
             </div>
           </form>
