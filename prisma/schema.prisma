@@ -384,10 +384,8 @@ model Client {
   email                 String?
   phone                 String?
   address               String?
-  /// Company tax ID (NPWP) — required when a project uses tax invoice (faktur).
+  /// Company tax ID (NPWP) or individual NPWP/NIK — required on create/edit.
   npwp                  String?
-  /// Individual clients without NPWP may use NIK/KTP for tax identity.
-  nationalId            String?
   /// Uploaded NPWP (company) or NPWP/NIK (individual) document under /uploads/clients.
   taxIdDocumentUrl      String?
   contactPersonFirstName String?

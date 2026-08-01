@@ -28,21 +28,6 @@ type Props = {
   selectedIds: string[];
 };
 
-function formatBulkResultMessage(
-  actionLabel: string,
-  result: Awaited<ReturnType<typeof bulkDeactivateClients>>
-) {
-  if (result.failureCount === 0) {
-    return `${result.successCount} client${result.successCount !== 1 ? "s" : ""} ${actionLabel}.`;
-  }
-
-  if (result.successCount === 0) {
-    return `Could not ${actionLabel} selected clients. ${result.errors[0] ?? "Please try again."}`;
-  }
-
-  return `${result.successCount} client${result.successCount !== 1 ? "s" : ""} ${actionLabel}. ${result.failureCount} failed.`;
-}
-
 export default function ClientBulkActionDialog({
   open,
   onOpenChange,
@@ -53,6 +38,40 @@ export default function ClientBulkActionDialog({
   const { t } = useT();
   const [pending, startTransition] = useTransition();
 
+  function formatBulkResultMessage(
+    result: Awaited<ReturnType<typeof bulkDeactivateClients>>
+  ) {
+    if (result.failureCount === 0) {
+      return mode === "deactivate"
+        ? t("pages.clients.bulkDeactivateSuccess", {
+            count: result.successCount,
+          })
+        : t("pages.clients.bulkDeleteForeverSuccess", {
+            count: result.successCount,
+          });
+    }
+
+    if (result.successCount === 0) {
+      return mode === "deactivate"
+        ? t("pages.clients.bulkDeactivateAllFailed", {
+            detail: result.errors[0] ?? t("common.errors.tryAgain"),
+          })
+        : t("pages.clients.bulkDeleteForeverAllFailed", {
+            detail: result.errors[0] ?? t("common.errors.tryAgain"),
+          });
+    }
+
+    return mode === "deactivate"
+      ? t("pages.clients.bulkDeactivatePartial", {
+          success: result.successCount,
+          failed: result.failureCount,
+        })
+      : t("pages.clients.bulkDeleteForeverPartial", {
+          success: result.successCount,
+          failed: result.failureCount,
+        });
+  }
+
   function handleConfirm() {
     startTransition(async () => {
       try {
@@ -61,17 +80,12 @@ export default function ClientBulkActionDialog({
             ? await bulkDeactivateClients(selectedIds)
             : await bulkDeleteClients(selectedIds);
 
-        const actionPastTense =
-          mode === "deactivate"
-            ? "moved to Deleted clients"
-            : "permanently removed";
-
         if (result.failureCount === 0) {
-          toast.success(formatBulkResultMessage(actionPastTense, result));
+          toast.success(formatBulkResultMessage(result));
         } else if (result.successCount === 0) {
-          showRejection({ reasons: formatBulkResultMessage(actionPastTense, result) });
+          showRejection({ reasons: formatBulkResultMessage(result) });
         } else {
-          toast.warning(formatBulkResultMessage(actionPastTense, result));
+          toast.warning(formatBulkResultMessage(result));
         }
 
         onOpenChange(false);
@@ -134,14 +148,14 @@ export default function ClientBulkActionDialog({
               {t("pages.clients.bulkSelected", { count: selectedCount })}
             </p>
             <p className="mt-1 text-sm text-muted">
-              This action applies to all selected rows in the current view.
+              {t("pages.clients.bulkActionApplies")}
             </p>
           </div>
 
           <p className="mt-4 text-sm leading-6 text-muted">
             {isSoftDelete
-              ? "Linked portal logins are disabled (not permanently deleted) and move to Deleted users. Credentials are kept. After restoring clients, use Users → Revoked Access → Restore Access to re-enable portal login. Projects stay assigned to these clients."
-              : "Linked portal logins are permanently deleted and cannot be restored. Linked projects are kept but unassigned. This action cannot be undone."}
+              ? t("pages.clients.deleteSoftNote")
+              : t("pages.clients.bulkDeleteForeverNote")}
           </p>
         </div>
       </EmployeeDialogShell>

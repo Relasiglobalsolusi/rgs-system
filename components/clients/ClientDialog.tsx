@@ -116,13 +116,16 @@ export default function ClientDialog({
 
   async function submit(formData: FormData) {
     const npwpRaw = String(formData.get("npwp") ?? "").trim();
-    if (npwpRaw && !isValidNpwp(npwpRaw)) {
-      const isIndividual =
-        String(formData.get("clientType") ?? "").toUpperCase() ===
-        "INDIVIDUAL";
-      const npwpMessage = isIndividual
-        ? t("validation.npwpOrNikInvalid")
-        : t("validation.npwpInvalid");
+    const isIndividual =
+      String(formData.get("clientType") ?? "").toUpperCase() === "INDIVIDUAL";
+    if (!npwpRaw || !isValidNpwp(npwpRaw)) {
+      const npwpMessage = !npwpRaw
+        ? isIndividual
+          ? t("validation.npwpOrNikRequired")
+          : t("validation.npwpRequired")
+        : isIndividual
+          ? t("validation.npwpOrNikInvalid")
+          : t("validation.npwpInvalid");
       const form = document.getElementById(CREATE_FORM_ID);
       const input = form instanceof HTMLFormElement
         ? form.elements.namedItem("npwp")

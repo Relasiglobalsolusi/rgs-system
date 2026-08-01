@@ -4,7 +4,7 @@ import {
 } from "@/lib/contact-person";
 import type { AppLocale } from "@/lib/i18n/locale";
 import { DEFAULT_LOCALE } from "@/lib/i18n/locale";
-import { parseOptionalNpwpValue } from "@/lib/npwp";
+import { parseRequiredClientNpwpValue } from "@/lib/npwp";
 import { normalizeImportPhoneWithCountryCode } from "@/lib/phone-normalize";
 import { capitalizeName, capitalizeProper } from "@/lib/text-case";
 import { parseImportDateWithDefault } from "@/lib/bulk-import/parse-import-date";
@@ -20,7 +20,7 @@ export type ParsedClientImportRow = {
   email: string | null;
   phone: string | null;
   address: string | null;
-  npwp: string | null;
+  npwp: string;
   paymentTermsDays: number;
   clientSince: Date;
   contactPersonFirstName: string;
@@ -137,7 +137,7 @@ export function parseClientImportRow(
     }
   }
 
-  const npwp = parseOptionalNpwpValue(
+  const npwp = parseRequiredClientNpwpValue(
     importCellValue(values.npwp),
     locale,
     clientType === "INDIVIDUAL" ? "client" : "company"

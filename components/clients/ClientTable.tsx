@@ -53,9 +53,20 @@ export type ClientRow = {
   users: ClientPortalUserSummary[];
 };
 
+/** Portal Login column: Yes (active), Revoked (linked but inactive), No (never provisioned). */
+export type ClientPortalLoginStatus = "yes" | "revoked" | "no";
+
+export function getClientPortalLoginStatus(
+  client: Pick<ClientRow, "users">
+): ClientPortalLoginStatus {
+  if (client.users.length === 0) return "no";
+  if (client.users.some((user) => user.active)) return "yes";
+  return "revoked";
+}
+
 /** True when the client has at least one active linked portal user. */
-export function clientHasPortalLogin(client: ClientRow) {
-  return client.users.some((user) => user.active);
+export function clientHasPortalLogin(client: Pick<ClientRow, "users">) {
+  return getClientPortalLoginStatus(client) === "yes";
 }
 
 function formatContactPersonLabel(
@@ -273,17 +284,47 @@ export default function ClientTable({
         className: "min-w-[14rem] max-xl:min-w-[11rem] max-xl:px-2",
         render: (client) => {
           const isIndividual = client.clientType === "INDIVIDUAL";
-          const contactPersonLabel = isIndividual
-            ? formatContactPersonName(
-                client.contactPersonFirstName,
-                client.contactPersonLastName
-              ) || client.name.trim() || null
-            : formatContactPersonLabel(
-                client.contactPersonFirstName,
-                client.contactPersonLastName,
-                client.contactPersonPosition
-              );
           const primaryContact = getPrimaryContact(client);
+
+          if (isIndividual) {
+            const contactName = formatContactPersonName(
+              client.contactPersonFirstName,
+              client.contactPersonLastName
+            );
+            const clientName = client.name.trim();
+            const showContactName =
+              contactName != null &&
+              contactName.toLowerCase() !== clientName.toLowerCase();
+
+            if (!showContactName && !primaryContact) {
+              return <span className="text-subtle">—</span>;
+            }
+
+            return (
+              <div className="min-w-0">
+                {showContactName ? (
+                  <p className="text-text">{contactName}</p>
+                ) : null}
+                {primaryContact ? (
+                  <p
+                    className={
+                      showContactName
+                        ? "mt-0.5 text-sm text-subtle"
+                        : "text-text"
+                    }
+                  >
+                    {primaryContact}
+                  </p>
+                ) : null}
+              </div>
+            );
+          }
+
+          const contactPersonLabel = formatContactPersonLabel(
+            client.contactPersonFirstName,
+            client.contactPersonLastName,
+            client.contactPersonPosition
+          );
 
           if (!contactPersonLabel && !primaryContact) {
             return <span className="text-subtle">—</span>;
@@ -361,13 +402,22 @@ export default function ClientTable({
         className:
           "min-w-[10rem] overflow-visible whitespace-nowrap text-center max-xl:min-w-[9rem] max-xl:px-2",
         render: (client) => {
-          const hasPortalLogin = clientHasPortalLogin(client);
+          const portalStatus = getClientPortalLoginStatus(client);
+          const badgeStatus =
+            portalStatus === "yes"
+              ? "active"
+              : portalStatus === "revoked"
+                ? "revoked"
+                : "inactive";
+          const label =
+            portalStatus === "yes"
+              ? t("pages.clients.portalStatus.yes")
+              : portalStatus === "revoked"
+                ? t("pages.clients.portalStatus.revoked")
+                : t("pages.clients.portalStatus.no");
           return (
-            <StatusBadge
-              status={hasPortalLogin ? "active" : "danger"}
-              compact
-            >
-              {hasPortalLogin ? t("common.actions.yes") : t("common.actions.no")}
+            <StatusBadge status={badgeStatus} compact>
+              {label}
             </StatusBadge>
           );
         },

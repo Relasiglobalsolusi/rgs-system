@@ -162,56 +162,113 @@ function IssueList({
   );
 }
 
+function isImportablePreviewRow(row: BulkImportPreviewRow) {
+  return row.status === "ready" || row.status === "warning";
+}
+
+function isIndividualClientPreviewRow(row: BulkImportPreviewRow) {
+  const clientType = (row.fields["Client Type"] ?? "").trim().toLowerCase();
+  return (
+    clientType === "individual" ||
+    clientType === "perorangan" ||
+    clientType === "person"
+  );
+}
+
 function PreviewList({
   entityLabel,
   preview,
   t,
+  taxIdDocuments,
+  onTaxIdDocumentChange,
+  pending,
 }: {
   entityLabel: BulkImportEntityLabel;
   preview: BulkImportPreview;
   t: (key: string, params?: Record<string, string | number>) => string;
+  taxIdDocuments?: Record<number, File>;
+  onTaxIdDocumentChange?: (rowNumber: number, file: File | null) => void;
+  pending?: boolean;
 }) {
+  const requireTaxIdDocuments =
+    entityLabel === "client" && Boolean(onTaxIdDocumentChange);
+
   return (
     <div className="flex max-h-[22rem] flex-col gap-2 overflow-y-auto pr-1">
-      {preview.rows.map((row) => (
-        <div
-          key={`${row.rowNumber}-${row.status}-${primaryField(entityLabel, row)}`}
-          className="rounded-xl border border-border bg-elevated px-3.5 py-3"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 space-y-1">
-              <p className="truncate text-sm font-medium text-text">
-                {t("bulkImport.rowLabel", {
-                  row: row.rowNumber,
-                  name: primaryField(entityLabel, row),
-                })}
-              </p>
-              <p className="truncate text-xs leading-5 text-muted">
-                {secondaryField(entityLabel, row) ||
-                  t("bulkImport.noExtraDetails")}
-              </p>
-              {row.message ? (
-                <p
-                  className={cn(
-                    "text-xs leading-5",
-                    row.status === "warning" ? "text-amber-200/90" : "text-muted"
-                  )}
-                >
-                  {row.message}
+      {preview.rows.map((row) => {
+        const needsDocument =
+          requireTaxIdDocuments && isImportablePreviewRow(row);
+        const selectedFile = taxIdDocuments?.[row.rowNumber];
+        const individual = isIndividualClientPreviewRow(row);
+        const uploadLabel = individual
+          ? t("bulkImport.uploadTaxIdDocumentIndividual")
+          : t("bulkImport.uploadTaxIdDocumentCompany");
+
+        return (
+          <div
+            key={`${row.rowNumber}-${row.status}-${primaryField(entityLabel, row)}`}
+            className="rounded-xl border border-border bg-elevated px-3.5 py-3"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 space-y-1">
+                <p className="truncate text-sm font-medium text-text">
+                  {t("bulkImport.rowLabel", {
+                    row: row.rowNumber,
+                    name: primaryField(entityLabel, row),
+                  })}
                 </p>
-              ) : null}
+                <p className="truncate text-xs leading-5 text-muted">
+                  {secondaryField(entityLabel, row) ||
+                    t("bulkImport.noExtraDetails")}
+                </p>
+                {row.message ? (
+                  <p
+                    className={cn(
+                      "text-xs leading-5",
+                      row.status === "warning"
+                        ? "text-amber-200/90"
+                        : "text-muted"
+                    )}
+                  >
+                    {row.message}
+                  </p>
+                ) : null}
+              </div>
+              <span
+                className={cn(
+                  "shrink-0 rounded-md px-2 py-1 text-[11px] font-medium ring-1 ring-inset",
+                  statusClass(row.status)
+                )}
+              >
+                {statusLabel(row.status, t)}
+              </span>
             </div>
-            <span
-              className={cn(
-                "shrink-0 rounded-md px-2 py-1 text-[11px] font-medium ring-1 ring-inset",
-                statusClass(row.status)
-              )}
-            >
-              {statusLabel(row.status, t)}
-            </span>
+
+            {needsDocument ? (
+              <div className="mt-3 border-t border-border pt-3">
+                <label className="block text-xs font-medium text-text">
+                  {uploadLabel}
+                </label>
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  disabled={pending}
+                  className="mt-1.5 block w-full text-xs text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-primary/15 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-primary"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] ?? null;
+                    onTaxIdDocumentChange?.(row.rowNumber, file);
+                  }}
+                />
+                <p className="mt-1 text-xs leading-5 text-muted">
+                  {selectedFile
+                    ? selectedFile.name
+                    : t("bulkImport.taxIdDocumentRequiredHint")}
+                </p>
+              </div>
+            ) : null}
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -234,8 +291,19 @@ export default function BulkImportDialog({
   const [preview, setPreview] = useState<BulkImportPreview | null>(null);
   const [lastResult, setLastResult] = useState<BulkImportResult | null>(null);
   const [busyAction, setBusyAction] = useState<BulkImportBusyAction>(null);
+  const [taxIdDocuments, setTaxIdDocuments] = useState<Record<number, File>>(
+    {}
+  );
 
   const pending = busyAction !== null;
+  const importableClientRows =
+    entityLabel === "client" && preview
+      ? preview.rows.filter(isImportablePreviewRow)
+      : [];
+  const allClientTaxIdDocumentsReady =
+    entityLabel !== "client" ||
+    importableClientRows.length === 0 ||
+    importableClientRows.every((row) => Boolean(taxIdDocuments[row.rowNumber]));
 
   function clearFileInput() {
     if (inputRef.current) {
@@ -271,6 +339,7 @@ export default function BulkImportDialog({
     setPreview(null);
     setLastResult(null);
     setBusyAction(null);
+    setTaxIdDocuments({});
     setFileInputKey((key) => key + 1);
     clearFileInput();
   }
@@ -279,8 +348,19 @@ export default function BulkImportDialog({
     setPreview(null);
     setLastResult(null);
     setBusyAction(null);
+    setTaxIdDocuments({});
     setFileInputKey((key) => key + 1);
     clearFileInput();
+  }
+
+  function handleTaxIdDocumentChange(rowNumber: number, next: File | null) {
+    setTaxIdDocuments((current) => {
+      if (!next) {
+        const { [rowNumber]: _removed, ...rest } = current;
+        return rest;
+      }
+      return { ...current, [rowNumber]: next };
+    });
   }
 
   useEffect(() => {
@@ -311,6 +391,7 @@ export default function BulkImportDialog({
     setPreview(null);
     setLastResult(null);
     setBusyAction(null);
+    setTaxIdDocuments({});
     clearFileInput();
   }
 
@@ -424,6 +505,7 @@ export default function BulkImportDialog({
 
         setPreview(nextPreview);
         setLastResult(null);
+        setTaxIdDocuments({});
 
         if (nextPreview.rows.length === 0) {
           showRejection({
@@ -480,12 +562,28 @@ export default function BulkImportDialog({
       return;
     }
 
+    if (entityLabel === "client" && !allClientTaxIdDocumentsReady) {
+      showRejection({
+        title: t("ui.rejectionNotice.validationTitle"),
+        description: t("ui.rejectionNotice.validationDescription"),
+        reasons: t("bulkImport.taxIdDocumentsRequired"),
+      });
+      return;
+    }
+
     void (async () => {
       setBusyAction("confirm");
       try {
         const formData = new FormData();
         formData.set("file", file);
         appendExtraFormFields(formData);
+        if (entityLabel === "client") {
+          for (const [rowNumber, documentFile] of Object.entries(
+            taxIdDocuments
+          )) {
+            formData.set(`taxIdDocument_${rowNumber}`, documentFile);
+          }
+        }
         const result = await onConfirm(formData);
         setLastResult(result);
 
@@ -540,7 +638,9 @@ export default function BulkImportDialog({
         title={title}
         description={
           step === "preview"
-            ? t("bulkImport.previewDescription")
+            ? entityLabel === "client"
+              ? t("bulkImport.previewDescriptionClients")
+              : t("bulkImport.previewDescription")
             : t("bulkImport.uploadDescription", { plural })
         }
         maxWidth="md"
@@ -562,7 +662,12 @@ export default function BulkImportDialog({
               <>
                 <EmployeePrimaryButton
                   type="button"
-                  disabled={pending || !preview || preview.readyCount === 0}
+                  disabled={
+                    pending ||
+                    !preview ||
+                    preview.readyCount === 0 ||
+                    !allClientTaxIdDocumentsReady
+                  }
                   onClick={handleConfirm}
                 >
                   {busyAction === "confirm"
@@ -703,6 +808,13 @@ export default function BulkImportDialog({
                 entityLabel={entityLabel}
                 preview={preview}
                 t={t}
+                taxIdDocuments={taxIdDocuments}
+                onTaxIdDocumentChange={
+                  entityLabel === "client"
+                    ? handleTaxIdDocumentChange
+                    : undefined
+                }
+                pending={pending}
               />
             </div>
           ) : null}

@@ -19,7 +19,7 @@ import {
 } from "@/lib/persist-reorder";
 import { prisma } from "@/lib/prisma";
 import { toActionError } from "@/lib/prisma-errors";
-import { parseOptionalNpwpValue } from "@/lib/npwp";
+import { parseRequiredClientNpwpValue } from "@/lib/npwp";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { canManageClients } from "@/lib/project-access";
 import { provisionClientUser } from "@/lib/provision-linked-user";
@@ -34,7 +34,11 @@ import {
 } from "@/lib/invoice-period";
 import { formatContactPersonName } from "@/lib/contact-person";
 import { assertClientNameAvailable } from "@/lib/client-name";
-import { assertClientCanBeSoftDeleted } from "@/lib/client-soft-delete";
+import {
+  assertClientCanBeSoftDeleted,
+  formatClientSoftDeleteBlockers,
+  getClientSoftDeleteBlockers,
+} from "@/lib/client-soft-delete";
 import { deleteLocalUpload, saveUpload } from "@/lib/upload";
 
 const ALLOWED_PAYMENT_TERMS_DAYS = new Set<number>(PAYMENT_TERMS_DAYS_OPTIONS);
@@ -126,12 +130,12 @@ function resolveClientFormIdentity(formData: FormData, clientType: ClientTypeVal
   };
 }
 
-async function parseOptionalNpwp(
+async function parseRequiredClientNpwp(
   formData: FormData,
   clientType: ClientTypeValue
-): Promise<string | null> {
+): Promise<string> {
   const locale = await getServerLocale();
-  return parseOptionalNpwpValue(
+  return parseRequiredClientNpwpValue(
     String(formData.get("npwp") ?? ""),
     locale,
     clientType === "INDIVIDUAL" ? "client" : "company"
@@ -193,7 +197,7 @@ export async function createClient(formData: FormData) {
     const clientType = parseClientType(formData);
     const identity = resolveClientFormIdentity(formData, clientType);
     const address = capitalizeProper(String(formData.get("address") ?? "").trim());
-    const npwp = await parseOptionalNpwp(formData, clientType);
+    const npwp = await parseRequiredClientNpwp(formData, clientType);
     const clientSince =
       parseFormDateInput(formData.get("clientSince"), {
         fieldLabel: "Client since",
@@ -301,8 +305,7 @@ export async function updateClient(id: string, formData: FormData) {
     const clientType = parseClientType(formData);
     const identity = resolveClientFormIdentity(formData, clientType);
     const address = capitalizeProper(String(formData.get("address") ?? "").trim());
-    const npwp = await parseOptionalNpwp(formData, clientType);
-    const active = formData.get("active") === "true";
+    const npwp = await parseRequiredClientNpwp(formData, clientType);
     const clientSince =
       parseFormDateInput(formData.get("clientSince"), {
         fieldLabel: "Client since",
@@ -314,7 +317,6 @@ export async function updateClient(id: string, formData: FormData) {
       select: {
         id: true,
         companyId: true,
-        active: true,
         shortCode: true,
         taxIdDocumentUrl: true,
       },
@@ -337,10 +339,6 @@ export async function updateClient(id: string, formData: FormData) {
     }
 
     await prisma.$transaction(async (tx) => {
-      if (existing.active && !active) {
-        await assertClientCanBeSoftDeleted(id, tx);
-      }
-
       const nameNormalized = await assertClientNameAvailable(
         {
           companyId: existing.companyId,
@@ -350,6 +348,7 @@ export async function updateClient(id: string, formData: FormData) {
         tx
       );
 
+      // Soft-delete only via Delete dialog / deactivateClient — never via edit.
       await tx.client.update({
         where: { id },
         data: {
@@ -370,15 +369,8 @@ export async function updateClient(id: string, formData: FormData) {
           contactPersonPhone: identity.contactPersonPhone,
           clientSince,
           paymentTermsDays,
-          active,
         },
       });
-
-      // Soft-deactivate logins when the client is inactive. Never auto-reactivate
-      // on active=true — Restore Access is required separately after parent restore.
-      if (!active) {
-        await softDeactivateClientLogins(tx, id);
-      }
     });
 
     if (
@@ -397,9 +389,20 @@ export async function updateClient(id: string, formData: FormData) {
   }
 }
 
+/** Translated soft-delete blockers for the Delete dialog (shown before confirm). */
+export async function fetchClientSoftDeleteBlockers(
+  clientId: string
+): Promise<string[]> {
+  await assertCanManageClients();
+  const locale = await getServerLocale();
+  const blockers = await getClientSoftDeleteBlockers(clientId);
+  return formatClientSoftDeleteBlockers(blockers, locale);
+}
+
 export async function deactivateClient(id: string) {
   try {
     await assertCanManageClients();
+    const locale = await getServerLocale();
 
     const client = await prisma.client.findUnique({
       where: { id },
@@ -409,7 +412,7 @@ export async function deactivateClient(id: string) {
     if (!client.active) throw new Error("Client is already deleted.");
 
     await prisma.$transaction(async (tx) => {
-      await assertClientCanBeSoftDeleted(id, tx);
+      await assertClientCanBeSoftDeleted(id, tx, locale);
 
       await tx.client.update({
         where: { id },
@@ -432,6 +435,7 @@ export async function bulkDeactivateClients(
   ids: string[]
 ): Promise<BulkActionResult> {
   await assertCanManageClients();
+  const locale = await getServerLocale();
 
   const result = createBulkActionResult();
   const uniqueIds = [...new Set(ids.filter(Boolean))];
@@ -446,7 +450,7 @@ export async function bulkDeactivateClients(
       if (!client.active) throw new Error("Client is already deleted.");
 
       await prisma.$transaction(async (tx) => {
-        await assertClientCanBeSoftDeleted(id, tx);
+        await assertClientCanBeSoftDeleted(id, tx, locale);
 
         await tx.client.update({
           where: { id },

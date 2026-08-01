@@ -173,6 +173,9 @@ export default function ClientFormFields({
   const npwpInvalidMessage = isIndividual
     ? t("validation.npwpOrNikInvalid")
     : t("validation.npwpInvalid");
+  const npwpRequiredMessage = isIndividual
+    ? t("validation.npwpOrNikRequired")
+    : t("validation.npwpRequired");
 
   return (
     <div className={employeeDialogSectionsClass}>
@@ -368,19 +371,26 @@ export default function ClientFormFields({
               defaultValue={defaults?.npwp ?? ""}
               autoComplete="off"
               inputMode="numeric"
+              required
               className={employeeInputClass}
               onInput={(event) => {
                 const input = event.currentTarget;
                 input.setCustomValidity(
-                  npwpFieldCustomValidity(input.value, npwpInvalidMessage)
+                  npwpFieldCustomValidity(input.value, npwpInvalidMessage, {
+                    required: true,
+                    requiredMessage: npwpRequiredMessage,
+                  })
                 );
               }}
               onBlur={(event) => {
                 const input = event.currentTarget;
                 input.setCustomValidity(
-                  npwpFieldCustomValidity(input.value, npwpInvalidMessage)
+                  npwpFieldCustomValidity(input.value, npwpInvalidMessage, {
+                    required: true,
+                    requiredMessage: npwpRequiredMessage,
+                  })
                 );
-                if (input.value.trim() && !input.validity.valid) {
+                if (!input.validity.valid) {
                   input.reportValidity();
                 }
               }}

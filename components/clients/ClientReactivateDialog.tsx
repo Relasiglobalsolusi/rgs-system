@@ -46,7 +46,7 @@ export default function ClientReactivateDialog({
         setOpen(false);
         router.refresh();
       } catch (error) {
-        showRejectionFromError(error, "Failed to restore client.");
+        showRejectionFromError(error, t("pages.clients.restoreFailed"));
       }
     });
   }
@@ -93,10 +93,7 @@ export default function ClientReactivateDialog({
           </div>
 
           <p className="mt-4 text-sm leading-6 text-muted">
-            Username and credentials stay preserved. After restore, linked
-            logins appear under Revoked Access until you restore access. The
-            client will appear in the active directory again. Clients deleted
-            forever cannot be restored.
+            {t("pages.clients.restoreSoftNote")}
           </p>
         </div>
       </EmployeeDialogShell>

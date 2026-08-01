@@ -876,13 +876,11 @@ export const id = {
     clients: {
       title: "Klien",
       description: "Kelola organisasi klien.",
-      descriptionAdmin: "Kelola organisasi klien dan akses portal.",
-      descriptionManage:
-        "Kelola organisasi klien. Login ID portal selalu dibuat; cabut akses nanti di Pengguna jika perlu.",
+      descriptionAdmin: "Tambah organisasi klien.",
+      descriptionManage: "Kelola organisasi klien.",
       descriptionReadonly: "Lihat organisasi klien (hanya baca).",
       directoryTitle: "Direktori Klien",
-      directoryDesc:
-        "Data organisasi, penugasan proyek, dan kontak. Login ID portal selalu dibuat saat menambah; akses dikelola di Pengguna.",
+      directoryDesc: "Data organisasi, penugasan proyek, dan kontak.",
       companyNotFound: "Perusahaan tidak ditemukan.",
       addClient: "Tambah Klien",
       addBulk: "Tambah Massal",
@@ -906,17 +904,43 @@ export const id = {
       deleteConfirm: "Hapus klien",
       deleteDescription:
         "Ini memindahkan organisasi klien ke Klien Dihapus. Data disimpan dan dapat dipulihkan nanti.",
+      deleteSoftNote:
+        "Login portal terkait dinonaktifkan (tidak dihapus permanen) dan dipindah ke Pengguna Dihapus. Kredensial disimpan. Setelah memulihkan klien ini, gunakan Pengguna → Akses Dicabut → Pulihkan Akses untuk mengaktifkan lagi login portal. Proyek tetap terikat ke klien ini.",
       deleteForeverTitle: "Hapus klien selamanya?",
       deleteForeverConfirm: "Hapus selamanya",
       deleteForeverDescription:
         "Organisasi klien ini akan dihapus permanen. Login portal terkait dihapus permanen. Proyek selesai dan catatan penagihan disimpan untuk audit.",
+      deleteForeverNote:
+        "Hanya klien yang sudah dihapus yang dapat dihapus permanen. Login portal terkait dihapus permanen dan tidak dapat dipulihkan. Proyek selesai dan catatan penagihan tetap di sistem. Tindakan ini tidak dapat dibatalkan.",
+      deleteForeverProjectsNote:
+        "Proyek terkait ({count}) tetap disimpan tetapi dilepas dari klien ini.",
+      deleteForeverUsersNote:
+        "Login portal ({count}) akan dihapus permanen dan tidak dapat dipulihkan.",
       restoreTitle: "Pulihkan klien?",
       restoreConfirm: "Pulihkan klien",
       restoreDescription:
         "Ini memulihkan organisasi klien dari Klien Dihapus. Login portal tetap nonaktif — gunakan Pengguna → Akses Dicabut → Pulihkan Akses sebelum mereka dapat masuk lagi.",
+      restoreSoftNote:
+        "Nama pengguna dan kredensial tetap disimpan. Setelah dipulihkan, login terkait muncul di Akses Dicabut hingga Anda memulihkan akses. Klien akan muncul lagi di direktori aktif. Klien yang dihapus selamanya tidak dapat dipulihkan.",
       editDescription:
-        "Perbarui detail kontak organisasi dan status. Kelola login portal di Pengguna.",
+        "Perbarui detail kontak organisasi. Hapus sementara hanya lewat Hapus. Kelola login portal di Pengguna.",
       activeOrganization: "Organisasi klien aktif",
+      savedToast: "Klien disimpan.",
+      updateFailed: "Gagal memperbarui klien.",
+      deleteFailed: "Gagal menghapus klien.",
+      restoreFailed: "Gagal memulihkan klien.",
+      projectCount: "{count} proyek",
+      portalUserCount: "{count} pengguna portal",
+      checkingSoftDelete: "Memeriksa apakah klien ini dapat dihapus…",
+      softDeleteBlockedTitle: "Klien ini belum dapat dihapus",
+      softDeleteBlocked:
+        "Tidak dapat menghapus klien ini selama pekerjaan atau keuangan masih terbuka: {blockers}.",
+      softDeleteBlockers: {
+        openProjects:
+          "{count} proyek terbuka (belum Selesai dan lunas)",
+        unsettledBilling: "penagihan belum selesai pada {count} proyek",
+        pendingTaxInvoices: "{count} faktur pajak belum selesai",
+      },
       bulkDeleteTitle: "Hapus {count} klien?",
       bulkDeleteForeverTitle: "Hapus {count} klien selamanya?",
       bulkDeleteConfirm: "Hapus {count} klien",
@@ -924,8 +948,34 @@ export const id = {
       bulkRestoreTitle: "Pulihkan {count} klien?",
       bulkRestoreConfirm: "Pulihkan {count} klien",
       bulkSelected: "{count} klien dipilih",
+      bulkActionApplies:
+        "Tindakan ini berlaku untuk semua baris terpilih di tampilan saat ini.",
+      bulkDeleteForeverNote:
+        "Login portal terkait dihapus permanen dan tidak dapat dipulihkan. Proyek terkait tetap disimpan tetapi dilepas. Tindakan ini tidak dapat dibatalkan.",
+      bulkRestoreNote:
+        "Nama pengguna dan kredensial tetap disimpan. Klien yang dipulihkan muncul di direktori aktif; login terkait pindah ke Akses Dicabut.",
+      bulkDeactivateSuccess: "{count} klien dipindah ke Klien Dihapus.",
+      bulkDeactivateAllFailed:
+        "Tidak dapat menghapus klien terpilih. {detail}",
+      bulkDeactivatePartial:
+        "{success} klien dipindah ke Klien Dihapus. {failed} gagal.",
+      bulkDeleteForeverSuccess: "{count} klien dihapus permanen.",
+      bulkDeleteForeverAllFailed:
+        "Tidak dapat menghapus permanen klien terpilih. {detail}",
+      bulkDeleteForeverPartial:
+        "{success} klien dihapus permanen. {failed} gagal.",
+      bulkRestoreSuccess:
+        "{count} klien dipulihkan. Login terkait tetap nonaktif hingga Pulihkan Akses.",
+      bulkRestoreAllFailed: "Tidak dapat memulihkan klien terpilih. {detail}",
+      bulkRestorePartial:
+        "{success} klien dipulihkan. Login terkait tetap nonaktif hingga Pulihkan Akses. {failed} gagal.",
       paymentTermsCashShort: "Tunai",
       paymentTermsNetShort: "Net {days}",
+      portalStatus: {
+        yes: "Ya",
+        revoked: "Dicabut",
+        no: "Tidak",
+      },
       columns: {
         client: "Klien",
         shortCode: "ID Klien",
@@ -933,7 +983,7 @@ export const id = {
         clientSince: "Klien Sejak",
         paymentTerms: "Syarat Pembayaran",
         projects: "Proyek",
-        portalLogin: "Akses Login Portal",
+        portalLogin: "Login Portal",
         actions: "Tindakan",
       },
       form: {
@@ -960,10 +1010,10 @@ export const id = {
         address: "Alamat",
         companyNpwp: "NPWP",
         companyNpwpHint:
-          "Opsional. Jika diisi, harus tepat 15 atau 16 digit (titik/strip OK). Panjang lain ditolak.",
+          "Wajib. Masukkan tepat 15 atau 16 digit (titik/strip OK).",
         clientNpwpOrNik: "NPWP / NIK",
         clientNpwpOrNikHint:
-          "Opsional. Jika diisi, harus tepat 15 atau 16 digit (titik/strip OK). Panjang lain ditolak.",
+          "Wajib. Masukkan tepat 15 atau 16 digit (titik/strip OK).",
         taxIdDocumentCompany: "Dokumen NPWP",
         taxIdDocumentIndividual: "Dokumen NPWP / NIK",
         taxIdDocumentUploadCompany: "Unggah Dokumen NPWP (Foto Atau Scan)",
@@ -2537,6 +2587,15 @@ export const id = {
       "Unggah template Excel yang sudah diisi untuk membuat banyak {plural} sekaligus. Anda akan meninjau pratinjau sebelum data dibuat.",
     previewDescription:
       "Tinjau setiap baris di bawah. Baris bertanda “Akan ditambah” (termasuk peringatan) dibuat saat Anda mengonfirmasi.",
+    previewDescriptionClients:
+      "Tinjau setiap baris di bawah, lalu unggah dokumen NPWP/NIK untuk setiap klien yang akan ditambah. Konfirmasi tetap nonaktif sampai setiap baris siap punya file.",
+    uploadTaxIdDocumentCompany: "Dokumen NPWP",
+    uploadTaxIdDocumentIndividual: "Dokumen NPWP / NIK",
+    taxIdDocumentRequiredHint: "Wajib. Unggah foto atau PDF yang jelas.",
+    taxIdDocumentsRequired:
+      "Unggah dokumen NPWP/NIK untuk setiap baris klien yang akan ditambah.",
+    taxIdDocumentRequiredCompany: "Unggah dokumen NPWP.",
+    taxIdDocumentRequiredIndividual: "Unggah dokumen NPWP atau NIK.",
     noExtraDetails: "Tidak ada detail tambahan",
     rowLabel: "Baris {row}: {name}",
     rowIssue: "Baris {row}: {message}",
@@ -2668,5 +2727,7 @@ export const id = {
       "NPWP / NPWP Perusahaan harus 15 atau 16 digit (titik, strip, dan spasi opsional).",
     npwpOrNikInvalid:
       "NPWP Atau NIK Klien harus 15 atau 16 digit (titik, strip, dan spasi opsional).",
+    npwpRequired: "NPWP wajib diisi.",
+    npwpOrNikRequired: "NPWP atau NIK wajib diisi.",
   },
 } as const satisfies DeepStringLeaves<EnMessages>;

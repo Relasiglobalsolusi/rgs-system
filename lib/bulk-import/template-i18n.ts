@@ -191,7 +191,7 @@ export const CLIENT_HEADER_LABELS: Record<string, LocalizedHeader> = {
     ],
   },
   paymentTermsDays: {
-    en: "Payment terms",
+    en: "Payment Terms",
     id: "Syarat Pembayaran",
     aliases: [
       "payment terms",
@@ -272,8 +272,8 @@ export function clientTemplateTitle(locale: AppLocale): string {
 /** Short note on the Data sheet title cell (no Instructions tab). */
 export function clientTemplateHeaderNote(locale: AppLocale): string {
   return locale === "id"
-    ? "Isi satu klien per baris mulai baris 3. Kolom bertanda * wajib. Tipe Klien: Perusahaan atau Perorangan. Untuk Perorangan: isi Nama Klien (atau Nama Depan), Alamat, dan NPWP / NIK; kolom Email Perusahaan, Telepon Perusahaan, dan Narahubung tulis Tidak berlaku. Login ID portal selalu dibuat. Tanggal DD/MM/YYYY. Telepon: nomor nasional saja (kode negara di kolom terpisah). Syarat pembayaran mencakup Tunai. Unggah di RGS ONE lalu Konfirmasi tambah. Dokumen NPWP/NIK diunggah saat menambah/mengubah klien di formulir (bukan lewat Excel)."
-    : "Enter one client per row from row 3. Columns marked * are required. Client Type: Company or Individual. For Individual: fill Client Name (or First Name), Address, and NPWP / NIK; enter Not Applicable in Company Email, Company Phone, and Contact Person columns. A portal Login ID is always created. Dates: DD/MM/YYYY. Phone: national number only (country code in its own column). Payment Terms include Cash. Upload in RGS ONE, then Confirm add. NPWP/NIK documents are uploaded in the client form (not via Excel).";
+    ? "Isi satu klien per baris mulai baris 3. Kolom bertanda * wajib (termasuk NPWP / NIK). Tipe Klien: Perusahaan atau Perorangan. Untuk Perorangan: isi Nama Klien (atau Nama Depan), Alamat, dan NPWP / NIK; kolom Email Perusahaan, Telepon Perusahaan, dan Narahubung otomatis terisi Tidak berlaku dan tidak dapat diedit. Login ID portal selalu dibuat. Tanggal DD/MM/YYYY. Telepon: nomor nasional saja (kode negara di kolom terpisah). Syarat Pembayaran mencakup Tunai. Unggah di RGS ONE, lalu unggah dokumen NPWP/NIK per baris saat Konfirmasi tambah (Excel tidak dapat melampirkan file)."
+    : "Enter one client per row from row 3. Columns marked * are required (including NPWP / NIK). Client Type: Company or Individual. For Individual: fill Client Name (or First Name), Address, and NPWP / NIK; Company Email, Company Phone, and Contact Person columns auto-fill N/A and cannot be edited. A portal Login ID is always created. Dates: DD/MM/YYYY. Phone: national number only (country code in its own column). Payment Terms include Cash. Upload in RGS ONE, then upload each row’s NPWP/NIK document during Confirm add (Excel cannot attach files).";
 }
 
 export function clientTypeDropdown(locale: AppLocale): [string, string] {

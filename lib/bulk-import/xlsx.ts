@@ -54,6 +54,11 @@ export type ColumnDef = {
    * (staff labels, scopes, project names, etc.). Not used for column width.
    */
   contentSamples?: string[];
+  /**
+   * When true, skip the standard list validation for this column — use
+   * `applyExtraDataValidations` for conditional dropdowns instead.
+   */
+  conditionalDropdown?: boolean;
   /** Center header and data cells horizontally and vertically. */
   centerContent?: boolean;
   /** Excel number format (e.g. dd/mm/yyyy for date columns). */
@@ -552,7 +557,7 @@ function computeLogoRowOffset(
   return paddingPx / rowHeightPx;
 }
 
-function columnIndexToLetter(index: number): string {
+export function columnIndexToLetter(index: number): string {
   let letter = "";
   let value = index;
   while (value > 0) {
@@ -876,6 +881,7 @@ async function buildExcelJsImportTemplate(
       }
 
       for (const column of bucket.columns) {
+        if (column.conditionalDropdown) continue;
         const dataColIndex =
           options.columns.findIndex((entry) => entry.key === column.key) + 1;
         const dataColLetter = columnIndexToLetter(dataColIndex);

@@ -33,6 +33,8 @@ import { requireModule, toPermissionUser } from "@/lib/session";
 import { formatImportDateDisplay } from "@/lib/bulk-import/parse-import-date";
 import { formatPaymentTermsImportDisplay } from "@/lib/bulk-import/payment-terms-import";
 import { getServerLocale } from "@/lib/i18n/locale";
+import { translate } from "@/lib/i18n/translate";
+import { saveUpload } from "@/lib/upload";
 
 async function assertCanManageClients() {
   const session = await requireModule("clients");
@@ -48,6 +50,10 @@ function isIndividualImportType(raw: string | undefined): boolean {
     normalized === "perorangan" ||
     normalized === "person"
   );
+}
+
+function taxIdDocumentFieldKey(rowNumber: number): string {
+  return `taxIdDocument_${rowNumber}`;
 }
 
 function previewFieldsFromValues(
@@ -167,6 +173,30 @@ async function loadClientImportContext(file: File) {
   return { company, rows, seenNames };
 }
 
+async function saveImportTaxIdDocument(
+  formData: FormData,
+  rowNumber: number,
+  clientType: "COMPANY" | "INDIVIDUAL",
+  locale: Awaited<ReturnType<typeof getServerLocale>>
+): Promise<string> {
+  const file = formData.get(taxIdDocumentFieldKey(rowNumber));
+  if (!(file instanceof File) || file.size === 0) {
+    throw new Error(
+      translate(
+        locale,
+        clientType === "INDIVIDUAL"
+          ? "bulkImport.taxIdDocumentRequiredIndividual"
+          : "bulkImport.taxIdDocumentRequiredCompany"
+      )
+    );
+  }
+
+  // Same storage path as createClient form upload (uploads/clients).
+  return saveUpload(file, "uploads/clients", {
+    fileBaseName: clientType === "INDIVIDUAL" ? "NPWP-NIK" : "NPWP",
+  });
+}
+
 export async function previewBulkImportClients(
   formData: FormData
 ): Promise<BulkImportPreview> {
@@ -223,6 +253,9 @@ export async function previewBulkImportClients(
  * Excel import is create-only: duplicate client names are skipped and existing
  * clients are never updated. Contact-person renames never reset client Login IDs
  * (Login ID stays company-based; revoke/restore lives in Users).
+ *
+ * Each ready row must include an NPWP/NIK number (Excel) and a tax ID document
+ * file uploaded in the confirmation step (`taxIdDocument_{rowNumber}`).
  */
 export async function confirmBulkImportClients(
   formData: FormData
@@ -256,6 +289,14 @@ export async function confirmBulkImportClients(
       const sortOrder = nextSortOrder;
       nextSortOrder += SORT_ORDER_STEP;
 
+      // Require file before DB write (same rule as form create).
+      const taxIdDocumentUrl = await saveImportTaxIdDocument(
+        formData,
+        rowNumber,
+        parsed.clientType,
+        locale
+      );
+
       await prisma.$transaction(async (tx) => {
         const nameNormalized = await assertClientNameAvailable(
           { companyId: company.id, name: parsed.name },
@@ -272,6 +313,7 @@ export async function confirmBulkImportClients(
             phone: parsed.phone,
             address: parsed.address,
             npwp: parsed.npwp,
+            taxIdDocumentUrl,
             paymentTermsDays: parsed.paymentTermsDays,
             contactPersonFirstName: parsed.contactPersonFirstName,
             contactPersonLastName: parsed.contactPersonLastName,

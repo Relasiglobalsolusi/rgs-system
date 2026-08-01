@@ -4,7 +4,7 @@ import {
   showRejection,
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Briefcase } from "lucide-react";
 import { toast } from "sonner";
 
@@ -49,8 +49,6 @@ type Client = {
   paymentTermsDays?: number | null;
   active: boolean;
   _count?: { projects: number; users: number };
-  /** Linked portal users — any linked login means a name change resets it. */
-  users?: Array<{ id: string; active?: boolean }>;
 };
 
 type Props = {
@@ -70,27 +68,18 @@ export default function ClientEditDialog({
   const { open, setOpen } = useDirectoryDialogOpen(controlledOpen, onOpenChange);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [active, setActive] = useState(client.active);
   const [pending, startTransition] = useTransition();
   const [baseline, setBaseline] = useState<HtmlFormDirtyBaseline | null>(null);
 
-  const controlledSignature = useMemo(
-    () => JSON.stringify({ active }),
-    [active]
-  );
-  const controlledSignatureRef = useRef(controlledSignature);
-  controlledSignatureRef.current = controlledSignature;
-
   const { isDirty, handleFormInput, resetDirtyTracking } = useHtmlFormDirty(
     formId,
-    controlledSignature,
+    "",
     baseline
   );
   const isDirtyRef = useRef(isDirty);
   isDirtyRef.current = isDirty;
 
   function resetFormState() {
-    setActive(client.active);
     resetDirtyTracking();
   }
 
@@ -124,9 +113,7 @@ export default function ClientEditDialog({
     resetFormState();
 
     const frame = requestAnimationFrame(() => {
-      setBaseline(
-        captureHtmlFormBaseline(formId, controlledSignatureRef.current)
-      );
+      setBaseline(captureHtmlFormBaseline(formId, ""));
     });
 
     return () => cancelAnimationFrame(frame);
@@ -135,16 +122,17 @@ export default function ClientEditDialog({
   }, [open, formId, client.id]);
 
   async function submit(formData: FormData) {
-    formData.set("active", String(active));
-
     const npwpRaw = String(formData.get("npwp") ?? "").trim();
-    if (npwpRaw && !isValidNpwp(npwpRaw)) {
-      const isIndividual =
-        String(formData.get("clientType") ?? "").toUpperCase() ===
-        "INDIVIDUAL";
-      const npwpMessage = isIndividual
-        ? t("validation.npwpOrNikInvalid")
-        : t("validation.npwpInvalid");
+    const isIndividual =
+      String(formData.get("clientType") ?? "").toUpperCase() === "INDIVIDUAL";
+    if (!npwpRaw || !isValidNpwp(npwpRaw)) {
+      const npwpMessage = !npwpRaw
+        ? isIndividual
+          ? t("validation.npwpOrNikRequired")
+          : t("validation.npwpRequired")
+        : isIndividual
+          ? t("validation.npwpOrNikInvalid")
+          : t("validation.npwpInvalid");
       const form = document.getElementById(formId);
       const input =
         form instanceof HTMLFormElement
@@ -162,12 +150,12 @@ export default function ClientEditDialog({
     startTransition(async () => {
       try {
         await updateClient(client.id, formData);
-        toast.success("Client saved.");
+        toast.success(t("pages.clients.savedToast"));
         setExitConfirmOpen(false);
         setOpen(false);
         setBaseline(null);
       } catch (error) {
-        showRejectionFromError(error, "Failed to update client.");
+        showRejectionFromError(error, t("pages.clients.updateFailed"));
       }
     });
   }
@@ -244,18 +232,6 @@ export default function ClientEditDialog({
               }}
               onFormValuesChange={handleFormInput}
             />
-
-            <div className="mt-8 border-t border-border pt-6">
-              <label className="flex items-center gap-3 text-sm text-text">
-                <input
-                  type="checkbox"
-                  checked={active}
-                  onChange={(event) => setActive(event.target.checked)}
-                  className="rounded border-border bg-elevated"
-                />
-                {t("pages.clients.activeOrganization")}
-              </label>
-            </div>
           </form>
 
           <div className="mt-8 border-t border-border pt-6">

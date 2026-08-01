@@ -3,10 +3,13 @@
 import {
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
-import { useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Building2 } from "lucide-react";
 
-import { deactivateClient } from "@/app/clients/actions";
+import {
+  deactivateClient,
+  fetchClientSoftDeleteBlockers,
+} from "@/app/clients/actions";
 import {
   EmployeeDialogShell,
   EmployeePrimaryButton,
@@ -39,6 +42,33 @@ export default function ClientDeleteDialog({
   const { t } = useT();
   const { open, setOpen } = useDirectoryDialogOpen(controlledOpen, onOpenChange);
   const [pending, startTransition] = useTransition();
+  const [blockers, setBlockers] = useState<string[]>([]);
+  const [loadingBlockers, setLoadingBlockers] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      setBlockers([]);
+      setLoadingBlockers(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingBlockers(true);
+    void fetchClientSoftDeleteBlockers(client.id)
+      .then((next) => {
+        if (!cancelled) setBlockers(next);
+      })
+      .catch(() => {
+        if (!cancelled) setBlockers([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingBlockers(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, client.id]);
 
   function handleDelete() {
     startTransition(async () => {
@@ -47,10 +77,12 @@ export default function ClientDeleteDialog({
         onDeleted?.();
         setOpen(false);
       } catch (error) {
-        showRejectionFromError(error, "Failed to delete client.");
+        showRejectionFromError(error, t("pages.clients.deleteFailed"));
       }
     });
   }
+
+  const isBlocked = blockers.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -72,7 +104,7 @@ export default function ClientDeleteDialog({
             <EmployeePrimaryButton
               type="button"
               variant="danger"
-              disabled={pending}
+              disabled={pending || loadingBlockers || isBlocked}
               onClick={handleDelete}
             >
               {pending
@@ -93,20 +125,37 @@ export default function ClientDeleteDialog({
           <div className="rounded-xl border border-border bg-elevated px-4 py-4">
             <p className="text-sm font-medium text-text">{client.name}</p>
             <p className="mt-1 text-sm text-muted">
-              {client._count.projects} project
-              {client._count.projects !== 1 ? "s" : ""}
+              {t("pages.clients.projectCount", {
+                count: client._count.projects,
+              })}
               {client._count.users > 0
-                ? ` · ${client._count.users} portal user${client._count.users !== 1 ? "s" : ""}`
+                ? ` · ${t("pages.clients.portalUserCount", {
+                    count: client._count.users,
+                  })}`
                 : ""}
             </p>
           </div>
 
-          <p className="mt-4 text-sm leading-6 text-muted">
-            Linked portal logins are disabled (not permanently deleted) and move
-            to Deleted users. Credentials are kept. After you restore this
-            client, use Users → Revoked Access → Restore Access to re-enable
-            portal login. Projects stay assigned to this client.
-          </p>
+          {loadingBlockers ? (
+            <p className="mt-4 text-sm leading-6 text-muted">
+              {t("pages.clients.checkingSoftDelete")}
+            </p>
+          ) : isBlocked ? (
+            <div className="mt-4 rounded-xl border border-amber-500/25 bg-card-tint-amber px-4 py-3">
+              <p className="text-sm font-medium text-text">
+                {t("pages.clients.softDeleteBlockedTitle")}
+              </p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-muted">
+                {blockers.map((blocker) => (
+                  <li key={blocker}>{blocker}</li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm leading-6 text-muted">
+              {t("pages.clients.deleteSoftNote")}
+            </p>
+          )}
         </div>
       </EmployeeDialogShell>
     </Dialog>

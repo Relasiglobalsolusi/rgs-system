@@ -857,13 +857,12 @@ export const en = {
     clients: {
       title: "Clients",
       description: "Manage client organizations.",
-      descriptionAdmin: "Manage client organizations and portal access.",
-      descriptionManage:
-        "Manage client organizations. A portal Login ID is always created; revoke access later in Users if needed.",
+      descriptionAdmin: "Add a client organization.",
+      descriptionManage: "Manage client organizations.",
       descriptionReadonly: "View client organizations (read-only).",
       directoryTitle: "Client Directory",
       directoryDesc:
-        "Organization records, project assignments, and contact details. A portal Login ID is always created on add; access is managed in Users.",
+        "Organization records, project assignments, and contact details.",
       companyNotFound: "Company not found.",
       addClient: "Add Client",
       addBulk: "Add Bulk",
@@ -886,17 +885,43 @@ export const en = {
       deleteConfirm: "Delete client",
       deleteDescription:
         "This moves the client organization to Deleted clients. The record is kept and can be restored later.",
+      deleteSoftNote:
+        "Linked portal logins are disabled (not permanently deleted) and move to Deleted users. Credentials are kept. After you restore this client, use Users → Revoked Access → Restore Access to re-enable portal login. Projects stay assigned to this client.",
       deleteForeverTitle: "Delete client forever?",
       deleteForeverConfirm: "Delete forever",
       deleteForeverDescription:
         "This client organization will be permanently removed. Linked portal logins are permanently deleted. Completed projects and billing records are kept for audit purposes.",
+      deleteForeverNote:
+        "Only deleted clients can be permanently deleted. Linked portal logins are permanently deleted and cannot be restored. Completed projects and billing records remain in the system. This action cannot be undone.",
+      deleteForeverProjectsNote:
+        "Linked projects ({count}) will be kept but unassigned from this client.",
+      deleteForeverUsersNote:
+        "Portal login(s) ({count}) will be permanently deleted and cannot be restored.",
       restoreTitle: "Restore client?",
       restoreConfirm: "Restore client",
       restoreDescription:
         "This restores the client organization from Deleted clients. Linked portal logins stay off — use Users → Revoked Access → Restore Access before they can sign in again.",
+      restoreSoftNote:
+        "Username and credentials stay preserved. After restore, linked logins appear under Revoked Access until you restore access. The client will appear in the active directory again. Clients deleted forever cannot be restored.",
       editDescription:
-        "Update organization contact details and status. Manage portal logins in Users.",
+        "Update organization contact details. Soft-delete only via Delete. Manage portal logins in Users.",
       activeOrganization: "Active client organization",
+      savedToast: "Client saved.",
+      updateFailed: "Failed to update client.",
+      deleteFailed: "Failed to delete client.",
+      restoreFailed: "Failed to restore client.",
+      projectCount: "{count} project(s)",
+      portalUserCount: "{count} portal user(s)",
+      checkingSoftDelete: "Checking whether this client can be deleted…",
+      softDeleteBlockedTitle: "Cannot delete this client yet",
+      softDeleteBlocked:
+        "Cannot delete this client while work or finances are still open: {blockers}.",
+      softDeleteBlockers: {
+        openProjects:
+          "{count} open project(s) (not Completed and settled)",
+        unsettledBilling: "outstanding billing on {count} project(s)",
+        pendingTaxInvoices: "{count} outstanding tax invoice(s)",
+      },
       bulkDeleteTitle: "Delete {count} clients?",
       bulkDeleteForeverTitle: "Delete {count} clients forever?",
       bulkDeleteConfirm: "Delete {count} clients",
@@ -904,8 +929,34 @@ export const en = {
       bulkRestoreTitle: "Restore {count} clients?",
       bulkRestoreConfirm: "Restore {count} clients",
       bulkSelected: "{count} clients selected",
+      bulkActionApplies:
+        "This action applies to all selected rows in the current view.",
+      bulkDeleteForeverNote:
+        "Linked portal logins are permanently deleted and cannot be restored. Linked projects are kept but unassigned. This action cannot be undone.",
+      bulkRestoreNote:
+        "Username and credentials stay preserved. Restored clients appear in the active directory; linked logins move to Revoked Access.",
+      bulkDeactivateSuccess: "{count} client(s) moved to Deleted clients.",
+      bulkDeactivateAllFailed:
+        "Could not delete selected clients. {detail}",
+      bulkDeactivatePartial:
+        "{success} client(s) moved to Deleted clients. {failed} failed.",
+      bulkDeleteForeverSuccess: "{count} client(s) permanently removed.",
+      bulkDeleteForeverAllFailed:
+        "Could not permanently delete selected clients. {detail}",
+      bulkDeleteForeverPartial:
+        "{success} client(s) permanently removed. {failed} failed.",
+      bulkRestoreSuccess:
+        "{count} client(s) restored. Linked logins stay off until Restore Access.",
+      bulkRestoreAllFailed: "Could not restore selected clients. {detail}",
+      bulkRestorePartial:
+        "{success} client(s) restored. Linked logins stay off until Restore Access. {failed} failed.",
       paymentTermsCashShort: "Cash",
       paymentTermsNetShort: "Net {days}",
+      portalStatus: {
+        yes: "Yes",
+        revoked: "Revoked",
+        no: "No",
+      },
       columns: {
         client: "Client",
         shortCode: "Client ID",
@@ -913,7 +964,7 @@ export const en = {
         clientSince: "Client Since",
         paymentTerms: "Payment Terms",
         projects: "Projects",
-        portalLogin: "Portal Login Access",
+        portalLogin: "Portal Login",
         actions: "Actions",
       },
       form: {
@@ -940,10 +991,10 @@ export const en = {
         address: "Address",
         companyNpwp: "NPWP",
         companyNpwpHint:
-          "Optional. If filled, must be exactly 15 or 16 digits (dots/dashes OK). Other lengths are rejected.",
+          "Required. Enter exactly 15 or 16 digits (dots/dashes OK).",
         clientNpwpOrNik: "NPWP / NIK",
         clientNpwpOrNikHint:
-          "Optional. If filled, must be exactly 15 or 16 digits (dots/dashes OK). Other lengths are rejected.",
+          "Required. Enter exactly 15 or 16 digits (dots/dashes OK).",
         taxIdDocumentCompany: "NPWP Document",
         taxIdDocumentIndividual: "NPWP / NIK Document",
         taxIdDocumentUploadCompany: "Upload NPWP Document (Photo Or Scan)",
@@ -2512,6 +2563,15 @@ export const en = {
       "Upload a filled Excel template to create many {plural} at once. You will review a preview before anything is created.",
     previewDescription:
       "Review each row below. Rows marked “Will add” (including warnings) are created when you confirm.",
+    previewDescriptionClients:
+      "Review each row below, then upload the NPWP/NIK document for every client that will be added. Confirm stays disabled until every ready row has a file.",
+    uploadTaxIdDocumentCompany: "NPWP Document",
+    uploadTaxIdDocumentIndividual: "NPWP / NIK Document",
+    taxIdDocumentRequiredHint: "Required. Upload a clear photo or PDF.",
+    taxIdDocumentsRequired:
+      "Upload an NPWP/NIK document for every client row that will be added.",
+    taxIdDocumentRequiredCompany: "Upload an NPWP document.",
+    taxIdDocumentRequiredIndividual: "Upload an NPWP or NIK document.",
     noExtraDetails: "No extra details",
     rowLabel: "Row {row}: {name}",
     rowIssue: "Row {row}: {message}",
@@ -2642,6 +2702,8 @@ export const en = {
       "Company Tax ID (NPWP) must be 15 or 16 digits (formatting optional).",
     npwpOrNikInvalid:
       "Client NPWP Or NIK must be 15 or 16 digits (formatting optional).",
+    npwpRequired: "NPWP is required.",
+    npwpOrNikRequired: "NPWP or NIK is required.",
   },
 } as const;
 

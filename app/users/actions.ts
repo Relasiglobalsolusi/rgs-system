@@ -29,6 +29,7 @@ import { hardDeleteLinkedUserLogin } from "@/lib/hard-delete-linked-user";
 import { capitalizeName } from "@/lib/text-case";
 import { isRosterActiveEmployeeStatus } from "@/lib/user-directory-status";
 import { assertClientCanBeSoftDeleted } from "@/lib/client-soft-delete";
+import { getServerLocale } from "@/lib/i18n/locale";
 
 export async function createUser(formData: FormData) {
   await requireModule("users");
@@ -488,6 +489,7 @@ async function deactivateUserRecord(id: string, currentUserId: string) {
     throw new Error("You cannot delete your own account.");
   }
 
+  const locale = await getServerLocale();
   const user = await prisma.user.findUnique({
     where: { id },
     select: {
@@ -547,7 +549,7 @@ async function deactivateUserRecord(id: string, currentUserId: string) {
     }
 
     if (user.client && user.client.active) {
-      await assertClientCanBeSoftDeleted(user.client.id, tx);
+      await assertClientCanBeSoftDeleted(user.client.id, tx, locale);
       await tx.client.update({
         where: { id: user.client.id },
         data: { active: false },

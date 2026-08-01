@@ -44,7 +44,7 @@ export default function ClientPermanentDeleteDialog({
         await deleteClient(client.id);
         setOpen(false);
       } catch (error) {
-        showRejectionFromError(error, "Failed to delete client.");
+        showRejectionFromError(error, t("pages.clients.deleteFailed"));
       }
     });
   }
@@ -92,10 +92,13 @@ export default function ClientPermanentDeleteDialog({
           <div className="rounded-xl border border-border bg-elevated px-4 py-4">
             <p className="text-sm font-medium text-text">{client.name}</p>
             <p className="mt-1 text-sm text-muted">
-              {client._count.projects} project
-              {client._count.projects !== 1 ? "s" : ""}
+              {t("pages.clients.projectCount", {
+                count: client._count.projects,
+              })}
               {client._count.users > 0
-                ? ` · ${client._count.users} portal user${client._count.users !== 1 ? "s" : ""}`
+                ? ` · ${t("pages.clients.portalUserCount", {
+                    count: client._count.users,
+                  })}`
                 : ""}
             </p>
           </div>
@@ -105,19 +108,21 @@ export default function ClientPermanentDeleteDialog({
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
               <p className="text-sm leading-6 text-text">
                 {client._count.projects > 0
-                  ? `Linked projects (${client._count.projects}) will be kept but unassigned from this client. `
+                  ? `${t("pages.clients.deleteForeverProjectsNote", {
+                      count: client._count.projects,
+                    })} `
                   : ""}
                 {client._count.users > 0
-                  ? `Portal login${client._count.users !== 1 ? "s" : ""} (${client._count.users}) will be permanently deleted and cannot be restored.`
+                  ? t("pages.clients.deleteForeverUsersNote", {
+                      count: client._count.users,
+                    })
                   : ""}
               </p>
             </div>
           ) : null}
 
           <p className="mt-4 text-sm leading-6 text-muted">
-            Only deleted clients can be permanently deleted. Linked portal logins
-            are permanently deleted and cannot be restored. Completed projects and
-            billing records remain in the system. This action cannot be undone.
+            {t("pages.clients.deleteForeverNote")}
           </p>
         </div>
       </EmployeeDialogShell>

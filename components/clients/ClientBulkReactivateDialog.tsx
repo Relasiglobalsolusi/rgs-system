@@ -25,20 +25,6 @@ type Props = {
   selectedIds: string[];
 };
 
-function formatBulkResultMessage(
-  result: Awaited<ReturnType<typeof bulkReactivateClients>>
-) {
-  if (result.failureCount === 0) {
-    return `${result.successCount} client${result.successCount !== 1 ? "s" : ""} restored. Linked logins stay off until Restore Access.`;
-  }
-
-  if (result.successCount === 0) {
-    return `Could not restore selected clients. ${result.errors[0] ?? "Please try again."}`;
-  }
-
-  return `${result.successCount} client${result.successCount !== 1 ? "s" : ""} restored. Linked logins stay off until Restore Access. ${result.failureCount} failed.`;
-}
-
 export default function ClientBulkReactivateDialog({
   open,
   onOpenChange,
@@ -48,6 +34,27 @@ export default function ClientBulkReactivateDialog({
   const { t } = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+
+  function formatBulkResultMessage(
+    result: Awaited<ReturnType<typeof bulkReactivateClients>>
+  ) {
+    if (result.failureCount === 0) {
+      return t("pages.clients.bulkRestoreSuccess", {
+        count: result.successCount,
+      });
+    }
+
+    if (result.successCount === 0) {
+      return t("pages.clients.bulkRestoreAllFailed", {
+        detail: result.errors[0] ?? t("common.errors.tryAgain"),
+      });
+    }
+
+    return t("pages.clients.bulkRestorePartial", {
+      success: result.successCount,
+      failed: result.failureCount,
+    });
+  }
 
   function handleConfirm() {
     startTransition(async () => {
@@ -108,8 +115,7 @@ export default function ClientBulkReactivateDialog({
               {t("pages.clients.bulkSelected", { count: selectedCount })}
             </p>
             <p className="mt-1 text-sm text-muted">
-              Username and credentials stay preserved. Restored clients appear
-              in the active directory; linked logins move to Revoked Access.
+              {t("pages.clients.bulkRestoreNote")}
             </p>
           </div>
         </div>

@@ -6,9 +6,17 @@ import {
   TAX_INVOICE_ISSUED_STATUSES,
   UNPAID_INVOICE_STATUSES,
 } from "@/lib/billing";
+import type { AppLocale } from "@/lib/i18n/locale";
+import { DEFAULT_LOCALE } from "@/lib/i18n/locale";
+import { translate } from "@/lib/i18n/translate";
 import { prisma } from "@/lib/prisma";
 
 type Tx = Prisma.TransactionClient | typeof prisma;
+
+export type ClientSoftDeleteBlocker = {
+  code: "openProjects" | "unsettledBilling" | "pendingTaxInvoices";
+  count: number;
+};
 
 /**
  * Soft-delete is allowed only when every linked project is settled and every
@@ -19,14 +27,11 @@ type Tx = Prisma.TransactionClient | typeof prisma;
  *
  * CANCELLED projects are allowed only when they have no open billing periods.
  * Pending tax-invoice acknowledgment also blocks (including on PAID periods).
- *
- * Prior product note (transcript): soft-delete used to only hide from Billing;
- * this gate replaces that — soft-delete is blocked while work/finances remain open.
  */
 export async function getClientSoftDeleteBlockers(
   clientId: string,
   db: Tx = prisma
-): Promise<string[]> {
+): Promise<ClientSoftDeleteBlocker[]> {
   const projects = await db.project.findMany({
     where: { clientId },
     select: {
@@ -83,32 +88,43 @@ export async function getClientSoftDeleteBlockers(
     ).length;
   }
 
-  const blockers: string[] = [];
+  const blockers: ClientSoftDeleteBlocker[] = [];
   if (openProjects > 0) {
-    blockers.push(
-      `${openProjects} open project${openProjects === 1 ? "" : "s"} (not Completed and settled)`
-    );
+    blockers.push({ code: "openProjects", count: openProjects });
   }
   if (unsettledBilling > 0) {
-    blockers.push(
-      `outstanding billing on ${unsettledBilling} project${unsettledBilling === 1 ? "" : "s"}`
-    );
+    blockers.push({ code: "unsettledBilling", count: unsettledBilling });
   }
   if (pendingTaxInvoices > 0) {
-    blockers.push(
-      `${pendingTaxInvoices} outstanding tax invoice${pendingTaxInvoices === 1 ? "" : "s"}`
-    );
+    blockers.push({ code: "pendingTaxInvoices", count: pendingTaxInvoices });
   }
   return blockers;
 }
 
+export function formatClientSoftDeleteBlockers(
+  blockers: ClientSoftDeleteBlocker[],
+  locale: AppLocale = DEFAULT_LOCALE
+): string[] {
+  return blockers.map((blocker) =>
+    translate(
+      locale,
+      `pages.clients.softDeleteBlockers.${blocker.code}`,
+      { count: blocker.count }
+    )
+  );
+}
+
 export async function assertClientCanBeSoftDeleted(
   clientId: string,
-  db: Tx = prisma
+  db: Tx = prisma,
+  locale: AppLocale = DEFAULT_LOCALE
 ): Promise<void> {
   const blockers = await getClientSoftDeleteBlockers(clientId, db);
   if (blockers.length === 0) return;
+  const messages = formatClientSoftDeleteBlockers(blockers, locale);
   throw new Error(
-    `Cannot delete this client while work or finances are still open: ${blockers.join("; ")}.`
+    translate(locale, "pages.clients.softDeleteBlocked", {
+      blockers: messages.join("; "),
+    })
   );
 }

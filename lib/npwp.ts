@@ -63,15 +63,22 @@ export function isValidNpwp(value: string): boolean {
 }
 
 /**
- * HTML custom-validity message for optional NPWP inputs.
- * Empty → "" (valid). Non-empty invalid → localized message.
+ * HTML custom-validity message for NPWP inputs.
+ * Empty → "" when optional; requiredMessage when required.
+ * Non-empty invalid → invalidMessage.
  */
 export function npwpFieldCustomValidity(
   raw: string,
-  invalidMessage: string
+  invalidMessage: string,
+  options?: { required?: boolean; requiredMessage?: string }
 ): string {
   const trimmed = String(raw ?? "").trim();
-  if (!trimmed) return "";
+  if (!trimmed) {
+    if (options?.required) {
+      return options.requiredMessage?.trim() || invalidMessage;
+    }
+    return "";
+  }
   return isValidNpwp(trimmed) ? "" : invalidMessage;
 }
 
@@ -126,6 +133,41 @@ export function parseOptionalNpwpValue(
 ): string | null {
   const trimmed = sanitizeNpwpRawInput(String(raw ?? ""));
   if (!trimmed) return null;
+  const digits = stripNpwpDigits(trimmed);
+  if (digits.length !== NPWP_MIN_DIGITS && digits.length !== NPWP_MAX_DIGITS) {
+    throw new Error(
+      npwpInvalidMessage(locale, digits.length || undefined, variant)
+    );
+  }
+  return digits;
+}
+
+/** Missing-NPWP message for client create/edit/import (Company vs Individual). */
+export function npwpRequiredMessage(
+  locale: AppLocale = DEFAULT_LOCALE,
+  variant: NpwpMessageVariant = "company"
+): string {
+  if (variant === "client") {
+    return locale === "id"
+      ? "NPWP atau NIK wajib diisi."
+      : "NPWP or NIK is required.";
+  }
+  return locale === "id" ? "NPWP wajib diisi." : "NPWP is required.";
+}
+
+/**
+ * Required NPWP / NIK from a form or spreadsheet cell.
+ * Empty or invalid → throws localized Error. Returns digits-only.
+ */
+export function parseRequiredClientNpwpValue(
+  raw: string | null | undefined,
+  locale: AppLocale = DEFAULT_LOCALE,
+  variant: NpwpMessageVariant = "company"
+): string {
+  const trimmed = sanitizeNpwpRawInput(String(raw ?? ""));
+  if (!trimmed) {
+    throw new Error(npwpRequiredMessage(locale, variant));
+  }
   const digits = stripNpwpDigits(trimmed);
   if (digits.length !== NPWP_MIN_DIGITS && digits.length !== NPWP_MAX_DIGITS) {
     throw new Error(

@@ -3,6 +3,10 @@ import {
 } from "@/lib/bulk-import/parse-import-date";
 import { paymentTermsDropdown } from "@/lib/bulk-import/payment-terms-import";
 import {
+  applyClientIndividualNaBehavior,
+  CLIENT_COMPANY_ONLY_COLUMN_KEYS,
+} from "@/lib/bulk-import/client-template-extras";
+import {
   applyLocalizedHeaders,
   CLIENT_HEADER_LABELS,
   clientIndividualNotApplicableNote,
@@ -75,6 +79,7 @@ const BASE_CLIENT_IMPORT_COLUMNS: ColumnDef[] = [
   {
     key: "npwp",
     header: CLIENT_HEADER_LABELS.npwp!.en,
+    required: true,
     width: 16,
     centerContent: true,
     numberFormat: IMPORT_NPWP_EXCEL_FORMAT,
@@ -142,21 +147,15 @@ export const CLIENT_IMPORT_COLUMNS: ColumnDef[] = applyLocalizedHeaders(
   CLIENT_HEADER_LABELS
 );
 
+export { CLIENT_COMPANY_ONLY_COLUMN_KEYS };
+
 export function getClientImportColumns(locale: AppLocale): ColumnDef[] {
   const clientTypes = clientTypeDropdown(locale);
   const paymentTerms = paymentTermsDropdown(locale);
   const countryCodes = importCountryCodeDropdownValues();
   const countryCodeNote = countryCodeColumnHeaderNote(locale);
   const individualNaNote = clientIndividualNotApplicableNote(locale);
-  const companyOnlyKeys = new Set([
-    "email",
-    "countryCode",
-    "phone",
-    "contactPersonPosition",
-    "contactPersonEmail",
-    "contactPersonCountryCode",
-    "contactPersonPhone",
-  ]);
+  const companyOnlyKeys = new Set<string>(CLIENT_COMPANY_ONLY_COLUMN_KEYS);
 
   return withDateColumnHeaderNotes(
     applyLocalizedHeaders(
@@ -181,6 +180,7 @@ export function getClientImportColumns(locale: AppLocale): ColumnDef[] {
         return {
           ...column,
           dropdownValues: countryCodes,
+          conditionalDropdown: companyOnlyKeys.has(column.key),
           headerNote: notes.join(" "),
           headerSubline: companyOnlyKeys.has(column.key)
             ? locale === "id"
@@ -226,5 +226,7 @@ export async function buildClientImportTemplate(
     sheetName: dataSheetName(),
     includeInstructionsSheet: false,
     headerNote: clientTemplateHeaderNote(locale),
+    applyExtraDataValidations: (context) =>
+      applyClientIndividualNaBehavior(locale, context),
   });
 }
