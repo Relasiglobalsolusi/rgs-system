@@ -8,7 +8,6 @@ import {
   recordBulkSuccess,
   type BulkActionResult,
 } from "@/lib/bulk-action-result";
-import { contactPersonNamePartsChanged } from "@/lib/contact-person";
 import { hardDeleteLinkedUserLogins } from "@/lib/hard-delete-linked-user";
 import {
   ensureVendorLoginsStayInactive,
@@ -20,23 +19,28 @@ import {
 } from "@/lib/persist-reorder";
 import { prisma } from "@/lib/prisma";
 import { toActionError } from "@/lib/prisma-errors";
-import { parseOptionalNpwpValue } from "@/lib/npwp";
+import { parseRequiredClientNpwpValue } from "@/lib/npwp";
+import type { AppLocale } from "@/lib/i18n/locale";
 import { getServerLocale } from "@/lib/i18n/locale";
+import { translate } from "@/lib/i18n/translate";
 import { canManageVendors } from "@/lib/project-access";
 import { parseCreatePortalLoginFlag } from "@/lib/create-portal-login-flag";
-import {
-  provisionVendorUser,
-  resetVendorPortalLoginForContactNameChange,
-} from "@/lib/provision-linked-user";
+import { provisionVendorUser } from "@/lib/provision-linked-user";
 import { requireModule, toPermissionUser } from "@/lib/session";
 import { normalizeAndValidatePhone } from "@/lib/phone";
 import { capitalizeName, capitalizeProper } from "@/lib/text-case";
 import { parseFormDateInput } from "@/lib/bulk-import/parse-import-date";
 import { getNextVendorShortCode } from "@/lib/vendor-short-code";
 import {
+  assertVendorCanBeSoftDeleted,
+  formatVendorSoftDeleteBlockers,
+  getVendorSoftDeleteBlockers,
+} from "@/lib/vendor-soft-delete";
+import {
   normalizePaymentTermsDays,
   PAYMENT_TERMS_DAYS_OPTIONS,
 } from "@/lib/invoice-period";
+import { deleteLocalUpload, saveUpload } from "@/lib/upload";
 
 const ALLOWED_PAYMENT_TERMS_DAYS = new Set<number>(PAYMENT_TERMS_DAYS_OPTIONS);
 
@@ -48,42 +52,81 @@ function parsePaymentTermsDays(formData: FormData): number {
   return normalizePaymentTermsDays(raw);
 }
 
-async function parseOptionalNpwp(formData: FormData): Promise<string | null> {
-  const locale = await getServerLocale();
-  return parseOptionalNpwpValue(String(formData.get("npwp") ?? ""), locale);
+async function parseRequiredVendorNpwp(
+  formData: FormData,
+  locale: AppLocale
+): Promise<string> {
+  return parseRequiredClientNpwpValue(
+    String(formData.get("npwp") ?? ""),
+    locale,
+    "company"
+  );
 }
 
-async function assertCanManageVendors() {
+function taxIdDocumentMissingMessage(locale: AppLocale): string {
+  return translate(locale, "bulkImport.taxIdDocumentRequiredCompany");
+}
+
+/**
+ * Soft-require: create always needs a file; edit keeps the existing file unless
+ * a replacement is uploaded. Returns undefined when no new file was chosen.
+ */
+async function saveTaxIdDocument(
+  formData: FormData,
+  options?: { shortCode?: string | null }
+): Promise<string | null | undefined> {
+  const file = formData.get("taxIdDocument");
+
+  if (!(file instanceof File) || file.size === 0) {
+    return undefined;
+  }
+
+  const code = options?.shortCode?.trim();
+  const fileBaseName = code ? `NPWP_${code}` : "NPWP";
+
+  return saveUpload(file, "uploads/vendors", {
+    fileBaseName,
+  });
+}
+
+async function assertCanManageVendors(locale?: AppLocale) {
   const session = await requireModule("vendors");
   if (!canManageVendors(toPermissionUser(session))) {
-    throw new Error("You do not have permission to manage vendors.");
+    throw new Error(
+      translate(
+        locale ?? (await getServerLocale()),
+        "pages.vendors.permissionDenied"
+      )
+    );
   }
 }
 
 /** Preview next auto Vendor ID (V001…). Create still allocates via getNextVendorShortCode. */
 export async function previewVendorShortCode() {
-  await assertCanManageVendors();
+  const locale = await getServerLocale();
+  await assertCanManageVendors(locale);
 
   const company = await prisma.company.findFirst();
   if (!company) {
-    throw new Error("Company not found.");
+    throw new Error(translate(locale, "pages.vendors.companyNotFound"));
   }
 
   return getNextVendorShortCode(company.id);
 }
 
 export async function createVendor(formData: FormData) {
+  const locale = await getServerLocale();
   try {
-    await assertCanManageVendors();
+    await assertCanManageVendors(locale);
 
     const name = capitalizeProper(String(formData.get("name") ?? "").trim());
     const email = String(formData.get("email") ?? "").trim();
     const phone = normalizeAndValidatePhone(
       String(formData.get("phone") ?? ""),
-      "Company phone"
+      translate(locale, "pages.vendors.form.companyPhone")
     );
     const address = capitalizeProper(String(formData.get("address") ?? "").trim());
-    const npwp = await parseOptionalNpwp(formData);
+    const npwp = await parseRequiredVendorNpwp(formData, locale);
     const contactPersonFirstName = capitalizeName(
       String(formData.get("contactPersonFirstName") ?? "").trim()
     );
@@ -98,24 +141,35 @@ export async function createVendor(formData: FormData) {
     ).trim();
     const contactPersonPhone = normalizeAndValidatePhone(
       String(formData.get("contactPersonPhone") ?? ""),
-      "Contact person phone"
+      translate(locale, "pages.vendors.form.contactPhone")
     );
     const vendorSince =
       parseFormDateInput(formData.get("vendorSince"), {
-        fieldLabel: "Vendor since",
+        fieldLabel: translate(locale, "pages.vendors.form.vendorSince"),
       }) ?? new Date();
     const paymentTermsDays = parsePaymentTermsDays(formData);
     const createPortalLogin = parseCreatePortalLoginFlag(
       formData.get("createPortalLogin")
     );
 
-    if (!name) throw new Error("Vendor name is required.");
+    if (!name) {
+      throw new Error(translate(locale, "pages.vendors.vendorNameRequired"));
+    }
     if (!contactPersonFirstName) {
-      throw new Error("Contact person first name is required.");
+      throw new Error(
+        translate(locale, "pages.vendors.contactFirstNameRequired")
+      );
     }
 
     const company = await prisma.company.findFirst();
-    if (!company) throw new Error("Company not found.");
+    if (!company) {
+      throw new Error(translate(locale, "pages.vendors.companyNotFound"));
+    }
+
+    const taxIdDocumentUrl = await saveTaxIdDocument(formData);
+    if (!taxIdDocumentUrl) {
+      throw new Error(taxIdDocumentMissingMessage(locale));
+    }
 
     const sortOrder = await nextCompanyScopedSortOrder("vendor", company.id);
 
@@ -129,6 +183,7 @@ export async function createVendor(formData: FormData) {
           phone: phone || null,
           address: address || null,
           npwp,
+          taxIdDocumentUrl,
           contactPersonFirstName,
           contactPersonLastName: contactPersonLastName || null,
           contactPersonPosition: contactPersonPosition || null,
@@ -158,56 +213,55 @@ export async function createVendor(formData: FormData) {
       revalidatePath("/users");
     }
   } catch (error) {
-    throw toActionError(error, "Failed to create vendor.");
+    throw toActionError(
+      error,
+      translate(locale, "pages.vendors.createFailed")
+    );
   }
 }
 
 export async function reorderVendors(ids: string[]) {
+  const locale = await getServerLocale();
   try {
-    await assertCanManageVendors();
+    await assertCanManageVendors(locale);
 
     const company = await prisma.company.findFirst({ select: { id: true } });
-    if (!company) throw new Error("Company not found.");
+    if (!company) {
+      throw new Error(translate(locale, "pages.vendors.companyNotFound"));
+    }
 
     await persistCompanyScopedReorder("vendor", {
       companyId: company.id,
       ids,
-      mismatchError: "One or more vendors are invalid for reorder.",
+      mismatchError: translate(locale, "pages.vendors.reorderInvalid"),
     });
 
     revalidatePath("/vendors");
   } catch (error) {
-    throw toActionError(error, "Failed to reorder vendors.");
+    throw toActionError(
+      error,
+      translate(locale, "pages.vendors.reorderFailed")
+    );
   }
 }
 
-export type UpdateVendorResult = {
-  portalLoginReset: boolean;
-};
-
 /**
- * Updates a vendor. When contact person first/last name parts change, the
- * vendor remains/becomes active, and linked portal User(s) already exist,
- * those users are hard-deleted and a new portal login is provisioned under the
- * new contact name (mustSetPassword + no recovery email → first-login setup).
- * No linked login → contact fields only (no User create/delete). Company-name
- * or other non-name edits never reset. UI should confirm before calling.
+ * Updates a vendor. Contact person rename does not reset Login ID.
+ * Soft-delete only via Delete dialog / deactivateVendor — never via edit.
  */
-export async function updateVendor(
-  id: string,
-  formData: FormData
-): Promise<UpdateVendorResult> {
+export async function updateVendor(id: string, formData: FormData) {
+  const locale = await getServerLocale();
   try {
-    await assertCanManageVendors();
+    await assertCanManageVendors(locale);
 
     const name = capitalizeProper(String(formData.get("name") ?? "").trim());
     const email = String(formData.get("email") ?? "").trim();
     const phone = normalizeAndValidatePhone(
       String(formData.get("phone") ?? ""),
-      "Company phone"
+      translate(locale, "pages.vendors.form.companyPhone")
     );
     const address = capitalizeProper(String(formData.get("address") ?? "").trim());
-    const npwp = await parseOptionalNpwp(formData);
+    const npwp = await parseRequiredVendorNpwp(formData, locale);
     const contactPersonFirstName = capitalizeName(
       String(formData.get("contactPersonFirstName") ?? "").trim()
     );
@@ -222,49 +276,51 @@ export async function updateVendor(
     ).trim();
     const contactPersonPhone = normalizeAndValidatePhone(
       String(formData.get("contactPersonPhone") ?? ""),
-      "Contact person phone"
+      translate(locale, "pages.vendors.form.contactPhone")
     );
-    const active = formData.get("active") === "true";
     const vendorSince =
       parseFormDateInput(formData.get("vendorSince"), {
-        fieldLabel: "Vendor since",
+        fieldLabel: translate(locale, "pages.vendors.form.vendorSince"),
       }) ?? new Date();
     const paymentTermsDays = parsePaymentTermsDays(formData);
 
-    if (!name) throw new Error("Vendor name is required.");
+    if (!name) {
+      throw new Error(translate(locale, "pages.vendors.vendorNameRequired"));
+    }
     if (!contactPersonFirstName) {
-      throw new Error("Contact person first name is required.");
+      throw new Error(
+        translate(locale, "pages.vendors.contactFirstNameRequired")
+      );
     }
 
-    const portalLoginReset = await prisma.$transaction(async (tx) => {
-      const existing = await tx.vendor.findUnique({
-        where: { id },
-        select: {
-          companyId: true,
-          contactPersonFirstName: true,
-          contactPersonLastName: true,
-          users: { select: { id: true } },
-        },
-      });
+    const existing = await prisma.vendor.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        companyId: true,
+        shortCode: true,
+        active: true,
+        taxIdDocumentUrl: true,
+      },
+    });
 
-      if (!existing) {
-        throw new Error("Vendor not found.");
-      }
+    if (!existing) {
+      throw new Error(translate(locale, "pages.vendors.notFound"));
+    }
 
-      const nameChanged = contactPersonNamePartsChanged(
-        {
-          firstName: existing.contactPersonFirstName,
-          lastName: existing.contactPersonLastName,
-        },
-        {
-          firstName: contactPersonFirstName,
-          lastName: contactPersonLastName || null,
-        }
-      );
-      const linkedUserIds = existing.users.map((user) => user.id);
-      const shouldResetPortalLogin =
-        nameChanged && linkedUserIds.length > 0 && active;
+    const uploadedTaxIdDocumentUrl = await saveTaxIdDocument(formData, {
+      shortCode: existing.shortCode,
+    });
+    const taxIdDocumentUrl =
+      uploadedTaxIdDocumentUrl !== undefined
+        ? uploadedTaxIdDocumentUrl
+        : existing.taxIdDocumentUrl;
+    if (!taxIdDocumentUrl) {
+      throw new Error(taxIdDocumentMissingMessage(locale));
+    }
 
+    await prisma.$transaction(async (tx) => {
+      // Soft-delete only via Delete dialog / deactivateVendor — never via edit.
       await tx.vendor.update({
         where: { id },
         data: {
@@ -273,6 +329,9 @@ export async function updateVendor(
           phone: phone || null,
           address: address || null,
           npwp,
+          ...(uploadedTaxIdDocumentUrl !== undefined
+            ? { taxIdDocumentUrl: uploadedTaxIdDocumentUrl }
+            : {}),
           contactPersonFirstName,
           contactPersonLastName: contactPersonLastName || null,
           contactPersonPosition: contactPersonPosition || null,
@@ -280,67 +339,81 @@ export async function updateVendor(
           contactPersonPhone: contactPersonPhone || null,
           vendorSince,
           paymentTermsDays,
-          active,
         },
       });
+    });
 
-      if (shouldResetPortalLogin) {
-        await resetVendorPortalLoginForContactNameChange(tx, {
-          companyId: existing.companyId,
-          vendorId: id,
-          vendorName: name,
-          contactPersonFirstName,
-          contactPersonLastName: contactPersonLastName || null,
-          linkedUserIds,
-          provisionReplacement: true,
-        });
-        return true;
-      }
+    if (
+      uploadedTaxIdDocumentUrl &&
+      existing.taxIdDocumentUrl &&
+      existing.taxIdDocumentUrl !== uploadedTaxIdDocumentUrl
+    ) {
+      await deleteLocalUpload(existing.taxIdDocumentUrl);
+    }
 
-      // Soft-deactivate logins when the vendor is inactive. Never auto-reactivate
-      // on active=true — Restore Access is required separately after parent restore.
-      if (!active) {
-        await softDeactivateVendorLogins(tx, id);
-      }
-      return false;
+    revalidatePath("/vendors");
+    revalidatePath("/users");
+  } catch (error) {
+    throw toActionError(
+      error,
+      translate(locale, "pages.vendors.updateFailed")
+    );
+  }
+}
+
+/** Translated soft-delete blockers for the Delete dialog (shown before confirm). */
+export async function fetchVendorSoftDeleteBlockers(
+  vendorId: string
+): Promise<string[]> {
+  const locale = await getServerLocale();
+  await assertCanManageVendors(locale);
+  const blockers = await getVendorSoftDeleteBlockers(vendorId);
+  return formatVendorSoftDeleteBlockers(blockers, locale);
+}
+
+export async function deactivateVendor(id: string) {
+  const locale = await getServerLocale();
+  try {
+    await assertCanManageVendors(locale);
+
+    const vendor = await prisma.vendor.findUnique({
+      where: { id },
+      select: { active: true },
+    });
+    if (!vendor) {
+      throw new Error(translate(locale, "pages.vendors.notFound"));
+    }
+    if (!vendor.active) {
+      throw new Error(translate(locale, "pages.vendors.alreadyDeleted"));
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await assertVendorCanBeSoftDeleted(id, tx, locale);
+
+      await tx.vendor.update({
+        where: { id },
+        data: { active: false },
+      });
+
+      // Soft-delete portal logins (credentials kept; vendorId stays linked).
+      await softDeactivateVendorLogins(tx, id);
     });
 
     revalidatePath("/vendors");
     revalidatePath("/users");
-    return { portalLoginReset };
   } catch (error) {
-    throw toActionError(error, "Failed to update vendor.");
+    throw toActionError(
+      error,
+      translate(locale, "pages.vendors.deleteFailed")
+    );
   }
-}
-
-export async function deactivateVendor(id: string) {
-  await assertCanManageVendors();
-
-  const vendor = await prisma.vendor.findUnique({
-    where: { id },
-    select: { active: true },
-  });
-  if (!vendor) throw new Error("Vendor not found.");
-  if (!vendor.active) throw new Error("Vendor is already deleted.");
-
-  await prisma.$transaction(async (tx) => {
-    await tx.vendor.update({
-      where: { id },
-      data: { active: false },
-    });
-
-    // Soft-delete portal logins (credentials kept; vendorId stays linked).
-    await softDeactivateVendorLogins(tx, id);
-  });
-
-  revalidatePath("/vendors");
-  revalidatePath("/users");
 }
 
 export async function bulkDeactivateVendors(
   ids: string[]
 ): Promise<BulkActionResult> {
-  await assertCanManageVendors();
+  const locale = await getServerLocale();
+  await assertCanManageVendors(locale);
 
   const result = createBulkActionResult();
   const uniqueIds = [...new Set(ids.filter(Boolean))];
@@ -351,10 +424,16 @@ export async function bulkDeactivateVendors(
         where: { id },
         select: { active: true },
       });
-      if (!vendor) throw new Error("Vendor not found.");
-      if (!vendor.active) throw new Error("Vendor is already deleted.");
+      if (!vendor) {
+        throw new Error(translate(locale, "pages.vendors.notFound"));
+      }
+      if (!vendor.active) {
+        throw new Error(translate(locale, "pages.vendors.alreadyDeleted"));
+      }
 
       await prisma.$transaction(async (tx) => {
+        await assertVendorCanBeSoftDeleted(id, tx, locale);
+
         await tx.vendor.update({
           where: { id },
           data: { active: false },
@@ -367,7 +446,9 @@ export async function bulkDeactivateVendors(
     } catch (error) {
       recordBulkFailure(
         result,
-        error instanceof Error ? error.message : "Failed to delete vendor."
+        error instanceof Error
+          ? error.message
+          : translate(locale, "pages.vendors.deleteFailed")
       );
     }
   }
@@ -380,13 +461,17 @@ export async function bulkDeactivateVendors(
   return result;
 }
 
-async function reactivateVendorRecord(id: string) {
+async function reactivateVendorRecord(id: string, locale: AppLocale) {
   const vendor = await prisma.vendor.findUnique({
     where: { id },
     select: { active: true },
   });
-  if (!vendor) throw new Error("Vendor not found.");
-  if (vendor.active) throw new Error("Vendor is already active.");
+  if (!vendor) {
+    throw new Error(translate(locale, "pages.vendors.notFound"));
+  }
+  if (vendor.active) {
+    throw new Error(translate(locale, "pages.vendors.alreadyActive"));
+  }
 
   // Restore parent only — linked portal logins stay inactive (Revoked Access)
   // until an admin uses Users → Revoked Access → Restore Access.
@@ -400,28 +485,39 @@ async function reactivateVendorRecord(id: string) {
 }
 
 export async function reactivateVendor(id: string) {
-  await assertCanManageVendors();
-  await reactivateVendorRecord(id);
-  revalidatePath("/vendors");
-  revalidatePath("/users");
+  const locale = await getServerLocale();
+  try {
+    await assertCanManageVendors(locale);
+    await reactivateVendorRecord(id, locale);
+    revalidatePath("/vendors");
+    revalidatePath("/users");
+  } catch (error) {
+    throw toActionError(
+      error,
+      translate(locale, "pages.vendors.restoreFailed")
+    );
+  }
 }
 
 export async function bulkReactivateVendors(
   ids: string[]
 ): Promise<BulkActionResult> {
-  await assertCanManageVendors();
+  const locale = await getServerLocale();
+  await assertCanManageVendors(locale);
 
   const result = createBulkActionResult();
   const uniqueIds = [...new Set(ids.filter(Boolean))];
 
   for (const id of uniqueIds) {
     try {
-      await reactivateVendorRecord(id);
+      await reactivateVendorRecord(id, locale);
       recordBulkSuccess(result);
     } catch (error) {
       recordBulkFailure(
         result,
-        error instanceof Error ? error.message : "Failed to restore vendor."
+        error instanceof Error
+          ? error.message
+          : translate(locale, "pages.vendors.restoreFailed")
       );
     }
   }
@@ -441,7 +537,8 @@ export async function bulkReactivateVendors(
 export async function generateVendorPortalLogins(
   ids: string[]
 ): Promise<BulkActionResult> {
-  await assertCanManageVendors();
+  const locale = await getServerLocale();
+  await assertCanManageVendors(locale);
 
   const result = createBulkActionResult();
   const uniqueIds = [...new Set(ids.filter(Boolean))];
@@ -452,7 +549,7 @@ export async function generateVendorPortalLogins(
 
   const company = await prisma.company.findFirst({ select: { id: true } });
   if (!company) {
-    throw new Error("Company not found.");
+    throw new Error(translate(locale, "pages.vendors.companyNotFound"));
   }
 
   for (const id of uniqueIds) {
@@ -470,12 +567,14 @@ export async function generateVendorPortalLogins(
         });
 
         if (!vendor) {
-          throw new Error("Vendor not found.");
+          throw new Error(translate(locale, "pages.vendors.notFound"));
         }
 
         if (!vendor.active) {
           throw new Error(
-            `${vendor.name}: portal login cannot be generated for deleted vendors. Restore the vendor first.`
+            translate(locale, "pages.vendors.portalLoginDeletedVendor", {
+              name: vendor.name,
+            })
           );
         }
 
@@ -483,7 +582,9 @@ export async function generateVendorPortalLogins(
           vendor.contactPersonFirstName?.trim() ?? "";
         if (!contactPersonFirstName) {
           throw new Error(
-            `${vendor.name}: contact person first name is required.`
+            translate(locale, "pages.vendors.portalLoginContactRequired", {
+              name: vendor.name,
+            })
           );
         }
 
@@ -506,7 +607,7 @@ export async function generateVendorPortalLogins(
         result,
         error instanceof Error
           ? error.message
-          : "Failed to generate portal login."
+          : translate(locale, "pages.vendors.generatePortalFailed")
       );
     }
   }
@@ -521,40 +622,54 @@ export async function generateVendorPortalLogins(
 
 /** Permanent delete — only for deleted (soft-deleted) vendors. Hard-deletes portal users. */
 export async function deleteVendor(id: string) {
-  await assertCanManageVendors();
+  const locale = await getServerLocale();
+  try {
+    await assertCanManageVendors(locale);
 
-  const vendor = await prisma.vendor.findUnique({
-    where: { id },
-    include: {
-      users: { select: { id: true } },
-    },
-  });
+    const vendor = await prisma.vendor.findUnique({
+      where: { id },
+      include: {
+        users: { select: { id: true } },
+      },
+    });
 
-  if (!vendor) throw new Error("Vendor not found.");
-  if (vendor.active) {
-    throw new Error(
-      "Only deleted vendors can be permanently deleted. Delete the vendor first."
-    );
-  }
-
-  const userIds = vendor.users.map((user) => user.id);
-
-  await prisma.$transaction(async (tx) => {
-    if (userIds.length > 0) {
-      await hardDeleteLinkedUserLogins(tx, userIds);
+    if (!vendor) {
+      throw new Error(translate(locale, "pages.vendors.notFound"));
+    }
+    if (vendor.active) {
+      throw new Error(
+        translate(locale, "pages.vendors.permanentDeleteRequiresDeleted")
+      );
     }
 
-    await tx.vendor.delete({ where: { id } });
-  });
+    const userIds = vendor.users.map((user) => user.id);
+    const taxIdDocumentUrl = vendor.taxIdDocumentUrl;
 
-  revalidatePath("/vendors");
-  revalidatePath("/users");
+    await prisma.$transaction(async (tx) => {
+      if (userIds.length > 0) {
+        await hardDeleteLinkedUserLogins(tx, userIds);
+      }
+
+      await tx.vendor.delete({ where: { id } });
+    });
+
+    await deleteLocalUpload(taxIdDocumentUrl);
+
+    revalidatePath("/vendors");
+    revalidatePath("/users");
+  } catch (error) {
+    throw toActionError(
+      error,
+      translate(locale, "pages.vendors.deleteFailed")
+    );
+  }
 }
 
 export async function bulkDeleteVendors(
   ids: string[]
 ): Promise<BulkActionResult> {
-  await assertCanManageVendors();
+  const locale = await getServerLocale();
+  await assertCanManageVendors(locale);
 
   const result = createBulkActionResult();
   const uniqueIds = [...new Set(ids.filter(Boolean))];
@@ -568,14 +683,17 @@ export async function bulkDeleteVendors(
         },
       });
 
-      if (!vendor) throw new Error("Vendor not found.");
+      if (!vendor) {
+        throw new Error(translate(locale, "pages.vendors.notFound"));
+      }
       if (vendor.active) {
         throw new Error(
-          "Only deleted vendors can be permanently deleted. Delete the vendor first."
+          translate(locale, "pages.vendors.permanentDeleteRequiresDeleted")
         );
       }
 
       const userIds = vendor.users.map((user) => user.id);
+      const taxIdDocumentUrl = vendor.taxIdDocumentUrl;
 
       await prisma.$transaction(async (tx) => {
         if (userIds.length > 0) {
@@ -585,11 +703,15 @@ export async function bulkDeleteVendors(
         await tx.vendor.delete({ where: { id } });
       });
 
+      await deleteLocalUpload(taxIdDocumentUrl);
+
       recordBulkSuccess(result);
     } catch (error) {
       recordBulkFailure(
         result,
-        error instanceof Error ? error.message : "Failed to delete vendor."
+        error instanceof Error
+          ? error.message
+          : translate(locale, "pages.vendors.deleteFailed")
       );
     }
   }

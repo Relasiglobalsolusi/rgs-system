@@ -16,6 +16,7 @@ import UserDialog from "@/components/users/UserDialog";
 import WithoutPortalLoginView, {
   type ClientWithoutPortalLogin,
   type EmployeeWithoutPortalLogin,
+  type VendorWithoutPortalLogin,
 } from "@/components/users/WithoutPortalLoginView";
 import { getAccountType, type AccountType } from "@/lib/permissions";
 import {
@@ -91,10 +92,12 @@ type BulkDialogMode =
 type Props = {
   users: UserRow[];
   clientsWithoutPortalLogin?: ClientWithoutPortalLogin[];
+  vendorsWithoutPortalLogin?: VendorWithoutPortalLogin[];
   employeesWithoutPortalLogin?: EmployeeWithoutPortalLogin[];
   canEditPermissions?: boolean;
   canViewPassword?: boolean;
   canManageClients?: boolean;
+  canManageVendors?: boolean;
   canManageEmployees?: boolean;
   currentUserId?: string;
 };
@@ -102,10 +105,12 @@ type Props = {
 export default function UserDirectory({
   users,
   clientsWithoutPortalLogin = [],
+  vendorsWithoutPortalLogin = [],
   employeesWithoutPortalLogin = [],
   canEditPermissions = false,
   canViewPassword = false,
   canManageClients = false,
+  canManageVendors = false,
   canManageEmployees = false,
   currentUserId,
 }: Props) {
@@ -189,7 +194,9 @@ export default function UserDirectory({
   }, [users]);
 
   const noPortalLoginCount =
-    clientsWithoutPortalLogin.length + employeesWithoutPortalLogin.length;
+    clientsWithoutPortalLogin.length +
+    vendorsWithoutPortalLogin.length +
+    employeesWithoutPortalLogin.length;
 
   const directoryStats = useMemo(
     () => ({
@@ -556,8 +563,10 @@ export default function UserDirectory({
       {isNoPortalLoginView ? (
         <WithoutPortalLoginView
           clients={clientsWithoutPortalLogin}
+          vendors={vendorsWithoutPortalLogin}
           employees={employeesWithoutPortalLogin}
           canManageClients={canManageClients}
+          canManageVendors={canManageVendors}
           canManageEmployees={canManageEmployees}
         />
       ) : (

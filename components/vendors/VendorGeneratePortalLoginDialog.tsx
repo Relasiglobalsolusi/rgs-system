@@ -8,8 +8,6 @@ import { useTransition } from "react";
 import { KeyRound } from "lucide-react";
 import { toast } from "sonner";
 
-import { generateClientPortalLogins } from "@/app/clients/actions";
-import { generateEmployeePortalLogins } from "@/app/employees/actions";
 import { generateVendorPortalLogins } from "@/app/vendors/actions";
 import {
   EmployeeDialogShell,
@@ -17,55 +15,17 @@ import {
   EmployeeSecondaryButton,
 } from "@/components/employees/employee-dialog-ui";
 import { Dialog } from "@/components/ui/dialog";
-import {
-  createBulkActionResult,
-  type BulkActionResult,
-} from "@/lib/bulk-action-result";
 import { useT } from "@/lib/i18n/use-t";
 
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  clientIds: string[];
-  vendorIds: string[];
-  employeeIds: string[];
+  selectedCount: number;
+  selectedIds: string[];
 };
 
-function confirmMessageKey(
-  clientCount: number,
-  vendorCount: number,
-  employeeCount: number
-) {
-  const kinds =
-    (clientCount > 0 ? 1 : 0) +
-    (vendorCount > 0 ? 1 : 0) +
-    (employeeCount > 0 ? 1 : 0);
-
-  if (kinds > 1) {
-    return "pages.users.generatePortalConfirmMixed";
-  }
-  if (clientCount > 0) {
-    return "pages.users.generatePortalConfirmClients";
-  }
-  if (vendorCount > 0) {
-    return "pages.users.generatePortalConfirmVendors";
-  }
-  return "pages.users.generatePortalConfirmEmployees";
-}
-
-function mergeResults(...results: BulkActionResult[]): BulkActionResult {
-  return results.reduce(
-    (acc, result) => ({
-      successCount: acc.successCount + result.successCount,
-      failureCount: acc.failureCount + result.failureCount,
-      errors: [...acc.errors, ...result.errors],
-    }),
-    createBulkActionResult()
-  );
-}
-
 function formatBulkResultMessage(
-  result: BulkActionResult,
+  result: Awaited<ReturnType<typeof generateVendorPortalLogins>>,
   t: ReturnType<typeof useT>["t"]
 ) {
   if (result.failureCount === 0) {
@@ -84,47 +44,19 @@ function formatBulkResultMessage(
   return t("pages.users.generatePortalButton", { count: result.successCount });
 }
 
-export default function BulkGeneratePortalLoginDialog({
+export default function VendorGeneratePortalLoginDialog({
   open,
   onOpenChange,
-  clientIds,
-  vendorIds,
-  employeeIds,
+  selectedCount,
+  selectedIds,
 }: Props) {
   const [pending, startTransition] = useTransition();
   const { t } = useT();
 
-  const clientCount = clientIds.length;
-  const vendorCount = vendorIds.length;
-  const employeeCount = employeeIds.length;
-  const totalCount = clientCount + vendorCount + employeeCount;
-  const confirmKey = confirmMessageKey(
-    clientCount,
-    vendorCount,
-    employeeCount
-  );
-
   function handleConfirm() {
     startTransition(async () => {
       try {
-        const clientResult =
-          clientCount > 0
-            ? await generateClientPortalLogins(clientIds)
-            : createBulkActionResult();
-        const vendorResult =
-          vendorCount > 0
-            ? await generateVendorPortalLogins(vendorIds)
-            : createBulkActionResult();
-        const employeeResult =
-          employeeCount > 0
-            ? await generateEmployeePortalLogins(employeeIds)
-            : createBulkActionResult();
-
-        const result = mergeResults(
-          clientResult,
-          vendorResult,
-          employeeResult
-        );
+        const result = await generateVendorPortalLogins(selectedIds);
 
         if (result.failureCount === 0) {
           toast.success(formatBulkResultMessage(result, t));
@@ -145,23 +77,23 @@ export default function BulkGeneratePortalLoginDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <EmployeeDialogShell
         icon={KeyRound}
-        title={t("pages.users.generatePortalTitle")}
-        description={t(confirmKey, { count: totalCount })}
+        title={t("pages.users.generateVendorTitle")}
+        description={t("pages.users.generateVendorDescription")}
         maxWidth="md"
         footer={
           <div className="flex w-full flex-col gap-3 sm:flex-col">
             <EmployeePrimaryButton
               type="button"
-              disabled={pending || totalCount === 0}
+              disabled={pending || selectedCount === 0}
               onClick={handleConfirm}
             >
               {pending
                 ? t("pages.users.generating")
                 : t(
-                    totalCount === 1
+                    selectedCount === 1
                       ? "pages.users.generatePortalButtonOne"
                       : "pages.users.generatePortalButton",
-                    { count: totalCount }
+                    { count: selectedCount }
                   )}
             </EmployeePrimaryButton>
 
@@ -177,12 +109,16 @@ export default function BulkGeneratePortalLoginDialog({
         <div>
           <div className="rounded-xl border border-border bg-elevated px-4 py-4">
             <p className="text-sm font-medium text-text">
-              {t(confirmKey, { count: totalCount })}
+              {t("common.labels.selectedCount", { count: selectedCount })}
             </p>
             <p className="mt-1 text-sm text-muted">
-              {t("pages.users.generatePortalTitle")}
+              {t("pages.users.generateVendorDescription")}
             </p>
           </div>
+
+          <p className="mt-4 text-sm leading-6 text-muted">
+            {t("pages.users.generateVendorDescription")}
+          </p>
         </div>
       </EmployeeDialogShell>
     </Dialog>

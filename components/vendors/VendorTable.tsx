@@ -39,6 +39,7 @@ export type VendorRow = {
   phone: string | null;
   address: string | null;
   npwp: string | null;
+  taxIdDocumentUrl?: string | null;
   contactPersonFirstName: string | null;
   contactPersonLastName: string | null;
   contactPersonPosition: string | null;
@@ -50,9 +51,20 @@ export type VendorRow = {
   users: VendorPortalUserSummary[];
 };
 
+/** Portal Login column: Yes (active), Revoked (linked but inactive), No (never provisioned). */
+export type VendorPortalLoginStatus = "yes" | "revoked" | "no";
+
+export function getVendorPortalLoginStatus(
+  vendor: Pick<VendorRow, "users">
+): VendorPortalLoginStatus {
+  if (vendor.users.length === 0) return "no";
+  if (vendor.users.some((user) => user.active)) return "yes";
+  return "revoked";
+}
+
 /** True when the vendor has at least one active linked portal user. */
-export function vendorHasPortalLogin(vendor: VendorRow) {
-  return vendor.users.some((user) => user.active);
+export function vendorHasPortalLogin(vendor: Pick<VendorRow, "users">) {
+  return getVendorPortalLoginStatus(vendor) === "yes";
 }
 
 function formatContactPersonLabel(
@@ -208,7 +220,9 @@ export default function VendorTable({
         router.refresh();
       } catch (error) {
         toast.error(
-          error instanceof Error ? error.message : "Failed to reorder vendors."
+          error instanceof Error
+            ? error.message
+            : t("pages.vendors.reorderFailed")
         );
         router.refresh();
       }
@@ -221,8 +235,9 @@ export default function VendorTable({
     if (showSelection) {
       cols.push(
         createSelectionColumn<VendorRow>({
-          ariaLabelAll: "Select all vendors",
-          getRowAriaLabel: (vendor) => `Select ${vendor.name}`,
+          ariaLabelAll: t("pages.vendors.selectAll"),
+          getRowAriaLabel: (vendor) =>
+            t("pages.vendors.selectRow", { name: vendor.name }),
           getRowId: (vendor) => vendor.id,
           allVisibleSelected,
           someVisibleSelected,
@@ -337,13 +352,22 @@ export default function VendorTable({
         className:
           "min-w-[10rem] overflow-visible whitespace-nowrap text-center",
         render: (vendor) => {
-          const hasPortalLogin = vendorHasPortalLogin(vendor);
+          const portalStatus = getVendorPortalLoginStatus(vendor);
+          const badgeStatus =
+            portalStatus === "yes"
+              ? "active"
+              : portalStatus === "revoked"
+                ? "revoked"
+                : "inactive";
+          const label =
+            portalStatus === "yes"
+              ? t("pages.vendors.portalStatus.yes")
+              : portalStatus === "revoked"
+                ? t("pages.vendors.portalStatus.revoked")
+                : t("pages.vendors.portalStatus.no");
           return (
-            <StatusBadge
-              status={hasPortalLogin ? "active" : "danger"}
-              compact
-            >
-              {hasPortalLogin ? t("common.actions.yes") : t("common.actions.no")}
+            <StatusBadge status={badgeStatus} compact>
+              {label}
             </StatusBadge>
           );
         },

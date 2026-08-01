@@ -1176,21 +1176,62 @@ export const en = {
       deleteDescription:
         "This moves the vendor organization to Deleted vendors. The record is kept and can be restored later.",
       deleteSoftNote:
-        "The vendor moves to Deleted vendors. You can restore it later, or permanently delete it from there.",
+        "Linked portal logins are disabled (not permanently deleted) and move to Deleted users. Credentials are kept. After you restore this vendor, use Users → Revoked Access → Restore Access to re-enable portal login.",
+      checkingSoftDelete: "Checking whether this vendor can be deleted…",
+      softDeleteBlockedTitle: "Cannot delete this vendor yet",
+      softDeleteBlocked:
+        "Cannot delete this vendor while purchases or tax documents are still open: {blockers}.",
+      softDeleteBlockers: {
+        unsettledPurchases: "{count} unsettled purchase invoice(s)",
+        pendingTaxInvoices: "{count} outstanding tax invoice(s)",
+      },
       deleteForeverTitle: "Delete vendor forever?",
       deleteForeverConfirm: "Delete forever",
       deleteForeverDescription:
-        "This vendor organization will be permanently removed. This action cannot be undone.",
+        "This vendor organization will be permanently removed. Linked portal logins are permanently deleted. This action cannot be undone.",
       deleteForeverNote:
-        "Only deleted vendors can be permanently deleted. This action cannot be undone.",
+        "Only deleted vendors can be permanently deleted. Linked portal logins are permanently deleted and cannot be restored. This action cannot be undone.",
+      deleteForeverUsersNote:
+        "Portal login(s) ({count}) will be permanently deleted and cannot be restored.",
       restoreTitle: "Restore vendor?",
       restoreConfirm: "Restore vendor",
       restoreDescription:
-        "This restores the vendor organization from Deleted vendors.",
+        "This restores the vendor organization from Deleted vendors. Linked portal logins stay off — use Users → Revoked Access → Restore Access before they can sign in again.",
       restoreSoftNote:
-        "The vendor will appear in the active directory again. Vendors deleted forever cannot be restored.",
-      editDescription: "Update organization contact details and status.",
-      activeOrganization: "Active vendor organization",
+        "Username and credentials stay preserved. After restore, linked logins appear under Revoked Access until you restore access. The vendor will appear in the active directory again. Vendors deleted forever cannot be restored.",
+      editDescription:
+        "Update organization contact details. Soft-delete only via Delete. Manage portal logins in Users.",
+      savedToast: "Vendor saved.",
+      createFailed: "Failed to create vendor.",
+      updateFailed: "Failed to update vendor.",
+      deleteFailed: "Failed to delete vendor.",
+      restoreFailed: "Failed to restore vendor.",
+      reorderFailed: "Failed to reorder vendors.",
+      reorderInvalid: "One or more vendors are invalid for reorder.",
+      notFound: "Vendor not found.",
+      alreadyDeleted: "Vendor is already deleted.",
+      alreadyActive: "Vendor is already active.",
+      permissionDenied: "You do not have permission to manage vendors.",
+      vendorNameRequired: "Vendor name is required.",
+      contactFirstNameRequired: "Contact person first name is required.",
+      permanentDeleteRequiresDeleted:
+        "Only deleted vendors can be permanently deleted. Delete the vendor first.",
+      portalLoginDeletedVendor:
+        "{name}: portal login cannot be generated for deleted vendors. Restore the vendor first.",
+      portalLoginContactRequired:
+        "{name}: contact person first name is required.",
+      generatePortalFailed: "Failed to generate portal login.",
+      selectAll: "Select All Vendors",
+      selectRow: "Select {name}",
+      import: {
+        nameRequired: "Vendor Name is required.",
+        contactFirstRequired: "Contact Person First Name is required.",
+        duplicateInFile:
+          'Vendor "{name}" already exists or is duplicated in this file.',
+        alreadyExists: 'Vendor "{name}" already exists.',
+        invalidRow: "Invalid vendor row.",
+        noDataRows: "No data rows found. Add vendors below the header row.",
+      },
       bulkDeleteTitle: "Delete {count} vendors?",
       bulkDeleteForeverTitle: "Delete {count} vendors forever?",
       bulkDeleteConfirm: "Delete {count} vendors",
@@ -1200,37 +1241,70 @@ export const en = {
       bulkSelected: "{count} vendors selected",
       bulkActionApplies:
         "This action applies to all selected rows in the current view.",
+      bulkDeleteForeverNote:
+        "Linked portal logins are permanently deleted and cannot be restored. This action cannot be undone.",
+      bulkRestoreNote:
+        "Username and credentials stay preserved. Restored vendors appear in the active directory; linked logins move to Revoked Access.",
+      bulkDeactivateSuccess: "{count} vendor(s) moved to Deleted vendors.",
+      bulkDeactivateAllFailed:
+        "Could not delete selected vendors. {detail}",
+      bulkDeactivatePartial:
+        "{success} vendor(s) moved to Deleted vendors. {failed} failed.",
+      bulkDeleteForeverSuccess: "{count} vendor(s) permanently removed.",
+      bulkDeleteForeverAllFailed:
+        "Could not permanently delete selected vendors. {detail}",
+      bulkDeleteForeverPartial:
+        "{success} vendor(s) permanently removed. {failed} failed.",
+      bulkRestoreSuccess:
+        "{count} vendor(s) restored. Linked logins stay off until Restore Access.",
+      bulkRestoreAllFailed: "Could not restore selected vendors. {detail}",
+      bulkRestorePartial:
+        "{success} vendor(s) restored. Linked logins stay off until Restore Access. {failed} failed.",
       paymentTermsCashShort: "Cash",
       paymentTermsNetShort: "Net {days}",
+      portalStatus: {
+        yes: "Yes",
+        revoked: "Revoked",
+        no: "No",
+      },
       columns: {
         vendor: "Vendor",
         shortCode: "Vendor ID",
         contact: "Contact",
-        vendorSince: "Vendor since",
-        paymentTerms: "Payment terms",
-        portalLogin: "Portal Login Access",
+        vendorSince: "Vendor Since",
+        paymentTerms: "Payment Terms",
+        portalLogin: "Portal Login",
         actions: "Actions",
       },
       form: {
         organization: "Organization",
         organizationDesc:
           "Vendor company details used for purchases and contact records.",
-        vendorName: "Vendor name",
+        vendorName: "Vendor Name",
         shortCode: "Vendor ID",
         shortCodeHint:
           "Auto-assigned ID used for vendor references (e.g. V001).",
         shortCodePreviewHint:
           "Preview of the next Vendor ID. The final ID is assigned when you save.",
         shortCodeLoading: "Loading…",
-        companyEmail: "Company email",
-        companyPhone: "Company phone",
-        companyAddress: "Company address",
-        companyNpwp: "Company Tax ID (NPWP)",
+        companyEmail: "Company Email",
+        companyPhone: "Company Phone",
+        companyAddress: "Company Address",
+        companyNpwp: "NPWP",
         companyNpwpHint:
-          "Optional. If filled, must be exactly 15 or 16 digits (dots/dashes OK). Other lengths are rejected.",
-        vendorSince: "Vendor since",
+          "Required. Enter exactly 15 or 16 digits (dots/dashes OK).",
+        taxIdDocumentCompany: "NPWP Document",
+        taxIdDocumentUploadCompany: "Upload NPWP Document (Photo Or Scan)",
+        taxIdDocumentReplace: "Replace Tax ID Document (Photo Or Scan)",
+        taxIdDocumentCurrent: "Current Tax ID Document:",
+        taxIdDocumentView: "View File",
+        taxIdDocumentHintCompany:
+          "Required. Upload a clear photo or PDF of the company NPWP.",
+        taxIdDocumentHintEdit:
+          "Keep the current file, or upload a replacement photo or PDF.",
+        vendorSince: "Vendor Since",
         vendorSinceHint: "When this organization became an RGS vendor.",
-        paymentTerms: "Payment terms",
+        paymentTerms: "Payment Terms",
         paymentTermsHint:
           "Cash is due when the supplier invoice is recorded; Net terms are due within the selected number of days.",
         paymentTermsCash: "Cash — due when invoice is submitted",
@@ -1248,9 +1322,9 @@ export const en = {
         portalAccess: "Portal Access",
         portalAccessDesc:
           "Optional. Choose whether to create a linked Users portal login for this vendor.",
-        createPortalLogin: "Create portal login access for this vendor?",
+        createPortalLogin: "Create Portal Login Access For This Vendor?",
         createPortalLoginHint:
-          "Yes creates a linked portal login (username from contact person first name). No creates the vendor record only — you can generate a login later from Users.",
+          "Yes creates a linked portal login (username from contact person first name). No creates the vendor record only — you can generate a login later from Users → No Portal Login.",
       },
     },
     employees: {
@@ -1646,8 +1720,10 @@ export const en = {
         "Create portal logins for {count} selected clients?",
       generatePortalConfirmEmployees:
         "Create portal logins for {count} selected employees?",
+      generatePortalConfirmVendors:
+        "Create portal logins for {count} selected vendors?",
       generatePortalConfirmMixed:
-        "Create portal logins for {count} selected clients and employees?",
+        "Create portal logins for {count} selected accounts?",
       generatePortalButton: "Generate {count} logins",
       generatePortalButtonOne: "Generate {count} login",
       generating: "Generating...",
@@ -1659,21 +1735,29 @@ export const en = {
       generateClientDescription:
         "Create a linked Users portal login for this client. Login ID is an 8-letter id from the client name.",
       generateClientConfirm: "Generate portal login",
+      generateVendorTitle: "Generate portal login?",
+      generateVendorDescription:
+        "Create a linked Users portal login for this vendor. Username is based on contact person first name.",
+      generateVendorConfirm: "Generate portal login",
       generateFailed: "Failed to generate portal login.",
-      withoutPortalSearch: "Search clients or employees...",
+      withoutPortalSearch: "Search clients, vendors, or employees...",
       withoutPortalEmpty: "Everyone already has a portal login",
       withoutPortalEmptyDesc:
-        "Clients and employees without a linked Users login appear here.",
+        "Clients, vendors, and employees without a linked Users login appear here.",
       withoutPortalNoResults: "No results for this search.",
       withoutPortalClients: "Clients",
+      withoutPortalVendors: "Vendors",
       withoutPortalEmployees: "Employees",
       withoutPortalEmptyClients: "No clients without portal login.",
+      withoutPortalEmptyVendors: "No vendors without portal login.",
       withoutPortalEmptyEmployees: "No employees without portal login.",
       withoutPortalRestoreHint:
-        "Soft-deleted records stay listed until permanently deleted. Restore them from Clients or Employees first if needed.",
+        "Soft-deleted records stay listed until permanently deleted. Restore them from Clients, Vendors, or Employees first if needed.",
       selectAllClients: "Select all clients",
+      selectAllVendors: "Select all vendors",
       selectAllEmployees: "Select all employees",
       selectClientRow: "Select {name}",
+      selectVendorRow: "Select {name}",
       selectEmployeeRow: "Select {name}",
       noUsersToShow: "No users to show.",
       bulkDeleteTitle: "Delete {count} user accounts?",

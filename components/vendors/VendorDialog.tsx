@@ -6,6 +6,7 @@ import {
 } from "@/components/ui/rejection-notice";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Truck } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   createVendor,
@@ -116,17 +117,20 @@ export default function VendorDialog({
 
   async function submit(formData: FormData) {
     const npwpRaw = String(formData.get("npwp") ?? "").trim();
-    if (npwpRaw && !isValidNpwp(npwpRaw)) {
+    if (!npwpRaw || !isValidNpwp(npwpRaw)) {
+      const npwpMessage = !npwpRaw
+        ? t("validation.npwpRequired")
+        : t("validation.npwpInvalid");
       const form = document.getElementById(CREATE_FORM_ID);
       const input =
         form instanceof HTMLFormElement
           ? form.elements.namedItem("npwp")
           : null;
       if (input instanceof HTMLInputElement) {
-        input.setCustomValidity(t("validation.npwpInvalid"));
+        input.setCustomValidity(npwpMessage);
         input.reportValidity();
       } else {
-        showRejection({ reasons: t("validation.npwpInvalid") });
+        showRejection({ reasons: npwpMessage });
       }
       return;
     }
@@ -134,10 +138,11 @@ export default function VendorDialog({
     startTransition(async () => {
       try {
         await createVendor(formData);
+        toast.success(t("pages.vendors.savedToast"));
         setExitConfirmOpen(false);
         closeDialog();
       } catch (error) {
-        showRejectionFromError(error, "Failed to create vendor.");
+        showRejectionFromError(error, t("pages.vendors.createFailed"));
       }
     });
   }

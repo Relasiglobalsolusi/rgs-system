@@ -65,6 +65,7 @@ const BASE_VENDOR_IMPORT_COLUMNS: ColumnDef[] = [
   {
     key: "npwp",
     header: VENDOR_HEADER_LABELS.npwp!.en,
+    required: true,
     width: 16,
     centerContent: true,
     numberFormat: IMPORT_NPWP_EXCEL_FORMAT,

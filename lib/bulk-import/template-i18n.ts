@@ -338,14 +338,15 @@ export const VENDOR_HEADER_LABELS: Record<string, LocalizedHeader> = {
     aliases: ["address", "company address", "office address"],
   },
   npwp: {
-    en: "Company Tax ID",
-    id: "NPWP Perusahaan",
+    en: "NPWP",
+    id: "NPWP",
     aliases: [
       "tax id",
       "company tax id",
       "npwp",
       "npwp / tax id",
       "company tax id (npwp)",
+      "npwp perusahaan",
     ],
   },
   vendorSince: {
@@ -362,7 +363,7 @@ export const VENDOR_HEADER_LABELS: Record<string, LocalizedHeader> = {
     ],
   },
   paymentTermsDays: {
-    en: "Payment terms",
+    en: "Payment Terms",
     id: "Syarat Pembayaran",
     aliases: [
       "payment terms",

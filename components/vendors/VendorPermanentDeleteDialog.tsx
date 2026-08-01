@@ -43,7 +43,7 @@ export default function VendorPermanentDeleteDialog({
         await deleteVendor(vendor.id);
         setOpen(false);
       } catch (error) {
-        showRejectionFromError(error, "Failed to delete vendor.");
+        showRejectionFromError(error, t("pages.vendors.deleteFailed"));
       }
     });
   }

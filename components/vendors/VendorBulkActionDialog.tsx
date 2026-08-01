@@ -28,21 +28,6 @@ type Props = {
   selectedIds: string[];
 };
 
-function formatBulkResultMessage(
-  actionLabel: string,
-  result: Awaited<ReturnType<typeof bulkDeactivateVendors>>
-) {
-  if (result.failureCount === 0) {
-    return `${result.successCount} vendor${result.successCount !== 1 ? "s" : ""} ${actionLabel}.`;
-  }
-
-  if (result.successCount === 0) {
-    return `Could not ${actionLabel} selected vendors. ${result.errors[0] ?? "Please try again."}`;
-  }
-
-  return `${result.successCount} vendor${result.successCount !== 1 ? "s" : ""} ${actionLabel}. ${result.failureCount} failed.`;
-}
-
 export default function VendorBulkActionDialog({
   open,
   onOpenChange,
@@ -53,6 +38,40 @@ export default function VendorBulkActionDialog({
   const { t } = useT();
   const [pending, startTransition] = useTransition();
 
+  function formatBulkResultMessage(
+    result: Awaited<ReturnType<typeof bulkDeactivateVendors>>
+  ) {
+    if (result.failureCount === 0) {
+      return mode === "deactivate"
+        ? t("pages.vendors.bulkDeactivateSuccess", {
+            count: result.successCount,
+          })
+        : t("pages.vendors.bulkDeleteForeverSuccess", {
+            count: result.successCount,
+          });
+    }
+
+    if (result.successCount === 0) {
+      return mode === "deactivate"
+        ? t("pages.vendors.bulkDeactivateAllFailed", {
+            detail: result.errors[0] ?? t("common.errors.tryAgain"),
+          })
+        : t("pages.vendors.bulkDeleteForeverAllFailed", {
+            detail: result.errors[0] ?? t("common.errors.tryAgain"),
+          });
+    }
+
+    return mode === "deactivate"
+      ? t("pages.vendors.bulkDeactivatePartial", {
+          success: result.successCount,
+          failed: result.failureCount,
+        })
+      : t("pages.vendors.bulkDeleteForeverPartial", {
+          success: result.successCount,
+          failed: result.failureCount,
+        });
+  }
+
   function handleConfirm() {
     startTransition(async () => {
       try {
@@ -61,17 +80,12 @@ export default function VendorBulkActionDialog({
             ? await bulkDeactivateVendors(selectedIds)
             : await bulkDeleteVendors(selectedIds);
 
-        const actionPastTense =
-          mode === "deactivate"
-            ? "moved to Deleted vendors"
-            : "permanently removed";
-
         if (result.failureCount === 0) {
-          toast.success(formatBulkResultMessage(actionPastTense, result));
+          toast.success(formatBulkResultMessage(result));
         } else if (result.successCount === 0) {
-          showRejection({ reasons: formatBulkResultMessage(actionPastTense, result) });
+          showRejection({ reasons: formatBulkResultMessage(result) });
         } else {
-          toast.warning(formatBulkResultMessage(actionPastTense, result));
+          toast.warning(formatBulkResultMessage(result));
         }
 
         onOpenChange(false);
@@ -141,7 +155,7 @@ export default function VendorBulkActionDialog({
           <p className="mt-4 text-sm leading-6 text-muted">
             {isSoftDelete
               ? t("pages.vendors.deleteSoftNote")
-              : t("pages.vendors.deleteForeverNote")}
+              : t("pages.vendors.bulkDeleteForeverNote")}
           </p>
         </div>
       </EmployeeDialogShell>

@@ -29,6 +29,7 @@ import { hardDeleteLinkedUserLogin } from "@/lib/hard-delete-linked-user";
 import { capitalizeName } from "@/lib/text-case";
 import { isRosterActiveEmployeeStatus } from "@/lib/user-directory-status";
 import { assertClientCanBeSoftDeleted } from "@/lib/client-soft-delete";
+import { assertVendorCanBeSoftDeleted } from "@/lib/vendor-soft-delete";
 import { getServerLocale } from "@/lib/i18n/locale";
 
 export async function createUser(formData: FormData) {
@@ -562,6 +563,7 @@ async function deactivateUserRecord(id: string, currentUserId: string) {
     }
 
     if (user.vendor && user.vendor.active) {
+      await assertVendorCanBeSoftDeleted(user.vendor.id, tx, locale);
       await tx.vendor.update({
         where: { id: user.vendor.id },
         data: { active: false },

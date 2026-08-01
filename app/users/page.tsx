@@ -3,6 +3,7 @@ import { canAccess } from "@/lib/permissions";
 import {
   canManageClients,
   canManageEmployees,
+  canManageVendors,
 } from "@/lib/project-access";
 import { requireModule, toPermissionUser } from "@/lib/session";
 
@@ -21,6 +22,7 @@ export default async function UsersPage({ searchParams }: Props) {
   const canManage = canAccess(permissionUser, "users");
   const canViewPassword = canManage;
   const manageClients = canManageClients(permissionUser);
+  const manageVendors = canManageVendors(permissionUser);
   const manageEmployees = canManageEmployees(permissionUser);
   const { clientId: filterClientId } = await searchParams;
 
@@ -39,8 +41,13 @@ export default async function UsersPage({ searchParams }: Props) {
     );
   }
 
-  const [users, filterClient, clientsWithoutPortalLogin, employeesWithoutPortalLogin] =
-    await Promise.all([
+  const [
+    users,
+    filterClient,
+    clientsWithoutPortalLogin,
+    vendorsWithoutPortalLogin,
+    employeesWithoutPortalLogin,
+  ] = await Promise.all([
       prisma.user.findMany({
         where: {
           companyId: company.id,
@@ -120,6 +127,35 @@ export default async function UsersPage({ searchParams }: Props) {
         },
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       }),
+      prisma.vendor.findMany({
+        where: {
+          companyId: company.id,
+          users: { none: {} },
+        },
+        select: {
+          id: true,
+          name: true,
+          shortCode: true,
+          email: true,
+          phone: true,
+          address: true,
+          npwp: true,
+          taxIdDocumentUrl: true,
+          contactPersonFirstName: true,
+          contactPersonLastName: true,
+          contactPersonPosition: true,
+          contactPersonEmail: true,
+          contactPersonPhone: true,
+          vendorSince: true,
+          paymentTermsDays: true,
+          active: true,
+          users: {
+            select: { id: true, username: true, active: true },
+            orderBy: { username: "asc" },
+          },
+        },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      }),
       prisma.employee.findMany({
         where: {
           companyId: company.id,
@@ -174,10 +210,12 @@ export default async function UsersPage({ searchParams }: Props) {
               : null,
         }))}
         clientsWithoutPortalLogin={clientsWithoutPortalLogin}
+        vendorsWithoutPortalLogin={vendorsWithoutPortalLogin}
         employeesWithoutPortalLogin={employeesWithoutPortalLogin}
         canEditPermissions={canManage}
         canViewPassword={canViewPassword}
         canManageClients={manageClients}
+        canManageVendors={manageVendors}
         canManageEmployees={manageEmployees}
         currentUserId={session.user.id}
       />

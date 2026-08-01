@@ -1196,21 +1196,63 @@ export const id = {
       deleteDescription:
         "Ini memindahkan organisasi pemasok ke Pemasok Dihapus. Data disimpan dan dapat dipulihkan nanti.",
       deleteSoftNote:
-        "Pemasok dipindahkan ke Pemasok Dihapus. Anda dapat memulihkannya nanti, atau menghapusnya permanen dari sana.",
+        "Login portal terkait dinonaktifkan (tidak dihapus permanen) dan dipindah ke Pengguna Dihapus. Kredensial tetap disimpan. Setelah memulihkan pemasok ini, gunakan Pengguna → Akses Dicabut → Pulihkan Akses untuk mengaktifkan kembali login portal.",
+      checkingSoftDelete: "Memeriksa apakah pemasok ini dapat dihapus…",
+      softDeleteBlockedTitle: "Pemasok ini belum dapat dihapus",
+      softDeleteBlocked:
+        "Tidak dapat menghapus pemasok ini selama pembelian atau dokumen pajak masih terbuka: {blockers}.",
+      softDeleteBlockers: {
+        unsettledPurchases: "{count} faktur pembelian belum selesai",
+        pendingTaxInvoices: "{count} faktur pajak belum selesai",
+      },
       deleteForeverTitle: "Hapus pemasok selamanya?",
       deleteForeverConfirm: "Hapus selamanya",
       deleteForeverDescription:
-        "Organisasi pemasok ini akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.",
+        "Organisasi pemasok ini akan dihapus permanen. Login portal terkait dihapus permanen. Tindakan ini tidak dapat dibatalkan.",
       deleteForeverNote:
-        "Hanya pemasok yang sudah dihapus yang dapat dihapus permanen. Tindakan ini tidak dapat dibatalkan.",
+        "Hanya pemasok yang sudah dihapus yang dapat dihapus permanen. Login portal terkait dihapus permanen dan tidak dapat dipulihkan. Tindakan ini tidak dapat dibatalkan.",
+      deleteForeverUsersNote:
+        "Login portal ({count}) akan dihapus permanen dan tidak dapat dipulihkan.",
       restoreTitle: "Pulihkan pemasok?",
       restoreConfirm: "Pulihkan pemasok",
       restoreDescription:
-        "Ini memulihkan organisasi pemasok dari Pemasok Dihapus.",
+        "Ini memulihkan organisasi pemasok dari Pemasok Dihapus. Login portal terkait tetap nonaktif — gunakan Pengguna → Akses Dicabut → Pulihkan Akses sebelum mereka dapat masuk lagi.",
       restoreSoftNote:
-        "Pemasok akan muncul lagi di direktori aktif. Pemasok yang dihapus selamanya tidak dapat dipulihkan.",
-      editDescription: "Perbarui detail kontak organisasi dan status.",
-      activeOrganization: "Organisasi pemasok aktif",
+        "Nama pengguna dan kredensial tetap disimpan. Setelah dipulihkan, login terkait muncul di Akses Dicabut hingga Anda memulihkan akses. Pemasok akan muncul lagi di direktori aktif. Pemasok yang dihapus selamanya tidak dapat dipulihkan.",
+      editDescription:
+        "Perbarui detail kontak organisasi. Soft-delete hanya melalui Hapus. Kelola login portal di Pengguna.",
+      savedToast: "Pemasok disimpan.",
+      createFailed: "Gagal membuat pemasok.",
+      updateFailed: "Gagal memperbarui pemasok.",
+      deleteFailed: "Gagal menghapus pemasok.",
+      restoreFailed: "Gagal memulihkan pemasok.",
+      reorderFailed: "Gagal mengatur ulang pemasok.",
+      reorderInvalid: "Satu atau lebih pemasok tidak valid untuk pengurutan ulang.",
+      notFound: "Pemasok tidak ditemukan.",
+      alreadyDeleted: "Pemasok sudah dihapus.",
+      alreadyActive: "Pemasok sudah aktif.",
+      permissionDenied: "Anda tidak memiliki izin untuk mengelola pemasok.",
+      vendorNameRequired: "Nama pemasok wajib diisi.",
+      contactFirstNameRequired: "Nama depan narahubung wajib diisi.",
+      permanentDeleteRequiresDeleted:
+        "Hanya pemasok yang sudah dihapus yang dapat dihapus permanen. Hapus pemasok terlebih dahulu.",
+      portalLoginDeletedVendor:
+        "{name}: login portal tidak dapat dibuat untuk pemasok yang dihapus. Pulihkan pemasok terlebih dahulu.",
+      portalLoginContactRequired:
+        "{name}: nama depan narahubung wajib diisi.",
+      generatePortalFailed: "Gagal membuat login portal.",
+      selectAll: "Pilih Semua Pemasok",
+      selectRow: "Pilih {name}",
+      import: {
+        nameRequired: "Nama Pemasok wajib diisi.",
+        contactFirstRequired: "Nama Depan Narahubung wajib diisi.",
+        duplicateInFile:
+          'Pemasok "{name}" sudah ada atau diduplikasi dalam file ini.',
+        alreadyExists: 'Pemasok "{name}" sudah ada.',
+        invalidRow: "Baris pemasok tidak valid.",
+        noDataRows:
+          "Tidak ada baris data. Tambahkan pemasok di bawah baris header.",
+      },
       bulkDeleteTitle: "Hapus {count} pemasok?",
       bulkDeleteForeverTitle: "Hapus {count} pemasok selamanya?",
       bulkDeleteConfirm: "Hapus {count} pemasok",
@@ -1220,35 +1262,68 @@ export const id = {
       bulkSelected: "{count} pemasok dipilih",
       bulkActionApplies:
         "Tindakan ini berlaku untuk semua baris terpilih di tampilan saat ini.",
+      bulkDeleteForeverNote:
+        "Login portal terkait dihapus permanen dan tidak dapat dipulihkan. Tindakan ini tidak dapat dibatalkan.",
+      bulkRestoreNote:
+        "Nama pengguna dan kredensial tetap disimpan. Pemasok yang dipulihkan muncul di direktori aktif; login terkait pindah ke Akses Dicabut.",
+      bulkDeactivateSuccess: "{count} pemasok dipindahkan ke Pemasok Dihapus.",
+      bulkDeactivateAllFailed:
+        "Tidak dapat menghapus pemasok terpilih. {detail}",
+      bulkDeactivatePartial:
+        "{success} pemasok dipindahkan ke Pemasok Dihapus. {failed} gagal.",
+      bulkDeleteForeverSuccess: "{count} pemasok dihapus permanen.",
+      bulkDeleteForeverAllFailed:
+        "Tidak dapat menghapus permanen pemasok terpilih. {detail}",
+      bulkDeleteForeverPartial:
+        "{success} pemasok dihapus permanen. {failed} gagal.",
+      bulkRestoreSuccess:
+        "{count} pemasok dipulihkan. Login terkait tetap nonaktif hingga Pulihkan Akses.",
+      bulkRestoreAllFailed: "Tidak dapat memulihkan pemasok terpilih. {detail}",
+      bulkRestorePartial:
+        "{success} pemasok dipulihkan. Login terkait tetap nonaktif hingga Pulihkan Akses. {failed} gagal.",
       paymentTermsCashShort: "Tunai",
       paymentTermsNetShort: "Net {days}",
+      portalStatus: {
+        yes: "Ya",
+        revoked: "Dicabut",
+        no: "Tidak",
+      },
       columns: {
         vendor: "Pemasok",
         shortCode: "ID Pemasok",
         contact: "Kontak",
-        vendorSince: "Pemasok sejak",
+        vendorSince: "Pemasok Sejak",
         paymentTerms: "Syarat Pembayaran",
-        portalLogin: "Akses Login Portal",
+        portalLogin: "Login Portal",
         actions: "Tindakan",
       },
       form: {
         organization: "Organisasi",
         organizationDesc:
           "Detail perusahaan pemasok untuk pembelian dan catatan kontak.",
-        vendorName: "Nama pemasok",
+        vendorName: "Nama Pemasok",
         shortCode: "ID Pemasok",
         shortCodeHint:
           "ID otomatis untuk referensi pemasok (mis. V001).",
         shortCodePreviewHint:
           "Pratinjau ID Pemasok berikutnya. ID final ditetapkan saat Anda menyimpan.",
         shortCodeLoading: "Memuat…",
-        companyEmail: "Email perusahaan",
-        companyPhone: "Telepon perusahaan",
-        companyAddress: "Alamat perusahaan",
-        companyNpwp: "NPWP perusahaan",
+        companyEmail: "Email Perusahaan",
+        companyPhone: "Telepon Perusahaan",
+        companyAddress: "Alamat Perusahaan",
+        companyNpwp: "NPWP",
         companyNpwpHint:
-          "Opsional. Jika diisi, harus tepat 15 atau 16 digit (titik/strip OK). Panjang lain ditolak.",
-        vendorSince: "Pemasok sejak",
+          "Wajib. Masukkan tepat 15 atau 16 digit (titik/strip OK).",
+        taxIdDocumentCompany: "Dokumen NPWP",
+        taxIdDocumentUploadCompany: "Unggah Dokumen NPWP (Foto Atau Pindai)",
+        taxIdDocumentReplace: "Ganti Dokumen NPWP (Foto Atau Pindai)",
+        taxIdDocumentCurrent: "Dokumen NPWP Saat Ini:",
+        taxIdDocumentView: "Lihat File",
+        taxIdDocumentHintCompany:
+          "Wajib. Unggah foto atau PDF yang jelas dari NPWP perusahaan.",
+        taxIdDocumentHintEdit:
+          "Pertahankan file saat ini, atau unggah foto atau PDF pengganti.",
+        vendorSince: "Pemasok Sejak",
         vendorSinceHint: "Kapan organisasi ini menjadi pemasok RGS.",
         paymentTerms: "Syarat Pembayaran",
         paymentTermsHint:
@@ -1267,9 +1342,9 @@ export const id = {
         portalAccess: "Akses Portal",
         portalAccessDesc:
           "Opsional. Pilih apakah membuat login portal Users terkait untuk pemasok ini.",
-        createPortalLogin: "Buat akses login portal untuk pemasok ini?",
+        createPortalLogin: "Buat Akses Login Portal Untuk Pemasok Ini?",
         createPortalLoginHint:
-          "Ya membuat login portal terkait (nama pengguna dari nama depan narahubung). Tidak hanya membuat data pemasok — login bisa dibuat nanti dari Pengguna.",
+          "Ya membuat login portal terkait (nama pengguna dari nama depan narahubung). Tidak hanya membuat data pemasok — login bisa dibuat nanti dari Pengguna → Tanpa Login Portal.",
       },
     },
     employees: {
@@ -1667,8 +1742,10 @@ export const id = {
         "Buat login portal untuk {count} klien terpilih?",
       generatePortalConfirmEmployees:
         "Buat login portal untuk {count} karyawan terpilih?",
+      generatePortalConfirmVendors:
+        "Buat login portal untuk {count} pemasok terpilih?",
       generatePortalConfirmMixed:
-        "Buat login portal untuk {count} klien dan karyawan terpilih?",
+        "Buat login portal untuk {count} akun terpilih?",
       generatePortalButton: "Buat {count} login",
       generatePortalButtonOne: "Buat {count} login",
       generating: "Membuat...",
@@ -1680,21 +1757,29 @@ export const id = {
       generateClientDescription:
         "Buat login portal Users terkait untuk klien ini. Login ID adalah 8 huruf dari nama klien.",
       generateClientConfirm: "Buat login portal",
+      generateVendorTitle: "Buat login portal?",
+      generateVendorDescription:
+        "Buat login portal Users terkait untuk pemasok ini. Nama pengguna berdasarkan nama depan narahubung.",
+      generateVendorConfirm: "Buat login portal",
       generateFailed: "Gagal membuat login portal.",
-      withoutPortalSearch: "Cari klien atau karyawan...",
+      withoutPortalSearch: "Cari klien, pemasok, atau karyawan...",
       withoutPortalEmpty: "Semua sudah punya login portal",
       withoutPortalEmptyDesc:
-        "Klien dan karyawan tanpa login Users terkait muncul di sini.",
+        "Klien, pemasok, dan karyawan tanpa login Users terkait muncul di sini.",
       withoutPortalNoResults: "Tidak ada hasil untuk pencarian ini.",
       withoutPortalClients: "Klien",
+      withoutPortalVendors: "Pemasok",
       withoutPortalEmployees: "Karyawan",
       withoutPortalEmptyClients: "Tidak ada klien tanpa login portal.",
+      withoutPortalEmptyVendors: "Tidak ada pemasok tanpa login portal.",
       withoutPortalEmptyEmployees: "Tidak ada karyawan tanpa login portal.",
       withoutPortalRestoreHint:
-        "Data yang dihapus sementara tetap terdaftar hingga dihapus permanen. Pulihkan dulu dari Klien atau Karyawan jika perlu.",
+        "Data yang dihapus sementara tetap terdaftar hingga dihapus permanen. Pulihkan dulu dari Klien, Pemasok, atau Karyawan jika perlu.",
       selectAllClients: "Pilih semua klien",
+      selectAllVendors: "Pilih semua pemasok",
       selectAllEmployees: "Pilih semua karyawan",
       selectClientRow: "Pilih {name}",
+      selectVendorRow: "Pilih {name}",
       selectEmployeeRow: "Pilih {name}",
       noUsersToShow: "Tidak ada pengguna untuk ditampilkan.",
       bulkDeleteTitle: "Hapus {count} akun pengguna?",

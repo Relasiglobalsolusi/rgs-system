@@ -4,7 +4,6 @@ import {
   formatContactPersonName,
   resolveContactPersonNameParts,
 } from "@/lib/contact-person";
-import { hardDeleteLinkedUserLogins } from "@/lib/hard-delete-linked-user";
 import {
   getClientModuleOverrides,
   getEmployeeModuleOverrides,
@@ -312,49 +311,5 @@ export async function provisionVendorUser(
       active: true,
       sortOrder,
     },
-  });
-}
-
-/**
- * Hard-delete existing portal User(s) for a vendor and create a replacement
- * login from the new contact person name (mustSetPassword + no recovery email
- * → first-login setup). Username uses contact first name (+ last initial on
- * collision). Call after the Vendor row has the updated contact fields.
- *
- * Callers must only invoke this when linked portal users already exist and the
- * vendor will remain active — never to invent a login that did not exist, and
- * never to hard-delete without provisioning a replacement.
- */
-export async function resetVendorPortalLoginForContactNameChange(
-  tx: Tx,
-  options: {
-    companyId: string;
-    vendorId: string;
-    vendorName: string;
-    contactPersonFirstName: string;
-    contactPersonLastName?: string | null;
-    linkedUserIds: string[];
-    /** Must be true for contact-name reset; kept for call-site clarity. */
-    provisionReplacement: boolean;
-  }
-) {
-  if (options.linkedUserIds.length === 0) {
-    return null;
-  }
-
-  await hardDeleteLinkedUserLogins(tx, options.linkedUserIds);
-
-  if (!options.provisionReplacement) {
-    throw new Error(
-      "Contact-person portal reset requires provisioning a replacement login."
-    );
-  }
-
-  return provisionVendorUser(tx, {
-    companyId: options.companyId,
-    vendorId: options.vendorId,
-    vendorName: options.vendorName,
-    contactPersonFirstName: options.contactPersonFirstName,
-    contactPersonLastName: options.contactPersonLastName,
   });
 }

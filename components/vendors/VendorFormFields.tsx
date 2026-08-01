@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { Upload } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { PhoneInput } from "@/components/ui/PhoneInput";
@@ -33,6 +34,7 @@ export type VendorFormDefaults = {
   phone?: string;
   address?: string;
   npwp?: string;
+  taxIdDocumentUrl?: string | null;
   vendorSince?: Date | string | null;
   /** Payment terms in days; 0 = Cash (default 14). */
   paymentTermsDays?: number | null;
@@ -79,6 +81,12 @@ export default function VendorFormFields({
   const { t } = useT();
   const [createPortalLogin, setCreatePortalLogin] =
     useState<YesNoChoice>("No");
+  const taxIdFileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedTaxIdFileName, setSelectedTaxIdFileName] = useState("");
+
+  const hasExistingTaxIdDocument = Boolean(defaults?.taxIdDocumentUrl);
+  const taxIdDocumentRequired =
+    mode === "create" || !hasExistingTaxIdDocument;
 
   const shortCodeValue =
     mode === "create"
@@ -189,13 +197,18 @@ export default function VendorFormFields({
               defaultValue={defaults?.npwp ?? ""}
               autoComplete="off"
               inputMode="numeric"
+              required
               className={employeeInputClass}
               onInput={(event) => {
                 const input = event.currentTarget;
                 input.setCustomValidity(
                   npwpFieldCustomValidity(
                     input.value,
-                    t("validation.npwpInvalid")
+                    t("validation.npwpInvalid"),
+                    {
+                      required: true,
+                      requiredMessage: t("validation.npwpRequired"),
+                    }
                   )
                 );
               }}
@@ -204,16 +217,75 @@ export default function VendorFormFields({
                 input.setCustomValidity(
                   npwpFieldCustomValidity(
                     input.value,
-                    t("validation.npwpInvalid")
+                    t("validation.npwpInvalid"),
+                    {
+                      required: true,
+                      requiredMessage: t("validation.npwpRequired"),
+                    }
                   )
                 );
-                if (input.value.trim() && !input.validity.valid) {
+                if (!input.validity.valid) {
                   input.reportValidity();
                 }
               }}
             />
             <p className={employeeDialogHintClass}>
               {t("pages.vendors.form.companyNpwpHint")}
+            </p>
+          </div>
+
+          <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+            <label
+              htmlFor="vendor-tax-id-document"
+              className={employeeDialogLabelClass}
+            >
+              {t("pages.vendors.form.taxIdDocumentCompany")}
+            </label>
+            {hasExistingTaxIdDocument ? (
+              <p className="mb-2 text-xs text-muted">
+                {t("pages.vendors.form.taxIdDocumentCurrent")}{" "}
+                <a
+                  href={defaults?.taxIdDocumentUrl ?? "#"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary-dark hover:text-accent-teal"
+                >
+                  {t("pages.vendors.form.taxIdDocumentView")}
+                </a>
+              </p>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => taxIdFileInputRef.current?.click()}
+              className="flex h-11 w-full items-center gap-3 rounded-xl border border-dashed border-border bg-elevated px-4 text-left text-sm text-muted transition hover:border-accent-cyan/40 hover:text-text"
+            >
+              <Upload className="h-4 w-4 shrink-0 text-muted" />
+              <span>
+                {selectedTaxIdFileName
+                  ? selectedTaxIdFileName
+                  : hasExistingTaxIdDocument
+                    ? t("pages.vendors.form.taxIdDocumentReplace")
+                    : t("pages.vendors.form.taxIdDocumentUploadCompany")}
+              </span>
+            </button>
+            <input
+              ref={taxIdFileInputRef}
+              id="vendor-tax-id-document"
+              name="taxIdDocument"
+              type="file"
+              accept="image/*,.pdf"
+              required={taxIdDocumentRequired}
+              className="sr-only"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                setSelectedTaxIdFileName(file?.name ?? "");
+                onFormValuesChange?.();
+              }}
+            />
+            <p className={employeeDialogHintClass}>
+              {hasExistingTaxIdDocument
+                ? t("pages.vendors.form.taxIdDocumentHintEdit")
+                : t("pages.vendors.form.taxIdDocumentHintCompany")}
             </p>
           </div>
 

@@ -25,20 +25,6 @@ type Props = {
   selectedIds: string[];
 };
 
-function formatBulkResultMessage(
-  result: Awaited<ReturnType<typeof bulkReactivateVendors>>
-) {
-  if (result.failureCount === 0) {
-    return `${result.successCount} vendor${result.successCount !== 1 ? "s" : ""} restored.`;
-  }
-
-  if (result.successCount === 0) {
-    return `Could not restore selected vendors. ${result.errors[0] ?? "Please try again."}`;
-  }
-
-  return `${result.successCount} vendor${result.successCount !== 1 ? "s" : ""} restored. ${result.failureCount} failed.`;
-}
-
 export default function VendorBulkReactivateDialog({
   open,
   onOpenChange,
@@ -48,6 +34,27 @@ export default function VendorBulkReactivateDialog({
   const { t } = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+
+  function formatBulkResultMessage(
+    result: Awaited<ReturnType<typeof bulkReactivateVendors>>
+  ) {
+    if (result.failureCount === 0) {
+      return t("pages.vendors.bulkRestoreSuccess", {
+        count: result.successCount,
+      });
+    }
+
+    if (result.successCount === 0) {
+      return t("pages.vendors.bulkRestoreAllFailed", {
+        detail: result.errors[0] ?? t("common.errors.tryAgain"),
+      });
+    }
+
+    return t("pages.vendors.bulkRestorePartial", {
+      success: result.successCount,
+      failed: result.failureCount,
+    });
+  }
 
   function handleConfirm() {
     startTransition(async () => {
@@ -108,7 +115,7 @@ export default function VendorBulkReactivateDialog({
               {t("pages.vendors.bulkSelected", { count: selectedCount })}
             </p>
             <p className="mt-1 text-sm text-muted">
-              {t("pages.vendors.restoreSoftNote")}
+              {t("pages.vendors.bulkRestoreNote")}
             </p>
           </div>
         </div>

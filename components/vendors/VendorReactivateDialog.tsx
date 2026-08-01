@@ -46,7 +46,7 @@ export default function VendorReactivateDialog({
         setOpen(false);
         router.refresh();
       } catch (error) {
-        showRejectionFromError(error, "Failed to restore vendor.");
+        showRejectionFromError(error, t("pages.vendors.restoreFailed"));
       }
     });
   }

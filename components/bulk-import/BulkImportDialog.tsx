@@ -191,7 +191,8 @@ function PreviewList({
   pending?: boolean;
 }) {
   const requireTaxIdDocuments =
-    entityLabel === "client" && Boolean(onTaxIdDocumentChange);
+    (entityLabel === "client" || entityLabel === "vendor") &&
+    Boolean(onTaxIdDocumentChange);
 
   return (
     <div className="flex max-h-[22rem] flex-col gap-2 overflow-y-auto pr-1">
@@ -296,14 +297,16 @@ export default function BulkImportDialog({
   );
 
   const pending = busyAction !== null;
-  const importableClientRows =
-    entityLabel === "client" && preview
+  const requiresTaxIdDocuments =
+    entityLabel === "client" || entityLabel === "vendor";
+  const importableTaxIdRows =
+    requiresTaxIdDocuments && preview
       ? preview.rows.filter(isImportablePreviewRow)
       : [];
-  const allClientTaxIdDocumentsReady =
-    entityLabel !== "client" ||
-    importableClientRows.length === 0 ||
-    importableClientRows.every((row) => Boolean(taxIdDocuments[row.rowNumber]));
+  const allTaxIdDocumentsReady =
+    !requiresTaxIdDocuments ||
+    importableTaxIdRows.length === 0 ||
+    importableTaxIdRows.every((row) => Boolean(taxIdDocuments[row.rowNumber]));
 
   function clearFileInput() {
     if (inputRef.current) {
@@ -562,7 +565,7 @@ export default function BulkImportDialog({
       return;
     }
 
-    if (entityLabel === "client" && !allClientTaxIdDocumentsReady) {
+    if (requiresTaxIdDocuments && !allTaxIdDocumentsReady) {
       showRejection({
         title: t("ui.rejectionNotice.validationTitle"),
         description: t("ui.rejectionNotice.validationDescription"),
@@ -577,7 +580,7 @@ export default function BulkImportDialog({
         const formData = new FormData();
         formData.set("file", file);
         appendExtraFormFields(formData);
-        if (entityLabel === "client") {
+        if (requiresTaxIdDocuments) {
           for (const [rowNumber, documentFile] of Object.entries(
             taxIdDocuments
           )) {
@@ -666,7 +669,7 @@ export default function BulkImportDialog({
                     pending ||
                     !preview ||
                     preview.readyCount === 0 ||
-                    !allClientTaxIdDocumentsReady
+                    !allTaxIdDocumentsReady
                   }
                   onClick={handleConfirm}
                 >
@@ -810,7 +813,7 @@ export default function BulkImportDialog({
                 t={t}
                 taxIdDocuments={taxIdDocuments}
                 onTaxIdDocumentChange={
-                  entityLabel === "client"
+                  requiresTaxIdDocuments
                     ? handleTaxIdDocumentChange
                     : undefined
                 }

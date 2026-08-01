@@ -4,7 +4,7 @@ import {
   showRejection,
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Truck } from "lucide-react";
 import { toast } from "sonner";
 
@@ -26,16 +26,8 @@ import {
   useDirectoryDialogOpen,
   type DirectoryDialogControlProps,
 } from "@/components/ui/use-directory-dialog-open";
-import { contactPersonNamePartsChanged } from "@/lib/contact-person";
 import { useT } from "@/lib/i18n/use-t";
 import { isValidNpwp } from "@/lib/npwp";
-import { capitalizeName } from "@/lib/text-case";
-
-const PORTAL_LOGIN_RESET_CONFIRM =
-  "Changing the contact person's name will reset the portal login for this vendor.\n\n" +
-  "The current portal user will be permanently deleted and a new login will be created under the new contact name. " +
-  "The new contact must set a password and recovery email on first login (existing credentials will no longer work).\n\n" +
-  "Continue?";
 
 type Vendor = {
   id: string;
@@ -45,6 +37,7 @@ type Vendor = {
   phone: string | null;
   address: string | null;
   npwp: string | null;
+  taxIdDocumentUrl?: string | null;
   contactPersonFirstName: string | null;
   contactPersonLastName: string | null;
   contactPersonPosition: string | null;
@@ -53,8 +46,6 @@ type Vendor = {
   vendorSince: Date | string;
   paymentTermsDays?: number | null;
   active: boolean;
-  /** Linked portal users — any linked login means a name change resets it. */
-  users?: Array<{ id: string; active?: boolean }>;
 };
 
 type Props = {
@@ -74,27 +65,18 @@ export default function VendorEditDialog({
   const { open, setOpen } = useDirectoryDialogOpen(controlledOpen, onOpenChange);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [active, setActive] = useState(vendor.active);
   const [pending, startTransition] = useTransition();
   const [baseline, setBaseline] = useState<HtmlFormDirtyBaseline | null>(null);
 
-  const controlledSignature = useMemo(
-    () => JSON.stringify({ active }),
-    [active]
-  );
-  const controlledSignatureRef = useRef(controlledSignature);
-  controlledSignatureRef.current = controlledSignature;
-
   const { isDirty, handleFormInput, resetDirtyTracking } = useHtmlFormDirty(
     formId,
-    controlledSignature,
+    "",
     baseline
   );
   const isDirtyRef = useRef(isDirty);
   isDirtyRef.current = isDirty;
 
   function resetFormState() {
-    setActive(vendor.active);
     resetDirtyTracking();
   }
 
@@ -128,9 +110,7 @@ export default function VendorEditDialog({
     resetFormState();
 
     const frame = requestAnimationFrame(() => {
-      setBaseline(
-        captureHtmlFormBaseline(formId, controlledSignatureRef.current)
-      );
+      setBaseline(captureHtmlFormBaseline(formId, ""));
     });
 
     return () => cancelAnimationFrame(frame);
@@ -138,68 +118,35 @@ export default function VendorEditDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, formId, vendor.id]);
 
-  function vendorHasLinkedPortalLogin() {
-    return (vendor.users?.length ?? 0) > 0;
-  }
-
   async function submit(formData: FormData) {
-    formData.set("active", String(active));
-
     const npwpRaw = String(formData.get("npwp") ?? "").trim();
-    if (npwpRaw && !isValidNpwp(npwpRaw)) {
+    if (!npwpRaw || !isValidNpwp(npwpRaw)) {
+      const npwpMessage = !npwpRaw
+        ? t("validation.npwpRequired")
+        : t("validation.npwpInvalid");
       const form = document.getElementById(formId);
       const input =
         form instanceof HTMLFormElement
           ? form.elements.namedItem("npwp")
           : null;
       if (input instanceof HTMLInputElement) {
-        input.setCustomValidity(t("validation.npwpInvalid"));
+        input.setCustomValidity(npwpMessage);
         input.reportValidity();
       } else {
-        showRejection({ reasons: t("validation.npwpInvalid") });
+        showRejection({ reasons: npwpMessage });
       }
       return;
     }
 
-    const nextFirstName = capitalizeName(
-      String(formData.get("contactPersonFirstName") ?? "").trim()
-    );
-    const nextLastName = capitalizeName(
-      String(formData.get("contactPersonLastName") ?? "").trim()
-    );
-    const nameChanged = contactPersonNamePartsChanged(
-      {
-        firstName: vendor.contactPersonFirstName,
-        lastName: vendor.contactPersonLastName,
-      },
-      {
-        firstName: nextFirstName,
-        lastName: nextLastName || null,
-      }
-    );
-
-    // Mirror server: reset only when contact name changes, a linked portal
-    // login exists, and the vendor remains/becomes active after save.
-    if (nameChanged && vendorHasLinkedPortalLogin() && active) {
-      const confirmed = window.confirm(PORTAL_LOGIN_RESET_CONFIRM);
-      if (!confirmed) {
-        return;
-      }
-    }
-
     startTransition(async () => {
       try {
-        const result = await updateVendor(vendor.id, formData);
-        if (result.portalLoginReset) {
-          toast.success(
-            "Vendor saved. Portal login was reset — the new contact must set password and recovery email on first login."
-          );
-        }
+        await updateVendor(vendor.id, formData);
+        toast.success(t("pages.vendors.savedToast"));
         setExitConfirmOpen(false);
         setOpen(false);
         setBaseline(null);
       } catch (error) {
-        showRejectionFromError(error, "Failed to update vendor.");
+        showRejectionFromError(error, t("pages.vendors.updateFailed"));
       }
     });
   }
@@ -264,6 +211,7 @@ export default function VendorEditDialog({
                 phone: vendor.phone ?? "",
                 address: vendor.address ?? "",
                 npwp: vendor.npwp ?? "",
+                taxIdDocumentUrl: vendor.taxIdDocumentUrl ?? null,
                 vendorSince: vendor.vendorSince,
                 paymentTermsDays: vendor.paymentTermsDays,
                 contactPersonFirstName: vendor.contactPersonFirstName ?? "",
@@ -274,18 +222,6 @@ export default function VendorEditDialog({
               }}
               onFormValuesChange={handleFormInput}
             />
-
-            <div className="mt-8 border-t border-border pt-6">
-              <label className="flex items-center gap-3 text-sm text-text">
-                <input
-                  type="checkbox"
-                  checked={active}
-                  onChange={(event) => setActive(event.target.checked)}
-                  className="rounded border-border bg-elevated"
-                />
-                {t("pages.vendors.activeOrganization")}
-              </label>
-            </div>
           </form>
         </EmployeeDialogShell>
       </Dialog>

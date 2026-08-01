@@ -470,8 +470,10 @@ model Vendor {
   email                  String?
   phone                  String?
   address                String?
-  /// Company tax ID (NPWP).
+  /// Company tax ID (NPWP) — required on create/edit.
   npwp                   String?
+  /// Uploaded NPWP document under /uploads/vendors.
+  taxIdDocumentUrl       String?
   contactPersonFirstName String?
   contactPersonLastName  String?
   contactPersonPosition  String?
