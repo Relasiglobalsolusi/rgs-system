@@ -51,9 +51,12 @@ export default function UserRestoreDialog({
         setOpen(false);
         router.refresh();
       } catch (error) {
-        showRejectionFromError(error, isAccessRestore
-              ? "Failed to restore login access."
-              : "Failed to restore user account.");
+        showRejectionFromError(
+          error,
+          isAccessRestore
+            ? t("pages.users.errors.restoreAccessFailed")
+            : t("pages.users.errors.restoreFailed")
+        );
       }
     });
   }
@@ -112,8 +115,8 @@ export default function UserRestoreDialog({
 
           <p className="mt-4 text-sm leading-6 text-subtle">
             {isAccessRestore
-              ? "Username and password stay the same. Module permissions are unchanged."
-              : "Username and password stay preserved. Linked login stays under Revoked Access until access is restored before the user can sign in again."}
+              ? t("pages.users.restoreAccessBody")
+              : t("pages.users.restoreDeletedBody")}
           </p>
         </div>
       </EmployeeDialogShell>

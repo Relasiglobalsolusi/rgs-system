@@ -27,24 +27,6 @@ type Props = {
   mode?: "access" | "deleted";
 };
 
-function formatBulkResultMessage(
-  result: Awaited<ReturnType<typeof bulkReactivateUsers>>,
-  isAccessRestore: boolean
-) {
-  const noun = isAccessRestore ? "login access" : "user account";
-  const nouns = isAccessRestore ? "login accesses" : "user accounts";
-
-  if (result.failureCount === 0) {
-    return `${result.successCount} ${result.successCount !== 1 ? nouns : noun} restored.`;
-  }
-
-  if (result.successCount === 0) {
-    return `Could not restore selected users. ${result.errors[0] ?? "Please try again."}`;
-  }
-
-  return `${result.successCount} ${result.successCount !== 1 ? nouns : noun} restored. ${result.failureCount} failed.`;
-}
-
 export default function UserBulkReactivateDialog({
   open,
   onOpenChange,
@@ -57,17 +39,49 @@ export default function UserBulkReactivateDialog({
   const [pending, startTransition] = useTransition();
   const isAccessRestore = mode === "access";
 
+  function formatBulkResultMessage(
+    result: Awaited<ReturnType<typeof bulkReactivateUsers>>
+  ) {
+    if (result.failureCount === 0) {
+      if (isAccessRestore) {
+        return t(
+          result.successCount === 1
+            ? "pages.users.bulkRestoreAccessSuccess"
+            : "pages.users.bulkRestoreAccessSuccessOther",
+          { count: result.successCount }
+        );
+      }
+      return t(
+        result.successCount === 1
+          ? "pages.users.bulkRestoreDeletedSuccess"
+          : "pages.users.bulkRestoreDeletedSuccessOther",
+        { count: result.successCount }
+      );
+    }
+
+    if (result.successCount === 0) {
+      return t("pages.users.bulkRestoreNone", {
+        error: result.errors[0] ?? t("pages.users.tryAgain"),
+      });
+    }
+
+    return t("pages.users.bulkRestorePartial", {
+      success: result.successCount,
+      failed: result.failureCount,
+    });
+  }
+
   function handleConfirm() {
     startTransition(async () => {
       try {
         const result = await bulkReactivateUsers(selectedIds, mode);
 
         if (result.failureCount === 0) {
-          toast.success(formatBulkResultMessage(result, isAccessRestore));
+          toast.success(formatBulkResultMessage(result));
         } else if (result.successCount === 0) {
-          showRejection({ reasons: formatBulkResultMessage(result, isAccessRestore) });
+          showRejection({ reasons: formatBulkResultMessage(result) });
         } else {
-          toast.warning(formatBulkResultMessage(result, isAccessRestore));
+          toast.warning(formatBulkResultMessage(result));
         }
 
         onOpenChange(false);
@@ -127,8 +141,8 @@ export default function UserBulkReactivateDialog({
             </p>
             <p className="mt-1 text-sm text-subtle">
               {isAccessRestore
-                ? "Credentials and module permissions are unchanged."
-                : "Linked logins stay under Revoked Access until access restored."}
+                ? t("pages.users.bulkRestoreAccessHint")
+                : t("pages.users.bulkRestoreDeletedHint")}
             </p>
           </div>
         </div>

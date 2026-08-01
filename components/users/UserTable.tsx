@@ -80,18 +80,23 @@ function getLinkedRecordLabel(user: UserRow): string | null {
   return null;
 }
 
-function formatRevokeLinkedLabel(user: UserRow): string {
+function formatRevokeLinkedLabel(
+  user: UserRow,
+  t: (key: string, params?: Record<string, string | number>) => string
+): string {
   if (user.employee) {
     const name = `${user.employee.firstName} ${user.employee.lastName}`.trim();
-    return `Linked employee: ${user.employee.employeeNo} — ${name}`;
+    return t("pages.users.linkedEmployee", {
+      label: `${user.employee.employeeNo} — ${name}`,
+    });
   }
   if (user.client) {
-    return `Linked client: ${user.client.name}`;
+    return t("pages.users.linkedClient", { name: user.client.name });
   }
   if (user.vendor) {
-    return `Linked vendor: ${user.vendor.name}`;
+    return t("pages.users.linkedVendor", { name: user.vendor.name });
   }
-  return "Linked account";
+  return t("pages.users.linkedAccount");
 }
 
 type Props = {
@@ -210,9 +215,7 @@ function UserRowActions({
             variant="revokeBadge"
             disabled={isCurrentUser}
             title={
-              isCurrentUser
-                ? "You cannot revoke access for your own account"
-                : undefined
+              isCurrentUser ? t("pages.users.cannotRevokeOwn") : undefined
             }
             className={cn(trashActionChipClassName, "whitespace-normal")}
             onClick={(event) => {
@@ -234,9 +237,7 @@ function UserRowActions({
             variant="destructiveBadge"
             disabled={isCurrentUser}
             title={
-              isCurrentUser
-                ? "You cannot delete your own account"
-                : undefined
+              isCurrentUser ? t("pages.users.cannotDeleteOwn") : undefined
             }
             onClick={(event) => {
               event.stopPropagation();
@@ -291,12 +292,10 @@ function UserRowActions({
             name: row.name,
             username: row.username,
           }}
-          linkedLabel={formatRevokeLinkedLabel(row)}
+          linkedLabel={formatRevokeLinkedLabel(row, t)}
           disabled={isCurrentUser}
           disabledReason={
-            isCurrentUser
-              ? "You cannot revoke access for your own account"
-              : undefined
+            isCurrentUser ? t("pages.users.cannotRevokeOwn") : undefined
           }
           open={revokeOpen}
           onOpenChange={setRevokeOpen}
@@ -312,9 +311,7 @@ function UserRowActions({
           }}
           disabled={isCurrentUser}
           disabledReason={
-            isCurrentUser
-              ? "You cannot delete your own account"
-              : undefined
+            isCurrentUser ? t("pages.users.cannotDeleteOwn") : undefined
           }
           open={softDeleteOpen}
           onOpenChange={setSoftDeleteOpen}
@@ -390,7 +387,7 @@ export default function UserTable({
         toast.error(
           error instanceof Error
             ? error.message
-            : "Failed to reorder users."
+            : t("pages.users.errors.reorderFailed")
         );
         router.refresh();
       }
@@ -403,8 +400,9 @@ export default function UserTable({
     if (showSelection) {
       cols.push(
         createSelectionColumn<UserRow>({
-          ariaLabelAll: "Select all users",
-          getRowAriaLabel: (row) => `Select ${row.name}`,
+          ariaLabelAll: t("pages.users.selectAllUsers"),
+          getRowAriaLabel: (row) =>
+            t("pages.users.selectUserRow", { name: row.name }),
           getRowId: (row) => row.id,
           allVisibleSelected,
           someVisibleSelected,
@@ -571,7 +569,7 @@ export default function UserTable({
         isRowSelected={(row) => selectedIds?.has(row.id) ?? false}
         reorderable={canEditPermissions}
         onReorder={canEditPermissions ? handleReorder : undefined}
-        emptyMessage="No users to show."
+        emptyMessage={t("pages.users.noUsersToShow")}
       />
 
       {canEditPermissions && editUser ? (
@@ -579,17 +577,18 @@ export default function UserTable({
           key={editUser.id}
           mode="edit"
           user={editUser}
+          canEditUsername={canEditPermissions}
           showDelete={directoryView === "active" && editUser.active}
           deleteDisabled={editUser.id === currentUserId}
           deleteDisabledReason={
             editUser.id === currentUserId
-              ? "You cannot delete your own account"
+              ? t("pages.users.cannotDeleteOwn")
               : undefined
           }
           revokeDisabled={editUser.id === currentUserId}
           revokeDisabledReason={
             editUser.id === currentUserId
-              ? "You cannot revoke access or permanently remove portal login for your own account"
+              ? t("pages.users.cannotRevokeOrRemoveOwn")
               : undefined
           }
           open

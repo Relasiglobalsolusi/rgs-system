@@ -29,20 +29,6 @@ type Props = {
   selectedUsers: SelectedUser[];
 };
 
-function formatBulkResultMessage(
-  result: Awaited<ReturnType<typeof bulkDeleteUsers>>
-) {
-  if (result.failureCount === 0) {
-    return `${result.successCount} user account${result.successCount !== 1 ? "s" : ""} permanently deleted.`;
-  }
-
-  if (result.successCount === 0) {
-    return `Could not delete selected users. ${result.errors[0] ?? "Please try again."}`;
-  }
-
-  return `${result.successCount} user account${result.successCount !== 1 ? "s" : ""} permanently deleted. ${result.failureCount} failed.`;
-}
-
 export default function UserBulkDeleteDialog({
   open,
   onOpenChange,
@@ -52,6 +38,27 @@ export default function UserBulkDeleteDialog({
   const [pending, startTransition] = useTransition();
   const selectedCount = selectedUsers.length;
   const selectedIds = selectedUsers.map((user) => user.id);
+
+  function formatBulkResultMessage(
+    result: Awaited<ReturnType<typeof bulkDeleteUsers>>
+  ) {
+    if (result.failureCount === 0) {
+      return t("pages.users.bulkDeleteForeverSuccess", {
+        count: result.successCount,
+      });
+    }
+
+    if (result.successCount === 0) {
+      return t("pages.users.bulkDeleteForeverNone", {
+        error: result.errors[0] ?? t("pages.users.tryAgain"),
+      });
+    }
+
+    return t("pages.users.bulkDeleteForeverPartial", {
+      success: result.successCount,
+      failed: result.failureCount,
+    });
+  }
 
   function handleConfirm() {
     startTransition(async () => {
@@ -124,9 +131,7 @@ export default function UserBulkDeleteDialog({
           </div>
 
           <p className="mt-4 text-sm leading-6 text-muted">
-            Accounts linked to active employees are skipped. Client portal links
-            are revoked. Employee records are kept but unlinked from deleted
-            logins.
+            {t("pages.users.bulkDeleteForeverHint")}
           </p>
         </div>
       </EmployeeDialogShell>

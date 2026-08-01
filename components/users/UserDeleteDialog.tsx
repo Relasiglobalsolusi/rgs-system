@@ -3,7 +3,7 @@
 import {
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
-import { useTransition } from "react";
+import { useMemo, useTransition } from "react";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -40,25 +40,6 @@ type Props = {
 
 const ACTIVE_EMPLOYEE_STATUSES = new Set(["ACTIVE", "ON_LEAVE"]);
 
-function getLinkedEmployeeNotice(
-  linkedEmployee: LinkedEmployee
-): { tone: "warning" | "info"; message: string } | null {
-  const employeeLabel = `${formatEmployeeName(linkedEmployee)} (${linkedEmployee.employeeNo})`;
-  const isActive = ACTIVE_EMPLOYEE_STATUSES.has(linkedEmployee.status);
-
-  if (isActive) {
-    return {
-      tone: "warning",
-      message: `Linked employee ${employeeLabel} is still active. Soft-delete the employee or restore access first — permanent delete is blocked.`,
-    };
-  }
-
-  return {
-    tone: "info",
-    message: `Linked employee ${employeeLabel} (${linkedEmployee.status.toLowerCase().replace("_", " ")}). The employee record will be kept but unlinked from this login.`,
-  };
-}
-
 export default function UserDeleteDialog({
   user,
   linkedEmployee,
@@ -69,18 +50,40 @@ export default function UserDeleteDialog({
   const { t } = useT();
   const { open, setOpen } = useDirectoryDialogOpen(controlledOpen, onOpenChange);
   const [pending, startTransition] = useTransition();
-  const linkedEmployeeNotice = linkedEmployee
-    ? getLinkedEmployeeNotice(linkedEmployee)
-    : null;
+
+  const linkedEmployeeNotice = useMemo(() => {
+    if (!linkedEmployee) return null;
+    const employeeLabel = `${formatEmployeeName(linkedEmployee)} (${linkedEmployee.employeeNo})`;
+    const isActive = ACTIVE_EMPLOYEE_STATUSES.has(linkedEmployee.status);
+
+    if (isActive) {
+      return {
+        tone: "warning" as const,
+        message: t("pages.users.deleteForeverActiveEmployee", {
+          label: employeeLabel,
+        }),
+      };
+    }
+
+    return {
+      tone: "info" as const,
+      message: t("pages.users.deleteForeverInactiveEmployee", {
+        label: employeeLabel,
+        status: linkedEmployee.status.toLowerCase().replace("_", " "),
+      }),
+    };
+  }, [linkedEmployee, t]);
 
   function handleDelete() {
     startTransition(async () => {
       try {
         await deleteUserPermanently(user.id);
-        toast.success(`Account "${user.name}" permanently deleted.`);
+        toast.success(
+          t("pages.users.permanentlyDeletedToast", { name: user.name })
+        );
         setOpen(false);
       } catch (error) {
-        showRejectionFromError(error, "Failed to delete user account.");
+        showRejectionFromError(error, t("pages.users.errors.deleteFailed"));
       }
     });
   }
@@ -150,9 +153,7 @@ export default function UserDeleteDialog({
           ) : null}
 
           <p className="mt-4 text-sm leading-6 text-muted">
-            Password reset tokens and module overrides are removed. Linked client
-            portal access is revoked. Employee records are kept but unlinked from
-            this login.
+            {t("pages.users.deleteForeverBody")}
           </p>
         </div>
       </EmployeeDialogShell>

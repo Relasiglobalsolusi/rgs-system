@@ -1789,27 +1789,27 @@ export const id = {
       emptyType: "Tidak ada akun {type}",
       emptyTypeDesc: "Coba filter jenis akun atau kartu status lain.",
       deleteTitle: "Hapus akun pengguna?",
-      deleteConfirm: "Hapus akun",
+      deleteConfirm: "Hapus Akun",
       deleteDescription:
         "Ini menghapus sementara login. Karyawan atau klien terkait juga dihapus sementara agar akun muncul di Pengguna Dihapus hingga dipulihkan.",
-      deleteForeverTitle: "Hapus akun selamanya?",
-      deleteForeverConfirm: "Hapus selamanya",
+      deleteForeverTitle: "Hapus Akun Selamanya?",
+      deleteForeverConfirm: "Hapus Selamanya",
       deleteForeverDescription:
         "Akun pengguna ini akan dihapus permanen dari sistem. Tindakan ini tidak dapat dibatalkan.",
-      restoreTitle: "Pulihkan akun pengguna?",
-      restoreConfirm: "Pulihkan akun",
+      restoreTitle: "Pulihkan Akun Pengguna?",
+      restoreConfirm: "Pulihkan Akun",
       restoreDescription:
         "Ini memulihkan karyawan atau klien terkait yang dihapus sementara ke daftar aktif. Login terkait tetap nonaktif dan pindah ke Akses Dicabut hingga akses dipulihkan. Akun admin tanpa tautan diaktifkan kembali.",
       restoreAccessTitle: "Pulihkan akses login?",
       restoreAccessDescription:
         "Ini mengaktifkan kembali login yang dicabut. Karyawan atau klien terkait tetap Aktif; kredensial tidak berubah.",
-      revokeAccess: "Cabut akses",
-      restoreAccess: "Pulihkan akses",
-      permissions: "Izin akses",
+      revokeAccess: "Cabut Akses",
+      restoreAccess: "Pulihkan Akses",
+      permissions: "Izin Akses",
       permissionsTitle: "Izin Modul",
-      savePermissions: "Simpan izin",
-      resetPermissions: "Kembali ke bawaan",
-      generatePortalLogin: "Buat login portal",
+      savePermissions: "Simpan Izin",
+      resetPermissions: "Kembali Ke Bawaan",
+      generatePortalLogin: "Buat Login Portal",
       revokeAccessTitle: "Cabut Akses?",
       revokeAccessDescription:
         "Ini menonaktifkan login. Kredensial disimpan agar akses dapat dipulihkan nanti.",
@@ -1817,25 +1817,25 @@ export const id = {
       revoking: "Mencabut...",
       accessRevokedFor: "Akses dicabut untuk {name}.",
       revokeFailed: "Gagal mencabut akses.",
-      bulkRevokeTitle: "Cabut akses untuk {count} akun?",
+      bulkRevokeTitle: "Cabut Akses untuk {count} Akun?",
       bulkRevokeDescription:
         "Ini menonaktifkan login terpilih. Kredensial disimpan agar akses dapat dipulihkan nanti.",
-      bulkRevokeConfirm: "Cabut akses untuk {count}",
+      bulkRevokeConfirm: "Cabut Akses untuk {count}",
       noEligibleRevoke: "Tidak ada akun yang memenuhi syarat untuk dicabut.",
       permanentlyRemoveTitle: "Hapus Permanen Akses Login Portal?",
       permanentlyRemoveDescription:
         "Ini menghapus permanen login portal. Data karyawan atau klien terkait tetap ada, tetapi mereka tidak dapat masuk lagi kecuali login baru dibuat.",
-      permanentlyRemoveConfirm: "Hapus login permanen",
+      permanentlyRemoveConfirm: "Hapus Login Permanen",
       permanentlyRemoving: "Menghapus...",
       permanentlyRemoveFailed: "Gagal menghapus permanen login portal.",
       bulkPermanentlyRemoveTitle:
-        "Hapus permanen login portal untuk {count} akun?",
+        "Hapus Permanen Login Portal untuk {count} Akun?",
       bulkPermanentlyRemoveDescription:
         "Ini menghapus permanen login portal terpilih. Data karyawan atau klien terkait tetap ada.",
-      bulkPermanentlyRemoveConfirm: "Hapus permanen {count}",
+      bulkPermanentlyRemoveConfirm: "Hapus Permanen {count}",
       noEligiblePermanentlyRemove:
         "Tidak ada akun yang memenuhi syarat untuk dihapus permanen.",
-      generatePortalTitle: "Buat login portal",
+      generatePortalTitle: "Buat Login Portal",
       generatePortalConfirmClients:
         "Buat login portal untuk {count} klien terpilih?",
       generatePortalConfirmEmployees:
@@ -1844,26 +1844,26 @@ export const id = {
         "Buat login portal untuk {count} pemasok terpilih?",
       generatePortalConfirmMixed:
         "Buat login portal untuk {count} akun terpilih?",
-      generatePortalButton: "Buat {count} login",
-      generatePortalButtonOne: "Buat {count} login",
+      generatePortalButton: "Buat {count} Login",
+      generatePortalButtonOne: "Buat {count} Login",
       generating: "Membuat...",
-      generateEmployeeTitle: "Buat login portal?",
+      generateEmployeeTitle: "Buat Login Portal?",
       generateEmployeeDescription:
-        "Buat login portal Users terkait untuk karyawan ini. Nama pengguna berdasarkan nama depan.",
-      generateEmployeeConfirm: "Buat login portal",
-      generateClientTitle: "Buat login portal?",
+        "Buat login portal Pengguna terkait untuk karyawan ini. Nama pengguna berdasarkan nama depan.",
+      generateEmployeeConfirm: "Buat Login Portal",
+      generateClientTitle: "Buat Login Portal?",
       generateClientDescription:
-        "Buat login portal Users terkait untuk klien ini. Login ID adalah 8 huruf dari nama klien.",
-      generateClientConfirm: "Buat login portal",
-      generateVendorTitle: "Buat login portal?",
+        "Buat login portal Pengguna terkait untuk klien ini. Login ID adalah 8 huruf dari nama klien.",
+      generateClientConfirm: "Buat Login Portal",
+      generateVendorTitle: "Buat Login Portal?",
       generateVendorDescription:
-        "Buat login portal Users terkait untuk pemasok ini. Nama pengguna berdasarkan nama depan narahubung.",
-      generateVendorConfirm: "Buat login portal",
+        "Buat login portal Pengguna terkait untuk pemasok ini. Nama pengguna berdasarkan nama depan narahubung.",
+      generateVendorConfirm: "Buat Login Portal",
       generateFailed: "Gagal membuat login portal.",
       withoutPortalSearch: "Cari klien, pemasok, atau karyawan...",
       withoutPortalEmpty: "Semua sudah punya login portal",
       withoutPortalEmptyDesc:
-        "Klien, pemasok, dan karyawan tanpa login Users terkait muncul di sini.",
+        "Klien, pemasok, dan karyawan tanpa login Pengguna terkait muncul di sini.",
       withoutPortalNoResults: "Tidak ada hasil untuk pencarian ini.",
       withoutPortalClients: "Klien",
       withoutPortalVendors: "Pemasok",
@@ -1872,61 +1872,194 @@ export const id = {
       withoutPortalEmptyVendors: "Tidak ada pemasok tanpa login portal.",
       withoutPortalEmptyEmployees: "Tidak ada karyawan tanpa login portal.",
       withoutPortalRestoreHint:
-        "Data yang dihapus sementara tetap terdaftar hingga dihapus permanen. Pulihkan dulu dari Klien, Pemasok, atau Karyawan jika perlu.",
-      selectAllClients: "Pilih semua klien",
-      selectAllVendors: "Pilih semua pemasok",
-      selectAllEmployees: "Pilih semua karyawan",
+        "Data yang dihapus sementara tetap terdaftar hingga dihapus permanen. Pulihkan dulu klien, pemasok, atau karyawan, lalu buat login portal.",
+      selectAllClients: "Pilih Semua Klien",
+      selectAllVendors: "Pilih Semua Pemasok",
+      selectAllEmployees: "Pilih Semua Karyawan",
+      selectAllUsers: "Pilih Semua Pengguna",
       selectClientRow: "Pilih {name}",
       selectVendorRow: "Pilih {name}",
       selectEmployeeRow: "Pilih {name}",
+      selectUserRow: "Pilih {name}",
       noUsersToShow: "Tidak ada pengguna untuk ditampilkan.",
-      bulkDeleteTitle: "Hapus {count} akun pengguna?",
-      bulkDeleteConfirm: "Hapus {count} akun",
-      bulkDeleteForeverTitle: "Hapus {count} akun selamanya?",
-      bulkDeleteForeverConfirm: "Hapus {count} selamanya",
-      bulkRestoreTitle: "Pulihkan {count} akun pengguna?",
-      bulkRestoreConfirm: "Pulihkan {count} akun",
-      bulkRestoreAccessTitle: "Pulihkan akses untuk {count} akun?",
-      bulkRestoreAccessConfirm: "Pulihkan akses untuk {count}",
+      bulkDeleteTitle: "Hapus {count} Akun Pengguna?",
+      bulkDeleteConfirm: "Hapus {count} Akun",
+      bulkDeleteForeverTitle: "Hapus {count} Akun Selamanya?",
+      bulkDeleteForeverConfirm: "Hapus {count} Selamanya",
+      bulkRestoreTitle: "Pulihkan {count} Akun Pengguna?",
+      bulkRestoreConfirm: "Pulihkan {count} Akun",
+      bulkRestoreAccessTitle: "Pulihkan Akses untuk {count} Akun?",
+      bulkRestoreAccessConfirm: "Pulihkan Akses untuk {count}",
       bulkSelected: "{count} akun dipilih",
+      bulkRestoreAccessHint:
+        "Kredensial dan izin modul tidak diubah.",
+      bulkRestoreDeletedHint:
+        "Login terkait tetap di Akses Dicabut hingga akses dipulihkan.",
+      bulkDeactivateOwnSkipped:
+        "Akun Anda sendiri tidak dapat dihapus dan akan dilewati.",
+      bulkDeactivateTrashHint:
+        "Pengguna yang dihapus tetap ada di sistem dan dapat dipulihkan dari tab Pengguna Dihapus.",
+      bulkDeleteForeverHint:
+        "Akun yang terhubung ke karyawan aktif dilewati. Tautan portal klien dicabut. Data karyawan tetap ada tetapi dilepas dari login yang dihapus.",
+      bulkDeactivateSuccess:
+        "{count} akun pengguna dipindahkan ke Pengguna Dihapus.",
+      bulkDeactivateNone:
+        "Tidak dapat menghapus pengguna terpilih. {error}",
+      bulkDeactivatePartial:
+        "{success} akun pengguna dipindahkan ke Pengguna Dihapus. {failed} gagal.",
+      bulkDeleteForeverSuccess:
+        "{count} akun pengguna dihapus permanen.",
+      bulkDeleteForeverNone:
+        "Tidak dapat menghapus pengguna terpilih. {error}",
+      bulkDeleteForeverPartial:
+        "{success} akun pengguna dihapus permanen. {failed} gagal.",
+      bulkRestoreAccessSuccess: "{count} akses login dipulihkan.",
+      bulkRestoreAccessSuccessOther: "{count} akses login dipulihkan.",
+      bulkRestoreDeletedSuccess: "{count} akun pengguna dipulihkan.",
+      bulkRestoreDeletedSuccessOther: "{count} akun pengguna dipulihkan.",
+      bulkRestoreNone: "Tidak dapat memulihkan pengguna terpilih. {error}",
+      bulkRestorePartial: "{success} dipulihkan. {failed} gagal.",
       companyNotFound: "Perusahaan tidak ditemukan.",
+      tryAgain: "Silakan coba lagi.",
       columns: {
         user: "Pengguna",
         type: "Jenis",
         linked: "Terkait",
         modules: "Modul",
-        password: "Kata sandi",
+        password: "Kata Sandi",
         actions: "Tindakan",
       },
       usernameDisplay: "Nama pengguna: {username}",
       passwordNotSet: "Kata sandi belum diatur",
+      noPasswordOnFile:
+        "Tidak ada kata sandi tersimpan (menunggu first-login atau sudah dihapus).",
+      linkedEmployee: "Karyawan Terkait: {label}",
+      linkedClient: "Klien Terkait: {name}",
+      linkedVendor: "Pemasok Terkait: {name}",
+      linkedAccount: "Akun Terkait",
+      cannotRevokeOwn: "Anda tidak dapat mencabut akses untuk akun sendiri",
+      cannotDeleteOwn: "Anda tidak dapat menghapus akun sendiri",
+      cannotRemovePortalOwn:
+        "Anda tidak dapat menghapus permanen akses login portal untuk akun sendiri",
+      cannotRevokeOrRemoveOwn:
+        "Anda tidak dapat mencabut akses atau menghapus permanen login portal untuk akun sendiri",
+      softDeleteCredentialsHint:
+        "Kredensial tetap disimpan hingga dihapus selamanya dari sampah. Untuk menonaktifkan login saja sambil menjaga karyawan atau klien tetap Aktif, gunakan Cabut Akses. Untuk menghancurkan login selamanya dan menempatkannya di Tanpa Login Portal, gunakan Hapus Permanen Akses Login Portal.",
+      restoreAccessBody:
+        "Nama pengguna dan kata sandi tetap sama. Izin modul tidak diubah.",
+      restoreDeletedBody:
+        "Nama pengguna dan kata sandi tetap disimpan. Login terkait tetap di Akses Dicabut hingga akses dipulihkan sebelum pengguna dapat masuk lagi.",
+      deleteForeverBody:
+        "Token reset kata sandi dan override modul dihapus. Akses portal klien terkait dicabut. Data karyawan tetap ada tetapi dilepas dari login ini.",
+      deleteForeverActiveEmployee:
+        "Karyawan terkait {label} masih aktif. Hapus sementara karyawan atau pulihkan akses dulu — penghapusan permanen diblokir.",
+      deleteForeverInactiveEmployee:
+        "Karyawan terkait {label} ({status}). Data karyawan akan tetap ada tetapi dilepas dari login ini.",
+      permanentlyDeletedToast: 'Akun "{name}" dihapus permanen.',
+      permissionsDescIntro:
+        "Kontrol modul mana yang dapat diakses {name} ({username}).",
+      permissionsDescFooter:
+        "Akun yang ada menyimpan override hingga Anda menyimpan. Perubahan tersimpan berlaku pada permintaan berikutnya.",
+      permissionsDescClient:
+        "Default portal klien aktif: Dasbor, Proyek, Laporan Progress, Laporan Kehadiran, Laporan Bulanan, dan Invoice & Penagihan.",
+      permissionsDescVendor:
+        "Default portal pemasok aktif: Dasbor dan Keuangan (invoice/penagihan mereka, unggah pajak PPN masukan, riwayat/status unggahan, pembayaran/penyelesaian hanya baca). Pemasok tidak dapat mengubah detail pemasok.",
+      permissionsDescEmployee:
+        "Default karyawan: Dasbor, Laporan Progress, CICO (staf lapangan), Izin & Sakit; staf HO juga mendapat Proyek dan Laporan Kehadiran.",
+      permissionsDescAdmin:
+        "Akun admin mulai dengan akses penuh ke setiap modul/halaman agar dapat mendelegasikan akses per pengguna.",
+      permissionsDefaultOn: "Bawaan: Aktif",
+      permissionsDefaultOff: "Bawaan: Nonaktif",
+      permissionsOverridden: "· Diganti",
+      permissionsAccountType: "Jenis Akun:",
+      permissionsModulesEnabled:
+        "{enabled} dari {total} modul diaktifkan",
+      permissionsOverridesOne: "· {count} override kustom",
+      permissionsOverridesOther: "· {count} override kustom",
+      permissionsModuleAccessAria: "Akses {module}",
       form: {
-        displayName: "Nama tampilan",
+        displayName: "Nama Tampilan",
         displayNamePlaceholder: "Nama tampilan akun",
-        username: "Nama pengguna",
+        username: "Nama Pengguna",
         usernamePlaceholder: "mis. jsmith",
-        recoveryEmail: "Email pemulihan",
+        usernameHint:
+          "Login ID / nama pengguna hanya dapat diubah oleh pengelola Pengguna.",
+        usernameReadOnlyHint:
+          "Hanya pengelola Pengguna yang dapat mengubah Login ID / nama pengguna.",
+        recoveryEmail: "Email Pemulihan",
         recoveryEmailPlaceholder: "password-reset@company.co.id",
-        temporaryPassword: "Kata sandi sementara",
-        newPassword: "Kata sandi baru",
+        temporaryPassword: "Kata Sandi Sementara",
+        newPassword: "Kata Sandi Baru",
         passwordKeepHint: "Biarkan kosong untuk mempertahankan kata sandi saat ini.",
         passwordCreateHint:
           "Opsional. Biarkan kosong untuk pengaturan first-login, atau setel kata sandi sementara yang harus diganti pengguna.",
         newPasswordPlaceholder: "Kata sandi baru (opsional)",
         tempPasswordPlaceholder: "Kata sandi sementara (opsional)",
-        currentPassword: "Kata sandi saat ini",
+        currentPassword: "Kata Sandi Saat Ini",
         currentPasswordHint:
           "Salinan yang dapat dipulihkan untuk admin. Diperbarui saat pengguna mengatur atau mengubah kata sandi.",
-        accountLink: "Tautan akun",
+        accountLink: "Tautan Akun",
         unlinkedAdmin:
           "Akun admin tanpa tautan (tidak terhubung ke karyawan atau klien).",
         accountLinkHint:
           "Tautan ditetapkan saat akun dibuat dari direktori Karyawan atau Klien dan tidak dapat diubah di sini.",
-        activeLogin: "Akun login aktif",
-        resetAccount: "Reset akun",
+        resetAccount: "Reset Akun",
         resetAccountHint:
           "Paksa pengaturan first-login lagi. Menghapus email pemulihan dan kata sandi; tautan karyawan/klien tidak diubah.",
+        resetAccountConfirm:
+          'Reset akun untuk "{username}"?\n\nIni menghapus email pemulihan dan kata sandi. Pengguna harus menyelesaikan pengaturan first-login lagi (atur kata sandi + email pemulihan). Tautan karyawan/klien tetap ada.',
         you: "(Anda)",
+      },
+      errors: {
+        saveFailed: "Gagal menyimpan akun pengguna.",
+        resetFailed: "Gagal mereset akun pengguna.",
+        deleteFailed: "Gagal menghapus akun pengguna.",
+        restoreAccessFailed: "Gagal memulihkan akses login.",
+        restoreFailed: "Gagal memulihkan akun pengguna.",
+        permissionsSaveFailed: "Gagal menyimpan.",
+        reorderFailed: "Gagal mengurutkan ulang pengguna.",
+        displayNameRequired: "Nama tampilan wajib diisi.",
+        usernameRequired: "Nama pengguna wajib diisi.",
+        usernameInvalid:
+          "Nama pengguna harus 3–32 karakter dan hanya memakai huruf, angka, titik, tanda hubung, atau garis bawah.",
+        usernameTaken: "Nama pengguna sudah digunakan.",
+        recoveryEmailRequired: "Email pemulihan wajib diisi.",
+        recoveryEmailTaken: "Email pemulihan sudah digunakan.",
+        passwordMinLength: "Kata sandi minimal 6 karakter.",
+        userNotFound: "Pengguna tidak ditemukan.",
+        companyNotFound: "Perusahaan tidak ditemukan.",
+        reorderInvalid: "Satu atau lebih pengguna tidak valid untuk diurutkan ulang.",
+        cannotRevokeOwn: "Anda tidak dapat mencabut akses untuk akun sendiri.",
+        cannotRemovePortalOwn:
+          "Anda tidak dapat menghapus permanen akses login portal untuk akun sendiri.",
+        cannotDeleteOwn: "Anda tidak dapat menghapus akun sendiri.",
+        cannotDeleteOwnEmployee:
+          "Anda tidak dapat menghapus data karyawan sendiri saat sedang masuk.",
+        revokeLinkedOnly:
+          "Hanya akun yang terhubung ke klien, pemasok, atau karyawan yang dapat dicabut aksesnya.",
+        permanentlyRemoveLinkedOnly:
+          "Hanya akun yang terhubung ke klien, pemasok, atau karyawan yang dapat dihapus permanen akses login portalnya.",
+        permanentlyRemoveActiveOnly:
+          "Hanya login terkait yang aktif yang dapat dihapus permanen. Pulihkan akses dulu, atau gunakan Hapus sementara untuk akun yang dinonaktifkan.",
+        permanentlyRemoveFailed:
+          "Gagal menghapus permanen akses login portal.",
+        employeeArchivedCannotRestore:
+          "Karyawan terkait telah dihapus permanen dan tidak dapat dipulihkan.",
+        restoreEmployeeFirst:
+          "Pulihkan karyawan terkait dulu, lalu gunakan Pulihkan Akses.",
+        restoreClientFirst:
+          "Pulihkan klien terkait dulu, lalu gunakan Pulihkan Akses.",
+        restoreVendorFirst:
+          "Pulihkan pemasok terkait dulu, lalu gunakan Pulihkan Akses.",
+        onlyDeactivatedPermanentDelete:
+          "Hanya akun yang dinonaktifkan yang dapat dihapus permanen.",
+        cannotDeleteActiveEmployee:
+          "Tidak dapat menghapus: karyawan terkait {employeeNo} ({name}) masih aktif. Hapus sementara karyawan atau pulihkan akses dulu.",
+        cannotDeleteActiveClient:
+          "Tidak dapat menghapus: klien terkait {name} masih aktif. Hapus sementara klien atau pulihkan akses dulu.",
+        deleteUserFailed: "Gagal menghapus pengguna.",
+        restoreUserFailed: "Gagal memulihkan pengguna.",
+        revokeAccessFailed: "Gagal mencabut akses.",
       },
     },
     billing: {

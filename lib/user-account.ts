@@ -1,5 +1,7 @@
 import bcrypt from "bcryptjs";
 
+import { getServerLocale } from "@/lib/i18n/locale";
+import { translate } from "@/lib/i18n/translate";
 import { prisma } from "@/lib/prisma";
 import { createUnusablePasswordHash } from "@/lib/unusable-password";
 
@@ -54,7 +56,8 @@ export async function assertUsernameAvailable(
 ) {
   const existing = await prisma.user.findUnique({ where: { username } });
   if (existing && existing.id !== excludeUserId) {
-    throw new Error("Username already in use.");
+    const locale = await getServerLocale();
+    throw new Error(translate(locale, "pages.users.errors.usernameTaken"));
   }
 }
 
@@ -77,7 +80,8 @@ export async function assertRecoveryEmailAvailable(
 
   const existing = await prisma.user.findUnique({ where: { email: normalized } });
   if (existing && existing.id !== excludeUserId) {
-    throw new Error("Recovery email already in use.");
+    const locale = await getServerLocale();
+    throw new Error(translate(locale, "pages.users.errors.recoveryEmailTaken"));
   }
 }
 

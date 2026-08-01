@@ -747,6 +747,7 @@ export default function UserDirectory({
       {showAdd ? (
         <UserDialog
           mode="create"
+          canEditUsername
           open={createOpen}
           onOpenChange={setCreateOpen}
           showTrigger={false}

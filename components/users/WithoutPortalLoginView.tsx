@@ -659,7 +659,7 @@ export default function WithoutPortalLoginView({
       },
       {
         key: "employeeNo",
-        title: "ID",
+        title: t("pages.employees.columns.employeeNo"),
         render: (employee) => (
           <span className="font-mono text-sm text-muted">
             {employee.employeeNo}

@@ -30,30 +30,39 @@ import { capitalizeName } from "@/lib/text-case";
 import { isRosterActiveEmployeeStatus } from "@/lib/user-directory-status";
 import { assertClientCanBeSoftDeleted } from "@/lib/client-soft-delete";
 import { assertVendorCanBeSoftDeleted } from "@/lib/vendor-soft-delete";
-import { getServerLocale } from "@/lib/i18n/locale";
+import { getServerLocale, type AppLocale } from "@/lib/i18n/locale";
+import { translate, type TranslateParams } from "@/lib/i18n/translate";
+
+async function usersLocaleError(
+  key: string,
+  params?: TranslateParams,
+  locale?: AppLocale
+) {
+  const resolved = locale ?? (await getServerLocale());
+  return new Error(translate(resolved, `pages.users.errors.${key}`, params));
+}
 
 export async function createUser(formData: FormData) {
   await requireModule("users");
+  const locale = await getServerLocale();
 
   const name = capitalizeName(String(formData.get("name") ?? "").trim());
   const username = normalizeUsername(String(formData.get("username") ?? ""));
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
 
-  if (!name) throw new Error("Display name is required.");
-  if (!username) throw new Error("Username is required.");
+  if (!name) throw await usersLocaleError("displayNameRequired", undefined, locale);
+  if (!username) throw await usersLocaleError("usernameRequired", undefined, locale);
   if (!isValidUsername(username)) {
-    throw new Error(
-      "Username must be 3-32 characters and use only letters, numbers, dots, dashes, or underscores."
-    );
+    throw await usersLocaleError("usernameInvalid", undefined, locale);
   }
-  if (!email) throw new Error("Recovery email is required.");
+  if (!email) throw await usersLocaleError("recoveryEmailRequired", undefined, locale);
 
   await assertUsernameAvailable(username);
   await assertRecoveryEmailAvailable(email);
 
   const company = await prisma.company.findFirst();
-  if (!company) throw new Error("Company not found.");
+  if (!company) throw await usersLocaleError("companyNotFound", undefined, locale);
 
   const { passwordHash, mustSetPassword, passwordDisplay } =
     await resolveNewAccountPassword(password);
@@ -79,36 +88,37 @@ export async function createUser(formData: FormData) {
 
 export async function reorderUsers(ids: string[]) {
   await requireModule("users");
+  const locale = await getServerLocale();
 
   const company = await prisma.company.findFirst({ select: { id: true } });
-  if (!company) throw new Error("Company not found.");
+  if (!company) throw await usersLocaleError("companyNotFound", undefined, locale);
 
   await persistCompanyScopedReorder("user", {
     companyId: company.id,
     ids,
-    mismatchError: "One or more users are invalid for reorder.",
+    mismatchError: translate(locale, "pages.users.errors.reorderInvalid"),
   });
 
   revalidatePath("/users");
 }
 
 export async function updateUser(userId: string, formData: FormData) {
+  // requireModule("users") = Users manage access (same gate as canManage on page).
   await requireModule("users");
+  const locale = await getServerLocale();
 
   const name = capitalizeName(String(formData.get("name") ?? "").trim());
   const username = normalizeUsername(String(formData.get("username") ?? ""));
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
-  const active = formData.get("active") === "true";
+  // Ignore form `active` — re-enable only via Restore Access; disable via Revoke Access.
 
-  if (!name) throw new Error("Display name is required.");
-  if (!username) throw new Error("Username is required.");
+  if (!name) throw await usersLocaleError("displayNameRequired", undefined, locale);
+  if (!username) throw await usersLocaleError("usernameRequired", undefined, locale);
   if (!isValidUsername(username)) {
-    throw new Error(
-      "Username must be 3-32 characters and use only letters, numbers, dots, dashes, or underscores."
-    );
+    throw await usersLocaleError("usernameInvalid", undefined, locale);
   }
-  if (!email) throw new Error("Recovery email is required.");
+  if (!email) throw await usersLocaleError("recoveryEmailRequired", undefined, locale);
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -116,7 +126,7 @@ export async function updateUser(userId: string, formData: FormData) {
   });
 
   if (!user) {
-    throw new Error("User not found.");
+    throw await usersLocaleError("userNotFound", undefined, locale);
   }
 
   if (username !== user.username) {
@@ -130,7 +140,6 @@ export async function updateUser(userId: string, formData: FormData) {
     name: string;
     username: string;
     email: string | null;
-    active: boolean;
     passwordHash?: string;
     passwordDisplay?: string | null;
     mustSetPassword?: boolean;
@@ -138,12 +147,11 @@ export async function updateUser(userId: string, formData: FormData) {
     name,
     username,
     email,
-    active,
   };
 
   if (password.trim()) {
     if (password.length < 6) {
-      throw new Error("Password must be at least 6 characters.");
+      throw await usersLocaleError("passwordMinLength", undefined, locale);
     }
     userData.passwordHash = await bcrypt.hash(password, 12);
     userData.passwordDisplay = password;
@@ -167,7 +175,7 @@ export async function resetUserAccount(userId: string) {
   });
 
   if (!user) {
-    throw new Error("User not found.");
+    throw await usersLocaleError("userNotFound");
   }
 
   const credentials = await resolveFirstLoginResetCredentials();
@@ -204,9 +212,10 @@ export async function resetUserAccount(userId: string) {
  */
 export async function revokeUserLoginAccess(userId: string) {
   const session = await requireModule("users");
+  const locale = await getServerLocale();
 
   if (userId === session.user.id) {
-    throw new Error("You cannot revoke access for your own account.");
+    throw await usersLocaleError("cannotRevokeOwn", undefined, locale);
   }
 
   const user = await prisma.user.findUnique({
@@ -221,13 +230,11 @@ export async function revokeUserLoginAccess(userId: string) {
   });
 
   if (!user) {
-    throw new Error("User not found.");
+    throw await usersLocaleError("userNotFound", undefined, locale);
   }
 
   if (!user.clientId && !user.vendorId && !user.employee) {
-    throw new Error(
-      "Only client, vendor, or employee linked accounts can have access revoked."
-    );
+    throw await usersLocaleError("revokeLinkedOnly", undefined, locale);
   }
 
   if (user.active) {
@@ -302,9 +309,12 @@ export async function bulkRevokeUserLoginAccess(
       });
       recordBulkSuccess(result);
     } catch (error) {
+      const locale = await getServerLocale();
       recordBulkFailure(
         result,
-        error instanceof Error ? error.message : "Failed to revoke access."
+        error instanceof Error
+          ? error.message
+          : translate(locale, "pages.users.errors.revokeAccessFailed")
       );
     }
   }
@@ -331,11 +341,10 @@ export async function bulkRevokeUserLoginAccess(
  */
 export async function permanentlyRemovePortalLoginAccess(userId: string) {
   const session = await requireModule("users");
+  const locale = await getServerLocale();
 
   if (userId === session.user.id) {
-    throw new Error(
-      "You cannot permanently remove portal login access for your own account."
-    );
+    throw await usersLocaleError("cannotRemovePortalOwn", undefined, locale);
   }
 
   const user = await prisma.user.findUnique({
@@ -350,18 +359,22 @@ export async function permanentlyRemovePortalLoginAccess(userId: string) {
   });
 
   if (!user) {
-    throw new Error("User not found.");
+    throw await usersLocaleError("userNotFound", undefined, locale);
   }
 
   if (!user.clientId && !user.vendorId && !user.employee) {
-    throw new Error(
-      "Only client, vendor, or employee linked accounts can have portal login access permanently removed."
+    throw await usersLocaleError(
+      "permanentlyRemoveLinkedOnly",
+      undefined,
+      locale
     );
   }
 
   if (!user.active) {
-    throw new Error(
-      "Only active linked logins can be permanently removed. Restore access first, or use soft Delete for deactivated accounts."
+    throw await usersLocaleError(
+      "permanentlyRemoveActiveOnly",
+      undefined,
+      locale
     );
   }
 
@@ -433,11 +446,12 @@ export async function bulkPermanentlyRemovePortalLoginAccess(
       });
       recordBulkSuccess(result);
     } catch (error) {
+      const locale = await getServerLocale();
       recordBulkFailure(
         result,
         error instanceof Error
           ? error.message
-          : "Failed to permanently remove portal login access."
+          : translate(locale, "pages.users.errors.permanentlyRemoveFailed")
       );
     }
   }
@@ -458,7 +472,7 @@ export async function toggleUserActive(id: string) {
   await requireModule("users");
 
   const user = await prisma.user.findUnique({ where: { id } });
-  if (!user) throw new Error("User not found.");
+  if (!user) throw await usersLocaleError("userNotFound");
 
   await prisma.user.update({
     where: { id },
@@ -486,11 +500,12 @@ function revalidateUserDirectoryPaths() {
  * Credentials stay until permanent delete; restore re-enables the same ones.
  */
 async function deactivateUserRecord(id: string, currentUserId: string) {
+  const locale = await getServerLocale();
+
   if (id === currentUserId) {
-    throw new Error("You cannot delete your own account.");
+    throw await usersLocaleError("cannotDeleteOwn", undefined, locale);
   }
 
-  const locale = await getServerLocale();
   const user = await prisma.user.findUnique({
     where: { id },
     select: {
@@ -507,13 +522,11 @@ async function deactivateUserRecord(id: string, currentUserId: string) {
   });
 
   if (!user) {
-    throw new Error("User not found.");
+    throw await usersLocaleError("userNotFound", undefined, locale);
   }
 
   if (user.employee?.userId === currentUserId) {
-    throw new Error(
-      "You cannot delete your own employee record while signed in."
-    );
+    throw await usersLocaleError("cannotDeleteOwnEmployee", undefined, locale);
   }
 
   const employeeOnRoster =
@@ -594,6 +607,7 @@ export type UserRestoreMode = "access" | "deleted";
  * - Unlinked admin → re-enable login (User.active = true).
  */
 async function restoreSoftDeletedUserRecord(id: string) {
+  const locale = await getServerLocale();
   const user = await prisma.user.findUnique({
     where: { id },
     select: {
@@ -612,7 +626,7 @@ async function restoreSoftDeletedUserRecord(id: string) {
   });
 
   if (!user) {
-    throw new Error("User not found.");
+    throw await usersLocaleError("userNotFound", undefined, locale);
   }
 
   if (user.active) {
@@ -620,8 +634,10 @@ async function restoreSoftDeletedUserRecord(id: string) {
   }
 
   if (user.employee?.archivedFromDirectory) {
-    throw new Error(
-      "Linked employee was permanently removed and cannot be restored."
+    throw await usersLocaleError(
+      "employeeArchivedCannotRestore",
+      undefined,
+      locale
     );
   }
 
@@ -672,6 +688,7 @@ async function restoreSoftDeletedUserRecord(id: string) {
  * Re-enables login only. Parent must already be on the active roster.
  */
 async function restoreUserLoginAccessRecord(id: string) {
+  const locale = await getServerLocale();
   const user = await prisma.user.findUnique({
     where: { id },
     select: {
@@ -690,7 +707,7 @@ async function restoreUserLoginAccessRecord(id: string) {
   });
 
   if (!user) {
-    throw new Error("User not found.");
+    throw await usersLocaleError("userNotFound", undefined, locale);
   }
 
   if (user.active) {
@@ -698,8 +715,10 @@ async function restoreUserLoginAccessRecord(id: string) {
   }
 
   if (user.employee?.archivedFromDirectory) {
-    throw new Error(
-      "Linked employee was permanently removed and cannot be restored."
+    throw await usersLocaleError(
+      "employeeArchivedCannotRestore",
+      undefined,
+      locale
     );
   }
 
@@ -707,21 +726,15 @@ async function restoreUserLoginAccessRecord(id: string) {
     user.employee != null &&
     !isRosterActiveEmployeeStatus(user.employee.status)
   ) {
-    throw new Error(
-      "Restore the linked employee first, then use Restore Access."
-    );
+    throw await usersLocaleError("restoreEmployeeFirst", undefined, locale);
   }
 
   if (user.client != null && user.client.active === false) {
-    throw new Error(
-      "Restore the linked client first, then use Restore Access."
-    );
+    throw await usersLocaleError("restoreClientFirst", undefined, locale);
   }
 
   if (user.vendor != null && user.vendor.active === false) {
-    throw new Error(
-      "Restore the linked vendor first, then use Restore Access."
-    );
+    throw await usersLocaleError("restoreVendorFirst", undefined, locale);
   }
 
   await prisma.user.update({
@@ -765,9 +778,12 @@ export async function bulkDeactivateUsers(
       await deactivateUserRecord(id, session.user.id);
       recordBulkSuccess(result);
     } catch (error) {
+      const locale = await getServerLocale();
       recordBulkFailure(
         result,
-        error instanceof Error ? error.message : "Failed to delete user."
+        error instanceof Error
+          ? error.message
+          : translate(locale, "pages.users.errors.deleteUserFailed")
       );
     }
   }
@@ -792,9 +808,12 @@ export async function bulkReactivateUsers(
       await reactivateUserRecord(id, mode);
       recordBulkSuccess(result);
     } catch (error) {
+      const locale = await getServerLocale();
       recordBulkFailure(
         result,
-        error instanceof Error ? error.message : "Failed to restore user."
+        error instanceof Error
+          ? error.message
+          : translate(locale, "pages.users.errors.restoreUserFailed")
       );
     }
   }
@@ -809,8 +828,10 @@ export async function bulkReactivateUsers(
 const ACTIVE_EMPLOYEE_STATUSES = new Set(["ACTIVE", "ON_LEAVE"]);
 
 async function deleteUserPermanentlyRecord(id: string, currentUserId: string) {
+  const locale = await getServerLocale();
+
   if (id === currentUserId) {
-    throw new Error("You cannot delete your own account.");
+    throw await usersLocaleError("cannotDeleteOwn", undefined, locale);
   }
 
   const user = await prisma.user.findUnique({
@@ -836,11 +857,15 @@ async function deleteUserPermanentlyRecord(id: string, currentUserId: string) {
   });
 
   if (!user) {
-    throw new Error("User not found.");
+    throw await usersLocaleError("userNotFound", undefined, locale);
   }
 
   if (user.active) {
-    throw new Error("Only deactivated accounts can be permanently deleted.");
+    throw await usersLocaleError(
+      "onlyDeactivatedPermanentDelete",
+      undefined,
+      locale
+    );
   }
 
   // Revoked Access (parent still Active) must not be forever-deleted —
@@ -850,14 +875,21 @@ async function deleteUserPermanentlyRecord(id: string, currentUserId: string) {
     ACTIVE_EMPLOYEE_STATUSES.has(user.employee.status)
   ) {
     const employeeLabel = formatEmployeeName(user.employee);
-    throw new Error(
-      `Cannot delete: linked employee ${user.employee.employeeNo} (${employeeLabel}) is still active. Soft-delete the employee or restore access first.`
+    throw await usersLocaleError(
+      "cannotDeleteActiveEmployee",
+      {
+        employeeNo: user.employee.employeeNo,
+        name: employeeLabel,
+      },
+      locale
     );
   }
 
   if (user.client && user.client.active !== false) {
-    throw new Error(
-      `Cannot delete: linked client ${user.client.name} is still active. Soft-delete the client or restore access first.`
+    throw await usersLocaleError(
+      "cannotDeleteActiveClient",
+      { name: user.client.name },
+      locale
     );
   }
 
@@ -907,9 +939,12 @@ export async function bulkDeleteUsers(
       await deleteUserPermanentlyRecord(id, session.user.id);
       recordBulkSuccess(result);
     } catch (error) {
+      const locale = await getServerLocale();
       recordBulkFailure(
         result,
-        error instanceof Error ? error.message : "Failed to delete user."
+        error instanceof Error
+          ? error.message
+          : translate(locale, "pages.users.errors.deleteUserFailed")
       );
     }
   }
@@ -929,7 +964,7 @@ export async function updateUserModuleOverrides(
   await requireModule("users");
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user) throw new Error("User not found.");
+  if (!user) throw await usersLocaleError("userNotFound");
 
   const sanitized: Record<string, boolean> = {};
   for (const moduleKey of MODULES) {

@@ -24,20 +24,6 @@ type Props = {
   selectedIds: string[];
 };
 
-function formatBulkResultMessage(
-  result: Awaited<ReturnType<typeof bulkDeactivateUsers>>
-) {
-  if (result.failureCount === 0) {
-    return `${result.successCount} user account${result.successCount !== 1 ? "s" : ""} moved to Deleted users.`;
-  }
-
-  if (result.successCount === 0) {
-    return `Could not delete selected users. ${result.errors[0] ?? "Please try again."}`;
-  }
-
-  return `${result.successCount} user account${result.successCount !== 1 ? "s" : ""} moved to Deleted users. ${result.failureCount} failed.`;
-}
-
 export default function UserBulkDeactivateDialog({
   open,
   onOpenChange,
@@ -46,6 +32,27 @@ export default function UserBulkDeactivateDialog({
 }: Props) {
   const { t } = useT();
   const [pending, startTransition] = useTransition();
+
+  function formatBulkResultMessage(
+    result: Awaited<ReturnType<typeof bulkDeactivateUsers>>
+  ) {
+    if (result.failureCount === 0) {
+      return t("pages.users.bulkDeactivateSuccess", {
+        count: result.successCount,
+      });
+    }
+
+    if (result.successCount === 0) {
+      return t("pages.users.bulkDeactivateNone", {
+        error: result.errors[0] ?? t("pages.users.tryAgain"),
+      });
+    }
+
+    return t("pages.users.bulkDeactivatePartial", {
+      success: result.successCount,
+      failed: result.failureCount,
+    });
+  }
 
   function handleConfirm() {
     startTransition(async () => {
@@ -102,13 +109,12 @@ export default function UserBulkDeactivateDialog({
               {t("pages.users.bulkSelected", { count: selectedCount })}
             </p>
             <p className="mt-1 text-sm text-subtle">
-              Your own account cannot be deleted and will be skipped.
+              {t("pages.users.bulkDeactivateOwnSkipped")}
             </p>
           </div>
 
           <p className="mt-4 text-sm leading-6 text-subtle">
-            Deleted users remain in the system and can be restored from the
-            Deleted users tab.
+            {t("pages.users.bulkDeactivateTrashHint")}
           </p>
         </div>
       </EmployeeDialogShell>

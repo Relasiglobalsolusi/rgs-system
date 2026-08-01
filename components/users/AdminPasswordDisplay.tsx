@@ -31,7 +31,7 @@ export default function AdminPasswordDisplay({
       <span className={cn("text-subtle", className)}>
         {compact
           ? t("pages.users.passwordNotSet")
-          : "No password on file (first-login pending or cleared)."}
+          : t("pages.users.noPasswordOnFile")}
       </span>
     );
   }
@@ -53,7 +53,9 @@ export default function AdminPasswordDisplay({
       </span>
       <button
         type="button"
-        aria-label={revealed ? "Hide password" : "Show password"}
+        aria-label={
+          revealed ? t("auth.hidePassword") : t("auth.showPassword")
+        }
         onClick={(event) => {
           event.stopPropagation();
           setRevealed((current) => !current);

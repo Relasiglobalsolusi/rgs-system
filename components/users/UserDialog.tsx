@@ -3,7 +3,7 @@
 import {
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { KeyRound, UserPlus } from "lucide-react";
 
 import { createUser, resetUserAccount, updateUser } from "@/app/users/actions";
@@ -55,6 +55,8 @@ type EditUser = {
 
 type CreateProps = {
   mode: "create";
+  /** Managers may set Login ID / username (Users module manage). */
+  canEditUsername?: boolean;
 } & DirectoryDialogControlProps;
 
 type EditProps = {
@@ -66,6 +68,8 @@ type EditProps = {
   /** When true, Revoke Access / Permanently Remove are disabled (e.g. current user). */
   revokeDisabled?: boolean;
   revokeDisabledReason?: string;
+  /** Managers may rename Login ID / username. */
+  canEditUsername?: boolean;
 } & DirectoryDialogControlProps;
 
 type Props = CreateProps | EditProps;
@@ -78,23 +82,11 @@ function formatEmployeeLinkLabel(employee: NonNullable<EditUser["employee"]>): s
   return `${employee.employeeNo} — ${name}`;
 }
 
-function linkedRecordLabel(user: EditUser): string | null {
-  if (user.employee) {
-    return `Linked employee: ${formatEmployeeLinkLabel(user.employee)}`;
-  }
-  if (user.client) {
-    return `Linked client: ${user.client.name}`;
-  }
-  if (user.vendor) {
-    return `Linked vendor: ${user.vendor.name}`;
-  }
-  return null;
-}
-
 export default function UserDialog(props: Props) {
   const { t } = useT();
   const isEdit = props.mode === "edit";
   const showTrigger = props.showTrigger ?? true;
+  const canEditUsername = props.canEditUsername ?? true;
   const { open, setOpen } = useDirectoryDialogOpen(
     props.open,
     props.onOpenChange
@@ -106,34 +98,29 @@ export default function UserDialog(props: Props) {
   const [pending, startTransition] = useTransition();
   const [resetPending, startResetTransition] = useTransition();
   const [baseline, setBaseline] = useState<HtmlFormDirtyBaseline | null>(null);
-  const [active, setActive] = useState(isEdit ? props.user.active : true);
 
   const formId = isEdit ? `edit-user-form-${props.user.id}` : "create-user-form";
-  const linkLabel = isEdit ? linkedRecordLabel(props.user) : null;
-
-  const controlledSignature = useMemo(
-    () => JSON.stringify({ active }),
-    [active]
-  );
-  const controlledSignatureRef = useRef(controlledSignature);
-  controlledSignatureRef.current = controlledSignature;
+  const linkLabel = isEdit
+    ? props.user.employee
+      ? t("pages.users.linkedEmployee", {
+          label: formatEmployeeLinkLabel(props.user.employee),
+        })
+      : props.user.client
+        ? t("pages.users.linkedClient", { name: props.user.client.name })
+        : props.user.vendor
+          ? t("pages.users.linkedVendor", { name: props.user.vendor.name })
+          : null
+    : null;
 
   const { isDirty, handleFormInput, resetDirtyTracking } = useHtmlFormDirty(
     formId,
-    controlledSignature,
+    "",
     baseline
   );
   const isDirtyRef = useRef(isDirty);
   isDirtyRef.current = isDirty;
 
   function resetFormState() {
-    if (isEdit) {
-      setActive(props.user.active);
-      resetDirtyTracking();
-      return;
-    }
-
-    setActive(true);
     resetDirtyTracking();
   }
 
@@ -165,17 +152,18 @@ export default function UserDialog(props: Props) {
     }
 
     const frame = requestAnimationFrame(() => {
-      setBaseline(
-        captureHtmlFormBaseline(formId, controlledSignatureRef.current)
-      );
+      setBaseline(captureHtmlFormBaseline(formId, ""));
     });
 
     return () => cancelAnimationFrame(frame);
   }, [open, formId]);
 
   async function submit(formData: FormData) {
-    if (isEdit) {
-      formData.set("active", String(active));
+    // Login active/revoked is controlled only via Revoke Access / Restore Access.
+    formData.delete("active");
+
+    if (isEdit && !canEditUsername) {
+      formData.set("username", props.user.username);
     }
 
     startTransition(async () => {
@@ -189,7 +177,7 @@ export default function UserDialog(props: Props) {
         setOpen(false);
         setBaseline(null);
       } catch (error) {
-        showRejectionFromError(error, "Failed to save user account.");
+        showRejectionFromError(error, t("pages.users.errors.saveFailed"));
       }
     });
   }
@@ -198,7 +186,9 @@ export default function UserDialog(props: Props) {
     if (!isEdit) return;
 
     const confirmed = window.confirm(
-      `Reset account for "${props.user.username}"?\n\nThis clears the recovery email and password. The user must complete first-login setup again (set password + recovery email). Employee/client links are kept.`
+      t("pages.users.form.resetAccountConfirm", {
+        username: props.user.username,
+      })
     );
     if (!confirmed) return;
 
@@ -209,7 +199,7 @@ export default function UserDialog(props: Props) {
         setOpen(false);
         setBaseline(null);
       } catch (error) {
-        showRejectionFromError(error, "Failed to reset user account.");
+        showRejectionFromError(error, t("pages.users.errors.resetFailed"));
       }
     });
   }
@@ -245,7 +235,7 @@ export default function UserDialog(props: Props) {
     isEdit && props.mode === "edit" && revokeDisabled
       ? (props.revokeDisabledReason ??
         props.deleteDisabledReason ??
-        "You cannot permanently remove portal login access for your own account")
+        t("pages.users.cannotRemovePortalOwn"))
       : undefined;
 
   return (
@@ -361,6 +351,11 @@ export default function UserDialog(props: Props) {
                   >
                     {t("pages.users.form.username")}
                   </label>
+                  <p className="text-xs text-muted">
+                    {canEditUsername
+                      ? t("pages.users.form.usernameHint")
+                      : t("pages.users.form.usernameReadOnlyHint")}
+                  </p>
                   <Input
                     id="user-username"
                     name="username"
@@ -370,7 +365,11 @@ export default function UserDialog(props: Props) {
                     minLength={3}
                     maxLength={32}
                     autoComplete="off"
-                    className={employeeInputClass}
+                    readOnly={!canEditUsername}
+                    className={cn(
+                      employeeInputClass,
+                      !canEditUsername && "cursor-not-allowed opacity-80"
+                    )}
                   />
                 </div>
 
@@ -453,20 +452,6 @@ export default function UserDialog(props: Props) {
               )}
 
               {isEdit && (
-                <div className="border-t border-border pt-4">
-                  <label className="flex items-center gap-3 text-sm text-text">
-                    <input
-                      type="checkbox"
-                      checked={active}
-                      onChange={(event) => setActive(event.target.checked)}
-                      className="rounded border-border bg-elevated"
-                    />
-                    {t("pages.users.form.activeLogin")}
-                  </label>
-                </div>
-              )}
-
-              {isEdit && (
                 <div className="space-y-3 rounded-xl border border-red-500/25 bg-card-tint-red p-4">
                   <div className="space-y-1">
                     <h3 className="text-sm font-semibold text-danger">
@@ -511,7 +496,7 @@ export default function UserDialog(props: Props) {
             name: props.user.name,
             username: props.user.username,
           }}
-          linkedLabel={linkLabel ?? "Linked account"}
+          linkedLabel={linkLabel ?? t("pages.users.linkedAccount")}
           disabled={removePortalLoginDisabled}
           disabledReason={removePortalLoginDisabledReason}
           open={removePortalLoginOpen}
@@ -527,7 +512,7 @@ export default function UserDialog(props: Props) {
             name: props.user.name,
             username: props.user.username,
           }}
-          linkedLabel={linkLabel ?? "Linked account"}
+          linkedLabel={linkLabel ?? t("pages.users.linkedAccount")}
           disabled={revokeDisabled}
           disabledReason={revokeDisabledReason}
           open={revokeOpen}

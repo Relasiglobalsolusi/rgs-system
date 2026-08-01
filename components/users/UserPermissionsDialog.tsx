@@ -35,7 +35,6 @@ import {
   getAllModuleAccessStates,
   getEmployeeModuleOverrides,
   getVisibleModules,
-  MODULE_LABELS,
   type ModuleKey,
   type PermissionUser,
 } from "@/lib/permissions";
@@ -65,18 +64,28 @@ type Props = {
 
 function ModuleToggle({
   module,
+  moduleLabel,
   enabled,
   isOverridden,
   defaultValue,
   disabled,
   onToggle,
+  defaultOnLabel,
+  defaultOffLabel,
+  overriddenLabel,
+  accessAriaLabel,
 }: {
   module: ModuleKey;
+  moduleLabel: string;
   enabled: boolean;
   isOverridden: boolean;
   defaultValue: boolean;
   disabled: boolean;
   onToggle: (module: ModuleKey, enabled: boolean) => void;
+  defaultOnLabel: string;
+  defaultOffLabel: string;
+  overriddenLabel: string;
+  accessAriaLabel: string;
 }) {
   return (
     <div
@@ -87,11 +96,11 @@ function ModuleToggle({
       }`}
     >
       <div className="min-w-0 pr-3">
-        <p className="text-sm font-medium text-text">{MODULE_LABELS[module]}</p>
+        <p className="text-sm font-medium text-text">{moduleLabel}</p>
         <p className="mt-0.5 text-xs text-muted">
-          Default: {defaultValue ? "On" : "Off"}
+          {defaultValue ? defaultOnLabel : defaultOffLabel}
           {isOverridden && (
-            <span className="ml-2 text-amber-400">· Overridden</span>
+            <span className="ml-2 text-amber-400">{overriddenLabel}</span>
           )}
         </p>
       </div>
@@ -100,7 +109,7 @@ function ModuleToggle({
         type="button"
         role="switch"
         aria-checked={enabled}
-        aria-label={`${MODULE_LABELS[module]} access`}
+        aria-label={accessAriaLabel}
         disabled={disabled}
         onClick={() => onToggle(module, !enabled)}
         className={`relative h-7 w-12 shrink-0 rounded-full transition disabled:cursor-not-allowed disabled:opacity-50 ${
@@ -115,30 +124,6 @@ function ModuleToggle({
       </button>
     </div>
   );
-}
-
-function permissionsDescription(
-  accountType: ReturnType<typeof getAccountType>,
-  name: string,
-  username: string
-) {
-  const intro = `Control which modules ${name} (${username}) can access.`;
-  const footer =
-    "Existing accounts keep stored overrides until you save. Saved changes apply on the next request.";
-
-  if (accountType === "Client") {
-    return `${intro} Client portal defaults on: Dashboard, Projects, Progress Reports, Attendance Report, Monthly Reports, and Invoice and Billing. ${footer}`;
-  }
-
-  if (accountType === "Vendor") {
-    return `${intro} Vendor portal defaults on: Dashboard and Finance (their invoices/billing, tax PPN masukan upload, upload history/status, payment/settlement read-only). Vendors cannot edit vendor details. ${footer}`;
-  }
-
-  if (accountType === "Employee") {
-    return `${intro} Employee defaults: Dashboard, Progress Reports, CICO (field staff), Leave & Sick; HO staff also get Projects and Attendance Report. ${footer}`;
-  }
-
-  return `${intro} Admin accounts start with full access to every module/page so they can delegate access per user. ${footer}`;
 }
 
 export default function UserPermissionsDialog({
@@ -186,6 +171,23 @@ export default function UserPermissionsDialog({
     (module) => accessStates[module].effective
   ).length;
 
+  const permissionsDescription = useMemo(() => {
+    const intro = t("pages.users.permissionsDescIntro", {
+      name: user.name,
+      username: user.username,
+    });
+    const footer = t("pages.users.permissionsDescFooter");
+    const typeDesc =
+      accountType === "Client"
+        ? t("pages.users.permissionsDescClient")
+        : accountType === "Vendor"
+          ? t("pages.users.permissionsDescVendor")
+          : accountType === "Employee"
+            ? t("pages.users.permissionsDescEmployee")
+            : t("pages.users.permissionsDescAdmin");
+    return `${intro} ${typeDesc} ${footer}`;
+  }, [t, accountType, user.name, user.username]);
+
   function handleOpenChange(nextOpen: boolean) {
     setOpen(nextOpen);
     if (nextOpen) {
@@ -216,7 +218,10 @@ export default function UserPermissionsDialog({
         await updateUserModuleOverrides(user.id, overrides);
         setOpen(false);
       } catch (error) {
-        showRejectionFromError(error, "Failed to save.");
+        showRejectionFromError(
+          error,
+          t("pages.users.errors.permissionsSaveFailed")
+        );
       }
     });
   }
@@ -238,11 +243,7 @@ export default function UserPermissionsDialog({
       <EmployeeDialogShell
         icon={ShieldCheck}
         title={t("pages.users.permissionsTitle")}
-        description={permissionsDescription(
-          accountType,
-          user.name,
-          user.username
-        )}
+        description={permissionsDescription}
         maxWidth="lg"
         footer={
           <div className="flex w-full flex-col gap-3">
@@ -270,7 +271,9 @@ export default function UserPermissionsDialog({
         <div className={employeeDialogFormClass}>
           <div className="rounded-xl border border-border bg-elevated p-4">
             <div className="flex flex-wrap items-center gap-3 text-sm">
-              <span className="text-muted">Account type:</span>
+              <span className="text-muted">
+                {t("pages.users.permissionsAccountType")}
+              </span>
               <span className="font-medium text-text">
                 {t(
                   `common.roles.${
@@ -286,24 +289,41 @@ export default function UserPermissionsDialog({
               </span>
             </div>
             <p className="mt-2 text-xs text-muted">
-              {enabledCount} of {visibleModules.length} modules enabled
-              {overrideCount > 0 &&
-                ` · ${overrideCount} custom override${overrideCount !== 1 ? "s" : ""}`}
+              {t("pages.users.permissionsModulesEnabled", {
+                enabled: enabledCount,
+                total: visibleModules.length,
+              })}
+              {overrideCount > 0
+                ? ` ${t(
+                    overrideCount === 1
+                      ? "pages.users.permissionsOverridesOne"
+                      : "pages.users.permissionsOverridesOther",
+                    { count: overrideCount }
+                  )}`
+                : null}
             </p>
           </div>
 
           <div className={employeeDialogGridClass}>
             {visibleModules.map((module) => {
               const state = accessStates[module];
+              const moduleLabel = t(`modules.${module}`);
               return (
                 <ModuleToggle
                   key={module}
                   module={module}
+                  moduleLabel={moduleLabel}
                   enabled={state.effective}
                   isOverridden={state.override !== null}
                   defaultValue={state.default}
                   disabled={pending}
                   onToggle={handleToggle}
+                  defaultOnLabel={t("pages.users.permissionsDefaultOn")}
+                  defaultOffLabel={t("pages.users.permissionsDefaultOff")}
+                  overriddenLabel={t("pages.users.permissionsOverridden")}
+                  accessAriaLabel={t("pages.users.permissionsModuleAccessAria", {
+                    module: moduleLabel,
+                  })}
                 />
               );
             })}

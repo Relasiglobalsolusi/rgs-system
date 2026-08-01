@@ -51,7 +51,7 @@ export default function UserSoftDeleteDialog({
         onDeleted?.();
         setOpen(false);
       } catch (error) {
-        showRejectionFromError(error, "Failed to delete user account.");
+        showRejectionFromError(error, t("pages.users.errors.deleteFailed"));
       }
     });
   }
@@ -105,10 +105,7 @@ export default function UserSoftDeleteDialog({
           </div>
 
           <p className="mt-4 text-sm leading-6 text-subtle">
-            Credentials stay saved until forever-delete from trash. To disable
-            login only while keeping the employee or client Active, use Revoke
-            Access. To destroy the login forever and leave them under No Portal
-            Login, use Permanently Remove Portal Login Access.
+            {t("pages.users.softDeleteCredentialsHint")}
           </p>
         </div>
       </EmployeeDialogShell>

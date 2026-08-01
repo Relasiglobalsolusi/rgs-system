@@ -1763,27 +1763,27 @@ export const en = {
       emptyType: "No {type} accounts",
       emptyTypeDesc: "Try another account type filter or status card.",
       deleteTitle: "Delete user account?",
-      deleteConfirm: "Delete account",
+      deleteConfirm: "Delete Account",
       deleteDescription:
         "This soft-deletes the login. Linked employees or clients are soft-deleted too so the account appears under Deleted users until restored.",
-      deleteForeverTitle: "Delete account forever?",
-      deleteForeverConfirm: "Delete forever",
+      deleteForeverTitle: "Delete Account Forever?",
+      deleteForeverConfirm: "Delete Forever",
       deleteForeverDescription:
         "This user account will be permanently removed from the system. This action cannot be undone.",
-      restoreTitle: "Restore user account?",
-      restoreConfirm: "Restore account",
+      restoreTitle: "Restore User Account?",
+      restoreConfirm: "Restore Account",
       restoreDescription:
         "This restores soft-deleted linked employees or clients to the active roster. Linked logins stay off and move to Revoked Access until access is restored. Unlinked admin accounts are re-enabled.",
       restoreAccessTitle: "Restore login access?",
       restoreAccessDescription:
         "This re-enables the revoked login. The linked employee or client stays Active; credentials are unchanged.",
-      revokeAccess: "Revoke access",
-      restoreAccess: "Restore access",
+      revokeAccess: "Revoke Access",
+      restoreAccess: "Restore Access",
       permissions: "Permissions",
       permissionsTitle: "Module Permissions",
-      savePermissions: "Save permissions",
-      resetPermissions: "Reset to defaults",
-      generatePortalLogin: "Generate portal login",
+      savePermissions: "Save Permissions",
+      resetPermissions: "Reset To Defaults",
+      generatePortalLogin: "Generate Portal Login",
       revokeAccessTitle: "Revoke Access?",
       revokeAccessDescription:
         "This disables the login. Credentials are kept so access can be restored later.",
@@ -1791,25 +1791,25 @@ export const en = {
       revoking: "Revoking...",
       accessRevokedFor: "Access revoked for {name}.",
       revokeFailed: "Failed to revoke access.",
-      bulkRevokeTitle: "Revoke access for {count} accounts?",
+      bulkRevokeTitle: "Revoke Access for {count} Accounts?",
       bulkRevokeDescription:
         "This disables the selected logins. Credentials are kept so access can be restored later.",
-      bulkRevokeConfirm: "Revoke access for {count}",
+      bulkRevokeConfirm: "Revoke Access for {count}",
       noEligibleRevoke: "No eligible accounts to revoke.",
       permanentlyRemoveTitle: "Permanently Remove Portal Login Access?",
       permanentlyRemoveDescription:
         "This permanently deletes the portal login. The linked employee or client record is kept, but they will no longer be able to sign in unless a new login is generated.",
-      permanentlyRemoveConfirm: "Permanently remove login",
+      permanentlyRemoveConfirm: "Permanently Remove Login",
       permanentlyRemoving: "Removing...",
       permanentlyRemoveFailed: "Failed to permanently remove portal login.",
       bulkPermanentlyRemoveTitle:
-        "Permanently remove portal login for {count} accounts?",
+        "Permanently Remove Portal Login for {count} Accounts?",
       bulkPermanentlyRemoveDescription:
         "This permanently deletes the selected portal logins. Linked employee or client records are kept.",
-      bulkPermanentlyRemoveConfirm: "Permanently remove {count}",
+      bulkPermanentlyRemoveConfirm: "Permanently Remove {count}",
       noEligiblePermanentlyRemove:
         "No eligible accounts to permanently remove.",
-      generatePortalTitle: "Generate portal login",
+      generatePortalTitle: "Generate Portal Login",
       generatePortalConfirmClients:
         "Create portal logins for {count} selected clients?",
       generatePortalConfirmEmployees:
@@ -1818,21 +1818,21 @@ export const en = {
         "Create portal logins for {count} selected vendors?",
       generatePortalConfirmMixed:
         "Create portal logins for {count} selected accounts?",
-      generatePortalButton: "Generate {count} logins",
-      generatePortalButtonOne: "Generate {count} login",
+      generatePortalButton: "Generate {count} Logins",
+      generatePortalButtonOne: "Generate {count} Login",
       generating: "Generating...",
-      generateEmployeeTitle: "Generate portal login?",
+      generateEmployeeTitle: "Generate Portal Login?",
       generateEmployeeDescription:
         "Create a linked Users portal login for this employee. Username is based on first name.",
-      generateEmployeeConfirm: "Generate portal login",
-      generateClientTitle: "Generate portal login?",
+      generateEmployeeConfirm: "Generate Portal Login",
+      generateClientTitle: "Generate Portal Login?",
       generateClientDescription:
         "Create a linked Users portal login for this client. Login ID is an 8-letter id from the client name.",
-      generateClientConfirm: "Generate portal login",
-      generateVendorTitle: "Generate portal login?",
+      generateClientConfirm: "Generate Portal Login",
+      generateVendorTitle: "Generate Portal Login?",
       generateVendorDescription:
         "Create a linked Users portal login for this vendor. Username is based on contact person first name.",
-      generateVendorConfirm: "Generate portal login",
+      generateVendorConfirm: "Generate Portal Login",
       generateFailed: "Failed to generate portal login.",
       withoutPortalSearch: "Search clients, vendors, or employees...",
       withoutPortalEmpty: "Everyone already has a portal login",
@@ -1846,24 +1846,55 @@ export const en = {
       withoutPortalEmptyVendors: "No vendors without portal login.",
       withoutPortalEmptyEmployees: "No employees without portal login.",
       withoutPortalRestoreHint:
-        "Soft-deleted records stay listed until permanently deleted. Restore them from Clients, Vendors, or Employees first if needed.",
-      selectAllClients: "Select all clients",
-      selectAllVendors: "Select all vendors",
-      selectAllEmployees: "Select all employees",
+        "Soft-deleted records stay listed until permanently deleted. Restore the client, vendor, or employee first, then generate a portal login.",
+      selectAllClients: "Select All Clients",
+      selectAllVendors: "Select All Vendors",
+      selectAllEmployees: "Select All Employees",
+      selectAllUsers: "Select All Users",
       selectClientRow: "Select {name}",
       selectVendorRow: "Select {name}",
       selectEmployeeRow: "Select {name}",
+      selectUserRow: "Select {name}",
       noUsersToShow: "No users to show.",
-      bulkDeleteTitle: "Delete {count} user accounts?",
-      bulkDeleteConfirm: "Delete {count} accounts",
-      bulkDeleteForeverTitle: "Delete {count} accounts forever?",
-      bulkDeleteForeverConfirm: "Delete {count} forever",
-      bulkRestoreTitle: "Restore {count} user accounts?",
-      bulkRestoreConfirm: "Restore {count} accounts",
-      bulkRestoreAccessTitle: "Restore access for {count} accounts?",
-      bulkRestoreAccessConfirm: "Restore access for {count}",
+      bulkDeleteTitle: "Delete {count} User Accounts?",
+      bulkDeleteConfirm: "Delete {count} Accounts",
+      bulkDeleteForeverTitle: "Delete {count} Accounts Forever?",
+      bulkDeleteForeverConfirm: "Delete {count} Forever",
+      bulkRestoreTitle: "Restore {count} User Accounts?",
+      bulkRestoreConfirm: "Restore {count} Accounts",
+      bulkRestoreAccessTitle: "Restore Access for {count} Accounts?",
+      bulkRestoreAccessConfirm: "Restore Access for {count}",
       bulkSelected: "{count} accounts selected",
+      bulkRestoreAccessHint:
+        "Credentials and module permissions are unchanged.",
+      bulkRestoreDeletedHint:
+        "Linked logins stay under Revoked Access until access is restored.",
+      bulkDeactivateOwnSkipped:
+        "Your own account cannot be deleted and will be skipped.",
+      bulkDeactivateTrashHint:
+        "Deleted users remain in the system and can be restored from the Deleted users tab.",
+      bulkDeleteForeverHint:
+        "Accounts linked to active employees are skipped. Client portal links are revoked. Employee records are kept but unlinked from deleted logins.",
+      bulkDeactivateSuccess:
+        "{count} user account(s) moved to Deleted users.",
+      bulkDeactivateNone:
+        "Could not delete selected users. {error}",
+      bulkDeactivatePartial:
+        "{success} user account(s) moved to Deleted users. {failed} failed.",
+      bulkDeleteForeverSuccess:
+        "{count} user account(s) permanently deleted.",
+      bulkDeleteForeverNone:
+        "Could not delete selected users. {error}",
+      bulkDeleteForeverPartial:
+        "{success} user account(s) permanently deleted. {failed} failed.",
+      bulkRestoreAccessSuccess: "{count} login access restored.",
+      bulkRestoreAccessSuccessOther: "{count} login accesses restored.",
+      bulkRestoreDeletedSuccess: "{count} user account restored.",
+      bulkRestoreDeletedSuccessOther: "{count} user accounts restored.",
+      bulkRestoreNone: "Could not restore selected users. {error}",
+      bulkRestorePartial: "{success} restored. {failed} failed.",
       companyNotFound: "Company not found.",
+      tryAgain: "Please try again.",
       columns: {
         user: "User",
         type: "Type",
@@ -1874,33 +1905,135 @@ export const en = {
       },
       usernameDisplay: "Username: {username}",
       passwordNotSet: "Password not set",
+      noPasswordOnFile:
+        "No password on file (first-login pending or cleared).",
+      linkedEmployee: "Linked Employee: {label}",
+      linkedClient: "Linked Client: {name}",
+      linkedVendor: "Linked Vendor: {name}",
+      linkedAccount: "Linked Account",
+      cannotRevokeOwn: "You cannot revoke access for your own account",
+      cannotDeleteOwn: "You cannot delete your own account",
+      cannotRemovePortalOwn:
+        "You cannot permanently remove portal login access for your own account",
+      cannotRevokeOrRemoveOwn:
+        "You cannot revoke access or permanently remove portal login for your own account",
+      softDeleteCredentialsHint:
+        "Credentials stay saved until forever-delete from trash. To disable login only while keeping the employee or client Active, use Revoke Access. To destroy the login forever and leave them under No Portal Login, use Permanently Remove Portal Login Access.",
+      restoreAccessBody:
+        "Username and password stay the same. Module permissions are unchanged.",
+      restoreDeletedBody:
+        "Username and password stay preserved. Linked login stays under Revoked Access until access is restored before the user can sign in again.",
+      deleteForeverBody:
+        "Password reset tokens and module overrides are removed. Linked client portal access is revoked. Employee records are kept but unlinked from this login.",
+      deleteForeverActiveEmployee:
+        "Linked employee {label} is still active. Soft-delete the employee or restore access first — permanent delete is blocked.",
+      deleteForeverInactiveEmployee:
+        "Linked employee {label} ({status}). The employee record will be kept but unlinked from this login.",
+      permanentlyDeletedToast: 'Account "{name}" permanently deleted.',
+      permissionsDescIntro:
+        "Control which modules {name} ({username}) can access.",
+      permissionsDescFooter:
+        "Existing accounts keep stored overrides until you save. Saved changes apply on the next request.",
+      permissionsDescClient:
+        "Client portal defaults on: Dashboard, Projects, Progress Reports, Attendance Report, Monthly Reports, and Invoice and Billing.",
+      permissionsDescVendor:
+        "Vendor portal defaults on: Dashboard and Finance (their invoices/billing, tax PPN masukan upload, upload history/status, payment/settlement read-only). Vendors cannot edit vendor details.",
+      permissionsDescEmployee:
+        "Employee defaults: Dashboard, Progress Reports, CICO (field staff), Leave & Sick; HO staff also get Projects and Attendance Report.",
+      permissionsDescAdmin:
+        "Admin accounts start with full access to every module/page so they can delegate access per user.",
+      permissionsDefaultOn: "Default: On",
+      permissionsDefaultOff: "Default: Off",
+      permissionsOverridden: "· Overridden",
+      permissionsAccountType: "Account Type:",
+      permissionsModulesEnabled:
+        "{enabled} of {total} modules enabled",
+      permissionsOverridesOne: "· {count} custom override",
+      permissionsOverridesOther: "· {count} custom overrides",
+      permissionsModuleAccessAria: "{module} access",
       form: {
-        displayName: "Display name",
+        displayName: "Display Name",
         displayNamePlaceholder: "Account display name",
         username: "Username",
         usernamePlaceholder: "e.g. jsmith",
-        recoveryEmail: "Recovery email",
+        usernameHint:
+          "Login ID / username can be changed by Users managers only.",
+        usernameReadOnlyHint:
+          "Only Users managers can rename Login ID / username.",
+        recoveryEmail: "Recovery Email",
         recoveryEmailPlaceholder: "password-reset@company.co.id",
-        temporaryPassword: "Temporary password",
-        newPassword: "New password",
+        temporaryPassword: "Temporary Password",
+        newPassword: "New Password",
         passwordKeepHint: "Leave blank to keep the current password.",
         passwordCreateHint:
           "Optional. Leave blank for first-login setup, or set a temporary password the user must change.",
         newPasswordPlaceholder: "New password (optional)",
         tempPasswordPlaceholder: "Temporary password (optional)",
-        currentPassword: "Current password",
+        currentPassword: "Current Password",
         currentPasswordHint:
           "Recoverable copy for admins. Updated when the user sets or changes their password.",
-        accountLink: "Account link",
+        accountLink: "Account Link",
         unlinkedAdmin:
           "Unlinked admin account (no employee or client link).",
         accountLinkHint:
           "Links are set when the account is created from the Employee or Client directory and cannot be changed here.",
-        activeLogin: "Active login account",
-        resetAccount: "Reset account",
+        resetAccount: "Reset Account",
         resetAccountHint:
           "Force first-login setup again. Clears recovery email and password; employee/client links are not changed.",
+        resetAccountConfirm:
+          'Reset account for "{username}"?\n\nThis clears the recovery email and password. The user must complete first-login setup again (set password + recovery email). Employee/client links are kept.',
         you: "(You)",
+      },
+      errors: {
+        saveFailed: "Failed to save user account.",
+        resetFailed: "Failed to reset user account.",
+        deleteFailed: "Failed to delete user account.",
+        restoreAccessFailed: "Failed to restore login access.",
+        restoreFailed: "Failed to restore user account.",
+        permissionsSaveFailed: "Failed to save.",
+        reorderFailed: "Failed to reorder users.",
+        displayNameRequired: "Display name is required.",
+        usernameRequired: "Username is required.",
+        usernameInvalid:
+          "Username must be 3-32 characters and use only letters, numbers, dots, dashes, or underscores.",
+        usernameTaken: "Username already in use.",
+        recoveryEmailRequired: "Recovery email is required.",
+        recoveryEmailTaken: "Recovery email already in use.",
+        passwordMinLength: "Password must be at least 6 characters.",
+        userNotFound: "User not found.",
+        companyNotFound: "Company not found.",
+        reorderInvalid: "One or more users are invalid for reorder.",
+        cannotRevokeOwn: "You cannot revoke access for your own account.",
+        cannotRemovePortalOwn:
+          "You cannot permanently remove portal login access for your own account.",
+        cannotDeleteOwn: "You cannot delete your own account.",
+        cannotDeleteOwnEmployee:
+          "You cannot delete your own employee record while signed in.",
+        revokeLinkedOnly:
+          "Only client, vendor, or employee linked accounts can have access revoked.",
+        permanentlyRemoveLinkedOnly:
+          "Only client, vendor, or employee linked accounts can have portal login access permanently removed.",
+        permanentlyRemoveActiveOnly:
+          "Only active linked logins can be permanently removed. Restore access first, or use soft Delete for deactivated accounts.",
+        permanentlyRemoveFailed:
+          "Failed to permanently remove portal login access.",
+        employeeArchivedCannotRestore:
+          "Linked employee was permanently removed and cannot be restored.",
+        restoreEmployeeFirst:
+          "Restore the linked employee first, then use Restore Access.",
+        restoreClientFirst:
+          "Restore the linked client first, then use Restore Access.",
+        restoreVendorFirst:
+          "Restore the linked vendor first, then use Restore Access.",
+        onlyDeactivatedPermanentDelete:
+          "Only deactivated accounts can be permanently deleted.",
+        cannotDeleteActiveEmployee:
+          "Cannot delete: linked employee {employeeNo} ({name}) is still active. Soft-delete the employee or restore access first.",
+        cannotDeleteActiveClient:
+          "Cannot delete: linked client {name} is still active. Soft-delete the client or restore access first.",
+        deleteUserFailed: "Failed to delete user.",
+        restoreUserFailed: "Failed to restore user.",
+        revokeAccessFailed: "Failed to revoke access.",
       },
     },
     billing: {
