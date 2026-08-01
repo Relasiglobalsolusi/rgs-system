@@ -55,7 +55,7 @@ export async function updateAssignmentShift(
         id: assignmentId,
         project: { companyId },
       },
-      select: { id: true },
+      select: { id: true, projectId: true },
     });
     if (!assignment) {
       throw new Error("Assignment not found.");
@@ -67,6 +67,7 @@ export async function updateAssignmentShift(
     });
 
     revalidatePath("/shifts");
+    revalidatePath(`/shifts?projectId=${assignment.projectId}`);
     revalidatePath("/cico");
     revalidatePath("/attendance");
     revalidatePath("/employees");

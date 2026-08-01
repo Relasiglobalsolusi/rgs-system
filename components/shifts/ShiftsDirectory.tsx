@@ -26,16 +26,16 @@ export type ShiftAssignmentRow = {
     lastName: string;
     employmentType: EmploymentType;
   };
-  project: {
-    id: string;
-    name: string;
-    status: string;
-    client: { name: string } | null;
-  };
 };
 
 type Props = {
+  project: {
+    id: string;
+    name: string;
+    clientName: string | null;
+  } | null;
   assignments: ShiftAssignmentRow[];
+  projectMissing?: boolean;
 };
 
 function ShiftRowForm({ row }: { row: ShiftAssignmentRow }) {
@@ -88,12 +88,6 @@ function ShiftRowForm({ row }: { row: ShiftAssignmentRow }) {
         {formatEmploymentTypeLabel(row.employee.employmentType, locale)}
       </td>
       <td className="px-3 py-3 align-middle">
-        <div className="text-sm text-text">{row.project.name}</div>
-        <div className="text-xs text-muted">
-          {row.project.client?.name ?? "—"}
-        </div>
-      </td>
-      <td className="px-3 py-3 align-middle">
         <div className="flex flex-wrap items-center gap-2">
           <input
             type="time"
@@ -140,7 +134,11 @@ function ShiftRowForm({ row }: { row: ShiftAssignmentRow }) {
   );
 }
 
-export default function ShiftsDirectory({ assignments }: Props) {
+export default function ShiftsDirectory({
+  project,
+  assignments,
+  projectMissing = false,
+}: Props) {
   const { t } = useT();
   const [query, setQuery] = useState("");
 
@@ -150,13 +148,22 @@ export default function ShiftsDirectory({ assignments }: Props) {
         matchesDirectorySearch(
           query,
           `${row.employee.firstName} ${row.employee.lastName}`,
-          row.employee.employeeNo,
-          row.project.name,
-          row.project.client?.name
+          row.employee.employeeNo
         )
       ),
     [assignments, query]
   );
+
+  if (projectMissing || !project) {
+    return (
+      <SectionCard>
+        <EmptyState
+          title={t("pages.shifts.projectNotFoundTitle")}
+          description={t("pages.shifts.projectNotFoundDescription")}
+        />
+      </SectionCard>
+    );
+  }
 
   return (
     <>
@@ -164,7 +171,7 @@ export default function ShiftsDirectory({ assignments }: Props) {
         <DirectorySearchInput
           value={query}
           onChange={setQuery}
-          placeholder={t("pages.shifts.searchPlaceholder")}
+          placeholder={t("pages.shifts.searchEmployeesPlaceholder")}
           className="min-w-[12rem] w-auto max-w-none flex-1"
         />
       </div>
@@ -175,19 +182,19 @@ export default function ShiftsDirectory({ assignments }: Props) {
             title={
               query.trim()
                 ? t("pages.shifts.emptySearch", { query: query.trim() })
-                : t("pages.shifts.emptyTitle")
+                : t("pages.shifts.emptyStaffTitle")
             }
             description={
               query.trim()
                 ? t("pages.shifts.emptySearchDesc")
-                : t("pages.shifts.emptyDescription")
+                : t("pages.shifts.emptyStaffDescription")
             }
           />
         </SectionCard>
       ) : (
         <SectionCard className="overflow-hidden p-0">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[48rem] text-left text-sm">
+            <table className="w-full min-w-[40rem] text-left text-sm">
               <thead>
                 <tr className="border-b border-border bg-elevated/60 text-xs uppercase tracking-wide text-muted">
                   <th className="px-3 py-2.5 font-semibold">
@@ -195,9 +202,6 @@ export default function ShiftsDirectory({ assignments }: Props) {
                   </th>
                   <th className="px-3 py-2.5 font-semibold">
                     {t("pages.shifts.columns.employmentType")}
-                  </th>
-                  <th className="px-3 py-2.5 font-semibold">
-                    {t("pages.shifts.columns.project")}
                   </th>
                   <th className="px-3 py-2.5 font-semibold">
                     {t("pages.shifts.columns.shift")}

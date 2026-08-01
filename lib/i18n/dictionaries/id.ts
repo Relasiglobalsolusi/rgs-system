@@ -2688,13 +2688,26 @@ export const id = {
     shifts: {
       title: "Shift",
       description:
-        "Atur jam shift yang direncanakan untuk staf yang sudah ditugaskan ke proyek. Tentukan siapa yang bekerja di situs lewat Proyek; atur kapan mereka bekerja di sini. CICO tetap mencatat waktu absensi aktual.",
-      searchPlaceholder: "Cari Karyawan Atau Proyek...",
+        "Pilih proyek aktif, lalu atur jam shift yang direncanakan untuk staf yang ditugaskan. Tentukan siapa yang bekerja di situs lewat Proyek; atur kapan mereka bekerja di sini. CICO tetap mencatat waktu absensi aktual.",
+      searchProjectsPlaceholder: "Cari Proyek...",
+      searchEmployeesPlaceholder: "Cari Karyawan...",
+      searchPlaceholder: "Cari...",
+      emptyProjectsTitle: "Tidak Ada Proyek Aktif",
+      emptyProjectsDescription:
+        "Proyek Berjalan muncul di sini. Pindahkan proyek ke Berjalan dan tugaskan staf terlebih dahulu.",
+      emptyStaffTitle: "Tidak Ada Staf Ditugaskan",
+      emptyStaffDescription:
+        "Tugaskan staf ke proyek ini di Proyek, lalu atur shift mereka di sini.",
       emptyTitle: "Tidak Ada Penugasan Proyek",
       emptyDescription:
-        "Tugaskan staf ke proyek Perencanaan atau Berjalan terlebih dahulu, lalu atur shift mereka di sini.",
+        "Tugaskan staf ke proyek Berjalan terlebih dahulu, lalu atur shift mereka di sini.",
       emptySearch: 'Tidak Ada Hasil Untuk "{query}"',
-      emptySearchDesc: "Coba nama karyawan atau proyek lain.",
+      emptySearchDesc: "Coba nama lain.",
+      backToProjects: "Kembali Ke Proyek",
+      staffCount: "{count} Staf",
+      projectNotFoundTitle: "Proyek Tidak Ditemukan",
+      projectNotFoundDescription:
+        "Proyek ini tidak aktif, atau sudah dihapus. Kembali dan pilih proyek lain.",
       shiftStart: "Mulai Shift",
       shiftEnd: "Selesai Shift",
       save: "Simpan",

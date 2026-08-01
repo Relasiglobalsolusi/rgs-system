@@ -2658,13 +2658,26 @@ export const en = {
     shifts: {
       title: "Shifts",
       description:
-        "Set planned shift times for staff already assigned to a project. Assign who works a site under Projects; set when they work here. CICO still records actual punch times.",
-      searchPlaceholder: "Search Employees Or Projects...",
+        "Choose an active project, then set planned shift times for assigned staff. Assign who works a site under Projects; set when they work here. CICO still records actual punch times.",
+      searchProjectsPlaceholder: "Search Projects...",
+      searchEmployeesPlaceholder: "Search Employees...",
+      searchPlaceholder: "Search...",
+      emptyProjectsTitle: "No Active Projects",
+      emptyProjectsDescription:
+        "In Progress projects appear here. Move a project to In Progress and assign staff first.",
+      emptyStaffTitle: "No Staff Assigned",
+      emptyStaffDescription:
+        "Assign staff to this project under Projects, then set their shifts here.",
       emptyTitle: "No Project Assignments",
       emptyDescription:
-        "Assign staff to a Planning or In Progress project first, then set their shifts here.",
+        "Assign staff to an In Progress project first, then set their shifts here.",
       emptySearch: 'No Results For "{query}"',
-      emptySearchDesc: "Try a different employee or project name.",
+      emptySearchDesc: "Try a different name.",
+      backToProjects: "Back To Projects",
+      staffCount: "{count} Staff",
+      projectNotFoundTitle: "Project Not Found",
+      projectNotFoundDescription:
+        "This project is not active, or it was removed. Go back and pick another project.",
       shiftStart: "Shift Start",
       shiftEnd: "Shift End",
       save: "Save",
