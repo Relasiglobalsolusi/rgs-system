@@ -40,7 +40,7 @@ export default function AuthLogo({
         unoptimized
         className={cn(
           "auth-logo-img h-auto object-contain object-center",
-          isHero ? "w-full max-w-[360px]" : "w-48"
+          isHero ? "w-full max-w-[468px]" : "w-48"
         )}
       />
       {showSlogan ? (
