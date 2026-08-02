@@ -14,6 +14,7 @@ import {
   normalizeGoogleMapsUrl,
 } from "@/lib/google-maps-url";
 import { employeeInputClass } from "@/components/employees/employee-dialog-ui";
+import { DEFAULT_LOCATION_RADIUS_METERS } from "@/lib/geo";
 import { useT } from "@/lib/i18n/use-t";
 import { fixLeafletIcons } from "@/lib/leaflet-map";
 import { cn } from "@/lib/utils";
@@ -194,7 +195,7 @@ export default function LocationPicker({ value, onChange }: Props) {
       ...prev,
       latitude: lat,
       longitude: lng,
-      locationRadiusMeters: prev.locationRadiusMeters || 50,
+      locationRadiusMeters: prev.locationRadiusMeters || DEFAULT_LOCATION_RADIUS_METERS,
       // Keep existing location text until reverse succeeds
       location: prev.location,
     };
@@ -543,7 +544,7 @@ export default function LocationPicker({ value, onChange }: Props) {
             onChange={(event) =>
               onChange({
                 ...value,
-                locationRadiusMeters: Number(event.target.value) || 50,
+                locationRadiusMeters: Number(event.target.value) || DEFAULT_LOCATION_RADIUS_METERS,
               })
             }
             placeholder={t("pages.projects.locationPicker.radiusPlaceholder")}

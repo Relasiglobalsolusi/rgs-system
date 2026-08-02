@@ -62,6 +62,8 @@ import {
   releaseAllProjectCrew,
   releaseEmployeesFromProject,
 } from "@/lib/workforce-crew";
+import { DEFAULT_LOCATION_RADIUS_METERS } from "@/lib/geo";
+import { resolveProjectSiteCoordinates } from "@/lib/project-site-location";
 
 const projectDeleteSelect = {
   id: true,
@@ -170,22 +172,41 @@ async function permanentlyDeleteProject(project: {
   return { id: project.id, name: project.name };
 }
 
-function parseLocationFields(formData: FormData) {
+async function parseLocationFields(formData: FormData) {
   const location = String(formData.get("location") ?? "").trim();
   const latitudeRaw = String(formData.get("latitude") ?? "").trim();
   const longitudeRaw = String(formData.get("longitude") ?? "").trim();
-  const radiusRaw = String(formData.get("locationRadiusMeters") ?? "50").trim();
+  const radiusRaw = String(
+    formData.get("locationRadiusMeters") ?? String(DEFAULT_LOCATION_RADIUS_METERS)
+  ).trim();
 
-  const latitude = latitudeRaw ? Number(latitudeRaw) : null;
-  const longitude = longitudeRaw ? Number(longitudeRaw) : null;
-  const locationRadiusMeters = Number(radiusRaw) || 50;
+  const formLatitude = latitudeRaw ? Number(latitudeRaw) : null;
+  const formLongitude = longitudeRaw ? Number(longitudeRaw) : null;
+  const locationRadiusMeters =
+    Number(radiusRaw) || DEFAULT_LOCATION_RADIUS_METERS;
 
   if (!location) throw new Error("Location address is required.");
-  if (latitude == null || longitude == null || Number.isNaN(latitude) || Number.isNaN(longitude)) {
+
+  const resolved = await resolveProjectSiteCoordinates({
+    location,
+    latitude: formLatitude,
+    longitude: formLongitude,
+  });
+
+  if (
+    !resolved ||
+    Number.isNaN(resolved.latitude) ||
+    Number.isNaN(resolved.longitude)
+  ) {
     throw new Error("Set the site location on the map.");
   }
 
-  return { location, latitude, longitude, locationRadiusMeters };
+  return {
+    location,
+    latitude: resolved.latitude,
+    longitude: resolved.longitude,
+    locationRadiusMeters,
+  };
 }
 
 function parseOptionalDateInput(raw: string, label: string): Date | null {
@@ -374,7 +395,7 @@ export async function createProject(formData: FormData) {
     const subCategory = parseSubCategory(formData);
     const serviceArea = parseServiceArea(formData.get("serviceArea"));
     const { location, latitude, longitude, locationRadiusMeters } =
-      parseLocationFields(formData);
+      await parseLocationFields(formData);
     const billingMode = resolveBillingMode(formData, subCategory);
     const { invoicingDay } = billingDefaults(subCategory, billingMode);
     const isContract = isContractSubCategory(subCategory);
@@ -609,7 +630,7 @@ export async function updateProject(id: string, formData: FormData) {
     const subCategory = parseSubCategory(formData);
     const serviceArea = parseServiceArea(formData.get("serviceArea"));
     const { location, latitude, longitude, locationRadiusMeters } =
-      parseLocationFields(formData);
+      await parseLocationFields(formData);
     // Payment schedule is create-only — Edit Project does not rebuild milestone periods.
     const companyId = session.user.companyId;
     if (!companyId) throw new Error("Company not found.");

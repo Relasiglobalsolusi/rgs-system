@@ -1,5 +1,24 @@
 const EARTH_RADIUS_METERS = 6_371_000;
 
+/** CICO check-in/out geofence radius (meters). */
+export const CICO_GEOFENCE_RADIUS_METERS = 75;
+
+/** Default project site radius when none is stored. Matches CICO geofence. */
+export const DEFAULT_LOCATION_RADIUS_METERS = CICO_GEOFENCE_RADIUS_METERS;
+
+export function resolveGeofenceRadiusMeters(
+  radiusMeters: number | null | undefined
+): number {
+  if (
+    radiusMeters != null &&
+    Number.isFinite(radiusMeters) &&
+    radiusMeters > 0
+  ) {
+    return radiusMeters;
+  }
+  return CICO_GEOFENCE_RADIUS_METERS;
+}
+
 export function haversineDistanceMeters(
   lat1: number,
   lng1: number,

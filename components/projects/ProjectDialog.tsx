@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import dynamic from "next/dynamic";
 import { createProject } from "@/app/projects/actions";
 import type { LocationValue } from "@/components/projects/LocationPicker";
+import { DEFAULT_LOCATION_RADIUS_METERS } from "@/lib/geo";
 
 const LocationPicker = dynamic(
   () => import("@/components/projects/LocationPicker"),
@@ -160,7 +161,7 @@ export default function ProjectDialog({
     location: "",
     latitude: null,
     longitude: null,
-    locationRadiusMeters: 50,
+    locationRadiusMeters: DEFAULT_LOCATION_RADIUS_METERS,
   });
   const [pending, startTransition] = useTransition();
   const [submitting, setSubmitting] = useState(false);
@@ -248,7 +249,7 @@ export default function ProjectDialog({
       location: "",
       latitude: null,
       longitude: null,
-      locationRadiusMeters: 50,
+      locationRadiusMeters: DEFAULT_LOCATION_RADIUS_METERS,
     });
     resetDirtyTracking();
   }

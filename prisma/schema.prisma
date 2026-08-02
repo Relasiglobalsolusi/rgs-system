@@ -541,7 +541,7 @@ model Project {
   location    String?
   latitude    Float?
   longitude   Float?
-  locationRadiusMeters Int? @default(50)
+  locationRadiusMeters Int? @default(75)
   /// Planning estimate (contract/job). Kept when moving to In Progress / back to Planning.
   estimatedStartDate DateTime?
   /// General/Facade: initial estimated duration in days (planning / create). Kept for completed comparison.

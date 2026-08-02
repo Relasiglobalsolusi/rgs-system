@@ -33,6 +33,7 @@ import { resolveMapsUrl } from "@/lib/maps-resolve";
 import { reverseGeocodeNominatim } from "@/lib/nominatim";
 import { taxInvoiceDefaultsFromClient } from "@/lib/npwp";
 import { parseCoordinates } from "@/lib/parse-coordinates";
+import { DEFAULT_LOCATION_RADIUS_METERS } from "@/lib/geo";
 import { nextCompanyScopedSortOrder } from "@/lib/persist-reorder";
 import { prisma } from "@/lib/prisma";
 import { canManageProjects } from "@/lib/project-access";
@@ -606,7 +607,7 @@ export async function confirmBulkImportProjects(
             location: resolved.location,
             latitude: resolved.latitude,
             longitude: resolved.longitude,
-            locationRadiusMeters: 50,
+            locationRadiusMeters: DEFAULT_LOCATION_RADIUS_METERS,
             estimatedStartDate,
             estimatedDurationDays,
             startDate,

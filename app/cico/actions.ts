@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireModule, getEmployeeForUser } from "@/lib/session";
-import { haversineDistanceMeters, isWithinGeofence } from "@/lib/geo";
+import {
+  CICO_GEOFENCE_RADIUS_METERS,
+  haversineDistanceMeters,
+  isWithinGeofence,
+} from "@/lib/geo";
 import {
   isLateCheckIn,
   resolveExpectedShiftStart,
@@ -170,7 +174,7 @@ export async function checkIn(formData: FormData) {
     projectId
   );
 
-  const radius = project.locationRadiusMeters ?? 50;
+  const radius = CICO_GEOFENCE_RADIUS_METERS;
   const distance = haversineDistanceMeters(
     latitude,
     longitude,
@@ -309,7 +313,7 @@ export async function checkOut(formData: FormData) {
   const photo = await requireCicoPhoto(formData, "checkOut");
   const checkOutPhotoUrl = await saveUpload(photo, "uploads/cico");
 
-  const radius = existing.project.locationRadiusMeters ?? 50;
+  const radius = CICO_GEOFENCE_RADIUS_METERS;
   const distance = haversineDistanceMeters(
     latitude,
     longitude,

@@ -48,6 +48,14 @@ function parseDmsPair(text: string): ParsedCoordinates | null {
   return validateCoordinates(lat, lng);
 }
 
+/** True when URL embeds a place pin or explicit coord query — not just a map camera @ position. */
+export function hasReliablePinCoordsInUrl(url: string): boolean {
+  if (/!3d-?\d/.test(url)) return true;
+  return /[?&](?:q|query|ll|center|daddr|sll|pt)=-?\d+(?:\.\d+)?[,+\s]+-?\d+(?:\.\d+)?/i.test(
+    url
+  );
+}
+
 /**
  * Parse pasted Google Maps URLs or plain "lat, lng" / DMS pairs.
  */
@@ -79,9 +87,9 @@ export function parseCoordinates(input: string): ParsedCoordinates | null {
     return validateCoordinates(Number(atMatch[1]), Number(atMatch[2]));
   }
 
-  // q= / query= / ll= / center= / daddr= / sll=
+  // q= / query= / ll= / center= / daddr= / sll= / pt=
   const queryMatch = decoded.match(
-    /[?&](?:q|query|ll|center|daddr|sll)=(-?\d+(?:\.\d+)?)[,+\s]+(-?\d+(?:\.\d+)?)/i
+    /[?&](?:q|query|ll|center|daddr|sll|pt)=(-?\d+(?:\.\d+)?)[,+\s]+(-?\d+(?:\.\d+)?)/i
   );
   if (queryMatch) {
     return validateCoordinates(Number(queryMatch[1]), Number(queryMatch[2]));

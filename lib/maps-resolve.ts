@@ -3,7 +3,7 @@
  * Follows redirects and scrapes coords from final URLs / HTML.
  */
 
-import { parseCoordinates, type ParsedCoordinates } from "@/lib/parse-coordinates";
+import { parseCoordinates, type ParsedCoordinates, hasReliablePinCoordsInUrl } from "@/lib/parse-coordinates";
 import { isAllowedGoogleMapsHost } from "@/lib/google-maps-url";
 
 export const MAPS_RESOLVE_NO_COORDS_MESSAGE =
@@ -130,7 +130,7 @@ export function extractCoordsFromHtml(html: string): ParsedCoordinates | null {
 
   // Query-style coords if a Maps URL is embedded in HTML
   const queryMatch = html.match(
-    /[?&](?:q|query|ll|center|daddr|sll)=(-?\d+(?:\.\d+)?)[,+\s]+(-?\d+(?:\.\d+)?)/i
+    /[?&](?:q|query|ll|center|daddr|sll|pt)=(-?\d+(?:\.\d+)?)[,+\s]+(-?\d+(?:\.\d+)?)/i
   );
   if (queryMatch) {
     const parsed = validateCoords(Number(queryMatch[1]), Number(queryMatch[2]));
@@ -236,7 +236,9 @@ async function coordsFromMapsQuery(
     assertAllowedMapsUrl(finalUrl);
 
     const fromRedirect = parseCoordinates(finalUrl);
-    if (fromRedirect) return { coords: fromRedirect, url: finalUrl };
+    if (fromRedirect && hasReliablePinCoordsInUrl(finalUrl)) {
+      return { coords: fromRedirect, url: finalUrl };
+    }
 
     const nested = await fetchOnce(finalUrl);
     if (!nested.ok && !(nested.status >= 300 && nested.status < 400)) {
@@ -247,7 +249,9 @@ async function coordsFromMapsQuery(
       if (loc2) {
         finalUrl = new URL(loc2, finalUrl).toString();
         const parsed = parseCoordinates(finalUrl);
-        if (parsed) return { coords: parsed, url: finalUrl };
+        if (parsed && hasReliablePinCoordsInUrl(finalUrl)) {
+          return { coords: parsed, url: finalUrl };
+        }
       }
       return null;
     }
@@ -259,10 +263,15 @@ async function coordsFromMapsQuery(
   }
 
   const fromUrl = parseCoordinates(finalUrl);
-  if (fromUrl) return { coords: fromUrl, url: finalUrl };
+  if (fromUrl && hasReliablePinCoordsInUrl(finalUrl)) {
+    return { coords: fromUrl, url: finalUrl };
+  }
 
   const fromHtml = extractCoordsFromHtml(html);
   if (fromHtml) return { coords: fromHtml, url: finalUrl };
+
+  // Camera @ coords from redirect URL — only after HTML pin extraction fails
+  if (fromUrl) return { coords: fromUrl, url: finalUrl };
 
   const next = extractUrlFromHtml(html, finalUrl);
   if (next) {
@@ -291,7 +300,7 @@ export async function resolveMapsUrl(
     seen.add(current);
 
     const fromUrl = parseCoordinates(current);
-    if (fromUrl) {
+    if (fromUrl && hasReliablePinCoordsInUrl(current)) {
       return {
         latitude: fromUrl.lat,
         longitude: fromUrl.lng,
@@ -343,7 +352,7 @@ export async function resolveMapsUrl(
     const nextFromHtml = extractUrlFromHtml(html, current);
     if (nextFromHtml && nextFromHtml !== current && !seen.has(nextFromHtml)) {
       const nested = parseCoordinates(nextFromHtml);
-      if (nested) {
+      if (nested && hasReliablePinCoordsInUrl(nextFromHtml)) {
         return {
           latitude: nested.lat,
           longitude: nested.lng,

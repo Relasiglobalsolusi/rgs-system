@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Download } from "lucide-react";
 
 import { prisma } from "@/lib/prisma";
+import { CICO_GEOFENCE_RADIUS_METERS } from "@/lib/geo";
 
 import {
   requireSession,
@@ -553,7 +554,7 @@ export default async function ProjectDetailPage({
                 latitude={project.latitude}
                 longitude={project.longitude}
                 location={project.location}
-                radiusMeters={project.locationRadiusMeters}
+                radiusMeters={CICO_GEOFENCE_RADIUS_METERS}
               />
             </SectionCard>
           )}

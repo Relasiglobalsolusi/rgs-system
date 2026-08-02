@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useT } from "@/lib/i18n/use-t";
+import { CICO_GEOFENCE_RADIUS_METERS } from "@/lib/geo";
 import { formatTimeRange } from "@/lib/operating-hours";
 import {
   AlertTriangle,
@@ -301,7 +302,7 @@ export default function CicoActions({
                   ) : null}
                   <span className="mt-1.5 block text-xs leading-relaxed text-subtle">
                     {t("pages.cico.mustBeWithinMeters", {
-                      meters: selected.locationRadiusMeters ?? 50,
+                      meters: CICO_GEOFENCE_RADIUS_METERS,
                     })}
                   </span>
                 </span>
