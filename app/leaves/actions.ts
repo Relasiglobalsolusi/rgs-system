@@ -66,9 +66,14 @@ export async function reviewLeaveRequest(
   reviewNote?: string
 ) {
   const session = await requireModule("approvals");
+  const companyId = session.user.companyId;
+  if (!companyId) throw new Error("Company not found.");
 
-  const existing = await prisma.leaveRequest.findUnique({
-    where: { id },
+  const existing = await prisma.leaveRequest.findFirst({
+    where: {
+      id,
+      employee: { companyId },
+    },
     select: { status: true },
   });
 

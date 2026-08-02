@@ -664,8 +664,7 @@ async function compileInvoicePeriodInner(
     // Issuing an invoice leaves Planning — same as milestone compile — so
     // Payment Due / In Progress stay consistent without a manual move.
     if (
-      period.project.status === "PLANNED" ||
-      period.project.status === "ON_HOLD"
+      period.project.status === "PLANNED"
     ) {
       await prisma.project.update({
         where: { id: period.projectId },
@@ -1075,10 +1074,7 @@ async function issueMilestonePeriodInner(
         where: { id: project.id },
         data: { status: "COMPLETED" },
       });
-    } else if (
-      project.status === "PLANNED" ||
-      project.status === "ON_HOLD"
-    ) {
+    } else if (project.status === "PLANNED") {
       await prisma.project.update({
         where: { id: project.id },
         data: { status: "IN_PROGRESS" },
@@ -1365,10 +1361,7 @@ export async function createMilestoneInvoice(formData: FormData) {
       where: { id: projectId },
       data: { status: "COMPLETED" },
     });
-  } else if (
-    project.status === "PLANNED" ||
-    project.status === "ON_HOLD"
-  ) {
+  } else if (project.status === "PLANNED") {
     await prisma.project.update({
       where: { id: projectId },
       data: { status: "IN_PROGRESS" },

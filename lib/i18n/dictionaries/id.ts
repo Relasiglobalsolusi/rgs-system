@@ -914,14 +914,14 @@ export const id = {
         "Ini memindahkan organisasi klien ke Klien Dihapus. Data disimpan dan dapat dipulihkan nanti.",
       deleteSoftNote:
         "Login portal terkait dinonaktifkan (tidak dihapus permanen) dan dipindah ke Pengguna Dihapus. Kredensial disimpan. Setelah memulihkan klien ini, gunakan Pengguna → Akses Dicabut → Pulihkan Akses untuk mengaktifkan lagi login portal. Proyek tetap terikat ke klien ini.",
-      deleteForeverTitle: "Hapus klien selamanya?",
-      deleteForeverConfirm: "Hapus selamanya",
+      deleteForeverTitle: "Hapus Klien Selamanya?",
+      deleteForeverConfirm: "Hapus Selamanya",
       deleteForeverDescription:
-        "Organisasi klien ini akan dihapus permanen. Login portal terkait dihapus permanen. Proyek selesai dan catatan penagihan disimpan untuk audit.",
+        "Organisasi klien ini akan dihapus permanen. Login portal terkait dihapus permanen. Klien dengan proyek terkait tidak dapat dihapus permanen.",
       deleteForeverNote:
-        "Hanya klien yang sudah dihapus yang dapat dihapus permanen. Login portal terkait dihapus permanen dan tidak dapat dipulihkan. Proyek selesai dan catatan penagihan tetap di sistem. Tindakan ini tidak dapat dibatalkan.",
+        "Hanya klien yang sudah dihapus dan tidak punya proyek terkait yang dapat dihapus permanen. Login portal terkait dihapus permanen dan tidak dapat dipulihkan. Tindakan ini tidak dapat dibatalkan.",
       deleteForeverProjectsNote:
-        "Proyek terkait ({count}) tetap disimpan tetapi dilepas dari klien ini.",
+        "Klien ini masih punya proyek terkait ({count}). Pindahkan atau hapus permanen proyek tersebut sebelum menghapus klien selamanya.",
       deleteForeverUsersNote:
         "Login portal ({count}) akan dihapus permanen dan tidak dapat dipulihkan.",
       restoreTitle: "Pulihkan klien?",
@@ -952,6 +952,8 @@ export const id = {
         'Klien bernama "{name}" sudah ada di Klien Dihapus. Pulihkan atau hapus permanen dulu sebelum memakai nama itu lagi.',
       permanentDeleteRequiresDeleted:
         "Hanya klien yang sudah dihapus yang dapat dihapus permanen. Hapus klien terlebih dahulu.",
+      permanentDeleteBlockedByProjects:
+        "Klien ini masih punya proyek terkait. Pindahkan atau hapus permanen proyek tersebut sebelum menghapus klien selamanya.",
       portalLoginDeletedClient:
         "{name}: login portal tidak dapat dibuat untuk klien yang dihapus. Pulihkan klien terlebih dahulu.",
       portalLoginContactRequired:
@@ -3084,7 +3086,6 @@ export const id = {
     username: "Nama pengguna",
     password: "Kata sandi",
     enterPassword: "Masukkan kata sandi Anda",
-    rememberMe: "Ingat saya",
     showPassword: "Tampilkan kata sandi",
     hidePassword: "Sembunyikan kata sandi",
     protectedBy: "Dilindungi oleh RGS ONE Identity",

@@ -38,7 +38,12 @@ export default function ClientPermanentDeleteDialog({
   const { open, setOpen } = useDirectoryDialogOpen(controlledOpen, onOpenChange);
   const [pending, startTransition] = useTransition();
 
+  const hasProjects = client._count.projects > 0;
+  const hasUsers = client._count.users > 0;
+  const deleteBlocked = hasProjects;
+
   function handleDelete() {
+    if (deleteBlocked) return;
     startTransition(async () => {
       try {
         await deleteClient(client.id);
@@ -48,8 +53,6 @@ export default function ClientPermanentDeleteDialog({
       }
     });
   }
-
-  const hasLinks = client._count.projects > 0 || client._count.users > 0;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -71,7 +74,7 @@ export default function ClientPermanentDeleteDialog({
             <EmployeePrimaryButton
               type="button"
               variant="danger"
-              disabled={pending}
+              disabled={pending || deleteBlocked}
               onClick={handleDelete}
             >
               {pending
@@ -95,7 +98,7 @@ export default function ClientPermanentDeleteDialog({
               {t("pages.clients.projectCount", {
                 count: client._count.projects,
               })}
-              {client._count.users > 0
+              {hasUsers
                 ? ` · ${t("pages.clients.portalUserCount", {
                     count: client._count.users,
                   })}`
@@ -103,20 +106,22 @@ export default function ClientPermanentDeleteDialog({
             </p>
           </div>
 
-          {hasLinks ? (
+          {hasProjects ? (
             <div className="mt-4 flex gap-3 rounded-xl border border-amber-500/25 bg-card-tint-amber px-4 py-3">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
               <p className="text-sm leading-6 text-text">
-                {client._count.projects > 0
-                  ? `${t("pages.clients.deleteForeverProjectsNote", {
-                      count: client._count.projects,
-                    })} `
-                  : ""}
-                {client._count.users > 0
-                  ? t("pages.clients.deleteForeverUsersNote", {
-                      count: client._count.users,
-                    })
-                  : ""}
+                {t("pages.clients.permanentDeleteBlockedByProjects")}
+              </p>
+            </div>
+          ) : null}
+
+          {!hasProjects && hasUsers ? (
+            <div className="mt-4 flex gap-3 rounded-xl border border-amber-500/25 bg-card-tint-amber px-4 py-3">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+              <p className="text-sm leading-6 text-text">
+                {t("pages.clients.deleteForeverUsersNote", {
+                  count: client._count.users,
+                })}
               </p>
             </div>
           ) : null}

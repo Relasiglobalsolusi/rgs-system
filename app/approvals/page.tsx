@@ -7,13 +7,19 @@ import EmptyState from "@/components/ui/EmptyState";
 import PendingLeaveTable from "@/components/approvals/PendingLeaveTable";
 
 export default async function ApprovalsPage() {
-  await requireModule("approvals");
+  const session = await requireModule("approvals");
+  const companyId = session.user.companyId;
 
-  const pending = await prisma.leaveRequest.findMany({
-    where: { status: "PENDING" },
-    include: { employee: true },
-    orderBy: { createdAt: "asc" },
-  });
+  const pending = companyId
+    ? await prisma.leaveRequest.findMany({
+        where: {
+          status: "PENDING",
+          employee: { companyId },
+        },
+        include: { employee: true },
+        orderBy: { createdAt: "asc" },
+      })
+    : [];
 
   return (
     <AppShell

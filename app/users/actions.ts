@@ -10,7 +10,7 @@ import {
   persistCompanyScopedReorder,
 } from "@/lib/persist-reorder";
 import { requireModule } from "@/lib/session";
-import { MODULES } from "@/lib/permissions";
+import { ADMIN_SCOPE_MODULES, MODULES } from "@/lib/permissions";
 import { isValidUsername, normalizeUsername } from "@/lib/username";
 import {
   assertRecoveryEmailAvailable,
@@ -966,11 +966,15 @@ export async function updateUserModuleOverrides(
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw await usersLocaleError("userNotFound");
 
+  const isPortalUser = Boolean(user.clientId || user.vendorId);
   const sanitized: Record<string, boolean> = {};
   for (const moduleKey of MODULES) {
-    if (moduleKey in overrides) {
-      sanitized[moduleKey] = Boolean(overrides[moduleKey]);
+    if (!(moduleKey in overrides)) continue;
+    // Portal accounts never receive HO directory / CMS modules via overrides.
+    if (isPortalUser && ADMIN_SCOPE_MODULES.includes(moduleKey)) {
+      continue;
     }
+    sanitized[moduleKey] = Boolean(overrides[moduleKey]);
   }
 
   await prisma.user.update({

@@ -496,8 +496,16 @@ export function getAccessibleModules(
   const overrides = user.moduleOverrides ?? {};
   const baseline = getAccountTypeBaselineModules(user);
   const isVendorPortal = Boolean(user.vendorId || user.vendor);
+  const isClientPortal = Boolean(user.clientId || user.client);
 
   return MODULES.filter((module) => {
+    // Portal accounts never get HO directory / CMS modules, even via overrides.
+    if (
+      (isClientPortal || isVendorPortal) &&
+      ADMIN_SCOPE_MODULES.includes(module)
+    ) {
+      return false;
+    }
     // Vendor portal never gets the Vendors directory (HO-only edit surface).
     if (isVendorPortal && module === "vendors") {
       return false;
@@ -545,7 +553,7 @@ export type AccountTypeUser = PermissionUser & {
 
 /** Modules restricted on employee/client portal presets. */
 
-const ADMIN_SCOPE_MODULES: ModuleKey[] = [
+export const ADMIN_SCOPE_MODULES: ModuleKey[] = [
 
   "users",
 
@@ -768,6 +776,8 @@ export const ROUTE_MODULE_MAP: Record<string, ModuleKey> = {
   "/departments": "employees",
 
   "/website": "website",
+
+  "/multi-project-unlock": "projects",
 
 };
 

@@ -895,14 +895,14 @@ export const en = {
         "This moves the client organization to Deleted clients. The record is kept and can be restored later.",
       deleteSoftNote:
         "Linked portal logins are disabled (not permanently deleted) and move to Deleted users. Credentials are kept. After you restore this client, use Users → Revoked Access → Restore Access to re-enable portal login. Projects stay assigned to this client.",
-      deleteForeverTitle: "Delete client forever?",
-      deleteForeverConfirm: "Delete forever",
+      deleteForeverTitle: "Delete Client Forever?",
+      deleteForeverConfirm: "Delete Forever",
       deleteForeverDescription:
-        "This client organization will be permanently removed. Linked portal logins are permanently deleted. Completed projects and billing records are kept for audit purposes.",
+        "This client organization will be permanently removed. Linked portal logins are permanently deleted. Clients with linked projects cannot be permanently deleted.",
       deleteForeverNote:
-        "Only deleted clients can be permanently deleted. Linked portal logins are permanently deleted and cannot be restored. Completed projects and billing records remain in the system. This action cannot be undone.",
+        "Only deleted clients with no linked projects can be permanently deleted. Linked portal logins are permanently deleted and cannot be restored. This action cannot be undone.",
       deleteForeverProjectsNote:
-        "Linked projects ({count}) will be kept but unassigned from this client.",
+        "This client still has linked projects ({count}). Reassign or permanently remove those projects before deleting the client forever.",
       deleteForeverUsersNote:
         "Portal login(s) ({count}) will be permanently deleted and cannot be restored.",
       restoreTitle: "Restore client?",
@@ -933,6 +933,8 @@ export const en = {
         'A client named "{name}" already exists in Deleted clients. Restore it or permanently delete it before reusing the name.',
       permanentDeleteRequiresDeleted:
         "Only deleted clients can be permanently deleted. Delete the client first.",
+      permanentDeleteBlockedByProjects:
+        "This client still has linked projects. Reassign or permanently remove those projects before deleting the client forever.",
       portalLoginDeletedClient:
         "{name}: portal login cannot be generated for deleted clients. Restore the client first.",
       portalLoginContactRequired:
@@ -3052,7 +3054,6 @@ export const en = {
     username: "Username",
     password: "Password",
     enterPassword: "Enter your password",
-    rememberMe: "Remember me",
     showPassword: "Show password",
     hidePassword: "Hide password",
     protectedBy: "Protected by RGS ONE Identity",

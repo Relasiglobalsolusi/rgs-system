@@ -47,7 +47,6 @@ function LoginContent() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -209,17 +208,6 @@ function LoginContent() {
                     </button>
                   </div>
                 </div>
-
-                <label className="auth-checkbox-label flex cursor-pointer items-center gap-3 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(event) => setRememberMe(event.target.checked)}
-                    className="auth-checkbox h-4 w-4 rounded"
-                  />
-
-                  {t("auth.rememberMe")}
-                </label>
 
                 {errorMessage && (
                   <div role="alert" className="auth-alert-error rounded-xl px-4 py-3 text-sm">

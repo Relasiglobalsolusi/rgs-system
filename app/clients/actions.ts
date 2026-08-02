@@ -714,15 +714,19 @@ export async function deleteClient(id: string) {
     );
   }
 
+  const linkedProjects = await prisma.project.count({
+    where: { clientId: id },
+  });
+  if (linkedProjects > 0) {
+    throw new Error(
+      translate(locale, "pages.clients.permanentDeleteBlockedByProjects")
+    );
+  }
+
   const userIds = client.users.map((user) => user.id);
   const taxIdDocumentUrl = client.taxIdDocumentUrl;
 
   await prisma.$transaction(async (tx) => {
-    await tx.project.updateMany({
-      where: { clientId: id },
-      data: { clientId: null },
-    });
-
     // Forever delete: portal logins are permanently removed and cannot be restored.
     if (userIds.length > 0) {
       await hardDeleteLinkedUserLogins(tx, userIds);
@@ -765,15 +769,19 @@ export async function bulkDeleteClients(
         );
       }
 
+      const linkedProjects = await prisma.project.count({
+        where: { clientId: id },
+      });
+      if (linkedProjects > 0) {
+        throw new Error(
+          translate(locale, "pages.clients.permanentDeleteBlockedByProjects")
+        );
+      }
+
       const userIds = client.users.map((user) => user.id);
       const taxIdDocumentUrl = client.taxIdDocumentUrl;
 
       await prisma.$transaction(async (tx) => {
-        await tx.project.updateMany({
-          where: { clientId: id },
-          data: { clientId: null },
-        });
-
         if (userIds.length > 0) {
           await hardDeleteLinkedUserLogins(tx, userIds);
         }
