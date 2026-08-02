@@ -4,10 +4,10 @@ import { getThemeInitScript } from "@/lib/theme-script";
 import { useServerInsertedHTML } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 
-function applyDarkTheme() {
+function applyLightTheme() {
   const root = document.documentElement;
-  root.classList.add("dark");
-  root.style.colorScheme = "dark";
+  root.classList.remove("dark");
+  root.style.colorScheme = "light";
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
@@ -19,7 +19,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   ));
 
   useEffect(() => {
-    applyDarkTheme();
+    applyLightTheme();
   }, []);
 
   return <>{children}</>;

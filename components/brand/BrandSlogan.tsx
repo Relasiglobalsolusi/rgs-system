@@ -20,7 +20,7 @@ export default function BrandSlogan({
   return (
     <p
       className={cn(
-        "m-0 max-w-full text-center font-sans font-normal uppercase text-accent-slate/70",
+        "m-0 max-w-full text-center font-sans font-normal uppercase text-subtle",
         compact
           ? "text-[6.5px] leading-tight tracking-[0.1em] sm:text-[7.5px] sm:tracking-[0.12em]"
           : "text-[8.5px] leading-none tracking-[0.18em]",

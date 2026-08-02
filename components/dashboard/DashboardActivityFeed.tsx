@@ -99,7 +99,7 @@ export default function DashboardActivityFeed({
       ) : (
         <div className="relative space-y-0">
           <div
-            className="absolute bottom-2 left-[15px] top-2 hidden w-px bg-gradient-to-b from-cyan-500/30 via-white/10 to-transparent lg:block"
+            className="absolute bottom-2 left-[15px] top-2 hidden w-px bg-gradient-to-b from-cyan-500/30 via-border to-transparent lg:block"
             aria-hidden
           />
 

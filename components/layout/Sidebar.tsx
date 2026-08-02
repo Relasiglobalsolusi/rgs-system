@@ -13,7 +13,11 @@ import SidebarNav, {
 } from "@/components/layout/SidebarNav";
 import SidebarRearrangeDialog from "@/components/layout/SidebarRearrangeDialog";
 import { useLocale } from "@/components/providers/LocaleProvider";
-import { RGS_ONE_LOGO_SRC } from "@/lib/brand";
+import {
+  RGS_ONE_LOGO_HEIGHT,
+  RGS_ONE_LOGO_SRC,
+  RGS_ONE_LOGO_WIDTH,
+} from "@/lib/brand";
 import { getSessionProfileLabel } from "@/lib/permissions";
 
 type SidebarProps = {
@@ -42,15 +46,15 @@ export default function Sidebar({
           className="flex w-full flex-col items-center justify-center gap-1.5"
           aria-label={t("header.dashboardAria")}
         >
-          <div className="mx-auto w-full max-w-[200px]">
+          <div className="mx-auto w-full max-w-[220px]">
             <Image
               src={RGS_ONE_LOGO_SRC}
               alt="RGS ONE"
-              width={1024}
-              height={682}
+              width={RGS_ONE_LOGO_WIDTH}
+              height={RGS_ONE_LOGO_HEIGHT}
               priority
               unoptimized
-              className="mx-auto block h-auto w-full max-h-[9rem] object-contain"
+              className="mx-auto block h-auto w-full max-h-[8.5rem] object-contain"
             />
           </div>
           <BrandSlogan className="shrink-0 px-1" />

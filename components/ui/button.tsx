@@ -21,7 +21,7 @@ const buttonVariants = cva(
           "border-border-strong bg-elevated font-semibold text-text hover:border-primary/45 hover:bg-card-hover aria-expanded:border-primary/45 aria-expanded:bg-card-hover",
         accent: outlineChipTones.emeraldInteractive,
         edit:
-          "bg-neutral-100 font-bold text-neutral-900 shadow-[inset_0_-1px_0_0_rgba(0,0,0,0.15)] hover:bg-white",
+          "bg-secondary font-bold text-text shadow-[inset_0_-1px_0_0_rgba(0,0,0,0.08)] hover:bg-card-hover",
         // Affirmative solid — same emerald family as primary / Active (form CTAs).
         permissions:
           "bg-primary font-bold text-primary-foreground shadow-[inset_0_-1px_0_0_rgba(0,0,0,0.12)] hover:bg-primary-dark",
@@ -32,7 +32,7 @@ const buttonVariants = cva(
         ghost:
           "font-medium text-muted hover:bg-elevated hover:text-text aria-expanded:bg-elevated aria-expanded:text-text",
         destructive:
-          "bg-danger font-bold text-neutral-950 shadow-[inset_0_-1px_0_0_rgba(0,0,0,0.12)] hover:bg-[color-mix(in_srgb,var(--color-danger),black_12%)] focus-visible:border-danger focus-visible:ring-danger/25",
+          "bg-danger font-bold text-white shadow-[inset_0_-1px_0_0_rgba(0,0,0,0.12)] hover:bg-[color-mix(in_srgb,var(--color-danger),black_12%)] focus-visible:border-danger focus-visible:ring-danger/25",
         // Colors only — sizing comes from size="badge" (= StatusBadge).
         // Soft emerald — Permissions / Assign / Manage Billing / Restore.
         permissionsBadge: outlineChipTones.emeraldInteractive,

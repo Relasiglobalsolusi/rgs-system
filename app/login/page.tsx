@@ -50,12 +50,6 @@ function LoginContent() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  const highlights = [
-    t("auth.highlightProjects"),
-    t("auth.highlightProgress"),
-    t("auth.highlightLeaves"),
-  ];
-
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
@@ -102,195 +96,137 @@ function LoginContent() {
 
   return (
     <main className="auth-surface auth-shell">
-      <div className="grid min-h-screen lg:grid-cols-[0.88fr_1.12fr]">
-        <section className="auth-form-panel flex min-h-screen items-center border-r px-6 py-12 sm:px-10 lg:px-14 xl:px-20">
-          <div className="mx-auto w-full max-w-[510px]">
-            <div className="mb-10">
-              <div className="auth-lang-bar">
-                <AuthLanguageSwitcher />
+      <div className="relative mx-auto flex min-h-screen w-full max-w-lg flex-col px-6 py-8 sm:px-10 sm:py-10 lg:max-w-xl lg:px-12">
+        <div className="auth-lang-bar mb-8 sm:mb-10">
+          <AuthLanguageSwitcher />
+        </div>
+
+        <div className="mb-10 sm:mb-12">
+          <AuthLogo variant="hero" />
+        </div>
+
+        <div className="mb-8">
+          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+            {t("auth.welcomeBack")}
+          </h1>
+
+          <p className="auth-text-muted mt-3 max-w-md text-sm leading-6">
+            {t("auth.signInSubtitle")}
+          </p>
+        </div>
+
+        <form method="post" action="/login" onSubmit={handleLogin}>
+          <div className="space-y-5">
+            {resetSuccess && (
+              <div role="status" className="auth-alert-success rounded-xl px-4 py-3 text-sm">
+                {t("auth.passwordUpdated")}
               </div>
+            )}
 
-              <AuthLogo variant="hero" />
+            <div>
+              <label
+                htmlFor="username"
+                className="auth-label mb-2 block text-sm font-medium"
+              >
+                {t("auth.username")}
+              </label>
 
-              <div className="mt-5 flex items-center gap-4">
-                <span className="auth-tagline-rule h-px w-12" />
+              <div className="auth-field flex items-center overflow-hidden rounded-xl px-4">
+                <UserRound size={18} className="auth-field-icon shrink-0" />
 
-                <span className="auth-text-subtle text-[11px] font-medium uppercase tracking-[0.3em]">
-                  {t("auth.tagline")}
-                </span>
+                <input
+                  id="username"
+                  name="username"
+                  type="text"
+                  autoComplete="username"
+                  required
+                  placeholder={t("auth.username")}
+                  value={username}
+                  onChange={(event) => setUsername(event.target.value)}
+                  className="auth-field-input h-14 w-full min-w-0 flex-1 border-0 bg-transparent px-3 text-sm shadow-none outline-none ring-0"
+                />
               </div>
             </div>
 
-            <div className="mb-8">
-              <h1 className="text-4xl font-semibold tracking-tight">
-                {t("auth.welcomeBack")}
-              </h1>
-
-              <p className="auth-text-muted mt-3 max-w-md text-sm leading-6">
-                {t("auth.signInSubtitle")}
-              </p>
-            </div>
-
-            <form method="post" action="/login" onSubmit={handleLogin}>
-              <div className="space-y-5">
-                {resetSuccess && (
-                  <div role="status" className="auth-alert-success rounded-xl px-4 py-3 text-sm">
-                    {t("auth.passwordUpdated")}
-                  </div>
-                )}
-
-                <div>
-                  <label
-                    htmlFor="username"
-                    className="auth-label mb-2 block text-sm font-medium"
-                  >
-                    {t("auth.username")}
-                  </label>
-
-                  <div className="auth-field flex items-center overflow-hidden rounded-xl px-4">
-                    <UserRound size={18} className="auth-field-icon shrink-0" />
-
-                    <input
-                      id="username"
-                      name="username"
-                      type="text"
-                      autoComplete="username"
-                      required
-                      placeholder={t("auth.username")}
-                      value={username}
-                      onChange={(event) => setUsername(event.target.value)}
-                      className="auth-field-input h-14 w-full min-w-0 flex-1 border-0 bg-transparent px-3 text-sm shadow-none outline-none ring-0"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="mb-2 flex items-center justify-between">
-                    <label
-                      htmlFor="password"
-                      className="auth-label text-sm font-medium"
-                    >
-                      {t("auth.password")}
-                    </label>
-
-                    <Link href="/forgot-password" className="auth-link text-xs font-medium">
-                      {t("auth.forgotPasswordQuestion")}
-                    </Link>
-                  </div>
-
-                  <div className="auth-field flex items-center overflow-hidden rounded-xl px-4">
-                    <LockKeyhole size={18} className="auth-field-icon shrink-0" />
-
-                    <input
-                      id="password"
-                      name="password"
-                      type={showPassword ? "text" : "password"}
-                      autoComplete="current-password"
-                      required
-                      placeholder={t("auth.enterPassword")}
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                      className="auth-field-input h-14 w-full min-w-0 flex-1 border-0 bg-transparent px-3 text-sm shadow-none outline-none ring-0"
-                    />
-
-                    <button
-                      type="button"
-                      aria-label={
-                        showPassword ? t("auth.hidePassword") : t("auth.showPassword")
-                      }
-                      onClick={() => setShowPassword((current) => !current)}
-                      className="auth-icon-btn"
-                    >
-                      {showPassword ? (
-                        <EyeOff size={18} />
-                      ) : (
-                        <Eye size={18} />
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {errorMessage && (
-                  <div role="alert" className="auth-alert-error rounded-xl px-4 py-3 text-sm">
-                    {errorMessage}
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex h-14 w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(37,99,235,0.18)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <label
+                  htmlFor="password"
+                  className="auth-label text-sm font-medium"
                 >
-                  {loading ? t("auth.signingIn") : t("auth.signIn")}
-                  {!loading && <ArrowRight size={18} />}
-                </button>
-              </div>
-            </form>
+                  {t("auth.password")}
+                </label>
 
-            <div className="auth-divider mt-8 border-t pt-6">
-              <div className="auth-text-muted flex flex-col items-center gap-3 text-sm">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck size={19} className="text-accent-cyan" />
-                  {t("auth.protectedBy")}
-                </div>
-
-                <Link href="/first-login" className="auth-link font-medium">
-                  {t("auth.firstTimeSigningIn")}
+                <Link href="/forgot-password" className="auth-link text-xs font-medium">
+                  {t("auth.forgotPasswordQuestion")}
                 </Link>
               </div>
 
-              <div className="auth-text-footer mt-8 text-center text-xs">
-                RGS ONE
-                <span className="mx-3">•</span>
-                {t("auth.enterpriseEdition")}
-                <span className="mx-3">•</span>
-                {t("auth.version", { version: "1.0" })}
+              <div className="auth-field flex items-center overflow-hidden rounded-xl px-4">
+                <LockKeyhole size={18} className="auth-field-icon shrink-0" />
+
+                <input
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  required
+                  placeholder={t("auth.enterPassword")}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  className="auth-field-input h-14 w-full min-w-0 flex-1 border-0 bg-transparent px-3 text-sm shadow-none outline-none ring-0"
+                />
+
+                <button
+                  type="button"
+                  aria-label={
+                    showPassword ? t("auth.hidePassword") : t("auth.showPassword")
+                  }
+                  onClick={() => setShowPassword((current) => !current)}
+                  className="auth-icon-btn"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </div>
+
+            {errorMessage && (
+              <div role="alert" className="auth-alert-error rounded-xl px-4 py-3 text-sm">
+                {errorMessage}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex h-14 w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-teal-500 via-cyan-500 to-blue-600 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(47,158,144,0.22)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading ? t("auth.signingIn") : t("auth.signIn")}
+              {!loading && <ArrowRight size={18} />}
+            </button>
           </div>
-        </section>
+        </form>
 
-        <section className="auth-hero-panel relative hidden min-h-screen items-center overflow-hidden px-14 py-14 lg:flex xl:px-24">
-          <div
-            aria-hidden="true"
-            className="auth-hero-glow-a pointer-events-none absolute right-0 top-1/2 h-[520px] w-[520px] -translate-y-1/2 translate-x-1/4 rounded-full blur-3xl motion-safe:animate-pulse"
-          />
+        <div className="auth-divider mt-8 border-t pt-6">
+          <div className="auth-text-muted flex flex-col items-center gap-3 text-sm">
+            <div className="flex items-center gap-2">
+              <ShieldCheck size={19} className="text-accent-cyan" />
+              {t("auth.protectedBy")}
+            </div>
 
-          <div
-            aria-hidden="true"
-            className="auth-hero-glow-b pointer-events-none absolute -left-8 top-20 h-[300px] w-[300px] rounded-full blur-3xl motion-safe:animate-pulse [animation-delay:2s]"
-          />
-
-          <div className="relative mx-auto w-full max-w-xl">
-            <span className="auth-hero-kicker text-[11px] font-medium uppercase tracking-[0.3em]">
-              {t("auth.heroKicker")}
-            </span>
-
-            <h2 className="mt-6 text-[2.75rem] font-semibold leading-[1.12] tracking-tight xl:text-5xl">
-              {t("auth.heroTitle")}
-              <br />
-              <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400 bg-clip-text text-transparent">
-                {t("auth.heroTitleAccent")}
-              </span>
-            </h2>
-
-            <p className="auth-text-muted mt-6 max-w-md text-base leading-7">
-              {t("auth.heroSubtitle")}
-            </p>
-
-            <ul className="mt-14 space-y-5">
-              {highlights.map((item) => (
-                <li key={item} className="flex items-center gap-4">
-                  <span className="auth-hero-dot h-1.5 w-1.5 shrink-0 rounded-full shadow-[0_0_10px_rgba(34,211,238,0.5)]" />
-
-                  <span className="auth-text-muted text-sm tracking-wide">
-                    {item}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <Link href="/first-login" className="auth-link font-medium">
+              {t("auth.firstTimeSigningIn")}
+            </Link>
           </div>
-        </section>
+
+          <div className="auth-text-footer mt-8 text-center text-xs">
+            RGS ONE
+            <span className="mx-3">•</span>
+            {t("auth.enterpriseEdition")}
+            <span className="mx-3">•</span>
+            {t("auth.version", { version: "1.0" })}
+          </div>
+        </div>
       </div>
     </main>
   );

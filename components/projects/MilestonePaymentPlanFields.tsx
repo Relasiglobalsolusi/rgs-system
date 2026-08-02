@@ -160,7 +160,7 @@ export default function MilestonePaymentPlanFields({
           {t("pages.projects.paymentPlan.schedulePreview")}
         </p>
         {schedule ? (
-          <ul className="divide-y divide-white/10 overflow-hidden rounded-lg border border-border">
+          <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
             {schedule.map((row) => (
               <li
                 key={row.cumulativePercent}

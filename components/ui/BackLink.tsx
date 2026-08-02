@@ -38,7 +38,7 @@ export default function BackLink({
               "focus-visible:outline-none focus-visible:ring-2",
               tone === "auth"
                 ? "border-[color:var(--auth-back-border)] bg-[var(--auth-back-bg)] text-[var(--auth-back-text)] hover:border-accent-cyan/40 hover:bg-[var(--auth-back-hover-bg)] hover:text-[var(--auth-input-text)] focus-visible:border-accent-cyan/40 focus-visible:ring-accent-cyan/25"
-                : "border-white/15 bg-white/5 text-slate-300 hover:border-cyan-400/40 hover:bg-white/10 hover:text-white focus-visible:border-cyan-400/40 focus-visible:ring-cyan-400/25"
+                : "border-border bg-elevated text-muted hover:border-accent-cyan/40 hover:bg-card-tint-cyan hover:text-text focus-visible:border-accent-cyan/40 focus-visible:ring-accent-cyan/25"
             ),
         className
       )}
