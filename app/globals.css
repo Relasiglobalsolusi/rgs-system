@@ -1158,7 +1158,7 @@ p {
 .auth-lang-bar {
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 0;
+  margin-bottom: 1.25rem;
 }
 
 .auth-lang-module {

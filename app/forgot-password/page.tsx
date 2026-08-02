@@ -100,7 +100,7 @@ export default function ForgotPasswordPage() {
             <button
               type="submit"
               disabled={pending}
-              className="flex h-14 w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-teal-500 via-cyan-500 to-teal-600 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(47,158,144,0.22)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex h-14 w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-teal-500 via-cyan-500 to-blue-600 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(47,158,144,0.22)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {pending ? t("auth.sending") : t("auth.sendResetLink")}
               {!pending && <ArrowRight size={18} />}

@@ -219,7 +219,7 @@ function LoginContent() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex h-14 w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(37,99,235,0.18)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="flex h-14 w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-teal-500 via-cyan-500 to-blue-600 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(47,158,144,0.22)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {loading ? t("auth.signingIn") : t("auth.signIn")}
                   {!loading && <ArrowRight size={18} />}
@@ -269,7 +269,7 @@ function LoginContent() {
             <h2 className="mt-6 text-[2.75rem] font-semibold leading-[1.12] tracking-tight xl:text-5xl">
               {t("auth.heroTitle")}
               <br />
-              <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-teal-500 via-cyan-500 to-blue-600 bg-clip-text text-transparent">
                 {t("auth.heroTitleAccent")}
               </span>
             </h2>
