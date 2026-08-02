@@ -59,7 +59,7 @@ export default function ForgotPasswordPage() {
             {t("auth.forgotSubtitle")}
           </p>
 
-          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+          <form method="post" action="/forgot-password" onSubmit={handleSubmit} className="mt-8 space-y-5">
             <div>
               <label
                 htmlFor="username"

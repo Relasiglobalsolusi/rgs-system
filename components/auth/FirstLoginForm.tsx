@@ -106,7 +106,7 @@ export default function FirstLoginForm() {
             {t("auth.firstLoginSubtitle")}
           </p>
 
-          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+          <form method="post" action="/first-login" onSubmit={handleSubmit} className="mt-8 space-y-5">
             <div>
               <label
                 htmlFor="username"

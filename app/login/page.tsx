@@ -58,6 +58,7 @@ function LoginContent() {
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    event.stopPropagation();
 
     setLoading(true);
     setErrorMessage("");
@@ -130,7 +131,7 @@ function LoginContent() {
               </p>
             </div>
 
-            <form onSubmit={handleLogin}>
+            <form method="post" action="/login" onSubmit={handleLogin}>
               <div className="space-y-5">
                 {resetSuccess && (
                   <div role="status" className="auth-alert-success rounded-xl px-4 py-3 text-sm">
