@@ -388,12 +388,19 @@ export async function clientApproveBillingReview(periodId: string) {
     statusAfter: "CLIENT_APPROVED",
   });
 
-  // GC / Facade progress approved → release crew to AVAILABLE.
-  // Regular Cleaning (MONTHLY) keeps staff after reconcile.
+  // Crew release after client progress approve:
+  // - Regular / MONTHLY: never (End Contract only).
+  // - MILESTONE: only final ≥100% (also released when invoice issues → COMPLETED).
+  // - ON_COMPLETION: yes — completion package approve = job done; unpaid is finance-only.
+  // Intermediate milestone approves must NOT release crew.
   const isRegularCleaning =
     period.project.subCategory === "REGULAR_CLEANING" ||
     period.project.billingMode === "MONTHLY";
-  if (!isRegularCleaning) {
+  const isOpsDoneRelease =
+    !isRegularCleaning &&
+    (period.project.billingMode === "ON_COMPLETION" ||
+      (period.milestonePercent != null && period.milestonePercent >= 100));
+  if (isOpsDoneRelease) {
     const { releaseProjectCrewAfterProgressApproved } = await import(
       "@/lib/workforce-crew"
     );

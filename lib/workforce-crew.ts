@@ -160,8 +160,9 @@ export async function releaseAllProjectCrew(
 }
 
 /**
- * After GC/Facade progress review is approved: release assigned staff → AVAILABLE.
- * Regular Cleaning keeps staff after reconcile — do not call this for MONTHLY/RC.
+ * Release assigned staff → AVAILABLE after ops-done progress approval.
+ * Call only for ON_COMPLETION approve or final MILESTONE ≥100% — not intermediate
+ * milestones, and never for Regular Cleaning monthly reconcile.
  */
 export async function releaseProjectCrewAfterProgressApproved(
   db: Prisma.TransactionClient,
