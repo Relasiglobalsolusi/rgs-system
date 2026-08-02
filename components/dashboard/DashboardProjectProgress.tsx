@@ -27,6 +27,7 @@ function statusTone(
 ): "active" | "success" | "warning" | "inactive" | "pending" {
   switch (status) {
     case "IN_PROGRESS":
+    // Legacy ON_HOLD maps like In Progress (hidden from product lists).
     case "ON_HOLD":
       return "active";
     case "COMPLETED":

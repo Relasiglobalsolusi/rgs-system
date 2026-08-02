@@ -9,11 +9,21 @@ import {
   resolveExpectedShiftStart,
 } from "@/lib/operating-hours";
 import { saveUpload } from "@/lib/upload";
+import { getServerLocale } from "@/lib/i18n/locale";
+import { translate } from "@/lib/i18n/translate";
 
 function todayDate() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   return d;
+}
+
+async function cicoError(
+  key: string,
+  params?: Record<string, string | number>
+) {
+  const locale = await getServerLocale();
+  return new Error(translate(locale, `pages.cico.errors.${key}`, params));
 }
 
 async function getAssignedProjectForEmployee(
@@ -26,30 +36,28 @@ async function getAssignedProjectForEmployee(
   });
 
   if (!assignment) {
-    throw new Error("You are not assigned to this project.");
+    throw await cicoError("notAssigned");
   }
 
   const project = assignment.project;
 
   if (project.status !== "IN_PROGRESS") {
-    throw new Error(
-      "Check-in is only available for In Progress projects (work order received)."
-    );
+    throw await cicoError("inProgressOnly");
   }
 
   if (project.latitude == null || project.longitude == null) {
-    throw new Error("This project has no site location configured yet.");
+    throw await cicoError("noSiteLocation");
   }
 
   return { project, assignment };
 }
 
-function parseCoords(formData: FormData) {
+async function parseCoords(formData: FormData) {
   const latitude = Number(formData.get("latitude"));
   const longitude = Number(formData.get("longitude"));
 
   if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
-    throw new Error("Location is required. Allow browser location access.");
+    throw await cicoError("locationRequired");
   }
 
   return { latitude, longitude };
@@ -61,20 +69,18 @@ async function requireCicoEmployee(formData?: FormData) {
 
   // Client portal accounts never use CICO (employees only).
   if (session.user.clientId) {
-    throw new Error("CICO is only available for employee accounts.");
+    throw await cicoError("employeeAccountsOnly");
   }
 
   if (formData?.has("employeeId")) {
-    throw new Error("Invalid request.");
+    throw await cicoError("invalidRequest");
   }
 
   const employee = await getEmployeeForUser(session.user.id);
-  if (!employee) throw new Error("Employee profile not found.");
+  if (!employee) throw await cicoError("employeeProfileNotFound");
 
   if (employee.placement !== "ON_PROJECT") {
-    throw new Error(
-      "Check-in is only available while you are assigned to an In Progress project (On project)."
-    );
+    throw await cicoError("onProjectOnly");
   }
 
   return { session, employee };
@@ -84,9 +90,9 @@ export async function checkIn(formData: FormData) {
   const { employee } = await requireCicoEmployee(formData);
 
   const projectId = String(formData.get("projectId") ?? "").trim();
-  if (!projectId) throw new Error("Select a project to check in.");
+  if (!projectId) throw await cicoError("selectProject");
 
-  const { latitude, longitude } = parseCoords(formData);
+  const { latitude, longitude } = await parseCoords(formData);
   const { project, assignment } = await getAssignedProjectForEmployee(
     employee.id,
     projectId
@@ -111,9 +117,11 @@ export async function checkIn(formData: FormData) {
     const siteLabel = project.location
       ? `${project.name} (${project.location})`
       : project.name;
-    throw new Error(
-      `You are ${Math.round(distance)} m from ${siteLabel}. Check in within ${radius} m of that project site.`
-    );
+    throw await cicoError("tooFarCheckIn", {
+      distance: Math.round(distance),
+      site: siteLabel,
+      radius,
+    });
   }
 
   const today = todayDate();
@@ -128,17 +136,15 @@ export async function checkIn(formData: FormData) {
   });
 
   if (existing?.checkIn) {
-    throw new Error("Already checked in today.");
+    throw await cicoError("alreadyCheckedIn");
   }
 
   const photo = formData.get("photo");
   if (!(photo instanceof File) || photo.size <= 0) {
-    throw new Error(
-      "A check-in photo is required. Take a photo that shows you at this project site."
-    );
+    throw await cicoError("photoRequired");
   }
   if (!photo.type.startsWith("image/")) {
-    throw new Error("Check-in photo must be an image file.");
+    throw await cicoError("photoMustBeImage");
   }
 
   const checkInPhotoUrl = await saveUpload(photo, "uploads/cico");
@@ -148,7 +154,11 @@ export async function checkIn(formData: FormData) {
   const late = isLateCheckIn(checkInAt, expectedStart);
   const lateNote =
     late === true && expectedStart
-      ? `Late check-in (expected before ${expectedStart}).`
+      ? translate(
+          await getServerLocale(),
+          "pages.cico.errors.lateCheckInNote",
+          { time: expectedStart }
+        )
       : null;
 
   await prisma.attendance.upsert({
@@ -188,7 +198,7 @@ export async function checkIn(formData: FormData) {
 export async function checkOut(formData: FormData) {
   const { employee } = await requireCicoEmployee(formData);
 
-  const { latitude, longitude } = parseCoords(formData);
+  const { latitude, longitude } = await parseCoords(formData);
   const today = todayDate();
 
   const existing = await prisma.attendance.findUnique({
@@ -202,11 +212,11 @@ export async function checkOut(formData: FormData) {
   });
 
   if (!existing?.checkIn) {
-    throw new Error("You must check in first.");
+    throw await cicoError("mustCheckInFirst");
   }
 
   if (existing.checkOut) {
-    throw new Error("Already checked out today.");
+    throw await cicoError("alreadyCheckedOut");
   }
 
   if (
@@ -214,7 +224,7 @@ export async function checkOut(formData: FormData) {
     existing.project.latitude == null ||
     existing.project.longitude == null
   ) {
-    throw new Error("Today's check-in project has no site location.");
+    throw await cicoError("checkInProjectNoLocation");
   }
 
   const radius = existing.project.locationRadiusMeters ?? 50;
@@ -237,9 +247,11 @@ export async function checkOut(formData: FormData) {
     const siteLabel = existing.project.location
       ? `${existing.project.name} (${existing.project.location})`
       : existing.project.name;
-    throw new Error(
-      `You are ${Math.round(distance)} m from ${siteLabel}. Check out within ${radius} m of that project site.`
-    );
+    throw await cicoError("tooFarCheckOut", {
+      distance: Math.round(distance),
+      site: siteLabel,
+      radius,
+    });
   }
 
   await prisma.attendance.update({

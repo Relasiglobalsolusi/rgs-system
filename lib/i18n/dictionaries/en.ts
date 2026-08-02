@@ -978,7 +978,7 @@ export const en = {
       bulkActionApplies:
         "This action applies to all selected rows in the current view.",
       bulkDeleteForeverNote:
-        "Linked portal logins are permanently deleted and cannot be restored. Linked projects are kept but unassigned. This action cannot be undone.",
+        "Only deleted clients with no linked projects can be permanently deleted. Linked portal logins are permanently deleted and cannot be restored. Clients with linked projects are blocked. This action cannot be undone.",
       bulkRestoreNote:
         "Username and credentials stay preserved. Restored clients appear in the active directory; linked logins move to Revoked Access.",
       bulkDeactivateSuccess: "{count} client(s) moved to Deleted clients.",
@@ -2596,6 +2596,25 @@ export const en = {
       photoCountOther: "{count} photos",
       submitFailed: "Failed to submit progress report.",
       reorderFailed: "Failed to reorder progress reports.",
+      errors: {
+        employeeProfileNotFound: "Employee profile not found.",
+        onProjectOnly:
+          "Progress reports are only available while you are On project.",
+        projectRequired: "Project is required.",
+        serviceAreaRequired: "Service Area is required.",
+        notesRequired: "Notes are required.",
+        photoRequired: "At least one photo is required.",
+        notAssigned: "You are not assigned to this project.",
+        cleaningOnly:
+          "Progress reports are only for field cleaning projects (Regular, General, or Facade Cleaning).",
+        inProgressOnly:
+          "Progress reports are only for In Progress projects (work order received).",
+        reorderDenied: "You do not have permission to reorder progress reports.",
+        companyNotFound: "Company not found.",
+        nothingToReorder: "Nothing to reorder.",
+        duplicateReorderIds: "Duplicate ids in reorder list.",
+        invalidReorderIds: "One or more progress reports are invalid for reorder.",
+      },
       columns: {
         project: "Project",
         submittedBy: "Submitted by",
@@ -2607,8 +2626,36 @@ export const en = {
     cico: {
       title: "CICO",
       description: "Check-In / Check-Out for field staff.",
+      employeeOnly: "CICO is only available for employee accounts.",
+      noEmployeeProfile:
+        "CICO requires a linked employee profile. Ask an administrator to link your login to an employee record.",
       descriptionDetail:
         "Check-In / Check-Out at your assigned project site using GPS and an on-site photo.",
+      errors: {
+        notAssigned: "You are not assigned to this project.",
+        inProgressOnly:
+          "Check-in is only available for In Progress projects (work order received).",
+        noSiteLocation: "This project has no site location configured yet.",
+        locationRequired: "Location is required. Allow browser location access.",
+        employeeAccountsOnly: "CICO is only available for employee accounts.",
+        invalidRequest: "Invalid request.",
+        employeeProfileNotFound: "Employee profile not found.",
+        onProjectOnly:
+          "Check-in is only available while you are assigned to an In Progress project (On project).",
+        selectProject: "Select a project to check in.",
+        alreadyCheckedIn: "Already checked in today.",
+        photoRequired:
+          "A check-in photo is required. Take a photo that shows you at this project site.",
+        photoMustBeImage: "Check-in photo must be an image file.",
+        mustCheckInFirst: "You must check in first.",
+        alreadyCheckedOut: "Already checked out today.",
+        checkInProjectNoLocation: "Today's check-in project has no site location.",
+        tooFarCheckIn:
+          "You are {distance} m from {site}. Check in within {radius} m of that project site.",
+        tooFarCheckOut:
+          "You are {distance} m from {site}. Check out within {radius} m of that project site.",
+        lateCheckInNote: "Late check-in (expected before {time}).",
+      },
       todaysCico: "Today's CICO",
       recentHistory: "Recent history",
       checkIn: "Check In",
@@ -2738,7 +2785,26 @@ export const en = {
       emptyDescriptionEmployeeShort: "Submit your first leave or sick request.",
       emptyDescriptionManagerShort: "No leave requests have been submitted.",
       approvedNotification: "Your leave request was approved.",
+      approvedNotificationSingle: "Your {type} was approved",
+      approvedNotificationMany: "{count} leave requests were approved",
+      approvedDetailSuffix: "Approved {when}",
+      viewLeaveRequests: "View Leave Requests",
+      gotIt: "Got It",
+      dismiss: "Dismiss",
+      saving: "Saving…",
       dismissApprovedNotification: "Dismiss leave approval notification",
+      errors: {
+        employeeProfileNotFound: "Employee profile not found.",
+        availableOnly:
+          "Leave and sick requests are only available when your placement is Available.",
+        datesRequired: "Dates are required.",
+        reasonRequired: "Reason is required.",
+        invalidDates: "Invalid dates.",
+        endBeforeStart: "End date cannot be before start date.",
+        companyNotFound: "Company not found.",
+        leaveNotFound: "Leave request not found.",
+        alreadyReviewed: "This request has already been reviewed.",
+      },
       requestType: "Request type",
       startDate: "Start date",
       endDate: "End date",

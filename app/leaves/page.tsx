@@ -11,9 +11,15 @@ export default async function LeavesPage() {
   const session = await requireModule("leaves");
   const employee = await getEmployeeForUser(session.user.id);
   const hasEmployeeProfile = Boolean(employee);
+  const companyId = session.user.companyId;
 
   const leaves = await prisma.leaveRequest.findMany({
-    where: hasEmployeeProfile && employee ? { employeeId: employee.id } : {},
+    where:
+      hasEmployeeProfile && employee
+        ? { employeeId: employee.id }
+        : companyId
+          ? { employee: { companyId } }
+          : { id: "__none__" },
     include: { employee: true },
     orderBy: { createdAt: "desc" },
   });

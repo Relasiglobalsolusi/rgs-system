@@ -163,7 +163,7 @@ export async function updateUser(userId: string, formData: FormData) {
     data: userData,
   });
 
-  revalidatePath("/users");
+  revalidateUserDirectoryPaths();
 }
 
 export async function resetUserAccount(userId: string) {
@@ -466,20 +466,6 @@ export async function bulkPermanentlyRemovePortalLoginAccess(
   }
 
   return { ...result, skippedCount };
-}
-
-export async function toggleUserActive(id: string) {
-  await requireModule("users");
-
-  const user = await prisma.user.findUnique({ where: { id } });
-  if (!user) throw await usersLocaleError("userNotFound");
-
-  await prisma.user.update({
-    where: { id },
-    data: { active: !user.active },
-  });
-
-  revalidatePath("/users");
 }
 
 function revalidateUserDirectoryPaths() {
@@ -985,5 +971,5 @@ export async function updateUserModuleOverrides(
     },
   });
 
-  revalidatePath("/users");
+  revalidateUserDirectoryPaths();
 }

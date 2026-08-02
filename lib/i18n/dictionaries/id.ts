@@ -998,7 +998,7 @@ export const id = {
       bulkActionApplies:
         "Tindakan ini berlaku untuk semua baris terpilih di tampilan saat ini.",
       bulkDeleteForeverNote:
-        "Login portal terkait dihapus permanen dan tidak dapat dipulihkan. Proyek terkait tetap disimpan tetapi dilepas. Tindakan ini tidak dapat dibatalkan.",
+        "Hanya klien terhapus tanpa proyek terkait yang dapat dihapus permanen. Login portal terkait dihapus permanen dan tidak dapat dipulihkan. Klien dengan proyek terkait diblokir. Tindakan ini tidak dapat dibatalkan.",
       bulkRestoreNote:
         "Nama pengguna dan kredensial tetap disimpan. Klien yang dipulihkan muncul di direktori aktif; login terkait pindah ke Akses Dicabut.",
       bulkDeactivateSuccess: "{count} klien dipindah ke Klien Dihapus.",
@@ -2626,6 +2626,27 @@ export const id = {
       photoCountOther: "{count} foto",
       submitFailed: "Gagal mengirim laporan progress.",
       reorderFailed: "Gagal mengubah urutan laporan progress.",
+      errors: {
+        employeeProfileNotFound: "Profil karyawan tidak ditemukan.",
+        onProjectOnly:
+          "Laporan progress hanya tersedia saat Anda Di Proyek.",
+        projectRequired: "Proyek wajib diisi.",
+        serviceAreaRequired: "Area Layanan wajib diisi.",
+        notesRequired: "Catatan wajib diisi.",
+        photoRequired: "Minimal satu foto wajib diisi.",
+        notAssigned: "Anda tidak ditugaskan ke proyek ini.",
+        cleaningOnly:
+          "Laporan progress hanya untuk proyek cleaning lapangan (Regular, General, atau Facade Cleaning).",
+        inProgressOnly:
+          "Laporan progress hanya untuk proyek Sedang Berjalan (perintah kerja diterima).",
+        reorderDenied:
+          "Anda tidak memiliki izin untuk mengubah urutan laporan progress.",
+        companyNotFound: "Perusahaan tidak ditemukan.",
+        nothingToReorder: "Tidak ada yang diurutkan ulang.",
+        duplicateReorderIds: "Ada id duplikat dalam daftar urutan.",
+        invalidReorderIds:
+          "Satu atau lebih laporan progress tidak valid untuk diurutkan ulang.",
+      },
       columns: {
         project: "Proyek",
         submittedBy: "Dikirim oleh",
@@ -2637,8 +2658,37 @@ export const id = {
     cico: {
       title: "CICO",
       description: "Check-In / Check-Out untuk staf lapangan.",
+      employeeOnly: "CICO hanya tersedia untuk akun karyawan.",
+      noEmployeeProfile:
+        "CICO membutuhkan profil karyawan yang terhubung. Minta administrator menghubungkan login Anda ke data karyawan.",
       descriptionDetail:
         "Check-In / Check-Out di lokasi proyek yang ditugaskan menggunakan GPS dan foto di lokasi.",
+      errors: {
+        notAssigned: "Anda tidak ditugaskan ke proyek ini.",
+        inProgressOnly:
+          "Check-in hanya tersedia untuk proyek Sedang Berjalan (perintah kerja diterima).",
+        noSiteLocation: "Proyek ini belum memiliki lokasi situs yang dikonfigurasi.",
+        locationRequired: "Lokasi wajib. Izinkan akses lokasi browser.",
+        employeeAccountsOnly: "CICO hanya tersedia untuk akun karyawan.",
+        invalidRequest: "Permintaan tidak valid.",
+        employeeProfileNotFound: "Profil karyawan tidak ditemukan.",
+        onProjectOnly:
+          "Check-in hanya tersedia saat Anda ditugaskan ke proyek Sedang Berjalan (Di Proyek).",
+        selectProject: "Pilih proyek untuk check-in.",
+        alreadyCheckedIn: "Sudah check-in hari ini.",
+        photoRequired:
+          "Foto check-in wajib. Ambil foto yang menunjukkan Anda di lokasi proyek ini.",
+        photoMustBeImage: "Foto check-in harus berupa file gambar.",
+        mustCheckInFirst: "Anda harus check-in terlebih dahulu.",
+        alreadyCheckedOut: "Sudah check-out hari ini.",
+        checkInProjectNoLocation:
+          "Proyek check-in hari ini tidak memiliki lokasi situs.",
+        tooFarCheckIn:
+          "Anda berjarak {distance} m dari {site}. Check-in dalam radius {radius} m dari lokasi proyek tersebut.",
+        tooFarCheckOut:
+          "Anda berjarak {distance} m dari {site}. Check-out dalam radius {radius} m dari lokasi proyek tersebut.",
+        lateCheckInNote: "Check-in terlambat (seharusnya sebelum {time}).",
+      },
       todaysCico: "CICO hari ini",
       recentHistory: "Riwayat terbaru",
       checkIn: "Check In",
@@ -2769,7 +2819,26 @@ export const id = {
       emptyDescriptionEmployeeShort: "Ajukan permintaan izin atau sakit pertama Anda.",
       emptyDescriptionManagerShort: "Belum ada permintaan izin yang dikirim.",
       approvedNotification: "Permintaan izin Anda telah disetujui.",
+      approvedNotificationSingle: "{type} Anda telah disetujui",
+      approvedNotificationMany: "{count} permintaan izin telah disetujui",
+      approvedDetailSuffix: "Disetujui {when}",
+      viewLeaveRequests: "Lihat Permintaan Izin",
+      gotIt: "Mengerti",
+      dismiss: "Tutup",
+      saving: "Menyimpan…",
       dismissApprovedNotification: "Tutup notifikasi persetujuan izin",
+      errors: {
+        employeeProfileNotFound: "Profil karyawan tidak ditemukan.",
+        availableOnly:
+          "Permintaan izin dan sakit hanya tersedia saat penempatan Anda adalah Tersedia.",
+        datesRequired: "Tanggal wajib diisi.",
+        reasonRequired: "Alasan wajib diisi.",
+        invalidDates: "Tanggal tidak valid.",
+        endBeforeStart: "Tanggal selesai tidak boleh sebelum tanggal mulai.",
+        companyNotFound: "Perusahaan tidak ditemukan.",
+        leaveNotFound: "Permintaan izin tidak ditemukan.",
+        alreadyReviewed: "Permintaan ini sudah ditinjau.",
+      },
       requestType: "Jenis permintaan",
       startDate: "Tanggal mulai",
       endDate: "Tanggal selesai",

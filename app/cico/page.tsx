@@ -48,11 +48,7 @@ export default async function CicoPage() {
 
         <SectionCard>
 
-          <p className="text-subtle">
-
-            CICO is only available for employee accounts.
-
-          </p>
+          <p className="text-subtle">{t("pages.cico.employeeOnly")}</p>
 
         </SectionCard>
 
@@ -82,13 +78,7 @@ export default async function CicoPage() {
 
         <SectionCard>
 
-          <p className="text-subtle">
-
-            CICO requires a linked employee profile. Ask an administrator to
-
-            link your login to an employee record.
-
-          </p>
+          <p className="text-subtle">{t("pages.cico.noEmployeeProfile")}</p>
 
         </SectionCard>
 

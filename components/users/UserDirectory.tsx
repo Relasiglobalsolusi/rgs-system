@@ -141,6 +141,7 @@ export default function UserDirectory({
     deletedClientUsers,
     deletedVendorUsers,
     deletedEmployeeUsers,
+    deletedAdminUsers,
   } = useMemo(() => {
     // Active = enabled logins only.
     // Revoked Access = inactive linked login, parent still active (credentials kept).
@@ -152,6 +153,9 @@ export default function UserDirectory({
     const deletedClient: UserRow[] = [];
     const deletedVendor: UserRow[] = [];
     const deletedEmployee: UserRow[] = [];
+    // No Deleted Admin stat card — surface soft-deleted admins under Admin when
+    // any Deleted* trash view is open so Restore remains reachable.
+    const deletedAdmin: UserRow[] = [];
 
     for (const user of users) {
       // Forever-deleted employee tombstones should not appear in any Users tab.
@@ -169,8 +173,9 @@ export default function UserDirectory({
           deletedVendor.push(user);
         } else if (accountType === "Employee") {
           deletedEmployee.push(user);
+        } else {
+          deletedAdmin.push(user);
         }
-        // Soft-deleted admins / orphans are not shown on the typed Deleted* cards.
         continue;
       }
 
@@ -190,6 +195,7 @@ export default function UserDirectory({
       deletedClientUsers: deletedClient,
       deletedVendorUsers: deletedVendor,
       deletedEmployeeUsers: deletedEmployee,
+      deletedAdminUsers: deletedAdmin,
     };
   }, [users]);
 
@@ -229,9 +235,16 @@ export default function UserDirectory({
   const tabUsers = useMemo(() => {
     if (statView === "active") return enabledUsers;
     if (statView === "revoked") return revokedUsers;
-    if (statView === "deletedClient") return deletedClientUsers;
-    if (statView === "deletedVendor") return deletedVendorUsers;
-    if (statView === "deletedEmployee") return deletedEmployeeUsers;
+    // Soft-deleted admins ride along on every Deleted* trash view (no Admin card).
+    if (statView === "deletedClient") {
+      return [...deletedClientUsers, ...deletedAdminUsers];
+    }
+    if (statView === "deletedVendor") {
+      return [...deletedVendorUsers, ...deletedAdminUsers];
+    }
+    if (statView === "deletedEmployee") {
+      return [...deletedEmployeeUsers, ...deletedAdminUsers];
+    }
     return enabledUsers;
   }, [
     statView,
@@ -240,6 +253,7 @@ export default function UserDirectory({
     deletedClientUsers,
     deletedVendorUsers,
     deletedEmployeeUsers,
+    deletedAdminUsers,
   ]);
 
   const typeCounts = useMemo(() => {

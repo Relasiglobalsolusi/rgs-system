@@ -49,14 +49,20 @@ export default function LeaveApprovedNotification({ approvals }: Props) {
 
   const headline =
     visible.length === 1
-      ? `Your ${primaryTypeLabel.toLowerCase()} was approved`
-      : `${visible.length} leave requests were approved`;
+      ? t("pages.leaves.approvedNotificationSingle", {
+          type: primaryTypeLabel,
+        })
+      : t("pages.leaves.approvedNotificationMany", {
+          count: visible.length,
+        });
 
   const detail =
     visible.length === 1
       ? `${visible[0].dateRangeLabel}${
           visible[0].reviewedAtLabel
-            ? ` · Approved ${visible[0].reviewedAtLabel}`
+            ? ` · ${t("pages.leaves.approvedDetailSuffix", {
+                when: visible[0].reviewedAtLabel,
+              })}`
             : ""
         }`
       : visible
@@ -94,7 +100,7 @@ export default function LeaveApprovedNotification({ approvals }: Props) {
                       onClick={() => dismiss([item.id])}
                       className="shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-emerald-300 transition hover:bg-elevated disabled:opacity-50"
                     >
-                      Dismiss
+                      {t("pages.leaves.dismiss")}
                     </button>
                   </li>
                 ))}
@@ -104,7 +110,7 @@ export default function LeaveApprovedNotification({ approvals }: Props) {
               href="/leaves"
               className="mt-2 inline-block text-sm font-medium text-emerald-300/90 transition hover:text-emerald-200"
             >
-              View leave requests
+              {t("pages.leaves.viewLeaveRequests")}
             </Link>
           </div>
         </div>
@@ -117,7 +123,7 @@ export default function LeaveApprovedNotification({ approvals }: Props) {
           className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-emerald-500/25 bg-elevated px-3 text-sm font-medium text-emerald-200 transition hover:bg-elevated disabled:opacity-50"
         >
           <X size={14} />
-          {isPending ? "Saving…" : "Got it"}
+          {isPending ? t("pages.leaves.saving") : t("pages.leaves.gotIt")}
         </button>
       </div>
     </SectionCard>

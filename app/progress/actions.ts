@@ -6,6 +6,7 @@ import { canAccess } from "@/lib/permissions";
 import { nextSortOrderFromMax, sortOrdersForIds } from "@/lib/reorder";
 import {
   getEmployeeForUser,
+  requireModule,
   requireSession,
   toPermissionUser,
 } from "@/lib/session";
@@ -18,6 +19,13 @@ import {
   toUtcDateOnly,
 } from "@/lib/invoice-period";
 import { isCleaningProjectSubCategory } from "@/lib/project-subcategory";
+import { getServerLocale } from "@/lib/i18n/locale";
+import { translate } from "@/lib/i18n/translate";
+
+async function progressError(key: string) {
+  const locale = await getServerLocale();
+  return new Error(translate(locale, `pages.progress.errors.${key}`));
+}
 
 /**
  * For MONTHLY (Regular) projects, attach reports to the anniversary cycle that
@@ -65,15 +73,13 @@ async function ensureOngoingPeriod(projectId: string, reportDate: Date) {
 }
 
 export async function createProgressReport(formData: FormData) {
-  const session = await requireSession();
+  const session = await requireModule("progress");
   const employee = await getEmployeeForUser(session.user.id);
 
-  if (!employee) throw new Error("Employee profile not found.");
+  if (!employee) throw await progressError("employeeProfileNotFound");
 
   if (employee.placement !== "ON_PROJECT") {
-    throw new Error(
-      "Progress reports are only available while you are On project."
-    );
+    throw await progressError("onProjectOnly");
   }
 
   const projectId = String(formData.get("projectId") ?? "").trim();
@@ -83,13 +89,13 @@ export async function createProgressReport(formData: FormData) {
   const dateStr = String(formData.get("date") ?? "").trim();
   const photos = formData.getAll("photos") as File[];
 
-  if (!projectId) throw new Error("Project is required.");
-  if (!stageLabel) throw new Error("Service Area is required.");
-  if (!notes) throw new Error("Notes are required.");
+  if (!projectId) throw await progressError("projectRequired");
+  if (!stageLabel) throw await progressError("serviceAreaRequired");
+  if (!notes) throw await progressError("notesRequired");
 
   const validPhotos = photos.filter((photo) => photo && photo.size > 0);
   if (validPhotos.length === 0) {
-    throw new Error("At least one photo is required.");
+    throw await progressError("photoRequired");
   }
 
   const reportDate = dateStr
@@ -109,19 +115,15 @@ export async function createProgressReport(formData: FormData) {
   });
 
   if (!assignment) {
-    throw new Error("You are not assigned to this project.");
+    throw await progressError("notAssigned");
   }
 
   if (!isCleaningProjectSubCategory(assignment.project.subCategory)) {
-    throw new Error(
-      "Progress reports are only for field cleaning projects (Regular, General, or Facade Cleaning)."
-    );
+    throw await progressError("cleaningOnly");
   }
 
   if (assignment.project.status !== "IN_PROGRESS") {
-    throw new Error(
-      "Progress reports are only for In Progress projects (work order received)."
-    );
+    throw await progressError("inProgressOnly");
   }
 
   const period = await ensureOngoingPeriod(projectId, reportDate);
@@ -177,18 +179,18 @@ export async function reorderProgressReports(ids: string[]) {
   const session = await requireSession();
   const permissionUser = toPermissionUser(session);
   if (!canAccess(permissionUser, "progress")) {
-    throw new Error("You do not have permission to reorder progress reports.");
+    throw await progressError("reorderDenied");
   }
 
   const companyId = session.user.companyId;
-  if (!companyId) throw new Error("Company not found.");
+  if (!companyId) throw await progressError("companyNotFound");
 
   const uniqueIds = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
   if (uniqueIds.length === 0) {
-    throw new Error("Nothing to reorder.");
+    throw await progressError("nothingToReorder");
   }
   if (uniqueIds.length !== ids.length) {
-    throw new Error("Duplicate ids in reorder list.");
+    throw await progressError("duplicateReorderIds");
   }
 
   const existing = await prisma.progressReport.findMany({
@@ -200,7 +202,7 @@ export async function reorderProgressReports(ids: string[]) {
   });
 
   if (existing.length !== uniqueIds.length) {
-    throw new Error("One or more progress reports are invalid for reorder.");
+    throw await progressError("invalidReorderIds");
   }
 
   const updates = sortOrdersForIds(uniqueIds);
@@ -214,6 +216,7 @@ export async function reorderProgressReports(ids: string[]) {
   });
 
   revalidatePath("/progress");
+  revalidatePath("/dashboard");
 }
 
 /** Persist dismissal of missing progress-report warning(s) for the signed-in user. */

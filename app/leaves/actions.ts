@@ -8,17 +8,22 @@ import {
   getEmployeeForUser,
 } from "@/lib/session";
 import { saveUpload } from "@/lib/upload";
+import { getServerLocale } from "@/lib/i18n/locale";
+import { translate } from "@/lib/i18n/translate";
+
+async function leaveError(key: string) {
+  const locale = await getServerLocale();
+  return new Error(translate(locale, `pages.leaves.errors.${key}`));
+}
 
 export async function createLeaveRequest(formData: FormData) {
   const session = await requireModule("leaves");
   const employee = await getEmployeeForUser(session.user.id);
 
-  if (!employee) throw new Error("Employee profile not found.");
+  if (!employee) throw await leaveError("employeeProfileNotFound");
 
   if (employee.placement !== "AVAILABLE") {
-    throw new Error(
-      "Leave and sick requests are only available when your placement is Available."
-    );
+    throw await leaveError("availableOnly");
   }
 
   const type = String(formData.get("type") ?? "PERMISSION");
@@ -27,15 +32,15 @@ export async function createLeaveRequest(formData: FormData) {
   const reason = String(formData.get("reason") ?? "").trim();
   const proof = formData.get("proof") as File | null;
 
-  if (!startDate || !endDate) throw new Error("Dates are required.");
-  if (!reason) throw new Error("Reason is required.");
+  if (!startDate || !endDate) throw await leaveError("datesRequired");
+  if (!reason) throw await leaveError("reasonRequired");
 
   const start = new Date(startDate);
   const end = new Date(endDate);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-    throw new Error("Invalid dates.");
+    throw await leaveError("invalidDates");
   }
-  if (end < start) throw new Error("End date cannot be before start date.");
+  if (end < start) throw await leaveError("endBeforeStart");
 
   let proofUrl: string | null = null;
 
@@ -67,7 +72,7 @@ export async function reviewLeaveRequest(
 ) {
   const session = await requireModule("approvals");
   const companyId = session.user.companyId;
-  if (!companyId) throw new Error("Company not found.");
+  if (!companyId) throw await leaveError("companyNotFound");
 
   const existing = await prisma.leaveRequest.findFirst({
     where: {
@@ -77,9 +82,9 @@ export async function reviewLeaveRequest(
     select: { status: true },
   });
 
-  if (!existing) throw new Error("Leave request not found.");
+  if (!existing) throw await leaveError("leaveNotFound");
   if (existing.status !== "PENDING") {
-    throw new Error("This request has already been reviewed.");
+    throw await leaveError("alreadyReviewed");
   }
 
   await prisma.leaveRequest.update({
@@ -103,7 +108,7 @@ export async function acknowledgeLeaveApprovals(leaveRequestIds: string[]) {
   if (!leaveRequestIds.length) return { count: 0 };
 
   const employee = await getEmployeeForUser(session.user.id);
-  if (!employee) throw new Error("Employee profile not found.");
+  if (!employee) throw await leaveError("employeeProfileNotFound");
 
   const ids = [
     ...new Set(

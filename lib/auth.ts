@@ -16,6 +16,7 @@ import {
 } from "@/lib/sidebar-order";
 import { prisma } from "@/lib/prisma";
 import { fetchSessionAccessState } from "@/lib/session-access";
+import { isRosterActiveEmployeeStatus } from "@/lib/user-directory-status";
 import type { EmployeeType } from "@prisma/client";
 
 export const authOptions: NextAuthOptions = {
@@ -90,10 +91,11 @@ export const authOptions: NextAuthOptions = {
           );
         }
 
+        // Align with fetchSessionAccessState: ACTIVE + ON_LEAVE stay roster-active.
         if (
           user.employee &&
           (user.employee.archivedFromDirectory ||
-            user.employee.status !== "ACTIVE")
+            !isRosterActiveEmployeeStatus(user.employee.status))
         ) {
           return null;
         }

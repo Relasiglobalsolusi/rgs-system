@@ -67,7 +67,6 @@ export async function updateAssignmentShift(
     });
 
     revalidatePath("/shifts");
-    revalidatePath(`/shifts?projectId=${assignment.projectId}`);
     revalidatePath("/cico");
     revalidatePath("/attendance");
     revalidatePath("/employees");

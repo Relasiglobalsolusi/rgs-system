@@ -57,9 +57,8 @@ import {
 } from "@/lib/project-status";
 import type { BillingMode, ProjectStatus } from "@prisma/client";
 import {
-  availableFullTimeCrewWhere,
+  assertProjectCrewEligible,
   markEmployeesOnProject,
-  partTimeRosterWhere,
   releaseAllProjectCrew,
   releaseEmployeesFromProject,
 } from "@/lib/workforce-crew";
@@ -544,6 +543,7 @@ export async function createProject(formData: FormData) {
 
       // Planning: assign staff only when moving to In Progress (not at create).
       if (!isPlanning && employeeIds.length > 0) {
+        await assertProjectCrewEligible(tx, company.id, employeeIds);
         await tx.projectAssignment.createMany({
           data: employeeIds.map((employeeId) => ({
             projectId: created.id,
@@ -611,8 +611,11 @@ export async function updateProject(id: string, formData: FormData) {
     const { location, latitude, longitude, locationRadiusMeters } =
       parseLocationFields(formData);
     // Payment schedule is create-only — Edit Project does not rebuild milestone periods.
-    const existing = await prisma.project.findUnique({
-      where: { id },
+    const companyId = session.user.companyId;
+    if (!companyId) throw new Error("Company not found.");
+
+    const existing = await prisma.project.findFirst({
+      where: { id, companyId },
       select: {
         status: true,
         companyId: true,
@@ -770,6 +773,7 @@ export async function updateProject(id: string, formData: FormData) {
             await releaseEmployeesFromProject(tx, id, removedIds);
           }
           if (addedIds.length > 0) {
+            await assertProjectCrewEligible(tx, existing.companyId, addedIds);
             await tx.projectAssignment.createMany({
               data: addedIds.map((employeeId) => ({
                 projectId: id,
@@ -783,7 +787,11 @@ export async function updateProject(id: string, formData: FormData) {
       }
     }
 
-    revalidatePath("/projects");
+    revalidatePath(PROJECT_LIST_VIEW_PATHS.all);
+    revalidatePath(PROJECT_LIST_VIEW_PATHS.planning);
+    revalidatePath(PROJECT_LIST_VIEW_PATHS.inProgress);
+    revalidatePath(PROJECT_LIST_VIEW_PATHS.paymentDue);
+    revalidatePath(PROJECT_LIST_VIEW_PATHS.completed);
     revalidatePath(`/projects/${id}`);
     revalidatePath("/dashboard");
     revalidatePath("/clients");
@@ -791,6 +799,8 @@ export async function updateProject(id: string, formData: FormData) {
     revalidatePath("/employees");
     revalidatePath("/users");
     revalidatePath("/shifts");
+    revalidatePath("/cico");
+    revalidatePath("/attendance");
   } catch (error) {
     throw toActionError(error, "Failed to update project.");
   }
@@ -800,7 +810,7 @@ export async function updateProject(id: string, formData: FormData) {
  * Permanently deletes a project (active, Payment Due, or history).
  * Cascades assignments, invoice periods, progress reports/photos; removes PDFs.
  * No recycle bin — irreversible.
- * Planning / In Progress / On Hold: admin accounts only (enforced here).
+ * Planning / In Progress / legacy On Hold: admin accounts only (enforced here).
  */
 export async function deleteProject(id: string) {
   const session = await requireModule("projects");
@@ -1231,21 +1241,7 @@ export async function startProject(
   if (!assignStaffLater && employeeIds.length > 0) {
     const companyId = session.user.companyId;
     if (!companyId) throw new Error("Company not found.");
-    // Available FT crew (Operations Cleaning/GC) + Part Time Roster
-    const validCount = await prisma.employee.count({
-      where: {
-        id: { in: employeeIds },
-        OR: [
-          availableFullTimeCrewWhere(companyId),
-          partTimeRosterWhere(companyId),
-        ],
-      },
-    });
-    if (validCount !== employeeIds.length) {
-      throw new Error(
-        "Select Available Full Time Operations crew (Cleaning/GC) and/or Part Time staff only."
-      );
-    }
+    await assertProjectCrewEligible(prisma, companyId, employeeIds);
   }
 
   const contractStart = toUtcDateOnly(startDate);

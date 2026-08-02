@@ -40,6 +40,10 @@ import {
   normalizePaymentTermsDays,
   PAYMENT_TERMS_DAYS_OPTIONS,
 } from "@/lib/invoice-period";
+import {
+  contactPersonNamePartsChanged,
+  formatContactPersonName,
+} from "@/lib/contact-person";
 import { deleteLocalUpload, saveUpload } from "@/lib/upload";
 
 const ALLOWED_PAYMENT_TERMS_DAYS = new Set<number>(PAYMENT_TERMS_DAYS_OPTIONS);
@@ -246,8 +250,8 @@ export async function reorderVendors(ids: string[]) {
 }
 
 /**
- * Updates a vendor. Contact person rename does not reset Login ID.
- * Soft-delete only via Delete dialog / deactivateVendor — never via edit.
+ * Updates a vendor. Contact person rename forces new portal credentials
+ * (username is contact-derived). Soft-delete only via Delete dialog.
  */
 export async function updateVendor(id: string, formData: FormData) {
   const locale = await getServerLocale();
@@ -301,6 +305,9 @@ export async function updateVendor(id: string, formData: FormData) {
         shortCode: true,
         active: true,
         taxIdDocumentUrl: true,
+        contactPersonFirstName: true,
+        contactPersonLastName: true,
+        users: { select: { id: true, active: true } },
       },
     });
 
@@ -318,6 +325,22 @@ export async function updateVendor(id: string, formData: FormData) {
     if (!taxIdDocumentUrl) {
       throw new Error(taxIdDocumentMissingMessage(locale));
     }
+
+    const contactRenamed = contactPersonNamePartsChanged(
+      {
+        firstName: existing.contactPersonFirstName,
+        lastName: existing.contactPersonLastName,
+      },
+      {
+        firstName: contactPersonFirstName,
+        lastName: contactPersonLastName,
+      }
+    );
+    const contactDisplay =
+      formatContactPersonName(
+        contactPersonFirstName,
+        contactPersonLastName
+      ) ?? name;
 
     await prisma.$transaction(async (tx) => {
       // Soft-delete only via Delete dialog / deactivateVendor — never via edit.
@@ -340,6 +363,39 @@ export async function updateVendor(id: string, formData: FormData) {
           vendorSince,
           paymentTermsDays,
         },
+      });
+
+      if (existing.users.length === 0) {
+        return;
+      }
+
+      if (contactRenamed && existing.active) {
+        // Username is contact-derived — rotate credentials on rename.
+        const hadActiveLogin = existing.users.some((user) => user.active);
+        await hardDeleteLinkedUserLogins(
+          tx,
+          existing.users.map((user) => user.id)
+        );
+        const created = await provisionVendorUser(tx, {
+          vendorId: id,
+          companyId: existing.companyId,
+          vendorName: name,
+          contactPersonFirstName,
+          contactPersonLastName,
+        });
+        if (created && !hadActiveLogin) {
+          await tx.user.update({
+            where: { id: created.id },
+            data: { active: false },
+          });
+        }
+        return;
+      }
+
+      // Display name only (or rename on soft-deleted vendor without re-provision).
+      await tx.user.updateMany({
+        where: { vendorId: id },
+        data: { name: contactDisplay },
       });
     });
 

@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/use-directory-dialog-open";
 import { useT } from "@/lib/i18n/use-t";
 import {
+  ADMIN_SCOPE_MODULES,
   buildOverridesFromToggle,
   getAccountType,
   getAccountTypeBaselineModules,
@@ -151,6 +152,10 @@ export default function UserPermissionsDialog({
     [user]
   );
 
+  const isPortalUser = Boolean(
+    user.clientId || user.client || user.vendorId || user.vendor
+  );
+
   const permissionUser: PermissionUser = useMemo(
     () => ({
       role: user.role,
@@ -165,7 +170,12 @@ export default function UserPermissionsDialog({
     [permissionUser, baseline]
   );
 
-  const visibleModules = useMemo(() => getVisibleModules(), []);
+  // Portal accounts never receive HO directory / CMS modules — hide toggles.
+  const visibleModules = useMemo(() => {
+    const modules = getVisibleModules();
+    if (!isPortalUser) return modules;
+    return modules.filter((module) => !ADMIN_SCOPE_MODULES.includes(module));
+  }, [isPortalUser]);
   const overrideCount = Object.keys(overrides).length;
   const enabledCount = visibleModules.filter(
     (module) => accessStates[module].effective

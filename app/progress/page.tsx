@@ -1,6 +1,6 @@
 import type { ProjectStatus, ProjectSubCategory } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireSession, getEmployeeForUser, toPermissionUser } from "@/lib/session";
+import { requireModule, getEmployeeForUser, toPermissionUser } from "@/lib/session";
 import { canManageProjects } from "@/lib/project-access";
 import {
   formatDateInput,
@@ -38,7 +38,7 @@ export default async function ProgressPage({
     subCategory?: string;
   }>;
 }) {
-  const session = await requireSession();
+  const session = await requireModule("progress");
   const t = createTranslator(await getServerLocale());
   const { date: dateRaw, projectId, subCategory: subCategoryRaw } =
     await searchParams;

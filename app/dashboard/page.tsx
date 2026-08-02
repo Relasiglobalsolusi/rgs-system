@@ -101,10 +101,20 @@ export default async function DashboardPage() {
   const canViewClients = hasModule(accessibleModules, "clients");
   const canViewInvoicing = hasModule(accessibleModules, "invoicing");
 
+  const companyId = session.user.companyId;
   const projectWhere = await getProjectWhereForUser({
-    companyId: session.user.companyId,
+    companyId,
     clientId: session.user.clientId,
   });
+  const companyFieldStaffWhere = companyId
+    ? { ...activeFieldStaffWhere, companyId }
+    : activeFieldStaffWhere;
+  const companyLeaveWhere = companyId
+    ? { employee: { companyId } }
+    : { id: "__none__" };
+  const companyProgressWhere = companyId
+    ? { project: { companyId } }
+    : { id: "__none__" };
 
   const today = toUtcDateOnly(new Date());
 
@@ -125,20 +135,22 @@ export default async function DashboardPage() {
       approvedLeaveNotices,
     ] = await Promise.all([
       canApprove
-        ? prisma.leaveRequest.count({ where: { status: "PENDING" } })
+        ? prisma.leaveRequest.count({
+            where: { status: "PENDING", ...companyLeaveWhere },
+          })
         : canViewLeaves && employeeId
           ? prisma.leaveRequest.count({
               where: { employeeId, status: "PENDING" },
             })
           : Promise.resolve(0),
       showWorkforcePresence
-        ? prisma.employee.count({ where: activeFieldStaffWhere })
+        ? prisma.employee.count({ where: companyFieldStaffWhere })
         : Promise.resolve(0),
       showWorkforcePresence
         ? prisma.attendance.findMany({
             where: {
               date: today,
-              employee: activeFieldStaffWhere,
+              employee: companyFieldStaffWhere,
             },
             select: { checkIn: true },
           })
@@ -320,7 +332,7 @@ export default async function DashboardPage() {
                 ...projectWhere,
                 status: { in: ["IN_PROGRESS", "PLANNED"] },
               },
-              employee: activeFieldStaffWhere,
+              employee: companyFieldStaffWhere,
             },
             select: { employeeId: true },
             distinct: ["employeeId"],
@@ -330,7 +342,7 @@ export default async function DashboardPage() {
         ? prisma.attendance.findMany({
             where: {
               date: today,
-              employee: activeFieldStaffWhere,
+              employee: companyFieldStaffWhere,
               project: { clientId: portalClientId },
             },
             select: {
@@ -624,16 +636,20 @@ export default async function DashboardPage() {
         })
       : Promise.resolve(0),
     showAdminEmployees
-      ? prisma.employee.count({ where: { status: "ACTIVE" } })
+      ? prisma.employee.count({
+          where: companyId
+            ? { status: "ACTIVE", companyId }
+            : { status: "ACTIVE", id: "__none__" },
+        })
       : Promise.resolve(0),
     showAdminAttendance
-      ? prisma.employee.count({ where: activeFieldStaffWhere })
+      ? prisma.employee.count({ where: companyFieldStaffWhere })
       : Promise.resolve(0),
     showAdminAttendance
       ? prisma.attendance.findMany({
           where: {
             date: today,
-            employee: activeFieldStaffWhere,
+            employee: companyFieldStaffWhere,
           },
           select: {
             id: true,
@@ -651,10 +667,13 @@ export default async function DashboardPage() {
         })
       : Promise.resolve([]),
     canApprove
-      ? prisma.leaveRequest.count({ where: { status: "PENDING" } })
+      ? prisma.leaveRequest.count({
+          where: { status: "PENDING", ...companyLeaveWhere },
+        })
       : Promise.resolve(0),
     showAdminProgress
       ? prisma.progressReport.findMany({
+          where: companyProgressWhere,
           select: activityFeedProgressSelect,
           orderBy: { createdAt: "desc" },
           take: 8,
@@ -662,6 +681,7 @@ export default async function DashboardPage() {
       : Promise.resolve([]),
     showAdminLeaves
       ? prisma.leaveRequest.findMany({
+          where: companyLeaveWhere,
           select: {
             id: true,
             type: true,
@@ -675,12 +695,28 @@ export default async function DashboardPage() {
       : Promise.resolve([]),
     showSystemOverview
       ? Promise.all([
-          showAdminUsers ? prisma.user.count() : Promise.resolve(0),
-          showAdminClients
-            ? prisma.client.count({ where: { active: true } })
+          showAdminUsers
+            ? prisma.user.count({
+                where: companyId ? { companyId } : { id: "__none__" },
+              })
             : Promise.resolve(0),
-          showAdminEmployees ? prisma.employeeCategory.count() : Promise.resolve(0),
-          showAdminProjects ? prisma.project.count() : Promise.resolve(0),
+          showAdminClients
+            ? prisma.client.count({
+                where: companyId
+                  ? { active: true, companyId }
+                  : { active: true, id: "__none__" },
+              })
+            : Promise.resolve(0),
+          showAdminEmployees
+            ? prisma.employeeCategory.count({
+                where: companyId ? { companyId } : { id: "__none__" },
+              })
+            : Promise.resolve(0),
+          showAdminProjects
+            ? prisma.project.count({
+                where: companyId ? { companyId } : { id: "__none__" },
+              })
+            : Promise.resolve(0),
         ]).then(([users, clients, departments, projects]) => ({
           users,
           clients,

@@ -37,6 +37,34 @@ export function partTimeRosterWhere(
   };
 }
 
+/**
+ * HO / invalid crew must not be assignable as project staff.
+ * Same eligibility as Move to In Progress: Available FT Ops Cleaning/GC + PT roster.
+ */
+export async function assertProjectCrewEligible(
+  db: { employee: { count: (args: { where: Prisma.EmployeeWhereInput }) => Promise<number> } },
+  companyId: string,
+  employeeIds: string[],
+  errorMessage = "Select Available Full Time Operations crew (Cleaning/GC) and/or Part Time staff only."
+) {
+  const uniqueIds = [...new Set(employeeIds.filter(Boolean))];
+  if (uniqueIds.length === 0) return;
+
+  const validCount = await db.employee.count({
+    where: {
+      id: { in: uniqueIds },
+      OR: [
+        availableFullTimeCrewWhere(companyId),
+        partTimeRosterWhere(companyId),
+      ],
+    },
+  });
+
+  if (validCount !== uniqueIds.length) {
+    throw new Error(errorMessage);
+  }
+}
+
 export function isDefaultCrewEmployee(employee: {
   employmentType: string;
   placement: string;

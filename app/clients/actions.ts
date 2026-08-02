@@ -34,7 +34,9 @@ import {
   normalizePaymentTermsDays,
   PAYMENT_TERMS_DAYS_OPTIONS,
 } from "@/lib/invoice-period";
-import { formatContactPersonName } from "@/lib/contact-person";
+import {
+  formatContactPersonName,
+} from "@/lib/contact-person";
 import { assertClientNameAvailable } from "@/lib/client-name";
 import {
   assertClientCanBeSoftDeleted,
@@ -337,7 +339,8 @@ export async function reorderClients(ids: string[]) {
 }
 
 /**
- * Updates a client. Contact person rename does not reset Login ID.
+ * Updates a client. Login ID stays company-based (not contact-derived).
+ * Contact person rename syncs linked portal display names only.
  * Soft-deactivate portal logins when the client is marked inactive.
  */
 export async function updateClient(id: string, formData: FormData) {
@@ -381,6 +384,12 @@ export async function updateClient(id: string, formData: FormData) {
       throw new Error(taxIdDocumentMissingMessage(clientType, locale));
     }
 
+    const contactDisplay =
+      formatContactPersonName(
+        identity.contactPersonFirstName,
+        identity.contactPersonLastName
+      ) ?? identity.name;
+
     await prisma.$transaction(async (tx) => {
       const nameNormalized = await assertClientNameAvailable(
         {
@@ -414,6 +423,12 @@ export async function updateClient(id: string, formData: FormData) {
           clientSince,
           paymentTermsDays,
         },
+      });
+
+      // Login ID is company-based — keep username; sync display name only.
+      await tx.user.updateMany({
+        where: { clientId: id },
+        data: { name: contactDisplay },
       });
     });
 
@@ -693,7 +708,7 @@ export async function generateClientPortalLogins(
   return result;
 }
 
-/** Permanent delete — only for deleted (soft-deleted) clients. Unlinks projects; hard-deletes portal users. */
+/** Permanent delete — only for deleted (soft-deleted) clients with zero linked projects. Hard-deletes portal users. */
 export async function deleteClient(id: string) {
   const locale = await getServerLocale();
   await assertCanManageClients(locale);

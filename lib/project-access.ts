@@ -19,10 +19,11 @@ type SessionUser = {
   clientId?: string | null;
 };
 
-/** Planning + In Progress — admin-only hard delete. */
+/** Planning + In Progress (+ legacy ON_HOLD) — admin-only hard delete. */
 export const PROJECT_ADMIN_DELETE_STATUSES = [
   ...PROJECT_PLANNING_LIST_STATUSES,
   ...PROJECT_IN_PROGRESS_LIST_STATUSES,
+  "ON_HOLD",
 ] as const satisfies readonly ProjectStatus[];
 
 export function isAdminDeletableProjectStatus(

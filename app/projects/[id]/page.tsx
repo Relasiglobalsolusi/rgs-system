@@ -31,10 +31,10 @@ import {
   localizeBillingChipLines,
   localizeBillingMode,
   localizeBillingStatus,
-  localizeProjectStatus,
   localizeSubCategory,
   localizeSubCategoryChipLines,
   localizeWorkflowChipLines,
+  localizeWorkflowStatus,
 } from "@/lib/i18n/labels";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
@@ -272,11 +272,15 @@ export default async function ProjectDetailPage({
       : project.status === "IN_PROGRESS"
         ? t("pages.projects.inProgressTitle")
         : t("pages.projects.filterAllProjects");
-  const statusLabel = localizeProjectStatus(project.status, locale);
-  const statusLines = localizeWorkflowChipLines(
-    getProjectWorkflowStatusLabel({ status: project.status }),
+  // Map legacy ON_HOLD / CANCELLED to workflow labels (no product chrome for those enums).
+  const workflowStatus = getProjectWorkflowStatusLabel({
+    status: project.status,
+  });
+  const statusLabel = localizeWorkflowStatus(
+    { status: project.status },
     locale
   );
+  const statusLines = localizeWorkflowChipLines(workflowStatus, locale);
   const typeLabel = localizeSubCategory(project.subCategory, locale);
   const typeLines = localizeSubCategoryChipLines(project.subCategory, locale);
   const pageDescription = [project.client?.name, typeLabel]

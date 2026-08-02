@@ -72,7 +72,8 @@ function projectFullyPaidInvoiceWhere(): Prisma.ProjectWhereInput {
  */
 export function paymentDueWhere(): Prisma.ProjectWhereInput {
   return {
-    status: { not: "CANCELLED" },
+    // Exclude cancelled + legacy ON_HOLD from the product Payment Due surface.
+    status: { notIn: ["CANCELLED", "ON_HOLD"] },
     OR: [
       {
         invoicePeriods: {
@@ -96,7 +97,7 @@ export function isProjectInPaymentDue(input: {
   status: ProjectStatus | string;
   invoicePeriods: { status: string }[];
 }): boolean {
-  if (input.status === "CANCELLED") return false;
+  if (input.status === "CANCELLED" || input.status === "ON_HOLD") return false;
   if (
     input.invoicePeriods.some((p) =>
       (UNPAID_INVOICE_STATUSES as readonly string[]).includes(p.status)
