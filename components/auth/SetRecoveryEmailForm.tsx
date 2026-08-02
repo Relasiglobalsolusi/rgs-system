@@ -86,7 +86,7 @@ function SetRecoveryEmailContent({ username, displayName }: Props) {
             {t("auth.signedInAs", { username })}
           </p>
 
-          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+          <form method="post" action="/set-recovery-email" onSubmit={handleSubmit} className="mt-8 space-y-5">
             <div>
               <label
                 htmlFor="recoveryEmail"

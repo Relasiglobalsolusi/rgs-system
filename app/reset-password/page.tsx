@@ -107,7 +107,7 @@ function ResetPasswordContent() {
             {t("auth.resetSubtitle")}
           </p>
 
-          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+          <form method="post" action="/reset-password" onSubmit={handleSubmit} className="mt-8 space-y-5">
             <div>
               <label
                 htmlFor="password"

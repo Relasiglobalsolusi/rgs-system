@@ -111,7 +111,7 @@ function SetPasswordContent({
               : t("auth.createPasswordSubtitle")}
           </p>
 
-          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+          <form method="post" action="/set-password" onSubmit={handleSubmit} className="mt-8 space-y-5">
             <div>
               <label
                 htmlFor="username"
