@@ -2,14 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { canAccess } from "@/lib/permissions";
 import { nextSortOrderFromMax, sortOrdersForIds } from "@/lib/reorder";
 import {
   getEmployeeForUser,
   requireModule,
-  requireSession,
   toPermissionUser,
 } from "@/lib/session";
+import { canManageProjects } from "@/lib/project-access";
 import { saveUpload } from "@/lib/upload";
 import {
   contractCyclePeriodBounds,
@@ -110,11 +109,17 @@ export async function createProgressReport(formData: FormData) {
       },
     },
     include: {
-      project: { select: { subCategory: true, status: true } },
+      project: {
+        select: { companyId: true, subCategory: true, status: true },
+      },
     },
   });
 
   if (!assignment) {
+    throw await progressError("notAssigned");
+  }
+
+  if (assignment.project.companyId !== session.user.companyId) {
     throw await progressError("notAssigned");
   }
 
@@ -176,9 +181,10 @@ export async function createProgressReport(formData: FormData) {
 }
 
 export async function reorderProgressReports(ids: string[]) {
-  const session = await requireSession();
+  const session = await requireModule("progress");
   const permissionUser = toPermissionUser(session);
-  if (!canAccess(permissionUser, "progress")) {
+  // Match UI: only project managers may reorder (not every progress viewer).
+  if (!canManageProjects(permissionUser)) {
     throw await progressError("reorderDenied");
   }
 
@@ -223,11 +229,11 @@ export async function reorderProgressReports(ids: string[]) {
 export async function acknowledgeProgressWarnings(
   items: { projectId: string; date: string }[]
 ) {
-  const session = await requireSession();
+  const session = await requireModule("progress");
   if (!items.length) return { count: 0 };
 
   const employee = await getEmployeeForUser(session.user.id);
-  if (!employee) throw new Error("Employee profile not found.");
+  if (!employee) throw await progressError("employeeProfileNotFound");
 
   const normalized = items
     .map((item) => ({
@@ -243,6 +249,7 @@ export async function acknowledgeProgressWarnings(
     where: {
       employeeId: employee.id,
       projectId: { in: projectIds },
+      project: { companyId: session.user.companyId },
     },
     select: { projectId: true },
   });

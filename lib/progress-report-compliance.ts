@@ -44,12 +44,13 @@ export type MissingReportWarning = {
   dateLabel: string;
 };
 
-const ACTIVE_CLEANING_STATUSES: ProjectStatus[] = ["PLANNED", "IN_PROGRESS"];
+/** Matches create/list gates — reports are only for In Progress cleaning work. */
+const ACTIVE_CLEANING_STATUSES: ProjectStatus[] = ["IN_PROGRESS"];
 const CLEANING_SUBS: ProjectSubCategory[] = [
   ...CLEANING_PROJECT_SUB_CATEGORIES,
 ];
 
-/** Active cleaning projects that field staff must report against. */
+/** In Progress cleaning projects that field staff must report against. */
 const activeCleaningProjectWhere = {
   status: { in: ACTIVE_CLEANING_STATUSES },
   subCategory: { in: CLEANING_SUBS },

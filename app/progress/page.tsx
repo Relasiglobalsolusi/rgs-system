@@ -1,13 +1,17 @@
 import type { ProjectStatus, ProjectSubCategory } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireModule, getEmployeeForUser, toPermissionUser } from "@/lib/session";
-import { canManageProjects } from "@/lib/project-access";
+import {
+  canManageProjects,
+  getProjectWhereForUser,
+} from "@/lib/project-access";
 import {
   formatDateInput,
   parseDateInput,
 } from "@/lib/invoice-period";
 import {
   getMissingProgressReportsForEmployee,
+  getMissingProjectsForEmployeeOnDate,
   getStaffMissingReportsForDate,
   formatAppDateInput,
 } from "@/lib/progress-report-compliance";
@@ -48,6 +52,10 @@ export default async function ProgressPage({
       : undefined;
   const employee = await getEmployeeForUser(session.user.id);
   const canManage = canManageProjects(toPermissionUser(session));
+  const projectWhere = await getProjectWhereForUser({
+    companyId: session.user.companyId,
+    clientId: session.user.clientId,
+  });
 
   const todayInput = formatAppDateInput(new Date());
   let selectedDate = todayInput;
@@ -63,10 +71,9 @@ export default async function ProgressPage({
     ...CLEANING_PROJECT_SUB_CATEGORIES,
   ];
   const cleaningProjectFilter = {
-    companyId: session.user.companyId,
+    ...projectWhere,
     status: { in: activeStatuses },
     subCategory: { in: cleaningSubs },
-    ...(session.user.clientId ? { clientId: session.user.clientId } : {}),
   };
 
   const [
@@ -75,17 +82,15 @@ export default async function ProgressPage({
     assignedCleaningProjects,
     staffMissing,
     myWarnings,
+    missingOnSelectedDate,
   ] = await Promise.all([
     prisma.progressReport.findMany({
       where: {
         reportDate,
         ...(projectId ? { projectId } : {}),
         project: {
-          companyId: session.user.companyId,
+          ...projectWhere,
           subCategory: subCategory ?? { in: cleaningSubs },
-          ...(session.user.clientId
-            ? { clientId: session.user.clientId }
-            : {}),
         },
       },
       include: {
@@ -130,11 +135,11 @@ export default async function ProgressPage({
     employee
       ? getMissingProgressReportsForEmployee(employee.id, session.user.id)
       : Promise.resolve([]),
+    // Same-day / selected-date banner (no 22:00 gate — unlike modal warnings).
+    employee
+      ? getMissingProjectsForEmployeeOnDate(employee.id, reportDate)
+      : Promise.resolve([]),
   ]);
-
-  const missingOnSelectedDate = myWarnings
-    .filter((w) => w.date === selectedDate)
-    .map((w) => ({ id: w.projectId, name: w.projectName }));
 
   const dateLabel = formatDisplayDate(reportDate, { timeZone: "UTC" });
 
