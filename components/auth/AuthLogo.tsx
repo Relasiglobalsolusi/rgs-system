@@ -1,15 +1,10 @@
 import Image from "next/image";
 
-import BrandSlogan from "@/components/brand/BrandSlogan";
-import {
-  RGS_ONE_LOGO_HEIGHT,
-  RGS_ONE_LOGO_SRC,
-  RGS_ONE_LOGO_WIDTH,
-} from "@/lib/brand";
+import { RGS_ONE_LOGO_SRC } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
 type AuthLogoProps = {
-  /** Login hero uses a wider logo treatment (same as production). */
+  /** Login hero uses a wider logo treatment. */
   variant?: "hero" | "compact";
   className?: string;
 };
@@ -23,7 +18,7 @@ export default function AuthLogo({
   return (
     <div
       className={cn(
-        "auth-logo-bar flex flex-col items-start gap-4",
+        "auth-logo-bar",
         isHero && "auth-logo-bar-hero",
         className
       )}
@@ -31,17 +26,12 @@ export default function AuthLogo({
       <Image
         src={RGS_ONE_LOGO_SRC}
         alt="RGS ONE"
-        width={RGS_ONE_LOGO_WIDTH}
-        height={RGS_ONE_LOGO_HEIGHT}
+        width={1024}
+        height={682}
         priority
         unoptimized
-        className={cn(
-          "h-auto object-contain object-left",
-          /* Exact pre–light-theme / production sizes */
-          isHero ? "w-full" : "w-48"
-        )}
+        className={cn("h-auto object-contain", isHero ? "w-full" : "w-48")}
       />
-      <BrandSlogan className="!justify-start" size={isHero ? "hero" : "default"} />
     </div>
   );
 }

@@ -91,7 +91,11 @@ export default function MobileNavDialog({
           <div className="shrink-0 border-t border-border bg-strip/80 px-4 py-3.5">
             <div className="mb-3 flex flex-col items-center gap-2 text-center">
               <div
-                className="sidebar-account-card__avatar h-11 w-11 text-sm"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-bold tracking-wide text-[#e8eef5] shadow-[0_0_0_1px_rgba(107,184,200,0.28),0_0_0_3px_rgba(12,20,32,0.8)]"
+                style={{
+                  background:
+                    "linear-gradient(155deg, #2a3d54 0%, #172636 55%, #121c2a 100%)",
+                }}
                 aria-hidden
               >
                 {initials ?? "U"}

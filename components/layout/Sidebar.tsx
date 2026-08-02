@@ -13,11 +13,7 @@ import SidebarNav, {
 } from "@/components/layout/SidebarNav";
 import SidebarRearrangeDialog from "@/components/layout/SidebarRearrangeDialog";
 import { useLocale } from "@/components/providers/LocaleProvider";
-import {
-  RGS_ONE_LOGO_HEIGHT,
-  RGS_ONE_LOGO_SRC,
-  RGS_ONE_LOGO_WIDTH,
-} from "@/lib/brand";
+import { RGS_ONE_LOGO_SRC } from "@/lib/brand";
 import { getSessionProfileLabel } from "@/lib/permissions";
 
 type SidebarProps = {
@@ -50,8 +46,8 @@ export default function Sidebar({
             <Image
               src={RGS_ONE_LOGO_SRC}
               alt="RGS ONE"
-              width={RGS_ONE_LOGO_WIDTH}
-              height={RGS_ONE_LOGO_HEIGHT}
+              width={1024}
+              height={682}
               priority
               unoptimized
               className="mx-auto block h-auto w-full max-h-[9rem] object-contain"

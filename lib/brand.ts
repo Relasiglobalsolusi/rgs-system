@@ -1,9 +1,5 @@
 /** Shared brand assets (cache-bust when replacing logo files). */
-export const RGS_ONE_LOGO_SRC = "/brand/rgs-one-logo.png?v=9";
-
-/** Intrinsic pixel size of the processed stacked wordmark. */
-export const RGS_ONE_LOGO_WIDTH = 597;
-export const RGS_ONE_LOGO_HEIGHT = 314;
+export const RGS_ONE_LOGO_SRC = "/rgs-one-logo.png?v=5";
 
 /** Product name for browser chrome, auth, and sidebar. */
 export const RGS_ONE_PRODUCT_NAME = "RGS ONE";

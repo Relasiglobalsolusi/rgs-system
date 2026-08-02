@@ -112,7 +112,7 @@ export const outlineChipTones = {
 export const solidChipTones = outlineChipTones;
 
 /**
- * Semantic chip tones (light ERP) — outline / soft tint:
+ * Semantic chip tones (dark ERP) — outline / soft tint:
  * - active / success → mint emerald
  * - info → cyan
  * - warning / pending → amber

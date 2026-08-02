@@ -85,7 +85,7 @@ export default function AttendanceDateFilters({
           className={cn(
             employeeInputClass,
             filterFieldClass,
-            "[color-scheme:light]"
+            "[color-scheme:dark]"
           )}
         />
       </div>

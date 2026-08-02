@@ -88,7 +88,7 @@ export default function ProgressDateFilters({
           className={cn(
             employeeInputClass,
             filterFieldClass,
-            "[color-scheme:light]"
+            "[color-scheme:dark]"
           )}
         />
       </div>

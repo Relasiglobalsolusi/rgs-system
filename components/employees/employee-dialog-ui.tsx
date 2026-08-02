@@ -255,7 +255,7 @@ export function EmployeeDialogShell({
 
       <DialogFooter
         className={cn(
-          "mt-0 shrink-0 flex-col gap-3 rounded-none border-t border-border bg-strip py-5 sm:flex-col sm:gap-3 sm:py-6",
+          "mt-0 shrink-0 flex-col gap-0 rounded-none border-t border-border bg-strip py-6 sm:flex-col sm:py-7",
           employeeDialogInsetClass
         )}
       >
@@ -292,12 +292,12 @@ export function EmployeePrimaryButton({
       title={title}
       onClick={onClick}
       className={cn(
-        "flex h-11 w-full items-center justify-center rounded-xl px-5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60",
+        "flex h-11 w-full items-center justify-center rounded-xl text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60",
         variant === "danger"
           ? "border border-danger/40 bg-card-tint-red text-danger hover:bg-[color-mix(in_srgb,var(--color-card-tint-red),var(--color-danger)_12%)]"
           : variant === "muted"
             ? "border border-accent-slate/40 bg-card-tint-slate text-accent-slate hover:bg-[color-mix(in_srgb,var(--color-card-tint-slate),var(--color-accent-slate)_12%)]"
-            : "bg-primary text-primary-foreground hover:bg-primary-dark",
+            : "bg-primary text-neutral-950 hover:bg-primary-dark",
         className
       )}
     >
@@ -320,7 +320,7 @@ export function EmployeeSecondaryButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="flex h-11 w-full items-center justify-center rounded-xl border border-border bg-elevated px-5 text-sm font-medium text-text transition hover:bg-card-hover disabled:cursor-not-allowed disabled:opacity-60"
+      className="flex h-11 w-full items-center justify-center rounded-xl border border-border bg-elevated text-sm font-medium text-text transition hover:bg-card-hover disabled:cursor-not-allowed disabled:opacity-60"
     >
       {children}
     </button>
