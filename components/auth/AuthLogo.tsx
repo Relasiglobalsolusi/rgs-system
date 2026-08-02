@@ -9,7 +9,7 @@ import {
 import { cn } from "@/lib/utils";
 
 type AuthLogoProps = {
-  /** Login hero uses a slightly larger logo treatment. */
+  /** Login hero uses a wider logo treatment (same as production). */
   variant?: "hero" | "compact";
   className?: string;
 };
@@ -23,7 +23,7 @@ export default function AuthLogo({
   return (
     <div
       className={cn(
-        "auth-logo-bar flex flex-col items-start gap-3",
+        "auth-logo-bar flex flex-col items-start gap-4",
         isHero && "auth-logo-bar-hero",
         className
       )}
@@ -37,14 +37,11 @@ export default function AuthLogo({
         unoptimized
         className={cn(
           "h-auto object-contain object-left",
-          /* Keep logo modest — previous hero max-width was far too large. */
-          isHero ? "w-40 sm:w-44" : "w-36"
+          /* Exact pre–light-theme / production sizes */
+          isHero ? "w-full" : "w-48"
         )}
       />
-      <BrandSlogan
-        className="!justify-start"
-        size={isHero ? "default" : "compact"}
-      />
+      <BrandSlogan className="!justify-start" size={isHero ? "hero" : "default"} />
     </div>
   );
 }

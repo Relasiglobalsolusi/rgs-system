@@ -46,7 +46,7 @@ export default function Sidebar({
           className="flex w-full flex-col items-center justify-center gap-1.5"
           aria-label={t("header.dashboardAria")}
         >
-          <div className="mx-auto w-full max-w-[140px]">
+          <div className="mx-auto w-full max-w-[200px]">
             <Image
               src={RGS_ONE_LOGO_SRC}
               alt="RGS ONE"
@@ -54,7 +54,7 @@ export default function Sidebar({
               height={RGS_ONE_LOGO_HEIGHT}
               priority
               unoptimized
-              className="mx-auto block h-auto w-full max-h-14 object-contain"
+              className="mx-auto block h-auto w-full max-h-[9rem] object-contain"
             />
           </div>
           <BrandSlogan className="shrink-0 px-1" />
