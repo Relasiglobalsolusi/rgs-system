@@ -388,22 +388,21 @@ export async function clientApproveBillingReview(periodId: string) {
     statusAfter: "CLIENT_APPROVED",
   });
 
-  // Crew release after client progress approve:
+  // Crew release after both-parties agree (same gate as HO revision approve):
   // - Regular / MONTHLY: never (End Contract only).
   // - MILESTONE: only final ≥100% (also released when invoice issues → COMPLETED).
   // - ON_COMPLETION: yes — completion package approve = job done; unpaid is finance-only.
-  // Intermediate milestone approves must NOT release crew.
-  const isRegularCleaning =
-    period.project.subCategory === "REGULAR_CLEANING" ||
-    period.project.billingMode === "MONTHLY";
-  const isOpsDoneRelease =
-    !isRegularCleaning &&
-    (period.project.billingMode === "ON_COMPLETION" ||
-      (period.milestonePercent != null && period.milestonePercent >= 100));
-  if (isOpsDoneRelease) {
-    const { releaseProjectCrewAfterProgressApproved } = await import(
-      "@/lib/workforce-crew"
-    );
+  const {
+    shouldReleaseCrewAfterBillingReviewAgree,
+    releaseProjectCrewAfterProgressApproved,
+  } = await import("@/lib/workforce-crew");
+  if (
+    shouldReleaseCrewAfterBillingReviewAgree({
+      subCategory: period.project.subCategory,
+      billingMode: period.project.billingMode,
+      milestonePercent: period.milestonePercent,
+    })
+  ) {
     await prisma.$transaction(async (tx) => {
       await releaseProjectCrewAfterProgressApproved(tx, period.projectId);
     });
@@ -502,6 +501,7 @@ export async function hoApproveClientRevision(formData: FormData) {
           id: true,
           clientId: true,
           billingMode: true,
+          subCategory: true,
           serviceArea: true,
         },
       },
@@ -555,6 +555,23 @@ export async function hoApproveClientRevision(formData: FormData) {
         : null,
     statusAfter: "HO_APPROVED_REVISION",
   });
+
+  // HO approve revision = both parties agree → same crew release as client immediate approve.
+  const {
+    shouldReleaseCrewAfterBillingReviewAgree,
+    releaseProjectCrewAfterProgressApproved,
+  } = await import("@/lib/workforce-crew");
+  if (
+    shouldReleaseCrewAfterBillingReviewAgree({
+      subCategory: period.project.subCategory,
+      billingMode: period.project.billingMode,
+      milestonePercent: period.milestonePercent,
+    })
+  ) {
+    await prisma.$transaction(async (tx) => {
+      await releaseProjectCrewAfterProgressApproved(tx, period.projectId);
+    });
+  }
 
   await issueInvoiceAfterClientApproval(periodId, session.user.id);
 

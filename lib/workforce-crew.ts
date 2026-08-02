@@ -160,9 +160,27 @@ export async function releaseAllProjectCrew(
 }
 
 /**
+ * True when both-parties agree on an ops-done billing package should release crew:
+ * ON_COMPLETION completion approve, or final MILESTONE ≥100%.
+ * Never for Regular / MONTHLY (End Contract only). Intermediate milestones stay held.
+ */
+export function shouldReleaseCrewAfterBillingReviewAgree(opts: {
+  subCategory: string | null | undefined;
+  billingMode: string | null | undefined;
+  milestonePercent: number | null | undefined;
+}): boolean {
+  const isRegularCleaning =
+    opts.subCategory === "REGULAR_CLEANING" || opts.billingMode === "MONTHLY";
+  if (isRegularCleaning) return false;
+  return (
+    opts.billingMode === "ON_COMPLETION" ||
+    (opts.milestonePercent != null && opts.milestonePercent >= 100)
+  );
+}
+
+/**
  * Release assigned staff → AVAILABLE after ops-done progress approval.
- * Call only for ON_COMPLETION approve or final MILESTONE ≥100% — not intermediate
- * milestones, and never for Regular Cleaning monthly reconcile.
+ * Call only when `shouldReleaseCrewAfterBillingReviewAgree` is true.
  */
 export async function releaseProjectCrewAfterProgressApproved(
   db: Prisma.TransactionClient,
