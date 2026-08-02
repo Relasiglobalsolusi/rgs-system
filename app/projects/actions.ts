@@ -473,7 +473,7 @@ export async function createProject(formData: FormData) {
     }
     const { requiresTaxInvoice } = taxInvoiceDefaultsFromClient(client);
 
-    const project = await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx) => {
       const created = await tx.project.create({
         data: {
           name,
@@ -643,7 +643,7 @@ export async function updateProject(id: string, formData: FormData) {
       : null;
 
     let startDate = formStartDate;
-    let endDate = formEndDate;
+    const endDate = formEndDate;
     let estimatedStartDate = existing.estimatedStartDate;
     let estimatedDurationDays: number | null | undefined =
       existing.estimatedDurationDays;
@@ -1374,15 +1374,23 @@ export async function moveProjectToPlanning(id: string): Promise<void> {
     );
   }
 
-  await prisma.project.update({
-    where: { id },
-    data: { status: PROJECT_PLANNING_STATUS },
+  await prisma.$transaction(async (tx) => {
+    await tx.project.update({
+      where: { id },
+      data: { status: PROJECT_PLANNING_STATUS },
+    });
+    await releaseAllProjectCrew(tx, id);
   });
 
   revalidateAfterProjectLifecycle({
     projectId: id,
     clientId: project.clientId,
   });
+  revalidatePath("/employees");
+  revalidatePath("/users");
+  revalidatePath("/shifts");
+  revalidatePath("/cico");
+  revalidatePath("/attendance");
 }
 
 /**

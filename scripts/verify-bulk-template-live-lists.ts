@@ -53,15 +53,6 @@ async function readListsColumnValues(
   return values;
 }
 
-async function readAllListsValues(buffer: Uint8Array): Promise<string[]> {
-  const values = await Promise.all(
-    Array.from({ length: 20 }, (_, index) =>
-      readListsColumnValues(buffer, index + 1)
-    )
-  );
-  return values.flat();
-}
-
 async function main() {
   const categoriesBefore = [
     { id: "ops", name: "Operations", prefix: "OPS", slug: "operations" },
@@ -94,22 +85,18 @@ async function main() {
       { name: "Cleaning staff", categoryId: "ops" },
       { name: "Temporary role", categoryId: "tmp" },
     ],
-    projectNames: ["Site Alpha", "Site Gone"],
     locale: "en",
   });
 
   const bufferAfter = await buildEmployeeImportTemplate({
     categories: categoriesAfter.filter((category) => category.prefix !== "UNA"),
     positions: [{ name: "Cleaning staff", categoryId: "ops" }],
-    projectNames: ["Site Alpha"],
     locale: "en",
   });
 
   // Per-department Position lists change the Lists column index dynamically.
   const listsBefore = await readListsColumnValues(bufferBefore, 1);
   const listsAfter = await readListsColumnValues(bufferAfter, 1);
-  const projectsBefore = await readAllListsValues(bufferBefore);
-  const projectsAfter = await readAllListsValues(bufferAfter);
 
   record(
     "xlsx-dept-before",
@@ -122,18 +109,6 @@ async function main() {
     "Lists sheet drops Temp Dept after delete",
     !listsAfter.includes("Temp Dept") && listsAfter.includes("Operations"),
     `Lists col1: ${listsAfter.join(" | ")}`
-  );
-  record(
-    "xlsx-project-before",
-    "Lists has Site Gone before remove",
-    projectsBefore.includes("Site Gone") && projectsBefore.includes("Site Alpha"),
-    `Lists col6: ${projectsBefore.join(" | ")}`
-  );
-  record(
-    "xlsx-project-after",
-    "Lists drops Site Gone on next download",
-    !projectsAfter.includes("Site Gone") && projectsAfter.includes("Site Alpha"),
-    `Lists col6: ${projectsAfter.join(" | ")}`
   );
 
   const clientsBefore = [

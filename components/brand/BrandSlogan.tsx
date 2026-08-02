@@ -22,8 +22,8 @@ export default function BrandSlogan({
       className={cn(
         "m-0 max-w-full text-center font-sans font-normal uppercase text-accent-slate/70",
         compact
-          ? "text-[6.5px] leading-tight tracking-[0.1em] sm:text-[7.5px] sm:tracking-[0.12em]"
-          : "text-[8.5px] leading-none tracking-[0.18em]",
+          ? "text-[8.5px] leading-tight tracking-[0.1em] sm:text-[9.5px] sm:tracking-[0.12em]"
+          : "text-[11px] leading-none tracking-[0.16em]",
         className
       )}
       lang="en"

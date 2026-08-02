@@ -76,7 +76,7 @@ export default async function ShiftsPage({
       where: {
         projectId: project.id,
         employee: {
-          status: { in: ["ACTIVE", "ON_LEAVE"] },
+          status: { in: ["ACTIVE", "ON_LEAVE", "LEAVE_PENDING"] },
         },
       },
       select: {
@@ -151,7 +151,7 @@ export default async function ShiftsPage({
       client: { select: { name: true } },
       assignments: {
         where: {
-          employee: { status: { in: ["ACTIVE", "ON_LEAVE"] } },
+          employee: { status: { in: ["ACTIVE", "ON_LEAVE", "LEAVE_PENDING"] } },
         },
         select: { id: true },
       },

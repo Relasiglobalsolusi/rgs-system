@@ -3,6 +3,7 @@
 import { useSession } from "next-auth/react";
 import { CalendarDays } from "lucide-react";
 import HeaderLanguageSwitcher from "@/components/layout/HeaderLanguageSwitcher";
+import HeaderThemeSwitcher from "@/components/layout/HeaderThemeSwitcher";
 import MobileNavDialog from "@/components/layout/MobileNavDialog";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { formatHeaderDate } from "@/lib/format-date";
@@ -27,17 +28,12 @@ function getTimeGreetingKey(hour: number) {
 export default function Header({
   title,
   titleKey,
-  description,
-  descriptionKey,
   greetingName,
 }: HeaderProps) {
   const { data: session } = useSession();
   const { bcp47, locale, t } = useLocale();
   const welcomeMode = Boolean(greetingName);
   const resolvedTitle = titleKey ? t(titleKey) : title ?? "";
-  const resolvedDescription = descriptionKey
-    ? t(descriptionKey)
-    : description;
 
   const initials = session?.user?.name
     ?.split(" ")
@@ -78,22 +74,12 @@ export default function Header({
                   <span className="truncate tracking-wide">{greetingDate}</span>
                 </span>
               </div>
-              {resolvedDescription && (
-                <p className="mt-0.5 hidden max-w-full text-xs leading-snug text-subtle sm:line-clamp-2 sm:block md:text-sm lg:max-w-none lg:truncate lg:leading-snug">
-                  {resolvedDescription}
-                </p>
-              )}
             </>
           ) : (
             <>
               <h1 className="text-[0.9375rem] font-bold leading-tight tracking-tight text-text break-words sm:text-base md:text-lg lg:truncate lg:text-xl lg:leading-tight">
                 {resolvedTitle}
               </h1>
-              {resolvedDescription && (
-                <p className="mt-0.5 max-w-full text-[11px] leading-snug text-subtle line-clamp-2 sm:text-xs md:text-sm lg:max-w-none lg:truncate">
-                  {resolvedDescription}
-                </p>
-              )}
             </>
           )}
         </div>
@@ -111,6 +97,7 @@ export default function Header({
             </div>
           )}
 
+          <HeaderThemeSwitcher />
           <HeaderLanguageSwitcher />
 
           <MobileNavDialog

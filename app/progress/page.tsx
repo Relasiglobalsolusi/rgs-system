@@ -11,6 +11,7 @@ import {
 } from "@/lib/project-subcategory";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
+import { refreshLeaveEmploymentForUser } from "@/lib/leave-employment-status";
 
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/ui/EmptyState";
@@ -32,6 +33,7 @@ export default async function ProgressPage({
   }>;
 }) {
   const session = await requireModule("progress");
+  await refreshLeaveEmploymentForUser(session.user.id);
   const t = createTranslator(await getServerLocale());
   const { projectId, employeeId: employeeIdRaw } = await searchParams;
   const employeeIdFilter = employeeIdRaw?.trim() || undefined;
@@ -58,25 +60,6 @@ export default async function ProgressPage({
   };
 
   const staffScope = Boolean(employee && !isViewerFeed);
-
-  const assignedCleaningProjects = employee
-    ? await prisma.project.findMany({
-        where: {
-          ...cleaningProjectFilter,
-          assignments: { some: { employeeId: employee.id } },
-        },
-        select: { id: true, name: true },
-        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      })
-    : [];
-
-  const canSubmit =
-    Boolean(employee) &&
-    !isClient &&
-    assignedCleaningProjects.length > 0 &&
-    employee?.placement === "ON_PROJECT";
-  // Clients + managers: view feed only. Staff submit/edit their own reports.
-  const canEditReports = !isViewerFeed;
 
   // ── Manager / Client: project picker or Instagram-style feed ─────────────
   if (isViewerFeed) {
@@ -235,7 +218,6 @@ export default async function ProgressPage({
     );
   }
 
-  // ── Field staff: submit / edit own reports under assigned projects ───────
   const directoryProjects = await prisma.project.findMany({
     where: {
       ...cleaningProjectFilter,
@@ -282,6 +264,21 @@ export default async function ProgressPage({
     },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   });
+
+  const assignedCleaningProjects = directoryProjects.map((project) => ({
+    id: project.id,
+    name: project.name,
+  }));
+
+  const canSubmit =
+    Boolean(employee) &&
+    !isClient &&
+    employee?.status === "ACTIVE" &&
+    assignedCleaningProjects.length > 0 &&
+    employee?.placement === "ON_PROJECT";
+  // Clients + managers: view feed only. Active staff submit/edit their own reports.
+  const canEditReports =
+    !isViewerFeed && employee?.status === "ACTIVE";
 
   const grouped: ProgressDirectoryProject[] = directoryProjects.map(
     (project) => {
@@ -338,7 +335,9 @@ export default async function ProgressPage({
             {t("pages.progress.myReportsTitle")}
           </h2>
           <p className="mt-1 text-xs text-subtle">
-            {t("pages.progress.myReportsHint")}
+            {employee?.status === "ON_LEAVE"
+              ? t("pages.progress.onLeaveMessage")
+              : t("pages.progress.myReportsHint")}
           </p>
         </div>
         {canSubmit ? (

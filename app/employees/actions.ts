@@ -8,12 +8,9 @@ import {
   reassignEmployeeNumber,
 } from "@/lib/employee-number";
 import {
-  assignEmployeeToProjects,
-  parseProjectIds,
   releaseEmployeeFromProjects,
   syncProjectAssignments,
 } from "@/lib/employee-projects";
-import { parseProjectShiftsFromForm } from "@/lib/operating-hours";
 import {
   nextCompanyScopedSortOrder,
   persistCompanyScopedReorder,
@@ -55,6 +52,14 @@ import {
   syncEmployeePortalLogin,
 } from "@/lib/workforce-login";
 import { parseEmployeeFinanceFromForm } from "@/lib/employee-bpjs";
+import { syncEmployeeLeaveEmploymentStatus } from "@/lib/leave-employment-status";
+import { getServerLocale } from "@/lib/i18n/locale";
+import { translate } from "@/lib/i18n/translate";
+
+async function employeeLocaleError(key: string) {
+  const locale = await getServerLocale();
+  return new Error(translate(locale, `pages.employees.errors.${key}`));
+}
 
 async function assertCanManageEmployees() {
   const session = await requireSession();
@@ -337,16 +342,6 @@ export async function reorderEmployees(ids: string[]) {
   revalidatePath("/employees");
 }
 
-function parseRosterEditableStatus(
-  value: FormDataEntryValue | null
-): "ACTIVE" | "ON_LEAVE" {
-  const status = String(value ?? "").trim();
-  if (status === "ACTIVE" || status === "ON_LEAVE") {
-    return status;
-  }
-  throw new Error("Invalid employee status.");
-}
-
 export async function updateEmployee(id: string, formData: FormData) {
   await assertCanManageEmployees();
 
@@ -396,7 +391,16 @@ export async function updateEmployee(id: string, formData: FormData) {
     throw new Error("Restore the employee before editing status or details.");
   }
 
-  const status = parseRosterEditableStatus(formData.get("status"));
+  // Employment status is leave-driven — sync before save; edit form cannot set ON_LEAVE.
+  await syncEmployeeLeaveEmploymentStatus(prisma, id);
+  const synced = await prisma.employee.findUnique({
+    where: { id },
+    select: { status: true },
+  });
+  if (!synced) {
+    throw new Error("Employee not found.");
+  }
+  const status = synced.status;
 
   const categoryId = await parseCategoryId(
     formData.get("categoryId"),
@@ -501,96 +505,13 @@ export async function updateEmployee(id: string, formData: FormData) {
 }
 
 /**
- * Assign selected projects → placement ON_PROJECT; sync PT/FT portal access.
- * Portal 2A: PT forced Yes On Project; FT keeps existing Yes/No.
- */
-export async function assignEmployeeToProject(
-  id: string,
-  formData: FormData
-) {
-  await assertCanManageEmployees();
-
-  const employee = await prisma.employee.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      companyId: true,
-      status: true,
-      firstName: true,
-      lastName: true,
-      employeeNo: true,
-      employmentType: true,
-      portalAccessRequested: true,
-      userId: true,
-      placement: true,
-      employeeType: true,
-    },
-  });
-
-  if (!employee) {
-    throw new Error("Employee not found.");
-  }
-  if (employee.status !== "ACTIVE") {
-    throw new Error(
-      "Only Active employees can be assigned. On Leave staff cannot be assigned."
-    );
-  }
-
-  const projectIds = await parseProjectIds(
-    prisma,
-    formData.get("projectIds"),
-    employee.companyId
-  );
-  if (projectIds.length === 0) {
-    throw new Error("Select at least one project.");
-  }
-  const projectShifts = parseProjectShiftsFromForm(formData, projectIds);
-
-  await prisma.$transaction(async (tx) => {
-    await assignEmployeeToProjects(tx, id, projectIds, projectShifts);
-    // PT: portal Yes while On Project (site app). FT: keep existing Yes/No — do not force.
-    const portalAccessRequested =
-      employee.employmentType === "PART_TIME"
-        ? true
-        : employee.portalAccessRequested;
-
-    await tx.employee.update({
-      where: { id },
-      data: {
-        portalAccessRequested,
-        employeeType: "PROJECT_SITE",
-      },
-    });
-
-    await syncEmployeePortalLogin(tx, {
-      companyId: employee.companyId,
-      employeeId: id,
-      firstName: employee.firstName,
-      lastName: employee.lastName,
-      employeeNo: employee.employeeNo,
-      employmentType: employee.employmentType,
-      placement: "ON_PROJECT",
-      portalAccessRequested,
-      status: employee.status,
-      userId: employee.userId,
-      employeeType: "PROJECT_SITE",
-    });
-  });
-
-  revalidatePath("/employees");
-  revalidatePath("/users");
-  revalidatePath("/projects");
-  revalidatePath("/shifts");
-  revalidatePath("/cico");
-  revalidatePath("/attendance");
-}
-
-/**
  * Assign to Head Office → placement HEAD_OFFICE; clear project links.
  * Do not force FT or PT portal Yes (PT portal only forced On Project).
  */
 export async function assignEmployeeToHeadOffice(id: string) {
   await assertCanManageEmployees();
+
+  await syncEmployeeLeaveEmploymentStatus(prisma, id);
 
   const employee = await prisma.employee.findUnique({
     where: { id },
@@ -709,69 +630,26 @@ export async function releaseEmployeeFromProject(id: string) {
   revalidatePath("/attendance");
 }
 
-/** Set placement to FIELD (no required project). */
-export async function setEmployeeFieldPlacement(id: string) {
-  await assertCanManageEmployees();
-
-  const employee = await prisma.employee.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      companyId: true,
-      status: true,
-      firstName: true,
-      lastName: true,
-      employeeNo: true,
-      employmentType: true,
-      portalAccessRequested: true,
-      userId: true,
-    },
-  });
-
-  if (!employee || employee.status !== "ACTIVE") {
-    throw new Error("Only active employees can be set to Field placement.");
-  }
-
-  await prisma.$transaction(async (tx) => {
-    await syncProjectAssignments(tx, id, []);
-    await tx.employee.update({
-      where: { id },
-      data: {
-        placement: "FIELD",
-        employeeType: "PROJECT_SITE",
-      },
-    });
-    await syncEmployeePortalLogin(tx, {
-      companyId: employee.companyId,
-      employeeId: id,
-      firstName: employee.firstName,
-      lastName: employee.lastName,
-      employeeNo: employee.employeeNo,
-      employmentType: employee.employmentType,
-      placement: "FIELD",
-      portalAccessRequested: employee.portalAccessRequested,
-      status: employee.status,
-      userId: employee.userId,
-      employeeType: "PROJECT_SITE",
-    });
-  });
-
-  revalidatePath("/employees");
-  revalidatePath("/users");
-}
-
 async function deactivateEmployeeRecord(id: string, currentUserId: string) {
   const employee = await prisma.employee.findUnique({
     where: { id },
-    select: { userId: true, status: true },
+    select: {
+      userId: true,
+      status: true,
+      _count: { select: { projectAssignments: true } },
+    },
   });
 
   if (!employee) {
     throw new Error("Employee not found.");
   }
 
-  if (employee.status !== "ACTIVE" && employee.status !== "ON_LEAVE") {
+  if (!isRosterActiveEmployeeStatus(employee.status)) {
     throw new Error("Only active employees can be removed from the directory.");
+  }
+
+  if (employee._count.projectAssignments > 0) {
+    throw await employeeLocaleError("deleteBlockedAssigned");
   }
 
   if (employee.userId && employee.userId === currentUserId) {
@@ -1042,6 +920,22 @@ export async function generateEmployeePortalLogins(
           throw new Error(
             `${label}: Part Time login is only available while On Project.`
           );
+        }
+
+        if (employee.userId) {
+          const linkedUser = await tx.user.findUnique({
+            where: { id: employee.userId },
+            select: { active: true },
+          });
+          if (linkedUser && !linkedUser.active) {
+            const label = `${employee.firstName} ${employee.lastName}`.trim();
+            const locale = await getServerLocale();
+            throw new Error(
+              translate(locale, "pages.employees.portalLoginRevoked", {
+                name: label,
+              })
+            );
+          }
         }
 
         await tx.employee.update({

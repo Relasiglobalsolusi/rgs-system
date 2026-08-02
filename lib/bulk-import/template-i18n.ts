@@ -597,8 +597,8 @@ export function employeeTemplateTitle(locale: AppLocale): string {
 /** Short note on the Data sheet title cell (no Instructions tab). */
 export function employeeTemplateHeaderNote(locale: AppLocale): string {
   return locale === "id"
-    ? "Isi satu karyawan per baris mulai baris 3. Kolom bertanda * wajib. Gunakan dropdown Departemen / Jabatan / Jenis Karyawan / Proyek. Tanggal DD/MM/YYYY. Nomor karyawan dibuat otomatis. Proyek mengatur penempatan Di proyek; tanpa proyek: Corporate menjadi Kantor pusat, nilai lama Field menjadi Lapangan, dan lainnya Tersedia. Akses login portal dapat dipilih Ya/Tidak. Unggah di RGS ONE lalu Konfirmasi tambah."
-    : "Enter one employee per row from row 3. Columns marked * are required. Use the Department / Position / Employment Type / Project dropdowns. Dates: DD/MM/YYYY. Employee numbers are auto-assigned. Projects set placement to On project; without projects Corporate is Head Office, legacy Field is Field, and everyone else is Available. Choose Yes/No for portal login access. Upload in RGS ONE, then Confirm add.";
+    ? "Isi satu karyawan per baris mulai baris 3. Kolom bertanda * wajib. Gunakan dropdown Departemen / Jabatan / Jenis Karyawan. Tanggal DD/MM/YYYY. Nomor karyawan dibuat otomatis. Corporate menjadi Kantor Pusat; nilai lama Field menjadi Lapangan; lainnya Tersedia. Kru lapangan ditugaskan di Proyek, bukan di sini. Akses login portal dapat dipilih Ya/Tidak. Unggah di RGS ONE lalu Konfirmasi tambah."
+    : "Enter one employee per row from row 3. Columns marked * are required. Use the Department / Position / Employment Type dropdowns. Dates: DD/MM/YYYY. Employee numbers are auto-assigned. Corporate is Head Office; legacy Field is Field; everyone else is Available. Site crew is assigned under Projects, not here. Choose Yes/No for portal login access. Upload in RGS ONE, then Confirm add.";
 }
 
 // ── Project ─────────────────────────────────────────────────────────────────

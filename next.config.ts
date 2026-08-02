@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 const brandAssetGlobs = [
   "./public/brand/**/*",
   "./public/rgs-one-logo.png",
+  "./public/rgs-one-logo-on-light.png",
   "./assets/brand/**/*",
 ];
 

@@ -15,6 +15,11 @@ import { isCleaningProjectSubCategory } from "@/lib/project-subcategory";
 import { saveUpload } from "@/lib/upload";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
+import {
+  ensureLeaveEmploymentSyncedForUser,
+  getOperationsBlockedErrorKey,
+  isEmployeeActiveForOperations,
+} from "@/lib/leave-employment-status";
 
 /** Hard gate: check-out requires ≥1 Progress Report for this employee × project × work day. */
 async function hasProgressReportForWorkDay(
@@ -98,7 +103,7 @@ async function parseCoords(formData: FormData) {
 }
 
 /** CICO always acts as the signed-in user's linked employee — never trust client ids. */
-async function requireCicoEmployee(formData?: FormData) {
+async function requireCicoSessionEmployee(formData?: FormData) {
   const session = await requireModule("cico");
 
   // Client portal accounts never use CICO (employees only).
@@ -110,15 +115,13 @@ async function requireCicoEmployee(formData?: FormData) {
     throw await cicoError("invalidRequest");
   }
 
-  const employee = await getEmployeeForUser(session.user.id);
+  const employee =
+    (await ensureLeaveEmploymentSyncedForUser(session.user.id)) ??
+    (await getEmployeeForUser(session.user.id));
   if (!employee) throw await cicoError("employeeProfileNotFound");
 
   if (employee.archivedFromDirectory) {
     throw await cicoError("inactiveEmployee");
-  }
-
-  if (employee.status !== "ACTIVE") {
-    throw await cicoError("activeOnly");
   }
 
   if (employee.placement !== "ON_PROJECT") {
@@ -128,8 +131,35 @@ async function requireCicoEmployee(formData?: FormData) {
   return { session, employee };
 }
 
+async function requireCicoEmployeeForCheckIn(formData?: FormData) {
+  const { session, employee } = await requireCicoSessionEmployee(formData);
+
+  if (!isEmployeeActiveForOperations(employee.status)) {
+    throw await cicoError(getOperationsBlockedErrorKey(employee.status));
+  }
+
+  return { session, employee };
+}
+
+async function requireCicoEmployeeForCheckOut(formData?: FormData) {
+  const { session, employee } = await requireCicoSessionEmployee(formData);
+
+  if (isEmployeeActiveForOperations(employee.status)) {
+    return { session, employee };
+  }
+
+  if (employee.status === "ON_LEAVE") {
+    const open = await findOpenCicoAttendance(employee.id);
+    if (open?.record?.checkIn && !open.record.checkOut) {
+      return { session, employee };
+    }
+  }
+
+  throw await cicoError(getOperationsBlockedErrorKey(employee.status));
+}
+
 export async function checkIn(formData: FormData) {
-  const { employee } = await requireCicoEmployee(formData);
+  const { employee } = await requireCicoEmployeeForCheckIn(formData);
 
   const projectId = String(formData.get("projectId") ?? "").trim();
   if (!projectId) throw await cicoError("selectProject");
@@ -238,7 +268,7 @@ export async function checkIn(formData: FormData) {
 }
 
 export async function checkOut(formData: FormData) {
-  const { employee } = await requireCicoEmployee(formData);
+  const { employee } = await requireCicoEmployeeForCheckOut(formData);
 
   const { latitude, longitude } = await parseCoords(formData);
   const now = new Date();

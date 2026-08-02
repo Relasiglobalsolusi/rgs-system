@@ -32,7 +32,7 @@ export default async function RootLayout({
       className={`${sourceSans.variable} h-full`}
       suppressHydrationWarning
     >
-      <body className="min-h-screen bg-[#0B0F14] font-sans antialiased text-white">
+      <body className="min-h-screen bg-background font-sans antialiased text-foreground">
         <Providers session={session} initialLocale={initialLocale}>
           {children}
         </Providers>

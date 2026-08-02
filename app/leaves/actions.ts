@@ -10,6 +10,12 @@ import {
 import { saveUpload } from "@/lib/upload";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
+import {
+  ensureLeaveEmploymentSyncedForUser,
+  getOperationsBlockedErrorKey,
+  isEmployeeActiveForOperations,
+  syncEmployeeLeaveEmploymentStatus,
+} from "@/lib/leave-employment-status";
 
 async function leaveError(key: string) {
   const locale = await getServerLocale();
@@ -18,12 +24,14 @@ async function leaveError(key: string) {
 
 export async function createLeaveRequest(formData: FormData) {
   const session = await requireModule("leaves");
-  const employee = await getEmployeeForUser(session.user.id);
+  const employee =
+    (await ensureLeaveEmploymentSyncedForUser(session.user.id)) ??
+    (await getEmployeeForUser(session.user.id));
 
   if (!employee) throw await leaveError("employeeProfileNotFound");
 
-  if (employee.placement !== "AVAILABLE") {
-    throw await leaveError("availableOnly");
+  if (!isEmployeeActiveForOperations(employee.status)) {
+    throw await leaveError(getOperationsBlockedErrorKey(employee.status));
   }
 
   const type = String(formData.get("type") ?? "PERMISSION");
@@ -63,6 +71,7 @@ export async function createLeaveRequest(formData: FormData) {
   revalidatePath("/leaves");
   revalidatePath("/approvals");
   revalidatePath("/dashboard");
+  revalidatePath("/employees");
 }
 
 export async function reviewLeaveRequest(
@@ -79,7 +88,7 @@ export async function reviewLeaveRequest(
       id,
       employee: { companyId },
     },
-    select: { status: true },
+    select: { status: true, employeeId: true },
   });
 
   if (!existing) throw await leaveError("leaveNotFound");
@@ -87,19 +96,25 @@ export async function reviewLeaveRequest(
     throw await leaveError("alreadyReviewed");
   }
 
-  await prisma.leaveRequest.update({
-    where: { id },
-    data: {
-      status: approved ? "APPROVED" : "REJECTED",
-      reviewNote: reviewNote || null,
-      reviewedById: session.user.id,
-      reviewedAt: new Date(),
-    },
+  await prisma.$transaction(async (tx) => {
+    await tx.leaveRequest.update({
+      where: { id },
+      data: {
+        status: approved ? "APPROVED" : "REJECTED",
+        reviewNote: reviewNote || null,
+        reviewedById: session.user.id,
+        reviewedAt: new Date(),
+      },
+    });
+
+    await syncEmployeeLeaveEmploymentStatus(tx, existing.employeeId);
   });
 
   revalidatePath("/leaves");
   revalidatePath("/approvals");
   revalidatePath("/dashboard");
+  revalidatePath("/employees");
+  revalidatePath("/cico");
 }
 
 /** Persist dismissal of leave-approved dashboard notification(s) for the signed-in user. */

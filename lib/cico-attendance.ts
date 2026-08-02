@@ -64,6 +64,19 @@ export async function findOpenCicoAttendance(
   return null;
 }
 
+/** Open check-in for this project × work day (checkout / progress gate). */
+export async function hasOpenCicoForProjectWorkDay(
+  employeeId: string,
+  projectId: string,
+  workDay: Date,
+  now: Date = new Date()
+): Promise<boolean> {
+  const open = await findOpenCicoAttendance(employeeId, now);
+  if (!open?.record?.checkIn || open.record.checkOut) return false;
+  if (open.record.projectId !== projectId) return false;
+  return toUtcDateOnly(open.record.date).getTime() === toUtcDateOnly(workDay).getTime();
+}
+
 /**
  * Today's CICO card attendance: prefer the record whose work-day key matches
  * the assignment shift window (overnight-aware), else open, else calendar today.

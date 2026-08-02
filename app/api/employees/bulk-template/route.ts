@@ -47,12 +47,11 @@ export async function GET(request: NextRequest) {
 
     const lists = company
       ? await loadEmployeeImportTemplateLists(company.id)
-      : { categories: [], positions: [], projectNames: [] };
+      : { categories: [], positions: [] };
 
     const buffer = await buildEmployeeImportTemplate({
       categories: lists.categories,
       positions: lists.positions,
-      projectNames: lists.projectNames,
       locale,
       defaultEmploymentType,
     });

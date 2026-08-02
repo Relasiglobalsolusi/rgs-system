@@ -60,9 +60,9 @@ type Props = {
   projects: ProgressDirectoryProject[];
   /** Current user's linked employee id (for author edit). */
   currentEmployeeId?: string | null;
-  /** Managers may edit any in-company report. */
+  /** Author may edit their own report when Active. */
   canManage?: boolean;
-  /** Clients / viewers cannot edit. */
+  /** Clients / viewers / On Leave staff cannot edit. */
   canEdit?: boolean;
 };
 
@@ -131,7 +131,6 @@ export default function ProgressReportDirectory({
 
   function mayEdit(report: ProgressDirectoryReport): boolean {
     if (!canEdit) return false;
-    if (canManage) return true;
     return Boolean(currentEmployeeId && report.employeeId === currentEmployeeId);
   }
 

@@ -37,6 +37,7 @@ enum EmploymentStatus {
   INACTIVE
   TERMINATED
   ON_LEAVE
+  LEAVE_PENDING
 }
 
 /// THR (Tunjangan Hari Raya) payment lifecycle.

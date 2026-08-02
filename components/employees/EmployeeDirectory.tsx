@@ -56,7 +56,8 @@ type Employee = {
   categoryId: string | null;
   category: { id: string; name: string; prefix: string; slug?: string } | null;
   idDocumentUrl: string | null;
-  status: "ACTIVE" | "INACTIVE" | "TERMINATED" | "ON_LEAVE";
+  status: "ACTIVE" | "INACTIVE" | "TERMINATED" | "ON_LEAVE" | "LEAVE_PENDING";
+  hasPendingLeaveRequest?: boolean;
   hiredAt: Date | string | null;
   basePay: number | null;
   bpjsKesehatanEnabled: boolean;
@@ -76,7 +77,7 @@ type Employee = {
 type BulkEmploymentScope = "FULL_TIME" | "PART_TIME";
 type BulkDialogMode = "deactivate" | "reactivate" | "archive";
 type UnassignedSegment = "FULL_TIME" | "PART_TIME";
-type StatusSegment = "all" | "onLeave";
+type StatusSegment = "all" | "onLeave" | "leavePending";
 
 type Props = {
   employees: Employee[];
@@ -188,8 +189,20 @@ export default function EmployeeDirectory({
     [selected, tab]
   );
 
+  const leavePendingInCard = useMemo(
+    () =>
+      tab === "trash"
+        ? []
+        : selected.filter((employee) => employee.hasPendingLeaveRequest),
+    [selected, tab]
+  );
+
   const statusFiltered =
-    tab !== "trash" && statusSegment === "onLeave" ? onLeaveInCard : selected;
+    tab !== "trash" && statusSegment === "onLeave"
+      ? onLeaveInCard
+      : tab !== "trash" && statusSegment === "leavePending"
+        ? leavePendingInCard
+        : selected;
 
   const visible = useMemo(
     () =>
@@ -321,7 +334,9 @@ export default function EmployeeDirectory({
     ? t("pages.employees.emptySearch", { query: trimmedSearch })
     : tab !== "trash" && statusSegment === "onLeave"
       ? t("pages.employees.emptyOnLeave")
-      : tab === "allEmployees"
+      : tab !== "trash" && statusSegment === "leavePending"
+        ? t("pages.employees.emptyLeavePending")
+        : tab === "allEmployees"
         ? t("pages.employees.emptyActiveList")
         : tab === "fullTime"
           ? t("pages.employees.emptyFullTime")
@@ -337,7 +352,9 @@ export default function EmployeeDirectory({
     ? t("pages.employees.emptySearchDesc")
     : tab !== "trash" && statusSegment === "onLeave"
       ? t("pages.employees.emptyOnLeaveDesc")
-      : tab === "allEmployees"
+      : tab !== "trash" && statusSegment === "leavePending"
+        ? t("pages.employees.emptyLeavePendingDesc")
+        : tab === "allEmployees"
         ? t("pages.employees.emptyActiveListDesc")
         : tab === "fullTime"
           ? t("pages.employees.emptyFullTimeDesc")
@@ -442,6 +459,14 @@ export default function EmployeeDirectory({
             onClick={() => selectStatusSegment("onLeave")}
           >
             {t("pages.employees.onLeave")}
+          </DirectoryFilterTab>
+          <DirectoryFilterTab
+            size="sm"
+            active={statusSegment === "leavePending"}
+            count={leavePendingInCard.length}
+            onClick={() => selectStatusSegment("leavePending")}
+          >
+            {t("pages.employees.leavePendingFilter")}
           </DirectoryFilterTab>
         </div>
       ) : null}

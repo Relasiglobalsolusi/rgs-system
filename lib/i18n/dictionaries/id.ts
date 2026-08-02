@@ -16,6 +16,9 @@ export const id = {
     language: "Bahasa",
     english: "English",
     bahasaIndonesia: "Bahasa Indonesia",
+    theme: "Tema",
+    light: "Terang",
+    dark: "Gelap",
     goodMorning: "Selamat Pagi",
     goodAfternoon: "Selamat Siang",
     goodEvening: "Selamat Malam",
@@ -1394,10 +1397,17 @@ export const id = {
       onLeave: "Sedang Cuti",
       onLeaveChipLine1: "Sedang",
       onLeaveChipLine2: "Cuti",
+      leavePending: "Mengajukan Cuti",
+      leavePendingChipLine1: "Mengajukan",
+      leavePendingChipLine2: "Cuti",
+      leavePendingFilter: "Mengajukan Cuti",
       statusFilterAll: "Semua",
       emptyOnLeave: "Tidak Ada Karyawan Sedang Cuti",
       emptyOnLeaveDesc:
         "Karyawan yang ditandai Sedang Cuti di tampilan ini muncul di sini.",
+      emptyLeavePending: "Tidak Ada Karyawan Mengajukan Cuti",
+      emptyLeavePendingDesc:
+        "Karyawan dengan permohonan cuti yang menunggu persetujuan muncul di sini sementara status tetap Aktif.",
       activeSubtitle: "Karyawan yang saat ini ada di daftar",
       allEmployees: "Semua Karyawan",
       allEmployeesSubtitle: "Semua staf aktif di daftar",
@@ -1522,6 +1532,14 @@ export const id = {
       bulkDeleteForeverPartial:
         "{success} karyawan dihapus permanen dari direktori. {failed} gagal.",
       deleteFailed: "Gagal menghapus karyawan.",
+      portalLoginRevoked:
+        "{name}: sudah memiliki login portal. Gunakan Pengguna → Akses Dicabut → Pulihkan Akses jika dicabut.",
+      errors: {
+        deleteBlockedAssigned:
+          "Tidak dapat menghapus karyawan yang masih ditugaskan ke proyek. Lepaskan atau batalkan penugasan terlebih dahulu.",
+        activeBlockedByApprovedLeave:
+          "Tidak dapat mengubah status menjadi Aktif saat cuti yang disetujui mencakup hari ini.",
+      },
       restoreFailed: "Gagal memulihkan karyawan.",
       deleteForeverFailed:
         "Gagal menghapus permanen karyawan dari direktori.",
@@ -1532,15 +1550,15 @@ export const id = {
         no: "Tidak",
       },
       projectAssignDialog: {
-        title: "Tugaskan Penempatan",
+        title: "Tugaskan Ke Kantor Pusat",
         description:
-          "Pilih Kantor Pusat atau satu atau beberapa proyek aktif. Kantor Pusat mengatur penempatan ke Kantor Pusat; proyek mengatur penempatan ke Di Proyek.",
+          "Tugaskan karyawan ini ke Kantor Pusat. Kru lapangan ditugaskan melalui Proyek.",
         headOffice: "Kantor Pusat",
-        projectsHeading: "Proyek",
-        assign: "Tugaskan",
+        siteCrewNote:
+          "Untuk menugaskan staf ke lokasi kebersihan, gunakan Proyek → tugaskan kru di proyek.",
+        assign: "Tugaskan Ke Kantor Pusat",
         assigning: "Menugaskan…",
         assignFailed: "Gagal menugaskan karyawan.",
-        noActiveProjects: "Tidak ada proyek aktif yang tersedia.",
       },
       columns: {
         employee: "Karyawan",
@@ -1710,6 +1728,14 @@ export const id = {
         selectStatus: "Pilih Status",
         statusHint:
           "Aktif dan Sedang Cuti tetap di daftar. Login portal mengikuti aturan yang sama untuk keduanya.",
+        statusActiveHint:
+          "Sedang Cuti diatur ketika periode cuti yang disetujui mencakup hari ini. Staf Aktif dapat menggunakan CICO dan Progress.",
+        statusOnLeaveHint:
+          "Sedang Cuti dari permohonan cuti yang disetujui. CICO dan Progress dijeda hingga periode cuti berakhir.",
+        statusLeavePendingHint:
+          "Permohonan cuti menunggu persetujuan. Status kepegawaian tetap Aktif; CICO dan Progress berjalan seperti biasa.",
+        leavePendingNotAssignable:
+          "Karyawan yang mengajukan cuti tidak dapat ditugaskan hingga permohonan ditinjau.",
         departmentHint:
           "Pilih departemen terlebih dahulu untuk membuat nomor karyawan otomatis.",
         selectDepartment: "Pilih departemen",
@@ -1795,8 +1821,8 @@ export const id = {
         createFailed: "Gagal membuat karyawan.",
         updateFailed: "Gagal memperbarui karyawan.",
         releaseFailed: "Gagal melepas karyawan dari proyek.",
-        assignToProject: "Tugaskan Penempatan",
-        assignToPlacement: "Tugaskan Penempatan",
+        assignToHeadOffice: "Tugaskan Ke Kantor Pusat",
+        assignToPlacement: "Tugaskan Ke Kantor Pusat",
         releaseFromProject: "Lepas Penugasan",
         releaseFromAssignment: "Lepas Penugasan",
       },
@@ -2674,10 +2700,10 @@ export const id = {
       description:
         "Laporan foto lokasi untuk staf cleaning lapangan. Unggah selama shift — check-out diblokir sampai minimal satu laporan dikirim untuk proyek.",
       feedDescription:
-        "Pantau Laporan Progress secara real time. Buka proyek untuk umpan foto, atau filter menurut karyawan.",
+        "Pantau Laporan Progress secara real time (hanya lihat). Buka proyek untuk umpan foto, atau filter menurut karyawan.",
       chooseProject: "Pilih Proyek",
       chooseProjectHint:
-        "Buka proyek untuk melihat umpan Laporan Progress saat foto diunggah.",
+        "Umpan hanya lihat — buka proyek untuk memantau laporan saat foto diunggah.",
       backToProjects: "Kembali ke Proyek",
       filterByEmployee: "Filter menurut Karyawan",
       filterAllEmployees: "Semua Karyawan",
@@ -2688,6 +2714,10 @@ export const id = {
       myReportsTitle: "Laporan Progress Saya",
       myReportsHint:
         "Unggah Laporan Progress saat bekerja. Anda harus mengirim minimal satu Laporan Progress sebelum check-out CICO.",
+      onLeaveMessage:
+        "Laporan progress dijeda saat Anda Sedang Cuti. Hubungi Head Office jika status Anda perlu diperbarui.",
+      leavePendingMessage:
+        "Laporan progress dijeda selama permohonan cuti menunggu persetujuan. Hubungi Head Office jika status Anda perlu diperbarui.",
       submitReport: "Kirim Laporan Progress",
       editReport: "Ubah Laporan Progress",
       dialogTitle: "Laporan Progress",
@@ -2765,6 +2795,10 @@ export const id = {
         employeeProfileNotFound: "Profil karyawan tidak ditemukan.",
         onProjectOnly:
           "Laporan progress hanya tersedia saat Anda Di Proyek.",
+        activeOnly:
+          "Laporan progress hanya tersedia saat status kepegawaian Anda Aktif.",
+        onLeaveBlocked:
+          "Laporan progress tidak tersedia saat Anda Sedang Cuti. Hubungi Kantor Pusat jika status perlu diperbarui.",
         projectRequired: "Proyek wajib diisi.",
         serviceAreaRequired: "Area Layanan wajib diisi.",
         notesRequired: "Catatan wajib diisi.",
@@ -2779,7 +2813,7 @@ export const id = {
           "Laporan progress hanya untuk proyek Sedang Berjalan (perintah kerja diterima).",
         reportNotFound: "Laporan progress tidak ditemukan.",
         editDenied:
-          "Anda tidak memiliki izin untuk mengubah laporan progress ini.",
+          "Hanya penulis laporan yang dapat mengubah laporan progress ini.",
         reorderDenied:
           "Anda tidak memiliki izin untuk mengubah urutan laporan progress.",
         companyNotFound: "Perusahaan tidak ditemukan.",
@@ -2823,6 +2857,8 @@ export const id = {
           "CICO tidak tersedia untuk data karyawan yang diarsipkan atau dihapus.",
         activeOnly:
           "CICO hanya tersedia saat status kepegawaian Anda Aktif.",
+        onLeaveBlocked:
+          "CICO tidak tersedia saat Anda Sedang Cuti. Hubungi Kantor Pusat jika status perlu diperbarui.",
         onProjectOnly:
           "Check-in hanya tersedia saat Anda ditugaskan ke proyek cleaning Sedang Berjalan (Di Proyek).",
         selectProject: "Pilih proyek untuk check-in.",
@@ -2998,6 +3034,10 @@ export const id = {
         employeeProfileNotFound: "Profil karyawan tidak ditemukan.",
         availableOnly:
           "Permintaan izin dan sakit hanya tersedia saat penempatan Anda adalah Tersedia.",
+        activeOnly:
+          "Permintaan izin dan sakit hanya tersedia saat status kepegawaian Anda Aktif.",
+        onLeaveBlocked:
+          "Permintaan izin dan sakit tidak tersedia saat Anda Sedang Cuti.",
         datesRequired: "Tanggal wajib diisi.",
         reasonRequired: "Alasan wajib diisi.",
         invalidDates: "Tanggal tidak valid.",

@@ -53,7 +53,7 @@ export type EmployeeFormDefaults = {
   idDocumentUrl?: string | null;
   hiredAt?: Date | string | null;
   omApprovalAreas?: ServiceAreaValue[];
-  status?: "ACTIVE" | "ON_LEAVE";
+  status?: "ACTIVE" | "ON_LEAVE" | "LEAVE_PENDING";
 } & EmployeeFinanceDefaults;
 
 export type EmployeeCategoryOption = {
@@ -92,20 +92,20 @@ type Props = {
   onPositionIdChange: (value: string) => void;
   employmentType: "FULL_TIME" | "PART_TIME";
   onEmploymentTypeChange: (value: "FULL_TIME" | "PART_TIME") => void;
-  status?: "ACTIVE" | "ON_LEAVE";
-  onStatusChange?: (value: "ACTIVE" | "ON_LEAVE") => void;
+  status?: "ACTIVE" | "ON_LEAVE" | "LEAVE_PENDING";
+  onStatusChange?: (value: "ACTIVE" | "ON_LEAVE" | "LEAVE_PENDING") => void;
   previewEmployeeNo?: string;
   defaults?: EmployeeFormDefaults;
   onFormValuesChange?: () => void;
 };
 
 function formatRosterStatusLabel(
-  status: "ACTIVE" | "ON_LEAVE",
+  status: "ACTIVE" | "ON_LEAVE" | "LEAVE_PENDING",
   t: ReturnType<typeof useT>["t"]
 ) {
-  return status === "ON_LEAVE"
-    ? t("pages.employees.onLeave")
-    : t("pages.employees.active");
+  if (status === "ON_LEAVE") return t("pages.employees.onLeave");
+  if (status === "LEAVE_PENDING") return t("pages.employees.leavePending");
+  return t("pages.employees.active");
 }
 
 function isSelectableCategory(category: EmployeeCategoryOption): boolean {
@@ -450,41 +450,15 @@ export default function EmployeeFormFields({
               {t("pages.employees.form.status")}
             </label>
             <p className="text-xs text-muted">
-              {t("pages.employees.form.statusHint")}
+              {status === "ON_LEAVE"
+                ? t("pages.employees.form.statusOnLeaveHint")
+                : status === "LEAVE_PENDING"
+                  ? t("pages.employees.form.statusLeavePendingHint")
+                  : t("pages.employees.form.statusActiveHint")}
             </p>
-            <Select
-              value={status}
-              onValueChange={(value) =>
-                onStatusChange?.(value as "ACTIVE" | "ON_LEAVE")
-              }
-            >
-              <SelectTrigger className={employeeSelectTriggerClass}>
-                <SelectValue
-                  placeholder={t("pages.employees.form.selectStatus")}
-                >
-                  {(value) =>
-                    value === "ACTIVE" || value === "ON_LEAVE"
-                      ? formatRosterStatusLabel(value, t)
-                      : null
-                  }
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem
-                  value="ACTIVE"
-                  label={formatRosterStatusLabel("ACTIVE", t)}
-                >
-                  {formatRosterStatusLabel("ACTIVE", t)}
-                </SelectItem>
-                <SelectItem
-                  value="ON_LEAVE"
-                  label={formatRosterStatusLabel("ON_LEAVE", t)}
-                >
-                  {formatRosterStatusLabel("ON_LEAVE", t)}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-            <input type="hidden" name="status" value={status} />
+            <div className="flex h-11 items-center rounded-xl border border-border bg-elevated px-3 text-sm font-medium text-text">
+              {formatRosterStatusLabel(status, t)}
+            </div>
           </div>
         ) : null}
 

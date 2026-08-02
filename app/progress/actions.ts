@@ -9,6 +9,11 @@ import {
   toPermissionUser,
 } from "@/lib/session";
 import { canManageProjects } from "@/lib/project-access";
+import {
+  ensureLeaveEmploymentSyncedForUser,
+  getOperationsBlockedErrorKey,
+  isEmployeeActiveForOperations,
+} from "@/lib/leave-employment-status";
 import { deleteLocalUpload, saveUpload } from "@/lib/upload";
 import {
   contractCyclePeriodBounds,
@@ -17,6 +22,7 @@ import {
   resolveContractCycleIndex,
   toUtcDateOnly,
 } from "@/lib/invoice-period";
+import { hasOpenCicoForProjectWorkDay } from "@/lib/cico-attendance";
 import { isCleaningProjectSubCategory } from "@/lib/project-subcategory";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
@@ -34,6 +40,49 @@ const MAX_PROGRESS_PHOTO_BYTES = 10 * 1024 * 1024;
 async function progressError(key: string) {
   const locale = await getServerLocale();
   return new Error(translate(locale, `pages.progress.errors.${key}`));
+}
+
+async function requireSyncedActiveEmployee(userId: string) {
+  const employee =
+    (await ensureLeaveEmploymentSyncedForUser(userId)) ??
+    (await getEmployeeForUser(userId));
+
+  if (!employee) throw await progressError("employeeProfileNotFound");
+
+  if (!isEmployeeActiveForOperations(employee.status)) {
+    throw await progressError(getOperationsBlockedErrorKey(employee.status));
+  }
+
+  return employee;
+}
+
+async function requireSyncedEmployee(userId: string) {
+  const employee =
+    (await ensureLeaveEmploymentSyncedForUser(userId)) ??
+    (await getEmployeeForUser(userId));
+
+  if (!employee) throw await progressError("employeeProfileNotFound");
+
+  return employee;
+}
+
+async function assertCanCreateProgressReport(
+  employee: { id: string; status: string },
+  projectId: string,
+  reportDate: Date
+) {
+  if (isEmployeeActiveForOperations(employee.status)) return;
+
+  if (employee.status === "ON_LEAVE") {
+    const hasOpenCheckout = await hasOpenCicoForProjectWorkDay(
+      employee.id,
+      projectId,
+      reportDate
+    );
+    if (hasOpenCheckout) return;
+  }
+
+  throw await progressError(getOperationsBlockedErrorKey(employee.status));
 }
 
 function collectPhotoFiles(formData: FormData, field = "photos"): File[] {
@@ -108,9 +157,7 @@ function revalidateProgressPaths(projectId: string) {
 
 export async function createProgressReport(formData: FormData) {
   const session = await requireModule("progress");
-  const employee = await getEmployeeForUser(session.user.id);
-
-  if (!employee) throw await progressError("employeeProfileNotFound");
+  const employee = await requireSyncedEmployee(session.user.id);
 
   if (employee.placement !== "ON_PROJECT") {
     throw await progressError("onProjectOnly");
@@ -135,6 +182,8 @@ export async function createProgressReport(formData: FormData) {
   const reportDate = dateStr
     ? parseDateInput(dateStr)
     : toUtcDateOnly(new Date());
+
+  await assertCanCreateProgressReport(employee, projectId, reportDate);
 
   const assignment = await prisma.projectAssignment.findUnique({
     where: {
@@ -214,13 +263,11 @@ export async function createProgressReport(formData: FormData) {
 
 /**
  * Edit an existing progress report (service area, notes, date, photos).
- * Author may edit their own; project managers may edit any in-company report.
+ * Author only — managers and clients are view-only.
  */
 export async function updateProgressReport(formData: FormData) {
   const session = await requireModule("progress");
-  const permissionUser = toPermissionUser(session);
-  const employee = await getEmployeeForUser(session.user.id);
-  const isManager = canManageProjects(permissionUser);
+  const employee = await requireSyncedActiveEmployee(session.user.id);
 
   const reportId = String(formData.get("reportId") ?? "").trim();
   if (!reportId) throw await progressError("reportNotFound");
@@ -255,8 +302,7 @@ export async function updateProgressReport(formData: FormData) {
 
   if (!existing) throw await progressError("reportNotFound");
 
-  const isAuthor = Boolean(employee && existing.employeeId === employee.id);
-  if (!isAuthor && !isManager) {
+  if (existing.employeeId !== employee.id) {
     throw await progressError("editDenied");
   }
 
@@ -362,70 +408,4 @@ export async function reorderProgressReports(ids: string[]) {
 
   revalidatePath("/progress");
   revalidatePath("/dashboard");
-}
-
-/** Persist dismissal of missing progress-report warning(s) for the signed-in user. */
-export async function acknowledgeProgressWarnings(
-  items: { projectId: string; date: string }[]
-) {
-  const session = await requireModule("progress");
-  if (!items.length) return { count: 0 };
-
-  const employee = await getEmployeeForUser(session.user.id);
-  if (!employee) throw await progressError("employeeProfileNotFound");
-
-  const normalized = items
-    .map((item) => ({
-      projectId: String(item.projectId ?? "").trim(),
-      date: String(item.date ?? "").trim(),
-    }))
-    .filter((item) => item.projectId && item.date);
-
-  if (normalized.length === 0) return { count: 0 };
-
-  const projectIds = [...new Set(normalized.map((i) => i.projectId))];
-  const assignments = await prisma.projectAssignment.findMany({
-    where: {
-      employeeId: employee.id,
-      projectId: { in: projectIds },
-      project: { companyId: session.user.companyId },
-    },
-    select: { projectId: true },
-  });
-  const assigned = new Set(assignments.map((a) => a.projectId));
-
-  const rows = normalized
-    .filter((item) => assigned.has(item.projectId))
-    .map((item) => ({
-      userId: session.user.id,
-      projectId: item.projectId,
-      reportDate: parseDateInput(item.date),
-    }));
-
-  if (rows.length === 0) return { count: 0 };
-
-  await prisma.$transaction(
-    rows.map((row) =>
-      prisma.progressWarningAck.upsert({
-        where: {
-          userId_projectId_reportDate: {
-            userId: row.userId,
-            projectId: row.projectId,
-            reportDate: row.reportDate,
-          },
-        },
-        create: row,
-        update: { acknowledgedAt: new Date() },
-      })
-    )
-  );
-
-  revalidatePath("/progress");
-  revalidatePath("/projects");
-  revalidatePath("/dashboard");
-  for (const projectId of projectIds) {
-    revalidatePath(`/projects/${projectId}`);
-  }
-
-  return { count: rows.length };
 }

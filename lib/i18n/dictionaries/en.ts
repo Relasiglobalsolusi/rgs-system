@@ -5,6 +5,9 @@ export const en = {
     language: "Language",
     english: "English",
     bahasaIndonesia: "Bahasa Indonesia",
+    theme: "Theme",
+    light: "Light",
+    dark: "Dark",
     goodMorning: "Good Morning",
     goodAfternoon: "Good Afternoon",
     goodEvening: "Good Evening",
@@ -1374,10 +1377,17 @@ export const en = {
       onLeave: "On Leave",
       onLeaveChipLine1: "On",
       onLeaveChipLine2: "Leave",
+      leavePending: "Applying for Leave",
+      leavePendingChipLine1: "Applying",
+      leavePendingChipLine2: "For Leave",
+      leavePendingFilter: "Applying for Leave",
       statusFilterAll: "All",
       emptyOnLeave: "No On Leave Employees",
       emptyOnLeaveDesc:
         "Employees marked On Leave in this view appear here.",
+      emptyLeavePending: "No Employees Applying for Leave",
+      emptyLeavePendingDesc:
+        "Employees with a pending leave request appear here while their status stays Active.",
       activeSubtitle: "Employees currently on the roster",
       allEmployees: "All Employees",
       allEmployeesSubtitle: "All active staff on the roster",
@@ -1498,6 +1508,14 @@ export const en = {
       bulkDeleteForeverPartial:
         "{success} employee(s) permanently removed from directory. {failed} failed.",
       deleteFailed: "Failed to delete employee.",
+      portalLoginRevoked:
+        "{name}: already has a portal login. Use Users → Revoked Access → Restore Access if it is revoked.",
+      errors: {
+        deleteBlockedAssigned:
+          "Cannot delete this employee while they are still assigned to a project. Release or unassign them first.",
+        activeBlockedByApprovedLeave:
+          "Cannot set employment status to Active while an approved leave covers today.",
+      },
       restoreFailed: "Failed to restore employee.",
       deleteForeverFailed:
         "Failed to permanently remove employee from directory.",
@@ -1508,15 +1526,15 @@ export const en = {
         no: "No",
       },
       projectAssignDialog: {
-        title: "Assign Placement",
+        title: "Assign To Head Office",
         description:
-          "Choose Head Office or one or more active projects. Head Office sets placement to Head Office; projects set placement to On Project.",
+          "Assign this employee to Head Office. Site crew is assigned under Projects.",
         headOffice: "Head Office",
-        projectsHeading: "Projects",
-        assign: "Assign",
+        siteCrewNote:
+          "To assign staff to a cleaning site, use Projects → assign crew on the project.",
+        assign: "Assign To Head Office",
         assigning: "Assigning…",
         assignFailed: "Failed to assign employee.",
-        noActiveProjects: "No active projects are available.",
       },
       columns: {
         employee: "Employee",
@@ -1684,6 +1702,14 @@ export const en = {
         selectStatus: "Select Status",
         statusHint:
           "Active and On Leave stay on the roster. Portal login follows the same rules for both.",
+        statusActiveHint:
+          "On Leave is set when an approved leave period includes today. Active staff can use CICO and Progress.",
+        statusOnLeaveHint:
+          "On Leave from an approved leave request. CICO and Progress are paused until the leave period ends.",
+        statusLeavePendingHint:
+          "A leave request is pending approval. Employment status stays Active; CICO and Progress continue as usual.",
+        leavePendingNotAssignable:
+          "Employees applying for leave cannot be assigned until the request is reviewed.",
         departmentHint:
           "Choose a department first to auto-generate the employee number.",
         selectDepartment: "Select department",
@@ -1769,8 +1795,8 @@ export const en = {
         createFailed: "Failed to create employee.",
         updateFailed: "Failed to update employee.",
         releaseFailed: "Failed to release employee.",
-        assignToProject: "Assign Placement",
-        assignToPlacement: "Assign Placement",
+        assignToHeadOffice: "Assign To Head Office",
+        assignToPlacement: "Assign To Head Office",
         releaseFromProject: "Release Assignment",
         releaseFromAssignment: "Release Assignment",
       },
@@ -2645,10 +2671,10 @@ export const en = {
       description:
         "Site photo reports for field cleaning staff. Upload while on shift — check-out is blocked until at least one report is submitted for the project.",
       feedDescription:
-        "Track Progress Reports in real time. Open a project for the photo feed, or filter by employee.",
+        "Monitor Progress Reports in real time (view only). Open a project for the photo feed, or filter by employee.",
       chooseProject: "Choose Project",
       chooseProjectHint:
-        "Open a project to view its Progress Report feed as photos are uploaded.",
+        "View-only feed — open a project to monitor reports as photos are uploaded.",
       backToProjects: "Back to Projects",
       filterByEmployee: "Filter by Employee",
       filterAllEmployees: "All Employees",
@@ -2659,6 +2685,10 @@ export const en = {
       myReportsTitle: "My Progress Reports",
       myReportsHint:
         "Upload Progress Reports while working. You must submit at least one Progress Report before CICO check-out.",
+      onLeaveMessage:
+        "Progress reports are paused while you are On Leave. Contact Head Office if your status should be updated.",
+      leavePendingMessage:
+        "Progress reports are paused while your leave request is pending approval. Contact Head Office if your status should be updated.",
       submitReport: "Submit Progress Report",
       editReport: "Edit Progress Report",
       dialogTitle: "Progress Report",
@@ -2734,6 +2764,10 @@ export const en = {
         employeeProfileNotFound: "Employee profile not found.",
         onProjectOnly:
           "Progress reports are only available while you are On project.",
+        activeOnly:
+          "Progress reports are only available while your employment status is Active.",
+        onLeaveBlocked:
+          "Progress reports are unavailable while you are On Leave. Contact Head Office if your status should be updated.",
         projectRequired: "Project is required.",
         serviceAreaRequired: "Service Area is required.",
         notesRequired: "Notes are required.",
@@ -2747,7 +2781,8 @@ export const en = {
         inProgressOnly:
           "Progress reports are only for In Progress projects (work order received).",
         reportNotFound: "Progress report not found.",
-        editDenied: "You do not have permission to edit this progress report.",
+        editDenied:
+          "Only the report author can edit this progress report.",
         reorderDenied: "You do not have permission to reorder progress reports.",
         companyNotFound: "Company not found.",
         nothingToReorder: "Nothing to reorder.",
@@ -2789,6 +2824,8 @@ export const en = {
           "CICO is not available for archived or removed employee records.",
         activeOnly:
           "CICO is only available while your employment status is Active.",
+        onLeaveBlocked:
+          "CICO is unavailable while you are On Leave. Contact Head Office if your status should be updated.",
         onProjectOnly:
           "Check-in is only available while you are assigned to an In Progress cleaning project (On Project).",
         selectProject: "Select a project to check in.",
@@ -2962,6 +2999,10 @@ export const en = {
         employeeProfileNotFound: "Employee profile not found.",
         availableOnly:
           "Leave and sick requests are only available when your placement is Available.",
+        activeOnly:
+          "Leave and sick requests are only available while your employment status is Active.",
+        onLeaveBlocked:
+          "Leave and sick requests are unavailable while you are On Leave.",
         datesRequired: "Dates are required.",
         reasonRequired: "Reason is required.",
         invalidDates: "Invalid dates.",

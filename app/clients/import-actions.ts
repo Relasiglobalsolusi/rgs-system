@@ -366,10 +366,3 @@ export async function confirmBulkImportClients(
 
   return result;
 }
-
-/** @deprecated Use previewBulkImportClients + confirmBulkImportClients. */
-export async function bulkImportClients(
-  formData: FormData
-): Promise<BulkImportResult> {
-  return confirmBulkImportClients(formData);
-}

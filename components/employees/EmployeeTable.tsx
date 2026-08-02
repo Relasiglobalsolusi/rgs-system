@@ -46,7 +46,8 @@ type Employee = {
   categoryId: string | null;
   category: { name: string; prefix: string; slug?: string } | null;
   idDocumentUrl: string | null;
-  status: "ACTIVE" | "INACTIVE" | "TERMINATED" | "ON_LEAVE";
+  status: "ACTIVE" | "INACTIVE" | "TERMINATED" | "ON_LEAVE" | "LEAVE_PENDING";
+  hasPendingLeaveRequest?: boolean;
   hiredAt: Date | string | null;
   basePay: number | null;
   bpjsKesehatanEnabled: boolean;
@@ -177,6 +178,15 @@ export default function EmployeeTable({
                 lines={[
                   t("pages.employees.onLeaveChipLine1"),
                   t("pages.employees.onLeaveChipLine2"),
+                ]}
+              />
+            ) : employee.hasPendingLeaveRequest ? (
+              <StatusBadge
+                status="warning"
+                compact
+                lines={[
+                  t("pages.employees.leavePendingChipLine1"),
+                  t("pages.employees.leavePendingChipLine2"),
                 ]}
               />
             ) : null}

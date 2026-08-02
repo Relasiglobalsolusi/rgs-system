@@ -118,13 +118,6 @@ export default async function ProjectDetailPage({
 
   const allowed = await prisma.project.findFirst({
     where: { id, ...projectWhere },
-  });
-
-  // Missing, deleted, or out of scope — send to the list instead of a bare 404.
-  if (!allowed) redirect(PROJECT_LIST_VIEW_PATHS.all);
-
-  const project = await prisma.project.findUnique({
-    where: { id },
     include: {
       client: true,
       assignments: {
@@ -142,7 +135,10 @@ export default async function ProjectDetailPage({
     },
   });
 
-  if (!project) redirect(PROJECT_LIST_VIEW_PATHS.all);
+  // Missing, deleted, or out of scope — send to the list instead of a bare 404.
+  if (!allowed) redirect(PROJECT_LIST_VIEW_PATHS.all);
+
+  const project = allowed;
 
   const [employees, clients, inventoryCost, inventoryIssues] =
     await Promise.all([

@@ -14,7 +14,9 @@ import {
 } from "lucide-react";
 
 import AuthLanguageSwitcher from "@/components/auth/AuthLanguageSwitcher";
+import AuthThemeSwitcher from "@/components/auth/AuthThemeSwitcher";
 import AuthLogo from "@/components/auth/AuthLogo";
+import { RGS_ONE_SLOGAN } from "@/lib/brand";
 import { useT } from "@/lib/i18n/use-t";
 
 export default function LoginPage() {
@@ -107,16 +109,21 @@ function LoginContent() {
           <div className="mx-auto w-full max-w-[31.875rem]">
             <div className="mb-10">
               <div className="auth-lang-bar">
+                <AuthThemeSwitcher />
                 <AuthLanguageSwitcher />
               </div>
 
               <AuthLogo variant="hero" />
 
               <div className="mt-5 flex items-center gap-4">
-                <span className="auth-tagline-rule h-px w-12" />
+                <span className="auth-tagline-rule h-0.5 w-14" />
 
-                <span className="auth-text-subtle text-[11px] font-medium uppercase tracking-[0.3em]">
-                  {t("auth.tagline")}
+                <span
+                  className="auth-text-subtle text-[13px] font-medium uppercase tracking-[0.3em]"
+                  lang="en"
+                  translate="no"
+                >
+                  {RGS_ONE_SLOGAN}
                 </span>
               </div>
             </div>

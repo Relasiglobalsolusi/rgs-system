@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 
+import { syncEmployeesLeaveEmploymentStatus } from "@/lib/leave-employment-status";
 import { isCrewPickerPosition } from "@/lib/positions";
 import { syncEmployeePortalLogin } from "@/lib/workforce-login";
 
@@ -45,14 +46,21 @@ export function partTimeRosterWhere(
  * HO / invalid crew must not be assignable as project staff.
  * Same eligibility as Move to In Progress: Available FT Ops Cleaning/GC + PT roster.
  */
+type CrewEligibilityDb = Pick<
+  Prisma.TransactionClient,
+  "employee" | "leaveRequest"
+>;
+
 export async function assertProjectCrewEligible(
-  db: { employee: { count: (args: { where: Prisma.EmployeeWhereInput }) => Promise<number> } },
+  db: CrewEligibilityDb,
   companyId: string,
   employeeIds: string[],
   errorMessage = "Select Available Full Time Operations crew (Cleaning/GC) and/or Part Time staff only."
 ) {
   const uniqueIds = [...new Set(employeeIds.filter(Boolean))];
   if (uniqueIds.length === 0) return;
+
+  await syncEmployeesLeaveEmploymentStatus(db, uniqueIds);
 
   const validCount = await db.employee.count({
     where: {
@@ -91,8 +99,16 @@ const employeeReleaseSelect = {
   employmentType: true,
   portalAccessRequested: true,
   userId: true,
+  user: { select: { active: true } },
   status: true,
 } as const;
+
+function isEmployeeLoginRevoked(employee: {
+  userId: string | null;
+  user?: { active: boolean } | null;
+}) {
+  return employee.userId != null && employee.user?.active === false;
+}
 
 /**
  * Drop project assignments for the given employees and release to AVAILABLE
@@ -212,14 +228,17 @@ export async function markEmployeesOnProject(
       employmentType: true,
       portalAccessRequested: true,
       userId: true,
+      user: { select: { active: true } },
       status: true,
     },
   });
 
   for (const employee of employees) {
     // Portal 2A: PT forced Yes On Project; FT keep existing Yes/No (do not force).
+    // Revoked logins stay off until Users → Restore Access.
     const portalAccessRequested =
-      employee.employmentType === "PART_TIME"
+      employee.employmentType === "PART_TIME" &&
+      !isEmployeeLoginRevoked(employee)
         ? true
         : employee.portalAccessRequested;
 

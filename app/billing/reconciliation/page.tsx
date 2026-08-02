@@ -132,6 +132,7 @@ export default async function ReconciliationPage({
     : tab === "revised"
       ? revisedRows
       : approvedRows;
+  const nowMs = Date.now();
 
   return (
     <AppShell
@@ -208,7 +209,7 @@ export default async function ReconciliationPage({
                     !isClient &&
                     awaitingClient &&
                     sentAt > 0 &&
-                    Date.now() - sentAt >= silentMs;
+                    nowMs - sentAt >= silentMs;
 
                   return (
                     <li

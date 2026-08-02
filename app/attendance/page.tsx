@@ -63,7 +63,9 @@ export default async function AttendanceReportPage({
     ...(portalClientId ? { clientId: portalClientId } : {}),
   };
 
-  const [sites, dayAttendance, filterProjects, assignmentShifts] =
+  const needsFullFilterProjectList = Boolean(projectId || subCategory);
+
+  const [sites, dayAttendance, filterProjectsFromDb, assignmentShifts] =
     await Promise.all([
       prisma.project.findMany({
         where: {
@@ -121,19 +123,21 @@ export default async function AttendanceReportPage({
         },
         orderBy: [{ checkIn: "asc" }, { employee: { firstName: "asc" } }],
       }),
-      prisma.project.findMany({
-        where: {
-          companyId,
-          status: { in: ["PLANNED", "IN_PROGRESS"] },
-          ...(portalClientId ? { clientId: portalClientId } : {}),
-        },
-        select: {
-          id: true,
-          name: true,
-          subCategory: true,
-        },
-        orderBy: { name: "asc" },
-      }),
+      needsFullFilterProjectList
+        ? prisma.project.findMany({
+            where: {
+              companyId,
+              status: { in: ["PLANNED", "IN_PROGRESS"] },
+              ...(portalClientId ? { clientId: portalClientId } : {}),
+            },
+            select: {
+              id: true,
+              name: true,
+              subCategory: true,
+            },
+            orderBy: { name: "asc" },
+          })
+        : Promise.resolve(null),
       prisma.projectAssignment.findMany({
         where: {
           project: {
@@ -150,6 +154,14 @@ export default async function AttendanceReportPage({
         },
       }),
     ]);
+
+  const filterProjects =
+    filterProjectsFromDb ??
+    sites.map((site) => ({
+      id: site.id,
+      name: site.name,
+      subCategory: site.subCategory,
+    }));
 
   const shiftKey = (employeeId: string, projectIdValue: string | null) =>
     `${employeeId}:${projectIdValue ?? ""}`;

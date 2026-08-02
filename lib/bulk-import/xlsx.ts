@@ -674,7 +674,7 @@ async function buildExcelJsImportTemplate(
   if (logoPath) {
     try {
       const logoBuffer = readFileSync(logoPath);
-      const natural = readPngDimensions(logoBuffer) ?? { width: 1024, height: 682 };
+      const natural = readPngDimensions(logoBuffer) ?? { width: 597, height: 314 };
       const display = computeLogoDisplaySize(
         natural.width,
         natural.height,
@@ -949,7 +949,7 @@ async function buildExcelJsImportTemplate(
     if (instrLogoPath) {
       try {
         const logoBuffer = readFileSync(instrLogoPath);
-        const natural = readPngDimensions(logoBuffer) ?? { width: 1024, height: 682 };
+        const natural = readPngDimensions(logoBuffer) ?? { width: 597, height: 314 };
         const display = computeLogoDisplaySize(natural.width, natural.height, 120);
         const instrBandHeight = computeHeaderBandRowHeight(display.height, 12);
         instructionsSheet.getRow(1).height = instrBandHeight;

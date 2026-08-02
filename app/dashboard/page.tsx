@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireSession, getEmployeeForUser, toPermissionUser } from "@/lib/session";
+import { refreshLeaveEmploymentForUser } from "@/lib/leave-employment-status";
 import { getProjectWhereForUser } from "@/lib/project-access";
 import {
   activeFieldStaffWhere,
@@ -59,6 +60,7 @@ export default async function DashboardPage() {
   const session = await requireSession();
   const t = createTranslator(await getServerLocale());
   const guestName = t("pages.dashboard.guestName");
+  await refreshLeaveEmploymentForUser(session.user.id);
   const employee = await getEmployeeForUser(session.user.id);
   const permissionUser = toPermissionUser(session);
   const accountType = getSessionAccountType({

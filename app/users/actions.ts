@@ -238,9 +238,20 @@ export async function revokeUserLoginAccess(userId: string) {
   }
 
   if (user.active) {
-    await prisma.user.update({
-      where: { id: userId },
-      data: { active: false },
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: { active: false },
+      });
+      if (user.employee) {
+        await tx.employee.update({
+          where: { id: user.employee.id },
+          data: {
+            portalAccessRequested: false,
+            loginRevokedReason: null,
+          },
+        });
+      }
     });
   }
 
@@ -303,9 +314,20 @@ export async function bulkRevokeUserLoginAccess(
         continue;
       }
 
-      await prisma.user.update({
-        where: { id },
-        data: { active: false },
+      await prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id },
+          data: { active: false },
+        });
+        if (user.employee) {
+          await tx.employee.update({
+            where: { id: user.employee.id },
+            data: {
+              portalAccessRequested: false,
+              loginRevokedReason: null,
+            },
+          });
+        }
       });
       recordBulkSuccess(result);
     } catch (error) {
@@ -723,9 +745,20 @@ async function restoreUserLoginAccessRecord(id: string) {
     throw await usersLocaleError("restoreVendorFirst", undefined, locale);
   }
 
-  await prisma.user.update({
-    where: { id },
-    data: { active: true },
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id },
+      data: { active: true },
+    });
+    if (user.employee) {
+      await tx.employee.update({
+        where: { id: user.employee.id },
+        data: {
+          portalAccessRequested: true,
+          loginRevokedReason: null,
+        },
+      });
+    }
   });
 }
 
@@ -811,7 +844,7 @@ export async function bulkReactivateUsers(
   return result;
 }
 
-const ACTIVE_EMPLOYEE_STATUSES = new Set(["ACTIVE", "ON_LEAVE"]);
+const ACTIVE_EMPLOYEE_STATUSES = new Set(["ACTIVE", "ON_LEAVE", "LEAVE_PENDING"]);
 
 async function deleteUserPermanentlyRecord(id: string, currentUserId: string) {
   const locale = await getServerLocale();

@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 
 import { formatImportDateDisplay } from "@/lib/bulk-import/parse-import-date";
 import { EMPLOYEE_IMPORT_COLUMNS } from "@/lib/bulk-import/employee-template";
-import { EMPLOYEE_TEMPLATE_ASSIGNABLE_PROJECT_STATUSES } from "@/lib/bulk-import/live-template-lists";
 import { parseEmployeeImportRow } from "@/lib/bulk-import/parse-employee-row";
 import {
   createBulkImportPreview,
@@ -21,7 +20,6 @@ import {
   readSpreadsheetFile,
 } from "@/lib/bulk-import/xlsx";
 import { getNextEmployeeNumber } from "@/lib/employee-number";
-import { syncProjectAssignments } from "@/lib/employee-projects";
 import {
   employeeTypeFromPlacement,
   initialPlacementForDepartment,
@@ -35,8 +33,6 @@ import {
   defaultPortalAccessRequested,
   syncEmployeePortalLogin,
 } from "@/lib/workforce-login";
-
-const ASSIGNABLE_STATUSES = EMPLOYEE_TEMPLATE_ASSIGNABLE_PROJECT_STATUSES;
 
 async function assertCanManageEmployees() {
   const session = await requireSession();
@@ -63,7 +59,6 @@ function previewFieldsFromValues(values: Record<string, string>) {
     "Country Code": values.countryCode?.trim() || "—",
     Phone: values.phone?.trim() || "—",
     "Start date": values.hiredAt?.trim() || "—",
-    Projects: values.projectNames?.trim() || "—",
     "Portal login": values.createPortalLogin?.trim() || "Default",
   };
 }
@@ -81,7 +76,7 @@ async function loadEmployeeImportContext(file: File) {
     throw new Error("No data rows found. Add employees below the header row.");
   }
 
-  const [categories, positions, projects] = await Promise.all([
+  const [categories, positions] = await Promise.all([
     prisma.employeeCategory.findMany({
       where: {
         companyId: company.id,
@@ -101,13 +96,6 @@ async function loadEmployeeImportContext(file: File) {
       where: { companyId: company.id, active: true },
       select: { id: true, name: true, categoryId: true },
     }),
-    prisma.project.findMany({
-      where: {
-        companyId: company.id,
-        status: { in: ASSIGNABLE_STATUSES },
-      },
-      select: { id: true, name: true },
-    }),
   ]);
 
   const categoryByName = new Map(
@@ -119,9 +107,6 @@ async function loadEmployeeImportContext(file: File) {
       category,
     ])
   );
-  const projectByName = new Map(
-    projects.map((project) => [normalizeKey(project.name), project])
-  );
 
   return {
     company,
@@ -130,7 +115,6 @@ async function loadEmployeeImportContext(file: File) {
     positions,
     categoryByName,
     categoryByPrefix,
-    projectByName,
   };
 }
 
@@ -185,7 +169,6 @@ export async function previewBulkImportEmployees(
     positions,
     categoryByName,
     categoryByPrefix,
-    projectByName,
   } = await loadEmployeeImportContext(file);
 
   const previewRows: BulkImportPreviewRow[] = [];
@@ -213,22 +196,12 @@ export async function previewBulkImportEmployees(
         );
       }
 
-      for (const projectName of parsed.projectNames) {
-        const project = projectByName.get(normalizeKey(projectName));
-        if (!project) {
-          throw new Error(
-            `Project "${projectName}" was not found or is not assignable.`
-          );
-        }
-      }
-
       const defaultPlacement = initialPlacementForDepartment({
         categorySlug: category.slug,
         categoryPrefix: category.prefix,
       });
-      const placement = parsed.projectNames.length
-        ? "ON_PROJECT"
-        : defaultPlacement === "HEAD_OFFICE"
+      const placement =
+        defaultPlacement === "HEAD_OFFICE"
           ? "HEAD_OFFICE"
           : parsed.legacyPlacement === "FIELD"
             ? "FIELD"
@@ -290,7 +263,6 @@ export async function confirmBulkImportEmployees(
     positions,
     categoryByName,
     categoryByPrefix,
-    projectByName,
   } = await loadEmployeeImportContext(file);
 
   const result = createBulkImportResult();
@@ -325,24 +297,12 @@ export async function confirmBulkImportEmployees(
         );
       }
 
-      let projectIds: string[] = [];
-      for (const projectName of parsed.projectNames) {
-        const project = projectByName.get(normalizeKey(projectName));
-        if (!project) {
-          throw new Error(
-            `Project "${projectName}" was not found or is not assignable.`
-          );
-        }
-        projectIds.push(project.id);
-      }
-      projectIds = [...new Set(projectIds)];
       const defaultPlacement = initialPlacementForDepartment({
         categorySlug: category.slug,
         categoryPrefix: category.prefix,
       });
-      const placement = projectIds.length
-        ? "ON_PROJECT"
-        : defaultPlacement === "HEAD_OFFICE"
+      const placement =
+        defaultPlacement === "HEAD_OFFICE"
           ? "HEAD_OFFICE"
           : parsed.legacyPlacement === "FIELD"
             ? "FIELD"
@@ -387,9 +347,6 @@ export async function confirmBulkImportEmployees(
           },
         });
 
-        if (placement === "ON_PROJECT") {
-          await syncProjectAssignments(tx, employee.id, projectIds);
-        }
         await syncEmployeePortalLogin(tx, {
           companyId: company.id,
           employeeId: employee.id,
@@ -429,11 +386,4 @@ export async function confirmBulkImportEmployees(
   }
 
   return result;
-}
-
-/** @deprecated Use previewBulkImportEmployees + confirmBulkImportEmployees. */
-export async function bulkImportEmployees(
-  formData: FormData
-): Promise<BulkImportResult> {
-  return confirmBulkImportEmployees(formData);
 }

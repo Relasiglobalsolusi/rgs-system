@@ -117,12 +117,11 @@ export async function loadActiveEmployeesForProjectTemplate(companyId: string) {
 }
 
 export async function loadEmployeeImportTemplateLists(companyId: string) {
-  const [categories, positions, projectNames] = await Promise.all([
+  const [categories, positions] = await Promise.all([
     loadActiveEmployeeCategoriesForTemplate(companyId),
     loadActivePositionsForTemplate(companyId),
-    loadAssignableProjectNamesForTemplate(companyId),
   ]);
-  return { categories, positions, projectNames };
+  return { categories, positions };
 }
 
 export async function loadProjectImportTemplateLists(companyId: string) {

@@ -4,7 +4,6 @@ import {
   countryCodeColumnHeaderNote,
   dataSheetName,
   EMPLOYEE_HEADER_LABELS,
-  employeeNotApplicableLabel,
   employeeTemplateHeaderNote,
   employeeTemplateTitle,
   withDateColumnHeaderNotes,
@@ -37,14 +36,18 @@ const BASE_EMPLOYEE_IMPORT_COLUMNS: ColumnDef[] = [
   { key: "email", header: EMPLOYEE_HEADER_LABELS.email!.en, width: 24, centerContent: true },
   { key: "countryCode", header: EMPLOYEE_HEADER_LABELS.countryCode!.en, width: 14, centerContent: true, dropdownValues: importCountryCodeDropdownValues() },
   { key: "phone", header: EMPLOYEE_HEADER_LABELS.phone!.en, width: 26, centerContent: true, placeholder: PHONE_FORMAT_PLACEHOLDER },
-  { key: "projectNames", header: EMPLOYEE_HEADER_LABELS.projectNames!.en, width: 22, centerContent: true },
   { key: "createPortalLogin", header: EMPLOYEE_HEADER_LABELS.createPortalLogin!.en, width: 18, centerContent: true },
 ];
 
-/** Parser columns include Placement only as a legacy Assignment Scope alias. */
+/** Parser columns include legacy aliases only (not in downloaded template). */
 export const EMPLOYEE_IMPORT_COLUMNS: ColumnDef[] = applyLocalizedHeaders(
   [
     ...BASE_EMPLOYEE_IMPORT_COLUMNS,
+    {
+      key: "projectNames",
+      header: EMPLOYEE_HEADER_LABELS.projectNames!.en,
+      width: 1,
+    },
     {
       key: "placement",
       header: EMPLOYEE_HEADER_LABELS.placement!.en,
@@ -70,7 +73,6 @@ export type EmployeeImportPositionOption = {
 export type EmployeeImportTemplateOptions = {
   categories: EmployeeImportCategoryOption[];
   positions: EmployeeImportPositionOption[];
-  projectNames: string[];
   locale?: AppLocale;
   /** When set, template prefills / scopes Employment Type (Part Time Roster bulk). */
   defaultEmploymentType?: "FULL_TIME" | "PART_TIME";
@@ -141,15 +143,6 @@ function columnsWithDropdowns(options: EmployeeImportTemplateOptions): ColumnDef
               : CREATE_PORTAL_LOGIN_PLACEHOLDER,
         };
       }
-      if (column.key === "projectNames") {
-        return {
-          ...column,
-          contentSamples: [
-            employeeNotApplicableLabel(locale),
-            ...options.projectNames,
-          ],
-        };
-      }
       if (column.key === "countryCode") {
         return {
           ...column,
@@ -174,10 +167,8 @@ function applyEmployeeImportDataValidations(
     context;
   const departmentColLetter = columnLetter("department");
   const positionColLetter = columnLetter("position");
-  const projectColLetter = columnLetter("projectNames");
   const positionListStartCol = context.nextListsColumn;
-  const projectListCol = positionListStartCol + options.categories.length;
-  const blankListCol = projectListCol + 1;
+  const blankListCol = positionListStartCol + options.categories.length;
   const locale = options.locale ?? DEFAULT_LOCALE;
 
   const positionRanges = options.categories.map((category, categoryIndex) => {
@@ -198,16 +189,9 @@ function applyEmployeeImportDataValidations(
     };
   });
 
-  options.projectNames.forEach((name, rowIdx) => {
-    listsSheet.getCell(rowIdx + 1, projectListCol).value = name;
-  });
   listsSheet.getCell(1, blankListCol).value = "";
 
-  const projectListLetter = columnIndexToLetter(projectListCol);
   const blankListLetter = columnIndexToLetter(blankListCol);
-  const projectsRange = options.projectNames.length
-    ? `Lists!$${projectListLetter}$1:$${projectListLetter}$${options.projectNames.length}`
-    : `Lists!$${blankListLetter}$1:$${blankListLetter}$1`;
   const departmentCell = `$${departmentColLetter}${firstDataRow}`;
   const positionFormula = positionRanges.reduceRight(
     (fallback, item) =>
@@ -227,21 +211,6 @@ function applyEmployeeImportDataValidations(
         locale === "id"
           ? "Pilih jabatan aktif untuk departemen yang dipilih."
           : "Choose an active position for the selected department.",
-    }
-  );
-
-  worksheetWithDataValidations(dataSheet).dataValidations.add(
-    `${projectColLetter}${firstDataRow}:${projectColLetter}${lastDataRow}`,
-    {
-      type: "list",
-      allowBlank: true,
-      formulae: [`=${projectsRange}`],
-      showErrorMessage: true,
-      errorTitle: "Invalid project",
-      error:
-        locale === "id"
-          ? "Pilih proyek aktif dari dropdown."
-          : "Choose an active project from the dropdown.",
     }
   );
 }

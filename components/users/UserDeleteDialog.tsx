@@ -38,7 +38,7 @@ type Props = {
   linkedEmployee?: LinkedEmployee | null;
 } & DirectoryDialogControlProps;
 
-const ACTIVE_EMPLOYEE_STATUSES = new Set(["ACTIVE", "ON_LEAVE"]);
+const ACTIVE_EMPLOYEE_STATUSES = new Set(["ACTIVE", "ON_LEAVE", "LEAVE_PENDING"]);
 
 export default function UserDeleteDialog({
   user,

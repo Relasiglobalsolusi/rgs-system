@@ -22,8 +22,13 @@ export type ParsedEmployeeImportRow = {
   email: string | null;
   phone: string | null;
   hiredAt: Date | null;
-  projectNames: string[];
 };
+
+function projectAssignmentImportError(locale: AppLocale): string {
+  return locale === "id"
+    ? "Penugasan proyek melalui impor massal tidak lagi didukung. Tugaskan kru lapangan di Proyek."
+    : "Project assignment via bulk import is no longer supported. Assign site crew under Projects.";
+}
 
 export function parseEmployeeImportRow(
   values: SpreadsheetRow,
@@ -60,6 +65,18 @@ export function parseEmployeeImportRow(
       "Legacy Assignment Scope / Placement must be Available, On project, Head Office, or Field."
     );
   }
+  if (legacyPlacement === "ON_PROJECT") {
+    throw new Error(projectAssignmentImportError(locale));
+  }
+
+  const projectNamesRaw = values.projectNames?.trim() ?? "";
+  const projectNames = projectNamesRaw
+    .split(/[,;|]/)
+    .map((name) => name.trim())
+    .filter((name) => name && !isNotApplicableImportValue(name));
+  if (projectNames.length > 0) {
+    throw new Error(projectAssignmentImportError(locale));
+  }
 
   const hiredAt = parseImportDate(values.hiredAt ?? "", "Start Date");
   const phone =
@@ -68,11 +85,6 @@ export function parseEmployeeImportRow(
       values.phone,
       "Phone"
     ) || null;
-
-  let projectNames = (values.projectNames ?? "")
-    .split(/[,;|]/)
-    .map((name) => name.trim())
-    .filter((name) => name && !isNotApplicableImportValue(name));
 
   return {
     firstName,
@@ -87,6 +99,5 @@ export function parseEmployeeImportRow(
     email,
     phone,
     hiredAt,
-    projectNames,
   };
 }

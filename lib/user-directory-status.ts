@@ -40,7 +40,7 @@
 
  *   Restore via Revoked Access → Restore Access (same username/password/numbers).
 
- *   Roster-active employee statuses: ACTIVE and ON_LEAVE.
+ *   Roster-active employee statuses: ACTIVE, ON_LEAVE, and LEAVE_PENDING.
 
  *   Revoked Access = only when parent is still active/on roster AND User.active === false.
 
@@ -102,7 +102,7 @@ export function isRosterActiveEmployeeStatus(
 
 ): boolean {
 
-  return status === "ACTIVE" || status === "ON_LEAVE";
+  return status === "ACTIVE" || status === "ON_LEAVE" || status === "LEAVE_PENDING";
 
 }
 

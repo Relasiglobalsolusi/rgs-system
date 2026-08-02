@@ -129,23 +129,6 @@ export async function syncProjectAssignments(
   });
 }
 
-/** Assign employee to projects and set placement ON_PROJECT. */
-export async function assignEmployeeToProjects(
-  db: DbClient & { employee: Prisma.EmployeeDelegate },
-  employeeId: string,
-  projectIds: string[],
-  shifts?: AssignmentShiftInput[]
-) {
-  if (projectIds.length === 0) {
-    throw new Error("Select at least one project to assign.");
-  }
-  await syncProjectAssignments(db, employeeId, projectIds, shifts);
-  await db.employee.update({
-    where: { id: employeeId },
-    data: { placement: "ON_PROJECT" },
-  });
-}
-
 /**
  * Release from projects → AVAILABLE (ops) or keep HEAD_OFFICE if corporate.
  * Callers pass the target placement.

@@ -33,7 +33,11 @@ export function shouldHaveActivePortalLogin(options: {
 }): boolean {
   void options.hasLinkedUser;
 
-  if (options.status !== "ACTIVE" && options.status !== "ON_LEAVE") {
+  if (
+    options.status !== "ACTIVE" &&
+    options.status !== "ON_LEAVE" &&
+    options.status !== "LEAVE_PENDING"
+  ) {
     return false;
   }
 
@@ -101,11 +105,18 @@ export async function syncEmployeePortalLogin(
       placement: options.placement,
       employeeType,
     });
-    await tx.employee.update({
+    const linked = await tx.employee.findUnique({
       where: { id: options.employeeId },
-      data: { loginRevokedReason: null },
+      select: { user: { select: { active: true } } },
     });
-    return { active: true as const };
+    if (linked?.user?.active) {
+      await tx.employee.update({
+        where: { id: options.employeeId },
+        data: { loginRevokedReason: null },
+      });
+      return { active: true as const };
+    }
+    return { active: false as const };
   }
 
   if (options.userId) {

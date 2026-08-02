@@ -69,6 +69,11 @@ export default async function EmployeesPage() {
             active: true,
           },
         },
+        _count: {
+          select: {
+            leaveRequests: { where: { status: "PENDING" } },
+          },
+        },
       },
       orderBy: [{ sortOrder: "asc" }, { employeeNo: "asc" }],
     }),
@@ -127,6 +132,7 @@ export default async function EmployeesPage() {
     ...employee,
     basePay: decimalToNumber(employee.basePay),
     jkkPercent: decimalToNumber(employee.jkkPercent),
+    hasPendingLeaveRequest: employee._count.leaveRequests > 0,
   }));
 
   const categoryOptions = categories

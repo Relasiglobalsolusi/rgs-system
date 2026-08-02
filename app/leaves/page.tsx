@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireModule, getEmployeeForUser } from "@/lib/session";
+import { refreshLeaveEmploymentForUser } from "@/lib/leave-employment-status";
 
 import AppShell from "@/components/layout/AppShell";
 import SectionCard from "@/components/ui/SectionCard";
@@ -9,6 +10,7 @@ import LeaveRequestTable from "@/components/leaves/LeaveRequestTable";
 
 export default async function LeavesPage() {
   const session = await requireModule("leaves");
+  await refreshLeaveEmploymentForUser(session.user.id);
   const employee = await getEmployeeForUser(session.user.id);
   const hasEmployeeProfile = Boolean(employee);
   const companyId = session.user.companyId;

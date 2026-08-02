@@ -680,8 +680,3 @@ export async function confirmBulkImportProjects(
 
   return result;
 }
-
-/** @deprecated Prefer preview + confirm. */
-export async function bulkImportProjects(formData: FormData) {
-  return confirmBulkImportProjects(formData);
-}

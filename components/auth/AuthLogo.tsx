@@ -1,6 +1,4 @@
-import Image from "next/image";
-
-import { RGS_ONE_LOGO_SRC } from "@/lib/brand";
+import BrandLogo from "@/components/brand/BrandLogo";
 import { cn } from "@/lib/utils";
 
 type AuthLogoProps = {
@@ -23,14 +21,12 @@ export default function AuthLogo({
         className
       )}
     >
-      <Image
-        src={RGS_ONE_LOGO_SRC}
-        alt="RGS ONE"
-        width={1024}
-        height={682}
+      <BrandLogo
         priority
-        unoptimized
-        className={cn("h-auto object-contain", isHero ? "w-full" : "w-48")}
+        imageClassName={cn(
+          "h-auto object-contain",
+          isHero ? "w-full" : "w-48"
+        )}
       />
     </div>
   );

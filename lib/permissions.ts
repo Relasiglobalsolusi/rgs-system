@@ -1276,6 +1276,10 @@ export function formatEmployeeStatusLabel(
 
       return "On Leave";
 
+    case "LEAVE_PENDING":
+
+      return "Applying for Leave";
+
     case "TERMINATED":
 
       return "Terminated";

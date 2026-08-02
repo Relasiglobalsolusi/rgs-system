@@ -41,8 +41,8 @@ async function usernameIsTaken(tx: Tx, username: string) {
  * Password is unusable until first-login setup; recovery email is left unset.
  * - Soft-deleted / terminated / inactive employee → throws (restore first).
  * - Roster-active (ACTIVE or ON_LEAVE) only — same rules as login/session.
- * - Active linked user → no-op (returns null).
- * - Inactive linked user (revoked / soft-deactivated) → reactivates same credentials.
+ * - Any linked user (active or revoked) → no-op (returns null).
+ *   Use Users → Revoked Access → Restore Access to re-enable revoked logins.
  * - No linked user → allocates a new username and creates a User.
  * Callers should only invoke this after the employee is assigned to a department.
  */
@@ -77,15 +77,9 @@ export async function provisionEmployeeUser(
     );
   }
 
+  // Do not reactivate revoked/soft-deactivated logins here — Restore Access owns that.
   if (existing.userId && existing.user) {
-    if (existing.user.active) {
-      return null;
-    }
-
-    return tx.user.update({
-      where: { id: existing.user.id },
-      data: { active: true },
-    });
+    return null;
   }
 
   const displayName = `${options.firstName} ${options.lastName}`.trim();

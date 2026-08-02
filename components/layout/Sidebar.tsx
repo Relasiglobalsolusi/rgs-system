@@ -1,19 +1,18 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { LogOut } from "lucide-react";
 import { Suspense } from "react";
 
 import { changeMultiProjectSecurityCode } from "@/app/multi-project-unlock/actions";
+import BrandLogo from "@/components/brand/BrandLogo";
 import BrandSlogan from "@/components/brand/BrandSlogan";
 import SidebarNav, {
   SidebarNavFallback,
 } from "@/components/layout/SidebarNav";
 import SidebarRearrangeDialog from "@/components/layout/SidebarRearrangeDialog";
 import { useLocale } from "@/components/providers/LocaleProvider";
-import { RGS_ONE_LOGO_SRC } from "@/lib/brand";
 import { getSessionProfileLabel } from "@/lib/permissions";
 
 type SidebarProps = {
@@ -43,14 +42,10 @@ export default function Sidebar({
           aria-label={t("header.dashboardAria")}
         >
           <div className="mx-auto w-full max-w-(--app-sidebar-logo-max-width)">
-            <Image
-              src={RGS_ONE_LOGO_SRC}
-              alt="RGS ONE"
-              width={1024}
-              height={682}
+            <BrandLogo
               priority
-              unoptimized
-              className="mx-auto block h-auto w-full max-h-[9rem] object-contain"
+              className="mx-auto block w-full"
+              imageClassName="mx-auto block h-auto w-full max-h-[9rem] object-contain"
             />
           </div>
           <BrandSlogan className="shrink-0 px-1" />

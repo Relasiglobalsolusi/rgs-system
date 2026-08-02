@@ -9,6 +9,7 @@ import { formatAppDateInput } from "@/lib/progress-report-compliance";
 import { CLEANING_PROJECT_SUB_CATEGORIES } from "@/lib/project-subcategory";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
+import { refreshLeaveEmploymentForUser } from "@/lib/leave-employment-status";
 
 import AppShell from "@/components/layout/AppShell";
 import SectionCard from "@/components/ui/SectionCard";
@@ -34,6 +35,7 @@ export default async function CicoPage() {
     );
   }
 
+  await refreshLeaveEmploymentForUser(session.user.id);
   const employee = await getEmployeeForUser(session.user.id);
 
   if (!employee) {

@@ -331,7 +331,7 @@ export type EmployeeControlledFormState = {
   categoryId: string;
   positionId: string;
   employmentType: "FULL_TIME" | "PART_TIME";
-  status: "ACTIVE" | "ON_LEAVE";
+  status: "ACTIVE" | "ON_LEAVE" | "LEAVE_PENDING";
 };
 
 export type EmployeeFormSnapshot = EmployeeControlledFormState & {

@@ -111,17 +111,16 @@ export default async function BillingProjectPage({
     }
   }
 
-  const [refreshed, refreshedProject] = await Promise.all([
-    prisma.projectInvoicePeriod.findMany({
-      where: { projectId: project.id },
-      orderBy: { periodStart: "desc" },
-    }),
-    prisma.project.findUnique({
-      where: { id: project.id },
-      select: { invoicingDay: true, startDate: true },
-    }),
-  ]);
+  const refreshedProject = await prisma.project.findUnique({
+    where: { id: project.id },
+    include: {
+      invoicePeriods: {
+        orderBy: { periodStart: "desc" },
+      },
+    },
+  });
 
+  const refreshed = refreshedProject?.invoicePeriods ?? project.invoicePeriods;
   const contractPriceNum = decimalToNumber(project.contractPrice);
   const unpaidMilestone = getMostUrgentUnpaidPeriod(refreshed);
   const billingTitle = formatProjectTitle(project.name, unpaidMilestone, locale);

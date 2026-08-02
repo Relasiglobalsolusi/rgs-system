@@ -2550,7 +2550,7 @@ async function runAnniversaryMonthlyInvoicingForCompany(companyId: string) {
     },
   });
 
-  let compiled = 0;
+  const compiled = 0;
   let dueReminders = 0;
   const errors: string[] = [];
 

@@ -94,7 +94,6 @@ export default function ProgressProjectFeed({
 
   function mayEdit(report: FeedReport): boolean {
     if (!canEdit) return false;
-    if (canManage) return true;
     return Boolean(currentEmployeeId && report.employeeId === currentEmployeeId);
   }
 
