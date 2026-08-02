@@ -953,11 +953,16 @@ export async function updateUserModuleOverrides(
   if (!user) throw await usersLocaleError("userNotFound");
 
   const isPortalUser = Boolean(user.clientId || user.vendorId);
+  const isVendorPortal = Boolean(user.vendorId);
   const sanitized: Record<string, boolean> = {};
   for (const moduleKey of MODULES) {
     if (!(moduleKey in overrides)) continue;
     // Portal accounts never receive HO directory / CMS modules via overrides.
     if (isPortalUser && ADMIN_SCOPE_MODULES.includes(moduleKey)) {
+      continue;
+    }
+    // Vendors cannot unlock Progress Reports via overrides.
+    if (isVendorPortal && moduleKey === "progress") {
       continue;
     }
     sanitized[moduleKey] = Boolean(overrides[moduleKey]);

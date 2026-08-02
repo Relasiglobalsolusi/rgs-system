@@ -7,7 +7,6 @@ import {
   getSessionAccountType,
   type ModuleKey,
 } from "@/lib/permissions";
-import { getMissingProgressReportsForEmployee } from "@/lib/progress-report-compliance";
 import { getUnackedApprovedLeavesForEmployee } from "@/lib/leave-approval-notifications";
 import {
   dueAtFromPaymentTerms,
@@ -21,7 +20,6 @@ import DashboardCompactStat from "@/components/dashboard/DashboardCompactStat";
 import DashboardAttendance from "@/components/dashboard/DashboardAttendance";
 import DashboardActivityFeed from "@/components/dashboard/DashboardActivityFeed";
 import DashboardProjectProgress from "@/components/dashboard/DashboardProjectProgress";
-import MissingReportsWarning from "@/components/progress/MissingReportsWarning";
 import LeaveApprovedNotification from "@/components/leaves/LeaveApprovedNotification";
 import { buttonVariants } from "@/components/ui/button";
 import { getServerLocale } from "@/lib/i18n/locale";
@@ -131,7 +129,6 @@ export default async function DashboardPage() {
       todayAttendance,
       recentProgress,
       recentLeaves,
-      myMissing,
       approvedLeaveNotices,
     ] = await Promise.all([
       canApprove
@@ -195,9 +192,6 @@ export default async function DashboardPage() {
             take: 8,
           })
         : Promise.resolve([]),
-      canViewProgress && employeeId
-        ? getMissingProgressReportsForEmployee(employeeId, session.user.id)
-        : Promise.resolve([]),
       canViewLeaves && employeeId
         ? getUnackedApprovedLeavesForEmployee(employeeId, session.user.id)
         : Promise.resolve([]),
@@ -246,9 +240,6 @@ export default async function DashboardPage() {
         greetingName={session.user.name?.split(" ")[0] ?? guestName}
         descriptionKey="pages.dashboard.descriptionEmployee"
       >
-        {myMissing.length > 0 && (
-          <MissingReportsWarning warnings={myMissing} />
-        )}
         {canViewLeaves && employee && (
           <LeaveApprovedNotification approvals={approvedLeaveNotices} />
         )}
@@ -628,7 +619,6 @@ export default async function DashboardPage() {
     recentProgress,
     recentLeaves,
     adminStats,
-    myMissing,
   ] = await Promise.all([
     showAdminProjects
       ? prisma.project.count({
@@ -724,9 +714,6 @@ export default async function DashboardPage() {
           projects,
         }))
       : Promise.resolve({ users: 0, clients: 0, departments: 0, projects: 0 }),
-    canViewProgress && employee
-      ? getMissingProgressReportsForEmployee(employee.id, session.user.id)
-      : Promise.resolve([]),
   ]);
 
   const presentCount = todayAttendances.filter((a) => a.checkIn).length;
@@ -849,10 +836,6 @@ export default async function DashboardPage() {
       greetingName={session.user.name?.split(" ")[0] ?? guestName}
       descriptionKey="pages.dashboard.descriptionAdmin"
     >
-      {myMissing.length > 0 && (
-        <MissingReportsWarning warnings={myMissing} />
-      )}
-
       {adminStatCards.length > 0 && (
         <>
           <DashboardSectionLabel

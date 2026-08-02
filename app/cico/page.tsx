@@ -6,6 +6,10 @@ import { formatDisplayTime } from "@/lib/format-date";
 
 import { formatTimeRange } from "@/lib/operating-hours";
 
+import { formatDateInput, toUtcDateOnly } from "@/lib/invoice-period";
+
+import { formatAppDateInput } from "@/lib/progress-report-compliance";
+
 import { getServerLocale } from "@/lib/i18n/locale";
 
 import { createTranslator } from "@/lib/i18n/translate";
@@ -112,7 +116,11 @@ export default async function CicoPage() {
 
       },
 
-      include: { project: true },
+      include: {
+
+        project: { select: { id: true, name: true } },
+
+      },
 
     }),
 
@@ -184,7 +192,22 @@ export default async function CicoPage() {
 
   ]);
 
+  const workDate = todayRecord?.date
+    ? formatDateInput(toUtcDateOnly(todayRecord.date))
+    : formatAppDateInput();
 
+  const progressCount =
+    todayRecord?.projectId && todayRecord.checkIn && !todayRecord.checkOut
+      ? await prisma.progressReport.count({
+          where: {
+            employeeId: employee.id,
+            projectId: todayRecord.projectId,
+            reportDate: toUtcDateOnly(todayRecord.date),
+          },
+        })
+      : 0;
+
+  const hasProgressReport = progressCount > 0;
 
   const assignedProjects = assignments.map((assignment) => ({
 
@@ -229,6 +252,10 @@ export default async function CicoPage() {
             todayRecord={todayRecord}
 
             assignedProjects={assignedProjects}
+
+            hasProgressReport={hasProgressReport}
+
+            workDate={workDate}
 
           />
 

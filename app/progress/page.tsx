@@ -5,67 +5,48 @@ import {
   canManageProjects,
   getProjectWhereForUser,
 } from "@/lib/project-access";
-import {
-  formatDateInput,
-  parseDateInput,
-} from "@/lib/invoice-period";
-import {
-  getMissingProgressReportsForEmployee,
-  getMissingProjectsForEmployeeOnDate,
-  getStaffMissingReportsForDate,
-  formatAppDateInput,
-} from "@/lib/progress-report-compliance";
+import { formatAppDateInput } from "@/lib/progress-report-compliance";
 import {
   CLEANING_PROJECT_SUB_CATEGORIES,
-  isProjectSubCategory,
 } from "@/lib/project-subcategory";
-import { formatDisplayDate } from "@/lib/format-date";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
 
 import AppShell from "@/components/layout/AppShell";
-import SectionCard from "@/components/ui/SectionCard";
 import EmptyState from "@/components/ui/EmptyState";
-import StatusBadge from "@/components/ui/StatusBadge";
 import ProgressDialog from "@/components/progress/ProgressDialog";
-import ProgressDateFilters from "@/components/progress/ProgressDateFilters";
-import ProgressReportTable from "@/components/progress/ProgressReportTable";
-import MissingReportsWarning from "@/components/progress/MissingReportsWarning";
-import { AlertTriangle } from "lucide-react";
+import ProgressProjectFeed from "@/components/progress/ProgressProjectFeed";
+import ProgressProjectPicker, {
+  type ProgressProjectCard,
+} from "@/components/progress/ProgressProjectPicker";
+import ProgressReportDirectory, {
+  type ProgressDirectoryProject,
+} from "@/components/progress/ProgressReportDirectory";
 
 export default async function ProgressPage({
   searchParams,
 }: {
   searchParams: Promise<{
-    date?: string;
     projectId?: string;
-    subCategory?: string;
+    employeeId?: string;
   }>;
 }) {
   const session = await requireModule("progress");
   const t = createTranslator(await getServerLocale());
-  const { date: dateRaw, projectId, subCategory: subCategoryRaw } =
-    await searchParams;
-  const subCategory =
-    subCategoryRaw && isProjectSubCategory(subCategoryRaw)
-      ? subCategoryRaw
-      : undefined;
+  const { projectId, employeeId: employeeIdRaw } = await searchParams;
+  const employeeIdFilter = employeeIdRaw?.trim() || undefined;
+
   const employee = await getEmployeeForUser(session.user.id);
-  const canManage = canManageProjects(toPermissionUser(session));
+  const permissionUser = toPermissionUser(session);
+  const canManage = canManageProjects(permissionUser);
+  const isClient = Boolean(session.user.clientId);
+  const isViewerFeed = canManage || isClient;
   const projectWhere = await getProjectWhereForUser({
     companyId: session.user.companyId,
     clientId: session.user.clientId,
   });
 
   const todayInput = formatAppDateInput(new Date());
-  let selectedDate = todayInput;
-  try {
-    if (dateRaw) selectedDate = formatDateInput(parseDateInput(dateRaw));
-  } catch {
-    selectedDate = todayInput;
-  }
-  const reportDate = parseDateInput(selectedDate);
-
   const activeStatuses: ProjectStatus[] = ["IN_PROGRESS"];
   const cleaningSubs: ProjectSubCategory[] = [
     ...CLEANING_PROJECT_SUB_CATEGORIES,
@@ -76,198 +57,310 @@ export default async function ProgressPage({
     subCategory: { in: cleaningSubs },
   };
 
-  const [
-    reports,
-    filterProjects,
-    assignedCleaningProjects,
-    staffMissing,
-    myWarnings,
-    missingOnSelectedDate,
-  ] = await Promise.all([
-    prisma.progressReport.findMany({
-      where: {
-        reportDate,
-        ...(projectId ? { projectId } : {}),
-        project: {
-          ...projectWhere,
-          subCategory: subCategory ?? { in: cleaningSubs },
+  const staffScope = Boolean(employee && !isViewerFeed);
+
+  const assignedCleaningProjects = employee
+    ? await prisma.project.findMany({
+        where: {
+          ...cleaningProjectFilter,
+          assignments: { some: { employeeId: employee.id } },
         },
-      },
-      include: {
-        project: { select: { id: true, name: true } },
-        employee: {
+        select: { id: true, name: true },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      })
+    : [];
+
+  const canSubmit =
+    Boolean(employee) &&
+    !isClient &&
+    assignedCleaningProjects.length > 0 &&
+    employee?.placement === "ON_PROJECT";
+  // Clients + managers: view feed only. Staff submit/edit their own reports.
+  const canEditReports = !isViewerFeed;
+
+  // ── Manager / Client: project picker or Instagram-style feed ─────────────
+  if (isViewerFeed) {
+    const projects = await prisma.project.findMany({
+      where: cleaningProjectFilter,
+      select: {
+        id: true,
+        name: true,
+        sortOrder: true,
+        progressReports: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
           select: {
-            firstName: true,
-            lastName: true,
-            employeeNo: true,
-            category: { select: { name: true } },
+            notes: true,
+            photos: {
+              orderBy: { createdAt: "asc" },
+              take: 1,
+              select: { url: true },
+            },
           },
         },
-        photos: true,
+        _count: { select: { progressReports: true } },
       },
-      orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
-    }),
-    // Admin: all active cleaning projects for filtering. Staff: assigned only.
-    prisma.project.findMany({
-      where: {
-        ...cleaningProjectFilter,
-        ...(employee && !canManage
-          ? { assignments: { some: { employeeId: employee.id } } }
-          : {}),
-      },
-      select: { id: true, name: true, subCategory: true },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-    }),
-    // Submit dropdown: only cleaning projects the signed-in employee is assigned to.
-    employee
-      ? prisma.project.findMany({
+    });
+
+    if (projectId) {
+      const project = projects.find((p) => p.id === projectId);
+      if (!project) {
+        return (
+          <AppShell
+            titleKey="pages.progress.title"
+            descriptionKey="pages.progress.description"
+          >
+            <EmptyState
+              titleKey="pages.progress.emptyTitle"
+              descriptionKey="pages.progress.emptyDescription"
+            />
+          </AppShell>
+        );
+      }
+
+      const [reports, assignees] = await Promise.all([
+        prisma.progressReport.findMany({
           where: {
-            ...cleaningProjectFilter,
-            assignments: { some: { employeeId: employee.id } },
+            projectId: project.id,
+            ...(employeeIdFilter ? { employeeId: employeeIdFilter } : {}),
           },
-          select: { id: true, name: true },
-          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-        })
-      : Promise.resolve([]),
-    canManage
-      ? getStaffMissingReportsForDate(session.user.companyId, selectedDate)
-      : Promise.resolve({ date: selectedDate, missing: [] }),
-    employee
-      ? getMissingProgressReportsForEmployee(employee.id, session.user.id)
-      : Promise.resolve([]),
-    // Same-day / selected-date banner (no 22:00 gate — unlike modal warnings).
-    employee
-      ? getMissingProjectsForEmployeeOnDate(employee.id, reportDate)
-      : Promise.resolve([]),
-  ]);
+          include: {
+            photos: { orderBy: { createdAt: "asc" } },
+            employee: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                employeeNo: true,
+                category: { select: { name: true } },
+              },
+            },
+            project: { select: { id: true, name: true } },
+          },
+          orderBy: [{ createdAt: "desc" }],
+          take: 100,
+        }),
+        prisma.projectAssignment.findMany({
+          where: { projectId: project.id },
+          select: {
+            employee: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                employeeNo: true,
+              },
+            },
+          },
+          orderBy: [
+            { employee: { firstName: "asc" } },
+            { employee: { lastName: "asc" } },
+          ],
+        }),
+      ]);
 
-  const dateLabel = formatDisplayDate(reportDate, { timeZone: "UTC" });
+      // Include submitters who may no longer be assigned.
+      const employeeMap = new Map(
+        assignees.map((a) => [
+          a.employee.id,
+          {
+            id: a.employee.id,
+            firstName: a.employee.firstName,
+            lastName: a.employee.lastName,
+            employeeNo: a.employee.employeeNo,
+          },
+        ])
+      );
+      for (const report of reports) {
+        if (!employeeMap.has(report.employeeId)) {
+          employeeMap.set(report.employeeId, {
+            id: report.employee.id,
+            firstName: report.employee.firstName,
+            lastName: report.employee.lastName,
+            employeeNo: report.employee.employeeNo,
+          });
+        }
+      }
 
-  const canSubmit = Boolean(employee) && assignedCleaningProjects.length > 0;
+      return (
+        <AppShell
+          titleKey="pages.progress.title"
+          descriptionKey="pages.progress.feedDescription"
+        >
+          <ProgressProjectFeed
+            project={{ id: project.id, name: project.name }}
+            reports={reports}
+            employees={Array.from(employeeMap.values())}
+            selectedEmployeeId={employeeIdFilter}
+            backHref="/progress"
+            currentEmployeeId={null}
+            canManage={false}
+            canEdit={false}
+          />
+        </AppShell>
+      );
+    }
+
+    const cards: ProgressProjectCard[] = projects.map((project) => ({
+      id: project.id,
+      name: project.name,
+      reportCount: project._count.progressReports,
+      latestPhotoUrl: project.progressReports[0]?.photos[0]?.url ?? null,
+      latestNote: project.progressReports[0]?.notes ?? null,
+    }));
+
+    return (
+      <AppShell
+        titleKey="pages.progress.title"
+        descriptionKey="pages.progress.feedDescription"
+      >
+        <div className="mb-5">
+          <h2 className="text-lg font-semibold text-text">
+            {t("pages.progress.chooseProject")}
+          </h2>
+          <p className="mt-1 text-xs text-subtle">
+            {t("pages.progress.chooseProjectHint")}
+          </p>
+        </div>
+        {cards.length === 0 ? (
+          <EmptyState
+            titleKey="pages.progress.emptyTitle"
+            descriptionKey="pages.progress.emptyDescription"
+          />
+        ) : (
+          <ProgressProjectPicker projects={cards} />
+        )}
+      </AppShell>
+    );
+  }
+
+  // ── Field staff: submit / edit own reports under assigned projects ───────
+  const directoryProjects = await prisma.project.findMany({
+    where: {
+      ...cleaningProjectFilter,
+      ...(staffScope
+        ? { assignments: { some: { employeeId: employee!.id } } }
+        : {}),
+    },
+    select: {
+      id: true,
+      name: true,
+      assignments: {
+        where: staffScope ? { employeeId: employee!.id } : undefined,
+        select: {
+          employeeId: true,
+          employee: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              employeeNo: true,
+              category: { select: { name: true } },
+            },
+          },
+        },
+      },
+      progressReports: {
+        where: staffScope ? { employeeId: employee!.id } : undefined,
+        include: {
+          photos: { orderBy: { createdAt: "asc" } },
+          employee: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              employeeNo: true,
+              category: { select: { name: true } },
+            },
+          },
+          project: { select: { id: true, name: true } },
+        },
+        orderBy: [{ createdAt: "desc" }],
+        take: 50,
+      },
+    },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+  });
+
+  const grouped: ProgressDirectoryProject[] = directoryProjects.map(
+    (project) => {
+      const reportsByEmployee = new Map<
+        string,
+        (typeof project.progressReports)[number][]
+      >();
+      for (const report of project.progressReports) {
+        const list = reportsByEmployee.get(report.employeeId) ?? [];
+        list.push(report);
+        reportsByEmployee.set(report.employeeId, list);
+      }
+
+      const employees = project.assignments.map((assignment) => {
+        const reports = reportsByEmployee.get(assignment.employeeId) ?? [];
+        return {
+          id: assignment.employee.id,
+          firstName: assignment.employee.firstName,
+          lastName: assignment.employee.lastName,
+          employeeNo: assignment.employee.employeeNo,
+          category: assignment.employee.category,
+          missing: false,
+          reports: reports.map((report) => ({
+            id: report.id,
+            notes: report.notes,
+            stageLabel: report.stageLabel,
+            reportDate: report.reportDate,
+            createdAt: report.createdAt,
+            employeeId: report.employeeId,
+            projectId: report.projectId,
+            project: report.project,
+            employee: report.employee,
+            photos: report.photos,
+          })),
+        };
+      });
+
+      return {
+        id: project.id,
+        name: project.name,
+        employees,
+      };
+    }
+  );
 
   return (
     <AppShell
       titleKey="pages.progress.title"
       descriptionKey="pages.progress.description"
     >
-      {myWarnings.length > 0 && (
-        <MissingReportsWarning warnings={myWarnings} />
-      )}
-
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-text">
-            {t("pages.progress.reportsForDate", { date: dateLabel })}
+            {t("pages.progress.myReportsTitle")}
           </h2>
           <p className="mt-1 text-xs text-subtle">
-            {t(
-              reports.length === 1
-                ? "pages.progress.submittedCountOne"
-                : "pages.progress.submittedCountOther",
-              { count: reports.length }
-            )}
-            {canManage ? t("pages.progress.missingUploadChecksNote") : ""}
+            {t("pages.progress.myReportsHint")}
           </p>
         </div>
         {canSubmit ? (
           <ProgressDialog
             projects={assignedCleaningProjects}
-            defaultDate={selectedDate}
+            defaultDate={todayInput}
             triggerLabel={t("pages.progress.submitReport")}
           />
         ) : null}
       </div>
 
-      <ProgressDateFilters
-        date={selectedDate}
-        projectId={projectId}
-        subCategory={subCategory}
-        projects={filterProjects}
-      />
-
-      {canManage && staffMissing.missing.length > 0 && (
-        <SectionCard className="mb-6 border-amber-500/25 bg-card-tint-amber">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
-            <div className="min-w-0 flex-1">
-              <p className="font-medium text-amber-200">
-                {t(
-                  staffMissing.missing.length === 1
-                    ? "pages.progress.missingUploadsTitleOne"
-                    : "pages.progress.missingUploadsTitleOther",
-                  { count: staffMissing.missing.length }
-                )}
-              </p>
-              <p className="mt-1 text-sm text-subtle">
-                {t("pages.progress.missingReportMessage")}
-              </p>
-              <ul className="mt-3 space-y-2">
-                {staffMissing.missing.map((row) => (
-                  <li
-                    key={row.employee.id}
-                    className="flex flex-wrap items-center gap-2 text-sm"
-                  >
-                    <StatusBadge status="warning" compact>
-                      {t("pages.progress.missingBadge")}
-                    </StatusBadge>
-                    <span className="font-medium text-text">
-                      {row.employee.firstName} {row.employee.lastName}
-                    </span>
-                    <span className="text-subtle">
-                      ({row.employee.employeeNo}
-                      {row.employee.category
-                        ? ` · ${row.employee.category.name}`
-                        : ""}
-                      )
-                    </span>
-                    <span className="text-amber-200/90">
-                      — {row.missingProjects.map((p) => p.name).join(", ")}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </SectionCard>
-      )}
-
-      {employee && missingOnSelectedDate.length > 0 && (
-        <SectionCard className="mb-6 border-amber-500/25 bg-card-tint-amber">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
-              <div>
-                <p className="font-medium text-amber-200">
-                  {selectedDate === todayInput
-                    ? t("pages.progress.needToReportToday")
-                    : t("pages.progress.noReportOnDate", { date: dateLabel })}
-                </p>
-                <p className="mt-1 text-sm text-subtle">
-                  {t("pages.progress.missingProjectsPrefix")}{" "}
-                  {missingOnSelectedDate.map((p) => p.name).join(", ")}
-                </p>
-              </div>
-            </div>
-            <ProgressDialog
-              projects={missingOnSelectedDate}
-              defaultDate={selectedDate}
-              defaultProjectId={missingOnSelectedDate[0]?.id}
-              triggerLabel={t("pages.progress.uploadNow")}
-              compact
-            />
-          </div>
-        </SectionCard>
-      )}
-
-      {reports.length === 0 ? (
+      {grouped.length === 0 ? (
         <EmptyState
           titleKey="pages.progress.emptyTitle"
           descriptionKey="pages.progress.emptyDescription"
         />
       ) : (
-        <ProgressReportTable
-          reports={reports}
-          canReorder={canManage}
+        <ProgressReportDirectory
+          projects={grouped}
+          currentEmployeeId={employee?.id ?? null}
+          canManage={false}
+          canEdit={canEditReports}
         />
       )}
     </AppShell>

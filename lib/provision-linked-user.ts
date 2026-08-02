@@ -127,11 +127,11 @@ export async function provisionEmployeeUser(
 }
 
 /**
- * Creates or restores a portal login for a client.
+ * Creates a portal login for a client (never reactivates revoked logins).
  * Login ID is an 8-letter company-based id (not contact person name).
  * Password is unusable until first-login setup; recovery email is left unset.
- * - Active linked user → no-op (returns null).
- * - Inactive linked user (revoked / soft-deactivated) → reactivates same credentials.
+ * - Any linked user (active or revoked) → no-op (returns null).
+ *   Use Users → Revoked Access → Restore Access to re-enable revoked logins.
  * - No linked user → allocates a new Login ID and creates a User.
  */
 export async function provisionClientUser(
@@ -162,26 +162,14 @@ export async function provisionClientUser(
     );
   }
 
-  const activeLogin = await tx.user.findFirst({
-    where: { clientId: options.clientId, active: true },
+  const existingLogin = await tx.user.findFirst({
+    where: { clientId: options.clientId },
     select: { id: true },
   });
 
-  if (activeLogin) {
+  // Do not reactivate revoked/soft-deactivated logins here — Restore Access owns that.
+  if (existingLogin) {
     return null;
-  }
-
-  const inactiveLogin = await tx.user.findFirst({
-    where: { clientId: options.clientId, active: false },
-    select: { id: true },
-    orderBy: { createdAt: "asc" },
-  });
-
-  if (inactiveLogin) {
-    return tx.user.update({
-      where: { id: inactiveLogin.id },
-      data: { active: true },
-    });
   }
 
   const contactDisplay =
@@ -218,11 +206,11 @@ export async function provisionClientUser(
 }
 
 /**
- * Creates or restores a portal login for a vendor.
+ * Creates a portal login for a vendor (never reactivates revoked logins).
  * Username is derived from the contact person's first name (never company/vendor name).
  * Password is unusable until first-login setup; recovery email is left unset.
- * - Active linked user → no-op (returns null).
- * - Inactive linked user (revoked / soft-deactivated) → reactivates same credentials.
+ * - Any linked user (active or revoked) → no-op (returns null).
+ *   Use Users → Revoked Access → Restore Access to re-enable revoked logins.
  * - No linked user → allocates a new username and creates a User.
  */
 export async function provisionVendorUser(
@@ -251,26 +239,14 @@ export async function provisionVendorUser(
     );
   }
 
-  const activeLogin = await tx.user.findFirst({
-    where: { vendorId: options.vendorId, active: true },
+  const existingLogin = await tx.user.findFirst({
+    where: { vendorId: options.vendorId },
     select: { id: true },
   });
 
-  if (activeLogin) {
+  // Do not reactivate revoked/soft-deactivated logins here — Restore Access owns that.
+  if (existingLogin) {
     return null;
-  }
-
-  const inactiveLogin = await tx.user.findFirst({
-    where: { vendorId: options.vendorId, active: false },
-    select: { id: true },
-    orderBy: { createdAt: "asc" },
-  });
-
-  if (inactiveLogin) {
-    return tx.user.update({
-      where: { id: inactiveLogin.id },
-      data: { active: true },
-    });
   }
 
   const contactParts = resolveContactPersonNameParts(

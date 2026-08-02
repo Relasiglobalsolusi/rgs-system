@@ -8,6 +8,7 @@ import {
   toUtcDateOnly,
 } from "@/lib/invoice-period";
 import { formatDisplayDate } from "@/lib/format-date";
+import { parseTimeToMinutes } from "@/lib/operating-hours";
 
 /**
  * Personal "missing cleaning progress report" prompts apply only to active
@@ -24,10 +25,10 @@ async function isFieldCleaningReporter(employeeId: string): Promise<boolean> {
 /** App local timezone for progress-report deadlines (Indonesia). */
 export const APP_TIMEZONE = "Asia/Jakarta";
 
-/** Local hour after which a missing report for that day becomes warnable. */
-export const MISSING_REPORT_WARNING_HOUR = 22;
-
-/** How many prior local calendar days to check for missed reports. */
+/**
+ * How many prior local calendar days to check for missed reports after
+ * the relevant shift has ended.
+ */
 export const MISSING_REPORT_LOOKBACK_DAYS = 14;
 
 export type MissingReportProject = {
@@ -69,27 +70,6 @@ export function formatAppDateInput(instant: Date = new Date()): string {
   }).format(instant);
 }
 
-/**
- * Instant when the missing-report warning for calendar day `dateInput`
- * becomes eligible: that day at 22:00 Asia/Jakarta.
- */
-export function missingReportWarningDeadline(dateInput: string): Date {
-  const [year, month, day] = dateInput.split("-").map(Number);
-  if (!year || !month || !day) {
-    throw new Error("Invalid date.");
-  }
-  // 22:00 Asia/Jakarta = 15:00 UTC same calendar date (fixed UTC+7).
-  return new Date(Date.UTC(year, month - 1, day, 15, 0, 0));
-}
-
-/** True when `now` is at or after 22:00 local on `dateInput`. */
-export function isMissingReportWarningDue(
-  dateInput: string,
-  now: Date = new Date()
-): boolean {
-  return now.getTime() >= missingReportWarningDeadline(dateInput).getTime();
-}
-
 function addUtcDays(date: Date, days: number): Date {
   return new Date(
     Date.UTC(
@@ -105,10 +85,54 @@ function dateLabelFor(dateInput: string): string {
 }
 
 /**
- * Local calendar days (Asia/Jakarta) that are eligible for a missing-report
- * warning as of `now`, newest first. Includes today only after 22:00 local.
+ * Instant when the staff shift for calendar day `dateInput` ends (Asia/Jakarta).
+ * Overnight shifts (`shiftEnd` ≤ `shiftStart`) end on the next calendar day.
+ * When shift times are missing, falls back to end of that calendar day (23:59:59.999).
  */
-export function getEligibleMissingReportDates(
+export function shiftEndInstant(
+  dateInput: string,
+  shiftStart: string | null | undefined,
+  shiftEnd: string | null | undefined
+): Date {
+  const [year, month, day] = dateInput.split("-").map(Number);
+  if (!year || !month || !day) {
+    throw new Error("Invalid date.");
+  }
+
+  const startMins = parseTimeToMinutes(shiftStart);
+  const endMins = parseTimeToMinutes(shiftEnd);
+
+  if (endMins == null) {
+    // 23:59:59.999 Asia/Jakarta = 16:59:59.999 UTC same calendar date.
+    return new Date(Date.UTC(year, month - 1, day, 16, 59, 59, 999));
+  }
+
+  const endHour = Math.floor(endMins / 60);
+  const endMinute = endMins % 60;
+  const overnight = startMins != null && endMins <= startMins;
+  const dayOffset = overnight ? 1 : 0;
+
+  // Asia/Jakarta is fixed UTC+7 — convert wall clock to UTC.
+  return new Date(
+    Date.UTC(year, month - 1, day + dayOffset, endHour - 7, endMinute, 0, 0)
+  );
+}
+
+/** True when `now` is at or after the shift end for that work day. */
+export function hasShiftEndedForReportDay(
+  dateInput: string,
+  shiftStart: string | null | undefined,
+  shiftEnd: string | null | undefined,
+  now: Date = new Date()
+): boolean {
+  return now.getTime() >= shiftEndInstant(dateInput, shiftStart, shiftEnd).getTime();
+}
+
+/**
+ * Local calendar days (Asia/Jakarta) to scan for missing reports, newest first.
+ * Eligibility for each assignment×day still requires that assignment's shift to have ended.
+ */
+export function getMissingReportLookbackDates(
   now: Date = new Date(),
   lookbackDays: number = MISSING_REPORT_LOOKBACK_DAYS
 ): string[] {
@@ -118,21 +142,25 @@ export function getEligibleMissingReportDates(
 
   for (let offset = 0; offset <= lookbackDays; offset++) {
     const day = addUtcDays(today, -offset);
-    const dateInput = formatDateInput(day);
-    if (isMissingReportWarningDue(dateInput, now)) {
-      dates.push(dateInput);
-    }
+    dates.push(formatDateInput(day));
   }
 
   return dates;
 }
 
+type AssignmentShift = {
+  projectId: string;
+  shiftStart: string | null;
+  shiftEnd: string | null;
+  project: { id: string; name: string };
+};
+
 /**
  * Field cleaning staff missing-report warnings:
  * - Only active field / project-site staff (not HO / corporate / office)
  * - Only assigned active Regular / General / Facade cleaning projects
- * - Only days with no progress report at all
- * - Only after 22:00 Asia/Jakarta on that day (missed days still appear later)
+ * - Only after that assignment's shift has ended for the work day
+ * - Missing = zero progress reports for employee × project × shift-day
  * - Excludes warnings the user has acknowledged
  */
 export async function getMissingProgressReportsForEmployee(
@@ -142,15 +170,18 @@ export async function getMissingProgressReportsForEmployee(
 ): Promise<MissingReportWarning[]> {
   if (!(await isFieldCleaningReporter(employeeId))) return [];
 
-  const eligibleDates = getEligibleMissingReportDates(now);
-  if (eligibleDates.length === 0) return [];
+  const lookbackDates = getMissingReportLookbackDates(now);
+  if (lookbackDates.length === 0) return [];
 
   const assignments = await prisma.projectAssignment.findMany({
     where: {
       employeeId,
       project: activeCleaningProjectWhere,
     },
-    include: {
+    select: {
+      projectId: true,
+      shiftStart: true,
+      shiftEnd: true,
       project: { select: { id: true, name: true } },
     },
   });
@@ -158,7 +189,7 @@ export async function getMissingProgressReportsForEmployee(
   if (assignments.length === 0) return [];
 
   const projectIds = assignments.map((a) => a.projectId);
-  const reportDates = eligibleDates.map((d) => parseDateInput(d));
+  const reportDates = lookbackDates.map((d) => parseDateInput(d));
 
   const [reports, acks] = await Promise.all([
     prisma.progressReport.findMany({
@@ -188,8 +219,18 @@ export async function getMissingProgressReportsForEmployee(
 
   const warnings: MissingReportWarning[] = [];
 
-  for (const date of eligibleDates) {
-    for (const assignment of assignments) {
+  for (const date of lookbackDates) {
+    for (const assignment of assignments as AssignmentShift[]) {
+      if (
+        !hasShiftEndedForReportDay(
+          date,
+          assignment.shiftStart,
+          assignment.shiftEnd,
+          now
+        )
+      ) {
+        continue;
+      }
       const key = `${assignment.projectId}:${date}`;
       if (submitted.has(key) || acknowledged.has(key)) continue;
       warnings.push({
@@ -205,23 +246,29 @@ export async function getMissingProgressReportsForEmployee(
 }
 
 /**
- * Single calendar-day missing projects (no 22:00 gate, no ack filter).
- * Used for admin date pickers / same-day page banners when a date is selected.
+ * Single calendar-day missing projects for the selected date.
+ * Only includes projects whose shift for that day has already ended.
+ * Used for same-day page banners (no ack filter).
  */
 export async function getMissingProjectsForEmployeeOnDate(
   employeeId: string,
-  date: Date
+  date: Date,
+  now: Date = new Date()
 ): Promise<MissingReportProject[]> {
   if (!(await isFieldCleaningReporter(employeeId))) return [];
 
   const reportDate = toUtcDateOnly(date);
+  const dateInput = formatDateInput(reportDate);
 
   const assignments = await prisma.projectAssignment.findMany({
     where: {
       employeeId,
       project: activeCleaningProjectWhere,
     },
-    include: {
+    select: {
+      projectId: true,
+      shiftStart: true,
+      shiftEnd: true,
       project: { select: { id: true, name: true } },
     },
   });
@@ -240,17 +287,22 @@ export async function getMissingProjectsForEmployeeOnDate(
   const submitted = new Set(reports.map((r) => r.projectId));
 
   return assignments
-    .filter((a) => !submitted.has(a.projectId))
+    .filter(
+      (a) =>
+        !submitted.has(a.projectId) &&
+        hasShiftEndedForReportDay(dateInput, a.shiftStart, a.shiftEnd, now)
+    )
     .map((a) => ({ id: a.project.id, name: a.project.name }));
 }
 
 /**
  * For admin views: field cleaning staff missing a report for any assigned
- * active cleaning project on the selected date.
+ * active cleaning project on the selected date (after that shift has ended).
  */
 export async function getStaffMissingReportsForDate(
   companyId: string,
-  dateInput: string
+  dateInput: string,
+  now: Date = new Date()
 ) {
   const reportDate = parseDateInput(dateInput);
 
@@ -309,6 +361,17 @@ export async function getStaffMissingReportsForDate(
   >();
 
   for (const assignment of assignments) {
+    if (
+      !hasShiftEndedForReportDay(
+        dateInput,
+        assignment.shiftStart,
+        assignment.shiftEnd,
+        now
+      )
+    ) {
+      continue;
+    }
+
     const key = `${assignment.employeeId}:${assignment.projectId}`;
     if (submitted.has(key)) continue;
 

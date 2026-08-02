@@ -510,6 +510,10 @@ export function getAccessibleModules(
     if (isVendorPortal && module === "vendors") {
       return false;
     }
+    // Vendor portal never gets Progress Reports (clients may keep Progress).
+    if (isVendorPortal && module === "progress") {
+      return false;
+    }
     if (module in overrides) {
       return overrides[module];
     }

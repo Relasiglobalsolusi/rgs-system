@@ -913,7 +913,7 @@ export const id = {
       deleteDescription:
         "Ini memindahkan organisasi klien ke Klien Dihapus. Data disimpan dan dapat dipulihkan nanti.",
       deleteSoftNote:
-        "Login portal terkait dinonaktifkan (tidak dihapus permanen) dan dipindah ke Pengguna Dihapus. Kredensial disimpan. Setelah memulihkan klien ini, gunakan Pengguna → Akses Dicabut → Pulihkan Akses untuk mengaktifkan lagi login portal. Proyek tetap terikat ke klien ini.",
+        "Login portal terkait dinonaktifkan (tidak dihapus permanen) dan dipindah ke Klien Dihapus. Kredensial disimpan. Setelah memulihkan klien ini, gunakan Pengguna → Akses Dicabut → Pulihkan Akses untuk mengaktifkan lagi login portal. Proyek tetap terikat ke klien ini.",
       deleteForeverTitle: "Hapus Klien Selamanya?",
       deleteForeverConfirm: "Hapus Selamanya",
       deleteForeverDescription:
@@ -958,6 +958,8 @@ export const id = {
         "{name}: login portal tidak dapat dibuat untuk klien yang dihapus. Pulihkan klien terlebih dahulu.",
       portalLoginContactRequired:
         "{name}: nama depan narahubung wajib diisi.",
+      portalLoginAlreadyLinked:
+        "{name}: sudah punya login portal. Gunakan Pengguna → Akses Dicabut → Pulihkan Akses jika aksesnya dicabut.",
       generatePortalFailed: "Gagal membuat login portal.",
       selectAll: "Pilih Semua Klien",
       selectRow: "Pilih {name}",
@@ -1994,7 +1996,7 @@ export const id = {
       permissionsDescClient:
         "Default portal klien aktif: Dasbor, Proyek, Laporan Progress, Laporan Kehadiran, Laporan Bulanan, dan Invoice & Penagihan.",
       permissionsDescVendor:
-        "Default portal pemasok aktif: Dasbor dan Keuangan (invoice/penagihan mereka, unggah pajak PPN masukan, riwayat/status unggahan, pembayaran/penyelesaian hanya baca). Pemasok tidak dapat mengubah detail pemasok.",
+        "Default portal pemasok aktif: Dasbor dan Keuangan (invoice/penagihan mereka, unggah pajak PPN masukan, riwayat/status unggahan, pembayaran/penyelesaian hanya baca). Pemasok tidak dapat mengakses Laporan Progress atau mengubah detail pemasok.",
       permissionsDescEmployee:
         "Default karyawan: Dasbor, Laporan Progress, CICO (staf lapangan), Izin & Sakit; staf HO juga mendapat Proyek dan Laporan Kehadiran.",
       permissionsDescAdmin:
@@ -2580,46 +2582,85 @@ export const id = {
     progress: {
       title: "Laporan Progress",
       description:
-        "Laporan foto harian lokasi untuk staf cleaning lapangan yang ditugaskan ke proyek cleaning aktif.",
+        "Laporan foto lokasi untuk staf cleaning lapangan. Unggah selama shift — check-out diblokir sampai minimal satu laporan dikirim untuk proyek.",
+      feedDescription:
+        "Pantau Laporan Progress secara real time. Buka proyek untuk umpan foto, atau filter menurut karyawan.",
+      chooseProject: "Pilih Proyek",
+      chooseProjectHint:
+        "Buka proyek untuk melihat umpan Laporan Progress saat foto diunggah.",
+      backToProjects: "Kembali ke Proyek",
+      filterByEmployee: "Filter menurut Karyawan",
+      filterAllEmployees: "Semua Karyawan",
+      feedEmpty: "Belum ada laporan progress untuk proyek ini.",
+      feedReportCountOne: "{count} Laporan Progress",
+      feedReportCountOther: "{count} Laporan Progress",
+      noPhotosYet: "Belum ada foto",
+      myReportsTitle: "Laporan Progress Saya",
+      myReportsHint:
+        "Unggah Laporan Progress saat bekerja. Anda harus mengirim minimal satu Laporan Progress sebelum check-out CICO.",
       submitReport: "Kirim Laporan Progress",
+      editReport: "Ubah Laporan Progress",
       dialogTitle: "Laporan Progress",
       dialogDescription:
-        "Staf cleaning lapangan: pilih proyek, area layanan, dan catatan, lalu unggah foto lokasi. Proyek, Area Layanan, Catatan, dan minimal satu foto wajib diisi.",
-      emptyTitle: "Belum ada laporan progress",
+        "Staf cleaning lapangan: pilih proyek, area layanan, dan catatan, lalu unggah foto lokasi. Anda boleh mengirim beberapa laporan per proyek dan hari. Proyek, Area Layanan, Catatan, dan minimal satu foto wajib diisi.",
+      editDialogTitle: "Ubah Laporan Progress",
+      editDialogDescription:
+        "Perbarui area layanan, catatan, tanggal, atau foto untuk laporan progress ini. Pertahankan atau tambahkan minimal satu foto.",
+      saveChanges: "Simpan Perubahan",
+      emptyTitle: "Belum Ada Laporan Progress",
       emptyDescription:
-        "Tidak ada laporan foto untuk tanggal ini. Staf cleaning lapangan harus mengunggah foto lokasi untuk setiap proyek cleaning yang ditugaskan.",
+        "Tidak ada proyek atau laporan foto untuk tanggal ini. Staf cleaning lapangan harus mengunggah foto lokasi untuk setiap proyek cleaning yang ditugaskan selama shift.",
       emptyForDate: "Tidak ada laporan progress untuk tanggal ini.",
       submittedBy: "Dikirim oleh",
-      selectProject: "Pilih proyek",
+      selectProject: "Pilih Proyek",
       serviceArea: "Area Layanan",
       serviceAreaWithValue: "Area Layanan: {area}",
       serviceAreaPlaceholder: "mis. Lobby, Lantai 3",
-      notesPlaceholder: "Catatan tentang pekerjaan hari ini...",
+      notesPlaceholder: "Catatan tentang pekerjaan...",
       projectRequired: "Proyek wajib diisi.",
       serviceAreaRequired: "Area layanan wajib diisi.",
       notesRequired: "Catatan wajib diisi.",
       photoRequired: "Minimal satu foto wajib diisi.",
-      progressPhoto: "Foto progress",
+      progressPhoto: "Foto Progress",
       required: "(wajib)",
       reportsForDate: "Laporan untuk {date}",
+      directorySubtitle:
+        "Dikelompokkan menurut Proyek → Karyawan Ditugaskan → Laporan Progress",
+      directoryHint: "Proyek → Karyawan → Laporan Progress",
+      assignedEmployeeOne: "{count} karyawan ditugaskan",
+      assignedEmployeeOther: "{count} karyawan ditugaskan",
+      reportCountOne: "{count} Laporan Progress",
+      reportCountOther: "{count} Laporan Progress",
+      missingEmployeeCount: "{count} belum ada setelah shift",
+      noReportsAfterShift: "Belum ada laporan progress setelah shift berakhir.",
+      noReportsYet: "Belum ada laporan progress untuk tanggal ini.",
+      untitledReport: "Laporan Progress",
+      existingPhotos: "Foto yang Ada",
+      existingPhotosHint:
+        "Hapus foto jika salah, lalu tambahkan pengganti jika perlu.",
+      noPhotosKept: "Semua foto yang ada dihapus — tambahkan minimal satu foto baru.",
+      addPhotos: "Tambah Foto",
+      removePhoto: "Hapus Foto",
+      photoUploadHint:
+        "JPG, PNG, WebP, atau GIF. Maksimal 10 MB per file. Beberapa foto diperbolehkan.",
       submittedCountOne: "{count} laporan dikirim",
       submittedCountOther: "{count} laporan dikirim",
       missingUploadChecksNote:
-        " · Pemeriksaan unggahan yang hilang hanya berlaku untuk petugas cleaning lapangan",
+        " · Pemeriksaan hilang berlaku setelah shift masing-masing petugas berakhir",
       missingUploadsTitleOne: "Unggahan hilang — {count} petugas cleaning lapangan",
       missingUploadsTitleOther:
         "Unggahan hilang — {count} petugas cleaning lapangan",
-      missingBadge: "Belum ada",
-      needToReportToday: "Anda masih perlu melapor hari ini",
+      missingBadge: "Belum Ada",
+      needToReportToday: "Shift Anda berakhir — laporan progress masih diperlukan",
       noReportOnDate: "Belum ada laporan progress pada {date}",
       missingProjectsPrefix: "Belum ada:",
-      missingReportTitle: "Laporan progress cleaning belum ada",
+      missingReportTitle: "Laporan Progress Cleaning Belum Ada",
       missingReportMessage:
-        "Satu atau lebih proyek cleaning yang ditugaskan masih membutuhkan laporan progress untuk hari ini.",
-      uploadNow: "Unggah sekarang",
-      acknowledgeAll: "Tandai semua sudah dibaca",
-      acknowledge: "Tandai sudah dibaca",
-      remindLater: "Ingatkan nanti",
+        "Satu atau lebih proyek cleaning yang ditugaskan masih membutuhkan laporan progress setelah shift berakhir. Kirim minimal satu laporan per proyek untuk hari shift tersebut.",
+      uploadNow: "Unggah Sekarang",
+      acknowledgeAll: "Tandai Semua Sudah Dibaca",
+      acknowledge: "Tandai Sudah Dibaca",
+      remindLater: "Ingatkan Nanti",
       openProgressReports: "Buka Laporan Progress",
       noUploadOn: "— belum diunggah pada {date}",
       submitted: "Terkirim",
@@ -2628,6 +2669,7 @@ export const id = {
       photoCountOne: "{count} foto",
       photoCountOther: "{count} foto",
       submitFailed: "Gagal mengirim laporan progress.",
+      editFailed: "Gagal mengubah laporan progress.",
       reorderFailed: "Gagal mengubah urutan laporan progress.",
       errors: {
         employeeProfileNotFound: "Profil karyawan tidak ditemukan.",
@@ -2636,12 +2678,18 @@ export const id = {
         projectRequired: "Proyek wajib diisi.",
         serviceAreaRequired: "Area Layanan wajib diisi.",
         notesRequired: "Catatan wajib diisi.",
+        dateRequired: "Tanggal wajib diisi.",
         photoRequired: "Minimal satu foto wajib diisi.",
+        photoMustBeImage: "Foto harus JPG, PNG, WebP, atau GIF.",
+        photoTooLarge: "Setiap foto maksimal 10 MB.",
         notAssigned: "Anda tidak ditugaskan ke proyek ini.",
         cleaningOnly:
           "Laporan progress hanya untuk proyek cleaning lapangan (Regular, General, atau Facade Cleaning).",
         inProgressOnly:
           "Laporan progress hanya untuk proyek Sedang Berjalan (perintah kerja diterima).",
+        reportNotFound: "Laporan progress tidak ditemukan.",
+        editDenied:
+          "Anda tidak memiliki izin untuk mengubah laporan progress ini.",
         reorderDenied:
           "Anda tidak memiliki izin untuk mengubah urutan laporan progress.",
         companyNotFound: "Perusahaan tidak ditemukan.",
@@ -2691,9 +2739,11 @@ export const id = {
         tooFarCheckOut:
           "Anda berjarak {distance} m dari {site}. Check-out dalam radius {radius} m dari lokasi proyek tersebut.",
         lateCheckInNote: "Check-in terlambat (seharusnya sebelum {time}).",
+        progressRequiredBeforeCheckOut:
+          "Foto Laporan Progress wajib untuk check-out. Silakan unggah foto tersebut lalu coba CICO lagi.",
       },
-      todaysCico: "CICO hari ini",
-      recentHistory: "Riwayat terbaru",
+      todaysCico: "CICO Hari Ini",
+      recentHistory: "Riwayat Terbaru",
       checkIn: "Check In",
       checkOut: "Check Out",
       checkedIn: "Sudah Check In",
@@ -2701,8 +2751,8 @@ export const id = {
       gettingLocation: "Mengambil lokasi...",
       history: "Riwayat",
       noHistory: "Belum ada riwayat check-in.",
-      projectSite: "Lokasi proyek",
-      selectProject: "Pilih proyek",
+      projectSite: "Lokasi Proyek",
+      selectProject: "Pilih Proyek",
       noProjectsAssigned:
         "Belum ada proyek yang ditugaskan. Minta manajer menugaskan Anda ke lokasi.",
       checkingInAt: "Check-in di",
@@ -2712,19 +2762,23 @@ export const id = {
         "Clock-in sebelum {time} jika memungkinkan — check-in terlambat tetap diizinkan.",
       noShiftAssigned:
         "Belum ada shift — minta Kantor Pusat mengatur shift di Sumber Daya Manusia → Shift.",
-      onSitePhoto: "Foto di lokasi",
+      onSitePhoto: "Foto di Lokasi",
       required: "(wajib)",
       photoHelp:
         "Ambil foto yang jelas menunjukkan Anda di lokasi proyek ini (selfie atau bukti di lokasi). Check-in tidak akan berhasil tanpa foto.",
-      takePhoto: "Ambil / unggah foto",
-      retakePhoto: "Ambil ulang foto",
+      takePhoto: "Ambil / Unggah Foto",
+      retakePhoto: "Ambil Ulang Foto",
       noPhotoSelected: "Belum ada foto dipilih",
-      checkInPhoto: "Foto check-in",
+      checkInPhoto: "Foto Check-In",
       checkInPhotoAlt: "Foto check-in hari ini",
       checkedInAt: "Check-in di:",
       shiftLabel: "Shift",
+      progressRequiredTitle: "Laporan Progress Wajib",
+      progressRequiredBody:
+        "Foto Laporan Progress wajib untuk check-out. Silakan unggah foto tersebut lalu coba CICO lagi.",
+      uploadProgressNow: "Unggah Laporan Progress",
       footerNote:
-        "CICO membutuhkan GPS dalam radius lokasi proyek dan foto check-in di lokasi. Jam operasional tidak memblokir check-in atau check-out.",
+        "CICO membutuhkan GPS dalam radius lokasi proyek dan foto check-in di lokasi. Check-out juga membutuhkan minimal satu Laporan Progress untuk proyek hari ini.",
       chooseImageFile: "Pilih file gambar untuk foto check-in Anda.",
       photoRequiredAlert:
         "Foto check-in wajib. Ambil foto yang menunjukkan Anda di lokasi proyek ini.",
@@ -2735,8 +2789,8 @@ export const id = {
       geolocationUnsupported: "Geolokasi tidak didukung di perangkat ini.",
       columns: {
         project: "Proyek",
-        checkIn: "Check-in",
-        checkOut: "Check-out",
+        checkIn: "Check-In",
+        checkOut: "Check-Out",
         duration: "Durasi",
         location: "Lokasi",
       },

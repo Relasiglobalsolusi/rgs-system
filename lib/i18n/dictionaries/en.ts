@@ -894,7 +894,7 @@ export const en = {
       deleteDescription:
         "This moves the client organization to Deleted clients. The record is kept and can be restored later.",
       deleteSoftNote:
-        "Linked portal logins are disabled (not permanently deleted) and move to Deleted users. Credentials are kept. After you restore this client, use Users → Revoked Access → Restore Access to re-enable portal login. Projects stay assigned to this client.",
+        "Linked portal logins are disabled (not permanently deleted) and move to Deleted Client. Credentials are kept. After you restore this client, use Users → Revoked Access → Restore Access to re-enable portal login. Projects stay assigned to this client.",
       deleteForeverTitle: "Delete Client Forever?",
       deleteForeverConfirm: "Delete Forever",
       deleteForeverDescription:
@@ -939,6 +939,8 @@ export const en = {
         "{name}: portal login cannot be generated for deleted clients. Restore the client first.",
       portalLoginContactRequired:
         "{name}: contact person first name is required.",
+      portalLoginAlreadyLinked:
+        "{name}: already has a portal login. Use Users → Revoked Access → Restore Access if it is revoked.",
       generatePortalFailed: "Failed to generate portal login.",
       selectAll: "Select All Clients",
       selectRow: "Select {name}",
@@ -1968,7 +1970,7 @@ export const en = {
       permissionsDescClient:
         "Client portal defaults on: Dashboard, Projects, Progress Reports, Attendance Report, Monthly Reports, and Invoice and Billing.",
       permissionsDescVendor:
-        "Vendor portal defaults on: Dashboard and Finance (their invoices/billing, tax PPN masukan upload, upload history/status, payment/settlement read-only). Vendors cannot edit vendor details.",
+        "Vendor portal defaults on: Dashboard and Finance (their invoices/billing, tax PPN masukan upload, upload history/status, payment/settlement read-only). Vendors cannot access Progress Reports or edit vendor details.",
       permissionsDescEmployee:
         "Employee defaults: Dashboard, Progress Reports, CICO (field staff), Leave & Sick; HO staff also get Projects and Attendance Report.",
       permissionsDescAdmin:
@@ -2551,45 +2553,83 @@ export const en = {
     progress: {
       title: "Progress Reports",
       description:
-        "Daily site photo reports for field cleaning staff assigned to active cleaning projects.",
+        "Site photo reports for field cleaning staff. Upload while on shift — check-out is blocked until at least one report is submitted for the project.",
+      feedDescription:
+        "Track Progress Reports in real time. Open a project for the photo feed, or filter by employee.",
+      chooseProject: "Choose Project",
+      chooseProjectHint:
+        "Open a project to view its Progress Report feed as photos are uploaded.",
+      backToProjects: "Back to Projects",
+      filterByEmployee: "Filter by Employee",
+      filterAllEmployees: "All Employees",
+      feedEmpty: "No progress reports for this project yet.",
+      feedReportCountOne: "{count} Progress Report",
+      feedReportCountOther: "{count} Progress Reports",
+      noPhotosYet: "No photos yet",
+      myReportsTitle: "My Progress Reports",
+      myReportsHint:
+        "Upload Progress Reports while working. You must submit at least one Progress Report before CICO check-out.",
       submitReport: "Submit Progress Report",
+      editReport: "Edit Progress Report",
       dialogTitle: "Progress Report",
       dialogDescription:
-        "Field cleaning staff: select your project, service area, and notes, then upload site photos. Project, Service Area, Notes, and at least one photo are required.",
-      emptyTitle: "No progress reports",
+        "Field cleaning staff: select your project, service area, and notes, then upload site photos. You may submit multiple reports per project and day. Project, Service Area, Notes, and at least one photo are required.",
+      editDialogTitle: "Edit Progress Report",
+      editDialogDescription:
+        "Update the service area, notes, date, or photos for this progress report. Keep or add at least one photo.",
+      saveChanges: "Save Changes",
+      emptyTitle: "No Progress Reports",
       emptyDescription:
-        "No photo reports were submitted for this date. Field cleaning staff should upload site photos for each assigned cleaning project.",
+        "No projects or photo reports for this date. Field cleaning staff should upload site photos for each assigned cleaning project while on shift.",
       emptyForDate: "No progress reports for this date.",
       submittedBy: "Submitted by",
-      selectProject: "Select project",
+      selectProject: "Select Project",
       serviceArea: "Service Area",
       serviceAreaWithValue: "Service Area: {area}",
       serviceAreaPlaceholder: "e.g. Lobby, Floor 3",
-      notesPlaceholder: "Notes about today's work...",
+      notesPlaceholder: "Notes about the work...",
       projectRequired: "Project is required.",
       serviceAreaRequired: "Service area is required.",
       notesRequired: "Notes are required.",
       photoRequired: "At least one photo is required.",
-      progressPhoto: "Progress photo",
+      progressPhoto: "Progress Photo",
       required: "(required)",
       reportsForDate: "Reports for {date}",
+      directorySubtitle:
+        "Grouped by Project → Assigned Employee → Progress Reports",
+      directoryHint: "Project → Employee → Progress Reports",
+      assignedEmployeeOne: "{count} assigned employee",
+      assignedEmployeeOther: "{count} assigned employees",
+      reportCountOne: "{count} Progress Report",
+      reportCountOther: "{count} Progress Reports",
+      missingEmployeeCount: "{count} missing after shift",
+      noReportsAfterShift: "No progress report after shift end.",
+      noReportsYet: "No progress reports yet for this date.",
+      untitledReport: "Progress Report",
+      existingPhotos: "Existing Photos",
+      existingPhotosHint: "Remove a photo if it is wrong, then add replacements if needed.",
+      noPhotosKept: "All existing photos removed — add at least one new photo.",
+      addPhotos: "Add Photos",
+      removePhoto: "Remove Photo",
+      photoUploadHint:
+        "JPG, PNG, WebP, or GIF. Up to 10 MB each. Multiple photos allowed.",
       submittedCountOne: "{count} report submitted",
       submittedCountOther: "{count} reports submitted",
       missingUploadChecksNote:
-        " · Missing-upload checks apply to field cleaning assignees only",
+        " · Missing checks apply after each assignee's shift ends",
       missingUploadsTitleOne: "Missing uploads — {count} field cleaner",
       missingUploadsTitleOther: "Missing uploads — {count} field cleaners",
       missingBadge: "Missing",
-      needToReportToday: "You still need to report today",
+      needToReportToday: "Your shift ended — progress report still needed",
       noReportOnDate: "No progress report on {date}",
       missingProjectsPrefix: "Missing:",
-      missingReportTitle: "Missing cleaning progress report",
+      missingReportTitle: "Missing Cleaning Progress Report",
       missingReportMessage:
-        "One or more assigned cleaning projects still need a progress report for today.",
-      uploadNow: "Upload now",
-      acknowledgeAll: "Acknowledge all",
+        "One or more assigned cleaning projects still need a progress report after your shift ended. Submit at least one report per project for that shift day.",
+      uploadNow: "Upload Now",
+      acknowledgeAll: "Acknowledge All",
       acknowledge: "Acknowledge",
-      remindLater: "Remind me later",
+      remindLater: "Remind Me Later",
       openProgressReports: "Open Progress Reports",
       noUploadOn: "— no upload on {date}",
       submitted: "Submitted",
@@ -2598,6 +2638,7 @@ export const en = {
       photoCountOne: "{count} photo",
       photoCountOther: "{count} photos",
       submitFailed: "Failed to submit progress report.",
+      editFailed: "Failed to update progress report.",
       reorderFailed: "Failed to reorder progress reports.",
       errors: {
         employeeProfileNotFound: "Employee profile not found.",
@@ -2606,12 +2647,17 @@ export const en = {
         projectRequired: "Project is required.",
         serviceAreaRequired: "Service Area is required.",
         notesRequired: "Notes are required.",
+        dateRequired: "Date is required.",
         photoRequired: "At least one photo is required.",
+        photoMustBeImage: "Photos must be JPG, PNG, WebP, or GIF.",
+        photoTooLarge: "Each photo must be 10 MB or smaller.",
         notAssigned: "You are not assigned to this project.",
         cleaningOnly:
           "Progress reports are only for field cleaning projects (Regular, General, or Facade Cleaning).",
         inProgressOnly:
           "Progress reports are only for In Progress projects (work order received).",
+        reportNotFound: "Progress report not found.",
+        editDenied: "You do not have permission to edit this progress report.",
         reorderDenied: "You do not have permission to reorder progress reports.",
         companyNotFound: "Company not found.",
         nothingToReorder: "Nothing to reorder.",
@@ -2658,9 +2704,11 @@ export const en = {
         tooFarCheckOut:
           "You are {distance} m from {site}. Check out within {radius} m of that project site.",
         lateCheckInNote: "Late check-in (expected before {time}).",
+        progressRequiredBeforeCheckOut:
+          "Progress Report photos are required to check out. Please upload them and retry CICO.",
       },
       todaysCico: "Today's CICO",
-      recentHistory: "Recent history",
+      recentHistory: "Recent History",
       checkIn: "Check In",
       checkOut: "Check Out",
       checkedIn: "Checked In",
@@ -2668,30 +2716,34 @@ export const en = {
       gettingLocation: "Getting location...",
       history: "History",
       noHistory: "No check-in history yet.",
-      projectSite: "Project site",
-      selectProject: "Select project",
+      projectSite: "Project Site",
+      selectProject: "Select Project",
       noProjectsAssigned:
         "No projects assigned. Ask your manager to assign you to a site.",
       checkingInAt: "Checking in at",
       mustBeWithinMeters: "Must be within {meters} m of this site.",
-      yourShift: "Your shift:",
+      yourShift: "Your Shift:",
       clockInBeforeHint:
         "Clock in before {time} when possible — late check-ins are still allowed.",
       noShiftAssigned:
         "No shift assigned yet — ask Head Office to set your shift under Human Resources → Shifts.",
-      onSitePhoto: "On-site photo",
+      onSitePhoto: "On-Site Photo",
       required: "(required)",
       photoHelp:
         "Take a photo that clearly shows you at this project site (selfie or on-site proof). Check-in will not succeed without it.",
-      takePhoto: "Take / upload photo",
-      retakePhoto: "Retake photo",
+      takePhoto: "Take / Upload Photo",
+      retakePhoto: "Retake Photo",
       noPhotoSelected: "No photo selected yet",
-      checkInPhoto: "Check-in photo",
+      checkInPhoto: "Check-In Photo",
       checkInPhotoAlt: "Today's check-in photo",
       checkedInAt: "Checked in at:",
       shiftLabel: "Shift",
+      progressRequiredTitle: "Progress Report Required",
+      progressRequiredBody:
+        "Progress Report photos are required to check out. Please upload them and retry CICO.",
+      uploadProgressNow: "Upload Progress Report",
       footerNote:
-        "CICO requires GPS within the project site radius and an on-site check-in photo. Operating hours do not block check-in or check-out.",
+        "CICO requires GPS within the project site radius and an on-site check-in photo. Check-out also requires at least one Progress Report for today's project.",
       chooseImageFile: "Please choose an image file for your check-in photo.",
       photoRequiredAlert:
         "A check-in photo is required. Take a photo that shows you at this project site.",
@@ -2702,8 +2754,8 @@ export const en = {
       geolocationUnsupported: "Geolocation is not supported on this device.",
       columns: {
         project: "Project",
-        checkIn: "Check-in",
-        checkOut: "Check-out",
+        checkIn: "Check-In",
+        checkOut: "Check-Out",
         duration: "Duration",
         location: "Location",
       },

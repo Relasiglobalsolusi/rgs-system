@@ -8,6 +8,7 @@ import {
   isLateCheckIn,
   resolveExpectedShiftStart,
 } from "@/lib/operating-hours";
+import { toUtcDateOnly } from "@/lib/invoice-period";
 import { saveUpload } from "@/lib/upload";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
@@ -16,6 +17,23 @@ function todayDate() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   return d;
+}
+
+/** Hard gate: check-out requires ≥1 progress report for this employee × project × work day. */
+async function hasProgressReportForWorkDay(
+  employeeId: string,
+  projectId: string,
+  workDay: Date
+) {
+  const reportDate = toUtcDateOnly(workDay);
+  const count = await prisma.progressReport.count({
+    where: {
+      employeeId,
+      projectId,
+      reportDate,
+    },
+  });
+  return count > 0;
 }
 
 async function cicoError(
@@ -217,6 +235,20 @@ export async function checkOut(formData: FormData) {
 
   if (existing.checkOut) {
     throw await cicoError("alreadyCheckedOut");
+  }
+
+  if (!existing.projectId) {
+    throw await cicoError("mustCheckInFirst");
+  }
+
+  // Canonical flow: no Progress Report for this shift/work day → block check-out.
+  const hasProgress = await hasProgressReportForWorkDay(
+    employee.id,
+    existing.projectId,
+    existing.date
+  );
+  if (!hasProgress) {
+    throw await cicoError("progressRequiredBeforeCheckOut");
   }
 
   if (

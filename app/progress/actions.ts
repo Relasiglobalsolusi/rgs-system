@@ -9,7 +9,7 @@ import {
   toPermissionUser,
 } from "@/lib/session";
 import { canManageProjects } from "@/lib/project-access";
-import { saveUpload } from "@/lib/upload";
+import { deleteLocalUpload, saveUpload } from "@/lib/upload";
 import {
   contractCyclePeriodBounds,
   formatDateInput,
@@ -21,9 +21,36 @@ import { isCleaningProjectSubCategory } from "@/lib/project-subcategory";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
 
+const PROGRESS_IMAGE_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+]);
+
+/** Reasonable per-file cap — no artificial count limit on photos per report. */
+const MAX_PROGRESS_PHOTO_BYTES = 10 * 1024 * 1024;
+
 async function progressError(key: string) {
   const locale = await getServerLocale();
   return new Error(translate(locale, `pages.progress.errors.${key}`));
+}
+
+function collectPhotoFiles(formData: FormData, field = "photos"): File[] {
+  return (formData.getAll(field) as File[]).filter(
+    (photo) => photo && typeof photo === "object" && "size" in photo && photo.size > 0
+  );
+}
+
+async function assertValidProgressPhotos(photos: File[]) {
+  for (const photo of photos) {
+    if (!PROGRESS_IMAGE_TYPES.has(photo.type)) {
+      throw await progressError("photoMustBeImage");
+    }
+    if (photo.size > MAX_PROGRESS_PHOTO_BYTES) {
+      throw await progressError("photoTooLarge");
+    }
+  }
 }
 
 /**
@@ -71,6 +98,14 @@ async function ensureOngoingPeriod(projectId: string, reportDate: Date) {
   });
 }
 
+function revalidateProgressPaths(projectId: string) {
+  revalidatePath("/progress");
+  revalidatePath("/projects");
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/cico");
+}
+
 export async function createProgressReport(formData: FormData) {
   const session = await requireModule("progress");
   const employee = await getEmployeeForUser(session.user.id);
@@ -86,16 +121,16 @@ export async function createProgressReport(formData: FormData) {
   const stageLabel = String(formData.get("stageLabel") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim();
   const dateStr = String(formData.get("date") ?? "").trim();
-  const photos = formData.getAll("photos") as File[];
+  const photos = collectPhotoFiles(formData);
 
   if (!projectId) throw await progressError("projectRequired");
   if (!stageLabel) throw await progressError("serviceAreaRequired");
   if (!notes) throw await progressError("notesRequired");
 
-  const validPhotos = photos.filter((photo) => photo && photo.size > 0);
-  if (validPhotos.length === 0) {
+  if (photos.length === 0) {
     throw await progressError("photoRequired");
   }
+  await assertValidProgressPhotos(photos);
 
   const reportDate = dateStr
     ? parseDateInput(dateStr)
@@ -156,7 +191,7 @@ export async function createProgressReport(formData: FormData) {
     },
   });
 
-  for (const photo of validPhotos) {
+  for (const photo of photos) {
     const url = await saveUpload(photo, "uploads/progress");
     await prisma.progressReportPhoto.create({
       data: {
@@ -172,12 +207,116 @@ export async function createProgressReport(formData: FormData) {
     data: { status: "IN_PROGRESS" },
   });
 
-  revalidatePath("/progress");
-  revalidatePath("/projects");
-  revalidatePath(`/projects/${projectId}`);
-  revalidatePath("/dashboard");
+  revalidateProgressPaths(projectId);
 
   return { id: report.id, date: formatDateInput(reportDate) };
+}
+
+/**
+ * Edit an existing progress report (service area, notes, date, photos).
+ * Author may edit their own; project managers may edit any in-company report.
+ */
+export async function updateProgressReport(formData: FormData) {
+  const session = await requireModule("progress");
+  const permissionUser = toPermissionUser(session);
+  const employee = await getEmployeeForUser(session.user.id);
+  const isManager = canManageProjects(permissionUser);
+
+  const reportId = String(formData.get("reportId") ?? "").trim();
+  if (!reportId) throw await progressError("reportNotFound");
+
+  const stageLabel = String(formData.get("stageLabel") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim();
+  const dateStr = String(formData.get("date") ?? "").trim();
+  const keepPhotoIds = formData
+    .getAll("keepPhotoIds")
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean);
+  const newPhotos = collectPhotoFiles(formData);
+
+  if (!stageLabel) throw await progressError("serviceAreaRequired");
+  if (!notes) throw await progressError("notesRequired");
+  if (!dateStr) throw await progressError("dateRequired");
+
+  await assertValidProgressPhotos(newPhotos);
+
+  const existing = await prisma.progressReport.findFirst({
+    where: {
+      id: reportId,
+      project: { companyId: session.user.companyId },
+    },
+    include: {
+      photos: { select: { id: true, url: true } },
+      project: {
+        select: { id: true, companyId: true, subCategory: true, status: true },
+      },
+    },
+  });
+
+  if (!existing) throw await progressError("reportNotFound");
+
+  const isAuthor = Boolean(employee && existing.employeeId === employee.id);
+  if (!isAuthor && !isManager) {
+    throw await progressError("editDenied");
+  }
+
+  if (!isCleaningProjectSubCategory(existing.project.subCategory)) {
+    throw await progressError("cleaningOnly");
+  }
+
+  const existingPhotoIds = new Set(existing.photos.map((p) => p.id));
+  const keptIds = keepPhotoIds.filter((id) => existingPhotoIds.has(id));
+  if (keptIds.length + newPhotos.length === 0) {
+    throw await progressError("photoRequired");
+  }
+
+  const reportDate = parseDateInput(dateStr);
+  const period = await ensureOngoingPeriod(existing.projectId, reportDate);
+
+  const removedPhotos = existing.photos.filter((p) => !keptIds.includes(p.id));
+  const uploadedUrls: string[] = [];
+  for (const photo of newPhotos) {
+    uploadedUrls.push(await saveUpload(photo, "uploads/progress"));
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.progressReport.update({
+      where: { id: reportId },
+      data: {
+        stageLabel,
+        notes,
+        reportDate,
+        invoicePeriodId:
+          period &&
+          (period.status === "ONGOING" || period.status === "COMPILING")
+            ? period.id
+            : existing.invoicePeriodId,
+      },
+    });
+
+    if (removedPhotos.length > 0) {
+      await tx.progressReportPhoto.deleteMany({
+        where: { id: { in: removedPhotos.map((p) => p.id) } },
+      });
+    }
+
+    for (const url of uploadedUrls) {
+      await tx.progressReportPhoto.create({
+        data: {
+          progressReportId: reportId,
+          url,
+        },
+      });
+    }
+  });
+
+  for (const photo of removedPhotos) {
+    await deleteLocalUpload(photo.url);
+  }
+
+  revalidateProgressPaths(existing.projectId);
+
+  return { id: reportId, date: formatDateInput(reportDate) };
 }
 
 export async function reorderProgressReports(ids: string[]) {

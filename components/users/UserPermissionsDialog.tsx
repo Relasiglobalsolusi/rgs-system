@@ -171,11 +171,16 @@ export default function UserPermissionsDialog({
   );
 
   // Portal accounts never receive HO directory / CMS modules — hide toggles.
+  // Vendors also never get Progress Reports (locked product rule).
   const visibleModules = useMemo(() => {
     const modules = getVisibleModules();
     if (!isPortalUser) return modules;
-    return modules.filter((module) => !ADMIN_SCOPE_MODULES.includes(module));
-  }, [isPortalUser]);
+    return modules.filter((module) => {
+      if (ADMIN_SCOPE_MODULES.includes(module)) return false;
+      if (accountType === "Vendor" && module === "progress") return false;
+      return true;
+    });
+  }, [isPortalUser, accountType]);
   const overrideCount = Object.keys(overrides).length;
   const enabledCount = visibleModules.filter(
     (module) => accessStates[module].effective

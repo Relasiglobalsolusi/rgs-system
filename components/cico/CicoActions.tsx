@@ -12,7 +12,9 @@ import {
   type ChangeEvent,
 } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { checkIn, checkOut } from "@/app/cico/actions";
+import ProgressDialog from "@/components/progress/ProgressDialog";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -23,7 +25,15 @@ import {
 } from "@/components/ui/select";
 import { useT } from "@/lib/i18n/use-t";
 import { formatTimeRange } from "@/lib/operating-hours";
-import { Camera, LogIn, LogOut, MapPin, Clock, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Camera,
+  LogIn,
+  LogOut,
+  MapPin,
+  Clock,
+  X,
+} from "lucide-react";
 
 type AssignedProject = {
   id: string;
@@ -39,10 +49,14 @@ type Props = {
     checkIn: Date | null;
     checkOut: Date | null;
     checkInPhotoUrl?: string | null;
-    project?: { name: string } | null;
+    project?: { id: string; name: string } | null;
     note?: string | null;
   } | null;
   assignedProjects: AssignedProject[];
+  /** ≥1 Progress Report for today's checked-in project (blocks check-out when false). */
+  hasProgressReport: boolean;
+  /** YYYY-MM-DD for Progress Report submit default. */
+  workDate: string;
 };
 
 function getCurrentPosition(unsupportedMessage: string) {
@@ -66,21 +80,35 @@ function projectSelectLabel(project: AssignedProject) {
     : project.name;
 }
 
-export default function CicoActions({ todayRecord, assignedProjects }: Props) {
+export default function CicoActions({
+  todayRecord,
+  assignedProjects,
+  hasProgressReport,
+  workDate,
+}: Props) {
   const { t } = useT();
+  const router = useRouter();
   const [projectId, setProjectId] = useState(assignedProjects[0]?.id ?? "");
   const [pending, startTransition] = useTransition();
   const [locating, setLocating] = useState(false);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [progressOpen, setProgressOpen] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const selected = assignedProjects.find((project) => project.id === projectId);
-  // Base UI Select.Value shows the raw value unless `items` maps id → label.
   const projectSelectItems = assignedProjects.map((project) => ({
     value: project.id,
     label: projectSelectLabel(project),
   }));
+
+  const checkedIn = !!todayRecord?.checkIn;
+  const checkedOut = !!todayRecord?.checkOut;
+  const needsProgressBeforeCheckout =
+    checkedIn && !checkedOut && !hasProgressReport;
+  const checkInProject = todayRecord?.project
+    ? [{ id: todayRecord.project.id, name: todayRecord.project.name }]
+    : [];
 
   useEffect(() => {
     if (!photoFile) {
@@ -134,6 +162,7 @@ export default function CicoActions({ todayRecord, assignedProjects }: Props) {
         try {
           await checkIn(formData);
           clearPhoto();
+          router.refresh();
         } catch (error) {
           showRejectionFromError(error, t("pages.cico.checkInFailed"));
         }
@@ -146,6 +175,14 @@ export default function CicoActions({ todayRecord, assignedProjects }: Props) {
   }
 
   async function handleCheckOut() {
+    if (needsProgressBeforeCheckout) {
+      showRejection({
+        reasons: t("pages.cico.errors.progressRequiredBeforeCheckOut"),
+      });
+      setProgressOpen(true);
+      return;
+    }
+
     setLocating(true);
     try {
       const position = await getCurrentPosition(
@@ -158,7 +195,16 @@ export default function CicoActions({ todayRecord, assignedProjects }: Props) {
       startTransition(async () => {
         try {
           await checkOut(formData);
+          router.refresh();
         } catch (error) {
+          const message =
+            error instanceof Error ? error.message : String(error ?? "");
+          const progressBlocked =
+            message.toLowerCase().includes("progress report") ||
+            message.toLowerCase().includes("laporan progress");
+          if (progressBlocked) {
+            setProgressOpen(true);
+          }
           showRejectionFromError(error, t("pages.cico.checkOutFailed"));
         }
       });
@@ -169,8 +215,6 @@ export default function CicoActions({ todayRecord, assignedProjects }: Props) {
     }
   }
 
-  const checkedIn = !!todayRecord?.checkIn;
-  const checkedOut = !!todayRecord?.checkOut;
   const hasProjects = assignedProjects.length > 0;
   const canCheckIn =
     !pending &&
@@ -198,7 +242,9 @@ export default function CicoActions({ todayRecord, assignedProjects }: Props) {
                   <SelectValue placeholder={t("pages.cico.selectProject")}>
                     {(value) => {
                       if (!value) return null;
-                      const project = assignedProjects.find((p) => p.id === value);
+                      const project = assignedProjects.find(
+                        (p) => p.id === value
+                      );
                       return project
                         ? projectSelectLabel(project)
                         : String(value);
@@ -338,6 +384,34 @@ export default function CicoActions({ todayRecord, assignedProjects }: Props) {
         </p>
       )}
 
+      {needsProgressBeforeCheckout && (
+        <div className="rounded-xl border border-amber-500/30 bg-card-tint-amber px-4 py-3.5">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
+            <div className="min-w-0 flex-1 space-y-3">
+              <div>
+                <p className="font-medium text-amber-200">
+                  {t("pages.cico.progressRequiredTitle")}
+                </p>
+                <p className="mt-1 text-sm text-subtle">
+                  {t("pages.cico.progressRequiredBody")}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="successBadge"
+                size="badge"
+                className="!w-auto gap-1.5"
+                onClick={() => setProgressOpen(true)}
+              >
+                <Camera className="h-4 w-4" />
+                {t("pages.cico.uploadProgressNow")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {checkedIn && todayRecord?.checkInPhotoUrl && (
         <div className="space-y-2">
           <p className="text-sm font-medium text-muted">
@@ -396,6 +470,20 @@ export default function CicoActions({ todayRecord, assignedProjects }: Props) {
       <p className="pt-1 text-xs leading-relaxed text-subtle">
         {t("pages.cico.footerNote")}
       </p>
+
+      {checkInProject.length > 0 ? (
+        <ProgressDialog
+          projects={checkInProject}
+          defaultProjectId={checkInProject[0]?.id}
+          defaultDate={workDate}
+          hideTrigger
+          open={progressOpen}
+          onOpenChange={(open) => {
+            setProgressOpen(open);
+            if (!open) router.refresh();
+          }}
+        />
+      ) : null}
     </div>
   );
 }

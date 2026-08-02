@@ -7,7 +7,6 @@ import { prisma } from "@/lib/prisma";
 import {
   requireSession,
   toPermissionUser,
-  getEmployeeForUser,
 } from "@/lib/session";
 
 import {
@@ -69,8 +68,6 @@ import ContractExtensionsHistory from "@/components/projects/ContractExtensionsH
 import ProjectAssignStaffChip from "@/components/projects/ProjectAssignStaffChip";
 import ProjectDetailActionBar from "@/components/projects/ProjectDetailActionBar";
 import ProjectLocationMap from "@/components/projects/ProjectLocationMap";
-import MissingReportsWarning from "@/components/progress/MissingReportsWarning";
-import { getMissingProgressReportsForEmployee } from "@/lib/progress-report-compliance";
 
 const metaLabelClassName =
   "w-36 shrink-0 px-4 py-2.5 text-left align-top text-xs font-semibold uppercase tracking-[0.12em] text-subtle sm:w-44 sm:px-5";
@@ -109,8 +106,6 @@ export default async function ProjectDetailPage({
     employee: session.user.employee,
     employeeType: session.user.employeeType,
   });
-  const employee = await getEmployeeForUser(session.user.id);
-
   const projectWhere = await getProjectWhereForUser({
     companyId: session.user.companyId,
     clientId: session.user.clientId,
@@ -144,7 +139,7 @@ export default async function ProjectDetailPage({
 
   if (!project) redirect(PROJECT_LIST_VIEW_PATHS.all);
 
-  const [employees, clients, myMissing] = await Promise.all([
+  const [employees, clients] = await Promise.all([
     canManage
       ? prisma.employee.findMany({
           where: {
@@ -183,9 +178,6 @@ export default async function ProjectDetailPage({
           where: { companyId: project.companyId, active: true },
           orderBy: { name: "asc" },
         })
-      : Promise.resolve([]),
-    employee
-      ? getMissingProgressReportsForEmployee(employee.id, session.user.id)
       : Promise.resolve([]),
   ]);
 
@@ -296,10 +288,6 @@ export default async function ProjectDetailPage({
 
   return (
     <AppShell title={pageTitle} description={pageDescription || undefined}>
-      {myMissing.length > 0 && (
-        <MissingReportsWarning warnings={myMissing} />
-      )}
-
       <div className="mb-4">
         <BackLink href={listBackHref}>{listBackLabel}</BackLink>
       </div>
