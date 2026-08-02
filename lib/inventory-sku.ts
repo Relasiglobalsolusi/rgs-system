@@ -10,7 +10,7 @@ type DbClient =
 
 /**
  * SKU scheme (company-scoped, per item-type prefix):
- *   {TYPE_CODE}-{####}   e.g. CONS-0001, TOOL-0001, CHEM-0002
+ *   {TYPE_CODE}-{####}   e.g. CONS-0001, EQP-0001, CHEM-0002
  *
  * Preset Item Types use fixed codes in INVENTORY_ITEM_TYPE_CODES.
  * Custom types get a short uppercase slug from the label (letters/digits, max 6),
@@ -25,8 +25,6 @@ export const INVENTORY_ITEM_TYPE_PRESETS = [
   "Consumable",
   "Equipment",
   "Chemical",
-  "Material",
-  "Tool",
   "Other",
 ] as const;
 
@@ -39,10 +37,8 @@ export const INVENTORY_ITEM_TYPE_CODES: Record<
   string
 > = {
   Consumable: "CONS",
-  Equipment: "EQUIP",
+  Equipment: "EQP",
   Chemical: "CHEM",
-  Material: "MAT",
-  Tool: "TOOL",
   Other: "OTH",
 };
 

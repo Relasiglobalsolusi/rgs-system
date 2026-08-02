@@ -3324,8 +3324,6 @@ export const en = {
         Consumable: "Consumable",
         Equipment: "Equipment",
         Chemical: "Chemical",
-        Material: "Material",
-        Tool: "Tool",
         Other: "Other",
       },
     },

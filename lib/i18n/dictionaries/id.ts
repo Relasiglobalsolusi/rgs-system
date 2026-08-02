@@ -3367,8 +3367,6 @@ export const id = {
         Consumable: "Habis Pakai",
         Equipment: "Peralatan",
         Chemical: "Kimia",
-        Material: "Material",
-        Tool: "Alat",
         Other: "Lainnya",
       },
     },

@@ -1,5 +1,5 @@
 /** Shared brand assets (cache-bust when replacing logo files). */
-export const RGS_ONE_LOGO_SRC = "/brand/rgs-one-logo.png?v=6";
+export const RGS_ONE_LOGO_SRC = "/brand/rgs-one-logo.png?v=7";
 
 /** Intrinsic pixel size of the processed stacked wordmark. */
 export const RGS_ONE_LOGO_WIDTH = 597;
