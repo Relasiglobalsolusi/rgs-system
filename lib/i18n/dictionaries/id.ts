@@ -2573,8 +2573,6 @@ export const id = {
       targetYear: "Tahun Target",
       hariRayaDate: "Tanggal Hari Raya",
       totalAmount: "Total Jumlah",
-      calendarNote:
-        "Tanggal Idul Fitri dijaga di kalender aplikasi untuk: {years}. Perbarui setelah sidang isbat pemerintah jika perlu.",
       generateForYear: "Buat Thr Untuk {year}",
       generating: "Membuat…",
       generateSuccess:

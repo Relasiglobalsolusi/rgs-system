@@ -1,38 +1,67 @@
 /**
  * Indonesian THR (Tunjangan Hari Raya Idul Fitri) helpers.
- * Dates are a maintainable government/calendar table — update when sidang isbat confirms.
+ *
+ * Idul Fitri (1 Syawal / 1 Shawwal) is computed from the Umm al-Qura Hijri
+ * calendar via `hijri-converter` — no yearly manual date table.
+ * Official Indonesian sidang isbat may differ by about ±1 day; that is accepted.
  */
 
-/** First day of Idul Fitri (1 Syawal) as UTC date YYYY-MM-DD. */
-const IDUL_FITRI_DATES: Record<number, string> = {
-  2024: "2024-04-10",
-  2025: "2025-03-31",
-  2026: "2026-03-20",
-  2027: "2027-03-10",
-  2028: "2028-02-26",
-  2029: "2029-02-14",
-  2030: "2030-02-04",
-  2031: "2031-01-25",
-  2032: "2032-01-14",
-  2033: "2033-01-03",
-  2034: "2034-12-23",
-  2035: "2035-12-12",
-};
+import { toGregorian } from "hijri-converter";
+
+/** Practical Gregorian range covered by the Umm al-Qura table in hijri-converter. */
+const IDUL_FITRI_MIN_YEAR = 1980;
+const IDUL_FITRI_MAX_YEAR = 2077;
 
 /** Generate THR this many calendar days before Idul Fitri. */
 export const THR_GENERATE_LEAD_DAYS = 15;
 
-export function getIdulFitriDate(year: number): Date | null {
-  const iso = IDUL_FITRI_DATES[year];
-  if (!iso) return null;
-  const date = new Date(`${iso}T00:00:00.000Z`);
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+function utcDateFromYmd(year: number, month: number, day: number): Date | null {
+  const date = new Date(
+    `${year}-${pad2(month)}-${pad2(day)}T00:00:00.000Z`
+  );
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-export function listKnownIdulFitriYears(): number[] {
-  return Object.keys(IDUL_FITRI_DATES)
-    .map(Number)
-    .sort((a, b) => a - b);
+/**
+ * Gregorian date of Idul Fitri (1 Shawwal) that falls in `year`.
+ * When two fall in one Gregorian year (rare lunar drift), returns the earliest.
+ */
+export function getIdulFitriDate(year: number): Date | null {
+  if (!Number.isInteger(year) || year < IDUL_FITRI_MIN_YEAR || year > IDUL_FITRI_MAX_YEAR) {
+    return null;
+  }
+
+  // Shawwal of Hijri year H lands near Gregorian year H + 579.
+  for (let hy = year - 580; hy <= year - 577; hy++) {
+    if (hy < 1) continue;
+    let g: { gy: number; gm: number; gd: number };
+    try {
+      g = toGregorian(hy, 10, 1);
+    } catch {
+      continue;
+    }
+    if (!g || g.gy !== year || g.gy < IDUL_FITRI_MIN_YEAR) continue;
+    return utcDateFromYmd(g.gy, g.gm, g.gd);
+  }
+
+  return null;
+}
+
+/** Rolling Gregorian years that have a computable Idul Fitri date (UI / validation). */
+export function listKnownIdulFitriYears(
+  aroundYear: number = new Date().getUTCFullYear()
+): number[] {
+  const start = Math.max(IDUL_FITRI_MIN_YEAR, aroundYear - 1);
+  const end = Math.min(IDUL_FITRI_MAX_YEAR, aroundYear + 10);
+  const years: number[] = [];
+  for (let year = start; year <= end; year++) {
+    if (getIdulFitriDate(year)) years.push(year);
+  }
+  return years;
 }
 
 /** Whole months of tenure from hire date through Hari Raya (inclusive calendar months). */
@@ -98,7 +127,7 @@ export function resolveThrTargetYear(today: Date = utcToday()): number | null {
   if (thisYear && today <= thisYear) return year;
   const next = getIdulFitriDate(year + 1);
   if (next) return year + 1;
-  const known = listKnownIdulFitriYears().find((y) => {
+  const known = listKnownIdulFitriYears(year).find((y) => {
     const d = getIdulFitriDate(y);
     return d != null && today <= d;
   });

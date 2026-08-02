@@ -11,7 +11,6 @@ import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge from "@/components/ui/StatusBadge";
 import {
   getIdulFitriDate,
-  listKnownIdulFitriYears,
   resolveThrTargetYear,
   THR_GENERATE_LEAD_DAYS,
 } from "@/lib/employee-thr";
@@ -40,7 +39,6 @@ export default async function ThrPage() {
 
   const targetYear = resolveThrTargetYear() ?? new Date().getUTCFullYear();
   const hariRaya = getIdulFitriDate(targetYear);
-  const years = listKnownIdulFitriYears().filter((year) => year >= targetYear - 1);
 
   const payments = await prisma.thrPayment.findMany({
     where: {
@@ -125,9 +123,6 @@ export default async function ThrPage() {
               </p>
             </div>
           </div>
-          <p className="mt-3 text-xs text-muted">
-            {t("pages.thr.calendarNote", { years: years.join(", ") })}
-          </p>
         </SectionCard>
 
         <SectionCard>

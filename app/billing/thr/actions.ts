@@ -2,11 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import {
-  getIdulFitriDate,
-  listKnownIdulFitriYears,
-  resolveThrTargetYear,
-} from "@/lib/employee-thr";
+import { getIdulFitriDate, resolveThrTargetYear } from "@/lib/employee-thr";
 import { prisma } from "@/lib/prisma";
 import { requireModule, toPermissionUser } from "@/lib/session";
 import { isClientPortalUser, isVendorPortalUser } from "@/lib/project-access";
@@ -25,13 +21,10 @@ export async function generateThrForYear(year?: number) {
   const session = await assertCanManageThr();
   const targetYear = year ?? resolveThrTargetYear();
   if (targetYear == null) {
-    throw new Error("No Idul Fitri date is configured for the target year.");
+    throw new Error("Could not resolve an Idul Fitri date for the target year.");
   }
   if (!getIdulFitriDate(targetYear)) {
-    throw new Error(`Idul Fitri date is not configured for ${targetYear}.`);
-  }
-  if (!listKnownIdulFitriYears().includes(targetYear)) {
-    throw new Error(`Idul Fitri date is not configured for ${targetYear}.`);
+    throw new Error(`Could not compute Idul Fitri date for ${targetYear}.`);
   }
 
   const result = await generateThrPaymentsForCompany(session.user.companyId, {

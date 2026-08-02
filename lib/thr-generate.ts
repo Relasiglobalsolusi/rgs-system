@@ -30,12 +30,12 @@ export async function generateThrPaymentsForCompany(
   const today = utcToday();
   const year = options?.year ?? resolveThrTargetYear(today);
   if (year == null) {
-    throw new Error("No Idul Fitri date is configured for the target year.");
+    throw new Error("Could not resolve an Idul Fitri date for the target year.");
   }
 
   const hariRayaDate = getIdulFitriDate(year);
   if (!hariRayaDate) {
-    throw new Error(`Idul Fitri date is not configured for ${year}.`);
+    throw new Error(`Could not compute Idul Fitri date for ${year}.`);
   }
 
   const inWindow = isWithinThrGenerateWindow(hariRayaDate, today);

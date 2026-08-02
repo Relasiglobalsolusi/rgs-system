@@ -2545,8 +2545,6 @@ export const en = {
       targetYear: "Target Year",
       hariRayaDate: "Hari Raya Date",
       totalAmount: "Total Amount",
-      calendarNote:
-        "Idul Fitri dates are maintained in the app calendar for: {years}. Update after government sidang isbat if needed.",
       generateForYear: "Generate Thr For {year}",
       generating: "Generating…",
       generateSuccess:
