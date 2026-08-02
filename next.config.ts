@@ -19,6 +19,7 @@ const nextConfig: NextConfig = {
     "/api/clients/bulk-template": brandAssetGlobs,
     "/api/vendors/bulk-template": brandAssetGlobs,
     "/api/projects/bulk-template": brandAssetGlobs,
+    "/api/inventory/bulk-template": brandAssetGlobs,
   },
 };
 

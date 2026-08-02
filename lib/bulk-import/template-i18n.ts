@@ -457,6 +457,45 @@ export function vendorTemplateHeaderNote(locale: AppLocale): string {
     : "Enter one vendor per row from row 3. Columns marked * are required. Dates: DD/MM/YYYY. Phone: national number only (country code in its own column). Payment terms include Cash. Upload in RGS ONE, then Confirm add.";
 }
 
+// ── Inventory catalog ───────────────────────────────────────────────────────
+
+export const INVENTORY_HEADER_LABELS: Record<string, LocalizedHeader> = {
+  itemType: {
+    en: "Item Type",
+    id: "Jenis Item",
+    aliases: [
+      "item type",
+      "type",
+      "jenis",
+      "jenis item",
+      "category",
+      "kategori",
+    ],
+  },
+  name: {
+    en: "Item Name",
+    id: "Nama Item",
+    aliases: ["item name", "name", "nama", "nama item", "item"],
+  },
+  description: {
+    en: "Description",
+    id: "Deskripsi",
+    aliases: ["description", "deskripsi", "notes", "catatan"],
+  },
+};
+
+export function inventoryTemplateTitle(locale: AppLocale): string {
+  return locale === "id"
+    ? "RGS ONE — Impor Item Inventaris"
+    : "RGS ONE — Inventory Items Import";
+}
+
+export function inventoryTemplateHeaderNote(locale: AppLocale): string {
+  return locale === "id"
+    ? "Katalog saja (bukan pembelian). Satu item per baris dari baris 3. Kolom * wajib. SKU dibuat sistem dari Jenis Item saat Konfirmasi (mis. TOOL-0001). Unggah di Inventaris → Items → Add Bulk."
+    : "Catalog only (not purchases). One item per row from row 3. Columns marked * are required. SKU is system-generated from Item Type on Confirm (e.g. TOOL-0001). Upload in Inventory → Items → Add Bulk.";
+}
+
 // ── Employee ────────────────────────────────────────────────────────────────
 
 export const EMPLOYEE_HEADER_LABELS: Record<string, LocalizedHeader> = {

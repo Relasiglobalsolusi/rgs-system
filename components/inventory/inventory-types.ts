@@ -3,7 +3,6 @@ export type InventoryCatalogItem = {
   sku: string;
   name: string;
   itemType: string;
-  category: string | null;
   description: string | null;
   unit: string;
   minStock: number;

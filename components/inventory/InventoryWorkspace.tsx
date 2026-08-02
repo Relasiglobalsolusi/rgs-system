@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   AlertTriangle,
   Boxes,
+  FileSpreadsheet,
   Package,
   ShoppingCart,
   FolderKanban,
@@ -16,6 +17,11 @@ import {
   deactivateInventoryItem,
   reactivateInventoryItem,
 } from "@/app/inventory/actions";
+import {
+  confirmBulkImportInventoryItems,
+  previewBulkImportInventoryItems,
+} from "@/app/inventory/import-actions";
+import BulkImportDialog from "@/components/bulk-import/BulkImportDialog";
 import InventoryAdjustDialog from "@/components/inventory/InventoryAdjustDialog";
 import InventoryIssueDialog from "@/components/inventory/InventoryIssueDialog";
 import InventoryItemDialog from "@/components/inventory/InventoryItemDialog";
@@ -68,6 +74,7 @@ export default function InventoryWorkspace({
   const [tab, setTab] = useState<InventoryTab>("items");
   const [searchQuery, setSearchQuery] = useState("");
   const [createItemOpen, setCreateItemOpen] = useState(false);
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const [editItem, setEditItem] = useState<InventoryCatalogItem | null>(null);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [issueOpen, setIssueOpen] = useState(false);
@@ -109,7 +116,6 @@ export default function InventoryWorkspace({
         item.name,
         item.sku,
         item.itemType,
-        item.category,
         item.description
       )
     );
@@ -151,8 +157,7 @@ export default function InventoryWorkspace({
           searchQuery,
           item.name,
           item.sku,
-          item.itemType,
-          item.category
+          item.itemType
         )
       ),
     [activeItems, searchQuery]
@@ -209,12 +214,6 @@ export default function InventoryWorkspace({
       key: "itemType",
       title: t("pages.inventory.columns.itemType"),
       width: "8rem",
-    },
-    {
-      key: "category",
-      title: t("pages.inventory.columns.category"),
-      width: "8rem",
-      render: (row) => row.category || "—",
     },
     {
       key: "active",
@@ -568,10 +567,18 @@ export default function InventoryWorkspace({
         {canManage ? (
           <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
             {tab === "items" ? (
-              <DirectoryAddButton
-                label={t("pages.inventory.addItem")}
-                onClick={() => setCreateItemOpen(true)}
-              />
+              <>
+                <DirectoryAddButton
+                  label={t("pages.inventory.addItem")}
+                  onClick={() => setCreateItemOpen(true)}
+                />
+                <DirectoryAddButton
+                  label={t("common.actions.addBulk")}
+                  variant="infoBadge"
+                  icon={<FileSpreadsheet className="h-3.5 w-3.5 shrink-0" />}
+                  onClick={() => setBulkImportOpen(true)}
+                />
+              </>
             ) : null}
             {tab === "purchases" ? (
               <DirectoryAddButton
@@ -632,6 +639,14 @@ export default function InventoryWorkspace({
             open={createItemOpen}
             onOpenChange={setCreateItemOpen}
             showTrigger={false}
+          />
+          <BulkImportDialog
+            open={bulkImportOpen}
+            onOpenChange={setBulkImportOpen}
+            entityLabel="inventoryItem"
+            templateUrl="/api/inventory/bulk-template"
+            onPreview={previewBulkImportInventoryItems}
+            onConfirm={confirmBulkImportInventoryItems}
           />
           <InventoryItemEditDialog
             item={editItem}

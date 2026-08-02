@@ -214,21 +214,6 @@ export default function InventoryItemEditDialog({
             <div className={employeeDialogFieldClass}>
               <label
                 className={employeeDialogLabelClass}
-                htmlFor="edit-item-category"
-              >
-                {t("pages.inventory.form.category")}
-              </label>
-              <input
-                id="edit-item-category"
-                name="category"
-                defaultValue={item.category ?? ""}
-                className={employeeInputClass}
-              />
-            </div>
-
-            <div className={employeeDialogFieldClass}>
-              <label
-                className={employeeDialogLabelClass}
                 htmlFor="edit-item-description"
               >
                 {t("pages.inventory.form.description")}

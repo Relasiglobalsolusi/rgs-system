@@ -87,12 +87,19 @@ export function recordImportFailed(
   }
 }
 
+function bulkImportNoun(entityLabel: string, count: number): string {
+  if (entityLabel === "inventoryItem") {
+    return count === 1 ? "inventory item" : "inventory items";
+  }
+  return `${entityLabel}${count === 1 ? "" : "s"}`;
+}
+
 export function formatBulkImportSummary(
   entityLabel: string,
   result: BulkImportResult
 ): string {
   const parts = [
-    `${result.createdCount} ${entityLabel}${result.createdCount === 1 ? "" : "s"} created`,
+    `${result.createdCount} ${bulkImportNoun(entityLabel, result.createdCount)} created`,
   ];
 
   if (result.skippedCount > 0) {
@@ -110,7 +117,13 @@ function bulkImportPlural(entityLabel: string): string {
   if (entityLabel === "client") return "clients";
   if (entityLabel === "vendor") return "vendors";
   if (entityLabel === "project") return "projects";
+  if (entityLabel === "inventoryItem") return "inventory items";
   return "employees";
+}
+
+function bulkImportSingular(entityLabel: string): string {
+  if (entityLabel === "inventoryItem") return "inventory item";
+  return entityLabel;
 }
 
 export function formatBulkImportPreviewSummary(
@@ -118,8 +131,9 @@ export function formatBulkImportPreviewSummary(
   preview: BulkImportPreview
 ): string {
   const plural = bulkImportPlural(entityLabel);
+  const singular = bulkImportSingular(entityLabel);
   const parts = [
-    `${preview.readyCount} ${preview.readyCount === 1 ? entityLabel : plural} ready to add`,
+    `${preview.readyCount} ${preview.readyCount === 1 ? singular : plural} ready to add`,
   ];
 
   if (preview.warningCount > 0) {

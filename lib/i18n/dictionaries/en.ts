@@ -3243,11 +3243,19 @@ export const en = {
         active: "Active",
         inactive: "Inactive",
       },
+      import: {
+        noDataRows: "No data rows found in the spreadsheet. Add rows below the header.",
+        invalidRow: "Invalid row.",
+        duplicateInFile:
+          "Duplicate catalog item “{name}” ({itemType}) in this file or already exists.",
+        duplicateSkipped:
+          "Skipped duplicate catalog item “{name}” ({itemType}).",
+        skuAssignedOnSave: "SKU will be assigned from Item Type when you confirm.",
+      },
       columns: {
         sku: "SKU",
         item: "Item",
         itemType: "Item Type",
-        category: "Category",
         status: "Status",
         actions: "Actions",
         date: "Date",
@@ -3273,11 +3281,11 @@ export const en = {
         itemNamePlaceholder: "e.g. Floor Cleaner 5L",
         sku: "SKU",
         skuHint:
-          "System-generated when you save (e.g. INV001). Not entered manually.",
+          "System-generated from Item Type when you save (e.g. TOOL-0001, CONS-0002). Not entered manually.",
+        skuPickType: "Select Item Type to preview SKU",
         skuLoading: "Loading…",
-        skuReadonlyHint: "SKU is assigned by the system and cannot be changed.",
-        category: "Category",
-        categoryPlaceholder: "e.g. Cleaning Supplies",
+        skuReadonlyHint:
+          "SKU was assigned from Item Type at create and cannot be changed.",
         description: "Description",
         descriptionPlaceholder: "Optional notes about this catalog item.",
         catalogOnlyHint:
@@ -3349,6 +3357,7 @@ export const en = {
     vendorsTitle: "Add vendors in bulk",
     projectsTitle: "Add projects in bulk",
     employeesTitle: "Add employees in bulk",
+    inventoryItemsTitle: "Add inventory items in bulk",
     downloadTemplate: "Template",
     downloadExcelTemplate: "Excel template",
     preparingTemplate: "Preparing template…",
@@ -3403,6 +3412,8 @@ export const en = {
       "Assigned employees get a portal login automatically. Unassigned (UNA) rows are created without login until they are assigned.",
     createdVendorsNote:
       "Created vendors get an auto-assigned Vendor ID (V001, V002, …). Rows with portal login Yes also get linked login accounts, same as single create.",
+    createdInventoryItemsNote:
+      "Catalog items only — SKUs are assigned from Item Type (e.g. TOOL-0001). Record purchases separately to add stock.",
     createdProjectsNote:
       "Created projects use the same rules as single create (location, tax invoice, billing, and staff assignment).",
     uploadExcelRequired: "Upload an Excel file (.xlsx).",

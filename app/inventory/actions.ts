@@ -80,17 +80,19 @@ function revalidateInventory(projectId?: string | null) {
   }
 }
 
-/** Preview next auto SKU (INV001…). Create still allocates via getNextInventorySku. */
-export async function previewInventorySku() {
+/** Preview next auto SKU for an Item Type ({TYPE}-0001…). */
+export async function previewInventorySku(itemType: string) {
   const locale = await getServerLocale();
   await assertCanManageInventory(locale);
   const company = await requireCompany(locale);
-  return getNextInventorySku(company.id);
+  const trimmed = String(itemType ?? "").trim();
+  if (!trimmed) return "";
+  return getNextInventorySku(company.id, trimmed);
 }
 
 /**
  * Step 1 — catalog only.
- * Fields: item type, name, system SKU, category, description.
+ * Fields: item type, name, system SKU (from type), description.
  * No purchase/price/qty here.
  */
 export async function createInventoryItem(formData: FormData) {
@@ -102,8 +104,6 @@ export async function createInventoryItem(formData: FormData) {
     const itemType = titleCaseWords(
       String(formData.get("itemType") ?? "").trim()
     );
-    const categoryRaw = String(formData.get("category") ?? "").trim();
-    const category = categoryRaw ? titleCaseWords(categoryRaw) : null;
     const description = capitalizeProper(
       String(formData.get("description") ?? "").trim()
     );
@@ -122,14 +122,13 @@ export async function createInventoryItem(formData: FormData) {
     );
 
     await prisma.$transaction(async (tx) => {
-      const sku = await getNextInventorySku(company.id, tx);
+      const sku = await getNextInventorySku(company.id, itemType, tx);
       await tx.inventoryItem.create({
         data: {
           companyId: company.id,
           sku,
           name,
           itemType,
-          category,
           description: description || null,
           sortOrder,
           active: true,
@@ -161,8 +160,6 @@ export async function updateInventoryItem(formData: FormData) {
     const itemType = titleCaseWords(
       String(formData.get("itemType") ?? "").trim()
     );
-    const categoryRaw = String(formData.get("category") ?? "").trim();
-    const category = categoryRaw ? titleCaseWords(categoryRaw) : null;
     const description = capitalizeProper(
       String(formData.get("description") ?? "").trim()
     );
@@ -188,12 +185,12 @@ export async function updateInventoryItem(formData: FormData) {
       throw new Error(translate(locale, "pages.inventory.itemNotFound"));
     }
 
+    // SKU stays system-assigned from create-time type; editing type does not rename SKU.
     await prisma.inventoryItem.update({
       where: { id },
       data: {
         name,
         itemType,
-        category,
         description: description || null,
         unit,
         minStock: toDecimal(minStock),

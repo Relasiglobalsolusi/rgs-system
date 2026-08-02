@@ -981,12 +981,11 @@ model LeaveRequest {
 /// Catalog item only — purchases/issues are separate records that reference this.
 model InventoryItem {
   id String @id @default(cuid())
-  /// System-generated (INV001…). Not user-editable.
+  /// System-generated from Item Type ({TYPE}-{####}, e.g. TOOL-0001). Not user-editable.
   sku String
   name String
-  /// High-level type (e.g. Consumable, Equipment, Chemical).
+  /// High-level type (e.g. Consumable, Equipment, Chemical). Also drives SKU prefix.
   itemType String
-  category String?
   description String?
   /// Display unit for stock qty (default pcs). Not part of catalog create form.
   unit String @default("pcs")

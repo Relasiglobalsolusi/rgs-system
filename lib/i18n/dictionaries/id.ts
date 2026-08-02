@@ -3283,11 +3283,21 @@ export const id = {
         active: "Aktif",
         inactive: "Nonaktif",
       },
+      import: {
+        noDataRows:
+          "Tidak ada baris data di spreadsheet. Tambah baris di bawah header.",
+        invalidRow: "Baris tidak valid.",
+        duplicateInFile:
+          "Item katalog “{name}” ({itemType}) duplikat di file ini atau sudah ada.",
+        duplicateSkipped:
+          "Melewati item katalog duplikat “{name}” ({itemType}).",
+        skuAssignedOnSave:
+          "SKU akan ditetapkan dari Jenis Item saat Anda konfirmasi.",
+      },
       columns: {
         sku: "SKU",
         item: "Item",
         itemType: "Jenis Item",
-        category: "Kategori",
         status: "Status",
         actions: "Aksi",
         date: "Tanggal",
@@ -3313,11 +3323,11 @@ export const id = {
         itemNamePlaceholder: "mis. Pembersih Lantai 5L",
         sku: "SKU",
         skuHint:
-          "Dibuat sistem saat disimpan (mis. INV001). Tidak diisi manual.",
+          "Dibuat sistem dari Jenis Item saat disimpan (mis. TOOL-0001, CONS-0002). Tidak diisi manual.",
+        skuPickType: "Pilih Jenis Item untuk pratinjau SKU",
         skuLoading: "Memuat…",
-        skuReadonlyHint: "SKU ditetapkan sistem dan tidak dapat diubah.",
-        category: "Kategori",
-        categoryPlaceholder: "mis. Perlengkapan Kebersihan",
+        skuReadonlyHint:
+          "SKU ditetapkan dari Jenis Item saat dibuat dan tidak dapat diubah.",
         description: "Deskripsi",
         descriptionPlaceholder: "Catatan opsional tentang item katalog ini.",
         catalogOnlyHint:
@@ -3390,6 +3400,7 @@ export const id = {
     vendorsTitle: "Tambah pemasok secara massal",
     projectsTitle: "Tambah proyek secara massal",
     employeesTitle: "Tambah karyawan secara massal",
+    inventoryItemsTitle: "Tambah item inventaris secara massal",
     downloadTemplate: "Template",
     downloadExcelTemplate: "Template Excel",
     preparingTemplate: "Menyiapkan template…",
@@ -3444,6 +3455,8 @@ export const id = {
       "Karyawan yang ditugaskan mendapat login portal otomatis. Baris Belum ditugaskan (UNA) dibuat tanpa login hingga ditugaskan.",
     createdVendorsNote:
       "Pemasok yang dibuat mendapat ID Pemasok otomatis (V001, V002, …). Baris dengan login portal Ya juga mendapat akun login terkait, sama seperti pembuatan tunggal.",
+    createdInventoryItemsNote:
+      "Hanya item katalog — SKU ditetapkan dari Jenis Item (mis. TOOL-0001). Catat pembelian terpisah untuk menambah stok.",
     createdProjectsNote:
       "Proyek yang dibuat memakai aturan yang sama dengan pembuatan tunggal (lokasi, faktur pajak, penagihan, dan penugasan staf).",
     uploadExcelRequired: "Unggah file Excel (.xlsx).",

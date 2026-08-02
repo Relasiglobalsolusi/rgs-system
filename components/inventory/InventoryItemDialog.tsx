@@ -106,9 +106,12 @@ export default function InventoryItemDialog({
   }, [open]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !itemType.trim()) {
+      setPreviewSku("");
+      return;
+    }
     let cancelled = false;
-    previewInventorySku()
+    previewInventorySku(itemType)
       .then((sku) => {
         if (!cancelled) setPreviewSku(sku);
       })
@@ -118,7 +121,7 @@ export default function InventoryItemDialog({
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, itemType]);
 
   async function submit(formData: FormData) {
     if (!itemType.trim()) {
@@ -229,27 +232,16 @@ export default function InventoryItemDialog({
               <input
                 id="inv-item-sku"
                 readOnly
-                value={previewSku || t("pages.inventory.form.skuLoading")}
+                value={
+                  !itemType.trim()
+                    ? t("pages.inventory.form.skuPickType")
+                    : previewSku || t("pages.inventory.form.skuLoading")
+                }
                 className={`${employeeInputClass} bg-strip text-muted`}
               />
               <p className={employeeDialogHintClass}>
                 {t("pages.inventory.form.skuHint")}
               </p>
-            </div>
-
-            <div className={employeeDialogFieldClass}>
-              <label
-                className={employeeDialogLabelClass}
-                htmlFor="inv-item-category"
-              >
-                {t("pages.inventory.form.category")}
-              </label>
-              <input
-                id="inv-item-category"
-                name="category"
-                className={employeeInputClass}
-                placeholder={t("pages.inventory.form.categoryPlaceholder")}
-              />
             </div>
 
             <div className={employeeDialogFieldClass}>

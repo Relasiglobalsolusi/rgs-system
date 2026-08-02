@@ -80,7 +80,6 @@ export default async function InventoryPage() {
     sku: item.sku,
     name: item.name,
     itemType: item.itemType,
-    category: item.category,
     description: item.description,
     unit: item.unit,
     minStock: decimalToNumber(item.minStock) ?? 0,

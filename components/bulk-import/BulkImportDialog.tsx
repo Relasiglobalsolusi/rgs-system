@@ -54,7 +54,12 @@ function formatRowRejectionReasons(
   );
 }
 
-type BulkImportEntityLabel = "client" | "vendor" | "employee" | "project";
+type BulkImportEntityLabel =
+  | "client"
+  | "vendor"
+  | "employee"
+  | "project"
+  | "inventoryItem";
 
 type Props = {
   open: boolean;
@@ -106,6 +111,9 @@ function primaryField(entityLabel: BulkImportEntityLabel, row: BulkImportPreview
   if (entityLabel === "project") {
     return row.fields["Project Name"] ?? "—";
   }
+  if (entityLabel === "inventoryItem") {
+    return row.fields["Item Name"] ?? "—";
+  }
   return row.fields.Name ?? "—";
 }
 
@@ -126,6 +134,11 @@ function secondaryField(entityLabel: BulkImportEntityLabel, row: BulkImportPrevi
       row.fields.Stage,
       row.fields["Tax Invoice"],
     ]
+      .filter((value) => value && value !== "—")
+      .join(" · ");
+  }
+  if (entityLabel === "inventoryItem") {
+    return [row.fields["Item Type"], row.fields.Description]
       .filter((value) => value && value !== "—")
       .join(" · ");
   }
@@ -321,7 +334,9 @@ export default function BulkImportDialog({
         ? t("pages.vendors.title").toLowerCase()
         : entityLabel === "project"
           ? t("pages.projects.title").toLowerCase()
-          : t("pages.employees.title").toLowerCase();
+          : entityLabel === "inventoryItem"
+            ? t("pages.inventory.tabs.items").toLowerCase()
+            : t("pages.employees.title").toLowerCase();
   const title =
     entityLabel === "client"
       ? t("bulkImport.clientsTitle")
@@ -329,7 +344,9 @@ export default function BulkImportDialog({
         ? t("bulkImport.vendorsTitle")
         : entityLabel === "project"
           ? t("bulkImport.projectsTitle")
-          : t("bulkImport.employeesTitle");
+          : entityLabel === "inventoryItem"
+            ? t("bulkImport.inventoryItemsTitle")
+            : t("bulkImport.employeesTitle");
   const step: "upload" | "preview" | "done" = lastResult
     ? "done"
     : preview
@@ -446,7 +463,9 @@ export default function BulkImportDialog({
               ? "rgs-vendors-import-template.xlsx"
               : entityLabel === "project"
                 ? "rgs-projects-import-template.xlsx"
-                : "rgs-employees-import-template.xlsx");
+                : entityLabel === "inventoryItem"
+                  ? "rgs-inventory-items-import-template.xlsx"
+                  : "rgs-employees-import-template.xlsx");
 
         const objectUrl = URL.createObjectURL(blob);
         const link = document.createElement("a");
@@ -839,6 +858,10 @@ export default function BulkImportDialog({
                 ) : entityLabel === "employee" ? (
                   <p className="mt-1 text-sm text-muted">
                     {t("bulkImport.createdEmployeesNote")}
+                  </p>
+                ) : entityLabel === "inventoryItem" ? (
+                  <p className="mt-1 text-sm text-muted">
+                    {t("bulkImport.createdInventoryItemsNote")}
                   </p>
                 ) : (
                   <p className="mt-1 text-sm text-muted">
