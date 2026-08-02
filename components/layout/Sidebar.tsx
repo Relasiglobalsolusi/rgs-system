@@ -35,14 +35,14 @@ export default function Sidebar({
     .toUpperCase();
 
   return (
-    <aside className="sidebar-surface max-lg:hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:max-h-screen lg:w-[308px] lg:flex-col lg:overflow-hidden">
+    <aside className="sidebar-surface max-lg:hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:max-h-screen lg:w-(--app-sidebar-width) lg:flex-col lg:overflow-hidden">
       <div className="sidebar-brand-bar flex h-(--app-topbar-height) shrink-0 items-center justify-center px-4 py-3">
         <Link
           href="/dashboard"
           className="flex w-full flex-col items-center justify-center gap-1.5"
           aria-label={t("header.dashboardAria")}
         >
-          <div className="mx-auto w-full max-w-[200px]">
+          <div className="mx-auto w-full max-w-(--app-sidebar-logo-max-width)">
             <Image
               src={RGS_ONE_LOGO_SRC}
               alt="RGS ONE"

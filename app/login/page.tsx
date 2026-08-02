@@ -104,7 +104,7 @@ function LoginContent() {
     <main className="auth-surface auth-shell">
       <div className="grid min-h-screen lg:grid-cols-[0.88fr_1.12fr]">
         <section className="auth-form-panel flex min-h-screen items-center border-r px-6 py-12 sm:px-10 lg:px-14 xl:px-20">
-          <div className="mx-auto w-full max-w-[510px]">
+          <div className="mx-auto w-full max-w-[31.875rem]">
             <div className="mb-10">
               <div className="auth-lang-bar">
                 <AuthLanguageSwitcher />
