@@ -158,9 +158,21 @@ export default function EmployeeTable({
         title: t("pages.employees.columns.employee"),
         share: 2,
         render: (employee) => (
-          <p className="font-semibold text-text">
-            {employee.firstName} {employee.lastName}
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-semibold text-text">
+              {employee.firstName} {employee.lastName}
+            </p>
+            {employee.status === "ON_LEAVE" ? (
+              <StatusBadge
+                status="info"
+                compact
+                lines={[
+                  t("pages.employees.onLeaveChipLine1"),
+                  t("pages.employees.onLeaveChipLine2"),
+                ]}
+              />
+            ) : null}
+          </div>
         ),
       },
       {

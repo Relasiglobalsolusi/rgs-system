@@ -1360,6 +1360,13 @@ export const en = {
       searchPlaceholder: "Search Employees...",
       deleted: "Deleted",
       active: "Active",
+      onLeave: "On Leave",
+      onLeaveChipLine1: "On",
+      onLeaveChipLine2: "Leave",
+      statusFilterAll: "All",
+      emptyOnLeave: "No On Leave Employees",
+      emptyOnLeaveDesc:
+        "Employees marked On Leave in this view appear here.",
       activeSubtitle: "Employees currently on the roster",
       allEmployees: "All Employees",
       allEmployeesSubtitle: "All active staff on the roster",
@@ -1662,6 +1669,10 @@ export const en = {
           "{label} — managed through Assign / Release.",
         employmentType: "Employment Type",
         selectEmploymentType: "Select Employment Type",
+        status: "Status",
+        selectStatus: "Select Status",
+        statusHint:
+          "Active and On Leave stay on the roster. Portal login follows the same rules for both.",
         departmentHint:
           "Choose a department first to auto-generate the employee number.",
         selectDepartment: "Select department",

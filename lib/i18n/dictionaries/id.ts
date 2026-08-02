@@ -1380,6 +1380,13 @@ export const id = {
       searchPlaceholder: "Cari Karyawan...",
       deleted: "Dihapus",
       active: "Aktif",
+      onLeave: "Sedang Cuti",
+      onLeaveChipLine1: "Sedang",
+      onLeaveChipLine2: "Cuti",
+      statusFilterAll: "Semua",
+      emptyOnLeave: "Tidak Ada Karyawan Sedang Cuti",
+      emptyOnLeaveDesc:
+        "Karyawan yang ditandai Sedang Cuti di tampilan ini muncul di sini.",
       activeSubtitle: "Karyawan yang saat ini ada di daftar",
       allEmployees: "Semua Karyawan",
       allEmployeesSubtitle: "Semua staf aktif di daftar",
@@ -1688,6 +1695,10 @@ export const id = {
           "{label} — dikelola melalui Tugaskan / Lepaskan.",
         employmentType: "Jenis Kepegawaian",
         selectEmploymentType: "Pilih Jenis Kepegawaian",
+        status: "Status",
+        selectStatus: "Pilih Status",
+        statusHint:
+          "Aktif dan Sedang Cuti tetap di daftar. Login portal mengikuti aturan yang sama untuk keduanya.",
         departmentHint:
           "Pilih departemen terlebih dahulu untuk membuat nomor karyawan otomatis.",
         selectDepartment: "Pilih departemen",

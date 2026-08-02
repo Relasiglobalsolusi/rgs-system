@@ -68,6 +68,7 @@ type Employee = {
 type BulkEmploymentScope = "FULL_TIME" | "PART_TIME";
 type BulkDialogMode = "deactivate" | "reactivate" | "archive";
 type UnassignedSegment = "FULL_TIME" | "PART_TIME";
+type StatusSegment = "all" | "onLeave";
 
 type Props = {
   employees: Employee[];
@@ -94,6 +95,7 @@ export default function EmployeeDirectory({
   const [tab, setTab] = useState<EmployeeDirectoryView>("allEmployees");
   const [unassignedSegment, setUnassignedSegment] =
     useState<UnassignedSegment>("FULL_TIME");
+  const [statusSegment, setStatusSegment] = useState<StatusSegment>("all");
   const [query, setQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
@@ -170,9 +172,20 @@ export default function EmployeeDirectory({
               : unassignedPartTime
             : trash;
 
+  const onLeaveInCard = useMemo(
+    () =>
+      tab === "trash"
+        ? []
+        : selected.filter((employee) => employee.status === "ON_LEAVE"),
+    [selected, tab]
+  );
+
+  const statusFiltered =
+    tab !== "trash" && statusSegment === "onLeave" ? onLeaveInCard : selected;
+
   const visible = useMemo(
     () =>
-      selected.filter((employee) =>
+      statusFiltered.filter((employee) =>
         matchesDirectorySearch(
           query,
           `${employee.firstName} ${employee.lastName}`,
@@ -184,7 +197,7 @@ export default function EmployeeDirectory({
           employee.user?.username
         )
       ),
-    [selected, query]
+    [statusFiltered, query]
   );
 
   const listShowSelection = canManage;
@@ -252,11 +265,18 @@ export default function EmployeeDirectory({
 
   function selectTab(next: EmployeeDirectoryView) {
     setTab(next);
+    setStatusSegment("all");
     clearSelection();
   }
 
   function selectUnassignedSegment(next: UnassignedSegment) {
     setUnassignedSegment(next);
+    setStatusSegment("all");
+    clearSelection();
+  }
+
+  function selectStatusSegment(next: StatusSegment) {
+    setStatusSegment(next);
     clearSelection();
   }
 
@@ -291,31 +311,35 @@ export default function EmployeeDirectory({
 
   const emptyTitle = hasActiveSearch
     ? t("pages.employees.emptySearch", { query: trimmedSearch })
-    : tab === "allEmployees"
-      ? t("pages.employees.emptyActiveList")
-      : tab === "fullTime"
-        ? t("pages.employees.emptyFullTime")
-        : tab === "partTime"
-          ? t("pages.employees.emptyPartTime")
-          : tab === "unassigned"
-            ? unassignedSegment === "FULL_TIME"
-              ? t("pages.employees.emptyUnassignedFt")
-              : t("pages.employees.emptyUnassignedPt")
-            : t("pages.employees.emptyDeletedList");
+    : tab !== "trash" && statusSegment === "onLeave"
+      ? t("pages.employees.emptyOnLeave")
+      : tab === "allEmployees"
+        ? t("pages.employees.emptyActiveList")
+        : tab === "fullTime"
+          ? t("pages.employees.emptyFullTime")
+          : tab === "partTime"
+            ? t("pages.employees.emptyPartTime")
+            : tab === "unassigned"
+              ? unassignedSegment === "FULL_TIME"
+                ? t("pages.employees.emptyUnassignedFt")
+                : t("pages.employees.emptyUnassignedPt")
+              : t("pages.employees.emptyDeletedList");
 
   const emptyDescription = hasActiveSearch
     ? t("pages.employees.emptySearchDesc")
-    : tab === "allEmployees"
-      ? t("pages.employees.emptyActiveListDesc")
-      : tab === "fullTime"
-        ? t("pages.employees.emptyFullTimeDesc")
-        : tab === "partTime"
-          ? t("pages.employees.emptyPartTimeDesc")
-          : tab === "unassigned"
-            ? unassignedSegment === "FULL_TIME"
-              ? t("pages.employees.emptyUnassignedFtDesc")
-              : t("pages.employees.emptyUnassignedPtDesc")
-            : t("pages.employees.emptyTrash");
+    : tab !== "trash" && statusSegment === "onLeave"
+      ? t("pages.employees.emptyOnLeaveDesc")
+      : tab === "allEmployees"
+        ? t("pages.employees.emptyActiveListDesc")
+        : tab === "fullTime"
+          ? t("pages.employees.emptyFullTimeDesc")
+          : tab === "partTime"
+            ? t("pages.employees.emptyPartTimeDesc")
+            : tab === "unassigned"
+              ? unassignedSegment === "FULL_TIME"
+                ? t("pages.employees.emptyUnassignedFtDesc")
+                : t("pages.employees.emptyUnassignedPtDesc")
+              : t("pages.employees.emptyTrash");
 
   return (
     <>
@@ -389,6 +413,27 @@ export default function EmployeeDirectory({
             onClick={() => selectUnassignedSegment("PART_TIME")}
           >
             {t("pages.employees.partTime")}
+          </DirectoryFilterTab>
+        </div>
+      ) : null}
+
+      {tab !== "trash" ? (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <DirectoryFilterTab
+            size="sm"
+            active={statusSegment === "all"}
+            count={selected.length}
+            onClick={() => selectStatusSegment("all")}
+          >
+            {t("pages.employees.statusFilterAll")}
+          </DirectoryFilterTab>
+          <DirectoryFilterTab
+            size="sm"
+            active={statusSegment === "onLeave"}
+            count={onLeaveInCard.length}
+            onClick={() => selectStatusSegment("onLeave")}
+          >
+            {t("pages.employees.onLeave")}
           </DirectoryFilterTab>
         </div>
       ) : null}

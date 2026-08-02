@@ -50,6 +50,7 @@ export type EmployeeFormDefaults = {
   idDocumentUrl?: string | null;
   hiredAt?: Date | string | null;
   omApprovalAreas?: ServiceAreaValue[];
+  status?: "ACTIVE" | "ON_LEAVE";
 };
 
 export type EmployeeCategoryOption = {
@@ -88,10 +89,21 @@ type Props = {
   onPositionIdChange: (value: string) => void;
   employmentType: "FULL_TIME" | "PART_TIME";
   onEmploymentTypeChange: (value: "FULL_TIME" | "PART_TIME") => void;
+  status?: "ACTIVE" | "ON_LEAVE";
+  onStatusChange?: (value: "ACTIVE" | "ON_LEAVE") => void;
   previewEmployeeNo?: string;
   defaults?: EmployeeFormDefaults;
   onFormValuesChange?: () => void;
 };
+
+function formatRosterStatusLabel(
+  status: "ACTIVE" | "ON_LEAVE",
+  t: ReturnType<typeof useT>["t"]
+) {
+  return status === "ON_LEAVE"
+    ? t("pages.employees.onLeave")
+    : t("pages.employees.active");
+}
 
 function isSelectableCategory(category: EmployeeCategoryOption): boolean {
   return (
@@ -121,6 +133,8 @@ export default function EmployeeFormFields({
   onPositionIdChange,
   employmentType,
   onEmploymentTypeChange,
+  status = "ACTIVE",
+  onStatusChange,
   previewEmployeeNo,
   defaults,
   onFormValuesChange,
@@ -426,6 +440,50 @@ export default function EmployeeFormFields({
           </Select>
           <input type="hidden" name="employmentType" value={employmentType} />
         </div>
+
+        {mode === "edit" ? (
+          <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+            <label className="text-sm font-medium text-text">
+              {t("pages.employees.form.status")}
+            </label>
+            <p className="text-xs text-muted">
+              {t("pages.employees.form.statusHint")}
+            </p>
+            <Select
+              value={status}
+              onValueChange={(value) =>
+                onStatusChange?.(value as "ACTIVE" | "ON_LEAVE")
+              }
+            >
+              <SelectTrigger className={employeeSelectTriggerClass}>
+                <SelectValue
+                  placeholder={t("pages.employees.form.selectStatus")}
+                >
+                  {(value) =>
+                    value === "ACTIVE" || value === "ON_LEAVE"
+                      ? formatRosterStatusLabel(value, t)
+                      : null
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  value="ACTIVE"
+                  label={formatRosterStatusLabel("ACTIVE", t)}
+                >
+                  {formatRosterStatusLabel("ACTIVE", t)}
+                </SelectItem>
+                <SelectItem
+                  value="ON_LEAVE"
+                  label={formatRosterStatusLabel("ON_LEAVE", t)}
+                >
+                  {formatRosterStatusLabel("ON_LEAVE", t)}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <input type="hidden" name="status" value={status} />
+          </div>
+        ) : null}
 
         <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
           <label

@@ -2,6 +2,7 @@
 
 import { showRejectionFromError } from "@/components/ui/rejection-notice";
 import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { UserCog } from "lucide-react";
 import { releaseEmployeeFromProject, updateEmployee, previewEmployeeNumber } from "@/app/employees/actions";
 import EmployeeAssignDialog from "@/components/employees/EmployeeAssignDialog";
@@ -14,19 +15,27 @@ import { useDirectoryDialogOpen, type DirectoryDialogControlProps } from "@/comp
 import { useT } from "@/lib/i18n/use-t";
 import type { EmploymentType, Placement } from "@prisma/client";
 
+type RosterEditableStatus = "ACTIVE" | "ON_LEAVE";
+
 type Employee = {
   id: string; employeeNo: string; firstName: string; lastName: string; email: string | null; phone: string | null;
   employmentType: EmploymentType; placement: Placement; portalAccessRequested: boolean; categoryId: string | null;
   category: { name: string; slug?: string } | null; positionId: string | null; position: string | null;
   idDocumentUrl: string | null; hiredAt: Date | string | null;
+  status: "ACTIVE" | "INACTIVE" | "TERMINATED" | "ON_LEAVE";
   projectAssignments: { project: { id: string; name: string } }[];
   user: { username: string } | null;
 };
 type Props = { employee: Employee; categories: EmployeeCategoryOption[]; positions: PositionOption[]; projects: ProjectOption[]; showDelete?: boolean } & DirectoryDialogControlProps;
 const EDIT_FORM_ID = "edit-employee-form";
 
+function toRosterEditableStatus(status: Employee["status"]): RosterEditableStatus {
+  return status === "ON_LEAVE" ? "ON_LEAVE" : "ACTIVE";
+}
+
 export default function EmployeeEditDialog({ employee, categories, positions, projects, showDelete = false, open: controlledOpen, onOpenChange, showTrigger = true }: Props) {
   const { t } = useT();
+  const router = useRouter();
   const { open, setOpen } = useDirectoryDialogOpen(controlledOpen, onOpenChange);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -34,18 +43,54 @@ export default function EmployeeEditDialog({ employee, categories, positions, pr
   const [categoryId, setCategoryId] = useState(employee.categoryId ?? "");
   const [positionId, setPositionId] = useState(employee.positionId ?? "");
   const [employmentType, setEmploymentType] = useState<"FULL_TIME" | "PART_TIME">(employee.employmentType);
+  const [status, setStatus] = useState<RosterEditableStatus>(() =>
+    toRosterEditableStatus(employee.status)
+  );
   const [previewEmployeeNo, setPreviewEmployeeNo] = useState("");
   const [pending, startTransition] = useTransition();
-  const [baseline, setBaseline] = useState(() => buildEmployeeFormBaseline({ categoryId: employee.categoryId ?? "", positionId: employee.positionId ?? "", employmentType: employee.employmentType }));
-  const controlled = { categoryId, positionId, employmentType };
+  const [baseline, setBaseline] = useState(() =>
+    buildEmployeeFormBaseline({
+      categoryId: employee.categoryId ?? "",
+      positionId: employee.positionId ?? "",
+      employmentType: employee.employmentType,
+      status: toRosterEditableStatus(employee.status),
+    })
+  );
+  const controlled = { categoryId, positionId, employmentType, status };
   const { isDirty, handleFormInput, handleFormChange, resetDirtyTracking } = useEmployeeFormDirty(EDIT_FORM_ID, controlled, baseline);
   const isDirtyRef = useRef(isDirty); isDirtyRef.current = isDirty;
   const categoryChanged = categoryId !== (employee.categoryId ?? "");
-  const defaults: EmployeeFormDefaults = { employeeNo: employee.employeeNo, firstName: employee.firstName, lastName: employee.lastName, email: employee.email ?? "", phone: employee.phone ?? "", categoryId: employee.categoryId, positionId: employee.positionId, employmentType: employee.employmentType, placement: employee.placement, portalAccessRequested: employee.portalAccessRequested, idDocumentUrl: employee.idDocumentUrl, hiredAt: employee.hiredAt };
+  const defaults: EmployeeFormDefaults = {
+    employeeNo: employee.employeeNo,
+    firstName: employee.firstName,
+    lastName: employee.lastName,
+    email: employee.email ?? "",
+    phone: employee.phone ?? "",
+    categoryId: employee.categoryId,
+    positionId: employee.positionId,
+    employmentType: employee.employmentType,
+    placement: employee.placement,
+    portalAccessRequested: employee.portalAccessRequested,
+    idDocumentUrl: employee.idDocumentUrl,
+    hiredAt: employee.hiredAt,
+    status: toRosterEditableStatus(employee.status),
+  };
 
   function resetFormState() {
-    setCategoryId(employee.categoryId ?? ""); setPositionId(employee.positionId ?? ""); setEmploymentType(employee.employmentType);
-    setPreviewEmployeeNo(""); setBaseline(buildEmployeeFormBaseline({ categoryId: employee.categoryId ?? "", positionId: employee.positionId ?? "", employmentType: employee.employmentType })); resetDirtyTracking();
+    setCategoryId(employee.categoryId ?? "");
+    setPositionId(employee.positionId ?? "");
+    setEmploymentType(employee.employmentType);
+    setStatus(toRosterEditableStatus(employee.status));
+    setPreviewEmployeeNo("");
+    setBaseline(
+      buildEmployeeFormBaseline({
+        categoryId: employee.categoryId ?? "",
+        positionId: employee.positionId ?? "",
+        employmentType: employee.employmentType,
+        status: toRosterEditableStatus(employee.status),
+      })
+    );
+    resetDirtyTracking();
   }
   function closeDialog() { setOpen(false); resetFormState(); }
   function handleOpenChange(nextOpen: boolean, eventDetails?: { cancel: () => void }) {
@@ -58,10 +103,26 @@ export default function EmployeeEditDialog({ employee, categories, positions, pr
     return () => { cancelled = true; };
   }, [open, categoryChanged, categoryId]);
   function submit(formData: FormData) {
-    startTransition(async () => { try { await updateEmployee(employee.id, formData); closeDialog(); } catch (error) { showRejectionFromError(error, t("pages.employees.form.updateFailed")); } });
+    startTransition(async () => {
+      try {
+        await updateEmployee(employee.id, formData);
+        closeDialog();
+        router.refresh();
+      } catch (error) {
+        showRejectionFromError(error, t("pages.employees.form.updateFailed"));
+      }
+    });
   }
   function release() {
-    startTransition(async () => { try { await releaseEmployeeFromProject(employee.id); closeDialog(); } catch (error) { showRejectionFromError(error, t("pages.employees.form.releaseFailed")); } });
+    startTransition(async () => {
+      try {
+        await releaseEmployeeFromProject(employee.id);
+        closeDialog();
+        router.refresh();
+      } catch (error) {
+        showRejectionFromError(error, t("pages.employees.form.releaseFailed"));
+      }
+    });
   }
 
   return <>
@@ -83,7 +144,22 @@ export default function EmployeeEditDialog({ employee, categories, positions, pr
         </div>
       }>
         <form id={EDIT_FORM_ID} key={`${employee.id}-${open ? "open" : "closed"}`} action={submit} onInput={handleFormInput} onChange={handleFormChange}>
-          <EmployeeFormFields mode="edit" categories={categories} positions={positions} categoryId={categoryId} onCategoryIdChange={setCategoryId} positionId={positionId} onPositionIdChange={setPositionId} employmentType={employmentType} onEmploymentTypeChange={setEmploymentType} previewEmployeeNo={previewEmployeeNo} defaults={defaults} onFormValuesChange={handleFormInput} />
+          <EmployeeFormFields
+            mode="edit"
+            categories={categories}
+            positions={positions}
+            categoryId={categoryId}
+            onCategoryIdChange={setCategoryId}
+            positionId={positionId}
+            onPositionIdChange={setPositionId}
+            employmentType={employmentType}
+            onEmploymentTypeChange={setEmploymentType}
+            status={status}
+            onStatusChange={setStatus}
+            previewEmployeeNo={previewEmployeeNo}
+            defaults={defaults}
+            onFormValuesChange={handleFormInput}
+          />
         </form>
       </EmployeeDialogShell>
     </Dialog>

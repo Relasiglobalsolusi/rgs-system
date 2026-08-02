@@ -331,6 +331,7 @@ export type EmployeeControlledFormState = {
   categoryId: string;
   positionId: string;
   employmentType: "FULL_TIME" | "PART_TIME";
+  status: "ACTIVE" | "ON_LEAVE";
 };
 
 export type EmployeeFormSnapshot = EmployeeControlledFormState & {
@@ -386,6 +387,7 @@ export function captureEmployeeFormSnapshot(
     categoryId: controlled.categoryId,
     positionId: controlled.positionId,
     employmentType: controlled.employmentType,
+    status: controlled.status,
     firstName: readFormField(form, "firstName"),
     lastName: readFormField(form, "lastName"),
     position: readFormField(form, "position"),
@@ -404,6 +406,7 @@ export function areEmployeeFormSnapshotsEqual(
     left.categoryId === right.categoryId &&
     left.positionId === right.positionId &&
     left.employmentType === right.employmentType &&
+    left.status === right.status &&
     left.firstName === right.firstName &&
     left.lastName === right.lastName &&
     left.position === right.position &&
@@ -426,6 +429,7 @@ export function useEmployeeFormDirty(
         categoryId: controlled.categoryId,
         positionId: controlled.positionId,
         employmentType: controlled.employmentType,
+        status: controlled.status,
       }),
     [controlled]
   );
@@ -497,6 +501,7 @@ export function buildEmployeeFormBaseline(
     categoryId: controlled.categoryId,
     positionId: controlled.positionId,
     employmentType: controlled.employmentType,
+    status: controlled.status,
     firstName: fields.firstName ?? "",
     lastName: fields.lastName ?? "",
     position: fields.position ?? "",

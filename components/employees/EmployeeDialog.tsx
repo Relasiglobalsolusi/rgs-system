@@ -39,8 +39,20 @@ export default function EmployeeDialog({ categories, positions, open: controlled
   const [employmentType, setEmploymentType] = useState<"FULL_TIME" | "PART_TIME">("FULL_TIME");
   const [previewEmployeeNo, setPreviewEmployeeNo] = useState("");
   const [pending, startTransition] = useTransition();
-  const [baseline, setBaseline] = useState(() => buildEmployeeFormBaseline({ categoryId: "", positionId: "", employmentType: "FULL_TIME" }));
-  const controlled = { categoryId, positionId, employmentType };
+  const [baseline, setBaseline] = useState(() =>
+    buildEmployeeFormBaseline({
+      categoryId: "",
+      positionId: "",
+      employmentType: "FULL_TIME",
+      status: "ACTIVE",
+    })
+  );
+  const controlled = {
+    categoryId,
+    positionId,
+    employmentType,
+    status: "ACTIVE" as const,
+  };
   const { isDirty, handleFormInput, handleFormChange, resetDirtyTracking } = useEmployeeFormDirty(CREATE_FORM_ID, controlled, baseline);
   const isDirtyRef = useRef(isDirty);
   isDirtyRef.current = isDirty;
@@ -50,7 +62,14 @@ export default function EmployeeDialog({ categories, positions, open: controlled
     setPositionId("");
     setEmploymentType("FULL_TIME");
     setPreviewEmployeeNo("");
-    setBaseline(buildEmployeeFormBaseline({ categoryId: "", positionId: "", employmentType: "FULL_TIME" }));
+    setBaseline(
+      buildEmployeeFormBaseline({
+        categoryId: "",
+        positionId: "",
+        employmentType: "FULL_TIME",
+        status: "ACTIVE",
+      })
+    );
     resetDirtyTracking();
   }
   function closeDialog() { setOpen(false); resetForm(); }
