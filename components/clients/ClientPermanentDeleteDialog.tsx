@@ -4,6 +4,7 @@ import {
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
 import { useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { AlertTriangle, Trash2 } from "lucide-react";
 
 import { deleteClient } from "@/app/clients/actions";
@@ -35,6 +36,7 @@ export default function ClientPermanentDeleteDialog({
   showTrigger = true,
 }: Props) {
   const { t } = useT();
+  const router = useRouter();
   const { open, setOpen } = useDirectoryDialogOpen(controlledOpen, onOpenChange);
   const [pending, startTransition] = useTransition();
 
@@ -48,6 +50,7 @@ export default function ClientPermanentDeleteDialog({
       try {
         await deleteClient(client.id);
         setOpen(false);
+        router.refresh();
       } catch (error) {
         showRejectionFromError(error, t("pages.clients.deleteFailed"));
       }
@@ -110,7 +113,9 @@ export default function ClientPermanentDeleteDialog({
             <div className="mt-4 flex gap-3 rounded-xl border border-amber-500/25 bg-card-tint-amber px-4 py-3">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
               <p className="text-sm leading-6 text-text">
-                {t("pages.clients.permanentDeleteBlockedByProjects")}
+                {t("pages.clients.deleteForeverProjectsNote", {
+                  count: client._count.projects,
+                })}
               </p>
             </div>
           ) : null}

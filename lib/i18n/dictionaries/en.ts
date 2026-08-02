@@ -948,6 +948,8 @@ export const en = {
       softDeleteBlockedTitle: "Cannot delete this client yet",
       softDeleteBlocked:
         "Cannot delete this client while work or finances are still open: {blockers}.",
+      softDeleteCheckFailed:
+        "Could not verify whether this client can be deleted. Close and try again.",
       softDeleteBlockers: {
         openProjects:
           "{count} open project(s) (not Completed and settled)",
@@ -1875,6 +1877,7 @@ export const en = {
       withoutPortalEmptyEmployees: "No employees without portal login.",
       withoutPortalRestoreHint:
         "Soft-deleted records stay listed until permanently deleted. Restore the client, vendor, or employee first, then generate a portal login.",
+      withoutPortalSectionCount: "{count} without portal login",
       selectAllClients: "Select All Clients",
       selectAllVendors: "Select All Vendors",
       selectAllEmployees: "Select All Employees",

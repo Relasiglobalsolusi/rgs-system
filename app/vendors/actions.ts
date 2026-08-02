@@ -589,6 +589,8 @@ export async function bulkReactivateVendors(
 /**
  * Provision portal logins for vendors with no linked User (No Portal Login).
  * Uses the same credential template as single create / bulk import.
+ * Vendors that already have a linked login (active or revoked) are skipped —
+ * Restore Access is the only path for revoked credentials.
  */
 export async function generateVendorPortalLogins(
   ids: string[]
@@ -619,6 +621,7 @@ export async function generateVendorPortalLogins(
             active: true,
             contactPersonFirstName: true,
             contactPersonLastName: true,
+            _count: { select: { users: true } },
           },
         });
 
@@ -632,6 +635,11 @@ export async function generateVendorPortalLogins(
               name: vendor.name,
             })
           );
+        }
+
+        // Already linked (active or revoked) — do not reactivate via Generate.
+        if (vendor._count.users > 0) {
+          return false;
         }
 
         const contactPersonFirstName =

@@ -211,6 +211,22 @@ export default function WithoutPortalLoginView({
     [employees, searchQuery]
   );
 
+  const clientsIncludeSoftDeleted = useMemo(
+    () => filteredClients.some((client) => !client.active),
+    [filteredClients]
+  );
+  const vendorsIncludeSoftDeleted = useMemo(
+    () => filteredVendors.some((vendor) => !vendor.active),
+    [filteredVendors]
+  );
+  const employeesIncludeSoftDeleted = useMemo(
+    () =>
+      filteredEmployees.some(
+        (employee) => !isRosterActiveEmployeeStatus(employee.status)
+      ),
+    [filteredEmployees]
+  );
+
   const clientSelectableIds = useMemo(
     () =>
       canManageClients
@@ -787,7 +803,11 @@ export default function WithoutPortalLoginView({
                   {t("pages.users.withoutPortalClients")}
                 </h3>
                 <p className="mt-0.5 text-sm text-muted">
-                  {t("pages.users.withoutPortalRestoreHint")} ({filteredClients.length})
+                  {clientsIncludeSoftDeleted
+                    ? t("pages.users.withoutPortalRestoreHint")
+                    : t("pages.users.withoutPortalSectionCount", {
+                        count: filteredClients.length,
+                      })}
                 </p>
               </div>
 
@@ -813,7 +833,11 @@ export default function WithoutPortalLoginView({
                   {t("pages.users.withoutPortalVendors")}
                 </h3>
                 <p className="mt-0.5 text-sm text-muted">
-                  {t("pages.users.withoutPortalRestoreHint")} ({filteredVendors.length})
+                  {vendorsIncludeSoftDeleted
+                    ? t("pages.users.withoutPortalRestoreHint")
+                    : t("pages.users.withoutPortalSectionCount", {
+                        count: filteredVendors.length,
+                      })}
                 </p>
               </div>
 
@@ -839,7 +863,11 @@ export default function WithoutPortalLoginView({
                   {t("pages.users.withoutPortalEmployees")}
                 </h3>
                 <p className="mt-0.5 text-sm text-muted">
-                  {t("pages.users.withoutPortalRestoreHint")} ({filteredEmployees.length})
+                  {employeesIncludeSoftDeleted
+                    ? t("pages.users.withoutPortalRestoreHint")
+                    : t("pages.users.withoutPortalSectionCount", {
+                        count: filteredEmployees.length,
+                      })}
                 </p>
               </div>
 

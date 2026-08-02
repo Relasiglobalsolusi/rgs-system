@@ -5,6 +5,7 @@ import {
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
 import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Briefcase } from "lucide-react";
 import { toast } from "sonner";
 
@@ -64,6 +65,7 @@ export default function ClientEditDialog({
   showTrigger = true,
 }: Props) {
   const { t } = useT();
+  const router = useRouter();
   const formId = `edit-client-form-${client.id}`;
   const { open, setOpen } = useDirectoryDialogOpen(controlledOpen, onOpenChange);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
@@ -154,6 +156,7 @@ export default function ClientEditDialog({
         setExitConfirmOpen(false);
         setOpen(false);
         setBaseline(null);
+        router.refresh();
       } catch (error) {
         showRejectionFromError(error, t("pages.clients.updateFailed"));
       }

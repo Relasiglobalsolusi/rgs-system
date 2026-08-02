@@ -76,8 +76,6 @@ export async function getClientSoftDeleteBlockers(
         // COMPLETED but not fully paid, or CANCELLED with open AR, etc.
         unsettledBilling += 1;
       }
-    } else if (hasOpenCollection || hasUnpaidIssued) {
-      unsettledBilling += 1;
     }
 
     pendingTaxInvoices += project.invoicePeriods.filter(

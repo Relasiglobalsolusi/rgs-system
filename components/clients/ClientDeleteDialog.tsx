@@ -4,6 +4,7 @@ import {
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
 import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Building2 } from "lucide-react";
 
 import {
@@ -40,26 +41,37 @@ export default function ClientDeleteDialog({
   showTrigger = true,
 }: Props) {
   const { t } = useT();
+  const router = useRouter();
   const { open, setOpen } = useDirectoryDialogOpen(controlledOpen, onOpenChange);
   const [pending, startTransition] = useTransition();
   const [blockers, setBlockers] = useState<string[]>([]);
+  const [blockersFailed, setBlockersFailed] = useState(false);
   const [loadingBlockers, setLoadingBlockers] = useState(false);
 
   useEffect(() => {
     if (!open) {
       setBlockers([]);
+      setBlockersFailed(false);
       setLoadingBlockers(false);
       return;
     }
 
     let cancelled = false;
     setLoadingBlockers(true);
+    setBlockersFailed(false);
     void fetchClientSoftDeleteBlockers(client.id)
       .then((next) => {
-        if (!cancelled) setBlockers(next);
+        if (!cancelled) {
+          setBlockers(next);
+          setBlockersFailed(false);
+        }
       })
       .catch(() => {
-        if (!cancelled) setBlockers([]);
+        // Fail closed — do not enable Delete when the check could not run.
+        if (!cancelled) {
+          setBlockers([]);
+          setBlockersFailed(true);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoadingBlockers(false);
@@ -71,18 +83,20 @@ export default function ClientDeleteDialog({
   }, [open, client.id]);
 
   function handleDelete() {
+    if (blockersFailed || blockers.length > 0) return;
     startTransition(async () => {
       try {
         await deactivateClient(client.id);
         onDeleted?.();
         setOpen(false);
+        router.refresh();
       } catch (error) {
         showRejectionFromError(error, t("pages.clients.deleteFailed"));
       }
     });
   }
 
-  const isBlocked = blockers.length > 0;
+  const isBlocked = blockersFailed || blockers.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -140,6 +154,15 @@ export default function ClientDeleteDialog({
             <p className="mt-4 text-sm leading-6 text-muted">
               {t("pages.clients.checkingSoftDelete")}
             </p>
+          ) : blockersFailed ? (
+            <div className="mt-4 rounded-xl border border-amber-500/25 bg-card-tint-amber px-4 py-3">
+              <p className="text-sm font-medium text-text">
+                {t("pages.clients.softDeleteBlockedTitle")}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-muted">
+                {t("pages.clients.softDeleteCheckFailed")}
+              </p>
+            </div>
           ) : isBlocked ? (
             <div className="mt-4 rounded-xl border border-amber-500/25 bg-card-tint-amber px-4 py-3">
               <p className="text-sm font-medium text-text">

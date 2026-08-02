@@ -5,6 +5,7 @@ import {
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
 import { useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Building2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -36,6 +37,7 @@ export default function ClientBulkActionDialog({
   selectedIds,
 }: Props) {
   const { t } = useT();
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
 
   function formatBulkResultMessage(
@@ -89,6 +91,9 @@ export default function ClientBulkActionDialog({
         }
 
         onOpenChange(false);
+        if (result.successCount > 0) {
+          router.refresh();
+        }
       } catch (error) {
         showRejectionFromError(error, t("common.errors.bulkFailed"));
       }

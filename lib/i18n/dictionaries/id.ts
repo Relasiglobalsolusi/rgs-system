@@ -967,6 +967,8 @@ export const id = {
       softDeleteBlockedTitle: "Klien ini belum dapat dihapus",
       softDeleteBlocked:
         "Tidak dapat menghapus klien ini selama pekerjaan atau keuangan masih terbuka: {blockers}.",
+      softDeleteCheckFailed:
+        "Tidak dapat memeriksa apakah klien ini dapat dihapus. Tutup dan coba lagi.",
       softDeleteBlockers: {
         openProjects:
           "{count} proyek terbuka (belum Selesai dan lunas)",
@@ -1901,6 +1903,7 @@ export const id = {
       withoutPortalEmptyEmployees: "Tidak ada karyawan tanpa login portal.",
       withoutPortalRestoreHint:
         "Data yang dihapus sementara tetap terdaftar hingga dihapus permanen. Pulihkan dulu klien, pemasok, atau karyawan, lalu buat login portal.",
+      withoutPortalSectionCount: "{count} tanpa login portal",
       selectAllClients: "Pilih Semua Klien",
       selectAllVendors: "Pilih Semua Pemasok",
       selectAllEmployees: "Pilih Semua Karyawan",

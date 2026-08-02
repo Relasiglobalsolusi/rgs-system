@@ -45,7 +45,8 @@ function normalizeNamePart(value: string | null | undefined): string {
 
 /**
  * True when resolved contact-person name parts differ (case-insensitive).
- * Used to decide whether a client portal login must be reset on edit.
+ * Used by vendors: contact-derived Login ID rotates on rename.
+ * Clients keep company-based Login IDs and only sync display name on rename.
  */
 export function contactPersonNamePartsChanged(
   previous: {

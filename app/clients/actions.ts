@@ -581,6 +581,7 @@ export async function reactivateClient(id: string) {
   await assertCanManageClients(locale);
   await reactivateClientRecord(id, locale);
   revalidatePath("/clients");
+  revalidatePath("/billing");
   revalidatePath("/users");
 }
 
@@ -609,6 +610,7 @@ export async function bulkReactivateClients(
 
   if (result.successCount > 0) {
     revalidatePath("/clients");
+    revalidatePath("/billing");
     revalidatePath("/users");
   }
 
@@ -618,9 +620,9 @@ export async function bulkReactivateClients(
 /**
  * Provision portal logins for clients with no linked User (No Portal Login).
  * Uses the same credential template as single create / bulk import.
- * Clients that already have a linked login (active or revoked) are skipped
- * or, if inactive, reactivated as a safety net — the Users No Portal Login
- * list only surfaces never-had-login rows.
+ * Clients that already have a linked login (active or revoked) are skipped —
+ * Restore Access is the only path for revoked credentials. Soft-deleted
+ * parents are rejected (Generate stays off under No Portal Login).
  */
 export async function generateClientPortalLogins(
   ids: string[]
@@ -651,6 +653,7 @@ export async function generateClientPortalLogins(
             active: true,
             contactPersonFirstName: true,
             contactPersonLastName: true,
+            _count: { select: { users: true } },
           },
         });
 
@@ -664,6 +667,11 @@ export async function generateClientPortalLogins(
               name: client.name,
             })
           );
+        }
+
+        // Already linked (active or revoked) — do not reactivate via Generate.
+        if (client._count.users > 0) {
+          return false;
         }
 
         const contactPersonFirstName =
@@ -708,11 +716,11 @@ export async function generateClientPortalLogins(
   return result;
 }
 
-/** Permanent delete — only for deleted (soft-deleted) clients with zero linked projects. Hard-deletes portal users. */
-export async function deleteClient(id: string) {
-  const locale = await getServerLocale();
-  await assertCanManageClients(locale);
-
+/**
+ * Permanent delete — only for soft-deleted clients with zero linked projects.
+ * Hard-deletes portal users. Does not unlink/orphan projects (blocked when any remain).
+ */
+async function permanentlyDeleteClientRecord(id: string, locale: AppLocale) {
   const client = await prisma.client.findUnique({
     where: { id },
     include: {
@@ -751,10 +759,20 @@ export async function deleteClient(id: string) {
   });
 
   await deleteLocalUpload(taxIdDocumentUrl);
+}
 
+function revalidateAfterClientPermanentDelete() {
   revalidatePath("/clients");
+  revalidatePath("/billing");
   revalidatePath("/users");
   revalidatePath("/projects");
+}
+
+export async function deleteClient(id: string) {
+  const locale = await getServerLocale();
+  await assertCanManageClients(locale);
+  await permanentlyDeleteClientRecord(id, locale);
+  revalidateAfterClientPermanentDelete();
 }
 
 export async function bulkDeleteClients(
@@ -768,44 +786,7 @@ export async function bulkDeleteClients(
 
   for (const id of uniqueIds) {
     try {
-      const client = await prisma.client.findUnique({
-        where: { id },
-        include: {
-          users: { select: { id: true } },
-        },
-      });
-
-      if (!client) {
-        throw new Error(translate(locale, "pages.clients.notFound"));
-      }
-      if (client.active) {
-        throw new Error(
-          translate(locale, "pages.clients.permanentDeleteRequiresDeleted")
-        );
-      }
-
-      const linkedProjects = await prisma.project.count({
-        where: { clientId: id },
-      });
-      if (linkedProjects > 0) {
-        throw new Error(
-          translate(locale, "pages.clients.permanentDeleteBlockedByProjects")
-        );
-      }
-
-      const userIds = client.users.map((user) => user.id);
-      const taxIdDocumentUrl = client.taxIdDocumentUrl;
-
-      await prisma.$transaction(async (tx) => {
-        if (userIds.length > 0) {
-          await hardDeleteLinkedUserLogins(tx, userIds);
-        }
-
-        await tx.client.delete({ where: { id } });
-      });
-
-      await deleteLocalUpload(taxIdDocumentUrl);
-
+      await permanentlyDeleteClientRecord(id, locale);
       recordBulkSuccess(result);
     } catch (error) {
       recordBulkFailure(
@@ -818,9 +799,7 @@ export async function bulkDeleteClients(
   }
 
   if (result.successCount > 0) {
-    revalidatePath("/clients");
-    revalidatePath("/users");
-    revalidatePath("/projects");
+    revalidateAfterClientPermanentDelete();
   }
 
   return result;

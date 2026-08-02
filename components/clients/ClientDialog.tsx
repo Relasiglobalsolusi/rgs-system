@@ -5,6 +5,7 @@ import {
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
 import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Briefcase } from "lucide-react";
 
 import {
@@ -40,6 +41,7 @@ export default function ClientDialog({
   showTrigger = true,
 }: Props) {
   const { t } = useT();
+  const router = useRouter();
   const { open, setOpen } = useDirectoryDialogOpen(controlledOpen, onOpenChange);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [previewShortCode, setPreviewShortCode] = useState("");
@@ -144,6 +146,7 @@ export default function ClientDialog({
         await createClient(formData);
         setExitConfirmOpen(false);
         closeDialog();
+        router.refresh();
       } catch (error) {
         showRejectionFromError(error, t("pages.clients.createFailed"));
       }
