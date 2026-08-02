@@ -2,6 +2,9 @@
 
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
+/** ERP business timezone for shift wall-clock comparisons. */
+const APP_TIMEZONE = "Asia/Jakarta";
+
 export function isValidTimeHHmm(value: string | null | undefined): boolean {
   if (!value) return false;
   return TIME_RE.test(value.trim());
@@ -13,8 +16,31 @@ export function parseTimeToMinutes(value: string | null | undefined): number | n
   return h * 60 + m;
 }
 
+/**
+ * Minutes since local midnight in Asia/Jakarta for `instant`.
+ * Used for late check-in notes and overnight shift windows.
+ */
+export function appMinutesOfDay(
+  instant: Date,
+  timeZone: string = APP_TIMEZONE
+): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(instant);
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? NaN);
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? NaN);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
+    return 0;
+  }
+  return ((hour % 24) * 60 + minute) % (24 * 60);
+}
+
+/** Alias for appMinutesOfDay (Asia/Jakarta). */
 export function minutesOfDay(date: Date): number {
-  return date.getHours() * 60 + date.getMinutes();
+  return appMinutesOfDay(date);
 }
 
 export function formatTimeRange(
@@ -51,7 +77,7 @@ export function isLateCheckIn(
 ): boolean | null {
   const expected = parseTimeToMinutes(expectedStartHHmm);
   if (expected == null) return null;
-  return minutesOfDay(checkIn) >= expected;
+  return appMinutesOfDay(checkIn) >= expected;
 }
 
 export type ProjectShiftInput = {

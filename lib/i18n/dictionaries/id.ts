@@ -2798,14 +2798,20 @@ export const id = {
     },
     cico: {
       title: "CICO",
-      description: "Check-In / Check-Out untuk staf lapangan.",
+      description: "Check-In / Check-Out untuk staf cleaning lapangan.",
       employeeOnly: "CICO hanya tersedia untuk akun karyawan.",
       noEmployeeProfile:
         "CICO membutuhkan profil karyawan yang terhubung. Minta administrator menghubungkan login Anda ke data karyawan.",
+      activeOnlyMessage:
+        "CICO hanya tersedia untuk staf Aktif. Hubungi Kantor Pusat jika status Anda perlu diperbarui.",
+      onProjectOnlyMessage:
+        "CICO hanya tersedia saat penempatan Anda Di Proyek dan Anda ditugaskan ke lokasi cleaning.",
       descriptionDetail:
-        "Check-In / Check-Out di lokasi proyek yang ditugaskan menggunakan GPS dan foto di lokasi.",
+        "Check-In / Check-Out di lokasi proyek cleaning yang ditugaskan menggunakan GPS dan foto di lokasi.",
       errors: {
         notAssigned: "Anda tidak ditugaskan ke proyek ini.",
+        cleaningOnly:
+          "CICO hanya untuk proyek cleaning lapangan (Pembersihan Rutin, General, atau Fasad).",
         inProgressOnly:
           "Check-in hanya tersedia untuk proyek Sedang Berjalan (perintah kerja diterima).",
         noSiteLocation: "Proyek ini belum memiliki lokasi situs yang dikonfigurasi.",
@@ -2813,15 +2819,22 @@ export const id = {
         employeeAccountsOnly: "CICO hanya tersedia untuk akun karyawan.",
         invalidRequest: "Permintaan tidak valid.",
         employeeProfileNotFound: "Profil karyawan tidak ditemukan.",
+        inactiveEmployee:
+          "CICO tidak tersedia untuk data karyawan yang diarsipkan atau dihapus.",
+        activeOnly:
+          "CICO hanya tersedia saat status kepegawaian Anda Aktif.",
         onProjectOnly:
-          "Check-in hanya tersedia saat Anda ditugaskan ke proyek Sedang Berjalan (Di Proyek).",
+          "Check-in hanya tersedia saat Anda ditugaskan ke proyek cleaning Sedang Berjalan (Di Proyek).",
         selectProject: "Pilih proyek untuk check-in.",
-        alreadyCheckedIn: "Sudah check-in hari ini.",
+        alreadyCheckedIn: "Sudah check-in untuk hari shift ini.",
         photoRequired:
           "Foto check-in wajib. Ambil foto yang menunjukkan Anda di lokasi proyek ini.",
         photoMustBeImage: "Foto check-in harus berupa file gambar.",
+        checkOutPhotoRequired:
+          "Foto check-out wajib. Ambil foto yang menunjukkan Anda di lokasi proyek ini.",
+        checkOutPhotoMustBeImage: "Foto check-out harus berupa file gambar.",
         mustCheckInFirst: "Anda harus check-in terlebih dahulu.",
-        alreadyCheckedOut: "Sudah check-out hari ini.",
+        alreadyCheckedOut: "Sudah check-out untuk hari shift ini.",
         checkInProjectNoLocation:
           "Proyek check-in hari ini tidak memiliki lokasi situs.",
         tooFarCheckIn:
@@ -2830,7 +2843,7 @@ export const id = {
           "Anda berjarak {distance} m dari {site}. Check-out dalam radius {radius} m dari lokasi proyek tersebut.",
         lateCheckInNote: "Check-in terlambat (seharusnya sebelum {time}).",
         progressRequiredBeforeCheckOut:
-          "Foto Laporan Progress wajib untuk check-out. Silakan unggah foto tersebut lalu coba CICO lagi.",
+          "Laporan Progress wajib untuk check-out. Silakan unggah lalu coba CICO lagi.",
       },
       todaysCico: "CICO Hari Ini",
       recentHistory: "Riwayat Terbaru",
@@ -2844,34 +2857,41 @@ export const id = {
       projectSite: "Lokasi Proyek",
       selectProject: "Pilih Proyek",
       noProjectsAssigned:
-        "Belum ada proyek yang ditugaskan. Minta manajer menugaskan Anda ke lokasi.",
+        "Belum ada proyek cleaning yang ditugaskan. Minta manajer menugaskan Anda ke lokasi Pembersihan Rutin, General, atau Fasad.",
       checkingInAt: "Check-in di",
       mustBeWithinMeters: "Harus berada dalam {meters} m dari lokasi ini.",
       yourShift: "Shift Anda:",
       clockInBeforeHint:
-        "Clock-in sebelum {time} jika memungkinkan — check-in terlambat tetap diizinkan.",
+        "Clock-in sebelum {time} jika memungkinkan — check-in terlambat tetap diizinkan. Shift overnight tetap pada hari shift yang sama sampai check-out.",
       noShiftAssigned:
         "Belum ada shift — minta Kantor Pusat mengatur shift di Sumber Daya Manusia → Shift.",
-      onSitePhoto: "Foto di Lokasi",
+      onSitePhoto: "Foto Check-In",
       required: "(wajib)",
       photoHelp:
         "Ambil foto yang jelas menunjukkan Anda di lokasi proyek ini (selfie atau bukti di lokasi). Check-in tidak akan berhasil tanpa foto.",
+      checkOutPhotoHelp:
+        "Ambil foto yang jelas menunjukkan Anda di lokasi proyek ini. Check-out tidak akan berhasil tanpa foto.",
       takePhoto: "Ambil / Unggah Foto",
       retakePhoto: "Ambil Ulang Foto",
       noPhotoSelected: "Belum ada foto dipilih",
+      noPhotoSelectedCheckOut: "Belum ada foto check-out dipilih",
       checkInPhoto: "Foto Check-In",
       checkInPhotoAlt: "Foto check-in hari ini",
+      checkOutPhoto: "Foto Check-Out",
+      checkOutPhotoAlt: "Foto check-out hari ini",
       checkedInAt: "Check-in di:",
       shiftLabel: "Shift",
       progressRequiredTitle: "Laporan Progress Wajib",
       progressRequiredBody:
-        "Foto Laporan Progress wajib untuk check-out. Silakan unggah foto tersebut lalu coba CICO lagi.",
+        "Laporan Progress wajib untuk check-out. Silakan unggah lalu coba CICO lagi.",
       uploadProgressNow: "Unggah Laporan Progress",
       footerNote:
-        "CICO membutuhkan GPS dalam radius lokasi proyek dan foto check-in di lokasi. Check-out juga membutuhkan minimal satu Laporan Progress untuk proyek hari ini.",
-      chooseImageFile: "Pilih file gambar untuk foto check-in Anda.",
+        "CICO untuk staf cleaning Aktif Di Proyek pada lokasi Pembersihan Rutin, General, atau Fasad yang ditugaskan. GPS geofence dan foto di lokasi wajib untuk check-in dan check-out. Check-out juga membutuhkan minimal satu Laporan Progress untuk hari shift ini.",
+      chooseImageFile: "Pilih file gambar untuk foto di lokasi Anda.",
       photoRequiredAlert:
         "Foto check-in wajib. Ambil foto yang menunjukkan Anda di lokasi proyek ini.",
+      checkOutPhotoRequiredAlert:
+        "Foto check-out wajib. Ambil foto yang menunjukkan Anda di lokasi proyek ini.",
       checkInFailed: "Check-in gagal.",
       checkOutFailed: "Check-out gagal.",
       locationFailed:

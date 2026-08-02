@@ -49,6 +49,7 @@ type Props = {
     checkIn: Date | null;
     checkOut: Date | null;
     checkInPhotoUrl?: string | null;
+    checkOutPhotoUrl?: string | null;
     project?: { id: string; name: string } | null;
     note?: string | null;
   } | null;
@@ -183,6 +184,11 @@ export default function CicoActions({
       return;
     }
 
+    if (!photoFile) {
+      showRejection({ reasons: t("pages.cico.checkOutPhotoRequiredAlert") });
+      return;
+    }
+
     setLocating(true);
     try {
       const position = await getCurrentPosition(
@@ -191,10 +197,12 @@ export default function CicoActions({
       const formData = new FormData();
       formData.set("latitude", String(position.coords.latitude));
       formData.set("longitude", String(position.coords.longitude));
+      formData.set("photo", photoFile);
 
       startTransition(async () => {
         try {
           await checkOut(formData);
+          clearPhoto();
           router.refresh();
         } catch (error) {
           const message =
@@ -223,6 +231,18 @@ export default function CicoActions({
     hasProjects &&
     !!projectId &&
     !!photoFile;
+  const canCheckOutClick =
+    !pending && !locating && checkedIn && !checkedOut;
+
+  const photoLabel = checkedIn
+    ? t("pages.cico.checkOutPhoto")
+    : t("pages.cico.onSitePhoto");
+  const photoHelp = checkedIn
+    ? t("pages.cico.checkOutPhotoHelp")
+    : t("pages.cico.photoHelp");
+  const photoAlertEmpty = checkedIn
+    ? t("pages.cico.noPhotoSelectedCheckOut")
+    : t("pages.cico.noPhotoSelected");
 
   return (
     <div className="space-y-6">
@@ -309,68 +329,6 @@ export default function CicoActions({
               )}
             </div>
           )}
-
-          <div className="space-y-2.5">
-            <label className="text-sm font-medium text-muted">
-              {t("pages.cico.onSitePhoto")}{" "}
-              <span className="font-normal text-amber-400">
-                {t("pages.cico.required")}
-              </span>
-            </label>
-            <p className="text-xs leading-relaxed text-subtle">
-              {t("pages.cico.photoHelp")}
-            </p>
-            <input
-              ref={photoInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="sr-only"
-              onChange={onPhotoChange}
-            />
-            <div className="flex flex-wrap items-center gap-2.5">
-              <Button
-                type="button"
-                variant="outline"
-                size="badgeFlex"
-                onClick={() => photoInputRef.current?.click()}
-                disabled={pending || locating || !hasProjects}
-              >
-                <Camera className="mr-1.5" />
-                {photoFile
-                  ? t("pages.cico.retakePhoto")
-                  : t("pages.cico.takePhoto")}
-              </Button>
-              {photoFile && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={clearPhoto}
-                  disabled={pending || locating}
-                  className="text-subtle"
-                >
-                  <X className="mr-1" />
-                  {t("common.actions.clear")}
-                </Button>
-              )}
-            </div>
-            {photoPreview ? (
-              <div className="relative mt-1 h-36 w-full max-w-xs overflow-hidden rounded-xl border border-border bg-inset sm:h-40">
-                <Image
-                  src={photoPreview}
-                  alt={t("pages.cico.checkInPhoto")}
-                  fill
-                  className="object-cover"
-                  unoptimized
-                />
-              </div>
-            ) : (
-              <div className="flex h-28 max-w-xs items-center justify-center rounded-xl border border-dashed border-border bg-inset px-4 text-center text-xs text-subtle">
-                {t("pages.cico.noPhotoSelected")}
-              </div>
-            )}
-          </div>
         </div>
       )}
 
@@ -429,6 +387,85 @@ export default function CicoActions({
         </div>
       )}
 
+      {checkedOut && todayRecord?.checkOutPhotoUrl && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-muted">
+            {t("pages.cico.checkOutPhoto")}
+          </p>
+          <div className="relative h-36 w-full max-w-xs overflow-hidden rounded-xl border border-border bg-inset sm:h-40">
+            <Image
+              src={todayRecord.checkOutPhotoUrl}
+              alt={t("pages.cico.checkOutPhotoAlt")}
+              fill
+              className="object-cover"
+              unoptimized
+            />
+          </div>
+        </div>
+      )}
+
+      {!checkedOut && (
+        <div className="space-y-2.5">
+          <label className="text-sm font-medium text-muted">
+            {photoLabel}{" "}
+            <span className="font-normal text-amber-400">
+              {t("pages.cico.required")}
+            </span>
+          </label>
+          <p className="text-xs leading-relaxed text-subtle">{photoHelp}</p>
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="sr-only"
+            onChange={onPhotoChange}
+          />
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Button
+              type="button"
+              variant="outline"
+              size="badgeFlex"
+              onClick={() => photoInputRef.current?.click()}
+              disabled={pending || locating || (!checkedIn && !hasProjects)}
+            >
+              <Camera className="mr-1.5" />
+              {photoFile
+                ? t("pages.cico.retakePhoto")
+                : t("pages.cico.takePhoto")}
+            </Button>
+            {photoFile && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={clearPhoto}
+                disabled={pending || locating}
+                className="text-subtle"
+              >
+                <X className="mr-1" />
+                {t("common.actions.clear")}
+              </Button>
+            )}
+          </div>
+          {photoPreview ? (
+            <div className="relative mt-1 h-36 w-full max-w-xs overflow-hidden rounded-xl border border-border bg-inset sm:h-40">
+              <Image
+                src={photoPreview}
+                alt={photoLabel}
+                fill
+                className="object-cover"
+                unoptimized
+              />
+            </div>
+          ) : (
+            <div className="flex h-28 max-w-xs items-center justify-center rounded-xl border border-dashed border-border bg-inset px-4 text-center text-xs text-subtle">
+              {photoAlertEmpty}
+            </div>
+          )}
+        </div>
+      )}
+
       {todayRecord?.note && (
         <p className="text-sm leading-relaxed text-amber-400">
           {todayRecord.note}
@@ -444,7 +481,7 @@ export default function CicoActions({
           className="h-12 w-full text-base [&_svg]:size-5"
         >
           <LogIn className="mr-2" />
-          {locating
+          {locating && !checkedIn
             ? t("pages.cico.gettingLocation")
             : checkedIn
               ? t("pages.cico.checkedIn")
@@ -453,13 +490,13 @@ export default function CicoActions({
 
         <Button
           onClick={handleCheckOut}
-          disabled={pending || locating || !checkedIn || checkedOut}
+          disabled={!canCheckOutClick}
           variant="warning"
           size="lg"
           className="h-12 w-full text-base [&_svg]:size-5"
         >
           <LogOut className="mr-2" />
-          {locating
+          {locating && checkedIn && !checkedOut
             ? t("pages.cico.gettingLocation")
             : checkedOut
               ? t("pages.cico.checkedOut")

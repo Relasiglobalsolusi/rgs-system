@@ -9,17 +9,14 @@ import {
   resolveExpectedShiftStart,
 } from "@/lib/operating-hours";
 import { toUtcDateOnly } from "@/lib/invoice-period";
+import { resolveCicoWorkDay } from "@/lib/cico-work-day";
+import { findOpenCicoAttendance } from "@/lib/cico-attendance";
+import { isCleaningProjectSubCategory } from "@/lib/project-subcategory";
 import { saveUpload } from "@/lib/upload";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
 
-function todayDate() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-/** Hard gate: check-out requires ≥1 progress report for this employee × project × work day. */
+/** Hard gate: check-out requires ≥1 Progress Report for this employee × project × work day. */
 async function hasProgressReportForWorkDay(
   employeeId: string,
   projectId: string,
@@ -44,6 +41,21 @@ async function cicoError(
   return new Error(translate(locale, `pages.cico.errors.${key}`, params));
 }
 
+async function requireCicoPhoto(formData: FormData, kind: "checkIn" | "checkOut") {
+  const photo = formData.get("photo");
+  if (!(photo instanceof File) || photo.size <= 0) {
+    throw await cicoError(
+      kind === "checkIn" ? "photoRequired" : "checkOutPhotoRequired"
+    );
+  }
+  if (!photo.type.startsWith("image/")) {
+    throw await cicoError(
+      kind === "checkIn" ? "photoMustBeImage" : "checkOutPhotoMustBeImage"
+    );
+  }
+  return photo;
+}
+
 async function getAssignedProjectForEmployee(
   employeeId: string,
   projectId: string
@@ -58,6 +70,10 @@ async function getAssignedProjectForEmployee(
   }
 
   const project = assignment.project;
+
+  if (!isCleaningProjectSubCategory(project.subCategory)) {
+    throw await cicoError("cleaningOnly");
+  }
 
   if (project.status !== "IN_PROGRESS") {
     throw await cicoError("inProgressOnly");
@@ -97,6 +113,14 @@ async function requireCicoEmployee(formData?: FormData) {
   const employee = await getEmployeeForUser(session.user.id);
   if (!employee) throw await cicoError("employeeProfileNotFound");
 
+  if (employee.archivedFromDirectory) {
+    throw await cicoError("inactiveEmployee");
+  }
+
+  if (employee.status !== "ACTIVE") {
+    throw await cicoError("activeOnly");
+  }
+
   if (employee.placement !== "ON_PROJECT") {
     throw await cicoError("onProjectOnly");
   }
@@ -115,6 +139,7 @@ export async function checkIn(formData: FormData) {
     employee.id,
     projectId
   );
+
   const radius = project.locationRadiusMeters ?? 50;
   const distance = haversineDistanceMeters(
     latitude,
@@ -142,13 +167,19 @@ export async function checkIn(formData: FormData) {
     });
   }
 
-  const today = todayDate();
+  const now = new Date();
+  // Overnight-aware Asia/Jakarta work day — one check-in / one check-out per shift day.
+  const workDay = resolveCicoWorkDay(
+    assignment.shiftStart,
+    assignment.shiftEnd,
+    now
+  );
 
   const existing = await prisma.attendance.findUnique({
     where: {
       employeeId_date: {
         employeeId: employee.id,
-        date: today,
+        date: workDay,
       },
     },
   });
@@ -157,17 +188,10 @@ export async function checkIn(formData: FormData) {
     throw await cicoError("alreadyCheckedIn");
   }
 
-  const photo = formData.get("photo");
-  if (!(photo instanceof File) || photo.size <= 0) {
-    throw await cicoError("photoRequired");
-  }
-  if (!photo.type.startsWith("image/")) {
-    throw await cicoError("photoMustBeImage");
-  }
-
+  const photo = await requireCicoPhoto(formData, "checkIn");
   const checkInPhotoUrl = await saveUpload(photo, "uploads/cico");
 
-  const checkInAt = new Date();
+  const checkInAt = now;
   const expectedStart = resolveExpectedShiftStart(assignment);
   const late = isLateCheckIn(checkInAt, expectedStart);
   const lateNote =
@@ -183,7 +207,7 @@ export async function checkIn(formData: FormData) {
     where: {
       employeeId_date: {
         employeeId: employee.id,
-        date: today,
+        date: workDay,
       },
     },
     update: {
@@ -197,7 +221,7 @@ export async function checkIn(formData: FormData) {
     },
     create: {
       employeeId: employee.id,
-      date: today,
+      date: workDay,
       checkIn: checkInAt,
       projectId: project.id,
       checkInLat: latitude,
@@ -217,21 +241,14 @@ export async function checkOut(formData: FormData) {
   const { employee } = await requireCicoEmployee(formData);
 
   const { latitude, longitude } = await parseCoords(formData);
-  const today = todayDate();
+  const now = new Date();
 
-  const existing = await prisma.attendance.findUnique({
-    where: {
-      employeeId_date: {
-        employeeId: employee.id,
-        date: today,
-      },
-    },
-    include: { project: true },
-  });
-
-  if (!existing?.checkIn) {
+  const open = await findOpenCicoAttendance(employee.id, now);
+  if (!open?.record?.checkIn) {
     throw await cicoError("mustCheckInFirst");
   }
+
+  const existing = open.record;
 
   if (existing.checkOut) {
     throw await cicoError("alreadyCheckedOut");
@@ -258,6 +275,9 @@ export async function checkOut(formData: FormData) {
   ) {
     throw await cicoError("checkInProjectNoLocation");
   }
+
+  const photo = await requireCicoPhoto(formData, "checkOut");
+  const checkOutPhotoUrl = await saveUpload(photo, "uploads/cico");
 
   const radius = existing.project.locationRadiusMeters ?? 50;
   const distance = haversineDistanceMeters(
@@ -289,10 +309,11 @@ export async function checkOut(formData: FormData) {
   await prisma.attendance.update({
     where: { id: existing.id },
     data: {
-      checkOut: new Date(),
+      checkOut: now,
       checkOutLat: latitude,
       checkOutLng: longitude,
       checkOutDistanceMeters: distance,
+      checkOutPhotoUrl,
     },
   });
 

@@ -105,10 +105,11 @@ async function collectUploadPaths(companyId: string): Promise<string[]> {
   if (employeeIds.length > 0) {
     const attendances = await prisma.attendance.findMany({
       where: { employeeId: { in: employeeIds } },
-      select: { checkInPhotoUrl: true },
+      select: { checkInPhotoUrl: true, checkOutPhotoUrl: true },
     });
     for (const row of attendances) {
       if (row.checkInPhotoUrl) paths.add(row.checkInPhotoUrl);
+      if (row.checkOutPhotoUrl) paths.add(row.checkOutPhotoUrl);
     }
 
     const leaves = await prisma.leaveRequest.findMany({

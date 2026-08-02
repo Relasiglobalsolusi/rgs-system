@@ -2764,14 +2764,20 @@ export const en = {
     },
     cico: {
       title: "CICO",
-      description: "Check-In / Check-Out for field staff.",
+      description: "Check-In / Check-Out for field cleaning staff.",
       employeeOnly: "CICO is only available for employee accounts.",
       noEmployeeProfile:
         "CICO requires a linked employee profile. Ask an administrator to link your login to an employee record.",
+      activeOnlyMessage:
+        "CICO is only available for Active staff. Contact Head Office if your status should be updated.",
+      onProjectOnlyMessage:
+        "CICO is only available while your placement is On Project and you are assigned to a cleaning site.",
       descriptionDetail:
-        "Check-In / Check-Out at your assigned project site using GPS and an on-site photo.",
+        "Check-In / Check-Out at your assigned cleaning project site using GPS and on-site photos.",
       errors: {
         notAssigned: "You are not assigned to this project.",
+        cleaningOnly:
+          "CICO is only for field cleaning projects (Regular, General, or Facade Cleaning).",
         inProgressOnly:
           "Check-in is only available for In Progress projects (work order received).",
         noSiteLocation: "This project has no site location configured yet.",
@@ -2779,15 +2785,22 @@ export const en = {
         employeeAccountsOnly: "CICO is only available for employee accounts.",
         invalidRequest: "Invalid request.",
         employeeProfileNotFound: "Employee profile not found.",
+        inactiveEmployee:
+          "CICO is not available for archived or removed employee records.",
+        activeOnly:
+          "CICO is only available while your employment status is Active.",
         onProjectOnly:
-          "Check-in is only available while you are assigned to an In Progress project (On project).",
+          "Check-in is only available while you are assigned to an In Progress cleaning project (On Project).",
         selectProject: "Select a project to check in.",
-        alreadyCheckedIn: "Already checked in today.",
+        alreadyCheckedIn: "Already checked in for this shift day.",
         photoRequired:
           "A check-in photo is required. Take a photo that shows you at this project site.",
         photoMustBeImage: "Check-in photo must be an image file.",
+        checkOutPhotoRequired:
+          "A check-out photo is required. Take a photo that shows you at this project site.",
+        checkOutPhotoMustBeImage: "Check-out photo must be an image file.",
         mustCheckInFirst: "You must check in first.",
-        alreadyCheckedOut: "Already checked out today.",
+        alreadyCheckedOut: "Already checked out for this shift day.",
         checkInProjectNoLocation: "Today's check-in project has no site location.",
         tooFarCheckIn:
           "You are {distance} m from {site}. Check in within {radius} m of that project site.",
@@ -2795,7 +2808,7 @@ export const en = {
           "You are {distance} m from {site}. Check out within {radius} m of that project site.",
         lateCheckInNote: "Late check-in (expected before {time}).",
         progressRequiredBeforeCheckOut:
-          "Progress Report photos are required to check out. Please upload them and retry CICO.",
+          "A Progress Report is required to check out. Please upload it and retry CICO.",
       },
       todaysCico: "Today's CICO",
       recentHistory: "Recent History",
@@ -2809,34 +2822,41 @@ export const en = {
       projectSite: "Project Site",
       selectProject: "Select Project",
       noProjectsAssigned:
-        "No projects assigned. Ask your manager to assign you to a site.",
+        "No cleaning projects assigned. Ask your manager to assign you to a Regular, General, or Facade Cleaning site.",
       checkingInAt: "Checking in at",
       mustBeWithinMeters: "Must be within {meters} m of this site.",
       yourShift: "Your Shift:",
       clockInBeforeHint:
-        "Clock in before {time} when possible — late check-ins are still allowed.",
+        "Clock in before {time} when possible — late check-ins are still allowed. Overnight shifts stay on the same shift day until check-out.",
       noShiftAssigned:
         "No shift assigned yet — ask Head Office to set your shift under Human Resources → Shifts.",
-      onSitePhoto: "On-Site Photo",
+      onSitePhoto: "Check-In Photo",
       required: "(required)",
       photoHelp:
         "Take a photo that clearly shows you at this project site (selfie or on-site proof). Check-in will not succeed without it.",
+      checkOutPhotoHelp:
+        "Take a photo that clearly shows you at this project site. Check-out will not succeed without it.",
       takePhoto: "Take / Upload Photo",
       retakePhoto: "Retake Photo",
       noPhotoSelected: "No photo selected yet",
+      noPhotoSelectedCheckOut: "No check-out photo selected yet",
       checkInPhoto: "Check-In Photo",
       checkInPhotoAlt: "Today's check-in photo",
+      checkOutPhoto: "Check-Out Photo",
+      checkOutPhotoAlt: "Today's check-out photo",
       checkedInAt: "Checked in at:",
       shiftLabel: "Shift",
       progressRequiredTitle: "Progress Report Required",
       progressRequiredBody:
-        "Progress Report photos are required to check out. Please upload them and retry CICO.",
+        "A Progress Report is required to check out. Please upload it and retry CICO.",
       uploadProgressNow: "Upload Progress Report",
       footerNote:
-        "CICO requires GPS within the project site radius and an on-site check-in photo. Check-out also requires at least one Progress Report for today's project.",
-      chooseImageFile: "Please choose an image file for your check-in photo.",
+        "CICO is for Active On Project cleaning staff at assigned Regular, General, or Facade Cleaning sites. GPS geofence and on-site photos are required for check-in and check-out. Check-out also requires at least one Progress Report for this shift day.",
+      chooseImageFile: "Please choose an image file for your on-site photo.",
       photoRequiredAlert:
         "A check-in photo is required. Take a photo that shows you at this project site.",
+      checkOutPhotoRequiredAlert:
+        "A check-out photo is required. Take a photo that shows you at this project site.",
       checkInFailed: "Check-in failed.",
       checkOutFailed: "Check-out failed.",
       locationFailed:

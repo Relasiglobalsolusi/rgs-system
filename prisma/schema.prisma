@@ -947,6 +947,9 @@ model Attendance {
   /** On-site proof photo captured at check-in (public path under /uploads/cico). */
   checkInPhotoUrl String?
 
+  /** On-site proof photo captured at check-out (public path under /uploads/cico). */
+  checkOutPhotoUrl String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
