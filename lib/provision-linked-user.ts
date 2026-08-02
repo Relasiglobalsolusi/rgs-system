@@ -12,6 +12,7 @@ import {
 import { nextSortOrderFromMax } from "@/lib/reorder";
 import { resolveNewAccountPassword } from "@/lib/user-account";
 import { allocateClientLoginId } from "@/lib/client-login-id";
+import { isRosterActiveEmployeeStatus } from "@/lib/user-directory-status";
 import { allocateUniqueUsername, normalizeUsername } from "@/lib/username";
 
 type Tx = Prisma.TransactionClient;
@@ -38,7 +39,8 @@ async function usernameIsTaken(tx: Tx, username: string) {
  * Creates or restores a login for an employee.
  * Username is derived from the employee's first name (not full name / company).
  * Password is unusable until first-login setup; recovery email is left unset.
- * - Soft-deleted / non-ACTIVE employee → throws (restore first).
+ * - Soft-deleted / terminated / inactive employee → throws (restore first).
+ * - Roster-active (ACTIVE or ON_LEAVE) only — same rules as login/session.
  * - Active linked user → no-op (returns null).
  * - Inactive linked user (revoked / soft-deactivated) → reactivates same credentials.
  * - No linked user → allocates a new username and creates a User.
@@ -69,7 +71,7 @@ export async function provisionEmployeeUser(
     throw new Error("Employee not found.");
   }
 
-  if (existing.status !== "ACTIVE") {
+  if (!isRosterActiveEmployeeStatus(existing.status)) {
     throw new Error(
       "Portal login cannot be generated for deleted or inactive employees. Restore the employee first."
     );

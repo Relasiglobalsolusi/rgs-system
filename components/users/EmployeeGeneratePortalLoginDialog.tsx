@@ -5,6 +5,7 @@ import {
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
 import { useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { KeyRound } from "lucide-react";
 import { toast } from "sonner";
 
@@ -51,6 +52,7 @@ export default function EmployeeGeneratePortalLoginDialog({
   selectedIds,
 }: Props) {
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
   const { t } = useT();
 
   function handleConfirm() {
@@ -67,6 +69,9 @@ export default function EmployeeGeneratePortalLoginDialog({
         }
 
         onOpenChange(false);
+        if (result.successCount > 0) {
+          router.refresh();
+        }
       } catch (error) {
         showRejectionFromError(error, t("pages.users.generateFailed"));
       }

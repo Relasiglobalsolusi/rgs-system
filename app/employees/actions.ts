@@ -327,6 +327,16 @@ export async function reorderEmployees(ids: string[]) {
   revalidatePath("/employees");
 }
 
+function parseRosterEditableStatus(
+  value: FormDataEntryValue | null
+): "ACTIVE" | "ON_LEAVE" {
+  const status = String(value ?? "").trim();
+  if (status === "ACTIVE" || status === "ON_LEAVE") {
+    return status;
+  }
+  throw new Error("Invalid employee status.");
+}
+
 export async function updateEmployee(id: string, formData: FormData) {
   await assertCanManageEmployees();
 
@@ -353,6 +363,7 @@ export async function updateEmployee(id: string, formData: FormData) {
       employmentType: true,
       placement: true,
       portalAccessRequested: true,
+      status: true,
       categoryId: true,
       userId: true,
       category: {
@@ -368,6 +379,12 @@ export async function updateEmployee(id: string, formData: FormData) {
   if (!employee) {
     throw new Error("Employee not found.");
   }
+
+  if (!isRosterActiveEmployeeStatus(employee.status)) {
+    throw new Error("Restore the employee before editing status or details.");
+  }
+
+  const status = parseRosterEditableStatus(formData.get("status"));
 
   const categoryId = await parseCategoryId(
     formData.get("categoryId"),
@@ -431,6 +448,7 @@ export async function updateEmployee(id: string, formData: FormData) {
         employeeType,
         employmentType,
         placement,
+        status,
         portalAccessRequested,
         categoryId,
         positionId,
@@ -452,7 +470,7 @@ export async function updateEmployee(id: string, formData: FormData) {
       employmentType,
       placement,
       portalAccessRequested,
-      status: "ACTIVE",
+      status,
       userId: updated.userId,
       employeeType,
     });
@@ -985,7 +1003,7 @@ export async function generateEmployeePortalLogins(
           throw new Error("Employee not found.");
         }
 
-        if (employee.status !== "ACTIVE") {
+        if (!isRosterActiveEmployeeStatus(employee.status)) {
           const label = `${employee.firstName} ${employee.lastName}`.trim();
           throw new Error(
             `${label}: portal login cannot be generated for deleted or inactive employees. Restore the employee first.`
