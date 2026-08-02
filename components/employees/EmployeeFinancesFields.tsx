@@ -268,9 +268,12 @@ export default function EmployeeFinancesFields({
           ) : (
             <input type="hidden" name="jkkPercent" value="" />
           )}
-          <p className="text-xs text-muted">
-            {t("pages.employees.form.bpjsTkHelp")}
-          </p>
+          <ul className="list-disc space-y-1 pl-4 text-xs text-muted">
+            <li>{t("pages.employees.form.bpjsTkHelpJht")}</li>
+            <li>{t("pages.employees.form.bpjsTkHelpJp")}</li>
+            <li>{t("pages.employees.form.bpjsTkHelpJkk")}</li>
+            <li>{t("pages.employees.form.bpjsTkHelpJkm")}</li>
+          </ul>
         </div>
       ) : (
         <>

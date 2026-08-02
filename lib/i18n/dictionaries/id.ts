@@ -1768,13 +1768,19 @@ export const id = {
           "Total 5% dari upah bulanan (maks. Rp 12.000.000): 4% perusahaan, 1% karyawan.",
         bpjsKetenagakerjaan: "BPJS Ketenagakerjaan",
         bpjsTkComponents: "Komponen Ketenagakerjaan",
-        bpjsTkHelp:
-          "JHT 3,7% perusahaan / 2% karyawan; JP 2% perusahaan / 1% karyawan (batas upah Rp 10.547.400); JKK hanya perusahaan sesuai persen yang Anda masukkan; JKM 0,3% hanya perusahaan.",
-        jht: "JHT",
-        jp: "JP",
-        jkk: "JKK",
-        jkm: "JKM",
-        jkkPercent: "Persen JKK",
+        bpjsTkHelpJht:
+          "Jaminan Hari Tua — 3,7% perusahaan / 2% karyawan.",
+        bpjsTkHelpJp:
+          "Jaminan Pensiun — 2% perusahaan / 1% karyawan (batas upah Rp 10.547.400).",
+        bpjsTkHelpJkk:
+          "Jaminan Kecelakaan Kerja — hanya perusahaan sesuai persen yang Anda masukkan.",
+        bpjsTkHelpJkm:
+          "Jaminan Kematian — 0,3% hanya perusahaan.",
+        jht: "Jaminan Hari Tua",
+        jp: "Jaminan Pensiun",
+        jkk: "Jaminan Kecelakaan Kerja",
+        jkm: "Jaminan Kematian",
+        jkkPercent: "Persen Jaminan Kecelakaan Kerja",
         jkkPercentHint: "Tarif perusahaan dari {min}% sampai {max}%.",
         employeeDeduction: "Potongan Karyawan",
         companyContribution: "Iuran Perusahaan",

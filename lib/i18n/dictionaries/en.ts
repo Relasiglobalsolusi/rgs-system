@@ -1741,14 +1741,20 @@ export const en = {
         bpjsKesehatanHelp:
           "Total 5% of monthly wage (capped at Rp 12,000,000): 4% company, 1% employee.",
         bpjsKetenagakerjaan: "BPJS Ketenagakerjaan",
-        bpjsTkComponents: "Ketenagakerjaan Components",
-        bpjsTkHelp:
-          "JHT 3.7% company / 2% employee; JP 2% company / 1% employee (wage cap Rp 10,547,400); JKK company-only at the rate you enter; JKM 0.3% company-only.",
-        jht: "JHT",
-        jp: "JP",
-        jkk: "JKK",
-        jkm: "JKM",
-        jkkPercent: "JKK Percent",
+        bpjsTkComponents: "Employment Components",
+        bpjsTkHelpJht:
+          "Jaminan Hari Tua — 3.7% company / 2% employee.",
+        bpjsTkHelpJp:
+          "Jaminan Pensiun — 2% company / 1% employee (wage cap Rp 10,547,400).",
+        bpjsTkHelpJkk:
+          "Jaminan Kecelakaan Kerja — company only at the rate you enter.",
+        bpjsTkHelpJkm:
+          "Jaminan Kematian — 0.3% company only.",
+        jht: "Jaminan Hari Tua",
+        jp: "Jaminan Pensiun",
+        jkk: "Jaminan Kecelakaan Kerja",
+        jkm: "Jaminan Kematian",
+        jkkPercent: "Jaminan Kecelakaan Kerja Percent",
         jkkPercentHint: "Company rate from {min}% to {max}%.",
         employeeDeduction: "Employee Deduction",
         companyContribution: "Company Contribution",
