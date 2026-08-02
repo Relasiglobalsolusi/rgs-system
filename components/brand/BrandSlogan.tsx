@@ -10,6 +10,7 @@ type BrandSloganProps = {
 /**
  * Slogan under the RGS ONE mark — part of the logo lockup, not UI copy.
  * Always English via `RGS_ONE_SLOGAN`; never wire through `t()` / i18n.
+ * Layout: horizontal rule + widely spaced uppercase tagline.
  */
 export default function BrandSlogan({
   className,
@@ -18,19 +19,31 @@ export default function BrandSlogan({
   const compact = size === "compact";
 
   return (
-    <p
+    <div
       className={cn(
-        "m-0 max-w-full text-center font-sans font-normal uppercase text-subtle",
-        compact
-          ? "text-[6.5px] leading-tight tracking-[0.1em] sm:text-[7.5px] sm:tracking-[0.12em]"
-          : "text-[8.5px] leading-none tracking-[0.18em]",
+        "flex w-full max-w-full items-center justify-center gap-3",
         className
       )}
       lang="en"
       translate="no"
       aria-hidden="true"
     >
-      {RGS_ONE_SLOGAN}
-    </p>
+      <span
+        className={cn(
+          "auth-tagline-rule h-px shrink-0",
+          compact ? "w-6" : "w-10 sm:w-12"
+        )}
+      />
+      <p
+        className={cn(
+          "m-0 min-w-0 font-sans font-medium uppercase text-subtle",
+          compact
+            ? "text-[6.5px] leading-tight tracking-[0.28em] sm:text-[7.5px] sm:tracking-[0.32em]"
+            : "text-[9px] leading-none tracking-[0.32em] sm:text-[10px] sm:tracking-[0.36em]"
+        )}
+      >
+        {RGS_ONE_SLOGAN}
+      </p>
+    </div>
   );
 }
