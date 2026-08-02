@@ -39,6 +39,20 @@ enum EmploymentStatus {
   ON_LEAVE
 }
 
+/// THR (Tunjangan Hari Raya) payment lifecycle.
+enum ThrPaymentStatus {
+  DRAFT
+  GENERATED
+  PAID
+}
+
+/// Inventory stock ledger entry types.
+enum InventoryMovementType {
+  PURCHASE
+  ISSUE_TO_PROJECT
+  ADJUSTMENT
+}
+
 enum ProjectStatus {
   PLANNED
   IN_PROGRESS
@@ -167,6 +181,10 @@ model Company {
   projects            Project[]
   invoiceCompilations InvoiceCompilation[]
   purchaseInvoices    PurchaseInvoice[]
+  thrPayments         ThrPayment[]
+  inventoryItems      InventoryItem[]
+  inventoryPurchases  InventoryPurchase[]
+  inventoryMovements  InventoryMovement[]
   auditLogs           AuditLog[]
   websiteContent      WebsiteContent?
 
@@ -289,6 +307,17 @@ model Employee {
   archivedFromDirectory Boolean @default(false)
   hiredAt      DateTime?
 
+  /// Monthly base pay in IDR (upah pokok) — BPJS / THR reference wage.
+  basePay Decimal? @db.Decimal(14, 2)
+  bpjsKesehatanEnabled       Boolean @default(false)
+  bpjsKetenagakerjaanEnabled Boolean @default(false)
+  jhtEnabled Boolean @default(false)
+  jpEnabled  Boolean @default(false)
+  jkkEnabled Boolean @default(false)
+  jkmEnabled Boolean @default(false)
+  /// JKK company rate percent when enabled (0.10–1.60).
+  jkkPercent Decimal? @db.Decimal(5, 2)
+
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
@@ -306,6 +335,7 @@ model Employee {
   progressReports    ProgressReport[]
   attendances        Attendance[]
   leaveRequests      LeaveRequest[]
+  thrPayments        ThrPayment[]
 
   /// Manual directory order (lower = higher in lists).
   sortOrder Int @default(0)
@@ -353,6 +383,8 @@ model User {
   reconciledInvoicePeriods ProjectInvoicePeriod[] @relation("InvoicePeriodReconciler")
   hoReviewedInvoicePeriods ProjectInvoicePeriod[] @relation("InvoicePeriodHoReviewer")
   createdPurchaseInvoices PurchaseInvoice[] @relation("PurchaseInvoiceCreator")
+  createdInventoryPurchases InventoryPurchase[] @relation("InventoryPurchaseCreator")
+  createdInventoryMovements InventoryMovement[] @relation("InventoryMovementCreator")
   progressWarningAcks   ProgressWarningAck[]
   leaveApprovalAcks     LeaveApprovalAck[]
   billingClientReviewEvents BillingClientReviewEvent[]
@@ -495,7 +527,8 @@ model Vendor {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  purchaseInvoices PurchaseInvoice[]
+  purchaseInvoices     PurchaseInvoice[]
+  inventoryPurchases   InventoryPurchase[]
 
   @@unique([companyId, shortCode])
 }
@@ -551,6 +584,7 @@ model Project {
   attendances    Attendance[]
   progressWarningAcks ProgressWarningAck[]
   contractExtensions ClientContractExtension[]
+  inventoryMovements InventoryMovement[]
 
   /// Manual directory order (lower = higher in lists).
   sortOrder Int @default(0)
@@ -942,6 +976,149 @@ model LeaveRequest {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+/// Catalog item only — purchases/issues are separate records that reference this.
+model InventoryItem {
+  id String @id @default(cuid())
+  /// System-generated (INV001…). Not user-editable.
+  sku String
+  name String
+  /// High-level type (e.g. Consumable, Equipment, Chemical).
+  itemType String
+  category String?
+  description String?
+  /// Display unit for stock qty (default pcs). Not part of catalog create form.
+  unit String @default("pcs")
+  /// Low-stock warning threshold (stock ops, not catalog create).
+  minStock Decimal @default(0) @db.Decimal(14, 3)
+  /// Cached on-hand qty; kept in sync with InventoryMovement in the same transaction.
+  currentStock Decimal @default(0) @db.Decimal(14, 3)
+  /// Last purchase unit cost (IDR) — set by purchases only.
+  lastUnitCost Decimal? @db.Decimal(14, 2)
+  /// Running weighted-average unit cost used when issuing to projects.
+  avgUnitCost Decimal? @db.Decimal(14, 2)
+  /// Manual directory order (lower = higher in lists).
+  sortOrder Int     @default(0)
+  active    Boolean @default(true)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  purchases InventoryPurchase[]
+  movements InventoryMovement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, sku])
+  @@index([companyId, active])
+  @@index([companyId, sortOrder])
+  @@index([companyId, itemType])
+}
+
+/// Stock-in receipt from a vendor (linked to a PURCHASE movement).
+model InventoryPurchase {
+  id          String   @id @default(cuid())
+  purchasedAt DateTime @db.Date
+  quantity    Decimal  @db.Decimal(14, 3)
+  unitPrice   Decimal  @db.Decimal(14, 2)
+  totalPrice  Decimal  @db.Decimal(14, 2)
+  invoiceNo   String?
+  /// Optional receipt/invoice scan under /uploads/inventory.
+  receiptUrl  String?
+  notes       String?
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  itemId String
+  item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  vendorId String
+  vendor   Vendor @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+
+  /// Ledger row created with this purchase (1:1).
+  movementId String             @unique
+  movement   InventoryMovement  @relation(fields: [movementId], references: [id], onDelete: Cascade)
+
+  createdById String?
+  createdBy   User?   @relation("InventoryPurchaseCreator", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId, purchasedAt])
+  @@index([itemId])
+  @@index([vendorId])
+}
+
+/// Stock ledger: purchases (+), project issues (−), adjustments (±).
+/// On-hand stock = sum(quantity) for non-voided rows (also cached on InventoryItem).
+model InventoryMovement {
+  id       String                @id @default(cuid())
+  type     InventoryMovementType
+  /// Signed quantity: + for purchase / positive adj; − for issue / negative adj.
+  quantity Decimal               @db.Decimal(14, 3)
+  /// Unit cost locked at movement time (weighted avg for issues).
+  unitCost Decimal               @db.Decimal(14, 2)
+  /// Absolute cost impact: abs(quantity) * unitCost. Project cost uses ISSUE_TO_PROJECT totalCost.
+  totalCost Decimal              @db.Decimal(14, 2)
+  movedAt   DateTime
+  notes     String?
+
+  /// Soft-void: excluded from stock/cost sums; reverse movement may also be posted.
+  voidedAt    DateTime?
+  voidReason  String?
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  itemId String
+  item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  createdById String?
+  createdBy   User?   @relation("InventoryMovementCreator", fields: [createdById], references: [id])
+
+  purchase InventoryPurchase?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId, movedAt])
+  @@index([itemId, voidedAt])
+  @@index([projectId, type, voidedAt])
+  @@index([type])
+}
+
+/// Annual THR (Idul Fitri) entitlement snapshot per employee.
+model ThrPayment {
+  id String @id @default(cuid())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  year         Int
+  hariRayaDate DateTime @db.Date
+  amount       Decimal  @db.Decimal(14, 2)
+  /// Base pay used when the row was generated.
+  basePaySnapshot Decimal @db.Decimal(14, 2)
+  tenureMonths    Int
+  status          ThrPaymentStatus @default(GENERATED)
+  generatedAt     DateTime         @default(now())
+  paidAt          DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([employeeId, year])
+  @@index([companyId, year])
 }
 
 model AuditLog {

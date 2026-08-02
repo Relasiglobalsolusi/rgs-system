@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { decimalToNumber } from "@/lib/project-billing";
 
 import { canManageEmployees } from "@/lib/project-access";
 import { requireModule, toPermissionUser } from "@/lib/session";
@@ -122,6 +123,12 @@ export default async function EmployeesPage() {
     }),
   ]);
 
+  const employeeRows = employees.map((employee) => ({
+    ...employee,
+    basePay: decimalToNumber(employee.basePay),
+    jkkPercent: decimalToNumber(employee.jkkPercent),
+  }));
+
   const categoryOptions = categories
     .filter(
       (category) =>
@@ -163,7 +170,7 @@ export default async function EmployeesPage() {
       />
 
       <EmployeeDirectory
-        employees={employees}
+        employees={employeeRows}
         categories={categoryOptions}
         manageCategories={
           canManage

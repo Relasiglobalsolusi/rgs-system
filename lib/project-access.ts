@@ -187,6 +187,26 @@ export function canManageVendors(
 }
 
 /**
+ * Inventory catalog / purchases / project issues.
+ * Head-office admin / HO staff with the inventory module.
+ * Client and vendor portals never manage inventory.
+ */
+export function canManageInventory(
+  user: PermissionUser &
+    AccountTypeUser & { clientId?: string | null; vendorId?: string | null }
+) {
+  if (isClientPortalUser(user) || isVendorPortalUser(user)) return false;
+  if (!canAccess(user, "inventory")) return false;
+  if (isAdminAccount(user)) return true;
+
+  const employeeType =
+    user.employee?.employeeType ?? user.employeeType ?? null;
+  if (employeeType === "PROJECT_SITE") return false;
+
+  return true;
+}
+
+/**
  * Employee directory create/edit/delete.
  * Admin accounts and HEAD_OFFICE staff with the employees module.
  * Field / project-site staff cannot manage even with a mistaken override.

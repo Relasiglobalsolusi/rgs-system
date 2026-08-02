@@ -14,6 +14,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import YesNoChoiceCards, { type YesNoChoice } from "@/components/ui/YesNoChoiceCards";
+import EmployeeFinancesFields, {
+  type EmployeeFinanceDefaults,
+} from "@/components/employees/EmployeeFinancesFields";
 import {
   employeeDialogFieldClass,
   employeeDialogFormClass,
@@ -51,7 +54,7 @@ export type EmployeeFormDefaults = {
   hiredAt?: Date | string | null;
   omApprovalAreas?: ServiceAreaValue[];
   status?: "ACTIVE" | "ON_LEAVE";
-};
+} & EmployeeFinanceDefaults;
 
 export type EmployeeCategoryOption = {
   id: string;
@@ -546,6 +549,11 @@ export default function EmployeeFormFields({
           <input type="hidden" name="createPortalLogin" value={createPortalLogin} />
         </div>
       </div>
+
+      <EmployeeFinancesFields
+        defaults={defaults}
+        onFormValuesChange={onFormValuesChange}
+      />
 
       <div>
         {defaults?.idDocumentUrl ? (

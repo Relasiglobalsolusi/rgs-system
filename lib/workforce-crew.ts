@@ -6,6 +6,7 @@ import { syncEmployeePortalLogin } from "@/lib/workforce-login";
 /**
  * Default crew picker for Planning → In Progress:
  * Available FT in Operations with Cleaning/GC positions (exclude OM).
+ * Assignment-only: ACTIVE (ON_LEAVE stays roster-active for login, not crew).
  */
 export function availableFullTimeCrewWhere(
   companyId: string
@@ -26,7 +27,10 @@ export function availableFullTimeCrewWhere(
   };
 }
 
-/** Part Time Roster — never labeled “available”; ready to add to a project. */
+/**
+ * Part Time Roster — never labeled “available”; ready to add to a project.
+ * Assignment-only: ACTIVE (ON_LEAVE excluded from assignable crew).
+ */
 export function partTimeRosterWhere(
   companyId: string
 ): Prisma.EmployeeWhereInput {

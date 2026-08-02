@@ -38,12 +38,17 @@ import {
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
 import {
+  getProjectInventoryCost,
+  listProjectInventoryIssues,
+} from "@/lib/inventory";
+import {
   decimalToNumber,
   dedupeOnCompletionPeriods,
   formatContractPrice,
   formatInvoicePeriodLabel,
   formatProjectTitle,
 } from "@/lib/project-billing";
+import { canAccess } from "@/lib/permissions";
 import {
   getMostUrgentUnpaidPeriod,
   isProjectFullyPaid,
@@ -139,47 +144,55 @@ export default async function ProjectDetailPage({
 
   if (!project) redirect(PROJECT_LIST_VIEW_PATHS.all);
 
-  const [employees, clients] = await Promise.all([
-    canManage
-      ? prisma.employee.findMany({
-          where: {
-            companyId: project.companyId,
-            status: "ACTIVE",
-            OR: [
-              {
-                employmentType: "FULL_TIME",
-                placement: "AVAILABLE",
-                category: { slug: "operations", active: true },
-                jobPosition: {
-                  active: true,
-                  slug: { in: ["cleaning-staff", "gc-staff"] },
+  const [employees, clients, inventoryCost, inventoryIssues] =
+    await Promise.all([
+      canManage
+        ? prisma.employee.findMany({
+            where: {
+              companyId: project.companyId,
+              status: "ACTIVE",
+              OR: [
+                {
+                  employmentType: "FULL_TIME",
+                  placement: "AVAILABLE",
+                  category: { slug: "operations", active: true },
+                  jobPosition: {
+                    active: true,
+                    slug: { in: ["cleaning-staff", "gc-staff"] },
+                  },
                 },
-              },
-              { employmentType: "PART_TIME" },
-              // Already on this project (edit / reassign)
-              {
-                projectAssignments: { some: { projectId: project.id } },
-              },
+                { employmentType: "PART_TIME" },
+                // Already on this project (edit / reassign)
+                {
+                  projectAssignments: { some: { projectId: project.id } },
+                },
+              ],
+            },
+            include: {
+              category: { select: { name: true, prefix: true, slug: true } },
+              jobPosition: { select: { name: true, slug: true } },
+            },
+            orderBy: [
+              { employmentType: "asc" },
+              { category: { sortOrder: "asc" } },
+              { firstName: "asc" },
             ],
-          },
-          include: {
-            category: { select: { name: true, prefix: true, slug: true } },
-            jobPosition: { select: { name: true, slug: true } },
-          },
-          orderBy: [
-            { employmentType: "asc" },
-            { category: { sortOrder: "asc" } },
-            { firstName: "asc" },
-          ],
-        })
-      : Promise.resolve([]),
-    canManage
-      ? prisma.client.findMany({
-          where: { companyId: project.companyId, active: true },
-          orderBy: { name: "asc" },
-        })
-      : Promise.resolve([]),
-  ]);
+          })
+        : Promise.resolve([]),
+      canManage
+        ? prisma.client.findMany({
+            where: { companyId: project.companyId, active: true },
+            orderBy: { name: "asc" },
+          })
+        : Promise.resolve([]),
+      getProjectInventoryCost(project.id, { companyId: project.companyId }),
+      listProjectInventoryIssues(project.id, {
+        companyId: project.companyId,
+        take: 50,
+      }),
+    ]);
+
+  const canViewInventory = canAccess(permissionUser, "inventory");
 
   const billingHref =
     project.clientId != null
@@ -510,6 +523,14 @@ export default async function ProjectDetailPage({
                     {formatContractPrice(contractPriceNum)}
                   </td>
                 </tr>
+                <tr className="border-b border-border">
+                  <th scope="row" className={metaLabelClassName}>
+                    {t("pages.projects.detail.inventoryCost")}
+                  </th>
+                  <td className={`${metaValueClassName} font-medium`}>
+                    {formatContractPrice(inventoryCost)}
+                  </td>
+                </tr>
                 <tr>
                   <th scope="row" className={metaLabelClassName}>
                     {t("pages.projects.detail.billing")}
@@ -540,6 +561,82 @@ export default async function ProjectDetailPage({
               />
             </SectionCard>
           )}
+
+          <SectionCard className={sectionCardClassName}>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h3 className={sectionTitleClassName}>
+                {t("pages.projects.detail.inventoryIssues")}
+              </h3>
+              {canViewInventory ? (
+                <Link
+                  href="/inventory"
+                  className={cn(
+                    buttonVariants({
+                      variant: "infoBadge",
+                      size: "badgeFlex",
+                    }),
+                    "text-xs tracking-[0.06em]"
+                  )}
+                >
+                  {t("pages.projects.detail.viewInventory")}
+                </Link>
+              ) : null}
+            </div>
+            {inventoryIssues.length === 0 ? (
+              <p className="text-sm text-subtle">
+                {t("pages.projects.detail.noInventoryIssues")}
+              </p>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-border">
+                <table className="w-full min-w-[640px] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-xs uppercase tracking-[0.12em] text-subtle">
+                      <th className="px-3 py-3 font-semibold">
+                        {t("pages.projects.detail.inventoryIssueDate")}
+                      </th>
+                      <th className="px-3 py-3 font-semibold">
+                        {t("pages.projects.detail.inventoryIssueItem")}
+                      </th>
+                      <th className="px-3 py-3 font-semibold">
+                        {t("pages.projects.detail.inventoryIssueQty")}
+                      </th>
+                      <th className="px-3 py-3 font-semibold">
+                        {t("pages.projects.detail.inventoryIssueUnitCost")}
+                      </th>
+                      <th className="px-3 py-3 text-right font-semibold">
+                        {t("pages.projects.detail.inventoryIssueTotal")}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {inventoryIssues.map((row) => (
+                      <tr
+                        key={row.id}
+                        className="border-b border-border last:border-0"
+                      >
+                        <td className="px-3 py-3.5 text-text">
+                          {formatDisplayDate(row.movedAt)}
+                        </td>
+                        <td className="px-3 py-3.5">
+                          <p className="font-medium text-text">{row.item.name}</p>
+                          <p className="text-xs text-subtle">{row.item.sku}</p>
+                        </td>
+                        <td className="px-3 py-3.5 text-text">
+                          {row.quantity} {row.item.unit}
+                        </td>
+                        <td className="px-3 py-3.5 text-text">
+                          {formatContractPrice(row.unitCost)}
+                        </td>
+                        <td className="px-3 py-3.5 text-right font-medium text-text">
+                          {formatContractPrice(row.totalCost)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </SectionCard>
 
           {!inPlanning ? (
             <SectionCard className={sectionCardClassName}>

@@ -54,6 +54,7 @@ import {
   defaultPortalAccessRequested,
   syncEmployeePortalLogin,
 } from "@/lib/workforce-login";
+import { parseEmployeeFinanceFromForm } from "@/lib/employee-bpjs";
 
 async function assertCanManageEmployees() {
   const session = await requireSession();
@@ -255,6 +256,7 @@ export async function createEmployee(formData: FormData) {
   if (!firstName) throw new Error("First name is required.");
   if (!lastName) throw new Error("Last name is required.");
 
+  const finance = parseEmployeeFinanceFromForm(formData);
   const idDocumentUrl = await saveIdDocument(formData);
   const sortOrder = await nextCompanyScopedSortOrder("employee", company.id);
 
@@ -288,6 +290,14 @@ export async function createEmployee(formData: FormData) {
         companyId: company.id,
         status: "ACTIVE",
         sortOrder,
+        basePay: finance.basePay,
+        bpjsKesehatanEnabled: finance.bpjsKesehatanEnabled,
+        bpjsKetenagakerjaanEnabled: finance.bpjsKetenagakerjaanEnabled,
+        jhtEnabled: finance.jhtEnabled,
+        jpEnabled: finance.jpEnabled,
+        jkkEnabled: finance.jkkEnabled,
+        jkmEnabled: finance.jkmEnabled,
+        jkkPercent: finance.jkkPercent,
       },
     });
 
@@ -350,6 +360,8 @@ export async function updateEmployee(id: string, formData: FormData) {
 
   if (!firstName) throw new Error("First name is required.");
   if (!lastName) throw new Error("Last name is required.");
+
+  const finance = parseEmployeeFinanceFromForm(formData);
 
   const employee = await prisma.employee.findUnique({
     where: { id },
@@ -455,6 +467,14 @@ export async function updateEmployee(id: string, formData: FormData) {
         position: displayPosition,
         omApprovalAreas,
         hiredAt,
+        basePay: finance.basePay,
+        bpjsKesehatanEnabled: finance.bpjsKesehatanEnabled,
+        bpjsKetenagakerjaanEnabled: finance.bpjsKetenagakerjaanEnabled,
+        jhtEnabled: finance.jhtEnabled,
+        jpEnabled: finance.jpEnabled,
+        jkkEnabled: finance.jkkEnabled,
+        jkmEnabled: finance.jkmEnabled,
+        jkkPercent: finance.jkkPercent,
         ...(idDocumentUrl !== undefined ? { idDocumentUrl } : {}),
         employeeNo,
       },
@@ -510,8 +530,10 @@ export async function assignEmployeeToProject(
   if (!employee) {
     throw new Error("Employee not found.");
   }
-  if (employee.status !== "ACTIVE" && employee.status !== "ON_LEAVE") {
-    throw new Error("Only active employees can be assigned to a project.");
+  if (employee.status !== "ACTIVE") {
+    throw new Error(
+      "Only Active employees can be assigned. On Leave staff cannot be assigned."
+    );
   }
 
   const projectIds = await parseProjectIds(
@@ -588,8 +610,10 @@ export async function assignEmployeeToHeadOffice(id: string) {
   if (!employee) {
     throw new Error("Employee not found.");
   }
-  if (employee.status !== "ACTIVE" && employee.status !== "ON_LEAVE") {
-    throw new Error("Only active employees can be assigned to Head Office.");
+  if (employee.status !== "ACTIVE") {
+    throw new Error(
+      "Only Active employees can be assigned. On Leave staff cannot be assigned."
+    );
   }
 
   const employeeType = employeeTypeFromPlacement("HEAD_OFFICE");

@@ -28,6 +28,8 @@ import {
 
   ShoppingBag,
 
+  Package,
+
   Truck,
 
   UserCog,
@@ -37,6 +39,8 @@ import {
   Briefcase,
 
   Wallet,
+
+  HandCoins,
 
 } from "lucide-react";
 
@@ -66,6 +70,8 @@ export const MODULES = [
   "approvals",
 
   "reports",
+
+  "inventory",
 
   "invoicing",
 
@@ -213,6 +219,7 @@ export function getClientModuleOverrides(): Record<ModuleKey, boolean> {
     leaves: false,
     approvals: false,
     reports: true,
+    inventory: false,
     invoicing: true,
     clients: false,
     vendors: false,
@@ -243,6 +250,7 @@ export function getVendorModuleOverrides(): Record<ModuleKey, boolean> {
     leaves: false,
     approvals: false,
     reports: false,
+    inventory: false,
     invoicing: true,
     clients: false,
     vendors: false,
@@ -360,6 +368,13 @@ export const FINANCE_MENU_ITEMS: MenuItem[] = [
     module: "invoicing",
     navKey: "vendorPayments",
   },
+  {
+    icon: HandCoins,
+    label: "THR",
+    href: "/billing/thr",
+    module: "invoicing",
+    navKey: "thr",
+  },
 ];
 
 type EmployeeModulePresetOptions = {
@@ -411,6 +426,8 @@ export function getEmployeeModuleOverrides(
     leaves: true,
     approvals: false,
     reports: false,
+    // Inventory is HO operations (stock + project costing), not field portal.
+    inventory: isHo,
     invoicing: false,
     clients: false,
     vendors: false,
@@ -566,6 +583,8 @@ export const ADMIN_SCOPE_MODULES: ModuleKey[] = [
   "vendors",
 
   "employees",
+
+  "inventory",
 
   "website",
 
@@ -764,6 +783,8 @@ export const ROUTE_MODULE_MAP: Record<string, ModuleKey> = {
   "/approvals": "approvals",
 
   "/reports": "reports",
+
+  "/inventory": "inventory",
 
   "/billing": "invoicing",
 
@@ -1034,6 +1055,18 @@ export const menu: MenuSection[] = [
 
       },
 
+      {
+
+        icon: Package,
+
+        label: "Inventory",
+
+        href: "/inventory",
+
+        module: "inventory",
+
+      },
+
     ],
 
   },
@@ -1174,6 +1207,8 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
   approvals: "Approvals",
 
   reports: "Monthly Reports",
+
+  inventory: "Inventory",
 
   invoicing: "Invoice and Billing",
 

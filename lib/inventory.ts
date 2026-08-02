@@ -1,0 +1,130 @@
+import { Prisma } from "@prisma/client";
+
+import { prisma } from "@/lib/prisma";
+import { decimalToNumber } from "@/lib/project-billing";
+
+/** Projects that may receive inventory issues. */
+export const INVENTORY_ISSUE_PROJECT_STATUSES = [
+  "IN_PROGRESS",
+  "ON_HOLD",
+] as const;
+
+export type InventoryCostingNote =
+  "Stock value and project issues use running weighted-average unit cost. Last purchase unit cost is shown for reference.";
+
+export function toDecimal(
+  value: number | string | Prisma.Decimal
+): Prisma.Decimal {
+  return new Prisma.Decimal(value);
+}
+
+export function decimalQty(value: Prisma.Decimal | number | null | undefined) {
+  return decimalToNumber(value) ?? 0;
+}
+
+/**
+ * Weighted-average unit cost after a stock-in of `qty` at `unitPrice`.
+ * When prior stock is zero (or no avg), new purchase price becomes the avg.
+ */
+export function nextWeightedAvgUnitCost(options: {
+  currentStock: number;
+  avgUnitCost: number | null;
+  purchaseQty: number;
+  purchaseUnitPrice: number;
+}): number {
+  const { currentStock, avgUnitCost, purchaseQty, purchaseUnitPrice } = options;
+  if (purchaseQty <= 0) {
+    return avgUnitCost ?? purchaseUnitPrice;
+  }
+  if (currentStock <= 0 || avgUnitCost == null || !Number.isFinite(avgUnitCost)) {
+    return purchaseUnitPrice;
+  }
+  const totalValue = currentStock * avgUnitCost + purchaseQty * purchaseUnitPrice;
+  const totalQty = currentStock + purchaseQty;
+  if (totalQty <= 0) return purchaseUnitPrice;
+  return totalValue / totalQty;
+}
+
+/** Absolute money amount for a movement (qty × unit cost). */
+export function movementTotalCost(quantity: number, unitCost: number): number {
+  return Math.abs(quantity) * unitCost;
+}
+
+/**
+ * Sum of non-voided ISSUE_TO_PROJECT totalCost for a project (IDR).
+ * Use for project financial reports / P&L cost layer.
+ */
+export async function getProjectInventoryCost(
+  projectId: string,
+  options?: { companyId?: string }
+): Promise<number> {
+  const where: Prisma.InventoryMovementWhereInput = {
+    projectId,
+    type: "ISSUE_TO_PROJECT",
+    voidedAt: null,
+    ...(options?.companyId ? { companyId: options.companyId } : {}),
+  };
+
+  const agg = await prisma.inventoryMovement.aggregate({
+    where,
+    _sum: { totalCost: true },
+  });
+
+  return decimalToNumber(agg._sum.totalCost) ?? 0;
+}
+
+export type ProjectInventoryIssueRow = {
+  id: string;
+  movedAt: Date;
+  quantity: number;
+  unitCost: number;
+  totalCost: number;
+  notes: string | null;
+  item: {
+    id: string;
+    sku: string;
+    name: string;
+    unit: string;
+  };
+};
+
+/** Non-voided project issues for detail / report tables. */
+export async function listProjectInventoryIssues(
+  projectId: string,
+  options?: { companyId?: string; take?: number }
+): Promise<ProjectInventoryIssueRow[]> {
+  const rows = await prisma.inventoryMovement.findMany({
+    where: {
+      projectId,
+      type: "ISSUE_TO_PROJECT",
+      voidedAt: null,
+      ...(options?.companyId ? { companyId: options.companyId } : {}),
+    },
+    include: {
+      item: {
+        select: { id: true, sku: true, name: true, unit: true },
+      },
+    },
+    orderBy: { movedAt: "desc" },
+    take: options?.take,
+  });
+
+  return rows.map((row) => ({
+    id: row.id,
+    movedAt: row.movedAt,
+    quantity: Math.abs(decimalQty(row.quantity)),
+    unitCost: decimalQty(row.unitCost),
+    totalCost: decimalQty(row.totalCost),
+    notes: row.notes,
+    item: row.item,
+  }));
+}
+
+/** Value on hand for an item using weighted-average unit cost. */
+export function stockValueOnHand(
+  currentStock: number,
+  avgUnitCost: number | null | undefined
+): number {
+  if (currentStock <= 0 || avgUnitCost == null) return 0;
+  return currentStock * avgUnitCost;
+}

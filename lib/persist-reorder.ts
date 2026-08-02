@@ -8,7 +8,8 @@ export type CompanyScopedModel =
   | "vendor"
   | "employee"
   | "user"
-  | "project";
+  | "project"
+  | "inventoryItem";
 
 async function countOwnedIds(
   model: CompanyScopedModel,
@@ -31,6 +32,8 @@ async function countOwnedIds(
       return prisma.user.count({ where });
     case "project":
       return prisma.project.count({ where });
+    case "inventoryItem":
+      return prisma.inventoryItem.count({ where });
   }
 }
 
@@ -67,6 +70,9 @@ async function applySortOrders(
           break;
         case "project":
           await tx.project.update({ where: { id }, data: { sortOrder } });
+          break;
+        case "inventoryItem":
+          await tx.inventoryItem.update({ where: { id }, data: { sortOrder } });
           break;
       }
     }
@@ -135,6 +141,9 @@ export async function nextCompanyScopedSortOrder(
       break;
     case "project":
       top = await prisma.project.findFirst({ where, orderBy, select });
+      break;
+    case "inventoryItem":
+      top = await prisma.inventoryItem.findFirst({ where, orderBy, select });
       break;
   }
 

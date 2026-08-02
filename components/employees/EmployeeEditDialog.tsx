@@ -23,6 +23,14 @@ type Employee = {
   category: { name: string; slug?: string } | null; positionId: string | null; position: string | null;
   idDocumentUrl: string | null; hiredAt: Date | string | null;
   status: "ACTIVE" | "INACTIVE" | "TERMINATED" | "ON_LEAVE";
+  basePay: number | null;
+  bpjsKesehatanEnabled: boolean;
+  bpjsKetenagakerjaanEnabled: boolean;
+  jhtEnabled: boolean;
+  jpEnabled: boolean;
+  jkkEnabled: boolean;
+  jkmEnabled: boolean;
+  jkkPercent: number | null;
   projectAssignments: { project: { id: string; name: string } }[];
   user: { username: string } | null;
 };
@@ -74,6 +82,14 @@ export default function EmployeeEditDialog({ employee, categories, positions, pr
     idDocumentUrl: employee.idDocumentUrl,
     hiredAt: employee.hiredAt,
     status: toRosterEditableStatus(employee.status),
+    basePay: employee.basePay,
+    bpjsKesehatanEnabled: employee.bpjsKesehatanEnabled,
+    bpjsKetenagakerjaanEnabled: employee.bpjsKetenagakerjaanEnabled,
+    jhtEnabled: employee.jhtEnabled,
+    jpEnabled: employee.jpEnabled,
+    jkkEnabled: employee.jkkEnabled,
+    jkmEnabled: employee.jkmEnabled,
+    jkkPercent: employee.jkkPercent,
   };
 
   function resetFormState() {
@@ -134,6 +150,10 @@ export default function EmployeeEditDialog({ employee, categories, positions, pr
             <EmployeePrimaryButton type="button" variant="danger" disabled={pending} onClick={release}>
               {t("pages.employees.form.releaseFromAssignment")}
             </EmployeePrimaryButton>
+          ) : employee.status === "ON_LEAVE" ? (
+            <p className="text-center text-xs text-muted">
+              {t("pages.employees.form.onLeaveNotAssignable")}
+            </p>
           ) : (
             <EmployeePrimaryButton type="button" disabled={pending} onClick={() => setAssignOpen(true)}>
               {t("pages.employees.form.assignToPlacement")}

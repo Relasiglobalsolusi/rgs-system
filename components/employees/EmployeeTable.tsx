@@ -48,6 +48,14 @@ type Employee = {
   idDocumentUrl: string | null;
   status: "ACTIVE" | "INACTIVE" | "TERMINATED" | "ON_LEAVE";
   hiredAt: Date | string | null;
+  basePay: number | null;
+  bpjsKesehatanEnabled: boolean;
+  bpjsKetenagakerjaanEnabled: boolean;
+  jhtEnabled: boolean;
+  jpEnabled: boolean;
+  jkkEnabled: boolean;
+  jkmEnabled: boolean;
+  jkkPercent: number | null;
   projectAssignments: {
     project: { id: string; name: string; location: string | null };
   }[];
