@@ -3141,6 +3141,8 @@ export const id = {
     willAddWithWarning: "Akan ditambah · peringatan",
     inProgressEmptyStaffWarning:
       "Staf Ditugaskan kosong — Anda dapat menugaskan staf nanti. Baris ini tetap dapat diimpor.",
+    crewNotEligible:
+      "Pilih hanya kru Operasi Penuh Waktu yang Available (Cleaning/GC) dan/atau staf Paruh Waktu.",
     example: "Contoh",
     reviewImport: "Tinjau impor",
     readingFile: "Membaca file...",

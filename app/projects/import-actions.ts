@@ -49,7 +49,10 @@ import { PROJECT_LIST_VIEW_PATHS } from "@/lib/project-status";
 import { SORT_ORDER_STEP } from "@/lib/reorder";
 import { requireModule, toPermissionUser } from "@/lib/session";
 import { capitalizeProper } from "@/lib/text-case";
-import { markEmployeesOnProject } from "@/lib/workforce-crew";
+import {
+  assertProjectCrewEligible,
+  markEmployeesOnProject,
+} from "@/lib/workforce-crew";
 
 type ImportClient = {
   id: string;
@@ -420,9 +423,13 @@ export async function previewBulkImportProjects(
     throw new Error("Choose an Excel file to upload.");
   }
 
-  const { rows, clientsByName, employeesByNo, employeesByName } =
+  const { company, rows, clientsByName, employeesByNo, employeesByName } =
     await loadProjectImportContext(file);
   const locale = await getServerLocale();
+  const crewNotEligibleMessage = translate(
+    locale,
+    "bulkImport.crewNotEligible"
+  );
 
   const previewRows: BulkImportPreviewRow[] = [];
 
@@ -443,6 +450,14 @@ export async function previewBulkImportProjects(
               employeesByNo,
               employeesByName
             );
+      if (staffIds.length > 0) {
+        await assertProjectCrewEligible(
+          prisma,
+          company.id,
+          staffIds,
+          crewNotEligibleMessage
+        );
+      }
       const emptyStaffInProgress =
         parsed.startingStage === "IN_PROGRESS" && staffIds.length === 0;
 
@@ -525,6 +540,12 @@ export async function confirmBulkImportProjects(
     employeesByNo,
     employeesByName,
   } = await loadProjectImportContext(file);
+
+  const locale = await getServerLocale();
+  const crewNotEligibleMessage = translate(
+    locale,
+    "bulkImport.crewNotEligible"
+  );
 
   const result = createBulkImportResult();
   let nextSortOrder = await nextCompanyScopedSortOrder("project", company.id);
@@ -618,6 +639,13 @@ export async function confirmBulkImportProjects(
         }
 
         if (employeeIds.length > 0) {
+          // Same eligibility gate as create / start / edit project.
+          await assertProjectCrewEligible(
+            tx,
+            company.id,
+            employeeIds,
+            crewNotEligibleMessage
+          );
           await tx.projectAssignment.createMany({
             data: employeeIds.map((employeeId) => ({
               projectId: created.id,

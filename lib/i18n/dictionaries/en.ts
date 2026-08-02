@@ -3105,6 +3105,8 @@ export const en = {
     willAddWithWarning: "Will add · warning",
     inProgressEmptyStaffWarning:
       "Staff Assigned is empty — you can assign staff later. This row can still be imported.",
+    crewNotEligible:
+      "Select Available Full Time Operations crew (Cleaning/GC) and/or Part Time staff only.",
     example: "Example",
     reviewImport: "Review import",
     readingFile: "Reading file...",

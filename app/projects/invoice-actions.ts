@@ -64,6 +64,7 @@ import {
 } from "@/lib/payment-document-verify";
 import { paymentVerifyFailureMessage } from "@/lib/payment-verify-messages";
 import { canIssueInvoiceAfterReview } from "@/lib/client-billing-review";
+import { releaseAllProjectCrew } from "@/lib/workforce-crew";
 
 const COMPANY_BANK_SELECT = {
   name: true,
@@ -1070,9 +1071,13 @@ async function issueMilestonePeriodInner(
     ]);
 
     if (milestonePercent >= 100 && project.status !== "CANCELLED") {
-      await prisma.project.update({
-        where: { id: project.id },
-        data: { status: "COMPLETED" },
+      // Final milestone → COMPLETED: same crew release as Finish / End Contract.
+      await prisma.$transaction(async (tx) => {
+        await tx.project.update({
+          where: { id: project.id },
+          data: { status: "COMPLETED" },
+        });
+        await releaseAllProjectCrew(tx, project.id);
       });
     } else if (project.status === "PLANNED") {
       await prisma.project.update({
@@ -1355,11 +1360,14 @@ export async function createMilestoneInvoice(formData: FormData) {
     }),
   ]);
 
-  // Final milestone: mark project completed.
+  // Final milestone: mark project completed + release crew (same as Finish).
   if (milestonePercent >= 100 && project.status !== "CANCELLED") {
-    await prisma.project.update({
-      where: { id: projectId },
-      data: { status: "COMPLETED" },
+    await prisma.$transaction(async (tx) => {
+      await tx.project.update({
+        where: { id: projectId },
+        data: { status: "COMPLETED" },
+      });
+      await releaseAllProjectCrew(tx, projectId);
     });
   } else if (project.status === "PLANNED") {
     await prisma.project.update({
@@ -1502,19 +1510,21 @@ async function applyInvoicePeriodPaid(
       maxPaidOrIssued >= 100);
 
   if (shouldMoveToHistory) {
-    await prisma.$transaction([
-      prisma.project.update({
+    await prisma.$transaction(async (tx) => {
+      await tx.project.update({
         where: { id: project.id },
         data: { status: "COMPLETED" },
-      }),
+      });
       // Drop unissued leftover schedule/month rows so Completed Projects stays clean.
-      prisma.projectInvoicePeriod.deleteMany({
+      await tx.projectInvoicePeriod.deleteMany({
         where: {
           projectId: project.id,
           status: "ONGOING",
         },
-      }),
-    ]);
+      });
+      // Mark Paid → History: same crew release as Finish / End Contract.
+      await releaseAllProjectCrew(tx, project.id);
+    });
   } else if (
     project.billingMode === "MONTHLY" &&
     project.startDate &&
