@@ -1,5 +1,6 @@
 import Image from "next/image";
 
+import BrandSlogan from "@/components/brand/BrandSlogan";
 import {
   RGS_ONE_LOGO_HEIGHT,
   RGS_ONE_LOGO_SRC,
@@ -22,7 +23,7 @@ export default function AuthLogo({
   return (
     <div
       className={cn(
-        "auth-logo-bar",
+        "auth-logo-bar flex flex-col items-start gap-3",
         isHero && "auth-logo-bar-hero",
         className
       )}
@@ -39,6 +40,10 @@ export default function AuthLogo({
           /* Keep logo modest — previous hero max-width was far too large. */
           isHero ? "w-40 sm:w-44" : "w-36"
         )}
+      />
+      <BrandSlogan
+        className="!justify-start"
+        size={isHero ? "default" : "compact"}
       />
     </div>
   );

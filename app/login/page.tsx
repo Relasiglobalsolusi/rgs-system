@@ -111,14 +111,6 @@ function LoginContent() {
               </div>
 
               <AuthLogo variant="hero" />
-
-              <div className="mt-5 flex items-center gap-4">
-                <span className="auth-tagline-rule h-px w-12" />
-
-                <span className="auth-text-subtle text-[11px] font-medium uppercase tracking-[0.3em]">
-                  {t("auth.tagline")}
-                </span>
-              </div>
             </div>
 
             <div className="mb-8">
