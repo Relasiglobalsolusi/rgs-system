@@ -102,8 +102,8 @@ function LoginContent() {
 
   return (
     <main className="auth-surface auth-shell">
-      <div className="auth-layout-grid">
-        <section className="auth-form-panel border-r px-6 py-12 sm:px-10 lg:px-14 xl:px-20">
+      <div className="grid min-h-screen lg:grid-cols-[0.88fr_1.12fr]">
+        <section className="auth-form-panel flex min-h-screen items-center border-r px-6 py-12 sm:px-10 lg:px-14 xl:px-20">
           <div className="mx-auto w-full max-w-[510px]">
             <div className="mb-10">
               <div className="auth-lang-bar">
@@ -111,6 +111,14 @@ function LoginContent() {
               </div>
 
               <AuthLogo variant="hero" />
+
+              <div className="mt-5 flex items-center gap-4">
+                <span className="auth-tagline-rule h-px w-12" />
+
+                <span className="auth-text-subtle text-[11px] font-medium uppercase tracking-[0.3em]">
+                  {t("auth.tagline")}
+                </span>
+              </div>
             </div>
 
             <div className="mb-8">
@@ -242,7 +250,7 @@ function LoginContent() {
           </div>
         </section>
 
-        <section className="auth-hero-panel relative overflow-hidden px-14 py-14 xl:px-24">
+        <section className="auth-hero-panel relative hidden min-h-screen items-center overflow-hidden px-14 py-14 lg:flex xl:px-24">
           <div
             aria-hidden="true"
             className="auth-hero-glow-a pointer-events-none absolute right-0 top-1/2 h-[520px] w-[520px] -translate-y-1/2 translate-x-1/4 rounded-full blur-3xl motion-safe:animate-pulse"
