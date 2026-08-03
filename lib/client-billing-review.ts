@@ -41,6 +41,41 @@ export function canIssueInvoiceAfterReview(
   return APPROVED_REVIEW_STATUSES.includes(status as ClientReviewStatus);
 }
 
+/** Active field / approval workflows — invoice issue requires mutual approval first. */
+export function isActiveInvoiceApprovalWorkflow(
+  projectStatus: string | null | undefined
+): boolean {
+  return (
+    projectStatus === "IN_PROGRESS" || projectStatus === "WAITING_FOR_APPROVAL"
+  );
+}
+
+/**
+ * True when an active project may issue a commercial invoice (client + HO agreed).
+ * End-contract / COMPLETED paths are not active workflows and skip this gate.
+ */
+export function canIssueCommercialInvoiceForProject(
+  period: {
+    clientReviewStatus: ClientReviewStatus | string | null | undefined;
+  },
+  projectStatus: string | null | undefined,
+  opts: { approvedReview?: boolean } = {}
+): boolean {
+  if (opts.approvedReview) {
+    return canIssueInvoiceAfterReview(period.clientReviewStatus);
+  }
+  if (!isActiveInvoiceApprovalWorkflow(projectStatus)) {
+    return true;
+  }
+  if (
+    period.clientReviewStatus === "NONE" ||
+    period.clientReviewStatus == null
+  ) {
+    return false;
+  }
+  return canIssueInvoiceAfterReview(period.clientReviewStatus);
+}
+
 export function isClientReviewPeriodStatus(
   status: InvoicePeriodStatus | string | null | undefined
 ): boolean {

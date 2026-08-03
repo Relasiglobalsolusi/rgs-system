@@ -915,14 +915,11 @@ async function issueMilestonePeriodInner(
     );
   }
 
-  if (
-    period.clientReviewStatus !== "NONE" &&
-    !canIssueInvoiceAfterReview(period.clientReviewStatus)
-  ) {
-    throw new Error(
-      "Send the progress package for client approval before invoicing this milestone."
-    );
-  }
+  await assertCanIssueCommercialInvoice(
+    period,
+    project.status,
+    opts
+  );
 
   const milestonePercent = period.milestonePercent;
   if (milestonePercent == null || !Number.isFinite(milestonePercent)) {
@@ -1311,6 +1308,12 @@ export async function createMilestoneInvoice(formData: FormData) {
       )
     );
   }
+
+  await assertCanIssueCommercialInvoice(
+    { clientReviewStatus: "NONE" },
+    project.status,
+    { approvedReview: false }
+  );
 
   const period = await prisma.projectInvoicePeriod.create({
     data: {
