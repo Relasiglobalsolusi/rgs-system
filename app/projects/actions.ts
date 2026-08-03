@@ -1622,10 +1622,11 @@ export async function finishProject(id: string): Promise<FinishProjectResult> {
 }
 
 /**
- * G3 flow — non-regular (General / Facade) projects only.
+ * Mutual-approval flow — General / Facade via Submit for Approval; Regular
+ * Cleaning via reconcile → client + HO review (see sendPeriodForClientReview).
  * OM+ clicks "Submit for Approval": compiles all progress reports into a PDF,
- * sends the package to the client for Approve or Revise, and transitions the
- * project from In Progress → Waiting for Approval.
+ * sends the package for Approve or Revise, and transitions the project from
+ * In Progress → Waiting for Approval.
  *
  * The client-approve / revise / HO-review cycle is handled by the existing
  * billing/reconciliation actions (clientApproveBillingReview, etc.).

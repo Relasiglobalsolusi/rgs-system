@@ -586,7 +586,7 @@ export const id = {
         "Proyek muncul di sini setelah dipindahkan ke Berjalan dari Perencanaan.",
       emptyPendingApproval: "Tidak ada proyek yang menunggu persetujuan",
       emptyPendingApprovalDesc:
-        "Proyek General dan Facade muncul di sini setelah Ajukan Persetujuan hingga klien menyetujui.",
+        "Proyek yang menunggu persetujuan bersama muncul di sini setelah Ajukan Persetujuan atau rekonsiliasi. Proyek pindah ke Menunggu Pembayaran setelah klien dan HO sepakat.",
       emptyPaymentDue: "Tidak ada yang menunggu pembayaran",
       emptyPaymentDueDesc:
         "Invoice terbit muncul di sini hingga pembayaran diverifikasi. Proyek Regular Cleaning tetap Berjalan selama siklus masih jatuh tempo.",
@@ -640,18 +640,18 @@ export const id = {
         button: "Ajukan Persetujuan",
         chip1: "Ajukan",
         chip2: "Persetujuan",
-        confirmTitle: "Ajukan untuk Persetujuan Klien",
+        confirmTitle: "Ajukan Persetujuan",
         confirmDesc:
-          "Semua laporan progress akan dikompilasi menjadi PDF dan dikirim ke klien untuk ditinjau. Status proyek akan berubah menjadi Persetujuan Menunggu.",
+          "Semua laporan progress akan dikompilasi menjadi PDF dan membuka review klien dan HO. Status proyek akan berubah menjadi Persetujuan Menunggu.",
         confirm: "Ajukan",
         regularNotAllowed:
-          "Proyek Regular Cleaning tidak diajukan untuk persetujuan klien.",
+          "Regular Cleaning memakai rekonsiliasi. Rekonsiliasi periode penagihan jatuh tempo untuk memulai persetujuan.",
         inProgressOnly:
           "Hanya proyek In Progress yang dapat diajukan untuk persetujuan.",
         noOngoingMilestone:
           "Tidak ada periode milestone yang sedang berjalan. Periksa jadwal penagihan.",
         failed: "Gagal mengajukan proyek untuk persetujuan.",
-        successToast: "Proyek berhasil diajukan untuk persetujuan klien.",
+        successToast: "Proyek berhasil diajukan untuk persetujuan.",
         waitingForApprovalLabel: "Persetujuan Menunggu",
         waitingChip1: "Persetujuan",
         waitingChip2: "Menunggu",
@@ -932,18 +932,18 @@ export const id = {
         finishing: "Menyelesaikan...",
         requesting: "Mengajukan...",
         confirmReconcileCycle:
-          "Rekonsiliasi siklus jatuh tempo untuk “{name}” dan kirim laporan CICO ke klien untuk Approve atau Revise?",
-        reconcileDone: "Periode direkonsiliasi — dikirim ke klien untuk review",
+          "Rekonsiliasi siklus jatuh tempo untuk “{name}” dan kirim laporan CICO untuk review klien dan HO?",
+        reconcileDone: "Periode direkonsiliasi — dikirim untuk review klien dan HO",
         nothingToReconcile:
           "Tidak ada yang perlu direkonsiliasi. Tidak ada siklus jatuh tempo yang menunggu rekonsiliasi, atau siklus berikutnya belum jatuh tempo.",
         reconcilePeriodFailed: "Gagal merekonsiliasi periode ini.",
         confirmInvoiceCycle:
-          "Penerbitan invoice kini menunggu persetujuan klien atas laporan rekonsiliasi (Keuangan → Rekonsiliasi).",
+          "Penerbitan invoice menunggu persetujuan bersama atas laporan rekonsiliasi (Keuangan → Rekonsiliasi).",
         nothingNewToInvoice:
-          "Tidak ada yang baru untuk ditagih. Rekonsiliasi siklus jatuh tempo agar klien dapat menyetujui, atau “{label}” sudah diterbitkan/lunas.",
+          "Tidak ada yang baru untuk ditagih. Rekonsiliasi siklus jatuh tempo agar klien dan HO dapat menyetujui, atau “{label}” sudah diterbitkan/lunas.",
         invoicePeriodFailed: "Gagal menagih periode ini.",
         reconcileBeforeInvoice:
-          "Rekonsiliasi periode penagihan ini agar klien dapat menyetujui sebelum invoice diterbitkan.",
+          "Rekonsiliasi periode penagihan ini agar klien dan HO dapat menyetujui sebelum invoice diterbitkan.",
         confirmEndContract:
           "Akhiri kontrak untuk “{name}”? Ini mengeluarkan proyek dari Berjalan, menandainya selesai, menerbitkan invoice terbuka, dan memindahkannya ke Menunggu Pembayaran hingga lunas (lalu Proyek Selesai). Invoice belum lunas dan siklus jatuh tempo yang belum direkonsiliasi harus diselesaikan terlebih dahulu.",
         confirmFinishNamed:
@@ -953,7 +953,7 @@ export const id = {
         reconcileDueBeforeClose:
           "Rekonsiliasi semua periode penagihan yang jatuh tempo sebelum mengakhiri kontrak atau menyelesaikan proyek.",
         clientReviewBeforeClose:
-          "Tunggu Approve/Revise klien pada review rekonsiliasi yang masih terbuka sebelum mengakhiri kontrak atau menyelesaikan proyek.",
+          "Tunggu klien dan HO menyelesaikan review persetujuan yang masih terbuka sebelum mengakhiri kontrak atau menyelesaikan proyek.",
         contractEnded: "Kontrak diakhiri",
         endContractFailed: "Gagal mengakhiri kontrak.",
         finishProjectFailed: "Gagal menyelesaikan proyek.",
@@ -2706,6 +2706,10 @@ export const id = {
       rejectPaymentFailed: "Gagal menolak bukti pembayaran.",
       invoiceMilestoneFailed: "Gagal menagih bertahap.",
       compileInvoiceFailed: "Gagal mengompilasi invoice.",
+      mutualApprovalBeforeInvoice:
+        "Kirim periode penagihan ini untuk review klien dan HO (rekonsiliasi atau Ajukan Persetujuan) sebelum menerbitkan invoice.",
+      reviewPendingBeforeInvoice:
+        "Tunggu klien dan HO menyetujui laporan rekonsiliasi atau progress sebelum menerbitkan invoice.",
       reconcilePeriodFailed: "Gagal merekonsiliasi periode penagihan.",
       recordPaymentFailed: "Gagal mencatat pembayaran diterima.",
       reorderClientsFailed: "Gagal mengubah urutan klien.",
@@ -2919,7 +2923,7 @@ export const id = {
     reconciliation: {
       title: "Rekonsiliasi",
       description:
-        "Siklus approve/revise klien untuk laporan CICO Regular Cleaning dan paket progress Umum/Fasad sebelum invoice diterbitkan.",
+        "Siklus approve/revise bersama klien dan HO untuk laporan rekonsiliasi Regular Cleaning dan paket progress General/Facade sebelum invoice diterbitkan.",
       tabApproved: "Disetujui",
       tabRevised: "Direvisi",
       approvedHelp:
@@ -3687,7 +3691,7 @@ export const id = {
       vendorNotFound: "Pemasok tidak ditemukan.",
       movementNotFound: "Pergerakan inventaris tidak ditemukan.",
       projectNotIssuable:
-        "Stok hanya dapat dikeluarkan ke proyek Berjalan atau Ditunda.",
+        "Stok hanya dapat dikeluarkan ke proyek Berjalan, Persetujuan Menunggu, atau Ditunda.",
       insufficientStock: "Stok tidak cukup. Tersedia: {available} {unit}.",
       insufficientEquipmentAssets:
         "Aset peralatan tersedia tidak cukup untuk write-off ini. Tersedia: {available}. Diperlukan: {requested}.",
@@ -3714,7 +3718,7 @@ export const id = {
         "Catat pembelian terhadap item katalog untuk menambah stok.",
       emptyIssues: "Belum Ada Pengeluaran Proyek",
       emptyIssuesDesc:
-        "Keluarkan stok ke proyek Berjalan untuk membebankan biaya inventaris.",
+        "Keluarkan stok ke proyek Berjalan, Persetujuan Menunggu, atau Ditunda untuk membebankan biaya inventaris.",
       emptyWriteOffs: "Belum Ada Write-Off",
       emptyWriteOffsDesc:
         "Write-off mengurangi stok secara permanen dengan alasan wajib yang tercatat.",
@@ -3812,7 +3816,7 @@ export const id = {
         project: "Proyek",
         projectPlaceholder: "Pilih Proyek",
         projectHint:
-          "Hanya proyek Berjalan dan Ditunda yang dapat menerima stok.",
+          "Hanya proyek Berjalan, Persetujuan Menunggu, dan Ditunda yang dapat menerima stok.",
         issueDate: "Tanggal Pengeluaran",
         issueCostHint:
           "Biaya satuan dikunci di {unitCost}. Tersedia: {available} {unit}.",

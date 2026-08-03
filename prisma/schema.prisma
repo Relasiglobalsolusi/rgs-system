@@ -68,8 +68,8 @@ enum EquipmentAssetStatus {
 enum ProjectStatus {
   PLANNED
   IN_PROGRESS
-  /// Non-regular (General / Facade) projects submitted for client approval.
-  /// OM+ triggers Submit for Approval → PDF compiled; client must Approve or Revise.
+  /// Projects in mutual client + HO approval (Regular reconcile or General/Facade Submit for Approval).
+  /// OM+ triggers Submit for Approval or reconcile → PDF compiled; both parties must agree.
   WAITING_FOR_APPROVAL
   COMPLETED
   ON_HOLD

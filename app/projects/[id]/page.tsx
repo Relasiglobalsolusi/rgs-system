@@ -25,7 +25,7 @@ import {
   isVendorPortalUser,
 } from "@/lib/project-access";
 import { canAssignInventoryToProject } from "@/lib/inventory-access";
-import { INVENTORY_ISSUE_PROJECT_STATUSES } from "@/lib/inventory";
+import { canIssueInventoryToProject } from "@/lib/inventory";
 import {
   listProjectEquipmentAssets,
 } from "@/lib/equipment-asset";
@@ -169,9 +169,7 @@ export default async function ProjectDetailPage({
         username: session.user.username,
       })
     : false;
-  const projectIssuable = (
-    INVENTORY_ISSUE_PROJECT_STATUSES as readonly string[]
-  ).includes(project.status);
+  const projectIssuable = canIssueInventoryToProject(project.status);
 
   const [employees, clients, inventoryCost, inventoryIssues, catalogItems] =
     await Promise.all([
@@ -383,10 +381,11 @@ export default async function ProjectDetailPage({
     ? t("pages.projects.completedTitle")
     : inPlanning
       ? t("pages.projects.planningTitle")
-      : project.status === "IN_PROGRESS" ||
-          project.status === "WAITING_FOR_APPROVAL"
-        ? t("pages.projects.inProgressTitle")
-        : t("pages.projects.filterAllProjects");
+      : project.status === "WAITING_FOR_APPROVAL"
+        ? t("pages.projects.pendingApprovalTitle")
+        : project.status === "IN_PROGRESS"
+          ? t("pages.projects.inProgressTitle")
+          : t("pages.projects.filterAllProjects");
   // Map legacy ON_HOLD / CANCELLED to workflow labels (no product chrome for those enums).
   const workflowStatus = getProjectWorkflowStatusLabel({
     status: project.status,

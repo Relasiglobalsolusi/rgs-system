@@ -569,7 +569,7 @@ export const en = {
         "Projects appear here after Move to In Progress from Planning.",
       emptyPendingApproval: "No projects pending approval",
       emptyPendingApprovalDesc:
-        "General and Facade projects appear here after Submit for Approval until the client approves.",
+        "Projects awaiting mutual approval appear here after Submit for Approval or reconcile. They move to Payment Due once the client and HO both agree.",
       emptyPaymentDue: "No payment due",
       emptyPaymentDueDesc:
         "Issued invoices appear here until payment is verified. Regular Cleaning projects stay In Progress while a cycle is due.",
@@ -623,18 +623,18 @@ export const en = {
         button: "Submit for Approval",
         chip1: "Submit for",
         chip2: "Approval",
-        confirmTitle: "Submit for Client Approval",
+        confirmTitle: "Submit for Approval",
         confirmDesc:
-          "This will compile all progress reports into a PDF and send it to the client for review. The project status will change to Pending Approval.",
+          "This compiles all progress reports into a PDF and opens client and HO review. The project status will change to Pending Approval.",
         confirm: "Submit",
         regularNotAllowed:
-          "Regular Cleaning projects are not submitted for client approval.",
+          "Regular Cleaning uses reconcile. Reconcile the due billing period to start approval.",
         inProgressOnly:
           "Only In Progress projects can be submitted for approval.",
         noOngoingMilestone:
           "No ongoing milestone period found. Please check the billing schedule.",
         failed: "Failed to submit project for approval.",
-        successToast: "Project submitted for client approval.",
+        successToast: "Project submitted for approval.",
         waitingForApprovalLabel: "Pending Approval",
         waitingChip1: "Pending",
         waitingChip2: "Approval",
@@ -913,18 +913,18 @@ export const en = {
         finishing: "Finishing...",
         requesting: "Requesting...",
         confirmReconcileCycle:
-          "Reconcile the due cycle for “{name}” and send the CICO report to the client for Approve or Revise?",
-        reconcileDone: "Period reconciled — sent to client for review",
+          "Reconcile the due cycle for “{name}” and send the CICO report for client and HO review?",
+        reconcileDone: "Period reconciled — sent for client and HO review",
         nothingToReconcile:
           "Nothing to reconcile. No due cycle is waiting for reconcile, or the next cycle is not due yet.",
         reconcilePeriodFailed: "Failed to reconcile this period.",
         confirmInvoiceCycle:
-          "Invoice issue now waits on client approval of the reconciliation report (Finance → Reconciliation).",
+          "Invoice issue waits on mutual approval of the reconciliation report (Finance → Reconciliation).",
         nothingNewToInvoice:
-          "Nothing new to invoice. Reconcile the due cycle first so the client can approve, or “{label}” is already issued/paid.",
+          "Nothing new to invoice. Reconcile the due cycle first so the client and HO can approve, or “{label}” is already issued/paid.",
         invoicePeriodFailed: "Failed to invoice this period.",
         reconcileBeforeInvoice:
-          "Reconcile this billing period so the client can approve before the invoice is issued.",
+          "Reconcile this billing period so the client and HO can approve before the invoice is issued.",
         confirmEndContract:
           "End contract for “{name}”? This removes the project from In Progress, marks it complete, issues any open invoices, and moves it to Payment Due until fully paid (then Completed Projects). Unpaid invoices and due cycles still awaiting reconcile must be settled first.",
         confirmFinishNamed:
@@ -934,7 +934,7 @@ export const en = {
         reconcileDueBeforeClose:
           "Reconcile all due billing periods before ending the contract or completing the project.",
         clientReviewBeforeClose:
-          "Wait for client Approve/Revise on open reconciliation reviews before ending the contract or completing the project.",
+          "Wait for client and HO to resolve open approval reviews before ending the contract or completing the project.",
         contractEnded: "Contract ended",
         endContractFailed: "Failed to end contract.",
         finishProjectFailed: "Failed to finish project.",
@@ -2679,6 +2679,10 @@ export const en = {
       rejectPaymentFailed: "Failed to reject payment proof.",
       invoiceMilestoneFailed: "Failed to invoice milestone.",
       compileInvoiceFailed: "Failed to compile invoice.",
+      mutualApprovalBeforeInvoice:
+        "Send this billing period for client and HO review (reconcile or Submit for Approval) before issuing the invoice.",
+      reviewPendingBeforeInvoice:
+        "Wait for the client and HO to approve the reconciliation or progress report before issuing the invoice.",
       reconcilePeriodFailed: "Failed to reconcile billing period.",
       recordPaymentFailed: "Failed to record payment received.",
       reorderClientsFailed: "Failed to reorder clients.",
@@ -2887,7 +2891,7 @@ export const en = {
     reconciliation: {
       title: "Reconciliation",
       description:
-        "Client approve/revise loops for Regular Cleaning CICO reports and General/Facade progress packages before invoice issue.",
+        "Mutual client and HO approve/revise loops for Regular Cleaning reconcile reports and General/Facade progress packages before invoice issue.",
       tabApproved: "Approved",
       tabRevised: "Revised",
       approvedHelp:
@@ -3646,7 +3650,7 @@ export const en = {
       vendorNotFound: "Vendor not found.",
       movementNotFound: "Inventory movement not found.",
       projectNotIssuable:
-        "Stock can only be issued to In Progress or On Hold projects.",
+        "Stock can only be issued to In Progress, Pending Approval, or On Hold projects.",
       insufficientStock: "Not enough stock. Available: {available} {unit}.",
       insufficientEquipmentAssets:
         "Not enough available equipment assets for this write-off. Available: {available}. Required: {requested}.",
@@ -3671,7 +3675,7 @@ export const en = {
         "Record a purchase against a catalog item to increase stock.",
       emptyIssues: "No Project Issues Yet",
       emptyIssuesDesc:
-        "Issue stock to an In Progress project to attribute inventory cost.",
+        "Issue stock to an In Progress, Pending Approval, or On Hold project to attribute inventory cost.",
       emptyWriteOffs: "No Write-Offs Yet",
       emptyWriteOffsDesc:
         "Write-offs permanently reduce on-hand stock with a mandatory reason.",
@@ -3765,7 +3769,8 @@ export const en = {
         notes: "Notes",
         project: "Project",
         projectPlaceholder: "Select Project",
-        projectHint: "Only In Progress and On Hold projects can receive stock.",
+        projectHint:
+          "Only In Progress, Pending Approval, and On Hold projects can receive stock.",
         issueDate: "Issue Date",
         issueCostHint:
           "Unit cost locked at {unitCost}. Available: {available} {unit}.",

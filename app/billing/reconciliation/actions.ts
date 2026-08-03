@@ -340,6 +340,16 @@ export async function sendPeriodForClientReview(
     clientId: project.clientId,
   });
 
+  // Enter Pending Approval while client + HO review is open (Regular reconcile
+  // and General / Facade Submit for Approval / progress review).
+  if (project.status === "IN_PROGRESS") {
+    await prisma.project.update({
+      where: { id: project.id },
+      data: { status: "WAITING_FOR_APPROVAL" },
+    });
+    revalidatePath("/projects");
+  }
+
   return { periodId, reviewReportPdfPath };
 }
 

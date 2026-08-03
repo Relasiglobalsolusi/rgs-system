@@ -11,6 +11,10 @@ import { toast } from "sonner";
 import { writeOffInventoryStock } from "@/app/inventory/actions";
 import type { InventoryCatalogItem } from "@/components/inventory/inventory-types";
 import {
+  formatCatalogItemLabel,
+  formatCatalogItemStockLabel,
+} from "@/components/inventory/inventory-select-labels";
+import {
   captureHtmlFormBaseline,
   EmployeeDialogShell,
   EmployeePrimaryButton,
@@ -185,16 +189,30 @@ export default function InventoryWriteOffDialog({
               <Select
                 value={itemId || undefined}
                 onValueChange={(value) => setItemId(value ?? "")}
+                items={stockedItems.map((item) => ({
+                  value: item.id,
+                  label: formatCatalogItemLabel(item),
+                }))}
               >
                 <SelectTrigger className={employeeSelectTriggerClass}>
                   <SelectValue
                     placeholder={t("pages.inventory.form.catalogItemPlaceholder")}
-                  />
+                  >
+                    {(value) => {
+                      if (!value) return null;
+                      const item = stockedItems.find((entry) => entry.id === value);
+                      return item ? formatCatalogItemLabel(item) : null;
+                    }}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {stockedItems.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.name} — {item.currentStock} {item.unit}
+                    <SelectItem
+                      key={item.id}
+                      value={item.id}
+                      label={formatCatalogItemLabel(item)}
+                    >
+                      {formatCatalogItemStockLabel(item)}
                     </SelectItem>
                   ))}
                 </SelectContent>

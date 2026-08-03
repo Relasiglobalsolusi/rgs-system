@@ -14,6 +14,10 @@ import type {
   InventoryVendorOption,
 } from "@/components/inventory/inventory-types";
 import {
+  formatCatalogItemLabel,
+  formatVendorLabel,
+} from "@/components/inventory/inventory-select-labels";
+import {
   captureHtmlFormBaseline,
   EmployeeDialogShell,
   EmployeePrimaryButton,
@@ -176,16 +180,30 @@ export default function InventoryPurchaseDialog({
               <Select
                 value={itemId || undefined}
                 onValueChange={(value) => setItemId(value ?? "")}
+                items={activeItems.map((item) => ({
+                  value: item.id,
+                  label: formatCatalogItemLabel(item),
+                }))}
               >
                 <SelectTrigger className={employeeSelectTriggerClass}>
                   <SelectValue
                     placeholder={t("pages.inventory.form.catalogItemPlaceholder")}
-                  />
+                  >
+                    {(value) => {
+                      if (!value) return null;
+                      const item = activeItems.find((entry) => entry.id === value);
+                      return item ? formatCatalogItemLabel(item) : null;
+                    }}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {activeItems.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.name} ({item.sku})
+                    <SelectItem
+                      key={item.id}
+                      value={item.id}
+                      label={formatCatalogItemLabel(item)}
+                    >
+                      {formatCatalogItemLabel(item)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -203,16 +221,30 @@ export default function InventoryPurchaseDialog({
                 <Select
                   value={vendorId || undefined}
                   onValueChange={(value) => setVendorId(value ?? "")}
+                  items={vendors.map((vendor) => ({
+                    value: vendor.id,
+                    label: formatVendorLabel(vendor),
+                  }))}
                 >
                   <SelectTrigger className={employeeSelectTriggerClass}>
                     <SelectValue
                       placeholder={t("pages.inventory.form.vendorPlaceholder")}
-                    />
+                    >
+                      {(value) => {
+                        if (!value) return null;
+                        const vendor = vendors.find((entry) => entry.id === value);
+                        return vendor ? formatVendorLabel(vendor) : null;
+                      }}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {vendors.map((vendor) => (
-                      <SelectItem key={vendor.id} value={vendor.id}>
-                        {vendor.name} ({vendor.shortCode})
+                      <SelectItem
+                        key={vendor.id}
+                        value={vendor.id}
+                        label={formatVendorLabel(vendor)}
+                      >
+                        {formatVendorLabel(vendor)}
                       </SelectItem>
                     ))}
                   </SelectContent>

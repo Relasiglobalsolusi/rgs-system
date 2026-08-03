@@ -6,8 +6,15 @@ import { decimalToNumber } from "@/lib/project-billing";
 /** Projects that may receive inventory issues. */
 export const INVENTORY_ISSUE_PROJECT_STATUSES = [
   "IN_PROGRESS",
+  "WAITING_FOR_APPROVAL",
   "ON_HOLD",
 ] as const;
+
+export function canIssueInventoryToProject(status: string): boolean {
+  return (INVENTORY_ISSUE_PROJECT_STATUSES as readonly string[]).includes(
+    status
+  );
+}
 
 export type InventoryCostingNote =
   "Stock value and project issues use running weighted-average unit cost. Last purchase unit cost is shown for reference.";

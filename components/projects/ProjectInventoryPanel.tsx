@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import SectionCard from "@/components/ui/SectionCard";
 import { formatDisplayDate } from "@/lib/format-date";
+import { canIssueInventoryToProject } from "@/lib/inventory";
 import { useT } from "@/lib/i18n/use-t";
 import { formatContractPrice } from "@/lib/project-billing";
 import { cn } from "@/lib/utils";
@@ -72,8 +73,7 @@ export default function ProjectInventoryPanel({
   const [voidReason, setVoidReason] = useState("");
   const [pending, startTransition] = useTransition();
 
-  const canIssueToStatus =
-    projectStatus === "IN_PROGRESS" || projectStatus === "ON_HOLD";
+  const canIssueToStatus = canIssueInventoryToProject(projectStatus);
   const hasStock = catalogItems.some(
     (item) => item.active && item.currentStock > 0
   );

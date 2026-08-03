@@ -25,8 +25,8 @@ export const PROJECT_FIELD_STATUSES = [
 ] as const satisfies readonly ProjectStatus[];
 
 /**
- * Non-regular (General / Facade) projects awaiting client approval before
- * invoice is issued. Equivalent to "In Progress" for display/list purposes.
+ * Projects awaiting mutual client + HO approval before invoice issue.
+ * Regular Cleaning: reconcile → review. General / Facade: Submit for Approval.
  */
 export const PROJECT_WAITING_FOR_APPROVAL_STATUS =
   "WAITING_FOR_APPROVAL" as const satisfies ProjectStatus;
@@ -40,7 +40,7 @@ export const PROJECT_IN_PROGRESS_LIST_STATUSES = [
 ] as const satisfies readonly ProjectStatus[];
 
 /**
- * Pending Approval sidebar view — non-regular projects submitted for client review.
+ * Pending Approval sidebar view — projects in the client + HO review loop.
  */
 export const PROJECT_PENDING_APPROVAL_LIST_STATUSES = [
   PROJECT_WAITING_FOR_APPROVAL_STATUS,
@@ -183,7 +183,7 @@ export function isFieldOpsProjectStatus(
   );
 }
 
-/** True for non-regular projects currently in the client-approval loop. */
+/** True when the project is in the mutual client + HO approval loop. */
 export function isWaitingForApproval(
   value: ProjectStatus | string | null | undefined
 ): boolean {

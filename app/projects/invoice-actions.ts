@@ -63,7 +63,10 @@ import {
   type TaxInvoiceConflictKind,
 } from "@/lib/payment-document-verify";
 import { paymentVerifyFailureMessage } from "@/lib/payment-verify-messages";
-import { canIssueInvoiceAfterReview } from "@/lib/client-billing-review";
+import {
+  canIssueCommercialInvoiceForProject,
+  canIssueInvoiceAfterReview,
+} from "@/lib/client-billing-review";
 import { releaseAllProjectCrew } from "@/lib/workforce-crew";
 
 const COMPANY_BANK_SELECT = {
@@ -160,6 +163,33 @@ async function requireInvoiceManageAccess(opts?: {
     redirect("/dashboard");
   }
   return session;
+}
+
+async function assertCanIssueCommercialInvoice(
+  period: {
+    clientReviewStatus: string | null | undefined;
+  },
+  projectStatus: string,
+  opts: { approvedReview: boolean }
+) {
+  const locale = await getServerLocale();
+  if (
+    !canIssueCommercialInvoiceForProject(period, projectStatus, {
+      approvedReview: opts.approvedReview,
+    })
+  ) {
+    const awaitingReview =
+      period.clientReviewStatus === "NONE" ||
+      period.clientReviewStatus == null;
+    throw new Error(
+      translate(
+        locale,
+        awaitingReview
+          ? "pages.billing.mutualApprovalBeforeInvoice"
+          : "pages.billing.reviewPendingBeforeInvoice"
+      )
+    );
+  }
 }
 
 /** Client portal user must own the period's project client. */
@@ -550,15 +580,11 @@ async function compileInvoicePeriodInner(
       "Reconcile this billing period before submitting the invoice."
     );
   }
-  // Client-approval path: must be approved. HO may still compile after approval.
-  if (
-    period.clientReviewStatus !== "NONE" &&
-    !canIssueInvoiceAfterReview(period.clientReviewStatus)
-  ) {
-    throw new Error(
-      "Wait for the client to approve the reconciliation (or resolve a revision) before invoicing."
-    );
-  }
+  await assertCanIssueCommercialInvoice(
+    period,
+    period.project.status,
+    opts
+  );
 
   await prisma.projectInvoicePeriod.update({
     where: { id: periodId },
@@ -665,9 +691,17 @@ async function compileInvoicePeriodInner(
 
     // Issuing an invoice leaves Planning — same as milestone compile — so
     // Payment Due / In Progress stay consistent without a manual move.
-    if (
-      period.project.status === "PLANNED"
+    if (period.project.status === "PLANNED") {
+      await prisma.project.update({
+        where: { id: period.projectId },
+        data: { status: "IN_PROGRESS" },
+      });
+    } else if (
+      period.project.status === "WAITING_FOR_APPROVAL" &&
+      period.project.billingMode === "MONTHLY" &&
+      isContractSubCategory(period.project.subCategory)
     ) {
+      // Regular reconcile approval: contract continues — return to In Progress.
       await prisma.project.update({
         where: { id: period.projectId },
         data: { status: "IN_PROGRESS" },

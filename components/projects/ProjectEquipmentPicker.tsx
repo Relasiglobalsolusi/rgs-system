@@ -22,6 +22,7 @@ import {
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
 import { cn } from "@/lib/utils";
+import { canIssueInventoryToProject } from "@/lib/inventory";
 import { useT } from "@/lib/i18n/use-t";
 
 export type EquipmentAssetOption = {
@@ -97,8 +98,7 @@ export default function ProjectEquipmentPicker({
   const [releaseTarget, setReleaseTarget] = useState<AssignedEquipmentAsset | null>(null);
   const [releasing, startRelease] = useTransition();
 
-  const canIssue =
-    projectStatus === "IN_PROGRESS" || projectStatus === "ON_HOLD";
+  const canIssue = canIssueInventoryToProject(projectStatus);
 
   const groups = useMemo(() => buildGroups(availableAssets), [availableAssets]);
 

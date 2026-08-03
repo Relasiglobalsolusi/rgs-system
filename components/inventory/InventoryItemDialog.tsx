@@ -197,7 +197,16 @@ export default function InventoryItemDialog({
                 >
                   <SelectValue
                     placeholder={t("pages.inventory.form.itemTypePlaceholder")}
-                  />
+                  >
+                    {(value) => {
+                      if (!value) return null;
+                      return INVENTORY_ITEM_TYPE_PRESETS.includes(
+                        value as (typeof INVENTORY_ITEM_TYPE_PRESETS)[number]
+                      )
+                        ? t(`pages.inventory.itemTypes.${value}`)
+                        : value;
+                    }}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {INVENTORY_ITEM_TYPE_PRESETS.map((preset) => (
