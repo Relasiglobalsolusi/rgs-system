@@ -43,6 +43,35 @@ const HR_NAV_KEYS = new Set(["attendance", "shifts", "leaves", "approvals"]);
 
 const NAV_KEY_SET = new Set<string>([...MODULES, ...EXTRA_MENU_NAV_KEYS]);
 
+const PROJECTS_IN_PROGRESS_HREF = "/projects?view=in-progress";
+const PROJECTS_PENDING_APPROVAL_HREF = "/projects?view=pending-approval";
+const PROJECTS_PAYMENT_DUE_HREF = "/projects?view=payment-due";
+
+/** Insert Pending Approval after In Progress in saved Projects submenu order. */
+function migrateProjectsChildOrder(
+  children: Record<string, string[]>
+): Record<string, string[]> {
+  const projects = children.projects;
+  if (!projects?.length || projects.includes(PROJECTS_PENDING_APPROVAL_HREF)) {
+    return children;
+  }
+
+  const next = [...projects];
+  const inProgressIdx = next.indexOf(PROJECTS_IN_PROGRESS_HREF);
+  if (inProgressIdx >= 0) {
+    next.splice(inProgressIdx + 1, 0, PROJECTS_PENDING_APPROVAL_HREF);
+  } else {
+    const paymentDueIdx = next.indexOf(PROJECTS_PAYMENT_DUE_HREF);
+    if (paymentDueIdx >= 0) {
+      next.splice(paymentDueIdx, 0, PROJECTS_PENDING_APPROVAL_HREF);
+    } else {
+      next.push(PROJECTS_PENDING_APPROVAL_HREF);
+    }
+  }
+
+  return { ...children, projects: next };
+}
+
 /** Pull HR nav keys out of a legacy Operations list into Human Resources. */
 function migrateHrSectionItems(
   sections: Record<string, string[]>
@@ -172,7 +201,11 @@ export function parseSidebarOrder(value: unknown): SidebarOrder | null {
     return null;
   }
 
-  return { sectionOrder, sections, children };
+  return {
+    sectionOrder,
+    sections,
+    children: migrateProjectsChildOrder(children),
+  };
 }
 
 /** Keep only known modules / hrefs / section titles; drop empty maps. */

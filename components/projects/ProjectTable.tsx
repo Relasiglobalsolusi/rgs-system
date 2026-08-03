@@ -43,6 +43,7 @@ export type ProjectTablePaymentStage = {
 export type ProjectTableFilterView =
   | "planning"
   | "in-progress"
+  | "pending-approval"
   | "payment-due"
   | "completed"
   | undefined;

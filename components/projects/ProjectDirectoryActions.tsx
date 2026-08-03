@@ -63,6 +63,7 @@ type PaymentStage = {
 type FilterView =
   | "planning"
   | "in-progress"
+  | "pending-approval"
   | "payment-due"
   | "completed"
   | undefined;

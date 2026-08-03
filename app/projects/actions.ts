@@ -157,6 +157,7 @@ function revalidateAfterProjectDelete(opts: {
   revalidatePath(PROJECT_LIST_VIEW_PATHS.all);
   revalidatePath(PROJECT_LIST_VIEW_PATHS.planning);
   revalidatePath(PROJECT_LIST_VIEW_PATHS.inProgress);
+  revalidatePath(PROJECT_LIST_VIEW_PATHS.pendingApproval);
   revalidatePath(PROJECT_LIST_VIEW_PATHS.paymentDue);
   revalidatePath(PROJECT_LIST_VIEW_PATHS.completed);
   revalidatePath("/dashboard");
@@ -857,6 +858,7 @@ export async function updateProject(id: string, formData: FormData) {
     revalidatePath(PROJECT_LIST_VIEW_PATHS.all);
     revalidatePath(PROJECT_LIST_VIEW_PATHS.planning);
     revalidatePath(PROJECT_LIST_VIEW_PATHS.inProgress);
+    revalidatePath(PROJECT_LIST_VIEW_PATHS.pendingApproval);
     revalidatePath(PROJECT_LIST_VIEW_PATHS.paymentDue);
     revalidatePath(PROJECT_LIST_VIEW_PATHS.completed);
     revalidatePath(`/projects/${id}`);
@@ -1048,6 +1050,7 @@ function revalidateAfterProjectLifecycle(opts: {
   revalidatePath(PROJECT_LIST_VIEW_PATHS.all);
   revalidatePath(PROJECT_LIST_VIEW_PATHS.planning);
   revalidatePath(PROJECT_LIST_VIEW_PATHS.inProgress);
+  revalidatePath(PROJECT_LIST_VIEW_PATHS.pendingApproval);
   revalidatePath(PROJECT_LIST_VIEW_PATHS.paymentDue);
   revalidatePath(PROJECT_LIST_VIEW_PATHS.completed);
   revalidatePath(`/projects/${opts.projectId}`);

@@ -215,6 +215,7 @@ export const en = {
       "All Projects": "All Projects",
       Planning: "Planning",
       "In Progress": "In Progress",
+      "Pending Approval": "Pending Approval",
       "Payment Due": "Payment Due",
       "Completed Projects": "Completed Projects",
       Finance: "Finance",
@@ -271,6 +272,7 @@ export const en = {
     project: {
       PLANNED: "Planning",
       IN_PROGRESS: "In Progress",
+      WAITING_FOR_APPROVAL: "Pending Approval",
       ON_HOLD: "On Hold",
       COMPLETED: "Completed",
       CANCELLED: "Cancelled",
@@ -278,7 +280,8 @@ export const en = {
     workflow: {
       Planning: "Planning",
       "In Progress": "In Progress",
-      "Waiting for Approval": "Waiting for Approval",
+      "Pending Approval": "Pending Approval",
+      "Waiting for Approval": "Pending Approval",
       "Payment Due": "Payment Due",
       Completed: "Completed",
       Cancelled: "Cancelled",
@@ -288,8 +291,10 @@ export const en = {
       inProgress2: "Progress",
       paymentDue1: "Payment",
       paymentDue2: "Due",
-      waitingForApproval1: "Waiting",
+      waitingForApproval1: "Pending",
       waitingForApproval2: "Approval",
+      pendingApproval1: "Pending",
+      pendingApproval2: "Approval",
     },
     billing: {
       ONGOING: "Ongoing",
@@ -502,6 +507,7 @@ export const en = {
       allTitle: "All Projects",
       planningTitle: "Planning",
       inProgressTitle: "In Progress",
+      pendingApprovalTitle: "Pending Approval",
       paymentDueTitle: "Payment Due",
       completedTitle: "Completed Projects",
       addProject: "Add Project",
@@ -561,6 +567,9 @@ export const en = {
       emptyInProgress: "No projects In Progress",
       emptyInProgressDesc:
         "Projects appear here after Move to In Progress from Planning.",
+      emptyPendingApproval: "No projects pending approval",
+      emptyPendingApprovalDesc:
+        "General and Facade projects appear here after Submit for Approval until the client approves.",
       emptyPaymentDue: "No payment due",
       emptyPaymentDueDesc:
         "Issued invoices appear here until payment is verified. Regular Cleaning projects stay In Progress while a cycle is due.",
@@ -616,7 +625,7 @@ export const en = {
         chip2: "Approval",
         confirmTitle: "Submit for Client Approval",
         confirmDesc:
-          "This will compile all progress reports into a PDF and send it to the client for review. The project status will change to Waiting for Approval.",
+          "This will compile all progress reports into a PDF and send it to the client for review. The project status will change to Pending Approval.",
         confirm: "Submit",
         regularNotAllowed:
           "Regular Cleaning projects are not submitted for client approval.",
@@ -626,8 +635,8 @@ export const en = {
           "No ongoing milestone period found. Please check the billing schedule.",
         failed: "Failed to submit project for approval.",
         successToast: "Project submitted for client approval.",
-        waitingForApprovalLabel: "Waiting for Approval",
-        waitingChip1: "Waiting for",
+        waitingForApprovalLabel: "Pending Approval",
+        waitingChip1: "Pending",
         waitingChip2: "Approval",
       },
       assignStaff: "Assign Staff",

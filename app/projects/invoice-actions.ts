@@ -195,6 +195,7 @@ function revalidateBillingPaths(opts?: {
   revalidatePath(PROJECT_LIST_VIEW_PATHS.all);
   revalidatePath(PROJECT_LIST_VIEW_PATHS.planning);
   revalidatePath(PROJECT_LIST_VIEW_PATHS.inProgress);
+  revalidatePath(PROJECT_LIST_VIEW_PATHS.pendingApproval);
   revalidatePath(PROJECT_LIST_VIEW_PATHS.paymentDue);
   revalidatePath(PROJECT_LIST_VIEW_PATHS.completed);
   revalidatePath(PROJECT_LIST_VIEW_PATHS.history);
@@ -2610,6 +2611,7 @@ export async function runMonthlyInvoicing() {
   revalidatePath("/projects");
   revalidatePath("/invoicing");
   revalidatePath(PROJECT_LIST_VIEW_PATHS.inProgress);
+  revalidatePath(PROJECT_LIST_VIEW_PATHS.pendingApproval);
   revalidatePath(PROJECT_LIST_VIEW_PATHS.paymentDue);
 
   return result;

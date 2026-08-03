@@ -348,10 +348,11 @@ export default async function ProjectDetailPage({
     ? "/projects?view=completed"
     : inPlanning
       ? "/projects?view=planning"
-      : project.status === "IN_PROGRESS" ||
-          project.status === "WAITING_FOR_APPROVAL"
-        ? "/projects?view=in-progress"
-        : "/projects";
+      : project.status === "WAITING_FOR_APPROVAL"
+        ? "/projects?view=pending-approval"
+        : project.status === "IN_PROGRESS"
+          ? "/projects?view=in-progress"
+          : "/projects";
 
   const unpaidMilestone = getMostUrgentUnpaidPeriod(project.invoicePeriods);
   const invoicePeriodsForDisplay = dedupeOnCompletionPeriods(

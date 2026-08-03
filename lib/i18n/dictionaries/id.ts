@@ -227,6 +227,7 @@ export const id = {
       "All Projects": "Semua Proyek",
       Planning: "Perencanaan",
       "In Progress": "Berjalan",
+      "Pending Approval": "Persetujuan Menunggu",
       "Payment Due": "Menunggu Pembayaran",
       "Completed Projects": "Proyek Selesai",
       Finance: "Keuangan",
@@ -283,6 +284,7 @@ export const id = {
     project: {
       PLANNED: "Perencanaan",
       IN_PROGRESS: "Berjalan",
+      WAITING_FOR_APPROVAL: "Persetujuan Menunggu",
       ON_HOLD: "Ditunda",
       COMPLETED: "Selesai",
       CANCELLED: "Dibatalkan",
@@ -290,7 +292,8 @@ export const id = {
     workflow: {
       Planning: "Perencanaan",
       "In Progress": "Berjalan",
-      "Waiting for Approval": "Menunggu Persetujuan",
+      "Pending Approval": "Persetujuan Menunggu",
+      "Waiting for Approval": "Persetujuan Menunggu",
       "Payment Due": "Menunggu Pembayaran",
       Completed: "Selesai",
       Cancelled: "Dibatalkan",
@@ -300,8 +303,10 @@ export const id = {
       inProgress2: "Berjalan",
       paymentDue1: "Menunggu",
       paymentDue2: "Pembayaran",
-      waitingForApproval1: "Menunggu",
-      waitingForApproval2: "Persetujuan",
+      waitingForApproval1: "Persetujuan",
+      waitingForApproval2: "Menunggu",
+      pendingApproval1: "Persetujuan",
+      pendingApproval2: "Menunggu",
     },
     billing: {
       ONGOING: "Berjalan",
@@ -517,6 +522,7 @@ export const id = {
       allTitle: "Semua Proyek",
       planningTitle: "Perencanaan",
       inProgressTitle: "Berjalan",
+      pendingApprovalTitle: "Persetujuan Menunggu",
       paymentDueTitle: "Menunggu Pembayaran",
       completedTitle: "Proyek Selesai",
       addProject: "Tambah Proyek",
@@ -578,6 +584,9 @@ export const id = {
       emptyInProgress: "Tidak ada proyek yang sedang berjalan",
       emptyInProgressDesc:
         "Proyek muncul di sini setelah dipindahkan ke Berjalan dari Perencanaan.",
+      emptyPendingApproval: "Tidak ada proyek yang menunggu persetujuan",
+      emptyPendingApprovalDesc:
+        "Proyek General dan Facade muncul di sini setelah Ajukan Persetujuan hingga klien menyetujui.",
       emptyPaymentDue: "Tidak ada yang menunggu pembayaran",
       emptyPaymentDueDesc:
         "Invoice terbit muncul di sini hingga pembayaran diverifikasi. Proyek Regular Cleaning tetap Berjalan selama siklus masih jatuh tempo.",
@@ -633,7 +642,7 @@ export const id = {
         chip2: "Persetujuan",
         confirmTitle: "Ajukan untuk Persetujuan Klien",
         confirmDesc:
-          "Semua laporan progress akan dikompilasi menjadi PDF dan dikirim ke klien untuk ditinjau. Status proyek akan berubah menjadi Menunggu Persetujuan.",
+          "Semua laporan progress akan dikompilasi menjadi PDF dan dikirim ke klien untuk ditinjau. Status proyek akan berubah menjadi Persetujuan Menunggu.",
         confirm: "Ajukan",
         regularNotAllowed:
           "Proyek Regular Cleaning tidak diajukan untuk persetujuan klien.",
@@ -643,9 +652,9 @@ export const id = {
           "Tidak ada periode milestone yang sedang berjalan. Periksa jadwal penagihan.",
         failed: "Gagal mengajukan proyek untuk persetujuan.",
         successToast: "Proyek berhasil diajukan untuk persetujuan klien.",
-        waitingForApprovalLabel: "Menunggu Persetujuan",
-        waitingChip1: "Menunggu",
-        waitingChip2: "Persetujuan",
+        waitingForApprovalLabel: "Persetujuan Menunggu",
+        waitingChip1: "Persetujuan",
+        waitingChip2: "Menunggu",
       },
       assignStaff: "Tugaskan Staf",
       assignStaffLater: "Tugaskan staf nanti",

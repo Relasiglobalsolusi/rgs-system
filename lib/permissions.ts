@@ -1011,6 +1011,16 @@ export const menu: MenuSection[] = [
 
           {
 
+            label: "Pending Approval",
+
+            href: "/projects?view=pending-approval",
+
+            primary: true,
+
+          },
+
+          {
+
             label: "Payment Due",
 
             href: "/projects?view=payment-due",

@@ -32,13 +32,18 @@ export const PROJECT_WAITING_FOR_APPROVAL_STATUS =
   "WAITING_FOR_APPROVAL" as const satisfies ProjectStatus;
 
 /**
- * In Progress sidebar view — work-order active + awaiting client approval.
- * WAITING_FOR_APPROVAL is grouped here so OM can see submitted projects.
+ * In Progress sidebar view — work-order active field ops only.
  * Legacy ON_HOLD is excluded from product lists (DB enum retained).
  */
 export const PROJECT_IN_PROGRESS_LIST_STATUSES = [
   "IN_PROGRESS",
-  "WAITING_FOR_APPROVAL",
+] as const satisfies readonly ProjectStatus[];
+
+/**
+ * Pending Approval sidebar view — non-regular projects submitted for client review.
+ */
+export const PROJECT_PENDING_APPROVAL_LIST_STATUSES = [
+  PROJECT_WAITING_FOR_APPROVAL_STATUS,
 ] as const satisfies readonly ProjectStatus[];
 
 /** Canonical Projects sidebar view URLs (for navigation + revalidation). */
@@ -46,6 +51,7 @@ export const PROJECT_LIST_VIEW_PATHS = {
   all: "/projects",
   planning: "/projects?view=planning",
   inProgress: "/projects?view=in-progress",
+  pendingApproval: "/projects?view=pending-approval",
   paymentDue: "/projects?view=payment-due",
   /** Canonical Completed Projects list. */
   completed: "/projects?view=completed",
@@ -69,7 +75,7 @@ export const PROJECT_ACTIVE_LIST_STATUSES = PROJECT_IN_PROGRESS_LIST_STATUSES;
 export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
   PLANNED: "Planning",
   IN_PROGRESS: "In Progress",
-  WAITING_FOR_APPROVAL: "Waiting for Approval",
+  WAITING_FOR_APPROVAL: "Pending Approval",
   ON_HOLD: "On Hold",
   COMPLETED: "Completed",
   CANCELLED: "Cancelled",
@@ -90,6 +96,7 @@ export function getProjectStatusLabel(
 export const PROJECT_WORKFLOW_STATUS_LABELS = [
   "Planning",
   "In Progress",
+  "Pending Approval",
   "Payment Due",
   "Completed",
 ] as const;
@@ -114,7 +121,7 @@ export function getProjectWorkflowStatusLabel(opts: {
     case "ON_HOLD":
       return "In Progress";
     case "WAITING_FOR_APPROVAL":
-      return "Waiting for Approval";
+      return "Pending Approval";
     case "COMPLETED":
       return "Completed";
     case "CANCELLED":
@@ -134,7 +141,7 @@ export function projectWorkflowStatusBadge(
       return "success";
     case "Payment Due":
       return "warning";
-    case "Waiting for Approval":
+    case "Pending Approval":
       return "warning";
     case "Planning":
     default:
@@ -154,8 +161,8 @@ export function projectWorkflowStatusChipLines(
       return ["In", "Progress"];
     case "Payment Due":
       return ["Payment", "Due"];
-    case "Waiting for Approval":
-      return ["Waiting", "Approval"];
+    case "Pending Approval":
+      return ["Pending", "Approval"];
     default:
       return null;
   }

@@ -43,6 +43,7 @@ import {
 import {
   PROJECT_ALL_LIST_STATUSES,
   PROJECT_IN_PROGRESS_LIST_STATUSES,
+  PROJECT_PENDING_APPROVAL_LIST_STATUSES,
   PROJECT_PLANNING_LIST_STATUSES,
   PROJECT_PLANNING_STATUS,
 } from "@/lib/project-status";
@@ -66,6 +67,7 @@ import type { MessageKey } from "@/lib/i18n/messages";
 const PROJECT_LIST_VIEWS = [
   "planning",
   "in-progress",
+  "pending-approval",
   "payment-due",
   "completed",
 ] as const;
@@ -76,6 +78,7 @@ const SUBCATEGORY_CHIP_VIEWS = new Set<ProjectListView | undefined>([
   undefined,
   "planning",
   "in-progress",
+  "pending-approval",
 ]);
 
 /** Directory tables: Regular → Facade → General (empty types hidden). */
@@ -129,6 +132,13 @@ function viewCopy(view: ProjectListView | undefined): {
       shellTitleKey: "pages.projects.inProgressTitle",
       listTitleKey: "pages.projects.inProgressTitle",
       emptyMessageKey: "pages.projects.emptyInProgress",
+    };
+  }
+  if (view === "pending-approval") {
+    return {
+      shellTitleKey: "pages.projects.pendingApprovalTitle",
+      listTitleKey: "pages.projects.pendingApprovalTitle",
+      emptyMessageKey: "pages.projects.emptyPendingApproval",
     };
   }
   if (view === "payment-due") {
@@ -224,18 +234,20 @@ export default async function ProjectsPage({
     }
   }
 
-  // Lifecycle: All | Planning | In Progress | Payment Due | History.
+  // Lifecycle: All | Planning | In Progress | Pending Approval | Payment Due | History.
   // Planning is PLANNED-only so Move to In Progress removes the row immediately.
   const viewWhere =
     filterView === "planning"
       ? { status: { in: [...PROJECT_PLANNING_LIST_STATUSES] } }
       : filterView === "in-progress"
         ? { status: { in: [...PROJECT_IN_PROGRESS_LIST_STATUSES] } }
-        : filterView === "payment-due"
-          ? paymentDueWhere()
-          : filterView === "completed"
-            ? projectHistoryWhere()
-            : { status: { in: [...PROJECT_ALL_LIST_STATUSES] } };
+        : filterView === "pending-approval"
+          ? { status: { in: [...PROJECT_PENDING_APPROVAL_LIST_STATUSES] } }
+          : filterView === "payment-due"
+            ? paymentDueWhere()
+            : filterView === "completed"
+              ? projectHistoryWhere()
+              : { status: { in: [...PROJECT_ALL_LIST_STATUSES] } };
 
   const [projectsFetched, employees, clients, filterClient, dueMonthlyReminders] =
     await Promise.all([
@@ -731,22 +743,26 @@ export default async function ProjectsPage({
                 ? "pages.projects.emptyPlanning"
                 : filterView === "in-progress"
                   ? "pages.projects.emptyInProgress"
-                  : filterView === "payment-due"
-                    ? "pages.projects.emptyPaymentDue"
-                    : filterView === "completed"
-                      ? "pages.projects.emptyCompleted"
-                      : "pages.projects.emptyAll"
+                  : filterView === "pending-approval"
+                    ? "pages.projects.emptyPendingApproval"
+                    : filterView === "payment-due"
+                      ? "pages.projects.emptyPaymentDue"
+                      : filterView === "completed"
+                        ? "pages.projects.emptyCompleted"
+                        : "pages.projects.emptyAll"
             }
             descriptionKey={
               filterView === "planning"
                 ? "pages.projects.emptyPlanningDesc"
                 : filterView === "in-progress"
                   ? "pages.projects.emptyInProgressDesc"
-                  : filterView === "payment-due"
-                    ? "pages.projects.emptyPaymentDueDesc"
-                    : filterView === "completed"
-                      ? "pages.projects.emptyCompletedDesc"
-                      : "pages.projects.emptyAllDesc"
+                  : filterView === "pending-approval"
+                    ? "pages.projects.emptyPendingApprovalDesc"
+                    : filterView === "payment-due"
+                      ? "pages.projects.emptyPaymentDueDesc"
+                      : filterView === "completed"
+                        ? "pages.projects.emptyCompletedDesc"
+                        : "pages.projects.emptyAllDesc"
             }
           />
         </SectionCard>

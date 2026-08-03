@@ -10,6 +10,7 @@ import { isContractSubCategory } from "@/lib/project-contract";
 import { isCleaningProjectSubCategory } from "@/lib/project-subcategory";
 import {
   PROJECT_IN_PROGRESS_LIST_STATUSES,
+  PROJECT_PENDING_APPROVAL_LIST_STATUSES,
   PROJECT_PLANNING_LIST_STATUSES,
 } from "@/lib/project-status";
 
@@ -19,10 +20,11 @@ type SessionUser = {
   clientId?: string | null;
 };
 
-/** Planning + In Progress (+ legacy ON_HOLD) — admin-only hard delete. */
+/** Planning + In Progress + Pending Approval (+ legacy ON_HOLD) — admin-only hard delete. */
 export const PROJECT_ADMIN_DELETE_STATUSES = [
   ...PROJECT_PLANNING_LIST_STATUSES,
   ...PROJECT_IN_PROGRESS_LIST_STATUSES,
+  ...PROJECT_PENDING_APPROVAL_LIST_STATUSES,
   "ON_HOLD",
 ] as const satisfies readonly ProjectStatus[];
 

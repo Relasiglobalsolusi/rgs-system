@@ -697,6 +697,7 @@ export async function confirmBulkImportProjects(
   revalidatePath(PROJECT_LIST_VIEW_PATHS.all);
   revalidatePath(PROJECT_LIST_VIEW_PATHS.planning);
   revalidatePath(PROJECT_LIST_VIEW_PATHS.inProgress);
+  revalidatePath(PROJECT_LIST_VIEW_PATHS.pendingApproval);
   revalidatePath(PROJECT_LIST_VIEW_PATHS.paymentDue);
   revalidatePath("/dashboard");
   revalidatePath("/clients");
