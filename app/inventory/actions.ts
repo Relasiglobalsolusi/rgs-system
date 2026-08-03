@@ -137,7 +137,7 @@ export async function createInventoryItem(formData: FormData) {
   try {
     await assertCanManageItemCatalog(locale);
 
-    const name = titleCaseWords(String(formData.get("name") ?? "").trim());
+    const name = String(formData.get("name") ?? "").trim();
     const itemType = titleCaseWords(
       String(formData.get("itemType") ?? "").trim()
     );
@@ -193,7 +193,7 @@ export async function updateInventoryItem(formData: FormData) {
       throw new Error(translate(locale, "pages.inventory.itemNotFound"));
     }
 
-    const name = titleCaseWords(String(formData.get("name") ?? "").trim());
+    const name = String(formData.get("name") ?? "").trim();
     const itemType = titleCaseWords(
       String(formData.get("itemType") ?? "").trim()
     );

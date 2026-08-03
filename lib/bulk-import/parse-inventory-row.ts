@@ -43,7 +43,7 @@ export function parseInventoryImportRow(
   locale: AppLocale = DEFAULT_LOCALE
 ): ParsedInventoryImportRow {
   const itemType = normalizeItemType(values.itemType ?? "", locale);
-  const name = titleCaseWords(importCellValue(values.name));
+  const name = importCellValue(values.name);
   if (!name) {
     throw new Error(translate(locale, "pages.inventory.itemNameRequired"));
   }
