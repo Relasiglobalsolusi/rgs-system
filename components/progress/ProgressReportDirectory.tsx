@@ -385,7 +385,7 @@ export default function ProgressReportDirectory({
             description={`${employeeLabel} · ${submittedLabel}`}
             maxWidth="lg"
             footer={
-              <div className="flex w-full flex-wrap items-center justify-end gap-2">
+              <div className="flex w-full flex-wrap items-center justify-end gap-3">
                 {mayEdit(viewReport) ? (
                   <Button
                     type="button"

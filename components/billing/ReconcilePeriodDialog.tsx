@@ -108,7 +108,7 @@ export default function ReconcilePeriodDialog({
           })}
           maxWidth="md"
           footer={
-            <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-end">
+            <div className="flex w-full flex-col gap-3 sm:flex-row sm:justify-end">
               <EmployeeSecondaryButton
                 disabled={pending}
                 onClick={() => setOpen(false)}

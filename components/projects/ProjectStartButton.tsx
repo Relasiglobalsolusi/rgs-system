@@ -193,7 +193,7 @@ export function useProjectStartAction({
         }
         maxWidth="lg"
         footer={
-          <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-end">
             <EmployeeSecondaryButton
               disabled={pending}
               onClick={() => setOpen(false)}
