@@ -9,6 +9,10 @@ import {
   nextWeightedAvgUnitCost,
   toDecimal,
 } from "@/lib/inventory";
+import {
+  canAssignInventoryToProject,
+  lockInventoryItemRow,
+} from "@/lib/inventory-access";
 import { getNextInventorySku } from "@/lib/inventory-sku";
 import { parseFormDateInput } from "@/lib/bulk-import/parse-import-date";
 import type { AppLocale } from "@/lib/i18n/locale";
@@ -32,6 +36,20 @@ async function assertCanManageInventory(locale?: AppLocale) {
         "pages.inventory.permissionDenied"
       )
     );
+  }
+  return session;
+}
+
+/** Issue / void project stock — OM+, Director, or HO admin. */
+async function assertCanAssignInventory(locale: AppLocale) {
+  const session = await assertCanManageInventory(locale);
+  const user = toPermissionUser(session);
+  const allowed = await canAssignInventoryToProject(session.user.id, {
+    ...user,
+    username: session.user.username,
+  });
+  if (!allowed) {
+    throw new Error(translate(locale, "pages.inventory.assignPermissionDenied"));
   }
   return session;
 }
@@ -309,18 +327,23 @@ export async function createInventoryPurchase(formData: FormData) {
 
     const receiptUrl = await saveReceipt(formData, { sku: item.sku });
     const totalPrice = quantity * unitPrice;
-    const currentStock = decimalToNumber(item.currentStock) ?? 0;
-    const avgUnitCost = decimalToNumber(item.avgUnitCost);
-    const newAvg = nextWeightedAvgUnitCost({
-      currentStock,
-      avgUnitCost,
-      purchaseQty: quantity,
-      purchaseUnitPrice: unitPrice,
-    });
-    const newStock = currentStock + quantity;
     const movedAt = purchasedAt;
 
     await prisma.$transaction(async (tx) => {
+      const locked = await lockInventoryItemRow(tx, item.id);
+      if (!locked || !locked.active) {
+        throw new Error(translate(locale, "pages.inventory.itemNotFound"));
+      }
+      const currentStock = decimalToNumber(locked.currentStock) ?? 0;
+      const avgUnitCost = decimalToNumber(locked.avgUnitCost);
+      const newAvg = nextWeightedAvgUnitCost({
+        currentStock,
+        avgUnitCost,
+        purchaseQty: quantity,
+        purchaseUnitPrice: unitPrice,
+      });
+      const newStock = currentStock + quantity;
+
       const movement = await tx.inventoryMovement.create({
         data: {
           companyId: company.id,
@@ -378,7 +401,7 @@ export async function createInventoryPurchase(formData: FormData) {
 export async function createInventoryProjectIssue(formData: FormData) {
   const locale = await getServerLocale();
   try {
-    const session = await assertCanManageInventory(locale);
+    const session = await assertCanAssignInventory(locale);
     const company = await requireCompany(locale);
 
     const itemId = String(formData.get("itemId") ?? "").trim();
@@ -405,27 +428,10 @@ export async function createInventoryProjectIssue(formData: FormData) {
 
     const item = await prisma.inventoryItem.findFirst({
       where: { id: itemId, companyId: company.id, active: true },
+      select: { id: true, unit: true },
     });
     if (!item) {
       throw new Error(translate(locale, "pages.inventory.itemNotFound"));
-    }
-
-    const currentStock = decimalToNumber(item.currentStock) ?? 0;
-    if (quantity > currentStock + 1e-9) {
-      throw new Error(
-        translate(locale, "pages.inventory.insufficientStock", {
-          available: String(currentStock),
-          unit: item.unit,
-        })
-      );
-    }
-
-    const unitCost =
-      decimalToNumber(item.avgUnitCost) ??
-      decimalToNumber(item.lastUnitCost) ??
-      0;
-    if (unitCost < 0) {
-      throw new Error(translate(locale, "pages.inventory.unitCostMissing"));
     }
 
     const project = await prisma.project.findFirst({
@@ -440,10 +446,33 @@ export async function createInventoryProjectIssue(formData: FormData) {
       throw new Error(translate(locale, "pages.inventory.projectNotIssuable"));
     }
 
-    const signedQty = -quantity;
-    const totalCost = movementTotalCost(quantity, unitCost);
-
     await prisma.$transaction(async (tx) => {
+      const locked = await lockInventoryItemRow(tx, item.id);
+      if (!locked || !locked.active) {
+        throw new Error(translate(locale, "pages.inventory.itemNotFound"));
+      }
+
+      const currentStock = decimalToNumber(locked.currentStock) ?? 0;
+      if (currentStock <= 0 || quantity > currentStock + 1e-9) {
+        throw new Error(
+          translate(locale, "pages.inventory.insufficientStock", {
+            available: String(currentStock),
+            unit: locked.unit,
+          })
+        );
+      }
+
+      const unitCost =
+        decimalToNumber(locked.avgUnitCost) ??
+        decimalToNumber(locked.lastUnitCost) ??
+        0;
+      if (unitCost < 0) {
+        throw new Error(translate(locale, "pages.inventory.unitCostMissing"));
+      }
+
+      const signedQty = -quantity;
+      const totalCost = movementTotalCost(quantity, unitCost);
+
       await tx.inventoryMovement.create({
         data: {
           companyId: company.id,
@@ -459,12 +488,23 @@ export async function createInventoryProjectIssue(formData: FormData) {
         },
       });
 
-      await tx.inventoryItem.update({
-        where: { id: item.id },
+      const stockUpdate = await tx.inventoryItem.updateMany({
+        where: {
+          id: item.id,
+          currentStock: { gte: toDecimal(quantity) },
+        },
         data: {
           currentStock: toDecimal(currentStock - quantity),
         },
       });
+      if (stockUpdate.count !== 1) {
+        throw new Error(
+          translate(locale, "pages.inventory.insufficientStock", {
+            available: String(currentStock),
+            unit: locked.unit,
+          })
+        );
+      }
     });
 
     revalidateInventory(project.id);
@@ -503,33 +543,40 @@ export async function createInventoryAdjustment(formData: FormData) {
 
     const item = await prisma.inventoryItem.findFirst({
       where: { id: itemId, companyId: company.id },
+      select: { id: true, unit: true },
     });
     if (!item) {
       throw new Error(translate(locale, "pages.inventory.itemNotFound"));
     }
 
-    const currentStock = decimalToNumber(item.currentStock) ?? 0;
-    const newStock = currentStock + delta;
-    if (newStock < -1e-9) {
-      throw new Error(
-        translate(locale, "pages.inventory.insufficientStock", {
-          available: String(currentStock),
-          unit: item.unit,
-        })
-      );
-    }
-
-    const unitCost =
-      decimalToNumber(item.avgUnitCost) ??
-      decimalToNumber(item.lastUnitCost) ??
-      0;
-    const totalCost = movementTotalCost(delta, unitCost);
     const movedAt =
       parseFormDateInput(formData.get("movedAt"), {
         fieldLabel: translate(locale, "pages.inventory.form.adjustmentDate"),
       }) ?? new Date();
 
     await prisma.$transaction(async (tx) => {
+      const locked = await lockInventoryItemRow(tx, item.id);
+      if (!locked) {
+        throw new Error(translate(locale, "pages.inventory.itemNotFound"));
+      }
+
+      const currentStock = decimalToNumber(locked.currentStock) ?? 0;
+      const newStock = currentStock + delta;
+      if (newStock < -1e-9) {
+        throw new Error(
+          translate(locale, "pages.inventory.insufficientStock", {
+            available: String(currentStock),
+            unit: locked.unit,
+          })
+        );
+      }
+
+      const unitCost =
+        decimalToNumber(locked.avgUnitCost) ??
+        decimalToNumber(locked.lastUnitCost) ??
+        0;
+      const totalCost = movementTotalCost(delta, unitCost);
+
       await tx.inventoryMovement.create({
         data: {
           companyId: company.id,
@@ -544,10 +591,28 @@ export async function createInventoryAdjustment(formData: FormData) {
         },
       });
 
-      await tx.inventoryItem.update({
-        where: { id: item.id },
-        data: { currentStock: toDecimal(Math.max(0, newStock)) },
-      });
+      if (delta < 0) {
+        const stockUpdate = await tx.inventoryItem.updateMany({
+          where: {
+            id: item.id,
+            currentStock: { gte: toDecimal(Math.abs(delta)) },
+          },
+          data: { currentStock: toDecimal(newStock) },
+        });
+        if (stockUpdate.count !== 1) {
+          throw new Error(
+            translate(locale, "pages.inventory.insufficientStock", {
+              available: String(currentStock),
+              unit: locked.unit,
+            })
+          );
+        }
+      } else {
+        await tx.inventoryItem.update({
+          where: { id: item.id },
+          data: { currentStock: toDecimal(newStock) },
+        });
+      }
     });
 
     revalidateInventory();
@@ -560,13 +625,95 @@ export async function createInventoryAdjustment(formData: FormData) {
 }
 
 /**
- * Soft-void a non-voided movement and reverse its stock/cost impact.
- * For ISSUE_TO_PROJECT, project inventory cost is reduced.
+ * Void a project inventory issue from the project detail page only.
+ * Soft-voids the ISSUE_TO_PROJECT row and restores on-hand stock (no reverse ADJUSTMENT).
+ * OM+ / Director / HO admin.
+ */
+export async function voidProjectInventoryIssue(formData: FormData) {
+  const locale = await getServerLocale();
+  try {
+    const session = await assertCanAssignInventory(locale);
+    const company = await requireCompany(locale);
+
+    const id = String(formData.get("id") ?? "").trim();
+    const projectId = String(formData.get("projectId") ?? "").trim();
+    const voidReason = capitalizeProper(
+      String(formData.get("voidReason") ?? "").trim()
+    );
+    if (!id) {
+      throw new Error(translate(locale, "pages.inventory.movementNotFound"));
+    }
+    if (!projectId) {
+      throw new Error(translate(locale, "pages.inventory.projectRequired"));
+    }
+    if (!voidReason) {
+      throw new Error(translate(locale, "pages.inventory.voidReasonRequired"));
+    }
+
+    const movement = await prisma.inventoryMovement.findFirst({
+      where: {
+        id,
+        companyId: company.id,
+        projectId,
+        type: "ISSUE_TO_PROJECT",
+        voidedAt: null,
+      },
+      select: {
+        id: true,
+        itemId: true,
+        projectId: true,
+        quantity: true,
+      },
+    });
+    if (!movement || !movement.projectId) {
+      throw new Error(translate(locale, "pages.inventory.movementNotFound"));
+    }
+
+    const restoreQty = Math.abs(new Prisma.Decimal(movement.quantity).toNumber());
+
+    await prisma.$transaction(async (tx) => {
+      const locked = await lockInventoryItemRow(tx, movement.itemId);
+      if (!locked) {
+        throw new Error(translate(locale, "pages.inventory.itemNotFound"));
+      }
+
+      const currentStock = decimalToNumber(locked.currentStock) ?? 0;
+      const newStock = currentStock + restoreQty;
+
+      const voided = await tx.inventoryMovement.updateMany({
+        where: { id: movement.id, voidedAt: null },
+        data: {
+          voidedAt: new Date(),
+          voidReason,
+        },
+      });
+      if (voided.count !== 1) {
+        throw new Error(translate(locale, "pages.inventory.movementNotFound"));
+      }
+
+      await tx.inventoryItem.update({
+        where: { id: movement.itemId },
+        data: { currentStock: toDecimal(newStock) },
+      });
+    });
+
+    revalidateInventory(movement.projectId);
+  } catch (error) {
+    throw toActionError(
+      error,
+      translate(locale, "pages.inventory.voidFailed")
+    );
+  }
+}
+
+/**
+ * Soft-void a non-issue movement (purchase / adjustment) and reverse stock.
+ * Project issues must use {@link voidProjectInventoryIssue} from the project page.
  */
 export async function voidInventoryMovement(formData: FormData) {
   const locale = await getServerLocale();
   try {
-    const session = await assertCanManageInventory(locale);
+    await assertCanManageInventory(locale);
     const company = await requireCompany(locale);
 
     const id = String(formData.get("id") ?? "").trim();
@@ -582,49 +729,53 @@ export async function voidInventoryMovement(formData: FormData) {
 
     const movement = await prisma.inventoryMovement.findFirst({
       where: { id, companyId: company.id, voidedAt: null },
-      include: { item: true },
+      select: {
+        id: true,
+        type: true,
+        itemId: true,
+        projectId: true,
+        quantity: true,
+        unitCost: true,
+      },
     });
     if (!movement) {
       throw new Error(translate(locale, "pages.inventory.movementNotFound"));
     }
-
-    const qty = new Prisma.Decimal(movement.quantity).toNumber();
-    const reverseQty = -qty;
-    const currentStock = decimalToNumber(movement.item.currentStock) ?? 0;
-    const newStock = currentStock + reverseQty;
-    if (newStock < -1e-9) {
+    if (movement.type === "ISSUE_TO_PROJECT") {
       throw new Error(
-        translate(locale, "pages.inventory.voidWouldGoNegative")
+        translate(locale, "pages.inventory.voidIssueFromProjectOnly")
       );
     }
 
-    const unitCost = decimalToNumber(movement.unitCost) ?? 0;
-    const totalCost = movementTotalCost(reverseQty, unitCost);
+    const qty = new Prisma.Decimal(movement.quantity).toNumber();
+    const reverseQty = -qty;
 
     await prisma.$transaction(async (tx) => {
-      await tx.inventoryMovement.update({
-        where: { id: movement.id },
+      const locked = await lockInventoryItemRow(tx, movement.itemId);
+      if (!locked) {
+        throw new Error(translate(locale, "pages.inventory.itemNotFound"));
+      }
+
+      const currentStock = decimalToNumber(locked.currentStock) ?? 0;
+      const newStock = currentStock + reverseQty;
+      if (newStock < -1e-9) {
+        throw new Error(
+          translate(locale, "pages.inventory.voidWouldGoNegative")
+        );
+      }
+
+      const voided = await tx.inventoryMovement.updateMany({
+        where: { id: movement.id, voidedAt: null },
         data: {
           voidedAt: new Date(),
           voidReason,
         },
       });
+      if (voided.count !== 1) {
+        throw new Error(translate(locale, "pages.inventory.movementNotFound"));
+      }
 
-      await tx.inventoryMovement.create({
-        data: {
-          companyId: company.id,
-          itemId: movement.itemId,
-          projectId: movement.projectId,
-          type: "ADJUSTMENT",
-          quantity: toDecimal(reverseQty),
-          unitCost: toDecimal(unitCost),
-          totalCost: toDecimal(totalCost),
-          movedAt: new Date(),
-          notes: `Void of ${movement.type}: ${voidReason}`,
-          createdById: session.user.id,
-        },
-      });
-
+      // Soft-void only — restore/reduce cached stock without a reverse ADJUSTMENT row.
       await tx.inventoryItem.update({
         where: { id: movement.itemId },
         data: { currentStock: toDecimal(Math.max(0, newStock)) },

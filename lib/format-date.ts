@@ -67,3 +67,23 @@ export function formatHeaderDate(
 ): string {
   return formatDisplayDate(value, undefined, locale);
 }
+
+/** Elapsed work time from actual timestamps (handles overnight shifts). */
+export function formatWorkDuration(
+  checkIn: Date | string | number,
+  checkOut: Date | string | number
+): string | null {
+  const start = toDate(checkIn);
+  const end = toDate(checkOut);
+  if (!start || !end) return null;
+
+  const totalMinutes = Math.floor((end.getTime() - start.getTime()) / 60_000);
+  if (totalMinutes < 0) return null;
+
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours}h`;
+  return `${minutes}m`;
+}

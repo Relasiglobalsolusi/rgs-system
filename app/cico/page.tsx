@@ -1,25 +1,45 @@
 import type { ProjectSubCategory } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireModule, getEmployeeForUser } from "@/lib/session";
+import {
+  requireModule,
+  getEmployeeForUser,
+  toPermissionUser,
+} from "@/lib/session";
 import { formatDisplayTime } from "@/lib/format-date";
-import { formatTimeRange } from "@/lib/operating-hours";
-import { formatDateInput, toUtcDateOnly } from "@/lib/invoice-period";
+import {
+  formatTimeRange,
+  isLateCheckIn,
+  resolveExpectedShiftStart,
+} from "@/lib/operating-hours";
+import {
+  formatDateInput,
+  parseDateInput,
+  toUtcDateOnly,
+} from "@/lib/invoice-period";
 import { getCicoWorkAttendance } from "@/lib/cico-attendance";
 import { formatAppDateInput } from "@/lib/progress-report-compliance";
 import { CLEANING_PROJECT_SUB_CATEGORIES } from "@/lib/project-subcategory";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
 import { refreshLeaveEmploymentForUser } from "@/lib/leave-employment-status";
+import {
+  canViewCicoAdminPreview,
+  canUseCicoAdminFieldPreview,
+  isCicoFieldEligible,
+} from "@/lib/cico-access";
+import type { AttendanceCheckInRow } from "@/components/attendance/AttendanceCheckInTable";
 
 import AppShell from "@/components/layout/AppShell";
 import SectionCard from "@/components/ui/SectionCard";
 import CicoActions from "@/components/cico/CicoActions";
 import CicoHistoryTable from "@/components/cico/CicoHistoryTable";
+import CicoAdminPreview from "@/components/cico/CicoAdminPreview";
 
 export default async function CicoPage() {
   const session = await requireModule("cico");
   const locale = await getServerLocale();
   const t = createTranslator(locale);
+  const permissionUser = toPermissionUser(session);
 
   // Client portal accounts never use CICO (employees only), even if overridden on.
   if (session.user.clientId) {
@@ -38,6 +58,227 @@ export default async function CicoPage() {
   await refreshLeaveEmploymentForUser(session.user.id);
   const employee = await getEmployeeForUser(session.user.id);
 
+  if (canViewCicoAdminPreview(permissionUser, employee)) {
+    const companyId = session.user.companyId;
+    const todayInput = formatDateInput(toUtcDateOnly(new Date()));
+    const reportDate = parseDateInput(todayInput);
+    const cleaningSubs: ProjectSubCategory[] = [
+      ...CLEANING_PROJECT_SUB_CATEGORIES,
+    ];
+    const adminFieldMode = canUseCicoAdminFieldPreview(permissionUser);
+
+    const inProgressWithLocation = {
+      companyId,
+      status: "IN_PROGRESS" as const,
+      latitude: { not: null },
+      longitude: { not: null },
+    };
+
+    const [dayAttendance, assignmentShifts, previewAssignment, cleaningProjects, fallbackProjects] =
+      await Promise.all([
+        prisma.attendance.findMany({
+          where: {
+            date: reportDate,
+            employee: { companyId },
+          },
+          include: {
+            employee: {
+              select: {
+                firstName: true,
+                lastName: true,
+                employeeNo: true,
+              },
+            },
+            project: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+          orderBy: [{ checkIn: "asc" }, { employee: { firstName: "asc" } }],
+        }),
+        prisma.projectAssignment.findMany({
+          where: {
+            project: { companyId },
+          },
+          select: {
+            employeeId: true,
+            projectId: true,
+            shiftStart: true,
+            shiftEnd: true,
+          },
+        }),
+        adminFieldMode
+          ? Promise.resolve(null)
+          : prisma.projectAssignment.findFirst({
+              where: {
+                project: {
+                  ...inProgressWithLocation,
+                  subCategory: { in: cleaningSubs },
+                },
+              },
+              include: {
+                project: {
+                  select: {
+                    id: true,
+                    name: true,
+                    location: true,
+                    locationRadiusMeters: true,
+                  },
+                },
+              },
+              orderBy: { project: { name: "asc" } },
+            }),
+        adminFieldMode
+          ? prisma.project.findMany({
+              where: {
+                ...inProgressWithLocation,
+                subCategory: { in: cleaningSubs },
+              },
+              select: {
+                id: true,
+                name: true,
+                location: true,
+                locationRadiusMeters: true,
+              },
+              orderBy: { name: "asc" },
+            })
+          : Promise.resolve([]),
+        adminFieldMode
+          ? prisma.project.findMany({
+              where: inProgressWithLocation,
+              select: {
+                id: true,
+                name: true,
+                location: true,
+                locationRadiusMeters: true,
+              },
+              orderBy: { name: "asc" },
+            })
+          : Promise.resolve([]),
+      ]);
+
+    const adminProjects =
+      adminFieldMode && cleaningProjects.length > 0
+        ? cleaningProjects
+        : adminFieldMode
+          ? fallbackProjects
+          : [];
+
+    const adminTodayRecordPromise =
+      adminFieldMode && employee
+        ? getCicoWorkAttendance(employee.id)
+        : Promise.resolve(null);
+
+    const adminTodayRecord = await adminTodayRecordPromise;
+
+    const adminWorkDate = adminTodayRecord?.date
+      ? formatDateInput(toUtcDateOnly(adminTodayRecord.date))
+      : todayInput;
+
+    const progressCount =
+      adminFieldMode &&
+      employee &&
+      adminTodayRecord?.projectId &&
+      adminTodayRecord.checkIn &&
+      !adminTodayRecord.checkOut
+        ? await prisma.progressReport.count({
+            where: {
+              employeeId: employee.id,
+              projectId: adminTodayRecord.projectId,
+              reportDate: toUtcDateOnly(adminTodayRecord.date),
+            },
+          })
+        : 0;
+
+    const hasProgressReport = progressCount > 0;
+
+    const shiftKey = (employeeId: string, projectIdValue: string | null) =>
+      `${employeeId}:${projectIdValue ?? ""}`;
+
+    const shiftMap = new Map(
+      assignmentShifts.map((assignment) => [
+        shiftKey(assignment.employeeId, assignment.projectId),
+        assignment,
+      ])
+    );
+
+    const attendanceRows: AttendanceCheckInRow[] = dayAttendance.map((row) => {
+      const assignment = row.project
+        ? shiftMap.get(shiftKey(row.employeeId, row.project.id))
+        : undefined;
+      const expected = resolveExpectedShiftStart(assignment);
+      const isLate =
+        row.checkIn != null ? isLateCheckIn(row.checkIn, expected) : null;
+
+      return {
+        id: row.id,
+        date: row.date,
+        checkIn: row.checkIn,
+        checkOut: row.checkOut,
+        checkInDistanceMeters: row.checkInDistanceMeters,
+        checkOutDistanceMeters: row.checkOutDistanceMeters,
+        checkInPhotoUrl: row.checkInPhotoUrl,
+        note: row.note,
+        isLate,
+        shiftLabel: formatTimeRange(
+          assignment?.shiftStart ?? null,
+          assignment?.shiftEnd ?? null
+        ),
+        employee: row.employee,
+        project: row.project ? { name: row.project.name } : null,
+      };
+    });
+
+    const openCheckInCount = attendanceRows.filter(
+      (row) => row.checkIn && !row.checkOut
+    ).length;
+
+    const previewProject = previewAssignment
+      ? {
+          id: previewAssignment.project.id,
+          name: previewAssignment.project.name,
+          location: previewAssignment.project.location,
+          locationRadiusMeters: previewAssignment.project.locationRadiusMeters,
+          shiftStart: previewAssignment.shiftStart,
+          shiftEnd: previewAssignment.shiftEnd,
+        }
+      : null;
+
+    const selectableProjects = adminProjects.map((project) => ({
+      id: project.id,
+      name: project.name,
+      location: project.location,
+      locationRadiusMeters: project.locationRadiusMeters,
+      shiftStart: null as string | null,
+      shiftEnd: null as string | null,
+    }));
+
+    return (
+      <AppShell
+        titleKey="pages.cico.title"
+        descriptionKey={
+          adminFieldMode
+            ? "pages.cico.adminPreview.fieldPageDescription"
+            : "pages.cico.adminPreview.pageDescription"
+        }
+      >
+        <CicoAdminPreview
+          attendanceRows={attendanceRows}
+          openCheckInCount={openCheckInCount}
+          previewProject={previewProject}
+          workDate={adminWorkDate}
+          adminFieldMode={adminFieldMode}
+          selectableProjects={selectableProjects}
+          todayRecord={adminTodayRecord}
+          hasProgressReport={hasProgressReport}
+          hasEmployeeProfile={!!employee}
+        />
+      </AppShell>
+    );
+  }
+
   if (!employee) {
     return (
       <AppShell
@@ -51,20 +292,20 @@ export default async function CicoPage() {
     );
   }
 
-  if (employee.archivedFromDirectory || employee.status !== "ACTIVE") {
-    return (
-      <AppShell
-        titleKey="pages.cico.title"
-        descriptionKey="pages.cico.description"
-      >
-        <SectionCard>
-          <p className="text-subtle">{t("pages.cico.activeOnlyMessage")}</p>
-        </SectionCard>
-      </AppShell>
-    );
-  }
+  if (!isCicoFieldEligible(employee)) {
+    if (employee.archivedFromDirectory || employee.status !== "ACTIVE") {
+      return (
+        <AppShell
+          titleKey="pages.cico.title"
+          descriptionKey="pages.cico.description"
+        >
+          <SectionCard>
+            <p className="text-subtle">{t("pages.cico.activeOnlyMessage")}</p>
+          </SectionCard>
+        </AppShell>
+      );
+    }
 
-  if (employee.placement !== "ON_PROJECT") {
     return (
       <AppShell
         titleKey="pages.cico.title"

@@ -207,6 +207,26 @@ export function canManageInventory(
 }
 
 /**
+ * Finance → Financial Report (client / project P&L).
+ * HO admin / HO staff with invoicing only — never client or vendor portals,
+ * and never PROJECT_SITE staff even with a mistaken override.
+ */
+export function canViewFinancialReport(
+  user: PermissionUser &
+    AccountTypeUser & { clientId?: string | null; vendorId?: string | null }
+) {
+  if (isClientPortalUser(user) || isVendorPortalUser(user)) return false;
+  if (!canAccess(user, "invoicing")) return false;
+  if (isAdminAccount(user)) return true;
+
+  const employeeType =
+    user.employee?.employeeType ?? user.employeeType ?? null;
+  if (employeeType === "PROJECT_SITE") return false;
+
+  return true;
+}
+
+/**
  * Employee directory create/edit/delete.
  * Admin accounts and HEAD_OFFICE staff with the employees module.
  * Field / project-site staff cannot manage even with a mistaken override.

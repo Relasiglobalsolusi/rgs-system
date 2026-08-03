@@ -100,7 +100,7 @@ export async function setInitialPassword(
     where: { id: user.id },
     data: {
       passwordHash,
-      passwordDisplay: null,
+      passwordDisplay: password,
       mustSetPassword: false,
       email: recoveryEmail,
       passwordSetupCompletedAt: new Date(),

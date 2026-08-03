@@ -1,5 +1,9 @@
+import {
+  filterLeaveRequestsForReviewer,
+  resolveLeaveReviewerProfile,
+} from "@/lib/leave-approval-hierarchy";
 import { prisma } from "@/lib/prisma";
-import { requireModule } from "@/lib/session";
+import { requireModule, toPermissionUser } from "@/lib/session";
 
 import AppShell from "@/components/layout/AppShell";
 import SectionCard from "@/components/ui/SectionCard";
@@ -10,16 +14,35 @@ export default async function ApprovalsPage() {
   const session = await requireModule("approvals");
   const companyId = session.user.companyId;
 
-  const pending = companyId
+  const reviewer = await resolveLeaveReviewerProfile({
+    userId: session.user.id,
+    username: session.user.username,
+    permissionUser: toPermissionUser(session),
+  });
+
+  const pendingRaw = companyId
     ? await prisma.leaveRequest.findMany({
         where: {
           status: "PENDING",
           employee: { companyId },
         },
-        include: { employee: true },
+        include: {
+          employee: {
+            include: {
+              jobPosition: { select: { slug: true, name: true } },
+              projectAssignments: {
+                select: {
+                  project: { select: { serviceArea: true, status: true } },
+                },
+              },
+            },
+          },
+        },
         orderBy: { createdAt: "asc" },
       })
     : [];
+
+  const pending = filterLeaveRequestsForReviewer(pendingRaw, reviewer);
 
   return (
     <AppShell

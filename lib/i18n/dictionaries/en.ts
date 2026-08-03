@@ -25,6 +25,8 @@ export const en = {
     dragToReorder: "Drag To Reorder",
     reorder: "Reorder",
     close: "Close",
+    previousPhoto: "Previous Photo",
+    nextPhoto: "Next Photo",
     noRecordsFound: "No records found.",
     breadcrumb: "Breadcrumb",
     selectAll: "Select All",
@@ -224,6 +226,7 @@ export const en = {
       "Upload History": "Upload History",
       "Payment & Settlement": "Payment & Settlement",
       THR: "THR",
+      "Financial Report": "Financial Report",
       "Progress Reports": "Progress Reports",
       CICO: "CICO",
       "Attendance Report": "Attendance Report",
@@ -514,6 +517,7 @@ export const en = {
       serviceAreaCleaning: "Cleaning",
       serviceAreaParking: "Parking",
       serviceAreaSecurity: "Security",
+      serviceAreaHeadOffice: "Head Office",
       subcategory: "Subcategory",
       billingPeriodBasis: "Billing Periods",
       billingPeriodBasisCalendarMonth: "Calendar Month",
@@ -755,7 +759,17 @@ export const en = {
         inventoryIssueUnitCost: "Unit Cost",
         inventoryIssueTotal: "Total Cost",
         inventoryIssueDate: "Date",
+        inventoryIssueActions: "Actions",
         viewInventory: "Open Inventory",
+        assignStock: "Assign Stock",
+        voidIssue: "Void Issue",
+        voidIssueTitle: "Void Inventory Issue",
+        voidIssueDesc:
+          "This returns the quantity to inventory and removes the cost from this project.",
+        voidIssueConfirm: "Void Issue",
+        voidIssueSuccess: "Inventory issue voided. Stock restored.",
+        voidReason: "Void Reason",
+        voidReasonPlaceholder: "Why is this issue being voided?",
       },
       filterAllProjects: "All Projects",
       staffPicker: {
@@ -1753,7 +1767,7 @@ export const en = {
           "Choose a position available for the selected department.",
         approvalAreas: "Approval Areas",
         approvalAreasHint:
-          "Select at least one service area this Operations Manager may approve.",
+          "Select at least one area this Operations Manager may approve — Cleaning, Security, Parking for site crews, and Head Office for desk staff leave.",
         startDate: "Start Date",
         startDateHint: "Employee hire or start date for tenure tracking.",
         contactEmail: "Contact email",
@@ -2025,7 +2039,7 @@ export const en = {
       noPasswordOnFile:
         "No password set yet (first-login pending).",
       passwordHiddenOnFile:
-        "Password set (not shown). Recoverable copy is only kept for admin-issued temporary passwords.",
+        "Password set (not shown). No recoverable copy on file — use Reset Account to issue a new temporary password.",
       firstLoginComplete: "First-Login Complete",
       firstLoginPending: "First-Login Pending",
       linkedEmployee: "Linked Employee: {label}",
@@ -2084,15 +2098,12 @@ export const en = {
         recoveryEmail: "Recovery Email",
         recoveryEmailPlaceholder: "password-reset@company.co.id",
         temporaryPassword: "Temporary Password",
-        newPassword: "New Password",
-        passwordKeepHint: "Leave blank to keep the current password.",
         passwordCreateHint:
           "Optional. Leave blank for first-login setup, or set a temporary password the user must change.",
-        newPasswordPlaceholder: "New password (optional)",
         tempPasswordPlaceholder: "Temporary password (optional)",
         currentPassword: "Current Password",
         currentPasswordHint:
-          "Recoverable copy when an admin issues a temporary password. Cleared after the user sets their own password.",
+          "Admin recoverable copy of the current password when available. Updated when the user or admin changes the password.",
         accountLink: "Account Link",
         unlinkedAdmin:
           "Unlinked admin account (no employee or client link).",
@@ -2100,9 +2111,9 @@ export const en = {
           "Links are set when the account is created from the Employee or Client directory and cannot be changed here.",
         resetAccount: "Reset Account",
         resetAccountHint:
-          "Force first-login setup again. Clears recovery email and password; employee/client links are not changed.",
+          "Force first-login setup again. Clears recovery email, issues a temporary password (shown in Current Password), and requires the user to choose a new password. Employee/client links are not changed.",
         resetAccountConfirm:
-          'Reset account for "{username}"?\n\nThis clears the recovery email and password. The user must complete first-login setup again (set password + recovery email). Employee/client links are kept.',
+          'Reset account for "{username}"?\n\nThis clears the recovery email and issues a temporary password (visible in Current Password after reset). The user must complete first-login setup again (set password + recovery email). Employee/client links are kept.',
         you: "(You)",
       },
       errors: {
@@ -2574,6 +2585,89 @@ export const en = {
       filterResultsInFor: '{count} results in {type} for "{query}"',
       breadcrumbAria: "Breadcrumb",
     },
+    financialReport: {
+      title: "Financial Report",
+      description:
+        "Client and project P&L from contract value, confirmed payments, inventory issues, and assigned employee wages.",
+      clientProjectsDesc: "Project financial summary for this client.",
+      projectDetailDesc: "P&L for {client}.",
+      totalClients: "Total Clients",
+      withProjects: "With Projects",
+      totalContractValue: "Total Contract Value",
+      acrossClients: "Across Clients",
+      totalSpending: "Total Spending",
+      totalProfit: "Total Profit",
+      contractMinusSpending: "Contract Value − Spending",
+      contractValueHint: "Sum of project contract prices.",
+      spendingHint: "Inventory issued to projects plus assigned employee wages.",
+      moneyIn: "Money In",
+      moneyInHint: "Confirmed paid invoices.",
+      moneyOut: "Money Out",
+      moneyOutHint: "Inventory issued plus assigned employee wages.",
+      moneyOutBreakdownTitle: "Money Out Breakdown",
+      moneyOutBreakdownDesc:
+        "Inventory issues plus prorated monthly base pay for employees currently assigned to this project.",
+      inventoryOut: "Inventory",
+      wagesOut: "Wages",
+      moneyOutTotal: "Total Money Out",
+      profit: "Profit",
+      profitHint: "Money In − Money Out",
+      margin: "Margin",
+      marginHint: "Profit ÷ Money In",
+      contractValue: "Contract Value",
+      paymentsTitle: "Payments Received",
+      paymentsDesc: "Invoice periods marked Paid after payment confirmation.",
+      inventoryTitle: "Inventory Issues",
+      inventoryDesc: "Non-voided stock issued to this project.",
+      wagesTitle: "Wages By Employee",
+      wagesDesc:
+        "Prorated monthly base pay from assignment date through today or the project end date. Only current assignees are included; released staff are not kept in assignment history.",
+      emptyClients: "No Clients Yet",
+      emptyClientsDesc: "Add clients and projects to see financial reports.",
+      emptyProjects: "No In Progress Projects",
+      emptyProjectsDesc:
+        "This client has no In Progress projects to report.",
+      emptyPayments: "No Confirmed Payments",
+      emptyPaymentsDesc:
+        "Paid invoices for this project will appear here after payment is confirmed.",
+      emptyInventory: "No Inventory Issues",
+      emptyInventoryDesc:
+        "Stock issued to this project will appear here as money out.",
+      emptyWages: "No Assigned Employees",
+      emptyWagesDesc:
+        "Wage cost appears here for employees currently assigned to this project who have base pay set.",
+      noClientsMatch: "No clients match your search.",
+      noProjectsMatch: "No projects match your filters.",
+      searchClients: "Search Clients",
+      searchProjects: "Search Projects",
+      filterSubcategory: "Filter By Type",
+      filterResults: "{count} results",
+      filterResultsIn: "{count} results in {type}",
+      filterResultsFor: '{count} results for "{query}"',
+      filterResultsInFor: '{count} results in {type} for "{query}"',
+      clientOne: "{count} client",
+      clientOther: "{count} clients",
+      projectOne: "{count} project",
+      projectOther: "{count} projects",
+      invoicePeriodFallback: "Invoice Period",
+      columns: {
+        client: "Client",
+        project: "Project",
+        contractValue: "Contract Value",
+        spending: "Spending",
+        profit: "Profit",
+        period: "Period",
+        paidAt: "Paid At",
+        amount: "Amount",
+        item: "Item",
+        issuedAt: "Issued At",
+        quantity: "Quantity",
+        employee: "Employee",
+        monthlyBasePay: "Monthly Base Pay",
+        assignmentPeriod: "Cost Period",
+        wageCost: "Wage Cost",
+      },
+    },
     thr: {
       title: "THR",
       description:
@@ -2695,6 +2789,8 @@ export const en = {
       myReportsTitle: "My Progress Reports",
       myReportsHint:
         "Upload Progress Reports while working. You must submit at least one Progress Report before CICO check-out.",
+      checkInRequiredMessage:
+        "Check in via CICO for your project before submitting a Progress Report.",
       onLeaveMessage:
         "Progress reports are paused while you are On Leave. Contact Head Office if your status should be updated.",
       leavePendingMessage:
@@ -2704,9 +2800,14 @@ export const en = {
       dialogTitle: "Progress Report",
       dialogDescription:
         "Field cleaning staff: select your project, service area, and notes, then upload site photos. You may submit multiple reports per project and day. Project, Service Area, Notes, and at least one photo are required.",
+      dialogDescriptionCicoLocked:
+        "Field cleaning staff: select your service area and notes, then upload site photos for today's open CICO work day. Project, Service Area, Notes, and at least one photo are required.",
       editDialogTitle: "Edit Progress Report",
       editDialogDescription:
-        "Update the service area, notes, date, or photos for this progress report. Keep or add at least one photo.",
+        "Update the service area, notes, or photos for this progress report. The report date cannot be changed. Keep or add at least one photo.",
+      dateLockedCicoHint:
+        "Report date is locked to your open CICO work day for this project.",
+      dateLockedEditHint: "Report date cannot be changed after submit.",
       saveChanges: "Save Changes",
       emptyTitle: "No Progress Reports",
       emptyDescription:
@@ -2793,6 +2894,15 @@ export const en = {
         reportNotFound: "Progress report not found.",
         editDenied:
           "Only the report author can edit this progress report.",
+        checkInRequired:
+          "You must check in via CICO before submitting a Progress Report.",
+        checkInRequiredForProject:
+          "You must be checked in via CICO for this project before submitting a Progress Report.",
+        reportDateMustMatchCico:
+          "Progress Report date must match your open CICO work day for this project.",
+        reportDateLocked: "Progress Report date cannot be changed.",
+        editDayLocked:
+          "This progress report can no longer be edited after the day is over.",
         reorderDenied: "You do not have permission to reorder progress reports.",
         companyNotFound: "Company not found.",
         nothingToReorder: "Nothing to reorder.",
@@ -2916,6 +3026,43 @@ export const en = {
         duration: "Duration",
         location: "Location",
       },
+      adminPreview: {
+        pageDescription:
+          "Preview the field check-in flow and monitor today's site CICO activity.",
+        fieldPageDescription:
+          "Use field CICO as if assigned to a project and monitor today's site activity.",
+        bannerTitle: "Preview Mode — Check-In Disabled",
+        bannerBody:
+          "Head Office accounts can review today's CICO activity and the field worker layout here. Operational check-in and check-out remain for Active On Project cleaning staff only.",
+        fieldBannerTitle: "Admin Field Preview",
+        fieldBannerBody:
+          "You are using CICO as if assigned to this project. Real attendance may be recorded on your linked employee profile.",
+        checkedInToday: "Checked In Today",
+        openCheckIns: "Open Check-Ins",
+        sitesWithActivity: "Sites With Activity",
+        viewAttendanceReport: "Attendance Report",
+        viewProjects: "Projects",
+        todaysSiteCheckIns: "Today's Site Check-Ins",
+        noCheckInsToday: "No check-ins recorded yet today.",
+        fieldWorkerPreview: "Field Worker Layout",
+        fieldWorkerPreviewHint:
+          "Sample project layout — controls are disabled for Head Office accounts.",
+        fieldWorkerFlow: "Field CICO",
+        fieldWorkerFlowHint:
+          "Select an In Progress project, then check in at site. Geofence, photo, and Progress Report rules still apply.",
+        controlsDisabled:
+          "Check-in, check-out, and photo upload are disabled in preview mode.",
+        noSampleProject:
+          "No In Progress cleaning project with a site location is available for preview.",
+        noSelectableProject:
+          "No In Progress project with a site location is available. Add coordinates to a project first.",
+        noEmployeeProfile:
+          "Your admin account needs a linked employee profile to record CICO attendance.",
+        footerNote:
+          "This is a read-only preview. Use Attendance Report for live monitoring and Projects to manage site assignments.",
+        fieldFooterNote:
+          "Attendance is recorded on your employee profile. You must be within the site geofence to check in or out.",
+      },
     },
     attendance: {
       title: "Attendance Report",
@@ -3020,6 +3167,7 @@ export const en = {
         companyNotFound: "Company not found.",
         leaveNotFound: "Leave request not found.",
         alreadyReviewed: "This request has already been reviewed.",
+        notAllowedToApprove: "You are not allowed to approve this request.",
       },
       requestType: "Request type",
       startDate: "Start date",
@@ -3059,16 +3207,41 @@ export const en = {
     reports: {
       title: "Monthly Reports",
       description:
-        "Download monthly project and attendance summaries for reporting.",
+        "Browse daily Progress Reports and CICO by client and project.",
       descriptionClient:
-        "Monthly compilation for invoicing across your projects.",
+        "Browse daily Progress Reports and CICO for your projects.",
       descriptionAdmin:
-        "Monthly compilation for invoicing and operational review.",
+        "Browse daily Progress Reports and CICO across clients and projects.",
+      breadcrumbAria: "Monthly reports navigation",
+      clientProjectsDesc: "Choose a project to view its monthly report.",
+      selectPeriod: "Select Month",
+      selectPeriodDesc:
+        "Choose the month and year to browse daily Progress Reports and CICO for this project.",
+      periodRangeHint: "Available from {from} through {to}.",
+      viewReport: "View Report",
+      changePeriod: "Change Period",
+      searchClients: "Search clients…",
+      searchProjects: "Search projects…",
+      noClients: "No Clients",
+      noClientsDesc: "No clients with accessible projects were found.",
+      noClientsMatch: "No clients match your search.",
+      noProjects: "No Projects",
+      noProjectsDesc: "This client has no projects you can view.",
+      noProjectsMatch: "No projects match your search.",
+      backToProjects: "Projects",
+      emptyDay: "No Progress Report or CICO recorded for this day.",
+      noProgressForEmployee:
+        "No Progress Report for this employee on this day.",
+      noCicoForEmployee: "No CICO for this employee on this day.",
+      cicoCheckIn: "Check-In",
+      cicoCheckOut: "Check-Out",
+      cicoDurationOfWork: "Duration Of Work",
+      cicoInProgress: "In progress",
+      progressPhoto: "Progress photo",
       reportFor: "Report for {period}",
       projectOne: "{count} project",
       projectOther: "{count} projects",
       matchingFilters: "matching filters",
-      searchProjects: "Search projects…",
       lockReport: "Lock Report",
       locking: "Locking…",
       locked: "Locked",
@@ -3076,6 +3249,7 @@ export const en = {
         "Lock this month's report? Data will be snapshotted for invoicing.",
       lockFailed: "Failed to lock report.",
       downloadPdf: "Download PDF",
+      downloadProgressReport: "Download {period} Progress Report",
       exportPdfFailed: "Failed to export PDF.",
       noReports: "No reports for this month.",
       noClientLocation: "No client / location",
@@ -3232,6 +3406,14 @@ export const en = {
         "Items are the catalog only. Purchases add stock from vendors. Project issues assign cost to projects. Stock shows on-hand quantities.",
       companyNotFound: "Company not found.",
       permissionDenied: "You do not have permission to manage inventory.",
+      assignPermissionDenied:
+        "Only an Operations Manager, Director, or HO admin can assign or void project inventory.",
+      voidIssueFromProjectOnly:
+        "Project inventory issues can only be voided from the project page.",
+      noStockToIssue:
+        "No items have available stock. Record a purchase before assigning to a project.",
+      quantityExceedsStock:
+        "Quantity exceeds available stock. Available: {available} {unit}.",
       costingNote:
         "Stock value and project issue costs use running weighted-average unit cost. Last purchase unit cost is shown for reference.",
       searchPlaceholder: "Search items, vendors, projects…",

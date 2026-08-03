@@ -421,34 +421,28 @@ export default function UserDialog(props: Props) {
                   />
                 </div>
 
-                <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
-                  <label
-                    htmlFor="user-password"
-                    className="text-sm font-medium text-text"
-                  >
-                    {isEdit
-                      ? t("pages.users.form.newPassword")
-                      : t("pages.users.form.temporaryPassword")}
-                  </label>
-                  <p className="text-xs text-muted">
-                    {isEdit
-                      ? t("pages.users.form.passwordKeepHint")
-                      : t("pages.users.form.passwordCreateHint")}
-                  </p>
-                  <Input
-                    id="user-password"
-                    name="password"
-                    type="password"
-                    placeholder={
-                      isEdit
-                        ? t("pages.users.form.newPasswordPlaceholder")
-                        : t("pages.users.form.tempPasswordPlaceholder")
-                    }
-                    minLength={6}
-                    autoComplete="new-password"
-                    className={employeeInputClass}
-                  />
-                </div>
+                {!isEdit ? (
+                  <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+                    <label
+                      htmlFor="user-password"
+                      className="text-sm font-medium text-text"
+                    >
+                      {t("pages.users.form.temporaryPassword")}
+                    </label>
+                    <p className="text-xs text-muted">
+                      {t("pages.users.form.passwordCreateHint")}
+                    </p>
+                    <Input
+                      id="user-password"
+                      name="password"
+                      type="password"
+                      placeholder={t("pages.users.form.tempPasswordPlaceholder")}
+                      minLength={6}
+                      autoComplete="new-password"
+                      className={employeeInputClass}
+                    />
+                  </div>
+                ) : null}
 
                 {isEdit && props.user.passwordDisplay !== undefined ? (
                   <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>

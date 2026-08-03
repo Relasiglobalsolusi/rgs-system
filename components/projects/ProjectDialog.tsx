@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/use-directory-dialog-open";
 import { FolderKanban } from "lucide-react";
 import { PROJECT_SUB_CATEGORIES } from "@/lib/project-subcategory";
+import type { ProjectServiceAreaValue } from "@/lib/service-area";
 import {
   DEFAULT_CONTRACT_DURATION_MONTHS,
   DEFAULT_PROJECT_DURATION_DAYS,
@@ -138,9 +139,7 @@ export default function ProjectDialog({
   const [initialStatus, setInitialStatus] = useState<InitialStatus>("PLANNED");
   const [subCategory, setSubCategory] =
     useState<ProjectSubCategory>("REGULAR_CLEANING");
-  const [serviceArea, setServiceArea] = useState<
-    "CLEANING" | "PARKING" | "SECURITY"
-  >("CLEANING");
+  const [serviceArea, setServiceArea] = useState<ProjectServiceAreaValue>("CLEANING");
   const [billingMode, setBillingMode] = useState<BillingMode>(
     defaultBillingMode("REGULAR_CLEANING")
   );
@@ -460,7 +459,7 @@ export default function ProjectDialog({
                 { value: "SECURITY", label: t("pages.projects.serviceAreaSecurity") },
               ]}
               onChange={(value) =>
-                setServiceArea(value as "CLEANING" | "PARKING" | "SECURITY")
+                setServiceArea(value as ProjectServiceAreaValue)
               }
               columns={3}
             />

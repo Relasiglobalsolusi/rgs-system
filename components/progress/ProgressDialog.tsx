@@ -51,6 +51,12 @@ export type EditableProgressReport = {
   photos: { id: string; url: string }[];
 };
 
+type OpenCicoLock = {
+  projectId: string;
+  /** YYYY-MM-DD Asia/Jakarta CICO work day */
+  workDate: string;
+};
+
 type Props = {
   projects: Project[];
   defaultDate?: string;
@@ -63,6 +69,11 @@ type Props = {
   hideTrigger?: boolean;
   /** When set, dialog edits this report instead of creating a new one. */
   editReport?: EditableProgressReport | null;
+  /**
+   * Open CICO for this employee — when the selected project matches, report
+   * date is forced to that work day (read-only).
+   */
+  openCicoLock?: OpenCicoLock | null;
 };
 
 const FORM_ID = "progress-report-form";
@@ -76,6 +87,7 @@ export default function ProgressDialog({
   onOpenChange,
   hideTrigger = false,
   editReport = null,
+  openCicoLock = null,
 }: Props) {
   const { t } = useT();
   const router = useRouter();
@@ -102,13 +114,33 @@ export default function ProgressDialog({
   const dateDefault =
     editReport?.reportDate || defaultDate || todayDateInput();
 
+  // Create requires open CICO — date/project locked to that attendance work day.
+  const createNeedsCheckIn = !isEdit && !openCicoLock;
+  const cicoLockedDate =
+    !isEdit && openCicoLock ? openCicoLock.workDate : null;
+  // Staff edit: date is always locked. Create: locked to open CICO work day.
+  const lockedDate = isEdit
+    ? (editReport?.reportDate ?? dateDefault)
+    : cicoLockedDate;
+  const dateLocked = Boolean(lockedDate);
+  const effectiveDate = lockedDate ?? dateDefault;
+
+  const createProjects =
+    !isEdit && openCicoLock
+      ? projects.filter((p) => p.id === openCicoLock.projectId)
+      : projects;
+
   const editProjects =
     isEdit && editReport
       ? [{ id: editReport.projectId, name: editReport.projectName }]
-      : projects;
+      : createProjects;
+
+  const lockedCreateProjectId =
+    !isEdit && openCicoLock ? openCicoLock.projectId : null;
 
   const canSubmit =
-    Boolean(projectId.trim()) &&
+    !createNeedsCheckIn &&
+    Boolean((lockedCreateProjectId ?? projectId).trim()) &&
     Boolean(stageLabel.trim()) &&
     Boolean(notes.trim());
 
@@ -132,12 +164,28 @@ export default function ProgressDialog({
   }
 
   async function submit(formData: FormData) {
-    const nextProjectId = projectId.trim();
+    const nextProjectId = (lockedCreateProjectId ?? projectId).trim();
     const nextStageLabel = stageLabel.trim();
     const nextNotes = notes.trim();
 
+    if (!isEdit && !openCicoLock) {
+      showRejection({
+        reasons: t("pages.progress.errors.checkInRequired"),
+      });
+      return;
+    }
     if (!nextProjectId) {
       showRejection({ reasons: t("pages.progress.projectRequired") });
+      return;
+    }
+    if (
+      !isEdit &&
+      openCicoLock &&
+      nextProjectId !== openCicoLock.projectId
+    ) {
+      showRejection({
+        reasons: t("pages.progress.errors.checkInRequiredForProject"),
+      });
       return;
     }
     if (!nextStageLabel) {
@@ -152,8 +200,19 @@ export default function ProgressDialog({
     formData.set("projectId", nextProjectId);
     formData.set("stageLabel", nextStageLabel);
     formData.set("notes", nextNotes);
+    if (dateLocked && lockedDate) {
+      formData.set("date", lockedDate);
+    } else if (!isEdit && openCicoLock) {
+      formData.set("date", openCicoLock.workDate);
+    }
 
     if (isEdit && editReport) {
+      if (editReport.reportDate !== todayDateInput()) {
+        showRejection({
+          reasons: t("pages.progress.errors.editDayLocked"),
+        });
+        return;
+      }
       formData.set("reportId", editReport.id);
       formData.delete("keepPhotoIds");
       for (const id of keptPhotoIds) {
@@ -197,7 +256,9 @@ export default function ProgressDialog({
           if (editReport) {
             syncFromEdit(editReport);
           } else {
-            setProjectId(defaultProjectId ?? "");
+            setProjectId(
+              openCicoLock?.projectId ?? defaultProjectId ?? ""
+            );
             setStageLabel("");
             setNotes("");
             setKeptPhotoIds([]);
@@ -228,7 +289,9 @@ export default function ProgressDialog({
         description={
           isEdit
             ? t("pages.progress.editDialogDescription")
-            : t("pages.progress.dialogDescription")
+            : createNeedsCheckIn
+              ? t("pages.progress.checkInRequiredMessage")
+              : t("pages.progress.dialogDescriptionCicoLocked")
         }
         maxWidth="lg"
         footer={
@@ -245,6 +308,12 @@ export default function ProgressDialog({
         }
       >
         <form id={FORM_ID} action={submit} className={employeeDialogFormClass}>
+          {createNeedsCheckIn ? (
+            <p className="text-sm text-amber-200/90">
+              {t("pages.progress.errors.checkInRequired")}
+            </p>
+          ) : null}
+
           <div className={employeeDialogFieldClass}>
             <label className="text-sm font-medium text-text">
               {t("pages.progress.selectProject")}{" "}
@@ -252,14 +321,19 @@ export default function ProgressDialog({
                 {t("pages.progress.required")}
               </span>
             </label>
-            {isEdit ? (
+            {isEdit || lockedCreateProjectId ? (
               <>
-                <input type="hidden" name="projectId" value={projectId} />
+                <input
+                  type="hidden"
+                  name="projectId"
+                  value={lockedCreateProjectId ?? projectId}
+                />
                 <Input
                   type="text"
                   value={
-                    editProjects.find((p) => p.id === projectId)?.name ??
-                    projectId
+                    editProjects.find(
+                      (p) => p.id === (lockedCreateProjectId ?? projectId)
+                    )?.name ?? (lockedCreateProjectId ?? projectId)
                   }
                   readOnly
                   className={employeeInputClass}
@@ -296,14 +370,32 @@ export default function ProgressDialog({
             <label className="text-sm font-medium text-text">
               {t("common.labels.date")}
             </label>
-            <Input
-              name="date"
-              type="date"
-              defaultValue={dateDefault}
-              key={`${editReport?.id ?? "new"}-${dateDefault}`}
-              required
-              className={employeeInputClass}
-            />
+            {dateLocked && lockedDate ? (
+              <>
+                <input type="hidden" name="date" value={lockedDate} />
+                <Input
+                  type="date"
+                  value={lockedDate}
+                  readOnly
+                  className={cn(employeeInputClass, "bg-inset text-muted")}
+                />
+                <p className="text-xs text-subtle">
+                  {isEdit
+                    ? t("pages.progress.dateLockedEditHint")
+                    : t("pages.progress.dateLockedCicoHint")}
+                </p>
+              </>
+            ) : (
+              <Input
+                name="date"
+                type="date"
+                defaultValue={effectiveDate}
+                key={`${editReport?.id ?? "new"}-${projectId}-${effectiveDate}`}
+                required
+                disabled={createNeedsCheckIn}
+                className={employeeInputClass}
+              />
+            )}
           </div>
 
           <div className={employeeDialogFieldClass}>

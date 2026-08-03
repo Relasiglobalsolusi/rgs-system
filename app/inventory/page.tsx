@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { canAssignInventoryToProject } from "@/lib/inventory-access";
 import { canManageInventory } from "@/lib/project-access";
 import { decimalToNumber } from "@/lib/project-billing";
 import { INVENTORY_ISSUE_PROJECT_STATUSES } from "@/lib/inventory";
@@ -11,7 +12,15 @@ import T from "@/components/i18n/T";
 
 export default async function InventoryPage() {
   const session = await requireModule("inventory");
-  const canManage = canManageInventory(toPermissionUser(session));
+  const permissionUser = toPermissionUser(session);
+  const canManage = canManageInventory(permissionUser);
+  const canAssignToProject = await canAssignInventoryToProject(
+    session.user.id,
+    {
+      ...permissionUser,
+      username: session.user.username,
+    }
+  );
 
   const company = await prisma.company.findFirst({ select: { id: true } });
   if (!company) {
@@ -129,6 +138,7 @@ export default async function InventoryPage() {
 
       <InventoryWorkspace
         canManage={canManage}
+        canAssignToProject={canAssignToProject}
         items={catalogItems}
         purchases={purchaseRows}
         issues={issueRows}

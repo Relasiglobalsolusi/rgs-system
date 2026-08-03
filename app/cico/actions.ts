@@ -2,7 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireModule, getEmployeeForUser } from "@/lib/session";
+import { requireModule, getEmployeeForUser, toPermissionUser } from "@/lib/session";
+import {
+  isHoAdminAccount,
+} from "@/lib/permissions";
 import {
   CICO_GEOFENCE_RADIUS_METERS,
   haversineDistanceMeters,
@@ -23,6 +26,7 @@ import {
   ensureLeaveEmploymentSyncedForUser,
   getOperationsBlockedErrorKey,
   isEmployeeActiveForOperations,
+  syncEmployeeLeaveEmploymentStatus,
 } from "@/lib/leave-employment-status";
 
 /** Hard gate: check-out requires ≥1 Progress Report for this employee × project × work day. */
@@ -63,6 +67,44 @@ async function requireCicoPhoto(formData: FormData, kind: "checkIn" | "checkOut"
     );
   }
   return photo;
+}
+
+async function getProjectForCicoCheckIn(
+  employeeId: string,
+  projectId: string,
+  adminFieldMode: boolean
+) {
+  if (adminFieldMode) {
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+    });
+
+    if (!project) {
+      throw await cicoError("selectProject");
+    }
+
+    if (project.status !== "IN_PROGRESS") {
+      throw await cicoError("inProgressOnly");
+    }
+
+    if (project.latitude == null || project.longitude == null) {
+      throw await cicoError("noSiteLocation");
+    }
+
+    const assignment = await prisma.projectAssignment.findFirst({
+      where: { employeeId, projectId },
+    });
+
+    return {
+      project,
+      assignment: {
+        shiftStart: assignment?.shiftStart ?? null,
+        shiftEnd: assignment?.shiftEnd ?? null,
+      },
+    };
+  }
+
+  return getAssignedProjectForEmployee(employeeId, projectId);
 }
 
 async function getAssignedProjectForEmployee(
@@ -109,6 +151,7 @@ async function parseCoords(formData: FormData) {
 /** CICO always acts as the signed-in user's linked employee — never trust client ids. */
 async function requireCicoSessionEmployee(formData?: FormData) {
   const session = await requireModule("cico");
+  const adminFieldMode = isHoAdminAccount(toPermissionUser(session));
 
   // Client portal accounts never use CICO (employees only).
   if (session.user.clientId) {
@@ -128,34 +171,48 @@ async function requireCicoSessionEmployee(formData?: FormData) {
     throw await cicoError("inactiveEmployee");
   }
 
+  if (adminFieldMode) {
+    return { session, employee, adminFieldMode: true as const };
+  }
+
   if (employee.placement !== "ON_PROJECT") {
     throw await cicoError("onProjectOnly");
   }
 
-  return { session, employee };
+  return { session, employee, adminFieldMode: false as const };
 }
 
 async function requireCicoEmployeeForCheckIn(formData?: FormData) {
-  const { session, employee } = await requireCicoSessionEmployee(formData);
+  const { session, employee, adminFieldMode } =
+    await requireCicoSessionEmployee(formData);
+
+  if (adminFieldMode) {
+    return { session, employee, adminFieldMode };
+  }
 
   if (!isEmployeeActiveForOperations(employee.status)) {
     throw await cicoError(getOperationsBlockedErrorKey(employee.status));
   }
 
-  return { session, employee };
+  return { session, employee, adminFieldMode };
 }
 
 async function requireCicoEmployeeForCheckOut(formData?: FormData) {
-  const { session, employee } = await requireCicoSessionEmployee(formData);
+  const { session, employee, adminFieldMode } =
+    await requireCicoSessionEmployee(formData);
+
+  if (adminFieldMode) {
+    return { session, employee, adminFieldMode };
+  }
 
   if (isEmployeeActiveForOperations(employee.status)) {
-    return { session, employee };
+    return { session, employee, adminFieldMode };
   }
 
   if (employee.status === "ON_LEAVE") {
     const open = await findOpenCicoAttendance(employee.id);
     if (open?.record?.checkIn && !open.record.checkOut) {
-      return { session, employee };
+      return { session, employee, adminFieldMode };
     }
   }
 
@@ -163,15 +220,16 @@ async function requireCicoEmployeeForCheckOut(formData?: FormData) {
 }
 
 export async function checkIn(formData: FormData) {
-  const { employee } = await requireCicoEmployeeForCheckIn(formData);
+  const { employee, adminFieldMode } = await requireCicoEmployeeForCheckIn(formData);
 
   const projectId = String(formData.get("projectId") ?? "").trim();
   if (!projectId) throw await cicoError("selectProject");
 
   const { latitude, longitude } = await parseCoords(formData);
-  const { project, assignment } = await getAssignedProjectForEmployee(
+  const { project, assignment } = await getProjectForCicoCheckIn(
     employee.id,
-    projectId
+    projectId,
+    adminFieldMode
   );
 
   const radius = CICO_GEOFENCE_RADIUS_METERS;
@@ -351,7 +409,12 @@ export async function checkOut(formData: FormData) {
     },
   });
 
+  // Leave takes effect only after check-out — sync may flip ACTIVE → ON_LEAVE.
+  await syncEmployeeLeaveEmploymentStatus(prisma, employee.id, now);
+
   revalidatePath("/cico");
   revalidatePath("/attendance");
   revalidatePath("/dashboard");
+  revalidatePath("/employees");
+  revalidatePath("/progress");
 }

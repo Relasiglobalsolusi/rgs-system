@@ -50,6 +50,7 @@ import { Pencil } from "lucide-react";
 import { localizeBillingMode, localizeSubCategory } from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
 import { PROJECT_SUB_CATEGORIES } from "@/lib/project-subcategory";
+import type { ProjectServiceAreaValue } from "@/lib/service-area";
 import {
   DEFAULT_CONTRACT_DURATION_MONTHS,
   DEFAULT_PROJECT_DURATION_DAYS,
@@ -94,7 +95,7 @@ type Project = {
   endDate: Date | null;
   progress: number;
   subCategory: ProjectSubCategory;
-  serviceArea?: "CLEANING" | "PARKING" | "SECURITY";
+  serviceArea?: ProjectServiceAreaValue;
   billingMode?: BillingMode;
   billingPeriodBasis?: BillingPeriodBasis | null;
   requiresTaxInvoice?: boolean;
@@ -179,9 +180,9 @@ export default function ProjectEditDialog({
   const [subCategory, setSubCategory] = useState<ProjectSubCategory>(
     project.subCategory
   );
-  const [serviceArea, setServiceArea] = useState<
-    "CLEANING" | "PARKING" | "SECURITY"
-  >(project.serviceArea ?? "CLEANING");
+  const [serviceArea, setServiceArea] = useState<ProjectServiceAreaValue>(
+    project.serviceArea ?? "CLEANING"
+  );
   const [billingMode, setBillingMode] = useState<BillingMode>(
     project.billingMode ?? defaultBillingMode(project.subCategory)
   );
@@ -473,7 +474,7 @@ export default function ProjectEditDialog({
                 { value: "SECURITY", label: t("pages.projects.serviceAreaSecurity") },
               ]}
               onChange={(value) =>
-                setServiceArea(value as "CLEANING" | "PARKING" | "SECURITY")
+                setServiceArea(value as ProjectServiceAreaValue)
               }
               columns={3}
             />

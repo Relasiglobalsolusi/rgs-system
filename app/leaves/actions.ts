@@ -11,11 +11,18 @@ import { saveUpload } from "@/lib/upload";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
 import {
+  canApproveLeaveRequest,
+  leaveRequestEmployeeSelect,
+  leaveRequesterFromEmployee,
+  resolveLeaveReviewerProfile,
+} from "@/lib/leave-approval-hierarchy";
+import {
   ensureLeaveEmploymentSyncedForUser,
   getOperationsBlockedErrorKey,
   isEmployeeActiveForOperations,
   syncEmployeeLeaveEmploymentStatus,
 } from "@/lib/leave-employment-status";
+import { toPermissionUser } from "@/lib/session";
 
 async function leaveError(key: string) {
   const locale = await getServerLocale();
@@ -88,12 +95,31 @@ export async function reviewLeaveRequest(
       id,
       employee: { companyId },
     },
-    select: { status: true, employeeId: true },
+    select: {
+      status: true,
+      employeeId: true,
+      employee: { select: leaveRequestEmployeeSelect },
+    },
   });
 
   if (!existing) throw await leaveError("leaveNotFound");
   if (existing.status !== "PENDING") {
     throw await leaveError("alreadyReviewed");
+  }
+
+  const reviewer = await resolveLeaveReviewerProfile({
+    userId: session.user.id,
+    username: session.user.username,
+    permissionUser: toPermissionUser(session),
+  });
+
+  if (
+    !canApproveLeaveRequest(
+      leaveRequesterFromEmployee(existing.employee),
+      reviewer
+    )
+  ) {
+    throw await leaveError("notAllowedToApprove");
   }
 
   await prisma.$transaction(async (tx) => {

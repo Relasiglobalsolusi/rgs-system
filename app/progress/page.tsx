@@ -5,7 +5,7 @@ import {
   canManageProjects,
   getProjectWhereForUser,
 } from "@/lib/project-access";
-import { formatAppDateInput } from "@/lib/progress-report-compliance";
+import { getOpenCicoProgressLock } from "@/lib/cico-attendance";
 import {
   CLEANING_PROJECT_SUB_CATEGORIES,
 } from "@/lib/project-subcategory";
@@ -48,7 +48,6 @@ export default async function ProgressPage({
     clientId: session.user.clientId,
   });
 
-  const todayInput = formatAppDateInput(new Date());
   const activeStatuses: ProjectStatus[] = ["IN_PROGRESS"];
   const cleaningSubs: ProjectSubCategory[] = [
     ...CLEANING_PROJECT_SUB_CATEGORIES,
@@ -270,12 +269,35 @@ export default async function ProgressPage({
     name: project.name,
   }));
 
+  const openCicoLock = employee
+    ? await getOpenCicoProgressLock(employee.id)
+    : null;
+
+  const openCicoAssigned = openCicoLock
+    ? assignedCleaningProjects.find((p) => p.id === openCicoLock.projectId)
+    : null;
+  const openCicoProject =
+    openCicoLock && openCicoAssigned
+      ? {
+          id: openCicoLock.projectId,
+          name: openCicoAssigned.name,
+          workDate: openCicoLock.workDate,
+        }
+      : null;
+
   const canSubmit =
     Boolean(employee) &&
     !isClient &&
     employee?.status === "ACTIVE" &&
-    assignedCleaningProjects.length > 0 &&
+    Boolean(openCicoProject) &&
     employee?.placement === "ON_PROJECT";
+  const showCheckInRequired =
+    Boolean(employee) &&
+    !isClient &&
+    employee?.status === "ACTIVE" &&
+    assignedCleaningProjects.length > 0 &&
+    employee?.placement === "ON_PROJECT" &&
+    !openCicoProject;
   // Clients + managers: view feed only. Active staff submit/edit their own reports.
   const canEditReports =
     !isViewerFeed && employee?.status === "ACTIVE";
@@ -337,13 +359,22 @@ export default async function ProgressPage({
           <p className="mt-1 text-xs text-subtle">
             {employee?.status === "ON_LEAVE"
               ? t("pages.progress.onLeaveMessage")
-              : t("pages.progress.myReportsHint")}
+              : showCheckInRequired
+                ? t("pages.progress.checkInRequiredMessage")
+                : t("pages.progress.myReportsHint")}
           </p>
         </div>
-        {canSubmit ? (
+        {canSubmit && openCicoProject ? (
           <ProgressDialog
-            projects={assignedCleaningProjects}
-            defaultDate={todayInput}
+            projects={[
+              { id: openCicoProject.id, name: openCicoProject.name },
+            ]}
+            defaultDate={openCicoProject.workDate}
+            defaultProjectId={openCicoProject.id}
+            openCicoLock={{
+              projectId: openCicoProject.id,
+              workDate: openCicoProject.workDate,
+            }}
             triggerLabel={t("pages.progress.submitReport")}
           />
         ) : null}

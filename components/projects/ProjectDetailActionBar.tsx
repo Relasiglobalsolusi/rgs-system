@@ -16,6 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n/use-t";
 import type { ProjectSubCategory } from "@/lib/project-subcategory";
+import type { ProjectServiceAreaValue } from "@/lib/service-area";
 import type { ProjectStaffEmployee } from "@/components/projects/ProjectStaffPicker";
 import { detailActionBarButtonClassName } from "@/components/projects/detail-action-bar";
 import ProjectEditDialog from "@/components/projects/ProjectEditDialog";
@@ -46,7 +47,7 @@ type EditProject = {
   endDate: Date | null;
   progress: number;
   subCategory: ProjectSubCategory;
-  serviceArea?: "CLEANING" | "PARKING" | "SECURITY";
+  serviceArea?: ProjectServiceAreaValue;
   billingMode: BillingMode;
   billingPeriodBasis?: BillingPeriodBasis | null;
   requiresTaxInvoice: boolean;

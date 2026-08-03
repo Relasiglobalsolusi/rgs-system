@@ -78,6 +78,24 @@ export async function hasOpenCicoForProjectWorkDay(
 }
 
 /**
+ * Open CICO project × work day for Progress Report date locking (YYYY-MM-DD).
+ * Null when the employee has no open check-in.
+ */
+export async function getOpenCicoProgressLock(
+  employeeId: string,
+  now: Date = new Date()
+): Promise<{ projectId: string; workDate: string } | null> {
+  const open = await findOpenCicoAttendance(employeeId, now);
+  if (!open?.record?.checkIn || open.record.checkOut || !open.record.projectId) {
+    return null;
+  }
+  return {
+    projectId: open.record.projectId,
+    workDate: formatDateInput(toUtcDateOnly(open.record.date)),
+  };
+}
+
+/**
  * Today's CICO card attendance: prefer the record whose work-day key matches
  * the assignment shift window (overnight-aware), else open, else calendar today.
  */

@@ -74,7 +74,7 @@ export async function setPassword(formData: FormData): Promise<SetPasswordResult
     where: { id: session.user.id },
     data: {
       passwordHash,
-      passwordDisplay: null,
+      passwordDisplay: password,
       mustSetPassword: false,
       passwordSetupCompletedAt: new Date(),
       ...(requiresEmail ? { email: recoveryEmail } : {}),

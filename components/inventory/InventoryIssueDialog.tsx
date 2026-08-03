@@ -49,6 +49,8 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   items: InventoryCatalogItem[];
   projects: InventoryProjectOption[];
+  /** When set, project is fixed (e.g. assign from project detail). */
+  lockedProjectId?: string;
 };
 
 export default function InventoryIssueDialog({
@@ -56,11 +58,12 @@ export default function InventoryIssueDialog({
   onOpenChange,
   items,
   projects,
+  lockedProjectId,
 }: Props) {
   const { t } = useT();
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [itemId, setItemId] = useState("");
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState(lockedProjectId ?? "");
   const [pending, startTransition] = useTransition();
   const [baseline, setBaseline] = useState<HtmlFormDirtyBaseline | null>(null);
 
@@ -69,6 +72,7 @@ export default function InventoryIssueDialog({
     [items]
   );
   const selected = stockedItems.find((item) => item.id === itemId);
+  const effectiveProjectId = lockedProjectId ?? projectId;
 
   const { isDirty, handleFormInput, resetDirtyTracking } = useHtmlFormDirty(
     FORM_ID,
@@ -83,7 +87,7 @@ export default function InventoryIssueDialog({
     resetDirtyTracking();
     setBaseline(null);
     setItemId("");
-    setProjectId("");
+    setProjectId(lockedProjectId ?? "");
   }
 
   function handleOpenChange(
@@ -96,7 +100,7 @@ export default function InventoryIssueDialog({
         onOpenChange(true);
         resetDirtyTracking();
         setItemId("");
-        setProjectId("");
+        setProjectId(lockedProjectId ?? "");
       },
       onClose: closeDialog,
       onRequestExitConfirm: () => setExitConfirmOpen(true),
@@ -108,23 +112,45 @@ export default function InventoryIssueDialog({
       setBaseline(null);
       return;
     }
+    if (lockedProjectId) {
+      setProjectId(lockedProjectId);
+    }
     const frame = requestAnimationFrame(() => {
       setBaseline(captureHtmlFormBaseline(FORM_ID, ""));
     });
     return () => cancelAnimationFrame(frame);
-  }, [open]);
+  }, [open, lockedProjectId]);
 
   async function submit(formData: FormData) {
     if (!itemId) {
       showRejection({ reasons: t("pages.inventory.itemRequired") });
       return;
     }
-    if (!projectId) {
+    if (!effectiveProjectId) {
       showRejection({ reasons: t("pages.inventory.projectRequired") });
       return;
     }
+    if (stockedItems.length === 0) {
+      showRejection({ reasons: t("pages.inventory.noStockToIssue") });
+      return;
+    }
+    const qty = Number(
+      String(formData.get("quantity") ?? "").replace(/,/g, "").trim()
+    );
+    if (
+      selected &&
+      (!Number.isFinite(qty) || qty <= 0 || qty > selected.currentStock + 1e-9)
+    ) {
+      showRejection({
+        reasons: t("pages.inventory.quantityExceedsStock", {
+          available: String(selected.currentStock),
+          unit: selected.unit,
+        }),
+      });
+      return;
+    }
     formData.set("itemId", itemId);
-    formData.set("projectId", projectId);
+    formData.set("projectId", effectiveProjectId);
 
     startTransition(async () => {
       try {
@@ -157,7 +183,9 @@ export default function InventoryIssueDialog({
                 type="submit"
                 form={FORM_ID}
                 disabled={
-                  pending || stockedItems.length === 0 || projects.length === 0
+                  pending ||
+                  stockedItems.length === 0 ||
+                  (!lockedProjectId && projects.length === 0)
                 }
               >
                 {pending
@@ -215,25 +243,37 @@ export default function InventoryIssueDialog({
               <label className={employeeDialogLabelClass}>
                 {t("pages.inventory.form.project")}
               </label>
-              <Select
-                value={projectId || undefined}
-                onValueChange={(value) => setProjectId(value ?? "")}
-              >
-                <SelectTrigger className={employeeSelectTriggerClass}>
-                  <SelectValue
-                    placeholder={t("pages.inventory.form.projectPlaceholder")}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={project.id}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {lockedProjectId ? (
+                <>
+                  <input type="hidden" name="projectId" value={lockedProjectId} />
+                  <p className="rounded-xl border border-border bg-elevated px-3 py-2.5 text-sm font-medium text-text">
+                    {projects.find((project) => project.id === lockedProjectId)
+                      ?.name ?? lockedProjectId}
+                  </p>
+                </>
+              ) : (
+                <Select
+                  value={projectId || undefined}
+                  onValueChange={(value) => setProjectId(value ?? "")}
+                >
+                  <SelectTrigger className={employeeSelectTriggerClass}>
+                    <SelectValue
+                      placeholder={t("pages.inventory.form.projectPlaceholder")}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {projects.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               <p className={employeeDialogHintClass}>
-                {t("pages.inventory.form.projectHint")}
+                {stockedItems.length === 0
+                  ? t("pages.inventory.noStockToIssue")
+                  : t("pages.inventory.form.projectHint")}
               </p>
             </div>
 

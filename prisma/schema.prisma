@@ -73,6 +73,7 @@ enum ServiceArea {
   CLEANING
   PARKING
   SECURITY
+  HEAD_OFFICE
 }
 
 /// Client organization type (tax identity + Multi-Project defaults).
@@ -1072,7 +1073,7 @@ model InventoryMovement {
   movedAt   DateTime
   notes     String?
 
-  /// Soft-void: excluded from stock/cost sums; reverse movement may also be posted.
+  /// Soft-void: excluded from stock/cost sums. Stock cache is restored/reduced on void (no reverse ADJUSTMENT).
   voidedAt    DateTime?
   voidReason  String?
 

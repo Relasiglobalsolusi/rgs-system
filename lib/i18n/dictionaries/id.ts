@@ -36,6 +36,8 @@ export const id = {
     dragToReorder: "Seret untuk mengurutkan ulang",
     reorder: "Urutkan ulang",
     close: "Tutup",
+    previousPhoto: "Foto Sebelumnya",
+    nextPhoto: "Foto Berikutnya",
     noRecordsFound: "Tidak ada data.",
     breadcrumb: "Breadcrumb",
     selectAll: "Pilih semua",
@@ -236,6 +238,7 @@ export const id = {
       "Upload History": "Riwayat Unggah",
       "Payment & Settlement": "Pembayaran & Pelunasan",
       THR: "THR",
+      "Financial Report": "Laporan Keuangan",
       "Progress Reports": "Laporan Progress",
       CICO: "CICO",
       "Attendance Report": "Laporan Kehadiran",
@@ -529,6 +532,7 @@ export const id = {
       serviceAreaCleaning: "Cleaning",
       serviceAreaParking: "Parking",
       serviceAreaSecurity: "Security",
+      serviceAreaHeadOffice: "Head Office",
       subcategory: "Subkategori",
       billingPeriodBasis: "Periode Penagihan",
       billingPeriodBasisCalendarMonth: "Bulan Kalender",
@@ -773,7 +777,17 @@ export const id = {
         inventoryIssueUnitCost: "Biaya Satuan",
         inventoryIssueTotal: "Total Biaya",
         inventoryIssueDate: "Tanggal",
+        inventoryIssueActions: "Tindakan",
         viewInventory: "Buka Inventaris",
+        assignStock: "Tetapkan Stok",
+        voidIssue: "Batalkan Pengeluaran",
+        voidIssueTitle: "Batalkan Pengeluaran Inventaris",
+        voidIssueDesc:
+          "Ini mengembalikan kuantitas ke inventaris dan menghapus biaya dari proyek ini.",
+        voidIssueConfirm: "Batalkan Pengeluaran",
+        voidIssueSuccess: "Pengeluaran inventaris dibatalkan. Stok dipulihkan.",
+        voidReason: "Alasan Pembatalan",
+        voidReasonPlaceholder: "Mengapa pengeluaran ini dibatalkan?",
       },
       filterAllProjects: "Semua Proyek",
       staffPicker: {
@@ -1779,7 +1793,7 @@ export const id = {
           "Pilih jabatan yang tersedia untuk departemen terpilih.",
         approvalAreas: "Area Persetujuan",
         approvalAreasHint:
-          "Pilih minimal satu area layanan yang boleh disetujui Operations Manager ini.",
+          "Pilih minimal satu area yang boleh disetujui Operations Manager ini — Cleaning, Security, Parking untuk kru lapangan, dan Head Office untuk izin staf kantor pusat.",
         startDate: "Tanggal Mulai",
         startDateHint: "Tanggal masuk atau mulai untuk pelacakan masa kerja.",
         contactEmail: "Email Kontak",
@@ -2051,7 +2065,7 @@ export const id = {
       noPasswordOnFile:
         "Kata sandi belum diatur (menunggu first-login).",
       passwordHiddenOnFile:
-        "Kata sandi sudah diatur (tidak ditampilkan). Salinan yang dapat dipulihkan hanya disimpan untuk kata sandi sementara yang diterbitkan admin.",
+        "Kata sandi sudah diatur (tidak ditampilkan). Tidak ada salinan yang dapat dipulihkan — gunakan Reset Akun untuk menerbitkan kata sandi sementara baru.",
       firstLoginComplete: "First-Login Selesai",
       firstLoginPending: "First-Login Tertunda",
       linkedEmployee: "Karyawan Terkait: {label}",
@@ -2110,15 +2124,12 @@ export const id = {
         recoveryEmail: "Email Pemulihan",
         recoveryEmailPlaceholder: "password-reset@company.co.id",
         temporaryPassword: "Kata Sandi Sementara",
-        newPassword: "Kata Sandi Baru",
-        passwordKeepHint: "Biarkan kosong untuk mempertahankan kata sandi saat ini.",
         passwordCreateHint:
           "Opsional. Biarkan kosong untuk pengaturan first-login, atau setel kata sandi sementara yang harus diganti pengguna.",
-        newPasswordPlaceholder: "Kata sandi baru (opsional)",
         tempPasswordPlaceholder: "Kata sandi sementara (opsional)",
         currentPassword: "Kata Sandi Saat Ini",
         currentPasswordHint:
-          "Salinan yang dapat dipulihkan saat admin menerbitkan kata sandi sementara. Dihapus setelah pengguna mengatur kata sandi sendiri.",
+          "Salinan kata sandi saat ini yang dapat dipulihkan admin jika tersedia. Diperbarui saat pengguna atau admin mengubah kata sandi.",
         accountLink: "Tautan Akun",
         unlinkedAdmin:
           "Akun admin tanpa tautan (tidak terhubung ke karyawan atau klien).",
@@ -2126,9 +2137,9 @@ export const id = {
           "Tautan ditetapkan saat akun dibuat dari direktori Karyawan atau Klien dan tidak dapat diubah di sini.",
         resetAccount: "Reset Akun",
         resetAccountHint:
-          "Paksa pengaturan first-login lagi. Menghapus email pemulihan dan kata sandi; tautan karyawan/klien tidak diubah.",
+          "Paksa pengaturan first-login lagi. Menghapus email pemulihan, menerbitkan kata sandi sementara (ditampilkan di Kata Sandi Saat Ini), dan mewajibkan pengguna memilih kata sandi baru. Tautan karyawan/klien tidak diubah.",
         resetAccountConfirm:
-          'Reset akun untuk "{username}"?\n\nIni menghapus email pemulihan dan kata sandi. Pengguna harus menyelesaikan pengaturan first-login lagi (atur kata sandi + email pemulihan). Tautan karyawan/klien tetap ada.',
+          'Reset akun untuk "{username}"?\n\nIni menghapus email pemulihan dan menerbitkan kata sandi sementara (terlihat di Kata Sandi Saat Ini setelah reset). Pengguna harus menyelesaikan pengaturan first-login lagi (atur kata sandi + email pemulihan). Tautan karyawan/klien tetap ada.',
         you: "(Anda)",
       },
       errors: {
@@ -2602,6 +2613,94 @@ export const id = {
       filterResultsInFor: '{count} hasil di {type} untuk "{query}"',
       breadcrumbAria: "Breadcrumb",
     },
+    financialReport: {
+      title: "Laporan Keuangan",
+      description:
+        "Laba rugi klien dan proyek dari nilai kontrak, pembayaran terkonfirmasi, pengeluaran inventaris, dan gaji karyawan yang ditugaskan.",
+      clientProjectsDesc: "Ringkasan keuangan proyek untuk klien ini.",
+      projectDetailDesc: "Laba rugi untuk {client}.",
+      totalClients: "Total Klien",
+      withProjects: "Dengan Proyek",
+      totalContractValue: "Total Nilai Kontrak",
+      acrossClients: "Lintas Klien",
+      totalSpending: "Total Pengeluaran",
+      totalProfit: "Total Laba",
+      contractMinusSpending: "Nilai Kontrak − Pengeluaran",
+      contractValueHint: "Jumlah harga kontrak proyek.",
+      spendingHint:
+        "Inventaris yang dikeluarkan ke proyek ditambah gaji karyawan yang ditugaskan.",
+      moneyIn: "Uang Masuk",
+      moneyInHint: "Invoice yang sudah dibayar terkonfirmasi.",
+      moneyOut: "Uang Keluar",
+      moneyOutHint:
+        "Inventaris yang dikeluarkan ditambah gaji karyawan yang ditugaskan.",
+      moneyOutBreakdownTitle: "Rincian Uang Keluar",
+      moneyOutBreakdownDesc:
+        "Pengeluaran inventaris ditambah gaji pokok bulanan yang diprorata untuk karyawan yang saat ini ditugaskan ke proyek ini.",
+      inventoryOut: "Inventaris",
+      wagesOut: "Gaji",
+      moneyOutTotal: "Total Uang Keluar",
+      profit: "Laba",
+      profitHint: "Uang Masuk − Uang Keluar",
+      margin: "Margin",
+      marginHint: "Laba ÷ Uang Masuk",
+      contractValue: "Nilai Kontrak",
+      paymentsTitle: "Pembayaran Diterima",
+      paymentsDesc:
+        "Periode invoice berstatus Dibayar setelah konfirmasi pembayaran.",
+      inventoryTitle: "Pengeluaran Inventaris",
+      inventoryDesc: "Stok non-void yang dikeluarkan ke proyek ini.",
+      wagesTitle: "Gaji Per Karyawan",
+      wagesDesc:
+        "Gaji pokok bulanan diprorata dari tanggal penugasan hingga hari ini atau tanggal selesai proyek. Hanya karyawan yang saat ini ditugaskan; riwayat penugasan yang dilepas tidak disimpan.",
+      emptyClients: "Belum Ada Klien",
+      emptyClientsDesc:
+        "Tambahkan klien dan proyek untuk melihat laporan keuangan.",
+      emptyProjects: "Belum Ada Proyek Berjalan",
+      emptyProjectsDesc:
+        "Klien ini belum memiliki proyek Berjalan untuk dilaporkan.",
+      emptyPayments: "Belum Ada Pembayaran Terkonfirmasi",
+      emptyPaymentsDesc:
+        "Invoice yang dibayar untuk proyek ini akan muncul di sini setelah pembayaran dikonfirmasi.",
+      emptyInventory: "Belum Ada Pengeluaran Inventaris",
+      emptyInventoryDesc:
+        "Stok yang dikeluarkan ke proyek ini akan muncul di sini sebagai uang keluar.",
+      emptyWages: "Belum Ada Karyawan Ditugaskan",
+      emptyWagesDesc:
+        "Biaya gaji muncul di sini untuk karyawan yang saat ini ditugaskan ke proyek ini dan memiliki gaji pokok.",
+      noClientsMatch: "Tidak ada klien yang cocok dengan pencarian Anda.",
+      noProjectsMatch: "Tidak ada proyek yang cocok dengan filter Anda.",
+      searchClients: "Cari Klien",
+      searchProjects: "Cari Proyek",
+      filterSubcategory: "Filter Berdasarkan Jenis",
+      filterResults: "{count} hasil",
+      filterResultsIn: "{count} hasil di {type}",
+      filterResultsFor: '{count} hasil untuk "{query}"',
+      filterResultsInFor: '{count} hasil di {type} untuk "{query}"',
+      clientOne: "{count} klien",
+      clientOther: "{count} klien",
+      projectOne: "{count} proyek",
+      projectOther: "{count} proyek",
+      invoicePeriodFallback: "Periode Invoice",
+      columns: {
+        client: "Klien",
+        project: "Proyek",
+        contractValue: "Nilai Kontrak",
+        spending: "Pengeluaran",
+        profit: "Laba",
+        period: "Periode",
+        paidAt: "Dibayar Pada",
+        amount: "Jumlah",
+        item: "Item",
+        issuedAt: "Dikeluarkan Pada",
+        quantity: "Kuantitas",
+        employee: "Karyawan",
+        monthlyBasePay: "Gaji Pokok Bulanan",
+        assignmentPeriod: "Periode Biaya",
+        wageCost: "Biaya Gaji",
+      },
+    },
+
     thr: {
       title: "THR",
       description:
@@ -2724,6 +2823,8 @@ export const id = {
       myReportsTitle: "Laporan Progress Saya",
       myReportsHint:
         "Unggah Laporan Progress saat bekerja. Anda harus mengirim minimal satu Laporan Progress sebelum check-out CICO.",
+      checkInRequiredMessage:
+        "Check in melalui CICO untuk proyek Anda sebelum mengirim Laporan Progress.",
       onLeaveMessage:
         "Laporan progress dijeda saat Anda Sedang Cuti. Hubungi Head Office jika status Anda perlu diperbarui.",
       leavePendingMessage:
@@ -2733,9 +2834,14 @@ export const id = {
       dialogTitle: "Laporan Progress",
       dialogDescription:
         "Staf cleaning lapangan: pilih proyek, area layanan, dan catatan, lalu unggah foto lokasi. Anda boleh mengirim beberapa laporan per proyek dan hari. Proyek, Area Layanan, Catatan, dan minimal satu foto wajib diisi.",
+      dialogDescriptionCicoLocked:
+        "Staf cleaning lapangan: pilih area layanan dan catatan, lalu unggah foto lokasi untuk hari kerja CICO yang sedang terbuka. Proyek, Area Layanan, Catatan, dan minimal satu foto wajib diisi.",
       editDialogTitle: "Ubah Laporan Progress",
       editDialogDescription:
-        "Perbarui area layanan, catatan, tanggal, atau foto untuk laporan progress ini. Pertahankan atau tambahkan minimal satu foto.",
+        "Perbarui area layanan, catatan, atau foto untuk laporan progress ini. Tanggal laporan tidak dapat diubah. Pertahankan atau tambahkan minimal satu foto.",
+      dateLockedCicoHint:
+        "Tanggal laporan dikunci ke hari kerja CICO yang sedang terbuka untuk proyek ini.",
+      dateLockedEditHint: "Tanggal laporan tidak dapat diubah setelah dikirim.",
       saveChanges: "Simpan Perubahan",
       emptyTitle: "Belum Ada Laporan Progress",
       emptyDescription:
@@ -2824,6 +2930,15 @@ export const id = {
         reportNotFound: "Laporan progress tidak ditemukan.",
         editDenied:
           "Hanya penulis laporan yang dapat mengubah laporan progress ini.",
+        checkInRequired:
+          "Anda harus check in melalui CICO sebelum mengirim Laporan Progress.",
+        checkInRequiredForProject:
+          "Anda harus check in melalui CICO untuk proyek ini sebelum mengirim Laporan Progress.",
+        reportDateMustMatchCico:
+          "Tanggal Laporan Progress harus sama dengan hari kerja CICO yang sedang terbuka untuk proyek ini.",
+        reportDateLocked: "Tanggal Laporan Progress tidak dapat diubah.",
+        editDayLocked:
+          "Laporan progress ini tidak dapat diubah setelah hari berakhir.",
         reorderDenied:
           "Anda tidak memiliki izin untuk mengubah urutan laporan progress.",
         companyNotFound: "Perusahaan tidak ditemukan.",
@@ -2950,6 +3065,43 @@ export const id = {
         duration: "Durasi",
         location: "Lokasi",
       },
+      adminPreview: {
+        pageDescription:
+          "Pratinjau alur check-in lapangan dan pantau aktivitas CICO situs hari ini.",
+        fieldPageDescription:
+          "Gunakan CICO lapangan seolah ditugaskan ke proyek dan pantau aktivitas situs hari ini.",
+        bannerTitle: "Mode Pratinjau — Check-In Dinonaktifkan",
+        bannerBody:
+          "Akun Kantor Pusat dapat meninjau aktivitas CICO hari ini dan tampilan staf lapangan di sini. Check-in dan check-out operasional tetap hanya untuk staf cleaning Aktif Di Proyek.",
+        fieldBannerTitle: "Pratinjau CICO Admin Lapangan",
+        fieldBannerBody:
+          "Anda menggunakan CICO seolah ditugaskan ke proyek ini. Kehadiran nyata dapat tercatat pada profil karyawan yang terhubung.",
+        checkedInToday: "Check-In Hari Ini",
+        openCheckIns: "Check-In Terbuka",
+        sitesWithActivity: "Situs Beraktivitas",
+        viewAttendanceReport: "Laporan Kehadiran",
+        viewProjects: "Proyek",
+        todaysSiteCheckIns: "Check-In Situs Hari Ini",
+        noCheckInsToday: "Belum ada check-in tercatat hari ini.",
+        fieldWorkerPreview: "Tampilan Staf Lapangan",
+        fieldWorkerPreviewHint:
+          "Contoh tampilan proyek — kontrol dinonaktifkan untuk akun Kantor Pusat.",
+        fieldWorkerFlow: "CICO Lapangan",
+        fieldWorkerFlowHint:
+          "Pilih proyek Sedang Berjalan, lalu check-in di lokasi. Aturan geofence, foto, dan Laporan Progress tetap berlaku.",
+        controlsDisabled:
+          "Check-in, check-out, dan unggah foto dinonaktifkan dalam mode pratinjau.",
+        noSampleProject:
+          "Tidak ada proyek cleaning Sedang Berjalan dengan lokasi situs untuk pratinjau.",
+        noSelectableProject:
+          "Tidak ada proyek Sedang Berjalan dengan lokasi situs. Tambahkan koordinat proyek terlebih dahulu.",
+        noEmployeeProfile:
+          "Akun admin Anda memerlukan profil karyawan terhubung untuk mencatat kehadiran CICO.",
+        footerNote:
+          "Ini pratinjau baca-saja. Gunakan Laporan Kehadiran untuk pemantauan live dan Proyek untuk mengelola penugasan situs.",
+        fieldFooterNote:
+          "Kehadiran dicatat pada profil karyawan Anda. Anda harus berada dalam geofence situs untuk check-in atau check-out.",
+      },
     },
     attendance: {
       title: "Laporan Kehadiran",
@@ -3055,6 +3207,7 @@ export const id = {
         companyNotFound: "Perusahaan tidak ditemukan.",
         leaveNotFound: "Permintaan izin tidak ditemukan.",
         alreadyReviewed: "Permintaan ini sudah ditinjau.",
+        notAllowedToApprove: "Anda tidak diizinkan menyetujui permintaan ini.",
       },
       requestType: "Jenis permintaan",
       startDate: "Tanggal mulai",
@@ -3094,16 +3247,42 @@ export const id = {
     reports: {
       title: "Laporan Bulanan",
       description:
-        "Unduh ringkasan bulanan proyek dan kehadiran untuk pelaporan.",
+        "Telusuri Progress Report dan CICO harian per klien dan proyek.",
       descriptionClient:
-        "Kompilasi bulanan untuk penagihan di seluruh proyek Anda.",
+        "Telusuri Progress Report dan CICO harian untuk proyek Anda.",
       descriptionAdmin:
-        "Kompilasi bulanan untuk penagihan dan tinjauan operasional.",
+        "Telusuri Progress Report dan CICO harian di seluruh klien dan proyek.",
+      breadcrumbAria: "Navigasi laporan bulanan",
+      clientProjectsDesc: "Pilih proyek untuk melihat laporan bulannya.",
+      selectPeriod: "Pilih Bulan",
+      selectPeriodDesc:
+        "Pilih bulan dan tahun untuk menelusuri Progress Report dan CICO harian proyek ini.",
+      periodRangeHint: "Tersedia dari {from} hingga {to}.",
+      viewReport: "Lihat Laporan",
+      changePeriod: "Ubah Periode",
+      searchClients: "Cari klien…",
+      searchProjects: "Cari proyek…",
+      noClients: "Tidak Ada Klien",
+      noClientsDesc: "Tidak ada klien dengan proyek yang dapat diakses.",
+      noClientsMatch: "Tidak ada klien yang cocok dengan pencarian.",
+      noProjects: "Tidak Ada Proyek",
+      noProjectsDesc: "Klien ini tidak memiliki proyek yang dapat Anda lihat.",
+      noProjectsMatch: "Tidak ada proyek yang cocok dengan pencarian.",
+      backToProjects: "Proyek",
+      emptyDay:
+        "Tidak ada Progress Report atau CICO yang tercatat untuk hari ini.",
+      noProgressForEmployee:
+        "Tidak ada Progress Report untuk karyawan ini pada hari ini.",
+      noCicoForEmployee: "Tidak ada CICO untuk karyawan ini pada hari ini.",
+      cicoCheckIn: "Check-In",
+      cicoCheckOut: "Check-Out",
+      cicoDurationOfWork: "Durasi Kerja",
+      cicoInProgress: "Sedang berjalan",
+      progressPhoto: "Foto progress",
       reportFor: "Laporan untuk {period}",
       projectOne: "{count} proyek",
       projectOther: "{count} proyek",
       matchingFilters: "sesuai filter",
-      searchProjects: "Cari proyek…",
       lockReport: "Kunci laporan",
       locking: "Mengunci…",
       locked: "Terkunci",
@@ -3111,6 +3290,7 @@ export const id = {
         "Kunci laporan bulan ini? Data akan di-snapshot untuk penagihan.",
       lockFailed: "Gagal mengunci laporan.",
       downloadPdf: "Unduh PDF",
+      downloadProgressReport: "Unduh Laporan Progress {period}",
       exportPdfFailed: "Gagal mengekspor PDF.",
       noReports: "Tidak ada laporan untuk bulan ini.",
       noClientLocation: "Tanpa klien / lokasi",
@@ -3268,6 +3448,14 @@ export const id = {
         "Items adalah katalog saja. Purchases menambah stok dari pemasok. Project Issues membebankan biaya ke proyek. Stock menampilkan kuantitas tersedia.",
       companyNotFound: "Perusahaan tidak ditemukan.",
       permissionDenied: "Anda tidak memiliki izin untuk mengelola inventaris.",
+      assignPermissionDenied:
+        "Hanya Operations Manager, Director, atau admin HO yang dapat menetapkan atau membatalkan inventaris proyek.",
+      voidIssueFromProjectOnly:
+        "Pengeluaran inventaris proyek hanya dapat dibatalkan dari halaman proyek.",
+      noStockToIssue:
+        "Tidak ada item dengan stok tersedia. Catat pembelian sebelum menetapkan ke proyek.",
+      quantityExceedsStock:
+        "Kuantitas melebihi stok tersedia. Tersedia: {available} {unit}.",
       costingNote:
         "Nilai stok dan biaya pengeluaran ke proyek memakai rata-rata tertimbang unit cost. Unit cost pembelian terakhir ditampilkan sebagai referensi.",
       searchPlaceholder: "Cari item, pemasok, proyek…",

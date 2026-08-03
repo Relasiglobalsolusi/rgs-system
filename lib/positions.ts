@@ -124,10 +124,30 @@ export function isCrewPickerPosition(position: {
   return (
     slug === "cleaning-staff" ||
     slug === "gc-staff" ||
+    slug === "in-house-cleaning-staff" ||
     name === "cleaning staff" ||
     name === "gc staff" ||
+    name === "in-house cleaning staff" ||
     name.includes("gondola")
   );
+}
+
+export function isSecurityStaffPosition(position: {
+  slug?: string | null;
+  name?: string | null;
+}): boolean {
+  const slug = (position.slug ?? "").trim().toLowerCase();
+  const name = (position.name ?? "").trim().toLowerCase();
+  return slug.includes("security") || name.includes("security");
+}
+
+export function isParkingStaffPosition(position: {
+  slug?: string | null;
+  name?: string | null;
+}): boolean {
+  const slug = (position.slug ?? "").trim().toLowerCase();
+  const name = (position.name ?? "").trim().toLowerCase();
+  return slug.includes("parking") || name.includes("parking");
 }
 
 export async function ensureDefaultPositions(

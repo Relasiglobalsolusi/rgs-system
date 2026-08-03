@@ -13,6 +13,7 @@ import {
   ensureLeaveEmploymentSyncedForUser,
   getOperationsBlockedErrorKey,
   isEmployeeActiveForOperations,
+  jakartaTodayAsUtcDateOnly,
 } from "@/lib/leave-employment-status";
 import { deleteLocalUpload, saveUpload } from "@/lib/upload";
 import {
@@ -22,7 +23,10 @@ import {
   resolveContractCycleIndex,
   toUtcDateOnly,
 } from "@/lib/invoice-period";
-import { hasOpenCicoForProjectWorkDay } from "@/lib/cico-attendance";
+import {
+  findOpenCicoAttendance,
+  hasOpenCicoForProjectWorkDay,
+} from "@/lib/cico-attendance";
 import { isCleaningProjectSubCategory } from "@/lib/project-subcategory";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
@@ -83,6 +87,34 @@ async function assertCanCreateProgressReport(
   }
 
   throw await progressError(getOperationsBlockedErrorKey(employee.status));
+}
+
+/**
+ * Create requires an open CICO for the selected project; report date must match
+ * that attendance work day (overnight-aware). Free-date create without check-in
+ * is not allowed.
+ */
+async function assertOpenCicoRequiredForCreate(
+  employeeId: string,
+  projectId: string,
+  reportDate: Date
+) {
+  const open = await findOpenCicoAttendance(employeeId);
+  if (!open?.record?.checkIn || open.record.checkOut || !open.record.projectId) {
+    throw await progressError("checkInRequired");
+  }
+  if (open.record.projectId !== projectId) {
+    throw await progressError("checkInRequiredForProject");
+  }
+
+  const workDay = toUtcDateOnly(open.record.date);
+  if (toUtcDateOnly(reportDate).getTime() !== workDay.getTime()) {
+    throw await progressError("reportDateMustMatchCico");
+  }
+}
+
+function sameUtcDate(a: Date, b: Date) {
+  return toUtcDateOnly(a).getTime() === toUtcDateOnly(b).getTime();
 }
 
 function collectPhotoFiles(formData: FormData, field = "photos"): File[] {
@@ -183,6 +215,7 @@ export async function createProgressReport(formData: FormData) {
     ? parseDateInput(dateStr)
     : toUtcDateOnly(new Date());
 
+  await assertOpenCicoRequiredForCreate(employee.id, projectId, reportDate);
   await assertCanCreateProgressReport(employee, projectId, reportDate);
 
   const assignment = await prisma.projectAssignment.findUnique({
@@ -262,8 +295,9 @@ export async function createProgressReport(formData: FormData) {
 }
 
 /**
- * Edit an existing progress report (service area, notes, date, photos).
+ * Edit an existing progress report (service area, notes, photos).
  * Author only — managers and clients are view-only.
+ * Editable only while reportDate is still Asia/Jakarta today.
  */
 export async function updateProgressReport(formData: FormData) {
   const session = await requireModule("progress");
@@ -306,6 +340,11 @@ export async function updateProgressReport(formData: FormData) {
     throw await progressError("editDenied");
   }
 
+  // Same-day lock: after the Jakarta calendar day ends, edit is blocked.
+  if (!sameUtcDate(existing.reportDate, jakartaTodayAsUtcDateOnly())) {
+    throw await progressError("editDayLocked");
+  }
+
   if (!isCleaningProjectSubCategory(existing.project.subCategory)) {
     throw await progressError("cleaningOnly");
   }
@@ -316,8 +355,13 @@ export async function updateProgressReport(formData: FormData) {
     throw await progressError("photoRequired");
   }
 
+  // Staff cannot reassign a report to another calendar day.
   const reportDate = parseDateInput(dateStr);
-  const period = await ensureOngoingPeriod(existing.projectId, reportDate);
+  if (!sameUtcDate(reportDate, existing.reportDate)) {
+    throw await progressError("reportDateLocked");
+  }
+  const lockedReportDate = toUtcDateOnly(existing.reportDate);
+  const period = await ensureOngoingPeriod(existing.projectId, lockedReportDate);
 
   const removedPhotos = existing.photos.filter((p) => !keptIds.includes(p.id));
   const uploadedUrls: string[] = [];
@@ -331,7 +375,7 @@ export async function updateProgressReport(formData: FormData) {
       data: {
         stageLabel,
         notes,
-        reportDate,
+        reportDate: lockedReportDate,
         invoicePeriodId:
           period &&
           (period.status === "ONGOING" || period.status === "COMPILING")
@@ -362,7 +406,7 @@ export async function updateProgressReport(formData: FormData) {
 
   revalidateProgressPaths(existing.projectId);
 
-  return { id: reportId, date: formatDateInput(reportDate) };
+  return { id: reportId, date: formatDateInput(lockedReportDate) };
 }
 
 export async function reorderProgressReports(ids: string[]) {

@@ -20,6 +20,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { formatDisplayTime } from "@/lib/format-date";
 import { formatDateInput } from "@/lib/invoice-period";
 import { useT } from "@/lib/i18n/use-t";
+import { todayDateInput } from "@/lib/project-contract";
 
 export type ProgressDirectoryReport = {
   id: string;
@@ -131,7 +132,11 @@ export default function ProgressReportDirectory({
 
   function mayEdit(report: ProgressDirectoryReport): boolean {
     if (!canEdit) return false;
-    return Boolean(currentEmployeeId && report.employeeId === currentEmployeeId);
+    if (!(currentEmployeeId && report.employeeId === currentEmployeeId)) {
+      return false;
+    }
+    // Author-only + same Jakarta calendar day as reportDate.
+    return reportDateInput(report.reportDate) === todayDateInput();
   }
 
   function openEdit(report: ProgressDirectoryReport) {

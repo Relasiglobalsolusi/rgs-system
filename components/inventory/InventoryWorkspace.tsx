@@ -55,6 +55,8 @@ import {
 
 type Props = {
   canManage: boolean;
+  /** OM+ / Director / HO admin — issue stock to projects. */
+  canAssignToProject: boolean;
   items: InventoryCatalogItem[];
   purchases: InventoryPurchaseRow[];
   issues: InventoryIssueRow[];
@@ -64,6 +66,7 @@ type Props = {
 
 export default function InventoryWorkspace({
   canManage,
+  canAssignToProject,
   items,
   purchases,
   issues,
@@ -586,7 +589,7 @@ export default function InventoryWorkspace({
                 onClick={() => setPurchaseOpen(true)}
               />
             ) : null}
-            {tab === "issues" ? (
+            {tab === "issues" && canAssignToProject ? (
               <DirectoryAddButton
                 label={t("pages.inventory.addIssue")}
                 onClick={() => setIssueOpen(true)}
@@ -661,12 +664,14 @@ export default function InventoryWorkspace({
             items={items}
             vendors={vendors}
           />
-          <InventoryIssueDialog
-            open={issueOpen}
-            onOpenChange={setIssueOpen}
-            items={items}
-            projects={projects}
-          />
+          {canAssignToProject ? (
+            <InventoryIssueDialog
+              open={issueOpen}
+              onOpenChange={setIssueOpen}
+              items={items}
+              projects={projects}
+            />
+          ) : null}
           <InventoryAdjustDialog
             open={adjustOpen}
             onOpenChange={setAdjustOpen}

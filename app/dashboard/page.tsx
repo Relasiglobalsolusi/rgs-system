@@ -9,6 +9,7 @@ import {
   type ModuleKey,
 } from "@/lib/permissions";
 import { getUnackedApprovedLeavesForEmployee } from "@/lib/leave-approval-notifications";
+import { countPendingLeaveRequestsForReviewer, resolveLeaveReviewerProfile } from "@/lib/leave-approval-hierarchy";
 import {
   dueAtFromPaymentTerms,
   toUtcDateOnly,
@@ -102,6 +103,14 @@ export default async function DashboardPage() {
   const canViewInvoicing = hasModule(accessibleModules, "invoicing");
 
   const companyId = session.user.companyId;
+  const leaveReviewer =
+    canApprove && companyId
+      ? await resolveLeaveReviewerProfile({
+          userId: session.user.id,
+          username: session.user.username,
+          permissionUser,
+        })
+      : null;
   const projectWhere = await getProjectWhereForUser({
     companyId,
     clientId: session.user.clientId,
@@ -133,9 +142,10 @@ export default async function DashboardPage() {
       recentLeaves,
       approvedLeaveNotices,
     ] = await Promise.all([
-      canApprove
-        ? prisma.leaveRequest.count({
-            where: { status: "PENDING", ...companyLeaveWhere },
+      canApprove && leaveReviewer
+        ? countPendingLeaveRequestsForReviewer({
+            companyId: companyId!,
+            reviewer: leaveReviewer,
           })
         : canViewLeaves && employeeId
           ? prisma.leaveRequest.count({
@@ -658,9 +668,10 @@ export default async function DashboardPage() {
           orderBy: { checkIn: "desc" },
         })
       : Promise.resolve([]),
-    canApprove
-      ? prisma.leaveRequest.count({
-          where: { status: "PENDING", ...companyLeaveWhere },
+    canApprove && leaveReviewer
+      ? countPendingLeaveRequestsForReviewer({
+          companyId: companyId!,
+          reviewer: leaveReviewer,
         })
       : Promise.resolve(0),
     showAdminProgress

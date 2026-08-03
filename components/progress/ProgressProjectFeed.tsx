@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -9,6 +8,7 @@ import { ArrowLeft, Camera, Pencil } from "lucide-react";
 import ProgressDialog, {
   type EditableProgressReport,
 } from "@/components/progress/ProgressDialog";
+import ProgressPhotoCarousel from "@/components/progress/ProgressPhotoCarousel";
 import ImageLightbox from "@/components/ui/ImageLightbox";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +21,7 @@ import {
 import { formatDisplayDate, formatDisplayTime } from "@/lib/format-date";
 import { formatDateInput } from "@/lib/invoice-period";
 import { useT } from "@/lib/i18n/use-t";
+import { todayDateInput } from "@/lib/project-contract";
 
 export type FeedReport = {
   id: string;
@@ -94,7 +95,11 @@ export default function ProgressProjectFeed({
 
   function mayEdit(report: FeedReport): boolean {
     if (!canEdit) return false;
-    return Boolean(currentEmployeeId && report.employeeId === currentEmployeeId);
+    if (!(currentEmployeeId && report.employeeId === currentEmployeeId)) {
+      return false;
+    }
+    // Author-only + same Jakarta calendar day as reportDate.
+    return toDateInput(report.reportDate) === todayDateInput();
   }
 
   function onEmployeeFilter(value: string | null) {
@@ -222,35 +227,12 @@ export default function ProgressProjectFeed({
                 </header>
 
                 {report.photos.length > 0 ? (
-                  <div
-                    className={
-                      report.photos.length === 1
-                        ? "relative aspect-square w-full bg-inset"
-                        : "grid grid-cols-2 gap-0.5 bg-inset"
-                    }
-                  >
-                    {report.photos.map((photo, index) => (
-                      <button
-                        key={photo.id}
-                        type="button"
-                        onClick={() => setLightboxSrc(photo.url)}
-                        className={
-                          report.photos.length === 1
-                            ? "relative h-full w-full"
-                            : "relative aspect-square"
-                        }
-                      >
-                        <Image
-                          src={photo.url}
-                          alt={t("pages.progress.progressPhoto")}
-                          fill
-                          className="object-cover"
-                          unoptimized
-                          priority={index === 0}
-                        />
-                      </button>
-                    ))}
-                  </div>
+                  <ProgressPhotoCarousel
+                    photos={report.photos}
+                    alt={t("pages.progress.progressPhoto")}
+                    onPhotoClick={setLightboxSrc}
+                    className="aspect-square w-full"
+                  />
                 ) : (
                   <div className="flex aspect-[4/3] items-center justify-center gap-2 bg-inset text-muted">
                     <Camera className="h-5 w-5" />

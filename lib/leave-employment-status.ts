@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 
+import { findOpenCicoAttendance } from "@/lib/cico-attendance";
 import { parseDateInput } from "@/lib/invoice-period";
 import { formatAppDateInput } from "@/lib/progress-report-compliance";
 import { prisma } from "@/lib/prisma";
@@ -50,8 +51,10 @@ export async function hasActiveApprovedLeavePeriod(
 
 /**
  * Leave-driven employment status (Asia/Jakarta day boundary):
- * 1. Approved leave covers today → ON_LEAVE.
- * 2. Else roster staff (ACTIVE / ON_LEAVE / legacy LEAVE_PENDING) → ACTIVE.
+ * 1. Approved leave covers today AND no open CICO → ON_LEAVE.
+ * 2. Approved leave covers today BUT open CICO (mid-shift / overnight) → stay ACTIVE
+ *    until check-out; leave takes effect only after the open attendance closes.
+ * 3. Else roster staff (ACTIVE / ON_LEAVE / legacy LEAVE_PENDING) → ACTIVE.
  * Pending leave requests do not change employment status or block ops.
  * On Leave is not set manually in Employee Edit.
  */
@@ -74,7 +77,17 @@ export async function syncEmployeeLeaveEmploymentStatus(
     referenceDate
   );
 
-  const targetStatus = onLeaveForPeriod ? "ON_LEAVE" : "ACTIVE";
+  let targetStatus: "ON_LEAVE" | "ACTIVE" = onLeaveForPeriod
+    ? "ON_LEAVE"
+    : "ACTIVE";
+
+  // Defer ON_LEAVE while still checked in (overnight-aware open attendance).
+  if (targetStatus === "ON_LEAVE") {
+    const open = await findOpenCicoAttendance(employeeId, referenceDate);
+    if (open?.record?.checkIn && !open.record.checkOut) {
+      targetStatus = "ACTIVE";
+    }
+  }
 
   if (employee.status !== targetStatus) {
     await db.employee.update({

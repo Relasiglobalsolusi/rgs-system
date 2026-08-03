@@ -1,3 +1,5 @@
+import { randomBytes } from "crypto";
+
 import bcrypt from "bcryptjs";
 
 import { getServerLocale } from "@/lib/i18n/locale";
@@ -30,23 +32,38 @@ export async function resolveNewAccountPassword(rawPassword: string): Promise<{
   };
 }
 
+const TEMP_PASSWORD_ALPHABET =
+  "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+const TEMP_PASSWORD_LENGTH = 12;
+
+/** System-generated login password for admin reset / recoverable display. */
+export function generateTemporaryPassword(): string {
+  const bytes = randomBytes(TEMP_PASSWORD_LENGTH);
+  let out = "";
+  for (let i = 0; i < TEMP_PASSWORD_LENGTH; i += 1) {
+    out += TEMP_PASSWORD_ALPHABET[bytes[i]! % TEMP_PASSWORD_ALPHABET.length]!;
+  }
+  return out;
+}
+
 /**
  * Credentials used when an admin resets an account to first-login setup.
- * Matches newly provisioned accounts: unusable password, must set password,
- * no recovery email, no password display.
+ * Issues a temporary password the admin can read in Current Password; the
+ * user must replace it on first-login. Legacy rows without passwordDisplay
+ * need this reset once — their old password cannot be recovered from bcrypt.
  */
 export async function resolveFirstLoginResetCredentials(): Promise<{
   passwordHash: string;
   mustSetPassword: true;
-  passwordDisplay: null;
+  passwordDisplay: string;
   email: null;
   passwordSetupCompletedAt: null;
 }> {
-  const { passwordHash } = await resolveNewAccountPassword("");
+  const password = generateTemporaryPassword();
   return {
-    passwordHash,
+    passwordHash: await bcrypt.hash(password, 12),
     mustSetPassword: true,
-    passwordDisplay: null,
+    passwordDisplay: password,
     email: null,
     passwordSetupCompletedAt: null,
   };
@@ -149,7 +166,7 @@ export type AdminPasswordDisplayState = "recoverable" | "pending" | "hidden";
 
 /**
  * Admin UI: how to label the Current Password field when passwordDisplay may be
- * cleared after the user completes first-login or sets their own password.
+ * missing for legacy accounts that completed setup before recoverable storage.
  */
 export function getAdminPasswordDisplayState(user: {
   passwordDisplay?: string | null;

@@ -130,8 +130,7 @@ export async function resetPassword(
       where: { id: resetToken.userId },
       data: {
         passwordHash,
-        // Never store self-chosen passwords in cleartext for admin view.
-        passwordDisplay: null,
+        passwordDisplay: password,
         mustSetPassword: false,
         passwordSetupCompletedAt: new Date(),
       },
@@ -143,6 +142,7 @@ export async function resetPassword(
 
   revalidatePath("/login");
   revalidatePath("/employees");
+  revalidatePath("/users");
 
   return { status: "success" };
 }

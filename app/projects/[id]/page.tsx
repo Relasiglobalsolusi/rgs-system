@@ -20,8 +20,12 @@ import {
   canDeleteActiveStageProjects,
   getInProgressCleaningProjectDeleteBlockReason,
   isAdminDeletableProjectStatus,
+  isClientPortalUser,
   isInProgressCleaningProjectDeleteBlocked,
+  isVendorPortalUser,
 } from "@/lib/project-access";
+import { canAssignInventoryToProject } from "@/lib/inventory-access";
+import { INVENTORY_ISSUE_PROJECT_STATUSES } from "@/lib/inventory";
 import {
   daysBetweenDates,
   isContractSubCategory,
@@ -61,6 +65,7 @@ import {
 } from "@/lib/billing";
 import { getInvoicePaymentDisplay } from "@/lib/invoice-period";
 import { formatDisplayDate } from "@/lib/format-date";
+import { asProjectServiceArea } from "@/lib/service-area";
 import type { ProjectStatus } from "@prisma/client";
 
 import AppShell from "@/components/layout/AppShell";
@@ -77,6 +82,7 @@ import { cn } from "@/lib/utils";
 import ContractExtensionsHistory from "@/components/projects/ContractExtensionsHistory";
 import ProjectAssignStaffChip from "@/components/projects/ProjectAssignStaffChip";
 import ProjectDetailActionBar from "@/components/projects/ProjectDetailActionBar";
+import ProjectInventoryPanel from "@/components/projects/ProjectInventoryPanel";
 import ProjectLocationMap from "@/components/projects/ProjectLocationMap";
 
 const metaLabelClassName =
@@ -145,7 +151,20 @@ export default async function ProjectDetailPage({
 
   const project = allowed;
 
-  const [employees, clients, inventoryCost, inventoryIssues] =
+  const showInventoryCosts =
+    !isClientPortalUser(permissionUser) &&
+    !isVendorPortalUser(permissionUser);
+  const canAssignStock = showInventoryCosts
+    ? await canAssignInventoryToProject(session.user.id, {
+        ...permissionUser,
+        username: session.user.username,
+      })
+    : false;
+  const projectIssuable = (
+    INVENTORY_ISSUE_PROJECT_STATUSES as readonly string[]
+  ).includes(project.status);
+
+  const [employees, clients, inventoryCost, inventoryIssues, catalogItems] =
     await Promise.all([
       canManage
         ? prisma.employee.findMany({
@@ -186,11 +205,27 @@ export default async function ProjectDetailPage({
             orderBy: { name: "asc" },
           })
         : Promise.resolve([]),
-      getProjectInventoryCost(project.id, { companyId: project.companyId }),
-      listProjectInventoryIssues(project.id, {
-        companyId: project.companyId,
-        take: 50,
-      }),
+      showInventoryCosts
+        ? getProjectInventoryCost(project.id, {
+            companyId: project.companyId,
+          })
+        : Promise.resolve(0),
+      showInventoryCosts
+        ? listProjectInventoryIssues(project.id, {
+            companyId: project.companyId,
+            take: 50,
+          })
+        : Promise.resolve([]),
+      canAssignStock && projectIssuable
+        ? prisma.inventoryItem.findMany({
+            where: {
+              companyId: project.companyId,
+              active: true,
+              currentStock: { gt: 0 },
+            },
+            orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+          })
+        : Promise.resolve([]),
     ]);
 
   const staffConflicts =
@@ -205,6 +240,30 @@ export default async function ProjectDetailPage({
   const staffEmployees = annotateStaffPickerConflicts(employees, staffConflicts);
 
   const canViewInventory = canAccess(permissionUser, "inventory");
+  const inventoryCatalogItems = catalogItems.map((item) => ({
+    id: item.id,
+    sku: item.sku,
+    name: item.name,
+    itemType: item.itemType,
+    description: item.description,
+    unit: item.unit,
+    minStock: decimalToNumber(item.minStock) ?? 0,
+    currentStock: decimalToNumber(item.currentStock) ?? 0,
+    lastUnitCost: decimalToNumber(item.lastUnitCost),
+    avgUnitCost: decimalToNumber(item.avgUnitCost),
+    active: item.active,
+  }));
+  const inventoryIssueViews = inventoryIssues.map((row) => ({
+    id: row.id,
+    movedAt:
+      row.movedAt instanceof Date
+        ? row.movedAt.toISOString()
+        : String(row.movedAt),
+    quantity: row.quantity,
+    unitCost: row.unitCost,
+    totalCost: row.totalCost,
+    item: row.item,
+  }));
 
   const billingHref =
     project.clientId != null
@@ -353,7 +412,7 @@ export default async function ProjectDetailPage({
           endDate: project.endDate,
           progress: project.progress,
           subCategory: project.subCategory,
-          serviceArea: project.serviceArea,
+          serviceArea: asProjectServiceArea(project.serviceArea),
           billingMode: project.billingMode,
           billingPeriodBasis: project.billingPeriodBasis,
           requiresTaxInvoice: project.requiresTaxInvoice,
@@ -535,14 +594,16 @@ export default async function ProjectDetailPage({
                     {formatContractPrice(contractPriceNum)}
                   </td>
                 </tr>
-                <tr className="border-b border-border">
-                  <th scope="row" className={metaLabelClassName}>
-                    {t("pages.projects.detail.inventoryCost")}
-                  </th>
-                  <td className={`${metaValueClassName} font-medium`}>
-                    {formatContractPrice(inventoryCost)}
-                  </td>
-                </tr>
+                {showInventoryCosts ? (
+                  <tr className="border-b border-border">
+                    <th scope="row" className={metaLabelClassName}>
+                      {t("pages.projects.detail.inventoryCost")}
+                    </th>
+                    <td className={`${metaValueClassName} font-medium`}>
+                      {formatContractPrice(inventoryCost)}
+                    </td>
+                  </tr>
+                ) : null}
                 <tr>
                   <th scope="row" className={metaLabelClassName}>
                     {t("pages.projects.detail.billing")}
@@ -574,81 +635,18 @@ export default async function ProjectDetailPage({
             </SectionCard>
           )}
 
-          <SectionCard className={sectionCardClassName}>
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h3 className={sectionTitleClassName}>
-                {t("pages.projects.detail.inventoryIssues")}
-              </h3>
-              {canViewInventory ? (
-                <Link
-                  href="/inventory"
-                  className={cn(
-                    buttonVariants({
-                      variant: "infoBadge",
-                      size: "badgeFlex",
-                    }),
-                    "text-xs tracking-[0.06em]"
-                  )}
-                >
-                  {t("pages.projects.detail.viewInventory")}
-                </Link>
-              ) : null}
-            </div>
-            {inventoryIssues.length === 0 ? (
-              <p className="text-sm text-subtle">
-                {t("pages.projects.detail.noInventoryIssues")}
-              </p>
-            ) : (
-              <div className="overflow-x-auto rounded-xl border border-border">
-                <table className="w-full min-w-[640px] text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-border text-xs uppercase tracking-[0.12em] text-subtle">
-                      <th className="px-3 py-3 font-semibold">
-                        {t("pages.projects.detail.inventoryIssueDate")}
-                      </th>
-                      <th className="px-3 py-3 font-semibold">
-                        {t("pages.projects.detail.inventoryIssueItem")}
-                      </th>
-                      <th className="px-3 py-3 font-semibold">
-                        {t("pages.projects.detail.inventoryIssueQty")}
-                      </th>
-                      <th className="px-3 py-3 font-semibold">
-                        {t("pages.projects.detail.inventoryIssueUnitCost")}
-                      </th>
-                      <th className="px-3 py-3 text-right font-semibold">
-                        {t("pages.projects.detail.inventoryIssueTotal")}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {inventoryIssues.map((row) => (
-                      <tr
-                        key={row.id}
-                        className="border-b border-border last:border-0"
-                      >
-                        <td className="px-3 py-3.5 text-text">
-                          {formatDisplayDate(row.movedAt)}
-                        </td>
-                        <td className="px-3 py-3.5">
-                          <p className="font-medium text-text">{row.item.name}</p>
-                          <p className="text-xs text-subtle">{row.item.sku}</p>
-                        </td>
-                        <td className="px-3 py-3.5 text-text">
-                          {row.quantity} {row.item.unit}
-                        </td>
-                        <td className="px-3 py-3.5 text-text">
-                          {formatContractPrice(row.unitCost)}
-                        </td>
-                        <td className="px-3 py-3.5 text-right font-medium text-text">
-                          {formatContractPrice(row.totalCost)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </SectionCard>
+          {showInventoryCosts ? (
+            <ProjectInventoryPanel
+              projectId={project.id}
+              projectName={project.name}
+              projectStatus={project.status}
+              issues={inventoryIssueViews}
+              catalogItems={inventoryCatalogItems}
+              canViewInventoryModule={canViewInventory}
+              canAssignStock={canAssignStock}
+              canVoidIssue={canAssignStock}
+            />
+          ) : null}
 
           {!inPlanning ? (
             <SectionCard className={sectionCardClassName}>

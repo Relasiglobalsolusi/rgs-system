@@ -1,6 +1,5 @@
 "use server";
 
-import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 
@@ -111,8 +110,8 @@ export async function updateUser(userId: string, formData: FormData) {
   const name = capitalizeName(String(formData.get("name") ?? "").trim());
   const username = normalizeUsername(String(formData.get("username") ?? ""));
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  const password = String(formData.get("password") ?? "");
   // Ignore form `active` — re-enable only via Restore Access; disable via Revoke Access.
+  // Password changes are not allowed from edit — use Reset Account instead.
 
   if (!name) throw await usersLocaleError("displayNameRequired", undefined, locale);
   if (!username) throw await usersLocaleError("usernameRequired", undefined, locale);
@@ -137,33 +136,13 @@ export async function updateUser(userId: string, formData: FormData) {
     await assertRecoveryEmailAvailable(email, user.id);
   }
 
-  const userData: {
-    name: string;
-    username: string;
-    email: string | null;
-    passwordHash?: string;
-    passwordDisplay?: string | null;
-    mustSetPassword?: boolean;
-    passwordSetupCompletedAt?: Date | null;
-  } = {
-    name,
-    username,
-    email,
-  };
-
-  if (password.trim()) {
-    if (password.length < 6) {
-      throw await usersLocaleError("passwordMinLength", undefined, locale);
-    }
-    userData.passwordHash = await bcrypt.hash(password, 12);
-    userData.passwordDisplay = password;
-    userData.mustSetPassword = false;
-    userData.passwordSetupCompletedAt = new Date();
-  }
-
   await prisma.user.update({
     where: { id: userId },
-    data: userData,
+    data: {
+      name,
+      username,
+      email,
+    },
   });
 
   revalidateUserDirectoryPaths();

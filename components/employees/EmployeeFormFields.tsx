@@ -33,9 +33,9 @@ import {
 import { localizeDepartmentLabel } from "@/lib/i18n/labels";
 import { isOperationsManagerPosition } from "@/lib/positions";
 import {
-  SERVICE_AREA_ORDER,
-  type ServiceAreaValue,
+  OM_APPROVAL_AREA_ORDER,
 } from "@/lib/service-area";
+import type { ServiceArea } from "@prisma/client";
 import { todayDateInput } from "@/lib/project-contract";
 import { useT } from "@/lib/i18n/use-t";
 
@@ -52,7 +52,7 @@ export type EmployeeFormDefaults = {
   portalAccessRequested?: boolean;
   idDocumentUrl?: string | null;
   hiredAt?: Date | string | null;
-  omApprovalAreas?: ServiceAreaValue[];
+  omApprovalAreas?: ServiceArea[];
   status?: "ACTIVE" | "ON_LEAVE" | "LEAVE_PENDING";
 } & EmployeeFinanceDefaults;
 
@@ -147,7 +147,7 @@ export default function EmployeeFormFields({
   const [createPortalLogin, setCreatePortalLogin] = useState<YesNoChoice>(
     defaults?.portalAccessRequested ? "Yes" : "No"
   );
-  const [omApprovalAreas, setOmApprovalAreas] = useState<ServiceAreaValue[]>(
+  const [omApprovalAreas, setOmApprovalAreas] = useState<ServiceArea[]>(
     () => defaults?.omApprovalAreas ?? ["CLEANING"]
   );
 
@@ -368,8 +368,16 @@ export default function EmployeeFormFields({
               {t("pages.employees.form.approvalAreasHint")}
             </p>
             <div className="mt-2 flex flex-wrap gap-3">
-              {SERVICE_AREA_ORDER.map((area) => {
+              {OM_APPROVAL_AREA_ORDER.map((area) => {
                 const checked = omApprovalAreas.includes(area);
+                const areaLabelKey =
+                  area === "CLEANING"
+                    ? "pages.projects.serviceAreaCleaning"
+                    : area === "PARKING"
+                      ? "pages.projects.serviceAreaParking"
+                      : area === "SECURITY"
+                        ? "pages.projects.serviceAreaSecurity"
+                        : "pages.projects.serviceAreaHeadOffice";
                 return (
                   <label
                     key={area}
@@ -385,7 +393,7 @@ export default function EmployeeFormFields({
                           if (prev.includes(area)) {
                             return prev.filter((item) => item !== area);
                           }
-                          return SERVICE_AREA_ORDER.filter(
+                          return OM_APPROVAL_AREA_ORDER.filter(
                             (item) => item === area || prev.includes(item)
                           );
                         });
@@ -393,11 +401,7 @@ export default function EmployeeFormFields({
                       }}
                       className="size-4 rounded border-border"
                     />
-                    {area === "CLEANING"
-                      ? t("pages.projects.serviceAreaCleaning")
-                      : area === "PARKING"
-                        ? t("pages.projects.serviceAreaParking")
-                        : t("pages.projects.serviceAreaSecurity")}
+                    {t(areaLabelKey)}
                   </label>
                 );
               })}

@@ -42,6 +42,8 @@ import {
 
   HandCoins,
 
+  PieChart,
+
 } from "lucide-react";
 
 import type { EmployeeType, Placement, UserRole } from "@prisma/client";
@@ -172,6 +174,7 @@ export const EXTRA_MENU_NAV_KEYS = [
   "vendorUploadHistory",
   "vendorPayments",
   "reconciliation",
+  "financialReport",
 ] as const;
 
 
@@ -374,6 +377,13 @@ export const FINANCE_MENU_ITEMS: MenuItem[] = [
     href: "/billing/thr",
     module: "invoicing",
     navKey: "thr",
+  },
+  {
+    icon: PieChart,
+    label: "Financial Report",
+    href: "/billing/financial-report",
+    module: "invoicing",
+    navKey: "financialReport",
   },
 ];
 

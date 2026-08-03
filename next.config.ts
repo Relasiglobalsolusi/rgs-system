@@ -16,6 +16,7 @@ const nextConfig: NextConfig = {
   // Logo paths are resolved at runtime via process.cwd(); include them in NFT.
   outputFileTracingIncludes: {
     "/api/reports/monthly-export": brandAssetGlobs,
+    "/api/reports/project-monthly-export": brandAssetGlobs,
     "/api/employees/bulk-template": brandAssetGlobs,
     "/api/clients/bulk-template": brandAssetGlobs,
     "/api/vendors/bulk-template": brandAssetGlobs,

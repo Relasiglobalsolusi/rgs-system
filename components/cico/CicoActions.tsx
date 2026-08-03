@@ -46,6 +46,10 @@ type AssignedProject = {
 };
 
 type Props = {
+  /** Read-only layout preview for head-office admin / managers (no check-in/out). */
+  previewMode?: boolean;
+  /** HO admin field preview — distinct empty-project copy when not in previewMode. */
+  adminFieldMode?: boolean;
   todayRecord: {
     checkIn: Date | null;
     checkOut: Date | null;
@@ -83,6 +87,8 @@ function projectSelectLabel(project: AssignedProject) {
 }
 
 export default function CicoActions({
+  previewMode = false,
+  adminFieldMode = false,
   todayRecord,
   assignedProjects,
   hasProgressReport,
@@ -177,11 +183,14 @@ export default function CicoActions({
   }
 
   async function handleCheckOut() {
+    // Guide staff to submit PR instead of a dead-end error only.
     if (needsProgressBeforeCheckout) {
+      setProgressOpen(true);
       showRejection({
+        title: t("pages.cico.progressRequiredTitle"),
+        description: t("pages.cico.progressRequiredBody"),
         reasons: t("pages.cico.errors.progressRequiredBeforeCheckOut"),
       });
-      setProgressOpen(true);
       return;
     }
 
@@ -213,6 +222,13 @@ export default function CicoActions({
             message.toLowerCase().includes("laporan progress");
           if (progressBlocked) {
             setProgressOpen(true);
+            showRejection({
+              title: t("pages.cico.progressRequiredTitle"),
+              description: t("pages.cico.progressRequiredBody"),
+              reasons:
+                message || t("pages.cico.errors.progressRequiredBeforeCheckOut"),
+            });
+            return;
           }
           showRejectionFromError(error, t("pages.cico.checkOutFailed"));
         }
@@ -226,6 +242,7 @@ export default function CicoActions({
 
   const hasProjects = assignedProjects.length > 0;
   const canCheckIn =
+    !previewMode &&
     !pending &&
     !locating &&
     !checkedIn &&
@@ -233,7 +250,7 @@ export default function CicoActions({
     !!projectId &&
     !!photoFile;
   const canCheckOutClick =
-    !pending && !locating && checkedIn && !checkedOut;
+    !previewMode && !pending && !locating && checkedIn && !checkedOut;
 
   const photoLabel = checkedIn
     ? t("pages.cico.checkOutPhoto")
@@ -247,6 +264,11 @@ export default function CicoActions({
 
   return (
     <div className="space-y-6">
+      {previewMode && (
+        <p className="rounded-xl border border-accent-slate/30 bg-card-tint-slate px-4 py-3 text-sm text-subtle">
+          {t("pages.cico.adminPreview.controlsDisabled")}
+        </p>
+      )}
       {!checkedIn && (
         <div className="space-y-4">
           <div className="space-y-2.5">
@@ -258,6 +280,7 @@ export default function CicoActions({
                 value={projectId}
                 onValueChange={(value) => setProjectId(value ?? "")}
                 items={projectSelectItems}
+                disabled={previewMode}
               >
                 <SelectTrigger className="h-11 w-full">
                   <SelectValue placeholder={t("pages.cico.selectProject")}>
@@ -282,7 +305,11 @@ export default function CicoActions({
               </Select>
             ) : (
               <p className="text-sm text-amber-400">
-                {t("pages.cico.noProjectsAssigned")}
+                {previewMode
+                  ? t("pages.cico.adminPreview.noSampleProject")
+                  : adminFieldMode
+                    ? t("pages.cico.adminPreview.noSelectableProject")
+                    : t("pages.cico.noProjectsAssigned")}
               </p>
             )}
           </div>
@@ -420,16 +447,22 @@ export default function CicoActions({
             accept="image/*"
             capture="environment"
             className="sr-only"
+            disabled={previewMode}
             onChange={onPhotoChange}
           />
           <div className="flex flex-wrap items-center gap-2.5">
-            <Button
-              type="button"
-              variant="outline"
-              size="badgeFlex"
-              onClick={() => photoInputRef.current?.click()}
-              disabled={pending || locating || (!checkedIn && !hasProjects)}
-            >
+              <Button
+                type="button"
+                variant="outline"
+                size="badgeFlex"
+                onClick={() => photoInputRef.current?.click()}
+                disabled={
+                  previewMode ||
+                  pending ||
+                  locating ||
+                  (!checkedIn && !hasProjects)
+                }
+              >
               <Camera className="mr-1.5" />
               {photoFile
                 ? t("pages.cico.retakePhoto")
@@ -441,7 +474,7 @@ export default function CicoActions({
                 variant="ghost"
                 size="sm"
                 onClick={clearPhoto}
-                disabled={pending || locating}
+                disabled={previewMode || pending || locating}
                 className="text-subtle"
               >
                 <X className="mr-1" />
@@ -506,14 +539,23 @@ export default function CicoActions({
       </div>
 
       <p className="pt-1 text-xs leading-relaxed text-subtle">
-        {t("pages.cico.footerNote")}
+        {previewMode
+          ? t("pages.cico.adminPreview.footerNote")
+          : adminFieldMode
+            ? t("pages.cico.adminPreview.fieldFooterNote")
+            : t("pages.cico.footerNote")}
       </p>
 
-      {checkInProject.length > 0 ? (
+      {!previewMode && checkInProject.length > 0 ? (
         <ProgressDialog
           projects={checkInProject}
           defaultProjectId={checkInProject[0]?.id}
           defaultDate={workDate}
+          openCicoLock={
+            checkInProject[0]
+              ? { projectId: checkInProject[0].id, workDate }
+              : null
+          }
           hideTrigger
           open={progressOpen}
           onOpenChange={(open) => {
