@@ -5,8 +5,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { voidProjectInventoryIssue } from "@/app/inventory/actions";
-import InventoryIssueDialog from "@/components/inventory/InventoryIssueDialog";
-import type { InventoryCatalogItem } from "@/components/inventory/inventory-types";
+import { matchInventoryItemType } from "@/components/inventory/inventory-category";
 import {
   showRejection,
   showRejectionFromError,
@@ -22,7 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import SectionCard from "@/components/ui/SectionCard";
 import { formatDisplayDate } from "@/lib/format-date";
-import { canIssueInventoryToProject, formatInventoryQtyWithUnit } from "@/lib/inventory";
+import { formatInventoryQtyWithUnit } from "@/lib/inventory";
 import { useT } from "@/lib/i18n/use-t";
 import { formatContractPrice } from "@/lib/project-billing";
 import { cn } from "@/lib/utils";
@@ -38,17 +37,14 @@ export type ProjectInventoryIssueView = {
     sku: string;
     name: string;
     unit: string;
+    itemType: string;
   };
 };
 
 type Props = {
   projectId: string;
-  projectName: string;
-  projectStatus: string;
   issues: ProjectInventoryIssueView[];
-  catalogItems: InventoryCatalogItem[];
   canViewInventoryModule: boolean;
-  canAssignStock: boolean;
   canVoidIssue: boolean;
 };
 
@@ -57,26 +53,16 @@ const sectionCardClassName = "p-5 sm:p-6";
 
 export default function ProjectInventoryPanel({
   projectId,
-  projectName,
-  projectStatus,
   issues,
-  catalogItems,
   canViewInventoryModule,
-  canAssignStock,
   canVoidIssue,
 }: Props) {
   const { t } = useT();
-  const [assignOpen, setAssignOpen] = useState(false);
   const [voidTarget, setVoidTarget] = useState<ProjectInventoryIssueView | null>(
     null
   );
   const [voidReason, setVoidReason] = useState("");
   const [pending, startTransition] = useTransition();
-
-  const canIssueToStatus = canIssueInventoryToProject(projectStatus);
-  const hasStock = catalogItems.some(
-    (item) => item.active && item.currentStock > 0
-  );
 
   function submitVoid() {
     if (!voidTarget) return;
@@ -113,30 +99,13 @@ export default function ProjectInventoryPanel({
               {t("pages.projects.detail.inventoryIssues")}
             </h3>
             <p className="mt-1 max-w-2xl text-sm text-subtle">
-              {t("pages.projects.detail.inventoryEquipmentReleaseHint")}
+              {t("pages.projects.detail.inventoryIssueFromInventoryOnly")}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {canAssignStock && canIssueToStatus ? (
-              <Button
-                type="button"
-                variant="infoBadge"
-                size="badgeFlex"
-                className="text-xs tracking-[0.06em]"
-                disabled={!hasStock}
-                title={
-                  hasStock
-                    ? undefined
-                    : t("pages.inventory.noStockToIssue")
-                }
-                onClick={() => setAssignOpen(true)}
-              >
-                {t("pages.projects.detail.assignStock")}
-              </Button>
-            ) : null}
             {canViewInventoryModule ? (
               <Link
-                href="/inventory"
+                href="/inventory?tab=issues"
                 className={cn(
                   buttonVariants({
                     variant: "infoBadge",
@@ -150,98 +119,90 @@ export default function ProjectInventoryPanel({
             ) : null}
           </div>
         </div>
+
         {issues.length === 0 ? (
-          <p className="text-sm text-subtle">
+          <p className="text-sm text-muted">
             {t("pages.projects.detail.noInventoryIssues")}
           </p>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-border">
-            <table className="w-full min-w-[640px] text-left text-sm">
-              <thead>
-                <tr className="border-b border-border text-xs uppercase tracking-[0.12em] text-subtle">
-                  <th className="px-3 py-3 font-semibold">
-                    {t("pages.projects.detail.inventoryIssueDate")}
+            <table className="w-full text-sm">
+              <thead className="bg-elevated/60 text-left text-xs uppercase tracking-[0.12em] text-subtle">
+                <tr>
+                  <th className="px-3 py-2.5 font-semibold">
+                    {t("pages.inventory.columns.date")}
                   </th>
-                  <th className="px-3 py-3 font-semibold">
-                    {t("pages.projects.detail.inventoryIssueItem")}
+                  <th className="px-3 py-2.5 font-semibold">
+                    {t("pages.inventory.columns.item")}
                   </th>
-                  <th className="px-3 py-3 font-semibold">
-                    {t("pages.projects.detail.inventoryIssueQty")}
+                  <th className="px-3 py-2.5 font-semibold">
+                    {t("pages.inventory.columns.qty")}
                   </th>
-                  <th className="px-3 py-3 font-semibold">
-                    {t("pages.projects.detail.inventoryIssueUnitCost")}
-                  </th>
-                  <th className="px-3 py-3 text-right font-semibold">
-                    {t("pages.projects.detail.inventoryIssueTotal")}
+                  <th className="px-3 py-2.5 font-semibold">
+                    {t("pages.inventory.columns.totalCost")}
                   </th>
                   {canVoidIssue ? (
-                    <th className="px-3 py-3 text-right font-semibold">
-                      {t("pages.projects.detail.inventoryIssueActions")}
+                    <th className="px-3 py-2.5 font-semibold">
+                      {t("pages.inventory.columns.actions")}
                     </th>
                   ) : null}
                 </tr>
               </thead>
               <tbody>
-                {issues.map((row) => (
-                  <tr
-                    key={row.id}
-                    className="border-b border-border last:border-0"
-                  >
-                    <td className="px-3 py-3.5 text-text">
-                      {formatDisplayDate(row.movedAt)}
-                    </td>
-                    <td className="px-3 py-3.5">
-                      <p className="font-medium text-text">{row.item.name}</p>
-                      <p className="text-xs text-subtle">{row.item.sku}</p>
-                    </td>
-                    <td className="px-3 py-3.5 text-text">
-                      {formatInventoryQtyWithUnit(row.quantity, row.item.unit)}
-                    </td>
-                    <td className="px-3 py-3.5 text-text">
-                      {formatContractPrice(row.unitCost)}
-                    </td>
-                    <td className="px-3 py-3.5 text-right font-medium text-text">
-                      {formatContractPrice(row.totalCost)}
-                    </td>
-                    {canVoidIssue ? (
-                      <td className="px-3 py-3.5 text-right">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="text-xs"
-                          onClick={() => {
-                            setVoidTarget(row);
-                            setVoidReason("");
-                          }}
-                        >
-                          {t("pages.projects.detail.voidIssue")}
-                        </Button>
+                {issues.map((row) => {
+                  const isEquipment = matchInventoryItemType(
+                    row.item.itemType,
+                    "equipment"
+                  );
+                  return (
+                    <tr key={row.id} className="border-t border-border">
+                      <td className="px-3 py-2.5 text-text">
+                        {formatDisplayDate(row.movedAt)}
                       </td>
-                    ) : null}
-                  </tr>
-                ))}
+                      <td className="px-3 py-2.5 text-text">
+                        <span className="font-medium">{row.item.name}</span>
+                        <span className="ml-2 text-subtle">{row.item.sku}</span>
+                        {isEquipment ? (
+                          <span className="ml-2 text-xs text-muted">
+                            {t("pages.inventory.form.equipmentDeployed")}
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="px-3 py-2.5 tabular-nums text-text">
+                        {formatInventoryQtyWithUnit(
+                          row.quantity,
+                          row.item.unit
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 tabular-nums text-text">
+                        {isEquipment
+                          ? "—"
+                          : formatContractPrice(row.totalCost)}
+                      </td>
+                      {canVoidIssue ? (
+                        <td className="px-3 py-2.5">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-danger"
+                            onClick={() => {
+                              setVoidTarget(row);
+                              setVoidReason("");
+                            }}
+                          >
+                            {t("pages.projects.detail.voidIssue")}
+                          </Button>
+                        </td>
+                      ) : null}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </SectionCard>
-
-      {canAssignStock ? (
-        <InventoryIssueDialog
-          open={assignOpen}
-          onOpenChange={setAssignOpen}
-          items={catalogItems}
-          projects={[
-            {
-              id: projectId,
-              name: projectName,
-              status: projectStatus,
-            },
-          ]}
-          lockedProjectId={projectId}
-        />
-      ) : null}
 
       <Dialog
         open={voidTarget != null}
@@ -264,7 +225,11 @@ export default function ProjectInventoryPanel({
           {voidTarget ? (
             <div className="space-y-3">
               <p className="text-sm text-text">
-                {voidTarget.item.name} — {formatInventoryQtyWithUnit(voidTarget.quantity, voidTarget.item.unit)}
+                {voidTarget.item.name} —{" "}
+                {formatInventoryQtyWithUnit(
+                  voidTarget.quantity,
+                  voidTarget.item.unit
+                )}
               </p>
               <label className="block space-y-1.5">
                 <span className="text-xs font-semibold uppercase tracking-[0.12em] text-subtle">

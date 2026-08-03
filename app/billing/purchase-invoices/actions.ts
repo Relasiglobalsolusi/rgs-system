@@ -23,7 +23,11 @@ import { nextWeightedAvgUnitCost, toDecimal, inventoryQtyFromDecimal, isWholeInv
 import { extractPurchaseInvoiceFields } from "@/lib/purchase-invoice-extract";
 import type { ExtractPurchaseInvoiceResult } from "@/lib/purchase-invoice-extract-client";
 import { requireSession, toPermissionUser } from "@/lib/session";
-import { parsePpnRatePercent } from "@/lib/vat";
+import {
+  exclusiveUnitCostFromInclusive,
+  parsePpnRatePercent,
+  ppnRateFromPercent,
+} from "@/lib/vat";
 
 type PurchaseLineInput = {
   itemId: string;
@@ -385,6 +389,7 @@ export async function createPurchaseInvoice(formData: FormData) {
         companyId: session.user.companyId,
         id: { in: itemIds },
         active: true,
+        deletedAt: null,
       },
       select: { id: true, tracksStock: true },
     });
@@ -413,7 +418,7 @@ export async function createPurchaseInvoice(formData: FormData) {
   if (includesPpn) {
     ppnRatePercent = parsePpnRatePercent(ppnRateRaw);
     if (ppnRatePercent == null) {
-      throw new Error("Enter the VAT rate percent for this purchase.");
+      throw new Error("Enter the tax rate percent for this purchase.");
     }
   }
 
@@ -482,14 +487,27 @@ export async function createPurchaseInvoice(formData: FormData) {
         },
       });
 
+      // Commercial invoice lines stay tax-inclusive when PPN applies.
+      // Stock valuation / EquipmentAsset.unitCost always use ex-tax (DPP) unit cost.
+      const ppnRate =
+        includesPpn && ppnRatePercent != null
+          ? ppnRateFromPercent(ppnRatePercent)
+          : 0;
+
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i]!;
         const totalPrice = line.quantity * line.unitPrice;
+        const costUnitPrice =
+          ppnRate > 0
+            ? exclusiveUnitCostFromInclusive(line.unitPrice, ppnRate)
+            : line.unitPrice;
+        const costTotalPrice = line.quantity * costUnitPrice;
         const item = await tx.inventoryItem.findFirst({
           where: {
             id: line.itemId,
             companyId: session.user.companyId,
             active: true,
+            deletedAt: null,
           },
           select: { id: true, tracksStock: true, itemType: true },
         });
@@ -520,7 +538,7 @@ export async function createPurchaseInvoice(formData: FormData) {
           currentStock,
           avgUnitCost,
           purchaseQty: line.quantity,
-          purchaseUnitPrice: line.unitPrice,
+          purchaseUnitPrice: costUnitPrice,
         });
         const newStock = normalizeInventoryQty(currentStock + line.quantity);
 
@@ -530,8 +548,8 @@ export async function createPurchaseInvoice(formData: FormData) {
             itemId: item.id,
             type: "PURCHASE",
             quantity: toDecimal(line.quantity),
-            unitCost: toDecimal(line.unitPrice),
-            totalCost: toDecimal(totalPrice),
+            unitCost: toDecimal(costUnitPrice),
+            totalCost: toDecimal(costTotalPrice),
             movedAt: invoiceDate,
             notes: notesRaw || null,
             createdById: session.user.id,
@@ -545,8 +563,8 @@ export async function createPurchaseInvoice(formData: FormData) {
             vendorId: vendorId!,
             purchasedAt: invoiceDate,
             quantity: toDecimal(line.quantity),
-            unitPrice: toDecimal(line.unitPrice),
-            totalPrice: toDecimal(totalPrice),
+            unitPrice: toDecimal(costUnitPrice),
+            totalPrice: toDecimal(costTotalPrice),
             invoiceNo: invoiceRef,
             receiptUrl: filePath,
             notes: notesRaw || null,
@@ -560,7 +578,7 @@ export async function createPurchaseInvoice(formData: FormData) {
           where: { id: item.id },
           data: {
             currentStock: toDecimal(newStock),
-            lastUnitCost: toDecimal(line.unitPrice),
+            lastUnitCost: toDecimal(costUnitPrice),
             avgUnitCost: toDecimal(newAvg),
           },
         });
@@ -569,7 +587,8 @@ export async function createPurchaseInvoice(formData: FormData) {
           tx,
           session.user.companyId,
           item.id,
-          line.quantity
+          line.quantity,
+          { unitCost: costUnitPrice }
         );
       }
     });

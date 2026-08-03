@@ -78,7 +78,6 @@ async function main() {
           invoicePeriods: true,
           assignments: true,
           progressReports: true,
-          dailyProgress: true,
           attendances: true,
           progressWarningAcks: true,
         },

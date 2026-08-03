@@ -21,7 +21,7 @@ import {
   decimalToNumber,
   formatContractPrice,
 } from "@/lib/project-billing";
-import { requireModule, toPermissionUser } from "@/lib/session";
+import { requireFinanceChild, toPermissionUser } from "@/lib/session";
 
 /** AP list view filters for HO Finance. */
 const PURCHASE_VIEWS = ["tax", "payments"] as const;
@@ -38,7 +38,7 @@ export default async function PurchaseInvoicesPage({
 }: {
   searchParams?: SearchParams;
 }) {
-  const session = await requireModule("invoicing");
+  const session = await requireFinanceChild("purchaseInvoices");
   const locale = await getServerLocale();
   const t = createTranslator(locale);
 

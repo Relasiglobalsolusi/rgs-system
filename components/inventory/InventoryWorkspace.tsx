@@ -1,23 +1,37 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import Link from "next/link";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import {
-  AlertTriangle,
   Boxes,
+  CircleDollarSign,
   FolderKanban,
   ShoppingCart,
   Trash2,
+  Wrench,
 } from "lucide-react";
 
+import {
+  searchInventoryPurchases,
+  searchInventorySoldOffs,
+} from "@/app/inventory/actions";
+import InventoryAssetList from "@/components/inventory/InventoryAssetList";
 import InventoryIssueDialog from "@/components/inventory/InventoryIssueDialog";
+import InventoryProjectIssues from "@/components/inventory/InventoryProjectIssues";
 import InventoryPurchaseDialog from "@/components/inventory/InventoryPurchaseDialog";
+import InventoryReverseWriteOffDialog from "@/components/inventory/InventoryReverseWriteOffDialog";
+import InventorySoldOffDialog from "@/components/inventory/InventorySoldOffDialog";
+import InventorySoldOffTables from "@/components/inventory/InventorySoldOffTables";
+import InventoryStockTables from "@/components/inventory/InventoryStockTables";
 import InventoryWriteOffDialog from "@/components/inventory/InventoryWriteOffDialog";
+import InventoryWriteOffTables from "@/components/inventory/InventoryWriteOffTables";
+import { matchInventoryItemType } from "@/components/inventory/inventory-category";
 import type {
   InventoryCatalogItem,
   InventoryIssueRow,
+  InventoryOverviewAssetRow,
   InventoryProjectOption,
   InventoryPurchaseRow,
+  InventorySoldOffRow,
   InventoryTab,
   InventoryVendorOption,
   InventoryWriteOffRow,
@@ -30,10 +44,14 @@ import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
-import { stockValueOnHand, formatInventoryQtyWithUnit } from "@/lib/inventory";
+import {
+  isBelowMinStock,
+  stockValueOnHand,
+  formatInventoryQtyWithUnit,
+} from "@/lib/inventory";
+import { useT } from "@/lib/i18n/use-t";
 import { formatDisplayDate } from "@/lib/format-date";
 import { formatContractPrice } from "@/lib/project-billing";
-import { useT } from "@/lib/i18n/use-t";
 
 type Props = {
   canManage: boolean;
@@ -43,8 +61,10 @@ type Props = {
   purchases: InventoryPurchaseRow[];
   issues: InventoryIssueRow[];
   writeOffs: InventoryWriteOffRow[];
+  soldOffs: InventorySoldOffRow[];
   vendors: InventoryVendorOption[];
   projects: InventoryProjectOption[];
+  equipmentAssets: InventoryOverviewAssetRow[];
 };
 
 export default function InventoryWorkspace({
@@ -54,8 +74,10 @@ export default function InventoryWorkspace({
   purchases,
   issues,
   writeOffs,
+  soldOffs,
   vendors,
   projects,
+  equipmentAssets,
 }: Props) {
   const { t } = useT();
   const [tab, setTab] = useState<InventoryTab>("stock");
@@ -63,85 +85,214 @@ export default function InventoryWorkspace({
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [issueOpen, setIssueOpen] = useState(false);
   const [writeOffOpen, setWriteOffOpen] = useState(false);
+  const [soldOffOpen, setSoldOffOpen] = useState(false);
+  const [reverseWriteOffTarget, setReverseWriteOffTarget] =
+    useState<InventoryWriteOffRow | null>(null);
+  const [searchedPurchases, setSearchedPurchases] = useState<
+    InventoryPurchaseRow[] | null
+  >(null);
+  const [searchedSoldOffs, setSearchedSoldOffs] = useState<
+    InventorySoldOffRow[] | null
+  >(null);
+  const [searchPending, startSearchTransition] = useTransition();
 
   const activeItems = useMemo(
     () => items.filter((item) => item.active),
     [items]
   );
-  /** Fixed low-stock threshold: warn whenever on-hand stock drops below 5 units. */
-  const LOW_STOCK_THRESHOLD = 5;
+  /** Chemical / Consumable / Other — Equipment lives on Asset List. */
+  const nonEquipmentItems = useMemo(
+    () =>
+      activeItems.filter(
+        (item) => !matchInventoryItemType(item.itemType, "equipment")
+      ),
+    [activeItems]
+  );
+  const equipmentCatalogItems = useMemo(
+    () =>
+      activeItems.filter((item) =>
+        matchInventoryItemType(item.itemType, "equipment")
+      ),
+    [activeItems]
+  );
+
   const lowStockCount = useMemo(
     () =>
-      activeItems.filter((item) => item.currentStock < LOW_STOCK_THRESHOLD).length,
-    [activeItems]
+      nonEquipmentItems.filter((item) =>
+        isBelowMinStock(item.currentStock, item.minStock)
+      ).length,
+    [nonEquipmentItems]
   );
   const totalStockValue = useMemo(
     () =>
-      activeItems.reduce(
+      nonEquipmentItems.reduce(
         (sum, item) =>
           sum + stockValueOnHand(item.currentStock, item.avgUnitCost),
         0
       ),
-    [activeItems]
+    [nonEquipmentItems]
   );
+
+  /** Owned equipment units by catalog item (AVAILABLE + ON_PROJECT; excludes RETIRED). */
+  const equipmentOwnedByItem = useMemo(() => {
+    const map = new Map<
+      string,
+      { warehouse: number; onProject: number; ownedValue: number }
+    >();
+    for (const asset of equipmentAssets) {
+      const itemId = asset.item?.id;
+      if (!itemId) continue;
+      if (asset.status === "RETIRED") continue;
+      const entry = map.get(itemId) ?? {
+        warehouse: 0,
+        onProject: 0,
+        ownedValue: 0,
+      };
+      if (asset.status === "AVAILABLE") entry.warehouse += 1;
+      else if (asset.status === "ON_PROJECT") entry.onProject += 1;
+      entry.ownedValue += asset.unitCost ?? 0;
+      map.set(itemId, entry);
+    }
+    return map;
+  }, [equipmentAssets]);
+
+  const equipmentStats = useMemo(() => {
+    let warehouse = 0;
+    let owned = 0;
+    let ownedValue = 0;
+    for (const item of equipmentCatalogItems) {
+      const counts = equipmentOwnedByItem.get(item.id);
+      const itemWarehouse = counts?.warehouse ?? 0;
+      const itemOwned = itemWarehouse + (counts?.onProject ?? 0);
+      warehouse += itemWarehouse;
+      owned += itemOwned;
+      ownedValue += counts?.ownedValue ?? 0;
+    }
+    return { warehouse, owned, ownedValue };
+  }, [equipmentCatalogItems, equipmentOwnedByItem]);
 
   const trimmedSearch = searchQuery.trim();
 
-  const visiblePurchases = useMemo(
-    () =>
-      purchases.filter((row) =>
-        matchesDirectorySearch(
-          searchQuery,
-          row.item?.name,
-          row.item?.sku,
-          row.vendor?.name,
-          row.invoiceNo,
-          row.notes
-        )
-      ),
-    [purchases, searchQuery]
-  );
+  useEffect(() => {
+    if (tab !== "purchases") {
+      setSearchedPurchases(null);
+      return;
+    }
+    if (!trimmedSearch) {
+      setSearchedPurchases(null);
+      return;
+    }
 
-  const visibleIssues = useMemo(
-    () =>
-      issues.filter((row) =>
-        matchesDirectorySearch(
-          searchQuery,
-          row.item?.name,
-          row.item?.sku,
-          row.project?.name,
-          row.notes
-        )
-      ),
-    [issues, searchQuery]
-  );
+    const handle = window.setTimeout(() => {
+      startSearchTransition(async () => {
+        try {
+          const rows = await searchInventoryPurchases(trimmedSearch);
+          setSearchedPurchases(rows);
+        } catch {
+          setSearchedPurchases([]);
+        }
+      });
+    }, 300);
 
-  const visibleWriteOffs = useMemo(
-    () =>
-      writeOffs.filter((row) =>
-        matchesDirectorySearch(
-          searchQuery,
-          row.item?.name,
-          row.item?.sku,
-          row.reason,
-          row.createdBy?.username
-        )
-      ),
-    [writeOffs, searchQuery]
+    return () => window.clearTimeout(handle);
+  }, [tab, trimmedSearch]);
+
+  useEffect(() => {
+    if (tab !== "soldOff") {
+      setSearchedSoldOffs(null);
+      return;
+    }
+    if (!trimmedSearch) {
+      setSearchedSoldOffs(null);
+      return;
+    }
+
+    const handle = window.setTimeout(() => {
+      startSearchTransition(async () => {
+        try {
+          const rows = await searchInventorySoldOffs(trimmedSearch);
+          setSearchedSoldOffs(rows);
+        } catch {
+          setSearchedSoldOffs([]);
+        }
+      });
+    }, 300);
+
+    return () => window.clearTimeout(handle);
+  }, [tab, trimmedSearch]);
+
+  const visiblePurchases = useMemo(() => {
+    const source = searchedPurchases ?? purchases;
+    return source.filter(
+      (row) => row.item?.id != null && row.vendor?.id != null
+    );
+  }, [purchases, searchedPurchases]);
+
+  const visibleSoldOffs = useMemo(
+    () => searchedSoldOffs ?? soldOffs,
+    [searchedSoldOffs, soldOffs]
   );
 
   const visibleStock = useMemo(
     () =>
-      activeItems.filter((item) =>
+      nonEquipmentItems
+        .filter((item) => item?.id != null)
+        .filter((item) =>
+          matchesDirectorySearch(
+            searchQuery,
+            item?.name,
+            item?.sku,
+            item?.itemType
+          )
+        ),
+    [nonEquipmentItems, searchQuery]
+  );
+
+  const visibleEquipment = useMemo(() => {
+    if (!trimmedSearch) return equipmentCatalogItems;
+    return equipmentCatalogItems.filter((item) => {
+      if (
         matchesDirectorySearch(
           searchQuery,
           item.name,
           item.sku,
           item.itemType
         )
-      ),
-    [activeItems, searchQuery]
-  );
+      ) {
+        return true;
+      }
+      return equipmentAssets.some(
+        (asset) =>
+          asset.item?.id === item.id &&
+          matchesDirectorySearch(
+            searchQuery,
+            asset.assetCode,
+            asset.serialNo,
+            asset.notes,
+            asset.project?.name
+          )
+      );
+    });
+  }, [
+    equipmentAssets,
+    equipmentCatalogItems,
+    searchQuery,
+    trimmedSearch,
+  ]);
+
+  function selectTab(next: InventoryTab) {
+    setTab(next);
+    setSearchQuery("");
+    setSearchedPurchases(null);
+    setSearchedSoldOffs(null);
+  }
+
+  const searchPlaceholder =
+    tab === "purchases"
+      ? t("pages.inventory.searchPurchasesPlaceholder")
+      : tab === "soldOff"
+        ? t("pages.inventory.searchSoldOffsPlaceholder")
+        : t("pages.inventory.searchPlaceholder");
 
   const purchaseColumns: DataTableColumn<InventoryPurchaseRow>[] = [
     {
@@ -209,234 +360,11 @@ export default function InventoryWorkspace({
     },
   ];
 
-  const issueColumns: DataTableColumn<InventoryIssueRow>[] = [
-    {
-      key: "movedAt",
-      title: t("pages.inventory.columns.date"),
-      width: "8rem",
-      render: (row) => formatDisplayDate(row.movedAt),
-    },
-    {
-      key: "item",
-      title: t("pages.inventory.columns.item"),
-      share: 2,
-      render: (row) => (
-        <div>
-          <p className="font-medium text-text">{row.item?.name ?? "—"}</p>
-          <p className="text-xs text-subtle">{row.item?.sku ?? "—"}</p>
-        </div>
-      ),
-    },
-    {
-      key: "project",
-      title: t("pages.inventory.columns.project"),
-      share: 2,
-      render: (row) =>
-        row.project ? (
-          <Link
-            href={`/projects/${row.project.id}`}
-            className="font-medium text-primary underline-offset-2 hover:underline"
-          >
-            {row.project.name}
-          </Link>
-        ) : (
-          "—"
-        ),
-    },
-    {
-      key: "quantity",
-      title: t("pages.inventory.columns.qty"),
-      width: "7rem",
-      align: "right",
-      render: (row) =>
-        formatInventoryQtyWithUnit(row.quantity, row.item?.unit ?? "pcs"),
-    },
-    {
-      key: "unitCost",
-      title: t("pages.inventory.columns.unitCost"),
-      width: "8rem",
-      align: "right",
-      render: (row) => formatContractPrice(row.unitCost),
-    },
-    {
-      key: "totalCost",
-      title: t("pages.inventory.columns.projectCost"),
-      width: "8rem",
-      align: "right",
-      render: (row) => formatContractPrice(row.totalCost),
-    },
-  ];
-
-  const writeOffColumns: DataTableColumn<InventoryWriteOffRow>[] = [
-    {
-      key: "movedAt",
-      title: t("pages.inventory.columns.date"),
-      width: "8rem",
-      render: (row) => formatDisplayDate(row.movedAt),
-    },
-    {
-      key: "item",
-      title: t("pages.inventory.columns.item"),
-      share: 2,
-      render: (row) => (
-        <div>
-          <p className="font-medium text-text">{row.item?.name ?? "—"}</p>
-          <p className="text-xs text-subtle">{row.item?.sku ?? "—"}</p>
-        </div>
-      ),
-    },
-    {
-      key: "quantity",
-      title: t("pages.inventory.columns.qty"),
-      width: "7rem",
-      align: "right",
-      render: (row) =>
-        formatInventoryQtyWithUnit(row.quantity, row.item?.unit ?? "pcs"),
-    },
-    {
-      key: "unitCost",
-      title: t("pages.inventory.columns.unitCost"),
-      width: "8rem",
-      align: "right",
-      render: (row) => (row.unitCost > 0 ? formatContractPrice(row.unitCost) : "—"),
-    },
-    {
-      key: "totalCost",
-      title: t("pages.inventory.columns.writeOffValue"),
-      width: "9rem",
-      align: "right",
-      render: (row) => (row.totalCost > 0 ? formatContractPrice(row.totalCost) : "—"),
-    },
-    {
-      key: "reason",
-      title: t("pages.inventory.columns.writeOffReason"),
-      share: 2,
-      render: (row) => (
-        <span className="text-sm text-text">{row.reason}</span>
-      ),
-    },
-    {
-      key: "createdBy",
-      title: t("pages.inventory.columns.writtenOffBy"),
-      width: "9rem",
-      render: (row) => row.createdBy?.username ?? "—",
-    },
-  ];
-
-  const stockColumns: DataTableColumn<InventoryCatalogItem>[] = [
-    {
-      key: "sku",
-      title: t("pages.inventory.columns.sku"),
-      width: "7rem",
-      render: (row) => (
-        <span className="font-mono text-sm text-muted">{row.sku}</span>
-      ),
-    },
-    {
-      key: "name",
-      title: t("pages.inventory.columns.item"),
-      share: 2,
-      render: (row) => row?.name ?? "—",
-    },
-    {
-      key: "currentStock",
-      title: t("pages.inventory.columns.onHand"),
-      width: "8rem",
-      align: "right",
-      render: (row) => {
-        const low = row.currentStock < LOW_STOCK_THRESHOLD;
-        return (
-          <span className={low ? "font-semibold text-warning" : undefined}>
-            {formatInventoryQtyWithUnit(row.currentStock, row.unit)}
-            {low ? (
-              <AlertTriangle className="ml-1 inline h-3.5 w-3.5 align-text-bottom" />
-            ) : null}
-          </span>
-        );
-      },
-    },
-    {
-      key: "minStock",
-      title: t("pages.inventory.columns.minStock"),
-      width: "7rem",
-      align: "right",
-      render: (row) =>
-        row.minStock > 0 ? formatInventoryQtyWithUnit(row.minStock, row.unit) : "—",
-    },
-    {
-      key: "avgUnitCost",
-      title: t("pages.inventory.columns.avgCost"),
-      width: "8rem",
-      align: "right",
-      render: (row) =>
-        row.avgUnitCost != null ? formatContractPrice(row.avgUnitCost) : "—",
-    },
-    {
-      key: "lastUnitCost",
-      title: t("pages.inventory.columns.lastCost"),
-      width: "8rem",
-      align: "right",
-      render: (row) =>
-        row.lastUnitCost != null ? formatContractPrice(row.lastUnitCost) : "—",
-    },
-    {
-      key: "value",
-      title: t("pages.inventory.columns.valueOnHand"),
-      width: "9rem",
-      align: "right",
-      render: (row) =>
-        formatContractPrice(stockValueOnHand(row.currentStock, row.avgUnitCost)),
-    },
-  ];
-
-  const emptyByTab: Record<
-    InventoryTab,
-    { title: string; description: string; rows: unknown[] }
-  > = {
-    purchases: {
-      title: trimmedSearch
-        ? t("pages.inventory.emptySearch", { query: trimmedSearch })
-        : t("pages.inventory.emptyPurchases"),
-      description: trimmedSearch
-        ? t("pages.inventory.emptySearchDesc")
-        : t("pages.inventory.emptyPurchasesDesc"),
-      rows: visiblePurchases,
-    },
-    issues: {
-      title: trimmedSearch
-        ? t("pages.inventory.emptySearch", { query: trimmedSearch })
-        : t("pages.inventory.emptyIssues"),
-      description: trimmedSearch
-        ? t("pages.inventory.emptySearchDesc")
-        : t("pages.inventory.emptyIssuesDesc"),
-      rows: visibleIssues,
-    },
-    writeOffs: {
-      title: trimmedSearch
-        ? t("pages.inventory.emptySearch", { query: trimmedSearch })
-        : t("pages.inventory.emptyWriteOffs"),
-      description: trimmedSearch
-        ? t("pages.inventory.emptySearchDesc")
-        : t("pages.inventory.emptyWriteOffsDesc"),
-      rows: visibleWriteOffs,
-    },
-    stock: {
-      title: trimmedSearch
-        ? t("pages.inventory.emptySearch", { query: trimmedSearch })
-        : t("pages.inventory.emptyStock"),
-      description: trimmedSearch
-        ? t("pages.inventory.emptySearchDesc")
-        : t("pages.inventory.emptyStockDesc"),
-      rows: visibleStock,
-    },
-  };
-
-  const empty = emptyByTab[tab];
-
   return (
     <>
-      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <DirectoryStatCard
+          compact
           title={t("pages.inventory.tabs.stock")}
           value={formatContractPrice(totalStockValue)}
           subtitle={t("pages.inventory.stats.stockSubtitle", {
@@ -445,46 +373,60 @@ export default function InventoryWorkspace({
           icon={<Boxes size={18} />}
           accent={lowStockCount > 0 ? "danger" : "info"}
           selected={tab === "stock"}
-          onClick={() => {
-            setTab("stock");
-            setSearchQuery("");
-          }}
+          onClick={() => selectTab("stock")}
         />
         <DirectoryStatCard
-          title={t("pages.inventory.tabs.purchases")}
-          value={purchases.length}
-          subtitle={t("pages.inventory.stats.purchasesSubtitle")}
-          icon={<ShoppingCart size={18} />}
-          accent="success"
-          selected={tab === "purchases"}
-          onClick={() => {
-            setTab("purchases");
-            setSearchQuery("");
-          }}
+          compact
+          title={t("pages.inventory.tabs.assetList")}
+          value={formatContractPrice(equipmentStats.ownedValue)}
+          subtitle={t("pages.inventory.stats.assetListSubtitle", {
+            warehouse: String(equipmentStats.warehouse),
+            owned: String(equipmentStats.owned),
+          })}
+          icon={<Wrench size={18} />}
+          accent="muted"
+          selected={tab === "assetList"}
+          onClick={() => selectTab("assetList")}
         />
         <DirectoryStatCard
+          compact
           title={t("pages.inventory.tabs.issues")}
           value={issues.length}
           subtitle={t("pages.inventory.stats.issuesSubtitle")}
           icon={<FolderKanban size={18} />}
           accent="warning"
           selected={tab === "issues"}
-          onClick={() => {
-            setTab("issues");
-            setSearchQuery("");
-          }}
+          onClick={() => selectTab("issues")}
         />
         <DirectoryStatCard
+          compact
+          title={t("pages.inventory.tabs.purchases")}
+          value={purchases.length}
+          subtitle={t("pages.inventory.stats.purchasesSubtitle")}
+          icon={<ShoppingCart size={18} />}
+          accent="success"
+          selected={tab === "purchases"}
+          onClick={() => selectTab("purchases")}
+        />
+        <DirectoryStatCard
+          compact
           title={t("pages.inventory.tabs.writeOffs")}
           value={writeOffs.length}
           subtitle={t("pages.inventory.stats.writeOffsSubtitle")}
           icon={<Trash2 size={18} />}
           accent="danger"
           selected={tab === "writeOffs"}
-          onClick={() => {
-            setTab("writeOffs");
-            setSearchQuery("");
-          }}
+          onClick={() => selectTab("writeOffs")}
+        />
+        <DirectoryStatCard
+          compact
+          title={t("pages.inventory.tabs.soldOff")}
+          value={soldOffs.length}
+          subtitle={t("pages.inventory.stats.soldOffSubtitle")}
+          icon={<CircleDollarSign size={18} />}
+          accent="primary"
+          selected={tab === "soldOff"}
+          onClick={() => selectTab("soldOff")}
         />
       </div>
 
@@ -496,7 +438,7 @@ export default function InventoryWorkspace({
         <DirectorySearchInput
           value={searchQuery}
           onChange={setSearchQuery}
-          placeholder={t("pages.inventory.searchPlaceholder")}
+          placeholder={searchPlaceholder}
           className="min-w-[12rem] w-auto max-w-none flex-1"
         />
         {canManage ? (
@@ -519,36 +461,69 @@ export default function InventoryWorkspace({
                 onClick={() => setWriteOffOpen(true)}
               />
             ) : null}
+            {tab === "soldOff" && canAssignToProject ? (
+              <DirectoryAddButton
+                label={t("pages.inventory.addSoldOff")}
+                onClick={() => setSoldOffOpen(true)}
+              />
+            ) : null}
           </div>
         ) : null}
       </div>
 
-      {empty.rows.length === 0 ? (
+      {tab === "purchases" && trimmedSearch && searchPending ? (
+        <p className="mb-3 text-xs text-muted">
+          {t("pages.inventory.searchingPurchases")}
+        </p>
+      ) : null}
+      {tab === "soldOff" && trimmedSearch && searchPending ? (
+        <p className="mb-3 text-xs text-muted">
+          {t("pages.inventory.searchingSoldOffs")}
+        </p>
+      ) : null}
+
+      {tab === "assetList" ? (
+        <InventoryAssetList
+          items={visibleEquipment}
+          equipmentAssets={equipmentAssets}
+          searchQuery={searchQuery}
+          canManage={canManage}
+        />
+      ) : tab === "stock" ? (
+        <InventoryStockTables items={visibleStock} searchQuery={searchQuery} />
+      ) : tab === "issues" ? (
+        <InventoryProjectIssues issues={issues} searchQuery={searchQuery} />
+      ) : tab === "writeOffs" ? (
+        <InventoryWriteOffTables
+          writeOffs={writeOffs}
+          searchQuery={searchQuery}
+          canReverse={canAssignToProject}
+          onReverse={setReverseWriteOffTarget}
+        />
+      ) : tab === "soldOff" ? (
+        <InventorySoldOffTables
+          soldOffs={visibleSoldOffs}
+          searchQuery={searchQuery}
+        />
+      ) : visiblePurchases.length === 0 ? (
         <SectionCard>
-          <EmptyState title={empty.title} description={empty.description} />
+          <EmptyState
+            title={
+              trimmedSearch
+                ? t("pages.inventory.emptySearch", { query: trimmedSearch })
+                : t("pages.inventory.emptyPurchases")
+            }
+            description={
+              trimmedSearch
+                ? t("pages.inventory.emptySearchDesc")
+                : t("pages.inventory.emptyPurchasesDesc")
+            }
+          />
         </SectionCard>
-      ) : tab === "purchases" ? (
+      ) : (
         <DataTable
           columns={purchaseColumns}
           data={visiblePurchases}
-          getRowKey={(row) => row.id}
-        />
-      ) : tab === "issues" ? (
-        <DataTable
-          columns={issueColumns}
-          data={visibleIssues}
-          getRowKey={(row) => row.id}
-        />
-      ) : tab === "writeOffs" ? (
-        <DataTable
-          columns={writeOffColumns}
-          data={visibleWriteOffs}
-          getRowKey={(row) => row.id}
-        />
-      ) : (
-        <DataTable
-          columns={stockColumns}
-          data={visibleStock}
           getRowKey={(row) => row.id}
         />
       )}
@@ -573,6 +548,18 @@ export default function InventoryWorkspace({
                 open={writeOffOpen}
                 onOpenChange={setWriteOffOpen}
                 items={items}
+              />
+              <InventorySoldOffDialog
+                open={soldOffOpen}
+                onOpenChange={setSoldOffOpen}
+                items={items}
+                equipmentAssets={equipmentAssets}
+              />
+              <InventoryReverseWriteOffDialog
+                target={reverseWriteOffTarget}
+                onOpenChange={(open) => {
+                  if (!open) setReverseWriteOffTarget(null);
+                }}
               />
             </>
           ) : null}

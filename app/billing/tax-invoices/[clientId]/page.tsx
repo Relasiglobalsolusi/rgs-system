@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
-import { requireModule, toPermissionUser } from "@/lib/session";
+import { requireFinanceChild, toPermissionUser } from "@/lib/session";
 import {
   taxInvoiceCompletedWhere,
   taxInvoicePendingWhere,
@@ -44,7 +44,7 @@ export default async function TaxInvoiceClientPage({
   params: Promise<{ clientId: string }>;
   searchParams: SearchParams;
 }) {
-  const session = await requireModule("invoicing");
+  const session = await requireFinanceChild("taxInvoices");
   const locale = await getServerLocale();
   const t = createTranslator(locale);
   if (session.user.clientId) {

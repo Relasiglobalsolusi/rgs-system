@@ -11,8 +11,10 @@ import { decimalToNumber } from "@/lib/project-billing";
  * - Money in: ProjectInvoicePeriod rows with status === "PAID" (confirmed cash;
  *   PENDING_VERIFICATION is excluded). Amount =
  *   revisedInvoiceAmount ?? amount ?? project.contractPrice (same fallback as billing).
- * - Money out / spending: inventory issued to the project + wage cost of employees
- *   currently assigned to the project (see below).
+ * - Money out / spending: non-equipment inventory issued to the project (consumables /
+ *   chemicals / other ISSUE_TO_PROJECT costs) + wage cost of employees currently
+ *   assigned to the project (see below). Equipment deployments are location/custody
+ *   only and are excluded from inventoryOut / project inventory cost.
  * - Client profit: contract value − spending (contract margin).
  * - Project profit: money in − money out (confirmed receipts vs inventory + wages).
  *

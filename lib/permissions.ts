@@ -75,6 +75,10 @@ export const MODULES = [
 
   "approvals",
 
+  "materialRequests",
+
+  "transferOrders",
+
   "reports",
 
   "inventory",
@@ -185,7 +189,20 @@ export const EXTRA_MENU_NAV_KEYS = [
   "vat",
 ] as const;
 
+/** Finance children shown under the Invoicing parent toggle in Users → Permissions. */
+export const FINANCE_PERMISSION_CHILDREN = [
+  { navKey: "invoicing", label: "Invoice and Billing" },
+  { navKey: "reconciliation", label: "Reconciliation" },
+  { navKey: "purchaseInvoices", label: "Purchases" },
+  { navKey: "taxInvoices", label: "Tax Invoice" },
+  { navKey: "vendorPayments", label: "Payment & Settlement" },
+  { navKey: "thr", label: "THR" },
+  { navKey: "payroll", label: "Payroll" },
+  { navKey: "financialReport", label: "Financial Report" },
+] as const;
 
+export type FinanceNavKey =
+  (typeof FINANCE_PERMISSION_CHILDREN)[number]["navKey"];
 
 export type MenuSection = {
 
@@ -215,7 +232,7 @@ export function getDefaultModules(): ModuleKey[] {
 
 /**
  * Module overrides applied when creating a client portal login.
- * ON: Dashboard, Projects, Progress Reports, Attendance Report, Monthly Reports, Invoice and Billing.
+ * ON: Dashboard, Projects, Progress Reports, Attendance Report, Client Reports, Invoice and Billing.
  * OFF: CICO (employees only) and all admin/directory modules.
  * Existing client users keep stored overrides until Permissions is re-saved / reset.
  */
@@ -229,6 +246,8 @@ export function getClientModuleOverrides(): Record<ModuleKey, boolean> {
     shifts: false,
     leaves: false,
     approvals: false,
+    materialRequests: false,
+    transferOrders: false,
     reports: true,
     inventory: false,
     itemCatalog: false,
@@ -244,16 +263,12 @@ export function getClientModuleOverrides(): Record<ModuleKey, boolean> {
 }
 
 /**
- * Module overrides applied when creating a vendor portal login.
- * ON: Dashboard (Overview) + Finance surfaces for this vendor only:
- *   Invoice/billing, Tax Invoice (PPN masukan upload), upload history/status,
- *   payment/settlement (read-only).
- * OFF: operations, HR, directory modules (including Vendors — HO edits only).
- * Existing vendor users keep stored overrides until Permissions is re-saved / reset.
+ * Vendor portal logins are disabled product-wide (auth rejects vendorId users;
+ * getAccessibleModules returns []). Kept for account-type baseline / legacy rows.
  */
 export function getVendorModuleOverrides(): Record<ModuleKey, boolean> {
   return {
-    dashboard: true,
+    dashboard: false,
     projects: false,
     progress: false,
     cico: false,
@@ -261,10 +276,12 @@ export function getVendorModuleOverrides(): Record<ModuleKey, boolean> {
     shifts: false,
     leaves: false,
     approvals: false,
+    materialRequests: false,
+    transferOrders: false,
     reports: false,
     inventory: false,
     itemCatalog: false,
-    invoicing: true,
+    invoicing: false,
     clients: false,
     vendors: false,
     users: false,
@@ -362,6 +379,38 @@ export const FINANCE_MENU_ITEMS: MenuItem[] = [
   },
 ];
 
+/**
+ * Consistent override key scheme for gating an individual Finance sub-page
+ * (by {@link MenuItem.navKey}) while the parent `invoicing` module stays
+ * accessible. Stored in `moduleOverrides` as `"invoicing:<navKey>": false`.
+ */
+export function financeChildOverrideKey(navKey: string): string {
+  return `invoicing:${navKey}`;
+}
+
+/**
+ * True unless a Finance sub-page was explicitly denied via moduleOverrides.
+ * Callers must also confirm the `invoicing` module itself is accessible —
+ * this only gates which children are visible/reachable underneath it.
+ */
+export function isFinanceChildAccessible(
+  overrides: Record<string, boolean> | null | undefined,
+  navKey: string
+): boolean {
+  if (!overrides) return true;
+  return overrides[financeChildOverrideKey(navKey)] !== false;
+}
+
+/** Drops Finance sub-pages explicitly denied via `invoicing:<navKey>` overrides. */
+function filterFinanceMenuItems(
+  items: MenuItem[],
+  overrides: Record<string, boolean> | null | undefined
+): MenuItem[] {
+  return items.filter((item) =>
+    isFinanceChildAccessible(overrides, getMenuItemNavKey(item))
+  );
+}
+
 type EmployeeModulePresetOptions = {
   placement?: Placement | null;
   employeeType?: EmployeeType | null;
@@ -423,6 +472,9 @@ export function getEmployeeModuleOverrides(
     // All employees get Leave & Sick; OMs/Directors also get Approvals.
     leaves: true,
     approvals: isApprover,
+    // Field staff request materials while CICO'd; warehouse/HO fulfill transfer orders.
+    materialRequests: !isHo,
+    transferOrders: isHo,
     reports: false,
     // Inventory is HO operations (stock + project costing), not field portal.
     inventory: isHo,
@@ -807,6 +859,10 @@ export const ROUTE_MODULE_MAP: Record<string, ModuleKey> = {
 
   "/approvals": "approvals",
 
+  "/material-requests": "materialRequests",
+
+  "/transfer-orders": "transferOrders",
+
   "/reports": "reports",
 
   "/inventory": "inventory",
@@ -957,6 +1013,18 @@ export const menu: MenuSection[] = [
 
       },
 
+      {
+
+        icon: Tags,
+
+        label: "Item Catalog",
+
+        href: "/item-catalog",
+
+        module: "itemCatalog",
+
+      },
+
     ],
 
   },
@@ -1070,7 +1138,7 @@ export const menu: MenuSection[] = [
 
         icon: FileSpreadsheet,
 
-        label: "Monthly Reports",
+        label: "Client Reports",
 
         href: "/reports",
 
@@ -1078,15 +1146,40 @@ export const menu: MenuSection[] = [
 
       },
 
+
       {
 
-        icon: Tags,
+        icon: ClipboardCheck,
 
-        label: "Item Catalog",
+        label: "Approvals",
 
-        href: "/item-catalog",
+        href: "/approvals",
 
-        module: "itemCatalog",
+        module: "approvals",
+
+      },
+
+      {
+
+        icon: ShoppingBag,
+
+        label: "Material Requests",
+
+        href: "/material-requests",
+
+        module: "materialRequests",
+
+      },
+
+      {
+
+        icon: Truck,
+
+        label: "Transfer Orders",
+
+        href: "/transfer-orders",
+
+        module: "transferOrders",
 
       },
 
@@ -1148,18 +1241,6 @@ export const menu: MenuSection[] = [
 
       },
 
-      {
-
-        icon: ClipboardCheck,
-
-        label: "Approvals",
-
-        href: "/approvals",
-
-        module: "approvals",
-
-      },
-
     ],
 
   },
@@ -1188,13 +1269,19 @@ export function getMenuForUser(
 ) {
   const accessible = new Set(getAccessibleModules(user));
   const isClientPortal = Boolean(user.clientId || user.client);
+  const overrides = user.moduleOverrides ?? null;
 
   return menu
     .map((section) => {
       // Portal accounts get scoped Finance trees; HO/admin keeps full AR/AP.
       let sectionItems = section.items;
       if (section.title === "Finance") {
-        if (isClientPortal) sectionItems = CLIENT_FINANCE_MENU_ITEMS;
+        sectionItems = isClientPortal
+          ? CLIENT_FINANCE_MENU_ITEMS
+          : FINANCE_MENU_ITEMS;
+        // Per-page denials (invoicing:<navKey>) only matter once invoicing
+        // itself is accessible — the module-level filter below still applies.
+        sectionItems = filterFinanceMenuItems(sectionItems, overrides);
       }
 
       return {
@@ -1237,7 +1324,11 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
 
   approvals: "Approvals",
 
-  reports: "Monthly Reports",
+  materialRequests: "Material Requests",
+
+  transferOrders: "Transfer Orders",
+
+  reports: "Client Reports",
 
   inventory: "Inventory",
 

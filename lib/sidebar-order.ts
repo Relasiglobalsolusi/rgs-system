@@ -38,8 +38,14 @@ export const DEFAULT_SECTION_ORDER: string[] = menu.map(
 
 const KNOWN_SECTION_TITLES = new Set(DEFAULT_SECTION_ORDER);
 
-/** Nav keys that moved from Operations → Human Resources. */
-const HR_NAV_KEYS = new Set(["attendance", "shifts", "leaves", "approvals"]);
+/** Nav keys that belong under Human Resources (not Approvals — that lives in Operations). */
+const HR_NAV_KEYS = new Set(["attendance", "shifts", "leaves"]);
+
+/** Nav keys that moved from Operations → Administration. */
+const ADMIN_NAV_KEYS = new Set(["itemCatalog"]);
+
+/** Nav keys that moved from Human Resources → Operations. */
+const OPS_FROM_HR_NAV_KEYS = new Set(["approvals"]);
 
 const NAV_KEY_SET = new Set<string>([...MODULES, ...EXTRA_MENU_NAV_KEYS]);
 
@@ -72,36 +78,75 @@ function migrateProjectsChildOrder(
   return { ...children, projects: next };
 }
 
-/** Pull HR nav keys out of a legacy Operations list into Human Resources. */
-function migrateHrSectionItems(
-  sections: Record<string, string[]>
+/** Move listed keys from `fromSection` into `toSection` (append, dedupe). */
+function moveNavKeysBetweenSections(
+  sections: Record<string, string[]>,
+  fromSection: string,
+  toSection: string,
+  keys: Set<string>
 ): Record<string, string[]> {
-  const operations = sections.Operations;
-  if (!operations?.length) return sections;
+  const source = sections[fromSection];
+  if (!source?.length) return sections;
 
   const moved: string[] = [];
   const remaining: string[] = [];
-  for (const key of operations) {
-    if (HR_NAV_KEYS.has(key)) moved.push(key);
+  for (const key of source) {
+    if (keys.has(key)) moved.push(key);
     else remaining.push(key);
   }
   if (moved.length === 0) return sections;
 
   const next = { ...sections };
-  if (remaining.length > 0) next.Operations = remaining;
-  else delete next.Operations;
+  if (remaining.length > 0) next[fromSection] = remaining;
+  else delete next[fromSection];
 
-  const existingHr = next["Human Resources"] ?? [];
-  const seen = new Set(existingHr);
-  const mergedHr = [...existingHr];
+  const existing = next[toSection] ?? [];
+  const seen = new Set(existing);
+  const merged = [...existing];
   for (const key of moved) {
     if (!seen.has(key)) {
-      mergedHr.push(key);
+      merged.push(key);
       seen.add(key);
     }
   }
-  next["Human Resources"] = mergedHr;
+  next[toSection] = merged;
   return next;
+}
+
+/** Pull HR nav keys out of a legacy Operations list into Human Resources. */
+function migrateHrSectionItems(
+  sections: Record<string, string[]>
+): Record<string, string[]> {
+  return moveNavKeysBetweenSections(
+    sections,
+    "Operations",
+    "Human Resources",
+    HR_NAV_KEYS
+  );
+}
+
+/** Item Catalog: Operations → Administration. */
+function migrateCatalogToAdmin(
+  sections: Record<string, string[]>
+): Record<string, string[]> {
+  return moveNavKeysBetweenSections(
+    sections,
+    "Operations",
+    "Administration",
+    ADMIN_NAV_KEYS
+  );
+}
+
+/** Approvals: Human Resources → Operations. */
+function migrateApprovalsToOps(
+  sections: Record<string, string[]>
+): Record<string, string[]> {
+  return moveNavKeysBetweenSections(
+    sections,
+    "Human Resources",
+    "Operations",
+    OPS_FROM_HR_NAV_KEYS
+  );
 }
 
 function cleanNavKeys(keys: unknown): string[] {
@@ -163,9 +208,12 @@ export function parseSidebarOrder(value: unknown): SidebarOrder | null {
       if (cleaned.length > 0) sections[section] = cleaned;
     }
     if (Object.keys(sections).length === 0) return null;
+    let migrated = migrateHrSectionItems(sections);
+    migrated = migrateCatalogToAdmin(migrated);
+    migrated = migrateApprovalsToOps(migrated);
     return {
       sectionOrder: [],
-      sections: migrateHrSectionItems(sections),
+      sections: migrated,
       children: {},
     };
   }
@@ -184,6 +232,8 @@ export function parseSidebarOrder(value: unknown): SidebarOrder | null {
   }
 
   sections = migrateHrSectionItems(sections);
+  sections = migrateCatalogToAdmin(sections);
+  sections = migrateApprovalsToOps(sections);
 
   if (isPlainObject(childrenRaw)) {
     for (const [moduleKey, hrefs] of Object.entries(childrenRaw)) {

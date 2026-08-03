@@ -69,6 +69,7 @@ export default function StatCard({
   const resolvedSubtitle = subtitleKey
     ? t(subtitleKey, subtitleParams)
     : subtitle;
+  const valueText = String(value);
 
   return (
     <div
@@ -83,7 +84,10 @@ export default function StatCard({
             {resolvedTitle}
           </p>
 
-          <h2 className="mt-2 text-[1.75rem] font-bold tracking-tight tabular-nums text-text sm:mt-3 sm:text-3xl lg:text-4xl">
+          <h2
+            className="mt-2 truncate text-2xl font-bold tracking-tight tabular-nums text-text sm:mt-3 sm:text-3xl lg:text-4xl"
+            title={valueText}
+          >
             {value}
           </h2>
 

@@ -9,7 +9,7 @@ import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/project-billing";
-import { requireModule } from "@/lib/session";
+import { requireFinanceChild } from "@/lib/session";
 import {
   DEFAULT_INCLUSIVE_PPN_RATE,
   isDateInJakartaMonth,
@@ -43,7 +43,7 @@ export default async function TaxInvoicesPage({
 }: {
   searchParams: SearchParams;
 }) {
-  const session = await requireModule("invoicing");
+  const session = await requireFinanceChild("taxInvoices");
   const locale = await getServerLocale();
   const t = createTranslator(locale);
 

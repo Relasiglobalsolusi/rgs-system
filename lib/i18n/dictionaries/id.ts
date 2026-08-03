@@ -227,7 +227,7 @@ export const id = {
       "All Projects": "Semua Proyek",
       Planning: "Perencanaan",
       "In Progress": "Berjalan",
-      "Pending Approval": "Persetujuan Menunggu",
+      "Pending Approval": "Menunggu Persetujuan",
       "Payment Due": "Menunggu Pembayaran",
       "Completed Projects": "Proyek Selesai",
       Finance: "Keuangan",
@@ -248,7 +248,10 @@ export const id = {
       Shifts: "Shift",
       "Leave & Sick": "Izin & Sakit",
       Approvals: "Persetujuan",
-      "Monthly Reports": "Laporan Bulanan",
+      "Material Requests": "Permintaan Material",
+      "Transfer Orders": "Transfer Barang",
+      "Monthly Reports": "Laporan Klien",
+      "Client Reports": "Laporan Klien",
       Inventory: "Inventaris",
       "Item Catalog": "Katalog Item",
     },
@@ -284,7 +287,7 @@ export const id = {
     project: {
       PLANNED: "Perencanaan",
       IN_PROGRESS: "Berjalan",
-      WAITING_FOR_APPROVAL: "Persetujuan Menunggu",
+      WAITING_FOR_APPROVAL: "Menunggu Persetujuan",
       ON_HOLD: "Ditunda",
       COMPLETED: "Selesai",
       CANCELLED: "Dibatalkan",
@@ -292,8 +295,8 @@ export const id = {
     workflow: {
       Planning: "Perencanaan",
       "In Progress": "Berjalan",
-      "Pending Approval": "Persetujuan Menunggu",
-      "Waiting for Approval": "Persetujuan Menunggu",
+      "Pending Approval": "Menunggu Persetujuan",
+      "Waiting for Approval": "Menunggu Persetujuan",
       "Payment Due": "Menunggu Pembayaran",
       Completed: "Selesai",
       Cancelled: "Dibatalkan",
@@ -303,10 +306,10 @@ export const id = {
       inProgress2: "Berjalan",
       paymentDue1: "Menunggu",
       paymentDue2: "Pembayaran",
-      waitingForApproval1: "Persetujuan",
-      waitingForApproval2: "Menunggu",
-      pendingApproval1: "Persetujuan",
-      pendingApproval2: "Menunggu",
+      waitingForApproval1: "Menunggu",
+      waitingForApproval2: "Persetujuan",
+      pendingApproval1: "Menunggu",
+      pendingApproval2: "Persetujuan",
     },
     billing: {
       ONGOING: "Berjalan",
@@ -460,9 +463,9 @@ export const id = {
       staffPresentToday: "Staf Hadir Hari Ini",
       notCheckedIn: "{count} belum check-in",
       notCheckedInOnSites: "{count} belum check-in di lokasi Anda",
-      pendingApprovals: "Persetujuan Menunggu",
+      pendingApprovals: "Menunggu Persetujuan",
       pendingLeaveRequests: "{count} permintaan izin menunggu",
-      noPendingApprovals: "Tidak ada persetujuan menunggu",
+      noPendingApprovals: "Tidak ada yang menunggu persetujuan",
       activeProjects: "Proyek Aktif",
       viewAll: "Lihat semua →",
       progressReportCountOne: "{count} laporan progress",
@@ -497,8 +500,8 @@ export const id = {
       employeeCategories: "Kategori karyawan",
       totalProjects: "Total proyek",
       inProgressCount: "{count} sedang berjalan",
-      reviewPendingOne: "Tinjau {count} persetujuan menunggu",
-      reviewPendingOther: "Tinjau {count} persetujuan menunggu",
+      reviewPendingOne: "Tinjau {count} yang menunggu persetujuan",
+      reviewPendingOther: "Tinjau {count} yang menunggu persetujuan",
       guestName: "Pengguna",
       awaitingManagerReview: "Menunggu tinjauan manajer",
       noPendingRequests: "Tidak ada permintaan menunggu",
@@ -522,8 +525,9 @@ export const id = {
       allTitle: "Semua Proyek",
       planningTitle: "Perencanaan",
       inProgressTitle: "Berjalan",
-      pendingApprovalTitle: "Persetujuan Menunggu",
+      pendingApprovalTitle: "Menunggu Persetujuan",
       paymentDueTitle: "Menunggu Pembayaran",
+      openBilling: "Buka Penagihan",
       completedTitle: "Proyek Selesai",
       addProject: "Tambah Proyek",
       newProject: "Proyek Baru",
@@ -642,7 +646,7 @@ export const id = {
         chip2: "Persetujuan",
         confirmTitle: "Ajukan Persetujuan",
         confirmDesc:
-          "Semua laporan progress akan dikompilasi menjadi PDF dan membuka review klien dan HO. Status proyek akan berubah menjadi Persetujuan Menunggu.",
+          "Semua laporan progress akan dikompilasi menjadi PDF dan membuka review klien dan HO. Status proyek akan berubah menjadi Menunggu Persetujuan.",
         confirm: "Ajukan",
         regularNotAllowed:
           "Regular Cleaning memakai rekonsiliasi. Rekonsiliasi periode penagihan jatuh tempo untuk memulai persetujuan.",
@@ -652,9 +656,9 @@ export const id = {
           "Tidak ada periode milestone yang sedang berjalan. Periksa jadwal penagihan.",
         failed: "Gagal mengajukan proyek untuk persetujuan.",
         successToast: "Proyek berhasil diajukan untuk persetujuan.",
-        waitingForApprovalLabel: "Persetujuan Menunggu",
-        waitingChip1: "Persetujuan",
-        waitingChip2: "Menunggu",
+        waitingForApprovalLabel: "Menunggu Persetujuan",
+        waitingChip1: "Menunggu",
+        waitingChip2: "Persetujuan",
       },
       assignStaff: "Tugaskan Staf",
       assignStaffLater: "Tugaskan staf nanti",
@@ -808,6 +812,8 @@ export const id = {
         durationDaysValue: "{count} hari",
         inventoryCost: "Biaya Inventaris",
         inventoryIssues: "Pengeluaran Inventaris",
+        inventoryIssueFromInventoryOnly:
+          "Stok dan peralatan dikeluarkan dari Inventaris (Permintaan Material → Transfer Order). Daftar ini menampilkan yang sudah ada di proyek.",
         inventoryEquipmentReleaseHint:
           "Peralatan (mesin) otomatis kembali ke inventaris saat kru proyek dilepas — bersamaan karyawan kembali ke pool. Bahan habis pakai tetap di proyek.",
         noInventoryIssues: "Belum ada inventaris yang dikeluarkan ke proyek ini.",
@@ -818,7 +824,6 @@ export const id = {
         inventoryIssueDate: "Tanggal",
         inventoryIssueActions: "Tindakan",
         viewInventory: "Buka Inventaris",
-        assignStock: "Tetapkan Stok",
         voidIssue: "Batalkan Pengeluaran",
         voidIssueTitle: "Batalkan Pengeluaran Inventaris",
         voidIssueDesc:
@@ -836,7 +841,7 @@ export const id = {
         noAvailableAssets: "Tidak ada unit peralatan tersedia.",
         noAssignedAssets: "Belum ada peralatan yang ditugaskan.",
         noAssignedAssetsHint:
-          "Unit peralatan yang ditugaskan di sini akan dilacak per unit dan dikembalikan ke pool saat kru proyek dilepas.",
+          "Terbitkan peralatan dari Inventaris → Penerbitan Proyek. Unit yang ditugaskan dilacak per unit dan dikembalikan ke pool saat dilepas atau saat kru proyek dilepas.",
         assigned: "ditugaskan",
         itemGroup: "Item",
         assetCode: "Kode Aset",
@@ -845,6 +850,8 @@ export const id = {
         removeFromAssignment: "Hapus dari penugasan",
         assignedToOtherProject: "Sudah di {projectName}.",
         assignFailed: "Gagal menugaskan unit peralatan.",
+        assignDisabledUseInventory:
+          "Peralatan hanya dapat diterbitkan dari Inventaris → Penerbitan Proyek.",
         releaseFailed: "Gagal melepas unit peralatan.",
         registerFailed: "Gagal mendaftarkan unit peralatan.",
         assetRequired: "Aset wajib diisi.",
@@ -854,7 +861,7 @@ export const id = {
         noStockRemaining: "Tidak ada stok tersisa untuk item ini.",
         releaseTitle: "Lepas Peralatan",
         releaseDesc:
-          "Ini mengembalikan unit ke pool tersedia dan menghapus biaya dari proyek ini.",
+          "Ini mengembalikan unit ke pool gudang tersedia. Peralatan hanya lokasi/penitipan — tidak ada biaya proyek yang dibukukan.",
         releaseConfirm: "Lepas Unit",
         releaseSuccess: "Unit peralatan dilepas.",
         assignSuccess: "Unit peralatan ditugaskan.",
@@ -1351,11 +1358,6 @@ export const id = {
       contactFirstNameRequired: "Nama depan narahubung wajib diisi.",
       permanentDeleteRequiresDeleted:
         "Hanya pemasok yang sudah dihapus yang dapat dihapus permanen. Hapus pemasok terlebih dahulu.",
-      portalLoginDeletedVendor:
-        "{name}: login portal tidak dapat dibuat untuk pemasok yang dihapus. Pulihkan pemasok terlebih dahulu.",
-      portalLoginContactRequired:
-        "{name}: nama depan narahubung wajib diisi.",
-      generatePortalFailed: "Gagal membuat login portal.",
       selectAll: "Pilih Semua Pemasok",
       selectRow: "Pilih {name}",
       import: {
@@ -1398,18 +1400,12 @@ export const id = {
         "{success} pemasok dipulihkan. Login terkait tetap nonaktif hingga Pulihkan Akses. {failed} gagal.",
       paymentTermsCashShort: "Tunai",
       paymentTermsNetShort: "Net {days}",
-      portalStatus: {
-        yes: "Ya",
-        revoked: "Dicabut",
-        no: "Tidak",
-      },
       columns: {
         vendor: "Pemasok",
         shortCode: "ID Pemasok",
         contact: "Kontak",
         vendorSince: "Pemasok Sejak",
         paymentTerms: "Syarat Pembayaran",
-        portalLogin: "Login Portal",
         actions: "Tindakan",
       },
       form: {
@@ -1453,12 +1449,6 @@ export const id = {
         contactPosition: "Jabatan Narahubung",
         contactEmail: "Email Narahubung",
         contactPhone: "Telepon Narahubung",
-        portalAccess: "Akses Portal",
-        portalAccessDesc:
-          "Opsional. Pilih apakah membuat login portal Users terkait untuk pemasok ini.",
-        createPortalLogin: "Buat Akses Login Portal Untuk Pemasok Ini?",
-        createPortalLoginHint:
-          "Ya membuat login portal terkait (nama pengguna dari nama depan narahubung). Tidak hanya membuat data pemasok — login bisa dibuat nanti dari Pengguna → Tanpa Login Portal.",
       },
     },
     employees: {
@@ -1927,7 +1917,6 @@ export const id = {
       searchPlaceholder: "Cari pengguna...",
       deleted: "Dihapus",
       deletedClient: "Klien Dihapus",
-      deletedVendor: "Pemasok Dihapus",
       deletedEmployee: "Karyawan Dihapus",
       withoutPortal: "Tanpa login portal",
       noPortalLogin: "Tanpa Login Portal",
@@ -1940,7 +1929,6 @@ export const id = {
       activeSubtitle: "Akun login yang sedang aktif",
       deletedSubtitle: "Semua akun login yang dihapus sementara",
       deletedClientSubtitle: "Login portal klien yang dihapus sementara",
-      deletedVendorSubtitle: "Login portal pemasok yang dihapus sementara",
       deletedEmployeeSubtitle: "Login karyawan yang dihapus sementara",
       restoreSelected: "Pulihkan terpilih",
       permanentlyRemoveLogin1: "Hapus",
@@ -1955,12 +1943,8 @@ export const id = {
       sections: {
         admin: "Admin",
         clients: "Klien",
-        vendors: "Pemasok",
         employees: "Karyawan",
       },
-      emptyVendors: "Tidak ada akun pemasok",
-      emptyVendorsDesc:
-        "Login portal pemasok muncul di sini ketika pemasok memiliki akses terhubung.",
       emptyTrash:
         "Akun yang dihapus muncul di sini hingga dipulihkan atau dihapus permanen.",
       emptyActive: "Belum ada akun pengguna",
@@ -1972,9 +1956,6 @@ export const id = {
       emptyDeletedClient: "Tidak ada akun klien yang dihapus",
       emptyDeletedClientDesc:
         "Login portal klien yang dihapus sementara muncul di sini hingga dipulihkan atau dihapus permanen.",
-      emptyDeletedVendor: "Tidak ada akun pemasok yang dihapus",
-      emptyDeletedVendorDesc:
-        "Login portal pemasok yang dihapus sementara muncul di sini hingga dipulihkan atau dihapus permanen.",
       emptyDeletedEmployee: "Tidak ada akun karyawan yang dihapus",
       emptyDeletedEmployeeDesc:
         "Login karyawan yang dihapus sementara muncul di sini hingga dipulihkan atau dihapus permanen.",
@@ -2036,8 +2017,6 @@ export const id = {
         "Buat login portal untuk {count} klien terpilih?",
       generatePortalConfirmEmployees:
         "Buat login portal untuk {count} karyawan terpilih?",
-      generatePortalConfirmVendors:
-        "Buat login portal untuk {count} pemasok terpilih?",
       generatePortalConfirmMixed:
         "Buat login portal untuk {count} akun terpilih?",
       generatePortalButton: "Buat {count} Login",
@@ -2051,10 +2030,6 @@ export const id = {
       generateClientDescription:
         "Buat login portal Pengguna terkait untuk klien ini. Login ID adalah 8 huruf dari nama klien.",
       generateClientConfirm: "Buat Login Portal",
-      generateVendorTitle: "Buat Login Portal?",
-      generateVendorDescription:
-        "Buat login portal Pengguna terkait untuk pemasok ini. Nama pengguna berdasarkan nama depan narahubung.",
-      generateVendorConfirm: "Buat Login Portal",
       generateFailed: "Gagal membuat login portal.",
       withoutPortalSearch: "Cari klien atau karyawan...",
       withoutPortalEmpty: "Semua sudah punya login portal",
@@ -2062,20 +2037,16 @@ export const id = {
         "Klien dan karyawan tanpa login Pengguna terkait muncul di sini.",
       withoutPortalNoResults: "Tidak ada hasil untuk pencarian ini.",
       withoutPortalClients: "Klien",
-      withoutPortalVendors: "Pemasok",
       withoutPortalEmployees: "Karyawan",
       withoutPortalEmptyClients: "Tidak ada klien tanpa login portal.",
-      withoutPortalEmptyVendors: "Tidak ada pemasok tanpa login portal.",
       withoutPortalEmptyEmployees: "Tidak ada karyawan tanpa login portal.",
       withoutPortalRestoreHint:
         "Data yang dihapus sementara tetap terdaftar hingga dihapus permanen. Pulihkan dulu klien atau karyawan, lalu buat login portal.",
       withoutPortalSectionCount: "{count} tanpa login portal",
       selectAllClients: "Pilih Semua Klien",
-      selectAllVendors: "Pilih Semua Pemasok",
       selectAllEmployees: "Pilih Semua Karyawan",
       selectAllUsers: "Pilih Semua Pengguna",
       selectClientRow: "Pilih {name}",
-      selectVendorRow: "Pilih {name}",
       selectEmployeeRow: "Pilih {name}",
       selectUserRow: "Pilih {name}",
       noUsersToShow: "Tidak ada pengguna untuk ditampilkan.",
@@ -2166,9 +2137,9 @@ export const id = {
       permissionsDescFooter:
         "Akun yang ada menyimpan override hingga Anda menyimpan. Perubahan tersimpan berlaku pada permintaan berikutnya.",
       permissionsDescClient:
-        "Default portal klien aktif: Dasbor, Proyek, Laporan Progress, Laporan Kehadiran, Laporan Bulanan, dan Invoice & Penagihan.",
+        "Default portal klien aktif: Dasbor, Proyek, Laporan Progress, Laporan Kehadiran, Laporan Klien, dan Invoice & Penagihan.",
       permissionsDescVendor:
-        "Default portal pemasok aktif: Dasbor dan Keuangan (invoice/penagihan mereka, unggah pajak PPN masukan, riwayat/status unggahan, pembayaran/penyelesaian hanya baca). Pemasok tidak dapat mengakses Laporan Progress atau mengubah detail pemasok.",
+        "Akses portal pemasok dinonaktifkan — login yang tertaut ke pemasok tidak dapat masuk ke modul apa pun. Sakelar di bawah tidak berpengaruh sampai akses portal diaktifkan kembali.",
       permissionsDescEmployee:
         "Default karyawan: Dasbor, Laporan Progress, CICO (staf lapangan), Izin & Sakit; staf HO juga mendapat Proyek dan Laporan Kehadiran.",
       permissionsDescAdmin:
@@ -2380,20 +2351,19 @@ export const id = {
       purchaseCategoryProduct: "Produk",
       purchaseCategoryService: "Jasa",
       purchaseCategoryHint:
-        "Pilih Jasa untuk biaya seperti konsultasi. Persentase PPN sering berbeda dari produk.",
-      purchaseIncludesPpn: "Termasuk PPN",
+        "Pilih Jasa untuk biaya seperti konsultasi. Persentase pajak sering berbeda dari produk.",
+      purchaseIncludesPpn: "Termasuk Pajak",
       purchaseIncludesPpnHint:
-        "Pilih Ya jika tagihan pemasok mencakup PPN (PPN Masukan).",
-      purchaseIncludesPpnChip: "Dengan PPN",
-      purchaseNoPpnChip: "Tanpa PPN",
-      purchasePpnRate: "Tarif PPN",
-      purchasePpnRatePlaceholder: "mis. 11",
-      purchasePpnRateRequired: "Masukkan persentase tarif PPN untuk pembelian ini.",
-      purchasePpnRateProductHint: "PPN produk biasanya 11% atau 12%.",
-      purchasePpnRateServiceHint:
-        "Masukkan % PPN jasa dari faktur — bisa berbeda dari pembelian produk.",
-      purchaseVatPreview: "Perkiraan DPP {dpp} · PPN {ppn} (jumlah termasuk pajak).",
-      purchasePpnColumn: "PPN",
+        "Pilih Ya jika tagihan pemasok mencakup pajak (mis. PPN atau PPH, tergantung produk atau jasa).",
+      purchaseIncludesPpnChip: "Dengan Pajak",
+      purchaseNoPpnChip: "Tanpa Pajak",
+      purchasePpnRate: "Tarif Pajak",
+      purchasePpnRatePlaceholder: "mis. 12",
+      purchasePpnRateRequired: "Masukkan persentase tarif pajak untuk pembelian ini.",
+      purchasePpnRateHint:
+        "Nilai bawaan 12%. Ubah jika faktur memakai tarif pajak yang berbeda.",
+      purchaseVatPreview: "Perkiraan DPP {dpp} · Pajak {tax} (jumlah termasuk pajak).",
+      purchasePpnColumn: "Pajak",
       purchaseDocument: "Invoice",
       purchaseChooseDocument: "Pilih file faktur pembelian.",
       purchaseReadingInvoice: "Membaca faktur…",
@@ -2662,7 +2632,7 @@ export const id = {
       invoiceMilestone2: "Review",
       createProgressInvoice: "Kirim progres untuk review",
       createProgressInvoiceDesc:
-        "Proyek ini belum punya jadwal pembayaran tersimpan. Pilih % progres kumulatif untuk mengirim paket progress agar klien Approve atau Revise. Proyek berpindah ke Persetujuan Menunggu sampai kedua pihak setuju; invoice diterbitkan setelah disetujui.",
+        "Proyek ini belum punya jadwal pembayaran tersimpan. Pilih % progres kumulatif untuk mengirim paket progress agar klien Approve atau Revise. Proyek berpindah ke Menunggu Persetujuan sampai kedua pihak setuju; invoice diterbitkan setelah disetujui.",
       monthlyBillingHelp:
         "Penagihan mengikuti tanggal mulai kontrak (siklus ulang tahun). Setelah siklus berakhir, Rekonsiliasi menyusun CICO staf menjadi laporan untuk portal klien (Approve atau Revise). Persetujuan klien otomatis menerbitkan invoice dan mengirim email ke kontak klien. Jatuh tempo memakai syarat pembayaran klien (Tunai = jatuh tempo saat dikirim). Proyek tetap aktif untuk siklus berikutnya.",
       noMilestonePeriods:
@@ -3433,10 +3403,17 @@ export const id = {
       },
     },
     approvals: {
-      title: "Persetujuan Manajer",
-      description: "Setujui permintaan izin.",
+      title: "Persetujuan",
+      description: "Setujui izin, sakit, dan permintaan material.",
       emptyTitle: "Semua sudah selesai",
-      emptyDescription: "Tidak ada permintaan izin menunggu tinjauan.",
+      emptyDescription: "Tidak ada permintaan menunggu tinjauan.",
+      emptyLeaveTitle: "Tidak ada permintaan izin",
+      emptyLeaveDescription: "Tidak ada izin atau sakit menunggu tinjauan.",
+      emptyMaterialsTitle: "Tidak ada permintaan material",
+      emptyMaterialsDescription:
+        "Tidak ada permintaan material menunggu tinjauan.",
+      leaveSection: "Izin & Sakit",
+      materialsSection: "Permintaan Material",
       proof: "Bukti",
       period: "Periode",
       columns: {
@@ -3447,19 +3424,65 @@ export const id = {
         submitted: "Dikirim",
       },
     },
-    reports: {
-      title: "Laporan Bulanan",
+    materialRequests: {
+      title: "Permintaan Material",
       description:
-        "Telusuri Progress Report dan CICO harian per klien dan proyek.",
+        "Ajukan material untuk proyek tempat Anda check-in. OM menyetujui, lalu gudang mengirim transfer order.",
+      newRequest: "Permintaan Baru",
+      myRequests: "Permintaan Saya",
+      emptyTitle: "Belum Ada Permintaan",
+      emptyDescription: "Ajukan permintaan saat check-in lewat CICO.",
+      mustBeCheckedIn:
+        "Anda harus check-in (CICO) ke proyek sebelum meminta material.",
+      checkedInHint: "Meminta untuk proyek check-in: {project}",
+      selectItem: "Pilih item…",
+      addLine: "Tambah Baris",
+      notesPlaceholder: "Catatan opsional",
+      submit: "Kirim Permintaan",
+      linesRequired: "Tambah minimal satu item.",
+      quantityInvalid: "Kuantitas harus bilangan bulat positif.",
+      projectInvalid: "Proyek check-in tidak dapat menerima material saat ini.",
+      createFailed: "Tidak dapat membuat permintaan material.",
+      created: "Permintaan material dikirim.",
+      cancelFailed: "Tidak dapat membatalkan permintaan material.",
+      cancelled: "Permintaan material dibatalkan.",
+      notFound: "Permintaan material tidak ditemukan.",
+      reviewFailed: "Tidak dapat meninjau permintaan material.",
+      approved: "Permintaan disetujui — transfer order dibuat.",
+      rejected: "Permintaan material ditolak.",
+    },
+    transferOrders: {
+      title: "Transfer Barang",
+      description:
+        "Antrian gudang: kirim material yang disetujui ke proyek, lalu site konfirmasi penerimaan.",
+      emptyTitle: "Belum Ada Transfer Order",
+      emptyDescription:
+        "Permintaan material yang disetujui muncul di sini untuk gudang.",
+      notFound: "Transfer order tidak ditemukan.",
+      sendFailed: "Tidak dapat menandai transfer sebagai terkirim.",
+      sent: "Transfer ditandai terkirim — stok dikeluarkan ke proyek.",
+      markSent: "Tandai Terkirim",
+      receiveFailed: "Tidak dapat mengonfirmasi penerimaan.",
+      received: "Penerimaan dikonfirmasi.",
+      confirmReceived: "Konfirmasi Diterima",
+      mustBeCheckedInToReceive:
+        "Check-in (CICO) ke proyek ini sebelum mengonfirmasi penerimaan.",
+      requestedBy: "Diminta oleh {name}",
+    },
+    reports: {
+      title: "Laporan Klien",
+      description:
+        "Telusuri Progress Report dan CICO yang dikompilasi per klien dan proyek.",
       descriptionClient:
-        "Telusuri Progress Report dan CICO harian untuk proyek Anda.",
+        "Telusuri Progress Report dan CICO yang dikompilasi untuk proyek Anda.",
       descriptionAdmin:
-        "Telusuri Progress Report dan CICO harian di seluruh klien dan proyek.",
-      breadcrumbAria: "Navigasi laporan bulanan",
-      clientProjectsDesc: "Pilih proyek untuk melihat laporan bulannya.",
+        "Telusuri Progress Report dan CICO yang dikompilasi di seluruh klien dan proyek.",
+      breadcrumbAria: "Navigasi laporan klien",
+      clientProjectsDesc:
+        "Pilih proyek untuk melihat laporan klien (paket bulanan untuk Regular; progress terkompilasi untuk jenis pekerjaan lain).",
       selectPeriod: "Pilih Bulan",
       selectPeriodDesc:
-        "Pilih bulan dan tahun untuk menelusuri Progress Report dan CICO harian proyek ini.",
+        "Pilih bulan dan tahun untuk menelusuri Progress Report dan CICO proyek ini.",
       periodRangeHint: "Tersedia dari {from} hingga {to}.",
       viewReport: "Lihat Laporan",
       changePeriod: "Ubah Periode",
@@ -3635,14 +3658,14 @@ export const id = {
     },
     inventory: {
       title: "Inventaris",
-      description: "Tingkat stok, pembelian, dan pengeluaran ke proyek.",
+      description: "Tingkat stok, penerimaan stok, dan pengeluaran ke proyek.",
       descriptionManage:
-        "Catat pembelian dan keluarkan item ke proyek.",
+        "Catat penerimaan stok dan keluarkan item ke proyek.",
       descriptionReadonly:
-        "Lihat tingkat stok, pembelian, dan pengeluaran ke proyek.",
+        "Lihat tingkat stok, penerimaan stok, dan pengeluaran ke proyek.",
       workspaceTitle: "Ruang Kerja Inventaris",
       workspaceDesc:
-        "Purchases menambah stok dari pemasok. Project Issues membebankan biaya ke proyek. Stock menampilkan kuantitas tersedia. Kelola item katalog di Katalog Item.",
+        "Penerimaan Stok menambah stok gudang dari pemasok. Keuangan → Pembelian mencatat faktur pemasok/AP. Bahan habis pakai dan kimia membebankan biaya proyek pada rata-rata tertimbang; peralatan hanya dipindahkan (tanpa biaya proyek). Pengeluaran stok hanya dari Inventaris. Kelola item katalog di Katalog Item.",
       companyNotFound: "Perusahaan tidak ditemukan.",
       permissionDenied: "Anda tidak memiliki izin untuk mengelola inventaris.",
       assignPermissionDenied:
@@ -3650,25 +3673,35 @@ export const id = {
       voidIssueFromProjectOnly:
         "Pengeluaran inventaris proyek hanya dapat dibatalkan dari halaman proyek.",
       noStockToIssue:
-        "Tidak ada item dengan stok tersedia. Catat pembelian sebelum menetapkan ke proyek.",
+        "Tidak ada item dengan stok tersedia. Catat penerimaan stok sebelum menetapkan ke proyek.",
       quantityExceedsStock:
         "Kuantitas melebihi stok tersedia. Tersedia: {available} {unit}.",
       quantityMustBeWhole: "{field} harus berupa bilangan bulat.",
       quantityMustBePositive: "{field} harus lebih besar dari nol.",
       quantityMustBeNonNegative: "{field} harus nol atau lebih besar.",
       costingNote:
-        "Nilai stok dan biaya pengeluaran ke proyek memakai rata-rata tertimbang unit cost. Unit cost pembelian terakhir ditampilkan sebagai referensi.",
+        "Bahan habis pakai, kimia, dan stok lainnya memakai biaya rata-rata tertimbang untuk nilai dan pengeluaran proyek. Biaya Terakhir adalah harga satuan pembelian terakhir (cek lonjakan harga). Nilai peralatan yang dimiliki adalah jumlah biaya pembelian terkunci per aset.",
       searchPlaceholder: "Cari item, pemasok, proyek…",
+      searchPurchasesPlaceholder:
+        "Cari semua penerimaan stok: item, SKU, pemasok, invoice…",
+      searchingPurchases: "Mencari penerimaan stok lama…",
+      searchPurchasesFailed: "Tidak dapat mencari penerimaan stok.",
+      itemTypeLocked: "Jenis item tidak dapat diubah setelah dibuat.",
+      deleteItemFailed: "Tidak dapat menghapus item katalog.",
+      assetNotFound: "Aset peralatan tidak ditemukan.",
+      assetUpdated: "Detail aset diperbarui.",
+      updateAssetFailed: "Tidak dapat memperbarui detail aset.",
       addItem: "Tambah Item",
       addItemDesc:
-        "Buat item katalog saja. Pembelian dan stok dicatat terpisah.",
+        "Buat item katalog saja. Penerimaan stok dan stok dicatat terpisah.",
       editItem: "Edit Item",
-      editItemDesc: "Perbarui detail katalog. SKU tetap ditetapkan sistem.",
+      editItemDesc:
+        "Perbarui detail katalog. SKU dan jenis item tetap ditetapkan sistem.",
       saveItem: "Simpan Item",
-      addPurchase: "Tambah Pembelian",
+      addPurchase: "Tambah Penerimaan Stok",
       addPurchaseDesc:
-        "Pilih item katalog, lalu isi pemasok, kuantitas, dan harga untuk menambah stok.",
-      savePurchase: "Simpan Pembelian",
+        "Pilih item katalog, lalu isi pemasok, kuantitas, dan harga satuan sebelum pajak untuk menambah stok gudang.",
+      savePurchase: "Simpan Penerimaan Stok",
       addIssue: "Keluarkan Ke Proyek",
       addIssueDesc:
         "Tetapkan stok ke proyek yang sedang berjalan. Biaya dikunci pada rata-rata tertimbang saat ini.",
@@ -3677,32 +3710,92 @@ export const id = {
       addWriteOffDesc:
         "Kurangi stok secara permanen dengan alasan yang wajib diisi. Hanya pengurangan — tidak boleh melebihi stok tersedia. Hanya OM+.",
       saveWriteOff: "Hapus Stok",
+      addSoldOff: "Catat Penjualan",
+      addSoldOffDesc:
+        "Catat penjualan stok ke pihak eksternal. Mengurangi stok tersedia dan menonaktifkan aset peralatan yang dipilih. Hanya OM+.",
+      saveSoldOff: "Simpan Penjualan",
+      soldOffCreated: "Penjualan stok dicatat.",
+      createSoldOffFailed: "Tidak dapat mencatat penjualan.",
+      searchSoldOffsFailed: "Tidak dapat mencari penjualan.",
+      soldOffAssetQtyMismatch:
+        "Jumlah aset peralatan yang dipilih harus sama dengan kuantitas penjualan.",
+      voidSoldOffNotSupported:
+        "Penjualan belum dapat dibatalkan dari sini.",
+      searchingSoldOffs: "Mencari penjualan lama…",
+      searchSoldOffsPlaceholder:
+        "Cari penjualan berdasarkan item, SKU, pembeli, atau catatan…",
+      buyerTypeRequired: "Pilih Perorangan atau Perusahaan untuk pembeli.",
+      buyerNameRequired: "Nama pembeli wajib diisi.",
+      companyNameRequired: "Nama perusahaan wajib diisi.",
+      buyerPicNameRequired: "Nama PIC wajib untuk pembeli perusahaan.",
+      buyerPhoneRequired: "Nomor kontak pembeli wajib diisi.",
+      buyerIdRequired: "ID pembeli wajib untuk pembeli perorangan.",
+      buyerIdentityDocRequired:
+        "Unggah faktur pajak untuk penjualan ini.",
+      buyerTaxIdRequired:
+        "NPWP perusahaan wajib untuk pembeli berbentuk perusahaan.",
+      taxRateRequired: "Masukkan tarif pajak untuk penjualan ini.",
+      taxAmountRequired: "Jumlah pajak penjualan harus lebih dari nol.",
+      saleInvoiceRequired: "Unggah faktur penjualan untuk penjualan ini.",
+      clientNotFound: "Klien yang ditautkan tidak ditemukan.",
+      clientTypeMismatch:
+        "Klien yang ditautkan harus sesuai dengan tipe pembeli yang dipilih.",
+      searchClientsFailed: "Tidak dapat mencari klien.",
       deactivate: "Nonaktifkan",
       viewReceipt: "Lihat Bukti",
+      viewSaleInvoice: "Lihat Faktur",
+      viewBuyerIdentityDoc: "Lihat Faktur Pajak",
+      saleDetailsTitle: "Detail Penjualan",
+      saleDetailsDesc: "Detail lengkap untuk catatan penjualan ini.",
+      saleDetailsLinkedClient: "Klien Tertaut",
+      saleDetailsLinkedClientHint: "Membuka direktori Klien.",
+      saleDetailsBuyerId: "ID Pembeli",
+      saleDetailsDocuments: "Dokumen",
+      saleDetailsFinancial: "Keuangan",
+      saleDetailsTaxInvoice: "Faktur Pajak",
+      saleDetailsNotProvided: "Tidak tersedia",
+      saleDetailsBuyerEmpty:
+        "Tidak ada detail pembeli pada penjualan ini. Penjualan baru mencatat nama perusahaan/PIC atau identitas perorangan.",
+      saleDetailsDocsEmpty: "Tidak ada dokumen terlampir.",
+      saleDetailsExTaxHint: "Tidak termasuk pajak.",
+      saleDetailsGainLossHint:
+        "Laba/rugi memakai penjualan sebelum pajak vs dasar biaya sebelum pajak.",
       itemCreated: "Item katalog dibuat.",
       itemUpdated: "Item katalog diperbarui.",
       itemDeactivated: "Item katalog dinonaktifkan.",
       itemReactivated: "Item katalog dipulihkan.",
-      purchaseCreated: "Pembelian dicatat. Stok bertambah.",
+      purchaseCreated: "Penerimaan stok dicatat. Stok bertambah.",
       issueCreated: "Stok dikeluarkan ke proyek.",
       writeOffCreated: "Stok berhasil dihapus (write-off).",
+      writeOffReversed: "Write-off dibatalkan. Stok dipulihkan.",
+      reverseWriteOff: "Batalkan",
+      reverseWriteOffTitle: "Batalkan Write-Off",
+      reverseWriteOffDesc:
+        "Pulihkan kuantitas ini ke stok tersedia dan aktifkan kembali aset peralatan terkait. Tindakan ini tidak dapat dibatalkan.",
+      reverseWriteOffConfirm: "Batalkan Write-Off",
+      reverseWriteOffFailed: "Tidak dapat membatalkan write-off.",
+      writeOffAlreadyReversed: "Write-off ini sudah dibatalkan sebelumnya.",
+      voidWriteOffUseReverse:
+        "Write-off harus dibatalkan dari tab Write-Off, bukan void di sini.",
       itemNameRequired: "Nama item wajib diisi.",
       itemTypeRequired: "Jenis item wajib diisi.",
       itemRequired: "Pilih item katalog.",
-      vendorRequired: "Pemasok wajib diisi untuk pembelian.",
+      vendorRequired: "Pemasok wajib diisi untuk penerimaan stok.",
       projectRequired: "Pilih proyek.",
       itemNotFound: "Item katalog tidak ditemukan.",
       vendorNotFound: "Pemasok tidak ditemukan.",
       movementNotFound: "Pergerakan inventaris tidak ditemukan.",
       projectNotIssuable:
-        "Stok hanya dapat dikeluarkan ke proyek Berjalan, Persetujuan Menunggu, atau Ditunda.",
+        "Stok hanya dapat dikeluarkan ke proyek Berjalan, Menunggu Persetujuan, atau Ditunda.",
       insufficientStock: "Stok tidak cukup. Tersedia: {available} {unit}.",
       insufficientEquipmentAssets:
         "Aset peralatan tersedia tidak cukup untuk write-off ini. Tersedia: {available}. Diperlukan: {requested}.",
+      insufficientEquipmentAssetsForIssue:
+        "Unit peralatan tersedia tidak cukup untuk dikeluarkan. Tersedia: {available}. Diperlukan: {requested}.",
       unitCostMissing:
-        "Item ini belum punya unit cost. Catat pembelian terlebih dahulu.",
+        "Item ini belum punya biaya satuan. Catat penerimaan stok terlebih dahulu.",
       manualAdjustDisabled:
-        "Penyesuaian stok manual dinonaktifkan. Stok hanya berubah melalui pembelian, pengeluaran proyek, write-off, penugasan/pelepasan peralatan, dan pembatalan.",
+        "Penyesuaian stok manual dinonaktifkan. Stok hanya berubah melalui penerimaan stok, pengeluaran proyek, write-off, pembatalan write-off, penugasan/pelepasan peralatan, dan pembatalan.",
       voidReasonRequired: "Alasan pembatalan wajib diisi.",
       voidWouldGoNegative:
         "Membatalkan pergerakan ini akan membuat stok menjadi negatif.",
@@ -3711,39 +3804,94 @@ export const id = {
       updateItemFailed: "Tidak dapat memperbarui item katalog.",
       deactivateItemFailed: "Tidak dapat menonaktifkan item katalog.",
       reactivateItemFailed: "Tidak dapat memulihkan item katalog.",
-      createPurchaseFailed: "Tidak dapat mencatat pembelian.",
+      createPurchaseFailed: "Tidak dapat mencatat penerimaan stok.",
       createIssueFailed: "Tidak dapat mengeluarkan stok ke proyek.",
       voidFailed: "Tidak dapat membatalkan pergerakan.",
       createWriteOffFailed: "Tidak dapat mencatat write-off stok.",
       emptyItems: "Belum Ada Item Katalog",
-      emptyItemsDesc: "Tambah item ke katalog sebelum mencatat pembelian.",
-      emptyPurchases: "Belum Ada Pembelian",
+      emptyItemsDesc: "Tambah item ke katalog sebelum mencatat penerimaan stok.",
+      emptyPurchases: "Belum Ada Penerimaan Stok",
       emptyPurchasesDesc:
-        "Catat pembelian terhadap item katalog untuk menambah stok.",
+        "Catat penerimaan stok terhadap item katalog untuk menambah stok gudang.",
       emptyIssues: "Belum Ada Pengeluaran Proyek",
       emptyIssuesDesc:
-        "Keluarkan stok ke proyek Berjalan, Persetujuan Menunggu, atau Ditunda untuk membebankan biaya inventaris.",
+        "Keluarkan stok ke proyek Berjalan, Menunggu Persetujuan, atau Ditunda. Bahan habis pakai dan kimia membebankan biaya; peralatan hanya lokasi/penahanan.",
       emptyWriteOffs: "Belum Ada Write-Off",
       emptyWriteOffsDesc:
         "Write-off mengurangi stok secara permanen dengan alasan wajib yang tercatat.",
+      emptySoldOffs: "Belum Ada Penjualan",
+      emptySoldOffsDesc:
+        "Penjualan mencatat penjualan stok eksternal dan mengurangi inventaris tersedia.",
       emptyStock: "Belum Ada Item Stok Aktif",
       emptyStockDesc:
-        "Aktifkan item katalog dan catat pembelian untuk melihat stok.",
+        "Aktifkan item katalog dan catat penerimaan stok untuk melihat stok.",
+      emptyAssetList: "Belum Ada Aset Peralatan Aktif",
+      emptyAssetListDesc:
+        "Aktifkan item katalog peralatan dan catat penerimaan stok untuk melihat aset yang dimiliki.",
       emptySearch: 'Tidak ada hasil untuk "{query}"',
       emptySearchDesc: "Coba nama item, SKU, pemasok, atau proyek lain.",
       tabs: {
-        items: "Items",
-        purchases: "Pembelian",
+        items: "Item",
+        purchases: "Penerimaan Stok",
         issues: "Pengeluaran Proyek",
         stock: "Stok",
-        writeOffs: "Write-Off",
+        assetList: "Daftar Aset",
+        writeOffs: "Penghapusan",
+        soldOff: "Penjualan",
       },
       stats: {
         itemsSubtitle: "{inactive} nonaktif",
-        purchasesSubtitle: "Stok masuk dari pemasok",
+        purchasesSubtitle: "Stok masuk gudang (tanpa AP)",
         issuesSubtitle: "Ditetapkan ke proyek",
         stockSubtitle: "{low} di bawah stok minimum",
+        assetListSubtitle: "{warehouse} di gudang · {owned} dimiliki",
         writeOffsSubtitle: "Penghapusan stok permanen",
+        soldOffSubtitle: "Penjualan stok eksternal",
+      },
+      projectIssues: {
+        selectHint: "Pilih proyek untuk melihat inventaris yang dikeluarkan.",
+        backToProjects: "Kembali Ke Proyek",
+        issueCountOne: "1 Pengeluaran",
+        issueCountOther: "{count} Pengeluaran",
+        deployCountOne: "1 Diterjunkan",
+        deployCountOther: "{count} Diterjunkan",
+        totalCost: "Total Biaya {amount}",
+        emptyProjects: "Belum Ada Proyek Dengan Pengeluaran",
+        emptyProjectsDesc:
+          "Keluarkan stok ke proyek agar muncul di daftar ini.",
+        emptyProjectRows: "Belum Ada Pengeluaran Untuk Proyek Ini",
+        emptyProjectRowsDesc:
+          "Tidak ada item yang cocok dengan filter saat ini untuk proyek ini.",
+      },
+      stock: {
+        equipmentClickHint:
+          "Klik item peralatan untuk melihat unit di gudang dan di proyek. Stok adalah gudang saja — unit di proyek tetap milik perusahaan.",
+        equipmentLocations: "Lokasi Peralatan",
+        equipmentLocationSummary:
+          "{warehouse} Gudang · {onProject} Di Proyek · {owned} Dimiliki",
+        equipmentLocationSummaryRetired:
+          "{warehouse} Gudang · {onProject} Di Proyek · {owned} Dimiliki · {retired} Pensiun",
+        closeLocations: "Tutup",
+      },
+      overview: {
+        categoryEquipment: "Peralatan",
+        categoryChemicals: "Bahan Kimia",
+        categoryConsumables: "Bahan Habis Pakai",
+        categoryOthers: "Lainnya",
+        assetCode: "Kode Aset",
+        location: "Lokasi",
+        locationWarehouse: "Gudang",
+        locationOnProject: "Di Proyek",
+        serialNo: "No. Seri",
+        notes: "Catatan",
+        assignedAt: "Ditugaskan",
+        acquisitionCost: "Biaya Perolehan",
+        showRetired: "Tampilkan Pensiun",
+        systemCleanupDuplicateUnit:
+          "Pembersihan sistem: unit duplikat dihapus",
+        emptyCategory: "Belum ada item dalam kategori ini.",
+        emptyAssets: "Tidak ada unit peralatan aktif.",
+        retired: "Pensiun",
       },
       status: {
         active: "Aktif",
@@ -3776,60 +3924,157 @@ export const id = {
         unitCost: "Biaya Satuan",
         projectCost: "Biaya Proyek",
         onHand: "Stok",
+        warehouseOnHand: "Gudang",
+        owned: "Dimiliki",
         minStock: "Stok Min",
         avgCost: "Biaya Rata-Rata",
         lastCost: "Biaya Terakhir",
         valueOnHand: "Nilai Stok",
+        valueWarehouse: "Nilai Gudang",
+        valueOwned: "Nilai Dimiliki",
         writeOffValue: "Nilai Dihapus",
         writeOffReason: "Alasan Write-Off",
         writtenOffBy: "Dihapus Oleh",
+        saleUnitPrice: "Harga Jual Satuan",
+        saleSubtotal: "Penjualan (Sebelum Pajak)",
+        saleTotal: "Total Penjualan",
+        tax: "Pajak",
+        costBasis: "Dasar Biaya (Sebelum Pajak)",
+        gainLoss: "Laba / Rugi",
+        saleInvoice: "Faktur Penjualan",
+        buyer: "Pembeli",
+        soldBy: "Dijual Oleh",
+        notes: "Catatan",
       },
       form: {
         itemType: "Jenis Item",
         itemTypePlaceholder: "Pilih Jenis Item",
-        itemTypeHint: "Klasifikasi item katalog (bukan pembelian).",
+        itemTypeHint: "Klasifikasi item katalog (bukan penerimaan stok).",
         itemName: "Nama Item",
         itemNamePlaceholder: "mis. Pembersih Lantai 5L",
         sku: "SKU",
         skuHint:
-          "Dibuat sistem dari Jenis Item saat disimpan (mis. TOOL-0001, CONS-0002). Tidak diisi manual.",
+          "Dibuat sistem dari Jenis Item saat disimpan (mis. TOOL-001, CNS-002). Tidak diisi manual.",
         skuPickType: "Pilih Jenis Item untuk pratinjau SKU",
         skuLoading: "Memuat…",
         skuReadonlyHint:
           "SKU ditetapkan dari Jenis Item saat dibuat dan tidak dapat diubah.",
+        itemTypeLockedHint:
+          "Jenis item ditetapkan saat dibuat dan tidak dapat diubah.",
+        lastPurchaseCostHint:
+          "Penerimaan terakhir: {lastCost}. Rata-rata berjalan: {avgCost}. Bandingkan penawaran baru dengan harga terakhir.",
+        noPriorPurchaseCostHint:
+          "Belum ada harga penerimaan stok sebelumnya untuk item ini.",
         description: "Deskripsi",
         descriptionPlaceholder: "Catatan opsional tentang item katalog ini.",
         catalogOnlyHint:
-          "Ini hanya membuat entri katalog. Gunakan Purchases untuk membeli stok.",
+          "Ini hanya membuat entri katalog. Gunakan Penerimaan Stok untuk menambah stok gudang.",
         unit: "Satuan",
         unitHint: "Satuan tampilan kuantitas stok (mis. pcs, liter).",
         minStock: "Stok Minimum",
-        minStockHint: "Ambang peringatan stok rendah di tab Stock.",
+        minStockHint: "Ambang peringatan stok rendah di tab Stok.",
         catalogItem: "Item Katalog",
         catalogItemPlaceholder: "Pilih Item Katalog",
+        catalogItemSearchPlaceholder: "Cari nama, SKU, atau tipe…",
+        catalogItemNoSearchMatch: "Tidak ada item berstok yang cocok dengan pencarian ini.",
         catalogItemHint:
           "Pilih item katalog yang sudah ada. Tambah item baru di Katalog Item terlebih dahulu.",
         vendor: "Pemasok",
         vendorPlaceholder: "Pilih Pemasok",
-        purchasedAt: "Tanggal Pembelian",
+        purchasedAt: "Tanggal Penerimaan",
         quantity: "Kuantitas",
         unitPrice: "Harga Satuan (IDR)",
+        unitPriceExTaxHint:
+          "Masukkan harga satuan sebelum pajak. Pajak tidak termasuk dalam biaya stok.",
         invoiceNo: "No. Invoice",
         receipt: "File Bukti / Invoice",
         notes: "Catatan",
         project: "Proyek",
         projectPlaceholder: "Pilih Proyek",
         projectHint:
-          "Hanya proyek Berjalan, Persetujuan Menunggu, dan Ditunda yang dapat menerima stok.",
+          "Hanya proyek Berjalan, Menunggu Persetujuan, dan Ditunda yang dapat menerima stok.",
         issueDate: "Tanggal Pengeluaran",
         issueCostHint:
           "Biaya satuan dikunci di {unitCost}. Tersedia: {available} {unit}.",
+        issueEquipmentDeployHint:
+          "Diterjunkan ke proyek (lokasi saja — tanpa biaya proyek). Tersedia: {available} {unit}.",
         issueItemHint: "Hanya item yang punya stok yang ditampilkan.",
+        equipmentDeployed: "Diterjunkan",
         writeOffDate: "Tanggal Write-Off",
         writeOffReason: "Alasan Write-Off",
         writeOffReasonPlaceholder: "Jelaskan mengapa stok ini dihapus (rusak, kedaluwarsa, hilang, dsb.).",
         writeOffReasonHint: "Wajib diisi. Alasan ini dicatat permanen di jejak audit.",
         writeOffItemHint: "Stok tersedia: {available} {unit}. Write-off tidak boleh melebihi jumlah ini.",
+        reverseWriteOffReason: "Alasan Pembatalan",
+        reverseWriteOffReasonPlaceholder:
+          "Catatan opsional mengapa write-off ini dibatalkan.",
+        reverseWriteOffReasonHint:
+          "Opsional. Nama Anda dan waktu pembatalan dicatat otomatis.",
+        saleDate: "Tanggal Penjualan",
+        saleUnitPrice: "Harga Jual Satuan (Sebelum Pajak)",
+        saleUnitPriceExTaxHint:
+          "Masukkan harga satuan sebelum pajak. Pajak dihitung dari tarif di bawah.",
+        saleSubtotal: "Subtotal (Sebelum Pajak)",
+        saleTaxAmount: "Jumlah Pajak",
+        saleTotal: "Total Penjualan (Termasuk Pajak)",
+        saleVatExclusivePreview:
+          "DPP {dpp} + Pajak {tax} ({rate}%) = {total}.",
+        taxRate: "Tarif Pajak (%)",
+        taxRatePlaceholder: "mis. 12",
+        taxRateHint:
+          "Nilai bawaan 12%. Ubah jika faktur memakai tarif pajak yang berbeda.",
+        linkClient: "Tautkan Klien (Opsional)",
+        clientSearchPlaceholder: "Cari klien berdasarkan nama, kode, atau NPWP…",
+        clientOptionalPlaceholder: "Pilih Klien (Opsional)",
+        clientNoSearchMatch: "Tidak ada klien yang cocok dengan pencarian ini.",
+        linkClientHint:
+          "Opsional. Mengisi nama pembeli dan NPWP perusahaan dari direktori klien.",
+        linkClientHintCompany:
+          "Opsional. Hanya menampilkan klien perusahaan. Mengisi nama pembeli dan NPWP.",
+        linkClientHintIndividual:
+          "Opsional. Hanya menampilkan klien perorangan. Mengisi nama pembeli.",
+        clearLinkedClient: "Hapus Tautan Klien",
+        buyerType: "Tipe Pembeli",
+        buyerTypeIndividual: "Perorangan",
+        buyerTypeCompany: "Perusahaan",
+        buyerTypeHint:
+          "Pilih tipe pembeli terlebih dahulu. Tautkan Klien dan detail pembeli muncul setelahnya.",
+        buyer: "Nama Pembeli",
+        buyerPlaceholder: "Nama pembeli",
+        buyerManualHint:
+          "Wajib. Isi pembeli sekali pakai, atau pertahankan/edit nama dari klien yang ditautkan.",
+        companyName: "Nama Perusahaan",
+        companyNamePlaceholder: "Nama perusahaan / pembeli",
+        companyNameHint:
+          "Wajib. Isi nama perusahaan, atau pertahankan/edit dari klien yang ditautkan.",
+        buyerPicName: "Nama PIC",
+        buyerPicNamePlaceholder: "Penanggung jawab",
+        buyerPicNameHint: "Wajib. Narahubung di perusahaan.",
+        buyerPhone: "Nomor Kontak",
+        buyerPhonePlaceholder: "mis. 0812 3456 7890",
+        buyerPhoneHint: "Wajib. Nomor telepon atau WhatsApp pembeli.",
+        buyerPhoneHintCompany:
+          "Wajib. Nomor telepon atau WhatsApp PIC.",
+        buyerIdentityDoc: "Faktur Pajak",
+        buyerIdentityDocHint:
+          "Wajib untuk pembeli perusahaan. Unggah faktur pajak untuk penjualan ini.",
+        buyerTaxId: "NPWP Perusahaan",
+        buyerTaxIdIndividual: "NPWP",
+        buyerTaxIdPlaceholder: "NPWP 15 Atau 16 Digit",
+        buyerIdNumber: "NIK / KTP",
+        buyerIdNumberPlaceholder: "NIK 16 Digit",
+        buyerIdentityEitherHint:
+          "Wajib: isi NPWP atau NIK / KTP — minimal salah satu.",
+        saleInvoice: "Faktur Penjualan",
+        saleInvoiceHint:
+          "Wajib. Unggah PDF atau gambar faktur penjualan.",
+        soldOffItemHint:
+          "Stok tersedia: {available} {unit}. Penjualan tidak boleh melebihi jumlah ini.",
+        soldOffAssets: "Aset Peralatan",
+        soldOffNoAssets: "Tidak ada aset peralatan tersedia untuk item ini.",
+        soldOffAssetsHint:
+          "Opsional. Pilih unit spesifik untuk dinonaktifkan; jumlah harus sama dengan kuantitas.",
+        soldOffNotesPlaceholder: "Catatan opsional tentang penjualan ini.",
       },
       itemTypes: {
         Consumable: "Habis Pakai",
@@ -3842,22 +4087,27 @@ export const id = {
       title: "Katalog Item",
       description: "Daftar master item inventaris dan tipe.",
       descriptionManage:
-        "Buat dan kelola item katalog sebelum mencatat pembelian atau mengeluarkan stok.",
+        "Buat dan kelola item katalog sebelum mencatat penerimaan stok atau mengeluarkan stok.",
       descriptionReadonly: "Lihat daftar master katalog item.",
       directoryTitle: "Katalog Item",
       directoryDesc:
-        "Tetapkan item, tipe, dan SKU yang dipakai pembelian Inventaris dan pengeluaran ke proyek.",
+        "Tetapkan item, tipe, dan SKU yang dipakai penerimaan stok Inventaris dan pengeluaran ke proyek.",
       companyNotFound: "Perusahaan tidak ditemukan.",
       permissionDenied: "Anda tidak memiliki izin untuk mengelola katalog item.",
       searchPlaceholder: "Cari item, SKU, tipe…",
       addItem: "Tambah Item",
       deactivate: "Nonaktifkan",
+      delete: "Hapus",
+      deleteConfirm:
+        "Hapus “{name}”? Item yang belum dipakai dihapus permanen. Item yang punya riwayat pembelian/stok diarsipkan agar riwayat tetap ada.",
       itemDeactivated: "Item katalog dinonaktifkan.",
       itemReactivated: "Item katalog dipulihkan.",
+      itemDeleted: "Item katalog dihapus.",
       deactivateItemFailed: "Gagal menonaktifkan item katalog.",
       reactivateItemFailed: "Gagal memulihkan item katalog.",
+      deleteItemFailed: "Gagal menghapus item katalog.",
       emptyItems: "Belum Ada Item Katalog",
-      emptyItemsDesc: "Tambah item ke katalog sebelum mencatat pembelian.",
+      emptyItemsDesc: "Tambah item ke katalog sebelum mencatat penerimaan stok.",
       emptySearch: 'Tidak ada hasil untuk "{query}"',
       emptySearchDesc: "Coba nama item, SKU, atau tipe lain.",
       stats: {
@@ -3889,7 +4139,9 @@ export const id = {
     shifts: "Shift",
     leaves: "Izin & Sakit",
     approvals: "Persetujuan",
-    reports: "Laporan Bulanan",
+    materialRequests: "Permintaan Material",
+    transferOrders: "Transfer Barang",
+    reports: "Laporan Klien",
     inventory: "Inventaris",
     itemCatalog: "Katalog Item",
     invoicing: "Invoice & Penagihan",
@@ -3967,7 +4219,7 @@ export const id = {
     createdVendorsNote:
       "Pemasok yang dibuat mendapat ID Pemasok otomatis (V001, V002, …).",
     createdInventoryItemsNote:
-      "Hanya item katalog — SKU ditetapkan dari Jenis Item (mis. TOOL-0001). Catat pembelian terpisah untuk menambah stok.",
+      "Hanya item katalog — SKU ditetapkan dari Jenis Item (mis. TOOL-001). Catat penerimaan stok terpisah untuk menambah stok.",
     createdProjectsNote:
       "Proyek yang dibuat memakai aturan yang sama dengan pembuatan tunggal (lokasi, faktur pajak, penagihan, dan penugasan staf).",
     uploadExcelRequired: "Unggah file Excel (.xlsx).",

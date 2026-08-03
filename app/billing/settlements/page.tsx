@@ -22,11 +22,11 @@ import {
   decimalToNumber,
   formatContractPrice,
 } from "@/lib/project-billing";
-import { requireModule } from "@/lib/session";
+import { requireFinanceChild } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
 export default async function SettlementsPage() {
-  const session = await requireModule("invoicing");
+  const session = await requireFinanceChild("vendorPayments");
   const locale = await getServerLocale();
   const t = createTranslator(locale);
 

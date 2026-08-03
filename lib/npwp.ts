@@ -19,7 +19,7 @@ export const NPWP_MAX_DIGITS = 16;
  * Does NOT alter classic NPWP punctuation (multiple dots / dashes).
  */
 export function sanitizeNpwpRawInput(value: string): string {
-  let text = value.trim();
+  const text = value.trim();
   if (!text) return "";
 
   // Scientific notation from Excel number cells

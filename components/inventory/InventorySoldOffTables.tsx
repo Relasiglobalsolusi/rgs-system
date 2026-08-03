@@ -1,0 +1,205 @@
+"use client";
+
+import { useMemo, useState } from "react";
+
+import {
+  compareMovedAtDesc,
+  partitionByInventoryItemType,
+} from "@/components/inventory/inventory-category";
+import InventorySoldOffDetailDialog from "@/components/inventory/InventorySoldOffDetailDialog";
+import type { InventorySoldOffRow } from "@/components/inventory/inventory-types";
+import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
+import EmptyState from "@/components/ui/EmptyState";
+import SectionCard from "@/components/ui/SectionCard";
+import { matchesDirectorySearch } from "@/components/ui/DirectorySearchInput";
+import { formatInventoryQtyWithUnit } from "@/lib/inventory";
+import { useT } from "@/lib/i18n/use-t";
+import { formatDisplayDate } from "@/lib/format-date";
+import { formatContractPrice } from "@/lib/project-billing";
+import { formatUserDisplayLabel } from "@/lib/user-display";
+
+type Props = {
+  soldOffs: InventorySoldOffRow[];
+  searchQuery: string;
+};
+
+export default function InventorySoldOffTables({
+  soldOffs,
+  searchQuery,
+}: Props) {
+  const { t } = useT();
+  const trimmedSearch = searchQuery.trim();
+  const [detailRow, setDetailRow] = useState<InventorySoldOffRow | null>(null);
+
+  const visibleRows = useMemo(
+    () =>
+      soldOffs
+        .filter((row) => row.item?.id != null)
+        .filter((row) =>
+          matchesDirectorySearch(
+            searchQuery,
+            row.item?.name,
+            row.item?.sku,
+            row.buyer,
+            row.buyerPicName,
+            row.buyerPhone,
+            row.buyerIdNumber,
+            row.buyerTaxId,
+            row.clientName,
+            row.notes,
+            row.createdBy?.name,
+            row.createdBy?.username,
+            formatUserDisplayLabel(row.createdBy)
+          )
+        )
+        .slice()
+        .sort((a, b) =>
+          compareMovedAtDesc(
+            { movedAt: a.soldAt },
+            { movedAt: b.soldAt }
+          )
+        ),
+    [soldOffs, searchQuery]
+  );
+
+  const categorized = useMemo(
+    () => partitionByInventoryItemType(visibleRows),
+    [visibleRows]
+  );
+
+  const columns: DataTableColumn<InventorySoldOffRow>[] = [
+    {
+      key: "soldAt",
+      title: t("pages.inventory.columns.date"),
+      share: 1,
+      render: (row) => formatDisplayDate(row.soldAt),
+    },
+    {
+      key: "item",
+      title: t("pages.inventory.columns.item"),
+      share: 1,
+      render: (row) => (
+        <div>
+          <p className="font-medium text-text">{row.item?.name ?? "—"}</p>
+          <p className="text-xs text-subtle">{row.item?.sku ?? "—"}</p>
+        </div>
+      ),
+    },
+    {
+      key: "quantity",
+      title: t("pages.inventory.columns.qty"),
+      share: 1,
+      align: "right",
+      render: (row) =>
+        formatInventoryQtyWithUnit(row.quantity, row.item?.unit ?? "pcs"),
+    },
+    {
+      key: "gainLoss",
+      title: t("pages.inventory.columns.gainLoss"),
+      share: 1,
+      align: "right",
+      render: (row) => {
+        const value = row.gainLoss;
+        const tone =
+          value > 0 ? "text-primary-dark" : value < 0 ? "text-danger" : undefined;
+        return (
+          <span className={tone}>{formatContractPrice(value)}</span>
+        );
+      },
+    },
+    {
+      key: "totalPrice",
+      title: t("pages.inventory.columns.saleTotal"),
+      share: 1,
+      align: "right",
+      render: (row) => formatContractPrice(row.totalPrice),
+    },
+    {
+      key: "createdBy",
+      title: t("pages.inventory.columns.soldBy"),
+      share: 1,
+      render: (row) => formatUserDisplayLabel(row.createdBy) ?? "—",
+    },
+  ];
+
+  function renderCategoryTable(title: string, rows: InventorySoldOffRow[]) {
+    if (rows.length === 0) return null;
+    return (
+      <div className="space-y-2">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-subtle">
+          {title}
+        </p>
+        <DataTable
+          columns={columns}
+          data={rows}
+          getRowKey={(row) => row.id}
+          onRowClick={setDetailRow}
+        />
+      </div>
+    );
+  }
+
+  const allEmpty =
+    categorized.equipment.length === 0 &&
+    categorized.chemical.length === 0 &&
+    categorized.consumable.length === 0 &&
+    categorized.other.length === 0;
+
+  if (allEmpty) {
+    return (
+      <SectionCard>
+        <EmptyState
+          title={
+            trimmedSearch
+              ? t("pages.inventory.emptySearch", { query: trimmedSearch })
+              : t("pages.inventory.emptySoldOffs")
+          }
+          description={
+            trimmedSearch
+              ? t("pages.inventory.emptySearchDesc")
+              : t("pages.inventory.emptySoldOffsDesc")
+          }
+        />
+      </SectionCard>
+    );
+  }
+
+  return (
+    <>
+      <div className="space-y-8">
+        {categorized.equipment.length > 0
+          ? renderCategoryTable(
+              t("pages.inventory.overview.categoryEquipment"),
+              categorized.equipment
+            )
+          : null}
+        {categorized.chemical.length > 0
+          ? renderCategoryTable(
+              t("pages.inventory.overview.categoryChemicals"),
+              categorized.chemical
+            )
+          : null}
+        {categorized.consumable.length > 0
+          ? renderCategoryTable(
+              t("pages.inventory.overview.categoryConsumables"),
+              categorized.consumable
+            )
+          : null}
+        {categorized.other.length > 0
+          ? renderCategoryTable(
+              t("pages.inventory.overview.categoryOthers"),
+              categorized.other
+            )
+          : null}
+      </div>
+
+      <InventorySoldOffDetailDialog
+        open={detailRow != null}
+        onOpenChange={(next) => {
+          if (!next) setDetailRow(null);
+        }}
+        row={detailRow}
+      />
+    </>
+  );
+}

@@ -18,6 +18,7 @@ import {
   formatCatalogItemStockLabel,
   formatProjectLabel,
 } from "@/components/inventory/inventory-select-labels";
+import { matchInventoryItemType } from "@/components/inventory/inventory-category";
 import {
   captureHtmlFormBaseline,
   EmployeeDialogShell,
@@ -35,6 +36,9 @@ import {
   useHtmlFormDirty,
   type HtmlFormDirtyBaseline,
 } from "@/components/employees/employee-dialog-ui";
+import DirectorySearchInput, {
+  matchesDirectorySearch,
+} from "@/components/ui/DirectorySearchInput";
 import { Dialog } from "@/components/ui/dialog";
 import {
   Select,
@@ -60,6 +64,11 @@ type Props = {
   projects: InventoryProjectOption[];
   /** When set, project is fixed (e.g. assign from project detail). */
   lockedProjectId?: string;
+  /**
+   * When true (project-page assign stock), Equipment is omitted — issue equipment
+   * only from Inventory → Project Issues.
+   */
+  excludeEquipment?: boolean;
 };
 
 export default function InventoryIssueDialog({
@@ -68,19 +77,57 @@ export default function InventoryIssueDialog({
   items,
   projects,
   lockedProjectId,
+  excludeEquipment = false,
 }: Props) {
   const { t } = useT();
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [itemId, setItemId] = useState("");
+  const [itemSearch, setItemSearch] = useState("");
   const [projectId, setProjectId] = useState(lockedProjectId ?? "");
   const [pending, startTransition] = useTransition();
   const [baseline, setBaseline] = useState<HtmlFormDirtyBaseline | null>(null);
 
   const stockedItems = useMemo(
-    () => items.filter((item) => item.active && item.currentStock > 0),
-    [items]
+    () =>
+      items.filter(
+        (item) =>
+          item.active &&
+          item.currentStock > 0 &&
+          !(excludeEquipment && matchInventoryItemType(item.itemType, "equipment"))
+      ),
+    [items, excludeEquipment]
   );
+
+  const filteredItems = useMemo(() => {
+    const typeLabel = (itemType: string) => {
+      switch (itemType.trim().toLowerCase()) {
+        case "equipment":
+          return t("pages.inventory.itemTypes.Equipment");
+        case "chemical":
+          return t("pages.inventory.itemTypes.Chemical");
+        case "consumable":
+          return t("pages.inventory.itemTypes.Consumable");
+        case "other":
+          return t("pages.inventory.itemTypes.Other");
+        default:
+          return itemType;
+      }
+    };
+    return stockedItems.filter((item) =>
+      matchesDirectorySearch(
+        itemSearch,
+        item.name,
+        item.sku,
+        item.itemType,
+        typeLabel(item.itemType)
+      )
+    );
+  }, [stockedItems, itemSearch, t]);
+
   const selected = stockedItems.find((item) => item.id === itemId);
+  const isEquipmentSelected = Boolean(
+    selected && matchInventoryItemType(selected.itemType, "equipment")
+  );
   const effectiveProjectId = lockedProjectId ?? projectId;
 
   const { isDirty, handleFormInput, resetDirtyTracking } = useHtmlFormDirty(
@@ -96,6 +143,7 @@ export default function InventoryIssueDialog({
     resetDirtyTracking();
     setBaseline(null);
     setItemId("");
+    setItemSearch("");
     setProjectId(lockedProjectId ?? "");
   }
 
@@ -109,6 +157,7 @@ export default function InventoryIssueDialog({
         onOpenChange(true);
         resetDirtyTracking();
         setItemId("");
+        setItemSearch("");
         setProjectId(lockedProjectId ?? "");
       },
       onClose: closeDialog,
@@ -230,10 +279,18 @@ export default function InventoryIssueDialog({
               <label className={employeeDialogLabelClass}>
                 {t("pages.inventory.form.catalogItem")}
               </label>
+              <DirectorySearchInput
+                value={itemSearch}
+                onChange={setItemSearch}
+                placeholder={t(
+                  "pages.inventory.form.catalogItemSearchPlaceholder"
+                )}
+                className="max-w-none"
+              />
               <Select
                 value={itemId || undefined}
                 onValueChange={(value) => setItemId(value ?? "")}
-                items={stockedItems.map((item) => ({
+                items={filteredItems.map((item) => ({
                   value: item.id,
                   label: formatCatalogItemLabel(item),
                 }))}
@@ -250,26 +307,39 @@ export default function InventoryIssueDialog({
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {stockedItems.map((item) => (
-                    <SelectItem
-                      key={item.id}
-                      value={item.id}
-                      label={formatCatalogItemLabel(item)}
-                    >
-                      {formatCatalogItemStockLabel(item)}
-                    </SelectItem>
-                  ))}
+                  {filteredItems.length === 0 ? (
+                    <div className="px-3 py-4 text-center text-sm text-subtle">
+                      {itemSearch.trim()
+                        ? t("pages.inventory.form.catalogItemNoSearchMatch")
+                        : t("pages.inventory.noStockToIssue")}
+                    </div>
+                  ) : (
+                    filteredItems.map((item) => (
+                      <SelectItem
+                        key={item.id}
+                        value={item.id}
+                        label={formatCatalogItemLabel(item)}
+                      >
+                        {formatCatalogItemStockLabel(item)}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
               {selected ? (
                 <p className={employeeDialogHintClass}>
-                  {t("pages.inventory.form.issueCostHint", {
-                    unitCost: formatContractPrice(
-                      selected.avgUnitCost ?? selected.lastUnitCost ?? 0
-                    ),
-                    available: formatInventoryQty(selected.currentStock),
-                    unit: selected.unit,
-                  })}
+                  {isEquipmentSelected
+                    ? t("pages.inventory.form.issueEquipmentDeployHint", {
+                        available: formatInventoryQty(selected.currentStock),
+                        unit: selected.unit,
+                      })
+                    : t("pages.inventory.form.issueCostHint", {
+                        unitCost: formatContractPrice(
+                          selected.avgUnitCost ?? selected.lastUnitCost ?? 0
+                        ),
+                        available: formatInventoryQty(selected.currentStock),
+                        unit: selected.unit,
+                      })}
                 </p>
               ) : (
                 <p className={employeeDialogHintClass}>

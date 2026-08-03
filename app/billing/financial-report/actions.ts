@@ -11,6 +11,7 @@ import {
   type ProjectWageEmployeeRow,
 } from "@/lib/financial-report";
 import {
+  excludeEquipmentFromProjectInventoryCost,
   getProjectInventoryCost,
   listProjectInventoryIssues,
   type ProjectInventoryIssueRow,
@@ -18,7 +19,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { canViewFinancialReport } from "@/lib/project-access";
 import { decimalToNumber } from "@/lib/project-billing";
-import { requireModule, toPermissionUser } from "@/lib/session";
+import { requireFinanceChild, toPermissionUser } from "@/lib/session";
 
 export type FinancialReportClientRow = {
   id: string;
@@ -82,8 +83,12 @@ export type FinancialReportProjectDetail = {
 /** Only In Progress projects appear in Financial Report (Planning excluded). */
 const FINANCIAL_REPORT_PROJECT_STATUS = "IN_PROGRESS" as const;
 
+// TODO(FR): Include InventorySale.totalPrice (non-voided SOLD_OFF) in company/yearly
+// money-in / income aggregations. Sale proceeds are stored on InventorySale; do not
+// treat SOLD_OFF movements as project expense (they have no projectId).
+
 async function requireFinancialReportAccess() {
-  const session = await requireModule("invoicing");
+  const session = await requireFinanceChild("financialReport");
   const user = toPermissionUser(session);
   if (!canViewFinancialReport(user)) {
     redirect("/dashboard");
@@ -124,6 +129,7 @@ async function inventoryCostByProjectIds(
       projectId: { in: projectIds },
       type: "ISSUE_TO_PROJECT",
       voidedAt: null,
+      ...excludeEquipmentFromProjectInventoryCost,
     },
     _sum: { totalCost: true },
   });

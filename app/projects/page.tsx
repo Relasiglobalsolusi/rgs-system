@@ -10,6 +10,7 @@ import {
 import { requireSession, toPermissionUser } from "@/lib/session";
 
 import { getProjectWhereForUser, canManageProjects } from "@/lib/project-access";
+import { canAccess } from "@/lib/permissions";
 import { formatDisplayDate } from "@/lib/format-date";
 import {
   isProjectSubCategory,
@@ -198,6 +199,7 @@ export default async function ProjectsPage({
 
   const permissionUser = toPermissionUser(session);
   const canManage = canManageProjects(permissionUser);
+  const canOpenBilling = canAccess(permissionUser, "invoicing");
   const locale = await getServerLocale();
   const t = createTranslator(locale);
   const copy = viewCopy(filterView);
@@ -803,6 +805,7 @@ export default async function ProjectsPage({
                 rows={section.rows}
                 filterView={filterView}
                 canManage={canManage}
+                canOpenBilling={canOpenBilling}
                 emptyMessage={t(copy.emptyMessageKey)}
                 employees={staffEmployees}
               />

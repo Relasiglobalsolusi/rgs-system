@@ -8,6 +8,7 @@ import ReconcilePeriodDialog from "@/components/billing/ReconcilePeriodDialog";
 import DirectoryCardActions from "@/components/ui/DirectoryCardActions";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ACTIONS_SINGLE_CHIP_COLUMN_WIDTH } from "@/components/ui/trash-action-buttons";
+import { useT } from "@/lib/i18n/use-t";
 import { isContractSubCategory } from "@/lib/project-contract";
 import { useProjectLifecycleActions } from "@/components/projects/ProjectFinishButton";
 import ProjectStartButton, {
@@ -75,6 +76,8 @@ type Props = {
   project: ProjectForActions;
   filterView: FilterView;
   canManage: boolean;
+  /** Finance access — Open Billing on Payment Due. */
+  canOpenBilling?: boolean;
   canStart: boolean;
   canMoveToPlanning: boolean;
   /** True when Back to Planning is blocked due to open invoice collection. */
@@ -130,6 +133,7 @@ export default function ProjectDirectoryActions({
   project,
   filterView,
   canManage,
+  canOpenBilling = false,
   canStart,
   canMoveToPlanning,
   moveBackBlockedByCollection = false,
@@ -143,6 +147,7 @@ export default function ProjectDirectoryActions({
   reconcileTarget = null,
   employees = [],
 }: Props) {
+  const { t } = useT();
   const confirmName = displayName ?? project.name;
   const isRegularContract = isContractSubCategory(project.subCategory);
   const { pending, endOrFinish } = useProjectLifecycleActions({
@@ -151,14 +156,16 @@ export default function ProjectDirectoryActions({
     isRegularContract,
   });
 
-  const showAwaitingInvoiceLink =
-    canManage &&
+  const showOpenBillingLink =
     filterView === "payment-due" &&
-    paymentStage?.kind === "awaiting_invoice" &&
+    canOpenBilling &&
     Boolean(billingHref);
 
   // Edit / Delete / invoice downloads live on the detail page (row click).
-  if (filterView === "completed" || !canManage) {
+  if (filterView === "completed") {
+    return null;
+  }
+  if (!canManage && !showOpenBillingLink) {
     return null;
   }
 
@@ -248,13 +255,14 @@ export default function ProjectDirectoryActions({
         size="badge"
       />
     );
-  } else if (showAwaitingInvoiceLink && billingHref) {
+  } else if (showOpenBillingLink && billingHref) {
+    // Finance users: Open Billing. Managers without Finance stay status-only.
     workflowPrimary = (
       <Link
         href={billingHref}
         className={buttonVariants({ variant: "warningBadge", size: "badge" })}
       >
-        Billing
+        {t("pages.projects.openBilling")}
       </Link>
     );
   }

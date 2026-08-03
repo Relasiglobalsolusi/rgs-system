@@ -52,7 +52,6 @@ import { formatContractPrice } from "@/lib/project-billing";
 import { cn } from "@/lib/utils";
 import {
   DEFAULT_PRODUCT_PPN_RATE_PERCENT,
-  PURCHASE_PPN_RATE_PRESETS,
   parsePpnRatePercent,
   ppnRateFromPercent,
   splitInclusiveVat,
@@ -799,14 +798,6 @@ export default function PurchaseInvoiceUploadDialog({
                       disabled={busy}
                       onClick={() => {
                         setPurchaseCategory(value);
-                        if (value === "PRODUCT") {
-                          setPpnRatePercent(
-                            String(DEFAULT_PRODUCT_PPN_RATE_PERCENT)
-                          );
-                        } else {
-                          // Services often use a different rate — require an explicit entry.
-                          setPpnRatePercent("");
-                        }
                       }}
                       className={cn(
                         "inline-flex min-h-8 w-full items-center justify-center rounded-xl px-3 py-1.5 text-xs font-semibold tracking-wide transition",
@@ -842,10 +833,7 @@ export default function PurchaseInvoiceUploadDialog({
                   setIncludesPpn(value);
                   if (value === "No") {
                     setTaxFile(null);
-                  } else if (
-                    purchaseCategory === "PRODUCT" &&
-                    !ppnRatePercent.trim()
-                  ) {
+                  } else if (!ppnRatePercent.trim()) {
                     setPpnRatePercent(
                       String(DEFAULT_PRODUCT_PPN_RATE_PERCENT)
                     );
@@ -867,27 +855,6 @@ export default function PurchaseInvoiceUploadDialog({
                     {t("pages.billing.purchasePpnRate")}
                     <span className="text-red-400"> *</span>
                   </label>
-                  <div className="flex flex-wrap gap-2">
-                    {PURCHASE_PPN_RATE_PRESETS.map((rate) => {
-                      const active = parsedRate === rate;
-                      return (
-                        <button
-                          key={rate}
-                          type="button"
-                          disabled={busy}
-                          onClick={() => setPpnRatePercent(String(rate))}
-                          className={cn(
-                            "inline-flex min-h-8 items-center justify-center rounded-xl px-3 py-1.5 text-xs font-semibold tracking-wide transition",
-                            active && outlineChipTones.emeraldInteractive,
-                            !active &&
-                              "border border-border bg-elevated text-muted hover:border-border-strong hover:bg-card-hover hover:text-text"
-                          )}
-                        >
-                          {rate}%
-                        </button>
-                      );
-                    })}
-                  </div>
                   <Input
                     id="purchase-ppn-rate"
                     name="ppnRatePercent"
@@ -897,18 +864,16 @@ export default function PurchaseInvoiceUploadDialog({
                     value={ppnRatePercent}
                     onChange={(event) => setPpnRatePercent(event.target.value)}
                     placeholder={t("pages.billing.purchasePpnRatePlaceholder")}
-                    className={cn(employeeInputClass, "mt-2")}
+                    className={employeeInputClass}
                   />
                   <p className={employeeDialogHintClass}>
-                    {purchaseCategory === "SERVICE"
-                      ? t("pages.billing.purchasePpnRateServiceHint")
-                      : t("pages.billing.purchasePpnRateProductHint")}
+                    {t("pages.billing.purchasePpnRateHint")}
                   </p>
                   {vatPreview ? (
                     <p className={cn(employeeDialogHintClass, "mt-1")}>
                       {t("pages.billing.purchaseVatPreview", {
                         dpp: formatContractPrice(vatPreview.dpp),
-                        ppn: formatContractPrice(vatPreview.ppn),
+                        tax: formatContractPrice(vatPreview.ppn),
                       })}
                     </p>
                   ) : null}

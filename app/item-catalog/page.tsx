@@ -28,7 +28,7 @@ export default async function ItemCatalogPage() {
   }
 
   const items = await prisma.inventoryItem.findMany({
-    where: { companyId: company.id },
+    where: { companyId: company.id, deletedAt: null },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   });
 

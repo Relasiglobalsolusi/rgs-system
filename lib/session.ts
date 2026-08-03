@@ -3,6 +3,7 @@ import { getCurrentSession } from "@/lib/auth";
 import { fetchUserModuleOverrides } from "@/lib/module-overrides";
 import {
   canAccess,
+  isFinanceChildAccessible,
   type ModuleKey,
   type PermissionUser,
 } from "@/lib/permissions";
@@ -147,6 +148,23 @@ export async function requireModule(module: ModuleKey) {
 
   if (!canAccess(user, module)) {
     redirect("/dashboard");
+  }
+
+  return session;
+}
+
+/**
+ * Gates a Finance sub-page by its FINANCE_MENU_ITEMS `navKey` (e.g. "thr",
+ * "purchaseInvoices"). Requires `invoicing` first (redirect to /dashboard),
+ * then enforces the per-page `invoicing:<navKey>` override (redirect to the
+ * Finance overview since the account can still use other Finance pages).
+ */
+export async function requireFinanceChild(navKey: string) {
+  const session = await requireModule("invoicing");
+  const user = toPermissionUser(session);
+
+  if (!isFinanceChildAccessible(user.moduleOverrides, navKey)) {
+    redirect("/billing");
   }
 
   return session;

@@ -23,10 +23,10 @@ import {
   isVendorPortalUser,
 } from "@/lib/project-access";
 import { decimalToNumber, formatContractPrice } from "@/lib/project-billing";
-import { requireModule, toPermissionUser } from "@/lib/session";
+import { requireFinanceChild, toPermissionUser } from "@/lib/session";
 
 export default async function ThrPage() {
-  const session = await requireModule("invoicing");
+  const session = await requireFinanceChild("thr");
   const user = toPermissionUser(session);
   if (isClientPortalUser(user) || isVendorPortalUser(user)) {
     redirect("/billing");

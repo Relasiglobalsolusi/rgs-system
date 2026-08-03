@@ -236,7 +236,10 @@ export const en = {
       Shifts: "Shifts",
       "Leave & Sick": "Leave & Sick",
       Approvals: "Approvals",
-      "Monthly Reports": "Monthly Reports",
+      "Material Requests": "Material Requests",
+      "Transfer Orders": "Transfer Orders",
+      "Monthly Reports": "Client Reports",
+      "Client Reports": "Client Reports",
       Inventory: "Inventory",
       "Item Catalog": "Item Catalog",
     },
@@ -509,6 +512,7 @@ export const en = {
       inProgressTitle: "In Progress",
       pendingApprovalTitle: "Pending Approval",
       paymentDueTitle: "Payment Due",
+      openBilling: "Open Billing",
       completedTitle: "Completed Projects",
       addProject: "Add Project",
       newProject: "New Project",
@@ -790,6 +794,8 @@ export const en = {
         durationDaysValue: "{count} days",
         inventoryCost: "Inventory Cost",
         inventoryIssues: "Inventory Issues",
+        inventoryIssueFromInventoryOnly:
+          "Stock and equipment are issued from Inventory (Material Requests → Transfer Orders). This list shows what is already on the project.",
         inventoryEquipmentReleaseHint:
           "Equipment (machines) returns to inventory automatically when the project crew is released — same moment staff go back to the pool. Consumables stay on the project.",
         noInventoryIssues: "No inventory issued to this project yet.",
@@ -800,7 +806,6 @@ export const en = {
         inventoryIssueDate: "Date",
         inventoryIssueActions: "Actions",
         viewInventory: "Open Inventory",
-        assignStock: "Assign Stock",
         voidIssue: "Void Issue",
         voidIssueTitle: "Void Inventory Issue",
         voidIssueDesc:
@@ -818,7 +823,7 @@ export const en = {
         noAvailableAssets: "No available equipment units.",
         noAssignedAssets: "No equipment assigned yet.",
         noAssignedAssetsHint:
-          "Equipment units assigned here will be tracked per unit and returned to the pool when the project crew is released.",
+          "Issue equipment from Inventory → Project Issues. Assigned units are tracked per unit and returned to the pool when released or when the project crew is released.",
         assigned: "assigned",
         itemGroup: "Item",
         assetCode: "Asset Code",
@@ -827,6 +832,8 @@ export const en = {
         removeFromAssignment: "Remove from assignment",
         assignedToOtherProject: "Already on {projectName}.",
         assignFailed: "Failed to assign equipment unit.",
+        assignDisabledUseInventory:
+          "Equipment can only be issued from Inventory → Project Issues.",
         releaseFailed: "Failed to release equipment unit.",
         registerFailed: "Failed to register equipment unit.",
         assetRequired: "Asset is required.",
@@ -836,7 +843,7 @@ export const en = {
         noStockRemaining: "No stock remaining for this item.",
         releaseTitle: "Release Equipment",
         releaseDesc:
-          "This returns the unit to the available pool and removes the cost from this project.",
+          "This returns the unit to the available warehouse pool. Equipment is location/custody only — no project expense is booked.",
         releaseConfirm: "Release Unit",
         releaseSuccess: "Equipment unit released.",
         assignSuccess: "Equipment unit assigned.",
@@ -1331,11 +1338,6 @@ export const en = {
       contactFirstNameRequired: "Contact person first name is required.",
       permanentDeleteRequiresDeleted:
         "Only deleted vendors can be permanently deleted. Delete the vendor first.",
-      portalLoginDeletedVendor:
-        "{name}: portal login cannot be generated for deleted vendors. Restore the vendor first.",
-      portalLoginContactRequired:
-        "{name}: contact person first name is required.",
-      generatePortalFailed: "Failed to generate portal login.",
       selectAll: "Select All Vendors",
       selectRow: "Select {name}",
       import: {
@@ -1377,18 +1379,12 @@ export const en = {
         "{success} vendor(s) restored. Linked logins stay off until Restore Access. {failed} failed.",
       paymentTermsCashShort: "Cash",
       paymentTermsNetShort: "Net {days}",
-      portalStatus: {
-        yes: "Yes",
-        revoked: "Revoked",
-        no: "No",
-      },
       columns: {
         vendor: "Vendor",
         shortCode: "Vendor ID",
         contact: "Contact",
         vendorSince: "Vendor Since",
         paymentTerms: "Payment Terms",
-        portalLogin: "Portal Login",
         actions: "Actions",
       },
       form: {
@@ -1434,12 +1430,6 @@ export const en = {
         contactPosition: "Contact Person Position",
         contactEmail: "Contact Person Email",
         contactPhone: "Contact Person Phone",
-        portalAccess: "Portal Access",
-        portalAccessDesc:
-          "Optional. Choose whether to create a linked Users portal login for this vendor.",
-        createPortalLogin: "Create Portal Login Access For This Vendor?",
-        createPortalLoginHint:
-          "Yes creates a linked portal login (username from contact person first name). No creates the vendor record only — you can generate a login later from Users → No Portal Login.",
       },
     },
     employees: {
@@ -1902,7 +1892,6 @@ export const en = {
       searchPlaceholder: "Search users...",
       deleted: "Deleted",
       deletedClient: "Deleted Client",
-      deletedVendor: "Deleted Vendor",
       deletedEmployee: "Deleted Employee",
       withoutPortal: "Without portal login",
       noPortalLogin: "No Portal Login",
@@ -1915,7 +1904,6 @@ export const en = {
       activeSubtitle: "Login accounts currently enabled",
       deletedSubtitle: "All soft-deleted login accounts",
       deletedClientSubtitle: "Soft-deleted client portal logins",
-      deletedVendorSubtitle: "Soft-deleted vendor portal logins",
       deletedEmployeeSubtitle: "Soft-deleted employee logins",
       restoreSelected: "Restore selected",
       permanentlyRemoveLogin1: "Permanently",
@@ -1930,12 +1918,8 @@ export const en = {
       sections: {
         admin: "Admin",
         clients: "Clients",
-        vendors: "Vendors",
         employees: "Employees",
       },
-      emptyVendors: "No vendor accounts",
-      emptyVendorsDesc:
-        "Vendor portal logins appear here when a vendor has linked access.",
       emptyTrash:
         "Deleted accounts appear here until restored or permanently deleted.",
       emptyActive: "No user accounts yet",
@@ -1947,9 +1931,6 @@ export const en = {
       emptyDeletedClient: "No deleted client accounts",
       emptyDeletedClientDesc:
         "Soft-deleted client portal logins appear here until restored or permanently deleted.",
-      emptyDeletedVendor: "No deleted vendor accounts",
-      emptyDeletedVendorDesc:
-        "Soft-deleted vendor portal logins appear here until restored or permanently deleted.",
       emptyDeletedEmployee: "No deleted employee accounts",
       emptyDeletedEmployeeDesc:
         "Soft-deleted employee logins appear here until restored or permanently deleted.",
@@ -2011,8 +1992,6 @@ export const en = {
         "Create portal logins for {count} selected clients?",
       generatePortalConfirmEmployees:
         "Create portal logins for {count} selected employees?",
-      generatePortalConfirmVendors:
-        "Create portal logins for {count} selected vendors?",
       generatePortalConfirmMixed:
         "Create portal logins for {count} selected accounts?",
       generatePortalButton: "Generate {count} Logins",
@@ -2026,10 +2005,6 @@ export const en = {
       generateClientDescription:
         "Create a linked Users portal login for this client. Login ID is an 8-letter id from the client name.",
       generateClientConfirm: "Generate Portal Login",
-      generateVendorTitle: "Generate Portal Login?",
-      generateVendorDescription:
-        "Create a linked Users portal login for this vendor. Username is based on contact person first name.",
-      generateVendorConfirm: "Generate Portal Login",
       generateFailed: "Failed to generate portal login.",
       withoutPortalSearch: "Search clients or employees...",
       withoutPortalEmpty: "Everyone already has a portal login",
@@ -2037,20 +2012,16 @@ export const en = {
         "Clients and employees without a linked Users login appear here.",
       withoutPortalNoResults: "No results for this search.",
       withoutPortalClients: "Clients",
-      withoutPortalVendors: "Vendors",
       withoutPortalEmployees: "Employees",
       withoutPortalEmptyClients: "No clients without portal login.",
-      withoutPortalEmptyVendors: "No vendors without portal login.",
       withoutPortalEmptyEmployees: "No employees without portal login.",
       withoutPortalRestoreHint:
         "Soft-deleted records stay listed until permanently deleted. Restore the client or employee first, then generate a portal login.",
       withoutPortalSectionCount: "{count} without portal login",
       selectAllClients: "Select All Clients",
-      selectAllVendors: "Select All Vendors",
       selectAllEmployees: "Select All Employees",
       selectAllUsers: "Select All Users",
       selectClientRow: "Select {name}",
-      selectVendorRow: "Select {name}",
       selectEmployeeRow: "Select {name}",
       selectUserRow: "Select {name}",
       noUsersToShow: "No users to show.",
@@ -2141,9 +2112,9 @@ export const en = {
       permissionsDescFooter:
         "Existing accounts keep stored overrides until you save. Saved changes apply on the next request.",
       permissionsDescClient:
-        "Client portal defaults on: Dashboard, Projects, Progress Reports, Attendance Report, Monthly Reports, and Invoice and Billing.",
+        "Client portal defaults on: Dashboard, Projects, Progress Reports, Attendance Report, Client Reports, and Invoice and Billing.",
       permissionsDescVendor:
-        "Vendor portal defaults on: Dashboard and Finance (their invoices/billing, tax PPN masukan upload, upload history/status, payment/settlement read-only). Vendors cannot access Progress Reports or edit vendor details.",
+        "Vendor portal access is disabled — vendor-linked logins cannot sign in to any module. Toggles below have no effect until portal access is re-enabled.",
       permissionsDescEmployee:
         "Employee defaults: Dashboard, Progress Reports, CICO (field staff), Leave & Sick; HO staff also get Projects and Attendance Report.",
       permissionsDescAdmin:
@@ -2355,20 +2326,19 @@ export const en = {
       purchaseCategoryProduct: "Product",
       purchaseCategoryService: "Service",
       purchaseCategoryHint:
-        "Choose Service for fees such as consulting. VAT % often differs from products.",
-      purchaseIncludesPpn: "VAT Included",
+        "Choose Service for fees such as consulting. Tax % often differs from products.",
+      purchaseIncludesPpn: "Tax Included",
       purchaseIncludesPpnHint:
-        "Choose Yes when the supplier bill includes VAT (PPN Masukan).",
-      purchaseIncludesPpnChip: "With VAT",
-      purchaseNoPpnChip: "No VAT",
-      purchasePpnRate: "VAT Rate",
-      purchasePpnRatePlaceholder: "e.g. 11",
-      purchasePpnRateRequired: "Enter the VAT rate percent for this purchase.",
-      purchasePpnRateProductHint: "Standard product VAT is often 11% or 12%.",
-      purchasePpnRateServiceHint:
-        "Enter the service VAT % from the invoice — it can differ from product purchases.",
-      purchaseVatPreview: "Estimated DPP {dpp} · PPN {ppn} (tax-inclusive amount).",
-      purchasePpnColumn: "PPN",
+        "Choose Yes when the supplier bill includes tax (e.g. PPN or PPH, depending on the product or service).",
+      purchaseIncludesPpnChip: "With Tax",
+      purchaseNoPpnChip: "No Tax",
+      purchasePpnRate: "Tax Rate",
+      purchasePpnRatePlaceholder: "e.g. 12",
+      purchasePpnRateRequired: "Enter the tax rate percent for this purchase.",
+      purchasePpnRateHint:
+        "Defaults to 12%. Change this if the invoice uses a different tax rate.",
+      purchaseVatPreview: "Estimated DPP {dpp} · Tax {tax} (tax-inclusive amount).",
+      purchasePpnColumn: "Tax",
       purchaseDocument: "Invoice",
       purchaseChooseDocument: "Choose a purchase invoice file.",
       purchaseReadingInvoice: "Reading invoice…",
@@ -2734,7 +2704,7 @@ export const en = {
         date: "Date",
         gross: "Gross",
         dpp: "DPP",
-        ppn: "PPN",
+        ppn: "VAT",
         faktur: "Faktur",
       },
     },
@@ -3394,10 +3364,16 @@ export const en = {
       },
     },
     approvals: {
-      title: "Manager Approvals",
-      description: "Approve leave requests.",
+      title: "Approvals",
+      description: "Approve leave, sick, and material requests.",
       emptyTitle: "All caught up",
-      emptyDescription: "No pending leave requests to review.",
+      emptyDescription: "No pending requests to review.",
+      emptyLeaveTitle: "No leave requests",
+      emptyLeaveDescription: "No pending leave or sick requests.",
+      emptyMaterialsTitle: "No material requests",
+      emptyMaterialsDescription: "No pending material requests to review.",
+      leaveSection: "Leave & Sick",
+      materialsSection: "Material Requests",
       proof: "Proof",
       period: "Period",
       columns: {
@@ -3408,19 +3384,64 @@ export const en = {
         submitted: "Submitted",
       },
     },
-    reports: {
-      title: "Monthly Reports",
+    materialRequests: {
+      title: "Material Requests",
       description:
-        "Browse daily Progress Reports and CICO by client and project.",
+        "Request materials for the project you are checked into. OM approves, then warehouse sends a transfer order.",
+      newRequest: "New Request",
+      myRequests: "My Requests",
+      emptyTitle: "No Requests Yet",
+      emptyDescription: "Submit a request while checked in via CICO.",
+      mustBeCheckedIn:
+        "You must be checked in (CICO) to a project before requesting materials.",
+      checkedInHint: "Requesting for checked-in project: {project}",
+      selectItem: "Select item…",
+      addLine: "Add Line",
+      notesPlaceholder: "Optional notes",
+      submit: "Submit Request",
+      linesRequired: "Add at least one item.",
+      quantityInvalid: "Quantity must be a positive whole number.",
+      projectInvalid: "Checked-in project cannot receive materials right now.",
+      createFailed: "Could not create material request.",
+      created: "Material request submitted.",
+      cancelFailed: "Could not cancel material request.",
+      cancelled: "Material request cancelled.",
+      notFound: "Material request not found.",
+      reviewFailed: "Could not review material request.",
+      approved: "Material request approved — transfer order created.",
+      rejected: "Material request rejected.",
+    },
+    transferOrders: {
+      title: "Transfer Orders",
+      description:
+        "Warehouse queue: send approved materials to projects, then site confirms receipt.",
+      emptyTitle: "No Transfer Orders",
+      emptyDescription: "Approved material requests appear here for warehouse.",
+      notFound: "Transfer order not found.",
+      sendFailed: "Could not mark transfer as sent.",
+      sent: "Transfer marked as sent — stock issued to project.",
+      markSent: "Mark Sent",
+      receiveFailed: "Could not confirm receipt.",
+      received: "Receipt confirmed.",
+      confirmReceived: "Confirm Received",
+      mustBeCheckedInToReceive:
+        "Check in (CICO) to this project before confirming receipt.",
+      requestedBy: "Requested by {name}",
+    },
+    reports: {
+      title: "Client Reports",
+      description:
+        "Browse compiled Progress Reports and CICO by client and project.",
       descriptionClient:
-        "Browse daily Progress Reports and CICO for your projects.",
+        "Browse compiled Progress Reports and CICO for your projects.",
       descriptionAdmin:
-        "Browse daily Progress Reports and CICO across clients and projects.",
-      breadcrumbAria: "Monthly reports navigation",
-      clientProjectsDesc: "Choose a project to view its monthly report.",
+        "Browse compiled Progress Reports and CICO across clients and projects.",
+      breadcrumbAria: "Client reports navigation",
+      clientProjectsDesc:
+        "Choose a project to view its client report (monthly packs for Regular; compiled progress for other job types).",
       selectPeriod: "Select Month",
       selectPeriodDesc:
-        "Choose the month and year to browse daily Progress Reports and CICO for this project.",
+        "Choose the month and year to browse Progress Reports and CICO for this project.",
       periodRangeHint: "Available from {from} through {to}.",
       viewReport: "View Report",
       changePeriod: "Change Period",
@@ -3595,13 +3616,13 @@ export const en = {
     },
     inventory: {
       title: "Inventory",
-      description: "Stock levels, purchases, and project issues.",
+      description: "Stock levels, stock receipts, and project issues.",
       descriptionManage:
-        "Record purchases and issue items to projects.",
-      descriptionReadonly: "View stock levels, purchases, and project issues.",
+        "Record stock receipts and issue items to projects.",
+      descriptionReadonly: "View stock levels, stock receipts, and project issues.",
       workspaceTitle: "Inventory Workspace",
       workspaceDesc:
-        "Purchases add stock from vendors. Project issues assign cost to projects. Stock shows on-hand quantities. Manage catalog items under Item Catalog.",
+        "Stock Receipts add stock from vendors (warehouse). Finance → Purchases records supplier invoices/AP. Consumables and chemicals charge project cost at weighted average; equipment is deployed as custody only (no project expense). Issue stock from Inventory only. Manage catalog items under Item Catalog.",
       companyNotFound: "Company not found.",
       permissionDenied: "You do not have permission to manage inventory.",
       assignPermissionDenied:
@@ -3609,25 +3630,35 @@ export const en = {
       voidIssueFromProjectOnly:
         "Project inventory issues can only be voided from the project page.",
       noStockToIssue:
-        "No items have available stock. Record a purchase before assigning to a project.",
+        "No items have available stock. Record a stock receipt before assigning to a project.",
       quantityExceedsStock:
         "Quantity exceeds available stock. Available: {available} {unit}.",
       quantityMustBeWhole: "{field} must be a whole number.",
       quantityMustBePositive: "{field} must be greater than zero.",
       quantityMustBeNonNegative: "{field} must be zero or greater.",
       costingNote:
-        "Stock value and project issue costs use running weighted-average unit cost. Last purchase unit cost is shown for reference.",
+        "Consumables, chemicals, and other stock use weighted-average cost for value and project issues. Last Cost is the most recent purchase unit price (spike check). Equipment owned value is the sum of each asset’s locked purchase cost.",
       searchPlaceholder: "Search items, vendors, projects…",
+      searchPurchasesPlaceholder:
+        "Search all stock receipts by item, SKU, vendor, invoice…",
+      searchingPurchases: "Searching older stock receipts…",
+      searchPurchasesFailed: "Could not search stock receipts.",
+      itemTypeLocked: "Item type cannot be changed after create.",
+      deleteItemFailed: "Could not delete catalog item.",
+      assetNotFound: "Equipment asset not found.",
+      assetUpdated: "Asset details updated.",
+      updateAssetFailed: "Could not update asset details.",
       addItem: "Add Item",
       addItemDesc:
-        "Create a catalog item only. Purchases and stock are recorded separately.",
+        "Create a catalog item only. Stock receipts and stock are recorded separately.",
       editItem: "Edit Item",
-      editItemDesc: "Update catalog details. SKU stays system-assigned.",
+      editItemDesc:
+        "Update catalog details. SKU and item type stay system-assigned.",
       saveItem: "Save Item",
-      addPurchase: "Add Purchase",
+      addPurchase: "Add Stock Receipt",
       addPurchaseDesc:
-        "Choose a catalog item, then enter vendor, quantity, and price to increase stock.",
-      savePurchase: "Save Purchase",
+        "Choose a catalog item, then enter vendor, quantity, and ex-tax unit price to increase warehouse stock.",
+      savePurchase: "Save Stock Receipt",
       addIssue: "Issue To Project",
       addIssueDesc:
         "Assign stock to an in-progress project. Cost is locked at the current weighted average.",
@@ -3636,19 +3667,75 @@ export const en = {
       addWriteOffDesc:
         "Permanently remove stock from on-hand with a mandatory reason. Decrease only — cannot write off more than on-hand. OM+ only.",
       saveWriteOff: "Write Off",
+      addSoldOff: "Record Sale",
+      addSoldOffDesc:
+        "Sell stock or equipment from warehouse. Reduces on-hand stock and records sale proceeds. OM+ only.",
+      saveSoldOff: "Record Sale",
+      soldOffCreated: "Stock sale recorded.",
+      createSoldOffFailed: "Could not record sale.",
+      searchSoldOffsPlaceholder:
+        "Search all sales: item, SKU, buyer, notes…",
+      searchingSoldOffs: "Searching older sales…",
+      searchSoldOffsFailed: "Could not search sales.",
+      soldOffAssetQtyMismatch:
+        "Selected equipment assets must match the sale quantity.",
+      voidSoldOffNotSupported:
+        "Sale records cannot be voided from here. Contact an administrator if a correction is needed.",
+      buyerTypeRequired: "Choose Individual or Company for the buyer.",
+      buyerNameRequired: "Buyer name is required.",
+      companyNameRequired: "Company name is required.",
+      buyerPicNameRequired: "PIC name is required for company buyers.",
+      buyerPhoneRequired: "Buyer contact number is required.",
+      buyerIdRequired: "Buyer ID is required for individual buyers.",
+      buyerIdentityDocRequired: "Upload the tax invoice (faktur pajak) for this sale.",
+      buyerTaxIdRequired: "Company Tax ID (NPWP) is required for company buyers.",
+      taxRateRequired: "Enter a tax rate for this sale.",
+      taxAmountRequired: "Sale tax amount must be greater than zero.",
+      saleInvoiceRequired: "Upload the sale invoice for this sale.",
+      clientNotFound: "Linked client was not found.",
+      clientTypeMismatch:
+        "Linked client must match the selected buyer type.",
+      searchClientsFailed: "Could not search clients.",
       deactivate: "Deactivate",
       viewReceipt: "View Receipt",
+      viewSaleInvoice: "View Invoice",
+      viewBuyerIdentityDoc: "View Tax Invoice",
+      saleDetailsTitle: "Sale Details",
+      saleDetailsDesc: "Full details for this sale record.",
+      saleDetailsLinkedClient: "Linked Client",
+      saleDetailsLinkedClientHint: "Opens the Clients directory.",
+      saleDetailsBuyerId: "Buyer ID",
+      saleDetailsDocuments: "Documents",
+      saleDetailsFinancial: "Financials",
+      saleDetailsTaxInvoice: "Tax Invoice",
+      saleDetailsNotProvided: "Not provided",
+      saleDetailsBuyerEmpty:
+        "No buyer details on this sale. Newer sales capture company/PIC or individual identity.",
+      saleDetailsDocsEmpty: "No documents attached.",
+      saleDetailsExTaxHint: "Does not include tax.",
+      saleDetailsGainLossHint:
+        "Gain/loss uses ex-tax sale vs ex-tax cost.",
       itemCreated: "Catalog item created.",
       itemUpdated: "Catalog item updated.",
       itemDeactivated: "Catalog item deactivated.",
       itemReactivated: "Catalog item restored.",
-      purchaseCreated: "Purchase recorded. Stock increased.",
+      purchaseCreated: "Stock receipt recorded. Stock increased.",
       issueCreated: "Stock issued to project.",
       writeOffCreated: "Stock written off.",
+      writeOffReversed: "Write-off reversed. Stock restored.",
+      reverseWriteOff: "Reverse",
+      reverseWriteOffTitle: "Reverse Write-Off",
+      reverseWriteOffDesc:
+        "Restore this quantity to on-hand stock and reactivate linked equipment assets. This cannot be undone.",
+      reverseWriteOffConfirm: "Reverse Write-Off",
+      reverseWriteOffFailed: "Could not reverse write-off.",
+      writeOffAlreadyReversed: "This write-off was already reversed.",
+      voidWriteOffUseReverse:
+        "Write-offs must be reversed from the Write-Offs tab, not voided here.",
       itemNameRequired: "Item name is required.",
       itemTypeRequired: "Item type is required.",
       itemRequired: "Choose a catalog item.",
-      vendorRequired: "Vendor is required for purchases.",
+      vendorRequired: "Vendor is required for stock receipts.",
       projectRequired: "Choose a project.",
       itemNotFound: "Catalog item not found.",
       vendorNotFound: "Vendor not found.",
@@ -3658,9 +3745,11 @@ export const en = {
       insufficientStock: "Not enough stock. Available: {available} {unit}.",
       insufficientEquipmentAssets:
         "Not enough available equipment assets for this write-off. Available: {available}. Required: {requested}.",
-      unitCostMissing: "This item has no unit cost yet. Record a purchase first.",
+      insufficientEquipmentAssetsForIssue:
+        "Not enough available equipment units to issue. Available: {available}. Required: {requested}.",
+      unitCostMissing: "This item has no unit cost yet. Record a stock receipt first.",
       manualAdjustDisabled:
-        "Manual stock adjustments are disabled. Stock only changes through purchases, project issues, write-offs, equipment assign/release, and voids.",
+        "Manual stock adjustments are disabled. Stock only changes through stock receipts, project issues, write-offs, write-off reversals, equipment assign/release, and voids.",
       voidReasonRequired: "A void reason is required.",
       voidWouldGoNegative: "Voiding this movement would make stock negative.",
       writeOffReasonRequired: "A write-off reason is required.",
@@ -3668,38 +3757,92 @@ export const en = {
       updateItemFailed: "Could not update catalog item.",
       deactivateItemFailed: "Could not deactivate catalog item.",
       reactivateItemFailed: "Could not restore catalog item.",
-      createPurchaseFailed: "Could not record purchase.",
+      createPurchaseFailed: "Could not record stock receipt.",
       createIssueFailed: "Could not issue stock to project.",
       voidFailed: "Could not void movement.",
       createWriteOffFailed: "Could not record stock write-off.",
       emptyItems: "No Catalog Items Yet",
-      emptyItemsDesc: "Add an item to the catalog before recording purchases.",
-      emptyPurchases: "No Purchases Yet",
+      emptyItemsDesc: "Add an item to the catalog before recording stock receipts.",
+      emptyPurchases: "No Stock Receipts Yet",
       emptyPurchasesDesc:
-        "Record a purchase against a catalog item to increase stock.",
+        "Record a stock receipt against a catalog item to increase warehouse stock.",
       emptyIssues: "No Project Issues Yet",
       emptyIssuesDesc:
-        "Issue stock to an In Progress, Pending Approval, or On Hold project to attribute inventory cost.",
+        "Issue stock to an In Progress, Pending Approval, or On Hold project. Consumables and chemicals book cost; equipment is location/custody only.",
       emptyWriteOffs: "No Write-Offs Yet",
       emptyWriteOffsDesc:
         "Write-offs permanently reduce on-hand stock with a mandatory reason.",
+      emptySoldOffs: "No Sales Yet",
+      emptySoldOffsDesc:
+        "Sales record external stock sales and reduce on-hand inventory.",
       emptyStock: "No Active Stock Items",
-      emptyStockDesc: "Activate catalog items and record purchases to see stock.",
+      emptyStockDesc: "Activate catalog items and record stock receipts to see stock.",
+      emptyAssetList: "No Active Equipment Assets",
+      emptyAssetListDesc:
+        "Activate equipment catalog items and record stock receipts to see owned assets.",
       emptySearch: 'No results for "{query}"',
       emptySearchDesc: "Try a different item name, SKU, vendor, or project.",
       tabs: {
         items: "Items",
-        purchases: "Purchases",
+        purchases: "Stock Receipts",
         issues: "Project Issues",
         stock: "Stock",
+        assetList: "Asset List",
         writeOffs: "Write-Offs",
+        soldOff: "Sales",
       },
       stats: {
         itemsSubtitle: "{inactive} inactive",
-        purchasesSubtitle: "Stock-in from vendors",
+        purchasesSubtitle: "Warehouse stock-in (no AP)",
         issuesSubtitle: "Assigned to projects",
         stockSubtitle: "{low} below min stock",
+        assetListSubtitle: "{warehouse} in warehouse · {owned} owned",
         writeOffsSubtitle: "Permanent stock removals",
+        soldOffSubtitle: "External stock sales",
+      },
+      projectIssues: {
+        selectHint: "Select a project to view issued inventory.",
+        backToProjects: "Back To Projects",
+        issueCountOne: "1 Issue",
+        issueCountOther: "{count} Issues",
+        deployCountOne: "1 Deployed",
+        deployCountOther: "{count} Deployed",
+        totalCost: "Total Cost {amount}",
+        emptyProjects: "No Projects With Issues",
+        emptyProjectsDesc:
+          "Issue stock to a project to see it listed here.",
+        emptyProjectRows: "No Issues For This Project",
+        emptyProjectRowsDesc:
+          "No issued items match the current filters for this project.",
+      },
+      stock: {
+        equipmentClickHint:
+          "Click an equipment item to see warehouse and on-project units. On Hand is warehouse only — units on projects stay company-owned.",
+        equipmentLocations: "Equipment Locations",
+        equipmentLocationSummary:
+          "{warehouse} Warehouse · {onProject} On Project · {owned} Owned",
+        equipmentLocationSummaryRetired:
+          "{warehouse} Warehouse · {onProject} On Project · {owned} Owned · {retired} Retired",
+        closeLocations: "Close",
+      },
+      overview: {
+        categoryEquipment: "Equipment",
+        categoryChemicals: "Chemicals",
+        categoryConsumables: "Consumables",
+        categoryOthers: "Others",
+        assetCode: "Asset Code",
+        location: "Location",
+        locationWarehouse: "Warehouse",
+        locationOnProject: "On Project",
+        serialNo: "Serial No.",
+        notes: "Notes",
+        assignedAt: "Assigned",
+        acquisitionCost: "Acquisition Cost",
+        showRetired: "Show Retired",
+        systemCleanupDuplicateUnit: "System cleanup: duplicate unit removed",
+        emptyCategory: "No items in this category yet.",
+        emptyAssets: "No active equipment units.",
+        retired: "Retired",
       },
       status: {
         active: "Active",
@@ -3730,44 +3873,68 @@ export const en = {
         unitCost: "Unit Cost",
         projectCost: "Project Cost",
         onHand: "On Hand",
+        warehouseOnHand: "Warehouse",
+        owned: "Owned",
         minStock: "Min Stock",
         avgCost: "Avg Cost",
         lastCost: "Last Cost",
         valueOnHand: "Value On Hand",
+        valueWarehouse: "Warehouse Value",
+        valueOwned: "Owned Value",
         writeOffValue: "Value Written Off",
         writeOffReason: "Write-Off Reason",
         writtenOffBy: "Written Off By",
+        saleUnitPrice: "Sale Unit Price",
+        saleSubtotal: "Sale (Ex Tax)",
+        saleTotal: "Sale Total",
+        tax: "Tax",
+        costBasis: "Cost Basis (Ex Tax)",
+        gainLoss: "Gain / Loss",
+        saleInvoice: "Sale Invoice",
+        buyer: "Buyer",
+        soldBy: "Sold By",
+        notes: "Notes",
       },
       form: {
         itemType: "Item Type",
         itemTypePlaceholder: "Select Item Type",
-        itemTypeHint: "Classify the catalog item (not a purchase).",
+        itemTypeHint: "Classify the catalog item (not a stock receipt).",
         itemName: "Item Name",
         itemNamePlaceholder: "e.g. Floor Cleaner 5L",
         sku: "SKU",
         skuHint:
-          "System-generated from Item Type when you save (e.g. TOOL-0001, CONS-0002). Not entered manually.",
+          "System-generated from Item Type when you save (e.g. TOOL-001, CNS-002). Not entered manually.",
         skuPickType: "Select Item Type to preview SKU",
         skuLoading: "Loading…",
         skuReadonlyHint:
           "SKU was assigned from Item Type at create and cannot be changed.",
+        itemTypeLockedHint:
+          "Item type is set at create and cannot be changed.",
+        lastPurchaseCostHint:
+          "Last purchase: {lastCost}. Running average: {avgCost}. Compare your new quote to the last price.",
+        noPriorPurchaseCostHint:
+          "No prior purchase price on file for this item yet.",
         description: "Description",
         descriptionPlaceholder: "Optional notes about this catalog item.",
         catalogOnlyHint:
-          "This creates the catalog entry only. Use Purchases to buy stock.",
+          "This creates the catalog entry only. Use Stock Receipts to add warehouse stock.",
         unit: "Unit",
         unitHint: "Display unit for stock quantities (e.g. pcs, liter).",
         minStock: "Min Stock",
         minStockHint: "Low-stock warning threshold on the Stock tab.",
         catalogItem: "Catalog Item",
         catalogItemPlaceholder: "Select Catalog Item",
+        catalogItemSearchPlaceholder: "Search by name, SKU, or type…",
+        catalogItemNoSearchMatch: "No stocked items match this search.",
         catalogItemHint:
           "Pick an existing catalog item. Add new items under Item Catalog first.",
         vendor: "Vendor",
         vendorPlaceholder: "Select Vendor",
-        purchasedAt: "Purchase Date",
+        purchasedAt: "Receipt Date",
         quantity: "Quantity",
         unitPrice: "Unit Price (IDR)",
+        unitPriceExTaxHint:
+          "Enter the ex-tax unit price. Tax is not included in stock cost.",
         invoiceNo: "Invoice No.",
         receipt: "Receipt / Invoice File",
         notes: "Notes",
@@ -3778,12 +3945,84 @@ export const en = {
         issueDate: "Issue Date",
         issueCostHint:
           "Unit cost locked at {unitCost}. Available: {available} {unit}.",
+        issueEquipmentDeployHint:
+          "Deployed to project (location only — no project expense). Available: {available} {unit}.",
         issueItemHint: "Only items with on-hand stock are listed.",
+        equipmentDeployed: "Deployed",
         writeOffDate: "Write-Off Date",
         writeOffReason: "Write-Off Reason",
         writeOffReasonPlaceholder: "Describe why this stock is being written off (damage, expiry, loss, etc.).",
         writeOffReasonHint: "Required. This reason is permanently recorded in the audit trail.",
         writeOffItemHint: "On hand: {available} {unit}. Write-off cannot exceed this amount.",
+        reverseWriteOffReason: "Reverse Reason",
+        reverseWriteOffReasonPlaceholder:
+          "Optional note for why this write-off is being reversed.",
+        reverseWriteOffReasonHint:
+          "Optional. Your name and the reversal time are recorded automatically.",
+        saleDate: "Sale Date",
+        saleUnitPrice: "Sale Unit Price (Ex Tax)",
+        saleUnitPriceExTaxHint:
+          "Enter the pre-tax (ex-tax) unit price. Tax is calculated from the rate below.",
+        saleSubtotal: "Subtotal (Ex Tax)",
+        saleTaxAmount: "Tax Amount",
+        saleTotal: "Sale Total (Incl. Tax)",
+        saleVatExclusivePreview:
+          "DPP {dpp} + Tax {tax} ({rate}%) = {total}.",
+        taxRate: "Tax Rate (%)",
+        taxRatePlaceholder: "e.g. 12",
+        taxRateHint:
+          "Defaults to 12%. Change this if the invoice uses a different tax rate.",
+        linkClient: "Link Client (Optional)",
+        clientSearchPlaceholder: "Search clients by name, code, or NPWP…",
+        clientOptionalPlaceholder: "Select Client (Optional)",
+        clientNoSearchMatch: "No clients match this search.",
+        linkClientHint:
+          "Optional. Prefills buyer name and company NPWP from the client directory.",
+        linkClientHintCompany:
+          "Optional. Shows company clients only. Prefills buyer name and NPWP.",
+        linkClientHintIndividual:
+          "Optional. Shows individual clients only. Prefills buyer name.",
+        clearLinkedClient: "Clear Linked Client",
+        buyerType: "Buyer Type",
+        buyerTypeIndividual: "Individual",
+        buyerTypeCompany: "Company",
+        buyerTypeHint:
+          "Choose buyer type first. Link Client and buyer details appear next.",
+        buyer: "Buyer Name",
+        buyerPlaceholder: "Buyer name",
+        buyerManualHint:
+          "Required. Enter a one-time buyer, or keep/edit the name from a linked client.",
+        companyName: "Company Name",
+        companyNamePlaceholder: "Company / buyer name",
+        companyNameHint:
+          "Required. Enter the company name, or keep/edit it from a linked client.",
+        buyerPicName: "PIC Name",
+        buyerPicNamePlaceholder: "Person in charge",
+        buyerPicNameHint: "Required. Contact person at the company.",
+        buyerPhone: "Contact Number",
+        buyerPhonePlaceholder: "e.g. 0812 3456 7890",
+        buyerPhoneHint: "Required. Phone or WhatsApp number for this buyer.",
+        buyerPhoneHintCompany:
+          "Required. Phone or WhatsApp number for the PIC.",
+        buyerIdentityDoc: "Tax Invoice",
+        buyerIdentityDocHint:
+          "Required for company buyers. Upload the tax invoice (faktur pajak) issued for this sale.",
+        buyerTaxId: "Company Tax ID (NPWP)",
+        buyerTaxIdIndividual: "Tax ID (NPWP)",
+        buyerTaxIdPlaceholder: "15 Or 16 Digit NPWP",
+        buyerIdNumber: "National ID (KTP)",
+        buyerIdNumberPlaceholder: "16 Digit NIK / KTP",
+        buyerIdentityEitherHint:
+          "Required: enter Tax ID (NPWP) or National ID (KTP) — at least one.",
+        saleInvoice: "Sale Invoice",
+        saleInvoiceHint: "Required. Upload the PDF or image of the sale invoice.",
+        soldOffItemHint:
+          "On hand: {available} {unit}. Sale cannot exceed this amount.",
+        soldOffAssets: "Equipment Assets",
+        soldOffNoAssets: "No available equipment assets for this item.",
+        soldOffAssetsHint:
+          "Optional. Select specific units to retire; count must match quantity.",
+        soldOffNotesPlaceholder: "Optional notes about this sale.",
       },
       itemTypes: {
         Consumable: "Consumable",
@@ -3796,22 +4035,27 @@ export const en = {
       title: "Item Catalog",
       description: "Master list of inventory items and types.",
       descriptionManage:
-        "Create and maintain catalog items before recording purchases or issuing stock.",
+        "Create and maintain catalog items before recording stock receipts or issuing stock.",
       descriptionReadonly: "View the item catalog master list.",
       directoryTitle: "Item Catalog",
       directoryDesc:
-        "Define items, types, and SKUs used by Inventory purchases and project issues.",
+        "Define items, types, and SKUs used by Inventory stock receipts and project issues.",
       companyNotFound: "Company not found.",
       permissionDenied: "You do not have permission to manage the item catalog.",
       searchPlaceholder: "Search items, SKU, type…",
       addItem: "Add Item",
       deactivate: "Deactivate",
+      delete: "Delete",
+      deleteConfirm:
+        "Delete “{name}”? Unused items are removed permanently. Items with purchase or stock history are archived so history is kept.",
       itemDeactivated: "Catalog item deactivated.",
       itemReactivated: "Catalog item restored.",
+      itemDeleted: "Catalog item deleted.",
       deactivateItemFailed: "Could not deactivate catalog item.",
       reactivateItemFailed: "Could not restore catalog item.",
+      deleteItemFailed: "Could not delete catalog item.",
       emptyItems: "No Catalog Items Yet",
-      emptyItemsDesc: "Add an item to the catalog before recording purchases.",
+      emptyItemsDesc: "Add an item to the catalog before recording stock receipts.",
       emptySearch: 'No results for "{query}"',
       emptySearchDesc: "Try a different item name, SKU, or type.",
       stats: {
@@ -3843,7 +4087,9 @@ export const en = {
     shifts: "Shifts",
     leaves: "Leave & Sick",
     approvals: "Approvals",
-    reports: "Monthly Reports",
+    materialRequests: "Material Requests",
+    transferOrders: "Transfer Orders",
+    reports: "Client Reports",
     inventory: "Inventory",
     itemCatalog: "Item Catalog",
     invoicing: "Invoice and Billing",
@@ -3921,7 +4167,7 @@ export const en = {
     createdVendorsNote:
       "Created vendors get an auto-assigned Vendor ID (V001, V002, …).",
     createdInventoryItemsNote:
-      "Catalog items only — SKUs are assigned from Item Type (e.g. TOOL-0001). Record purchases separately to add stock.",
+      "Catalog items only — SKUs are assigned from Item Type (e.g. TOOL-001). Record stock receipts separately to add stock.",
     createdProjectsNote:
       "Created projects use the same rules as single create (location, tax invoice, billing, and staff assignment).",
     uploadExcelRequired: "Upload an Excel file (.xlsx).",

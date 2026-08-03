@@ -82,7 +82,19 @@ export function movementTotalCost(quantity: number, unitCost: number): number {
 }
 
 /**
+ * Where-clause fragment: exclude Equipment ISSUE_TO_PROJECT rows from project COGS.
+ * Equipment is location/custody only (also stored with zero unit/total cost going forward).
+ */
+export const excludeEquipmentFromProjectInventoryCost: Prisma.InventoryMovementWhereInput =
+  {
+    NOT: {
+      item: { itemType: { equals: "Equipment", mode: "insensitive" } },
+    },
+  };
+
+/**
  * Sum of non-voided ISSUE_TO_PROJECT totalCost for a project (IDR).
+ * Equipment deployments are location/custody only and excluded from project COGS.
  * Use for project financial reports / P&L cost layer.
  */
 export async function getProjectInventoryCost(
@@ -93,6 +105,7 @@ export async function getProjectInventoryCost(
     projectId,
     type: "ISSUE_TO_PROJECT",
     voidedAt: null,
+    ...excludeEquipmentFromProjectInventoryCost,
     ...(options?.companyId ? { companyId: options.companyId } : {}),
   };
 
@@ -116,6 +129,7 @@ export type ProjectInventoryIssueRow = {
     sku: string;
     name: string;
     unit: string;
+    itemType: string;
   };
 };
 
@@ -133,7 +147,7 @@ export async function listProjectInventoryIssues(
     },
     include: {
       item: {
-        select: { id: true, sku: true, name: true, unit: true },
+        select: { id: true, sku: true, name: true, unit: true, itemType: true },
       },
     },
     orderBy: { movedAt: "desc" },
@@ -158,4 +172,15 @@ export function stockValueOnHand(
 ): number {
   if (currentStock <= 0 || avgUnitCost == null) return 0;
   return currentStock * avgUnitCost;
+}
+
+/**
+ * Low-stock warning: on-hand below the item's minStock threshold.
+ * When minStock is 0 (unset), no warning.
+ */
+export function isBelowMinStock(
+  currentStock: number,
+  minStock: number
+): boolean {
+  return minStock > 0 && currentStock < minStock;
 }

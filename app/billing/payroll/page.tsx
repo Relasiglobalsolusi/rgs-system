@@ -10,7 +10,7 @@ import {
   isVendorPortalUser,
 } from "@/lib/project-access";
 import { decimalToNumber } from "@/lib/project-billing";
-import { requireModule, toPermissionUser } from "@/lib/session";
+import { requireFinanceChild, toPermissionUser } from "@/lib/session";
 import { jakartaYearMonth, utcRangeForJakartaMonth } from "@/lib/vat";
 
 type SearchParams = Promise<{ year?: string; month?: string }>;
@@ -20,7 +20,7 @@ export default async function PayrollPage({
 }: {
   searchParams: SearchParams;
 }) {
-  const session = await requireModule("invoicing");
+  const session = await requireFinanceChild("payroll");
   const user = toPermissionUser(session);
   if (isClientPortalUser(user) || isVendorPortalUser(user)) {
     redirect("/billing");

@@ -233,8 +233,10 @@ export async function reorderVendors(ids: string[]) {
 }
 
 /**
- * Updates a vendor. Contact person rename forces new portal credentials
- * (username is contact-derived). Soft-delete only via Delete dialog.
+ * Updates a vendor. Vendor portal login is disabled (see lib/auth.ts /
+ * lib/permissions.ts) — this only syncs the display name on any legacy
+ * linked User records; it never creates or re-enables credentials.
+ * Soft-delete only via Delete dialog.
  */
 export async function updateVendor(id: string, formData: FormData) {
   const locale = await getServerLocale();

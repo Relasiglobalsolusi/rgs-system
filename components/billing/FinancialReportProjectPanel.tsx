@@ -3,6 +3,7 @@
 import { ArrowDownLeft, ArrowUpRight, Percent, TrendingUp } from "lucide-react";
 
 import type { FinancialReportProjectDetail } from "@/app/billing/financial-report/actions";
+import { matchInventoryItemType } from "@/components/inventory/inventory-category";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import EmptyState from "@/components/ui/EmptyState";
@@ -103,7 +104,10 @@ export default function FinancialReportProjectPanel({ detail }: Props) {
       width: "9rem",
       align: "right",
       className: "min-w-[9rem] tabular-nums",
-      render: (row) => formatContractPrice(row.totalCost),
+      render: (row) =>
+        matchInventoryItemType(row.item.itemType, "equipment")
+          ? t("pages.inventory.form.equipmentDeployed")
+          : formatContractPrice(row.totalCost),
     },
   ];
 

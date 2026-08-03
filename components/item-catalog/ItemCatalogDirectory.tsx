@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import {
   deactivateInventoryItem,
+  deleteInventoryItem,
   reactivateInventoryItem,
 } from "@/app/inventory/actions";
 import {
@@ -15,6 +16,7 @@ import {
 import BulkImportDialog from "@/components/bulk-import/BulkImportDialog";
 import InventoryItemDialog from "@/components/inventory/InventoryItemDialog";
 import InventoryItemEditDialog from "@/components/inventory/InventoryItemEditDialog";
+import { partitionItemsByInventoryItemType } from "@/components/inventory/inventory-category";
 import type { InventoryCatalogItem } from "@/components/inventory/inventory-types";
 import DirectoryAddButton from "@/components/ui/DirectoryAddButton";
 import DirectorySearchInput, {
@@ -26,7 +28,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge from "@/components/ui/StatusBadge";
 import {
-  ACTIONS_DUAL_CHIP_COLUMN_WIDTH,
+  ACTIONS_TRIPLE_CHIP_COLUMN_WIDTH,
   trashActionChipClassName,
 } from "@/components/ui/trash-action-buttons";
 import { Button } from "@/components/ui/button";
@@ -71,6 +73,11 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
     [items, searchQuery]
   );
 
+  const categorized = useMemo(
+    () => partitionItemsByInventoryItemType(visibleItems),
+    [visibleItems]
+  );
+
   function toggleItemActive(item: InventoryCatalogItem) {
     const formData = new FormData();
     formData.set("id", item.id);
@@ -89,6 +96,29 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
           item.active
             ? t("pages.itemCatalog.deactivateItemFailed")
             : t("pages.itemCatalog.reactivateItemFailed")
+        );
+      }
+    });
+  }
+
+  function deleteItem(item: InventoryCatalogItem) {
+    if (
+      !window.confirm(
+        t("pages.itemCatalog.deleteConfirm", { name: item.name })
+      )
+    ) {
+      return;
+    }
+    const formData = new FormData();
+    formData.set("id", item.id);
+    startTransition(async () => {
+      try {
+        await deleteInventoryItem(formData);
+        toast.success(t("pages.itemCatalog.itemDeleted"));
+      } catch (error) {
+        showRejectionFromError(
+          error,
+          t("pages.itemCatalog.deleteItemFailed")
         );
       }
     });
@@ -141,9 +171,9 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
           {
             key: "actions",
             title: t("pages.itemCatalog.columns.actions"),
-            width: ACTIONS_DUAL_CHIP_COLUMN_WIDTH,
+            width: ACTIONS_TRIPLE_CHIP_COLUMN_WIDTH,
             align: "center" as const,
-            className: "min-w-[20rem] overflow-visible whitespace-nowrap",
+            className: "min-w-[28rem] overflow-visible whitespace-nowrap",
             render: (row: InventoryCatalogItem) => (
               <div className="flex shrink-0 items-center justify-center gap-2 whitespace-nowrap">
                 <Button
@@ -168,12 +198,41 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
                     ? t("pages.itemCatalog.deactivate")
                     : t("common.actions.restore")}
                 </Button>
+                <Button
+                  type="button"
+                  size="badge"
+                  variant="outline"
+                  className={trashActionChipClassName}
+                  disabled={pending}
+                  onClick={() => deleteItem(row)}
+                >
+                  {t("pages.itemCatalog.delete")}
+                </Button>
               </div>
             ),
           },
         ]
       : []),
   ];
+
+  function renderCategoryTable(
+    title: string,
+    rows: InventoryCatalogItem[]
+  ) {
+    if (rows.length === 0) return null;
+    return (
+      <div className="space-y-2">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-subtle">
+          {title}
+        </p>
+        <DataTable
+          columns={columns}
+          data={rows}
+          getRowKey={(row) => row.id}
+        />
+      </div>
+    );
+  }
 
   return (
     <>
@@ -236,11 +295,32 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
           />
         </SectionCard>
       ) : (
-        <DataTable
-          columns={columns}
-          data={visibleItems}
-          getRowKey={(row) => row.id}
-        />
+        <div className="space-y-8">
+          {categorized.equipment.length > 0
+            ? renderCategoryTable(
+                t("pages.inventory.overview.categoryEquipment"),
+                categorized.equipment
+              )
+            : null}
+          {categorized.chemical.length > 0
+            ? renderCategoryTable(
+                t("pages.inventory.overview.categoryChemicals"),
+                categorized.chemical
+              )
+            : null}
+          {categorized.consumable.length > 0
+            ? renderCategoryTable(
+                t("pages.inventory.overview.categoryConsumables"),
+                categorized.consumable
+              )
+            : null}
+          {categorized.other.length > 0
+            ? renderCategoryTable(
+                t("pages.inventory.overview.categoryOthers"),
+                categorized.other
+              )
+            : null}
+        </div>
       )}
 
       {canManage ? (

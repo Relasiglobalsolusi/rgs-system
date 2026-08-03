@@ -26,14 +26,10 @@ import {
 } from "@/lib/project-access";
 import { canAssignInventoryToProject } from "@/lib/inventory-access";
 import {
-  canIssueInventoryToProject,
   getProjectInventoryCost,
-  inventoryQtyFromDecimal,
   listProjectInventoryIssues,
 } from "@/lib/inventory";
-import {
-  listProjectEquipmentAssets,
-} from "@/lib/equipment-asset";
+import { listProjectEquipmentAssets } from "@/lib/equipment-asset";
 import {
   daysBetweenDates,
   isContractSubCategory,
@@ -87,7 +83,6 @@ import ContractExtensionsHistory from "@/components/projects/ContractExtensionsH
 import ProjectAssignStaffChip from "@/components/projects/ProjectAssignStaffChip";
 import ProjectDetailActionBar from "@/components/projects/ProjectDetailActionBar";
 import ProjectEquipmentPicker, {
-  type EquipmentAssetOption,
   type AssignedEquipmentAsset,
 } from "@/components/projects/ProjectEquipmentPicker";
 import ProjectInventoryPanel from "@/components/projects/ProjectInventoryPanel";
@@ -170,9 +165,8 @@ export default async function ProjectDetailPage({
         username: session.user.username,
       })
     : false;
-  const projectIssuable = canIssueInventoryToProject(project.status);
 
-  const [employees, clients, inventoryCost, inventoryIssues, catalogItems] =
+  const [employees, clients, inventoryCost, inventoryIssues] =
     await Promise.all([
       canManage
         ? prisma.employee.findMany({
@@ -224,16 +218,6 @@ export default async function ProjectDetailPage({
             take: 50,
           })
         : Promise.resolve([]),
-      canAssignStock && projectIssuable
-        ? prisma.inventoryItem.findMany({
-            where: {
-              companyId: project.companyId,
-              active: true,
-              currentStock: { gt: 0 },
-            },
-            orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-          })
-        : Promise.resolve([]),
     ]);
 
   const staffConflicts =
@@ -247,42 +231,17 @@ export default async function ProjectDetailPage({
       : [];
   const staffEmployees = annotateStaffPickerConflicts(employees, staffConflicts);
 
-  // Equipment asset queries — only for staff who can assign inventory
-  const [availableEquipmentAssets, assignedEquipmentAssets] =
-    canAssignStock && isPlanningProjectStatus(project.status) === false
-      ? await Promise.all([
-          prisma.equipmentAsset.findMany({
-            where: {
-              companyId: project.companyId,
-              status: "AVAILABLE",
-              item: { itemType: "Equipment", active: true },
-            },
-            select: {
-              id: true,
-              assetCode: true,
-              serialNo: true,
-              item: { select: { id: true, sku: true, name: true } },
-            },
-            orderBy: [{ item: { name: "asc" } }, { assetCode: "asc" }],
-          }),
-          listProjectEquipmentAssets(project.companyId, project.id),
-        ])
-      : [[], []];
+  // Equipment issue/release/demob keep Inventory ↔ Projects in sync.
+  // Never mint/assign on page load (caused ghost units like EQP-*-A6).
+  // Repair: scripts/reconcile-equipment-stock.ts (release phantoms + hard-delete surplus).
+
+  // Assigned equipment for display / release (issue only via Inventory → Project Issues).
+  const assignedEquipmentAssets =
+    showInventoryCosts && isPlanningProjectStatus(project.status) === false
+      ? await listProjectEquipmentAssets(project.companyId, project.id)
+      : [];
 
   const canViewInventory = canAccess(permissionUser, "inventory");
-  const inventoryCatalogItems = catalogItems.map((item) => ({
-    id: item.id,
-    sku: item.sku,
-    name: item.name,
-    itemType: item.itemType,
-    description: item.description,
-    unit: item.unit,
-    minStock: inventoryQtyFromDecimal(item.minStock),
-    currentStock: inventoryQtyFromDecimal(item.currentStock),
-    lastUnitCost: decimalToNumber(item.lastUnitCost),
-    avgUnitCost: decimalToNumber(item.avgUnitCost),
-    active: item.active,
-  }));
   const inventoryIssueViews = inventoryIssues.map((row) => ({
     id: row.id,
     movedAt:
@@ -678,12 +637,8 @@ export default async function ProjectDetailPage({
           {showInventoryCosts ? (
             <ProjectInventoryPanel
               projectId={project.id}
-              projectName={project.name}
-              projectStatus={project.status}
               issues={inventoryIssueViews}
-              catalogItems={inventoryCatalogItems}
               canViewInventoryModule={canViewInventory}
-              canAssignStock={canAssignStock}
               canVoidIssue={canAssignStock}
             />
           ) : null}
@@ -913,11 +868,9 @@ export default async function ProjectDetailPage({
                   <h3 className={sectionTitleClassName}>
                     {t("pages.projects.equipmentPicker.sectionTitle")}
                   </h3>
-                  {assignedEquipmentAssets.length === 0 ? (
-                    <p className="mt-1 max-w-2xl text-sm text-subtle">
-                      {t("pages.projects.equipmentPicker.noAssignedAssetsHint")}
-                    </p>
-                  ) : null}
+                  <p className="mt-1 max-w-2xl text-sm text-subtle">
+                    {t("pages.projects.equipmentPicker.noAssignedAssetsHint")}
+                  </p>
                 </div>
                 {canAssignStock ? (
                   <div className="flex items-center gap-1 shrink-0">
@@ -936,10 +889,8 @@ export default async function ProjectDetailPage({
               </div>
               <ProjectEquipmentPicker
                 projectId={project.id}
-                projectStatus={project.status}
-                availableAssets={availableEquipmentAssets as EquipmentAssetOption[]}
                 assignedAssets={assignedEquipmentAssets as AssignedEquipmentAsset[]}
-                canAssign={canAssignStock}
+                canRelease={canAssignStock}
               />
             </SectionCard>
           ) : null}

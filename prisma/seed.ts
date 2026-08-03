@@ -1139,69 +1139,6 @@ async function main() {
     },
   });
 
-  const julyDates = [
-    new Date("2026-07-01"),
-    new Date("2026-07-02"),
-    new Date("2026-07-03"),
-    new Date("2026-07-07"),
-    new Date("2026-07-08"),
-  ];
-
-  const progressSeed = [
-    {
-      projectId: project1.id,
-      employeeId: staff1.id,
-      date: julyDates[0],
-      activity: "Lobby and elevator cleaning",
-      progressPercent: 10,
-    },
-    {
-      projectId: project1.id,
-      employeeId: staff1.id,
-      date: julyDates[1],
-      activity: "Office floor 5-10 cleaning",
-      progressPercent: 20,
-    },
-    {
-      projectId: project1.id,
-      employeeId: staff2.id,
-      date: julyDates[2],
-      activity: "Restroom deep cleaning",
-      progressPercent: 30,
-    },
-    {
-      projectId: project2.id,
-      employeeId: staff2.id,
-      date: julyDates[3],
-      activity: "Food court area cleaning",
-      progressPercent: 45,
-    },
-    {
-      projectId: project2.id,
-      employeeId: staff2.id,
-      date: julyDates[4],
-      activity: "Parking area maintenance",
-      progressPercent: 55,
-    },
-  ];
-
-  for (const entry of progressSeed) {
-    await prisma.dailyProgress.upsert({
-      where: {
-        projectId_employeeId_date: {
-          projectId: entry.projectId,
-          employeeId: entry.employeeId,
-          date: entry.date,
-        },
-      },
-      update: {
-        activity: entry.activity,
-        progressPercent: entry.progressPercent,
-      },
-      create: entry,
-    });
-  }
-
   // --- Demo purchase invoices (supplier bills / PPN Masukan later) ---
   const purchaseInvoiceSeed = [
     {

@@ -65,16 +65,6 @@ async function collectUploadPaths(companyId: string): Promise<string[]> {
       if (row.taxInvoiceDocumentPath) paths.add(row.taxInvoiceDocumentPath);
     }
 
-    const daily = await prisma.dailyProgress.findMany({
-      where: { projectId: { in: projectIds } },
-      select: { id: true, photos: { select: { url: true } } },
-    });
-    for (const row of daily) {
-      for (const photo of row.photos) {
-        if (photo.url) paths.add(photo.url);
-      }
-    }
-
     const reports = await prisma.progressReport.findMany({
       where: { projectId: { in: projectIds } },
       select: { photos: { select: { url: true } } },
@@ -362,24 +352,6 @@ async function main() {
         where: { projectId: { in: projectIds } },
       });
       log(`   progressReport: ${nReports.count}`);
-
-      const dailyIds = (
-        await tx.dailyProgress.findMany({
-          where: { projectId: { in: projectIds } },
-          select: { id: true },
-        })
-      ).map((d) => d.id);
-      if (dailyIds.length > 0) {
-        const nDailyPhotos = await tx.progressPhoto.deleteMany({
-          where: { dailyProgressId: { in: dailyIds } },
-        });
-        log(`   progressPhoto: ${nDailyPhotos.count}`);
-      }
-
-      const nDaily = await tx.dailyProgress.deleteMany({
-        where: { projectId: { in: projectIds } },
-      });
-      log(`   dailyProgress: ${nDaily.count}`);
 
       const nPeriods = await tx.projectInvoicePeriod.deleteMany({
         where: { projectId: { in: projectIds } },

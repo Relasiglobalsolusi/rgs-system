@@ -2,13 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 
-import { allocateAssetCodes } from "@/lib/equipment-asset";
+import {
+  allocateAssetCodes,
+  assertEquipmentInventoryInvariants,
+} from "@/lib/equipment-asset";
 import {
   inventoryQtyFromDecimal,
   movementTotalCost,
   normalizeInventoryQty,
   toDecimal,
-  INVENTORY_ISSUE_PROJECT_STATUSES,
 } from "@/lib/inventory";
 import {
   canAssignInventoryToProject,
@@ -59,125 +61,23 @@ function revalidateProjectEquipment(projectId: string) {
 }
 
 /**
- * Assign one AVAILABLE EquipmentAsset to a project.
- * Also creates an ISSUE_TO_PROJECT movement for financial cost tracking.
- * Gate: project must be IN_PROGRESS; same permission as inventory stock assign.
- *
- * FormData fields: assetId, projectId
+ * @deprecated Equipment is issued only from Inventory → Project Issues.
+ * Kept so existing clients get a clear error instead of a silent dual path.
  */
-export async function assignEquipmentAssetToProject(formData: FormData) {
+export async function assignEquipmentAssetToProject(_formData: FormData) {
   const locale = await getServerLocale();
-  try {
-    const session = await assertCanAssignEquipment(locale);
-    const company = await requireCompany(locale);
-
-    const assetId = String(formData.get("assetId") ?? "").trim();
-    const projectId = String(formData.get("projectId") ?? "").trim();
-
-    if (!assetId) {
-      throw new Error(translate(locale, "pages.projects.equipmentPicker.assetRequired"));
-    }
-    if (!projectId) {
-      throw new Error(translate(locale, "pages.inventory.projectRequired"));
-    }
-
-    await prisma.$transaction(async (tx) => {
-      // Verify asset is AVAILABLE and belongs to company Equipment item
-      const asset = await tx.equipmentAsset.findFirst({
-        where: { id: assetId, companyId: company.id, status: "AVAILABLE" },
-        select: {
-          id: true,
-          itemId: true,
-          assetCode: true,
-          item: { select: { itemType: true, active: true } },
-        },
-      });
-      if (!asset) {
-        throw new Error(translate(locale, "pages.projects.equipmentPicker.assetNotAvailable"));
-      }
-      if (!isEquipmentItemType(asset.item.itemType)) {
-        throw new Error(translate(locale, "pages.projects.equipmentPicker.assetNotEquipment"));
-      }
-      if (!asset.item.active) {
-        throw new Error(translate(locale, "pages.inventory.itemNotFound"));
-      }
-
-      // Verify project is issuable
-      const project = await tx.project.findFirst({
-        where: {
-          id: projectId,
-          companyId: company.id,
-          status: { in: [...INVENTORY_ISSUE_PROJECT_STATUSES] },
-        },
-        select: { id: true },
-      });
-      if (!project) {
-        throw new Error(translate(locale, "pages.inventory.projectNotIssuable"));
-      }
-
-      // Lock item row and create cost movement (1 unit at avg cost)
-      const locked = await lockInventoryItemRow(tx, asset.itemId);
-      if (!locked || !locked.active) {
-        throw new Error(translate(locale, "pages.inventory.itemNotFound"));
-      }
-
-      const currentStock = inventoryQtyFromDecimal(locked.currentStock);
-      if (currentStock < 1) {
-        throw new Error(translate(locale, "pages.projects.equipmentPicker.noStockRemaining"));
-      }
-
-      const unitCost =
-        decimalToNumber(locked.avgUnitCost) ??
-        decimalToNumber(locked.lastUnitCost) ??
-        0;
-      const totalCost = movementTotalCost(1, unitCost);
-
-      const movement = await tx.inventoryMovement.create({
-        data: {
-          companyId: company.id,
-          itemId: asset.itemId,
-          projectId: project.id,
-          type: "ISSUE_TO_PROJECT",
-          quantity: toDecimal(-1),
-          unitCost: toDecimal(unitCost),
-          totalCost: toDecimal(totalCost),
-          movedAt: new Date(),
-          notes: `Asset ${asset.assetCode} assigned to project`,
-          createdById: session.user.id,
-        },
-      });
-
-      // Decrement stock cache
-      const stockUpdate = await tx.inventoryItem.updateMany({
-        where: { id: asset.itemId, currentStock: { gte: toDecimal(1) } },
-        data: { currentStock: toDecimal(normalizeInventoryQty(currentStock - 1)) },
-      });
-      if (stockUpdate.count !== 1) {
-        throw new Error(translate(locale, "pages.projects.equipmentPicker.noStockRemaining"));
-      }
-
-      // Mark asset ON_PROJECT and link movement
-      await tx.equipmentAsset.update({
-        where: { id: asset.id },
-        data: {
-          status: "ON_PROJECT",
-          projectId: project.id,
-          movementId: movement.id,
-          assignedAt: new Date(),
-        },
-      });
-    });
-
-    revalidateProjectEquipment(projectId);
-  } catch (error) {
-    throw toActionError(error, translate(locale, "pages.projects.equipmentPicker.assignFailed"));
-  }
+  throw new Error(
+    translate(locale, "pages.projects.equipmentPicker.assignDisabledUseInventory")
+  );
 }
 
 /**
  * Release an ON_PROJECT EquipmentAsset back to AVAILABLE.
- * Voids the linked ISSUE_TO_PROJECT movement and restores stock cache.
- * Gate: same permission as inventory assign.
+ * - Picker assign (`movementId`): void the 1-unit ISSUE_TO_PROJECT and restore stock.
+ * - Bulk inventory issue (`issueMovementId`): shrink that movement by 1 (void if zero)
+ *   so project-page backfill cannot immediately re-assign the unit, then restore stock.
+ * Asset location update always runs even if stock restore is skipped (no locked row).
+ * Equipment movements carry zero project COGS (custody only).
  *
  * FormData fields: assetId, projectId
  */
@@ -205,40 +105,98 @@ export async function releaseEquipmentAssetFromProject(formData: FormData) {
           projectId,
           status: "ON_PROJECT",
         },
-        select: { id: true, itemId: true, movementId: true, assetCode: true },
+        select: {
+          id: true,
+          itemId: true,
+          movementId: true,
+          issueMovementId: true,
+          assetCode: true,
+        },
       });
       if (!asset) {
         throw new Error(translate(locale, "pages.projects.equipmentPicker.assetNotOnProject"));
       }
 
-      // Void the cost movement and restore stock
+      const voidReason = `Asset ${asset.assetCode} released from project`;
+
+      // Picker assign: void the per-asset movement.
       if (asset.movementId) {
-        const locked = await lockInventoryItemRow(tx, asset.itemId);
-        if (locked) {
-          const currentStock = inventoryQtyFromDecimal(locked.currentStock);
-          await tx.inventoryMovement.updateMany({
-            where: { id: asset.movementId, voidedAt: null },
-            data: {
-              voidedAt: new Date(),
-              voidReason: `Asset ${asset.assetCode} released from project`,
-            },
-          });
-          await tx.inventoryItem.update({
-            where: { id: asset.itemId },
-            data: { currentStock: toDecimal(normalizeInventoryQty(currentStock + 1)) },
-          });
+        await tx.inventoryMovement.updateMany({
+          where: { id: asset.movementId, voidedAt: null },
+          data: {
+            voidedAt: new Date(),
+            voidReason,
+          },
+        });
+      } else if (asset.issueMovementId) {
+        // Bulk inventory issue: shrink (or void) the shared movement so
+        // open-issue qty cannot pull a replacement unit on repair scripts.
+        const movement = await tx.inventoryMovement.findFirst({
+          where: {
+            id: asset.issueMovementId,
+            companyId: company.id,
+            type: "ISSUE_TO_PROJECT",
+            voidedAt: null,
+          },
+          select: { id: true, quantity: true, unitCost: true },
+        });
+
+        if (movement) {
+          const issuedQty = Math.abs(inventoryQtyFromDecimal(movement.quantity));
+          const remainingQty = normalizeInventoryQty(issuedQty - 1);
+          const unitCost = decimalToNumber(movement.unitCost) ?? 0;
+
+          if (remainingQty <= 0) {
+            await tx.inventoryMovement.updateMany({
+              where: { id: movement.id, voidedAt: null },
+              data: {
+                voidedAt: new Date(),
+                voidReason,
+              },
+            });
+          } else {
+            await tx.inventoryMovement.update({
+              where: { id: movement.id },
+              data: {
+                quantity: toDecimal(-remainingQty),
+                totalCost: toDecimal(movementTotalCost(remainingQty, unitCost)),
+              },
+            });
+          }
         }
       }
 
-      // Return asset to available pool
+      // Return asset to available pool (location change — always succeed).
       await tx.equipmentAsset.update({
         where: { id: asset.id },
         data: {
           status: "AVAILABLE",
           projectId: null,
           movementId: null,
+          issueMovementId: null,
           assignedAt: null,
         },
+      });
+
+      // Warehouse On Hand = AVAILABLE count (avoids double-restore on stale links).
+      const locked = await lockInventoryItemRow(tx, asset.itemId);
+      if (locked) {
+        const available = await tx.equipmentAsset.count({
+          where: { itemId: asset.itemId, status: "AVAILABLE" },
+        });
+        await tx.inventoryItem.update({
+          where: { id: asset.itemId },
+          data: { currentStock: toDecimal(available) },
+        });
+      }
+
+      await assertEquipmentInventoryInvariants(tx, company.id, {
+        itemIds: [asset.itemId],
+        projectId,
+        // Empty skips unrelated open-issue drift; only touched movements checked.
+        movementIds: [asset.movementId, asset.issueMovementId].filter(
+          (id): id is string => !!id
+        ),
       });
     });
 
@@ -271,7 +229,12 @@ export async function registerEquipmentAsset(formData: FormData) {
     }
 
     const item = await prisma.inventoryItem.findFirst({
-      where: { id: itemId, companyId: company.id, active: true },
+      where: {
+        id: itemId,
+        companyId: company.id,
+        active: true,
+        deletedAt: null,
+      },
       select: { id: true, sku: true, itemType: true },
     });
     if (!item) {
@@ -293,6 +256,22 @@ export async function registerEquipmentAsset(formData: FormData) {
           notes,
         },
       });
+
+      // On Hand for Equipment = AVAILABLE warehouse count. If this unit was not
+      // already covered by stock (e.g. physical unit newly registered), raise stock.
+      const locked = await lockInventoryItemRow(tx, item.id);
+      if (locked) {
+        const currentStock = inventoryQtyFromDecimal(locked.currentStock);
+        const available = await tx.equipmentAsset.count({
+          where: { itemId: item.id, status: "AVAILABLE" },
+        });
+        if (available > currentStock) {
+          await tx.inventoryItem.update({
+            where: { id: item.id },
+            data: { currentStock: toDecimal(available) },
+          });
+        }
+      }
     });
 
     revalidatePath("/inventory");

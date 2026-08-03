@@ -1,9 +1,6 @@
 "use client";
 
-import {
-  showRejection,
-  showRejectionFromError,
-} from "@/components/ui/rejection-notice";
+import { showRejectionFromError } from "@/components/ui/rejection-notice";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Package } from "lucide-react";
 import { toast } from "sonner";
@@ -22,19 +19,11 @@ import {
   employeeDialogHintClass,
   employeeDialogLabelClass,
   employeeInputClass,
-  employeeSelectTriggerClass,
   handleEmployeeDialogOpenChange,
   useHtmlFormDirty,
   type HtmlFormDirtyBaseline,
 } from "@/components/employees/employee-dialog-ui";
 import { Dialog } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { INVENTORY_ITEM_TYPE_PRESETS } from "@/lib/inventory-sku";
 import { useT } from "@/lib/i18n/use-t";
 
@@ -53,7 +42,6 @@ export default function InventoryItemEditDialog({
 }: Props) {
   const { t } = useT();
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
-  const [itemType, setItemType] = useState("");
   const [pending, startTransition] = useTransition();
   const [baseline, setBaseline] = useState<HtmlFormDirtyBaseline | null>(null);
 
@@ -64,12 +52,6 @@ export default function InventoryItemEditDialog({
   );
   const isDirtyRef = useRef(isDirty);
   isDirtyRef.current = isDirty;
-
-  useEffect(() => {
-    if (open && item) {
-      setItemType(item.itemType);
-    }
-  }, [open, item]);
 
   function closeDialog() {
     onOpenChange(false);
@@ -103,11 +85,7 @@ export default function InventoryItemEditDialog({
   if (!item) return null;
 
   async function submit(formData: FormData) {
-    if (!itemType.trim()) {
-      showRejection({ reasons: t("pages.inventory.itemTypeRequired") });
-      return;
-    }
-    formData.set("itemType", itemType.trim());
+    formData.set("itemType", item!.itemType);
     formData.set("id", item!.id);
 
     startTransition(async () => {
@@ -121,9 +99,11 @@ export default function InventoryItemEditDialog({
     });
   }
 
-  const typeOptions = Array.from(
-    new Set([...INVENTORY_ITEM_TYPE_PRESETS, item.itemType])
-  );
+  const itemTypeLabel = INVENTORY_ITEM_TYPE_PRESETS.includes(
+    item.itemType as (typeof INVENTORY_ITEM_TYPE_PRESETS)[number]
+  )
+    ? t(`pages.inventory.itemTypes.${item.itemType}`)
+    : item.itemType;
 
   return (
     <>
@@ -177,36 +157,14 @@ export default function InventoryItemEditDialog({
               <label className={employeeDialogLabelClass}>
                 {t("pages.inventory.form.itemType")}
               </label>
-              <Select
-                value={itemType || undefined}
-                onValueChange={(value) => setItemType(value ?? "")}
-              >
-                <SelectTrigger className={employeeSelectTriggerClass}>
-                  <SelectValue
-                    placeholder={t("pages.inventory.form.itemTypePlaceholder")}
-                  >
-                    {(value) => {
-                      if (!value) return null;
-                      return INVENTORY_ITEM_TYPE_PRESETS.includes(
-                        value as (typeof INVENTORY_ITEM_TYPE_PRESETS)[number]
-                      )
-                        ? t(`pages.inventory.itemTypes.${value}`)
-                        : value;
-                    }}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {typeOptions.map((preset) => (
-                    <SelectItem key={preset} value={preset}>
-                      {INVENTORY_ITEM_TYPE_PRESETS.includes(
-                        preset as (typeof INVENTORY_ITEM_TYPE_PRESETS)[number]
-                      )
-                        ? t(`pages.inventory.itemTypes.${preset}`)
-                        : preset}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <input
+                readOnly
+                value={itemTypeLabel}
+                className={`${employeeInputClass} bg-strip text-muted`}
+              />
+              <p className={employeeDialogHintClass}>
+                {t("pages.inventory.form.itemTypeLockedHint")}
+              </p>
             </div>
 
             <div className={employeeDialogFieldClass}>

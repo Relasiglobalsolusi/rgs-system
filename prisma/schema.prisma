@@ -56,6 +56,8 @@ enum InventoryMovementType {
   ADJUSTMENT
   /// Permanent decrease with mandatory reason — OM+ only. Never silent.
   WRITE_OFF
+  /// Stock sold externally — reduces on-hand; sale proceeds on InventorySale (income later).
+  SOLD_OFF
 }
 
 /// Lifecycle status of a discrete Equipment asset (physical unit).
@@ -63,6 +65,21 @@ enum EquipmentAssetStatus {
   AVAILABLE
   ON_PROJECT
   RETIRED
+}
+
+/// Staff material request → OM approve → warehouse transfer → site receive.
+enum MaterialRequestStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum TransferOrderStatus {
+  PENDING_SEND
+  SENT
+  RECEIVED
+  CANCELLED
 }
 
 enum ProjectStatus {
@@ -205,8 +222,11 @@ model Company {
   thrPayments         ThrPayment[]
   inventoryItems      InventoryItem[]
   inventoryPurchases  InventoryPurchase[]
+  inventorySales      InventorySale[]
   inventoryMovements  InventoryMovement[]
   equipmentAssets     EquipmentAsset[]
+  materialRequests    MaterialRequest[]
+  transferOrders      TransferOrder[]
   auditLogs           AuditLog[]
   websiteContent      WebsiteContent?
 
@@ -353,11 +373,12 @@ model Employee {
   user   User?   @relation(fields: [userId], references: [id])
 
   projectAssignments ProjectAssignment[]
-  dailyProgress      DailyProgress[]
   progressReports    ProgressReport[]
   attendances        Attendance[]
   leaveRequests      LeaveRequest[]
   thrPayments        ThrPayment[]
+  materialRequests   MaterialRequest[] @relation("MaterialRequestRequester")
+  receivedTransfers  TransferOrder[]   @relation("TransferOrderReceiver")
 
   /// Manual directory order (lower = higher in lists).
   sortOrder Int @default(0)
@@ -408,7 +429,10 @@ model User {
   hoReviewedInvoicePeriods ProjectInvoicePeriod[] @relation("InvoicePeriodHoReviewer")
   createdPurchaseInvoices PurchaseInvoice[] @relation("PurchaseInvoiceCreator")
   createdInventoryPurchases InventoryPurchase[] @relation("InventoryPurchaseCreator")
+  createdInventorySales     InventorySale[]     @relation("InventorySaleCreator")
   createdInventoryMovements InventoryMovement[] @relation("InventoryMovementCreator")
+  reviewedMaterialRequests  MaterialRequest[]   @relation("MaterialRequestReviewer")
+  sentTransferOrders        TransferOrder[]     @relation("TransferOrderSender")
   progressWarningAcks   ProgressWarningAck[]
   leaveApprovalAcks     LeaveApprovalAck[]
   billingClientReviewEvents BillingClientReviewEvent[]
@@ -466,6 +490,7 @@ model Client {
   users          User[]
   projectGroups  ClientProjectGroup[]
   securityCodes  ClientSecurityCode[]
+  inventorySales InventorySale[]
 
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -602,7 +627,6 @@ model Project {
   group   ClientProjectGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
 
   assignments    ProjectAssignment[]
-  dailyProgress  DailyProgress[]
   progressReports ProgressReport[]
   invoicePeriods ProjectInvoicePeriod[]
   attendances    Attendance[]
@@ -610,6 +634,8 @@ model Project {
   contractExtensions ClientContractExtension[]
   inventoryMovements InventoryMovement[]
   equipmentAssets    EquipmentAsset[]
+  materialRequests   MaterialRequest[]
+  transferOrders     TransferOrder[]
 
   /// Manual directory order (lower = higher in lists).
   sortOrder Int @default(0)
@@ -750,38 +776,6 @@ model ProjectAssignment {
   assignedAt DateTime @default(now())
 
   @@unique([projectId, employeeId])
-}
-
-model DailyProgress {
-  id String @id @default(cuid())
-
-  projectId String
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  employeeId String
-  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-
-  date            DateTime @db.Date
-  activity        String
-  progressPercent Int      @default(0)
-
-  photos ProgressPhoto[]
-
-  createdAt DateTime @default(now())
-
-  @@unique([projectId, employeeId, date])
-}
-
-model ProgressPhoto {
-  id String @id @default(cuid())
-
-  dailyProgressId String
-  dailyProgress   DailyProgress @relation(fields: [dailyProgressId], references: [id], onDelete: Cascade)
-
-  url     String
-  caption String?
-
-  createdAt DateTime @default(now())
 }
 
 /// Staff stage / progress report with photo documentation for cleaning projects.
@@ -1040,7 +1034,7 @@ model LeaveRequest {
 /// Catalog item only — purchases/issues are separate records that reference this.
 model InventoryItem {
   id String @id @default(cuid())
-  /// System-generated from Item Type ({TYPE}-{####}, e.g. TOOL-0001). Not user-editable.
+  /// System-generated from Item Type ({TYPE}-{###}, e.g. TOOL-001). Not user-editable.
   sku String
   name String
   /// High-level type (e.g. Consumable, Equipment, Chemical). Also drives SKU prefix.
@@ -1059,6 +1053,8 @@ model InventoryItem {
   /// Manual directory order (lower = higher in lists).
   sortOrder Int     @default(0)
   active    Boolean @default(true)
+  /// Soft-delete / archive. When set, hidden from catalog and pickers; history rows keep itemId.
+  deletedAt DateTime?
   /// When false (e.g. Consulting Fee), purchase lines record cost only — no stock.
   tracksStock Boolean @default(true)
 
@@ -1066,15 +1062,19 @@ model InventoryItem {
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   purchases InventoryPurchase[]
+  sales     InventorySale[]
   movements InventoryMovement[]
   purchaseInvoiceLines PurchaseInvoiceLine[]
   equipmentAssets EquipmentAsset[]
+  materialRequestLines MaterialRequestLine[]
+  transferOrderLines   TransferOrderLine[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([companyId, sku])
   @@index([companyId, active])
+  @@index([companyId, deletedAt])
   @@index([companyId, sortOrder])
   @@index([companyId, itemType])
 }
@@ -1119,16 +1119,77 @@ model InventoryPurchase {
   @@index([vendorId])
 }
 
-/// Stock ledger: purchases (+), project issues (−), adjustments (±).
+/// External stock sale (linked to a SOLD_OFF movement). Sale proceeds for future FR income.
+model InventorySale {
+  id       String   @id @default(cuid())
+  soldAt   DateTime @db.Date
+  quantity Decimal  @db.Decimal(14, 3)
+  /// Pre-tax (ex-PPN) sale unit price (IDR).
+  unitPrice  Decimal @db.Decimal(14, 2)
+  /// Tax-inclusive sale total (subtotal + taxAmount). TODO(FR): aggregate into money-in / income.
+  totalPrice Decimal @db.Decimal(14, 2)
+  /// Pre-tax sale total (DPP) = qty × unitPrice.
+  subtotal Decimal @db.Decimal(14, 2) @default(0)
+  /// PPN / VAT amount on the sale (subtotal × taxRatePercent).
+  taxAmount Decimal @db.Decimal(14, 2) @default(0)
+  /// PPN rate as percent (e.g. 11). Null on legacy rows; required on new sold-offs.
+  taxRatePercent Decimal? @db.Decimal(5, 2)
+  /// Buyer display name (company name when COMPANY; person name when INDIVIDUAL).
+  buyer    String?
+  /// Individual vs Company — drives NPWP text requirement and client-link filtering.
+  buyerType ClientType?
+  /// Person-in-charge name (required for COMPANY buyers).
+  buyerPicName String?
+  /// Buyer's National ID (KTP/NIK). Individual buyers need this OR buyerTaxId (at least one).
+  buyerIdNumber String?
+  /// Buyer's Tax ID (NPWP). Required when buyerType = COMPANY; one-of-two option (with buyerIdNumber) when INDIVIDUAL.
+  buyerTaxId String?
+  /// Optional company registration / NIB (not required for tax capture).
+  buyerRegistration String?
+  /// Buyer / PIC contact phone (required on new sold-offs).
+  buyerPhone String?
+  /// Tax invoice (Faktur Pajak) issued by us to the buyer. Required on new sold-offs for COMPANY buyers only — individuals cannot be issued a tax invoice.
+  buyerIdentityDocUrl String?
+  /// Sale invoice / receipt file URL (required on new sold-offs).
+  invoiceUrl String?
+  notes    String?
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  itemId String
+  item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  /// Optional link to an existing Client directory record.
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  /// Ledger row created with this sale (1:1).
+  movementId String            @unique
+  movement   InventoryMovement @relation(fields: [movementId], references: [id], onDelete: Cascade)
+
+  createdById String?
+  createdBy   User?   @relation("InventorySaleCreator", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId, soldAt])
+  @@index([itemId])
+  @@index([clientId])
+}
+
+/// Stock ledger: purchases (+), project issues (−), adjustments (±), write-offs / sold-offs (−).
 /// On-hand stock = sum(quantity) for non-voided rows (also cached on InventoryItem).
 model InventoryMovement {
   id       String                @id @default(cuid())
   type     InventoryMovementType
   /// Signed quantity: + for purchase / positive adj; − for issue / negative adj.
   quantity Decimal               @db.Decimal(14, 3)
-  /// Unit cost locked at movement time (weighted avg for issues).
+  /// Unit cost locked at movement time (weighted avg for issues / write-offs / sold-offs).
   unitCost Decimal               @db.Decimal(14, 2)
   /// Absolute cost impact: abs(quantity) * unitCost. Project cost uses ISSUE_TO_PROJECT totalCost.
+  /// For SOLD_OFF this is inventory cost basis leaving stock — sale proceeds live on InventorySale.
   totalCost Decimal              @db.Decimal(14, 2)
   movedAt   DateTime
   notes     String?
@@ -1150,8 +1211,15 @@ model InventoryMovement {
   createdBy   User?   @relation("InventoryMovementCreator", fields: [createdById], references: [id])
 
   purchase InventoryPurchase?
+  sale     InventorySale?
   /// Set when this ISSUE_TO_PROJECT movement was created by an equipment asset assignment.
   equipmentAsset EquipmentAsset?
+  /// Equipment assets linked to a bulk inventory issue (qty N, one movement).
+  equipmentAssetsFromBulkIssue EquipmentAsset[] @relation("EquipmentBulkIssue")
+  /// Equipment assets retired by a stock write-off (qty N, one movement).
+  equipmentAssetsFromWriteOff EquipmentAsset[] @relation("EquipmentWriteOff")
+  /// Equipment assets retired by a sold-off (qty N, one movement).
+  equipmentAssetsFromSoldOff EquipmentAsset[] @relation("EquipmentSoldOff")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1163,12 +1231,12 @@ model InventoryMovement {
 }
 
 /// Discrete physical unit of an Equipment catalog item.
-/// Asset code format: {ITEM_SKU}-A{####}, e.g. EQP-0001-A0001.
+/// Asset code format: {ITEM_SKU}-A{n}, e.g. EQP-001-A1.
 /// Created automatically when an Equipment purchase is recorded (qty N → N assets).
 /// One open project assignment per asset at a time (mirrors ProjectAssignment for employees).
 model EquipmentAsset {
   id        String               @id @default(cuid())
-  /// Company-scoped unique readable code — {ITEM_SKU}-A{####} (e.g. EQP-0001-A0001).
+  /// Company-scoped unique readable code — {ITEM_SKU}-A{n} (e.g. EQP-001-A1, EQP-001-A10).
   assetCode String
 
   status EquipmentAssetStatus @default(AVAILABLE)
@@ -1180,12 +1248,31 @@ model EquipmentAsset {
   projectId String?
   project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
-  /// Linked ISSUE_TO_PROJECT movement created on assign (for financial cost tracking).
-  /// Voided on release — mirrors how consumable void returns stock.
+  /// Per-asset ISSUE_TO_PROJECT movement from the equipment picker (qty −1 each).
+  /// Voided on individual release — mirrors how consumable void returns stock.
   movementId String?            @unique
   movement   InventoryMovement? @relation(fields: [movementId], references: [id], onDelete: SetNull)
 
+  /// Bulk inventory issue movement (qty N) — many assets may share one movement.
+  /// Cleared when the issue is voided or the asset is released.
+  issueMovementId String?
+  issueMovement   InventoryMovement? @relation("EquipmentBulkIssue", fields: [issueMovementId], references: [id], onDelete: SetNull)
+
+  /// Stock write-off movement that retired this asset. Cleared on write-off reversal.
+  writeOffMovementId String?
+  writeOffMovement   InventoryMovement? @relation("EquipmentWriteOff", fields: [writeOffMovementId], references: [id], onDelete: SetNull)
+
+  /// Sold-off movement that retired this asset.
+  soldOffMovementId String?
+  soldOffMovement   InventoryMovement? @relation("EquipmentSoldOff", fields: [soldOffMovementId], references: [id], onDelete: SetNull)
+
   assignedAt DateTime?
+
+  /// Ex-tax purchase unit cost locked when this physical unit was minted (Equipment only).
+  /// Independent of catalog avgUnitCost — later purchases must not revalue older assets.
+  /// Never store tax-inclusive (gross) amounts here. Nullable for legacy rows;
+  /// backfill from item avg/last cost or last purchase (also expected ex-tax).
+  unitCost Decimal? @db.Decimal(14, 2)
 
   /// Manufacturer / physical serial number (optional, user-set).
   serialNo String?
@@ -1251,4 +1338,96 @@ model AuditLog {
 
   @@index([companyId])
   @@index([userId])
+}
+
+/// Field staff request (only while CICO'd into the project). OM approves in Approvals.
+model MaterialRequest {
+  id     String                @id @default(cuid())
+  status MaterialRequestStatus @default(REQUESTED)
+  notes  String?
+  reviewNote String?
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  requestedById String
+  requestedBy   Employee @relation("MaterialRequestRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+
+  reviewedById String?
+  reviewedBy   User?     @relation("MaterialRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt   DateTime?
+
+  lines         MaterialRequestLine[]
+  transferOrder TransferOrder?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId, status])
+  @@index([projectId])
+  @@index([requestedById])
+}
+
+model MaterialRequestLine {
+  id       String  @id @default(cuid())
+  quantity Decimal @db.Decimal(14, 3)
+  notes    String?
+
+  materialRequestId String
+  materialRequest   MaterialRequest @relation(fields: [materialRequestId], references: [id], onDelete: Cascade)
+
+  itemId String
+  item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@index([materialRequestId])
+  @@index([itemId])
+}
+
+/// Created when a material request is approved. Warehouse sends; site receives.
+model TransferOrder {
+  id     String              @id @default(cuid())
+  status TransferOrderStatus @default(PENDING_SEND)
+  notes  String?
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  materialRequestId String          @unique
+  materialRequest   MaterialRequest @relation(fields: [materialRequestId], references: [id], onDelete: Cascade)
+
+  sentAt   DateTime?
+  sentById String?
+  sentBy   User?     @relation("TransferOrderSender", fields: [sentById], references: [id], onDelete: SetNull)
+
+  receivedAt   DateTime?
+  receivedById String?
+  receivedBy   Employee? @relation("TransferOrderReceiver", fields: [receivedById], references: [id], onDelete: SetNull)
+
+  lines TransferOrderLine[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId, status])
+  @@index([projectId])
+}
+
+model TransferOrderLine {
+  id       String  @id @default(cuid())
+  quantity Decimal @db.Decimal(14, 3)
+
+  transferOrderId String
+  transferOrder   TransferOrder @relation(fields: [transferOrderId], references: [id], onDelete: Cascade)
+
+  itemId String
+  item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@index([transferOrderId])
+  @@index([itemId])
 }

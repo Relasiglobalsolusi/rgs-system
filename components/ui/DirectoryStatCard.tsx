@@ -63,6 +63,7 @@ export default function DirectoryStatCard({
   compact = false,
 }: DirectoryStatCardProps) {
   const interactive = Boolean(onClick);
+  const valueText = String(value);
 
   function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
     if (!onClick) return;
@@ -89,31 +90,36 @@ export default function DirectoryStatCard({
       aria-pressed={interactive ? selected : undefined}
     >
       <div className="flex items-start justify-between gap-2.5">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p
             className={cn(
-              "font-semibold uppercase text-subtle",
+              "truncate font-semibold uppercase text-subtle",
               compact
                 ? "text-xs tracking-[0.12em]"
                 : "text-[11px] tracking-[0.16em]"
             )}
+            title={title}
           >
             {title}
           </p>
           <p
             className={cn(
-              "font-bold tabular-nums tracking-tight text-text",
-              compact ? "mt-1 text-2xl leading-none" : "mt-2 text-3xl"
+              "truncate font-bold tabular-nums tracking-tight text-text",
+              compact
+                ? "mt-1 text-lg leading-none sm:text-xl xl:text-2xl"
+                : "mt-2 text-xl leading-none sm:text-2xl xl:text-3xl"
             )}
+            title={valueText}
           >
             {value}
           </p>
           {subtitle ? (
             <p
               className={cn(
-                "text-subtle",
+                "truncate text-subtle",
                 compact ? "mt-0.5 text-xs leading-snug" : "mt-1 text-xs"
               )}
+              title={subtitle}
             >
               {subtitle}
             </p>

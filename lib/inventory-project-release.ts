@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 
+import { assertEquipmentInventoryInvariants } from "@/lib/equipment-asset";
 import { lockInventoryItemRow } from "@/lib/inventory-access";
 import {
   inventoryQtyFromDecimal,
@@ -23,6 +24,10 @@ export function isReturnableEquipmentItemType(itemType: string): boolean {
  * Mirrors employee release → AVAILABLE pool: machines leave the site when crew does.
  * Consumables / Chemicals stay issued (consumed cost).
  *
+ * After assets return, warehouse `currentStock` is synced to count(AVAILABLE)
+ * so orphan ON_PROJECT rows (issue already voided) cannot leave stock drift
+ * that page-load backfill historically "fixed" by minting ghosts.
+ *
  * Call inside the same transaction as {@link releaseAllProjectCrew}.
  */
 export async function releaseProjectEquipmentToInventory(
@@ -35,6 +40,15 @@ export async function releaseProjectEquipmentToInventory(
     select: { id: true, companyId: true },
   });
   if (!project) return 0;
+
+  const onProjectAssets = await db.equipmentAsset.findMany({
+    where: {
+      projectId,
+      companyId: project.companyId,
+      status: "ON_PROJECT",
+    },
+    select: { itemId: true },
+  });
 
   const issues = await db.inventoryMovement.findMany({
     where: {
@@ -54,12 +68,30 @@ export async function releaseProjectEquipmentToInventory(
   const equipmentIssues = issues.filter((row) =>
     isReturnableEquipmentItemType(row.item.itemType)
   );
+
+  const affectedItemIds = new Set<string>();
+  for (const row of onProjectAssets) affectedItemIds.add(row.itemId);
+  for (const row of equipmentIssues) affectedItemIds.add(row.itemId);
+
   if (equipmentIssues.length === 0) {
     // Still reset any asset records that might exist (e.g. if movements were manually voided)
     await db.equipmentAsset.updateMany({
       where: { projectId, companyId: project.companyId, status: "ON_PROJECT" },
-      data: { status: "AVAILABLE", projectId: null, movementId: null, assignedAt: null },
+      data: {
+        status: "AVAILABLE",
+        projectId: null,
+        movementId: null,
+        issueMovementId: null,
+        assignedAt: null,
+      },
     });
+    await syncEquipmentWarehouseStockForItems(db, [...affectedItemIds]);
+    if (affectedItemIds.size > 0) {
+      await assertEquipmentInventoryInvariants(db, project.companyId, {
+        itemIds: [...affectedItemIds],
+        projectId,
+      });
+    }
     return 0;
   }
 
@@ -69,7 +101,8 @@ export async function releaseProjectEquipmentToInventory(
   let restored = 0;
 
   for (const movement of equipmentIssues) {
-    const restoreQty = inventoryQtyFromDecimal(movement.quantity);
+    // ISSUE_TO_PROJECT quantities are stored negative — restore with abs.
+    const restoreQty = Math.abs(inventoryQtyFromDecimal(movement.quantity));
     if (restoreQty <= 0) continue;
 
     const locked = await lockInventoryItemRow(db, movement.itemId);
@@ -92,12 +125,47 @@ export async function releaseProjectEquipmentToInventory(
   }
 
   // Reset all ON_PROJECT assets for this project back to the available pool.
-  // This covers both assets whose movements were just voided above,
-  // and any that lost their movement link for other reasons.
+  // Clears both picker (`movementId`) and bulk (`issueMovementId`) links.
   await db.equipmentAsset.updateMany({
     where: { projectId, companyId: project.companyId, status: "ON_PROJECT" },
-    data: { status: "AVAILABLE", projectId: null, movementId: null, assignedAt: null },
+    data: {
+      status: "AVAILABLE",
+      projectId: null,
+      movementId: null,
+      issueMovementId: null,
+      assignedAt: null,
+    },
   });
 
+  // Source of truth after demob: AVAILABLE ledger (covers orphan assets and
+  // issue-qty vs asset-count drift without minting new units).
+  await syncEquipmentWarehouseStockForItems(db, [...affectedItemIds]);
+
+  if (affectedItemIds.size > 0) {
+    await assertEquipmentInventoryInvariants(db, project.companyId, {
+      itemIds: [...affectedItemIds],
+      projectId,
+    });
+  }
+
   return restored;
+}
+
+async function syncEquipmentWarehouseStockForItems(
+  db: Prisma.TransactionClient,
+  itemIds: string[]
+): Promise<void> {
+  for (const itemId of itemIds) {
+    const locked = await lockInventoryItemRow(db, itemId);
+    if (!locked) continue;
+    const available = await db.equipmentAsset.count({
+      where: { itemId, status: "AVAILABLE" },
+    });
+    const stockOnHand = inventoryQtyFromDecimal(locked.currentStock);
+    if (stockOnHand === available) continue;
+    await db.inventoryItem.update({
+      where: { id: itemId },
+      data: { currentStock: toDecimal(available) },
+    });
+  }
 }

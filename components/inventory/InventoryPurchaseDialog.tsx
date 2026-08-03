@@ -45,6 +45,7 @@ import {
 import { formatDateForInput } from "@/lib/format-tenure";
 import { isWholeInventoryQty } from "@/lib/inventory";
 import { useT } from "@/lib/i18n/use-t";
+import { formatContractPrice } from "@/lib/project-billing";
 
 const FORM_ID = "create-inventory-purchase-form";
 
@@ -69,6 +70,7 @@ export default function InventoryPurchaseDialog({
   const [baseline, setBaseline] = useState<HtmlFormDirtyBaseline | null>(null);
 
   const activeItems = items.filter((item) => item.active);
+  const selectedItem = activeItems.find((item) => item.id === itemId) ?? null;
 
   const { isDirty, handleFormInput, resetDirtyTracking } = useHtmlFormDirty(
     FORM_ID,
@@ -231,6 +233,19 @@ export default function InventoryPurchaseDialog({
               <p className={employeeDialogHintClass}>
                 {t("pages.inventory.form.catalogItemHint")}
               </p>
+              {selectedItem ? (
+                <p className={employeeDialogHintClass}>
+                  {selectedItem.lastUnitCost != null
+                    ? t("pages.inventory.form.lastPurchaseCostHint", {
+                        lastCost: formatContractPrice(selectedItem.lastUnitCost),
+                        avgCost:
+                          selectedItem.avgUnitCost != null
+                            ? formatContractPrice(selectedItem.avgUnitCost)
+                            : "—",
+                      })
+                    : t("pages.inventory.form.noPriorPurchaseCostHint")}
+                </p>
+              ) : null}
             </div>
 
             <div className={employeeDialogGridClass}>
@@ -322,6 +337,9 @@ export default function InventoryPurchaseDialog({
                   required
                   className={employeeInputClass}
                 />
+                <p className={employeeDialogHintClass}>
+                  {t("pages.inventory.form.unitPriceExTaxHint")}
+                </p>
               </div>
             </div>
 

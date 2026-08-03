@@ -24,7 +24,7 @@ import {
   decimalToNumber,
   formatContractPrice,
 } from "@/lib/project-billing";
-import { requireModule } from "@/lib/session";
+import { requireFinanceChild } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
 const POST_REVIEW_PERIOD_STATUSES: InvoicePeriodStatus[] = [
@@ -41,7 +41,7 @@ export default async function ReconciliationPage({
 }: {
   searchParams: SearchParams;
 }) {
-  const session = await requireModule("invoicing");
+  const session = await requireFinanceChild("reconciliation");
   const locale = await getServerLocale();
   const t = createTranslator(locale);
   const params = await searchParams;

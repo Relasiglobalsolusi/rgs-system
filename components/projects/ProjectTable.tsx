@@ -120,6 +120,8 @@ type Props = {
   rows: ProjectTableRow[];
   filterView: ProjectTableFilterView;
   canManage: boolean;
+  /** Finance module — show Open Billing on Payment Due even without project manage. */
+  canOpenBilling?: boolean;
   emptyMessage?: string;
   /** Active staff for Move to In Progress assignment picker. */
   employees?: ProjectStaffEmployee[];
@@ -278,6 +280,7 @@ export default function ProjectTable({
   rows,
   filterView,
   canManage,
+  canOpenBilling = false,
   emptyMessage,
   employees = [],
 }: Props) {
@@ -289,8 +292,11 @@ export default function ProjectTable({
   /**
    * Workflow chips only — Edit / Delete / downloads are on the detail page.
    * Completed has no directory workflow chips.
+   * Payment Due: also show actions column when Finance can open billing.
    */
-  const showActions = canManage && filterView !== "completed";
+  const showActions =
+    filterView !== "completed" &&
+    (canManage || (filterView === "payment-due" && canOpenBilling));
   /** Payment Due: due date sits between Status and Actions. */
   const showPaymentDueColumn = filterView === "payment-due";
   /** Completed Projects: when payment was received (latest period paidAt). */
@@ -517,6 +523,7 @@ export default function ProjectTable({
               project={row.project}
               filterView={filterView}
               canManage={canManage}
+              canOpenBilling={canOpenBilling}
               canStart={row.canStart}
               canMoveToPlanning={row.canMoveToPlanning}
               moveBackBlockedByCollection={row.moveBackBlockedByCollection}

@@ -468,57 +468,62 @@ export default function UserDirectory({
 
   return (
     <>
-      <div className="mb-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-        <DirectoryStatCard
-          compact
-          title={t("pages.users.active")}
-          value={directoryStats.active}
-          subtitle={t("pages.users.activeSubtitle")}
-          icon={<Users size={15} />}
-          accent="success"
-          selected={statView === "active"}
-          onClick={() => selectStat("active")}
-        />
-        <DirectoryStatCard
-          compact
-          title={t("pages.users.noPortalLogin")}
-          value={directoryStats.noPortalLogin}
-          subtitle={t("pages.users.noPortalLoginSubtitle")}
-          icon={<KeyRound size={15} />}
-          accent="primary"
-          selected={statView === "noPortalLogin"}
-          onClick={() => selectStat("noPortalLogin")}
-        />
-        <DirectoryStatCard
-          compact
-          title={t("pages.users.revokedAccess")}
-          value={directoryStats.revoked}
-          subtitle={t("pages.users.revokedAccessSubtitle")}
-          icon={<Ban size={15} />}
-          accent="danger"
-          selected={statView === "revoked"}
-          onClick={() => selectStat("revoked")}
-        />
-        <DirectoryStatCard
-          compact
-          title={t("pages.users.deletedClient")}
-          value={directoryStats.deletedClient}
-          subtitle={t("pages.users.deletedClientSubtitle")}
-          icon={<Building2 size={15} />}
-          accent="warning"
-          selected={statView === "deletedClient"}
-          onClick={() => selectStat("deletedClient")}
-        />
-        <DirectoryStatCard
-          compact
-          title={t("pages.users.deletedEmployee")}
-          value={directoryStats.deletedEmployee}
-          subtitle={t("pages.users.deletedEmployeeSubtitle")}
-          icon={<UserRound size={15} />}
-          accent="info"
-          selected={statView === "deletedEmployee"}
-          onClick={() => selectStat("deletedEmployee")}
-        />
+      {/* Row 1: primary queues. Row 2: revoked + soft-deleted. */}
+      <div className="mb-4 space-y-2.5">
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          <DirectoryStatCard
+            compact
+            title={t("pages.users.active")}
+            value={directoryStats.active}
+            subtitle={t("pages.users.activeSubtitle")}
+            icon={<Users size={15} />}
+            accent="success"
+            selected={statView === "active"}
+            onClick={() => selectStat("active")}
+          />
+          <DirectoryStatCard
+            compact
+            title={t("pages.users.noPortalLogin")}
+            value={directoryStats.noPortalLogin}
+            subtitle={t("pages.users.noPortalLoginSubtitle")}
+            icon={<KeyRound size={15} />}
+            accent="primary"
+            selected={statView === "noPortalLogin"}
+            onClick={() => selectStat("noPortalLogin")}
+          />
+        </div>
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+          <DirectoryStatCard
+            compact
+            title={t("pages.users.revokedAccess")}
+            value={directoryStats.revoked}
+            subtitle={t("pages.users.revokedAccessSubtitle")}
+            icon={<Ban size={15} />}
+            accent="danger"
+            selected={statView === "revoked"}
+            onClick={() => selectStat("revoked")}
+          />
+          <DirectoryStatCard
+            compact
+            title={t("pages.users.deletedClient")}
+            value={directoryStats.deletedClient}
+            subtitle={t("pages.users.deletedClientSubtitle")}
+            icon={<Building2 size={15} />}
+            accent="warning"
+            selected={statView === "deletedClient"}
+            onClick={() => selectStat("deletedClient")}
+          />
+          <DirectoryStatCard
+            compact
+            title={t("pages.users.deletedEmployee")}
+            value={directoryStats.deletedEmployee}
+            subtitle={t("pages.users.deletedEmployeeSubtitle")}
+            icon={<UserRound size={15} />}
+            accent="info"
+            selected={statView === "deletedEmployee"}
+            onClick={() => selectStat("deletedEmployee")}
+          />
+        </div>
       </div>
 
       {isNoPortalLoginView ? (

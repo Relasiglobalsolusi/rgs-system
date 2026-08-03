@@ -82,7 +82,6 @@ const projectDeleteSelect = {
       taxInvoiceDocumentPath: true,
     },
   },
-  dailyProgress: { select: { photos: { select: { url: true } } } },
   progressReports: { select: { photos: { select: { url: true } } } },
 } as const;
 
@@ -130,7 +129,6 @@ type ProjectDeleteFiles = {
     paymentProofPath: string | null;
     taxInvoiceDocumentPath: string | null;
   }[];
-  dailyProgress: { photos: { url: string }[] }[];
   progressReports: { photos: { url: string }[] }[];
 };
 
@@ -140,9 +138,6 @@ function collectProjectUploadPaths(project: ProjectDeleteFiles) {
     if (period.invoicePdfPath) paths.push(period.invoicePdfPath);
     if (period.paymentProofPath) paths.push(period.paymentProofPath);
     if (period.taxInvoiceDocumentPath) paths.push(period.taxInvoiceDocumentPath);
-  }
-  for (const day of project.dailyProgress) {
-    for (const photo of day.photos) paths.push(photo.url);
   }
   for (const report of project.progressReports) {
     for (const photo of report.photos) paths.push(photo.url);
