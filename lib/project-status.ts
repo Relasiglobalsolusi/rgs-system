@@ -3,6 +3,7 @@ import type { ProjectStatus } from "@prisma/client";
 export const PROJECT_STATUSES = [
   "PLANNED",
   "IN_PROGRESS",
+  "WAITING_FOR_APPROVAL",
   "ON_HOLD",
   "COMPLETED",
   "CANCELLED",
@@ -24,11 +25,20 @@ export const PROJECT_FIELD_STATUSES = [
 ] as const satisfies readonly ProjectStatus[];
 
 /**
- * In Progress sidebar view — work-order active only.
+ * Non-regular (General / Facade) projects awaiting client approval before
+ * invoice is issued. Equivalent to "In Progress" for display/list purposes.
+ */
+export const PROJECT_WAITING_FOR_APPROVAL_STATUS =
+  "WAITING_FOR_APPROVAL" as const satisfies ProjectStatus;
+
+/**
+ * In Progress sidebar view — work-order active + awaiting client approval.
+ * WAITING_FOR_APPROVAL is grouped here so OM can see submitted projects.
  * Legacy ON_HOLD is excluded from product lists (DB enum retained).
  */
 export const PROJECT_IN_PROGRESS_LIST_STATUSES = [
   "IN_PROGRESS",
+  "WAITING_FOR_APPROVAL",
 ] as const satisfies readonly ProjectStatus[];
 
 /** Canonical Projects sidebar view URLs (for navigation + revalidation). */
@@ -50,6 +60,7 @@ export const PROJECT_LIST_VIEW_PATHS = {
 export const PROJECT_ALL_LIST_STATUSES = [
   "PLANNED",
   "IN_PROGRESS",
+  "WAITING_FOR_APPROVAL",
 ] as const satisfies readonly ProjectStatus[];
 
 /** @deprecated Prefer PROJECT_IN_PROGRESS_LIST_STATUSES */
@@ -58,6 +69,7 @@ export const PROJECT_ACTIVE_LIST_STATUSES = PROJECT_IN_PROGRESS_LIST_STATUSES;
 export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
   PLANNED: "Planning",
   IN_PROGRESS: "In Progress",
+  WAITING_FOR_APPROVAL: "Waiting for Approval",
   ON_HOLD: "On Hold",
   COMPLETED: "Completed",
   CANCELLED: "Cancelled",
@@ -101,6 +113,8 @@ export function getProjectWorkflowStatusLabel(opts: {
     case "IN_PROGRESS":
     case "ON_HOLD":
       return "In Progress";
+    case "WAITING_FOR_APPROVAL":
+      return "Waiting for Approval";
     case "COMPLETED":
       return "Completed";
     case "CANCELLED":
@@ -120,6 +134,8 @@ export function projectWorkflowStatusBadge(
       return "success";
     case "Payment Due":
       return "warning";
+    case "Waiting for Approval":
+      return "warning";
     case "Planning":
     default:
       return "pending";
@@ -138,6 +154,8 @@ export function projectWorkflowStatusChipLines(
       return ["In", "Progress"];
     case "Payment Due":
       return ["Payment", "Due"];
+    case "Waiting for Approval":
+      return ["Waiting", "Approval"];
     default:
       return null;
   }
@@ -156,4 +174,18 @@ export function isFieldOpsProjectStatus(
     !!value &&
     (PROJECT_FIELD_STATUSES as readonly string[]).includes(value)
   );
+}
+
+/** True for non-regular projects currently in the client-approval loop. */
+export function isWaitingForApproval(
+  value: ProjectStatus | string | null | undefined
+): boolean {
+  return value === "WAITING_FOR_APPROVAL";
+}
+
+/** True when the project is actively in progress (field ops or awaiting approval). */
+export function isActiveProjectStatus(
+  value: ProjectStatus | string | null | undefined
+): boolean {
+  return value === "IN_PROGRESS" || value === "WAITING_FOR_APPROVAL";
 }

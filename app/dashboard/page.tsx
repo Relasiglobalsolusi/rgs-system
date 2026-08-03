@@ -83,12 +83,6 @@ export default async function DashboardPage() {
   const accessibleModules = getAccessibleModules({
     ...permissionUser,
     username: session.user.username,
-    employee: employee
-      ? {
-          employeeNo: employee.employeeNo,
-          employeeType: employee.employeeType,
-        }
-      : null,
   });
 
   const canViewProgress = hasModule(accessibleModules, "progress");

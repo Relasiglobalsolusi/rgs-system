@@ -105,6 +105,8 @@ export type ProjectTableRow = {
   reconcileTarget?: DirectoryReconcileTarget | null;
   canStart: boolean;
   canFinish: boolean;
+  /** G3: non-regular In Progress project can be submitted for client approval. */
+  canSubmitForApproval: boolean;
   canMoveToPlanning: boolean;
   /** True when Back to Planning is hidden solely due to open invoice collection. */
   moveBackBlockedByCollection: boolean;
@@ -518,6 +520,7 @@ export default function ProjectTable({
               canMoveToPlanning={row.canMoveToPlanning}
               moveBackBlockedByCollection={row.moveBackBlockedByCollection}
               canFinish={row.canFinish}
+              canSubmitForApproval={row.canSubmitForApproval}
               canMarkPaid={row.canMarkPaid}
               paymentStage={row.paymentStage}
               billingHref={row.billingHref}

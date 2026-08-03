@@ -25,7 +25,6 @@ import { getNextVendorShortCode } from "@/lib/vendor-short-code";
 import { prisma } from "@/lib/prisma";
 import { canManageVendors } from "@/lib/project-access";
 import { nextCompanyScopedSortOrder } from "@/lib/persist-reorder";
-import { provisionVendorUser } from "@/lib/provision-linked-user";
 import { SORT_ORDER_STEP } from "@/lib/reorder";
 import { requireModule, toPermissionUser } from "@/lib/session";
 import { formatImportDateDisplay } from "@/lib/bulk-import/parse-import-date";
@@ -66,7 +65,6 @@ function previewFieldsFromValues(values: Record<string, string>) {
     "Contact Person Country Code":
       values.contactPersonCountryCode?.trim() || "—",
     "Contact Person Phone": values.contactPersonPhone?.trim() || "—",
-    "Portal Login Access": values.createPortalLogin?.trim() || "—",
   };
 }
 
@@ -86,7 +84,6 @@ function previewFieldsFromParsed(parsed: ParsedVendorImportRow) {
     Position: parsed.contactPersonPosition ?? "—",
     "Contact Person Email": parsed.contactPersonEmail ?? "—",
     "Contact Person Phone": parsed.contactPersonPhone ?? "—",
-    "Portal Login Access": parsed.createPortalLogin ? "Yes" : "No",
   };
 }
 
@@ -263,15 +260,6 @@ export async function confirmBulkImportVendors(
           },
         });
 
-        if (parsed.createPortalLogin) {
-          await provisionVendorUser(tx, {
-            companyId: company.id,
-            vendorId: vendor.id,
-            vendorName: parsed.name,
-            contactPersonFirstName: parsed.contactPersonFirstName,
-            contactPersonLastName: parsed.contactPersonLastName,
-          });
-        }
       });
 
       seenNames.add(nameKey);
@@ -289,7 +277,6 @@ export async function confirmBulkImportVendors(
 
   if (result.createdCount > 0) {
     revalidatePath("/vendors");
-    revalidatePath("/users");
   }
 
   return result;

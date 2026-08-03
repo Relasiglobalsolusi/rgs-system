@@ -68,6 +68,13 @@ export function parseEmployeeImportRow(
   if (legacyPlacement === "ON_PROJECT") {
     throw new Error(projectAssignmentImportError(locale));
   }
+  if (legacyPlacement === "ON_LEAVE") {
+    throw new Error(
+      locale === "id"
+        ? "Penempatan Cuti tidak dapat diimpor. Status cuti diatur otomatis oleh sistem."
+        : "On Leave placement cannot be imported. Leave status is managed automatically by the system."
+    );
+  }
 
   const projectNamesRaw = values.projectNames?.trim() ?? "";
   const projectNames = projectNamesRaw

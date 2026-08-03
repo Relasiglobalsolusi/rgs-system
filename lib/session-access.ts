@@ -5,6 +5,7 @@ import { isRosterActiveEmployeeStatus } from "@/lib/user-directory-status";
 export type SessionAccessState = {
   allowed: boolean;
   moduleOverrides: Record<string, boolean> | null;
+  jobPosition: { slug: string; name: string } | null;
 };
 
 /**
@@ -17,7 +18,7 @@ export async function fetchSessionAccessState(
   userId: string
 ): Promise<SessionAccessState> {
   if (!userId) {
-    return { allowed: false, moduleOverrides: null };
+    return { allowed: false, moduleOverrides: null, jobPosition: null };
   }
 
   const user = await prisma.user.findUnique({
@@ -28,21 +29,25 @@ export async function fetchSessionAccessState(
       client: { select: { active: true } },
       vendor: { select: { active: true } },
       employee: {
-        select: { status: true, archivedFromDirectory: true },
+        select: {
+          status: true,
+          archivedFromDirectory: true,
+          jobPosition: { select: { slug: true, name: true } },
+        },
       },
     },
   });
 
   if (!user || !user.active) {
-    return { allowed: false, moduleOverrides: null };
+    return { allowed: false, moduleOverrides: null, jobPosition: null };
   }
 
   if (user.client && user.client.active === false) {
-    return { allowed: false, moduleOverrides: null };
+    return { allowed: false, moduleOverrides: null, jobPosition: null };
   }
 
   if (user.vendor && user.vendor.active === false) {
-    return { allowed: false, moduleOverrides: null };
+    return { allowed: false, moduleOverrides: null, jobPosition: null };
   }
 
   if (
@@ -50,11 +55,12 @@ export async function fetchSessionAccessState(
     (user.employee.archivedFromDirectory ||
       !isRosterActiveEmployeeStatus(user.employee.status))
   ) {
-    return { allowed: false, moduleOverrides: null };
+    return { allowed: false, moduleOverrides: null, jobPosition: null };
   }
 
   return {
     allowed: true,
     moduleOverrides: parseModuleOverrides(user.moduleOverrides),
+    jobPosition: user.employee?.jobPosition ?? null,
   };
 }

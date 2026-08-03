@@ -429,19 +429,6 @@ export const VENDOR_HEADER_LABELS: Record<string, LocalizedHeader> = {
       "contact cellphone",
     ],
   },
-  createPortalLogin: {
-    en: "Portal Login Access",
-    id: "Akses Login Portal",
-    aliases: [
-      "portal login",
-      "portal login access",
-      "create portal login",
-      "create login",
-      "portal access",
-      "create portal login access",
-      "buat akses login portal",
-    ],
-  },
 };
 
 export function vendorTemplateTitle(locale: AppLocale): string {

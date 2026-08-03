@@ -27,6 +27,7 @@ import ProjectStartButton, {
   ProjectReturnToPlanningBlockedChip,
   ProjectReturnToPlanningButton,
 } from "@/components/projects/ProjectStartButton";
+import ProjectSubmitForApprovalButton from "@/components/projects/ProjectSubmitForApprovalButton";
 
 type ClientOption = {
   id: string;
@@ -72,6 +73,7 @@ type Props = {
   canEndContract: boolean;
   inPlanning: boolean;
   showMoveToInProgress: boolean;
+  showSubmitForApproval?: boolean;
   canMoveBackToPlanning: boolean;
   moveBackBlockedByCollection: boolean;
   billingHref: string;
@@ -99,6 +101,7 @@ export default function ProjectDetailActionBar({
   canEndContract,
   inPlanning,
   showMoveToInProgress,
+  showSubmitForApproval = false,
   canMoveBackToPlanning,
   moveBackBlockedByCollection,
   billingHref,
@@ -126,10 +129,11 @@ export default function ProjectDetailActionBar({
   const showDelete = canDelete || Boolean(deleteBlockedReason);
   const deleteBlocked = Boolean(deleteBlockedReason);
   const showStart = canManage && showMoveToInProgress;
+  const showSubmit = canManage && showSubmitForApproval;
   const showReturn = canManage && canMoveBackToPlanning;
   const showReturnBlocked = canManage && moveBackBlockedByCollection;
 
-  const showWorkflow = showStart || showReturn || showReturnBlocked;
+  const showWorkflow = showStart || showSubmit || showReturn || showReturnBlocked;
   const showSecondary = showBilling || showEdit;
   const hasTopActions = showWorkflow || showSecondary;
   const showExtendContract = canManage && showEndContract && Boolean(endDate);
@@ -155,6 +159,13 @@ export default function ProjectDetailActionBar({
                   assignedEmployeeIds={editProject.assignments.map(
                     (assignment) => assignment.employeeId
                   )}
+                  size="bar"
+                />
+              ) : null}
+              {showSubmit ? (
+                <ProjectSubmitForApprovalButton
+                  projectId={projectId}
+                  projectName={projectName}
                   size="bar"
                 />
               ) : null}

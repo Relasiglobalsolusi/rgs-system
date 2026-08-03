@@ -16,6 +16,7 @@ import ProjectStartButton, {
 } from "@/components/projects/ProjectStartButton";
 import type { ProjectStaffEmployee } from "@/components/projects/ProjectStaffPicker";
 import ProjectMarkPaidButton from "@/components/projects/ProjectMarkPaidButton";
+import ProjectSubmitForApprovalButton from "@/components/projects/ProjectSubmitForApprovalButton";
 
 /** Due cycle target for directory Reconcile (Keep / Adjust + OM+). */
 export type DirectoryReconcileTarget = {
@@ -78,6 +79,8 @@ type Props = {
   /** True when Back to Planning is blocked due to open invoice collection. */
   moveBackBlockedByCollection?: boolean;
   canFinish: boolean;
+  /** G3: non-regular In Progress project can be submitted for client approval. */
+  canSubmitForApproval?: boolean;
   canMarkPaid: boolean;
   paymentStage: PaymentStage;
   billingHref: string | null;
@@ -130,6 +133,7 @@ export default function ProjectDirectoryActions({
   canMoveToPlanning,
   moveBackBlockedByCollection = false,
   canFinish,
+  canSubmitForApproval = false,
   canMarkPaid,
   paymentStage,
   billingHref,
@@ -216,6 +220,17 @@ export default function ProjectDirectoryActions({
         >
           {pending ? "Finishing…" : "Finish"}
         </Button>
+      </span>
+    );
+  } else if (canSubmitForApproval) {
+    workflowPrimary = (
+      <span className={workflowChipStackClassName}>
+        {planningChip}
+        <ProjectSubmitForApprovalButton
+          projectId={project.id}
+          projectName={confirmName}
+          size="badge"
+        />
       </span>
     );
   } else if (planningChip) {

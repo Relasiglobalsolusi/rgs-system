@@ -14,6 +14,11 @@ import {
   lockInventoryItemRow,
 } from "@/lib/inventory-access";
 import { getNextInventorySku } from "@/lib/inventory-sku";
+import {
+  InsufficientEquipmentAssetsError,
+  mintEquipmentAssets,
+  retireEquipmentAssets,
+} from "@/lib/equipment-asset";
 import { parseFormDateInput } from "@/lib/bulk-import/parse-import-date";
 import type { AppLocale } from "@/lib/i18n/locale";
 import { getServerLocale } from "@/lib/i18n/locale";
@@ -21,7 +26,7 @@ import { translate } from "@/lib/i18n/translate";
 import { nextCompanyScopedSortOrder } from "@/lib/persist-reorder";
 import { prisma } from "@/lib/prisma";
 import { toActionError } from "@/lib/prisma-errors";
-import { canManageInventory } from "@/lib/project-access";
+import { canManageInventory, canManageItemCatalog } from "@/lib/project-access";
 import { decimalToNumber } from "@/lib/project-billing";
 import { requireModule, toPermissionUser } from "@/lib/session";
 import { capitalizeProper, titleCaseWords } from "@/lib/text-case";
@@ -34,6 +39,19 @@ async function assertCanManageInventory(locale?: AppLocale) {
       translate(
         locale ?? (await getServerLocale()),
         "pages.inventory.permissionDenied"
+      )
+    );
+  }
+  return session;
+}
+
+async function assertCanManageItemCatalog(locale?: AppLocale) {
+  const session = await requireModule("itemCatalog");
+  if (!canManageItemCatalog(toPermissionUser(session))) {
+    throw new Error(
+      translate(
+        locale ?? (await getServerLocale()),
+        "pages.itemCatalog.permissionDenied"
       )
     );
   }
@@ -93,6 +111,7 @@ async function saveReceipt(
 
 function revalidateInventory(projectId?: string | null) {
   revalidatePath("/inventory");
+  revalidatePath("/item-catalog");
   if (projectId) {
     revalidatePath(`/projects/${projectId}`);
   }
@@ -101,7 +120,7 @@ function revalidateInventory(projectId?: string | null) {
 /** Preview next auto SKU for an Item Type ({TYPE}-0001…). */
 export async function previewInventorySku(itemType: string) {
   const locale = await getServerLocale();
-  await assertCanManageInventory(locale);
+  await assertCanManageItemCatalog(locale);
   const company = await requireCompany(locale);
   const trimmed = String(itemType ?? "").trim();
   if (!trimmed) return "";
@@ -116,7 +135,7 @@ export async function previewInventorySku(itemType: string) {
 export async function createInventoryItem(formData: FormData) {
   const locale = await getServerLocale();
   try {
-    await assertCanManageInventory(locale);
+    await assertCanManageItemCatalog(locale);
 
     const name = titleCaseWords(String(formData.get("name") ?? "").trim());
     const itemType = titleCaseWords(
@@ -167,7 +186,7 @@ export async function createInventoryItem(formData: FormData) {
 export async function updateInventoryItem(formData: FormData) {
   const locale = await getServerLocale();
   try {
-    await assertCanManageInventory(locale);
+    await assertCanManageItemCatalog(locale);
 
     const id = String(formData.get("id") ?? "").trim();
     if (!id) {
@@ -227,7 +246,7 @@ export async function updateInventoryItem(formData: FormData) {
 export async function deactivateInventoryItem(formData: FormData) {
   const locale = await getServerLocale();
   try {
-    await assertCanManageInventory(locale);
+    await assertCanManageItemCatalog(locale);
     const id = String(formData.get("id") ?? "").trim();
     const company = await requireCompany(locale);
     const item = await prisma.inventoryItem.findFirst({
@@ -252,7 +271,7 @@ export async function deactivateInventoryItem(formData: FormData) {
 export async function reactivateInventoryItem(formData: FormData) {
   const locale = await getServerLocale();
   try {
-    await assertCanManageInventory(locale);
+    await assertCanManageItemCatalog(locale);
     const id = String(formData.get("id") ?? "").trim();
     const company = await requireCompany(locale);
     const item = await prisma.inventoryItem.findFirst({
@@ -383,6 +402,8 @@ export async function createInventoryPurchase(formData: FormData) {
           avgUnitCost: toDecimal(newAvg),
         },
       });
+
+      await mintEquipmentAssets(tx, company.id, item.id, quantity);
     });
 
     revalidateInventory();
@@ -516,53 +537,61 @@ export async function createInventoryProjectIssue(formData: FormData) {
   }
 }
 
-/** Stock adjustment with required audit note. */
-export async function createInventoryAdjustment(formData: FormData) {
+/** Manual stock adjustments are disabled; stock changes via purchases, issues, write-offs, etc. */
+export async function createInventoryAdjustment(_formData: FormData) {
+  const locale = await getServerLocale();
+  throw new Error(translate(locale, "pages.inventory.manualAdjustDisabled"));
+}
+
+/**
+ * Stock write-off — OM+, Director, or HO admin only.
+ * Permanently reduces on-hand stock with a mandatory reason.
+ * Cannot write off more than on-hand; uses row-lock for safety.
+ * Records: actor (createdById), timestamp (movedAt), item, qty, reason (notes).
+ */
+export async function writeOffInventoryStock(formData: FormData) {
   const locale = await getServerLocale();
   try {
-    const session = await assertCanManageInventory(locale);
+    const session = await assertCanAssignInventory(locale);
     const company = await requireCompany(locale);
 
     const itemId = String(formData.get("itemId") ?? "").trim();
-    const notes = capitalizeProper(
-      String(formData.get("notes") ?? "").trim()
+    const reason = capitalizeProper(
+      String(formData.get("reason") ?? "").trim()
     );
+
     if (!itemId) {
       throw new Error(translate(locale, "pages.inventory.itemRequired"));
     }
-    if (!notes) {
-      throw new Error(translate(locale, "pages.inventory.adjustmentNoteRequired"));
+    if (!reason) {
+      throw new Error(translate(locale, "pages.inventory.writeOffReasonRequired"));
     }
 
-    const delta = Number(
-      String(formData.get("quantityDelta") ?? "").replace(/,/g, "").trim()
+    const quantity = parsePositiveQty(
+      formData.get("quantity"),
+      translate(locale, "pages.inventory.form.quantity")
     );
-    if (!Number.isFinite(delta) || delta === 0) {
-      throw new Error(translate(locale, "pages.inventory.adjustmentQtyRequired"));
-    }
+    const movedAt =
+      parseFormDateInput(formData.get("movedAt"), {
+        fieldLabel: translate(locale, "pages.inventory.form.writeOffDate"),
+      }) ?? new Date();
 
     const item = await prisma.inventoryItem.findFirst({
-      where: { id: itemId, companyId: company.id },
+      where: { id: itemId, companyId: company.id, active: true },
       select: { id: true, unit: true },
     });
     if (!item) {
       throw new Error(translate(locale, "pages.inventory.itemNotFound"));
     }
 
-    const movedAt =
-      parseFormDateInput(formData.get("movedAt"), {
-        fieldLabel: translate(locale, "pages.inventory.form.adjustmentDate"),
-      }) ?? new Date();
-
     await prisma.$transaction(async (tx) => {
       const locked = await lockInventoryItemRow(tx, item.id);
-      if (!locked) {
+      if (!locked || !locked.active) {
         throw new Error(translate(locale, "pages.inventory.itemNotFound"));
       }
 
       const currentStock = decimalToNumber(locked.currentStock) ?? 0;
-      const newStock = currentStock + delta;
-      if (newStock < -1e-9) {
+      if (currentStock <= 0 || quantity > currentStock + 1e-9) {
         throw new Error(
           translate(locale, "pages.inventory.insufficientStock", {
             available: String(currentStock),
@@ -571,47 +600,56 @@ export async function createInventoryAdjustment(formData: FormData) {
         );
       }
 
+      try {
+        await retireEquipmentAssets(tx, company.id, item.id, quantity, reason);
+      } catch (error) {
+        if (error instanceof InsufficientEquipmentAssetsError) {
+          throw new Error(
+            translate(locale, "pages.inventory.insufficientEquipmentAssets", {
+              available: String(error.available),
+              requested: String(error.requested),
+            })
+          );
+        }
+        throw error;
+      }
+
       const unitCost =
         decimalToNumber(locked.avgUnitCost) ??
         decimalToNumber(locked.lastUnitCost) ??
         0;
-      const totalCost = movementTotalCost(delta, unitCost);
+      const totalCost = movementTotalCost(quantity, Math.max(0, unitCost));
 
       await tx.inventoryMovement.create({
         data: {
           companyId: company.id,
           itemId: item.id,
-          type: "ADJUSTMENT",
-          quantity: toDecimal(delta),
-          unitCost: toDecimal(unitCost),
+          type: "WRITE_OFF",
+          quantity: toDecimal(-quantity),
+          unitCost: toDecimal(Math.max(0, unitCost)),
           totalCost: toDecimal(totalCost),
           movedAt,
-          notes,
+          notes: reason,
           createdById: session.user.id,
         },
       });
 
-      if (delta < 0) {
-        const stockUpdate = await tx.inventoryItem.updateMany({
-          where: {
-            id: item.id,
-            currentStock: { gte: toDecimal(Math.abs(delta)) },
-          },
-          data: { currentStock: toDecimal(newStock) },
-        });
-        if (stockUpdate.count !== 1) {
-          throw new Error(
-            translate(locale, "pages.inventory.insufficientStock", {
-              available: String(currentStock),
-              unit: locked.unit,
-            })
-          );
-        }
-      } else {
-        await tx.inventoryItem.update({
-          where: { id: item.id },
-          data: { currentStock: toDecimal(newStock) },
-        });
+      const stockUpdate = await tx.inventoryItem.updateMany({
+        where: {
+          id: item.id,
+          currentStock: { gte: toDecimal(quantity) },
+        },
+        data: {
+          currentStock: toDecimal(currentStock - quantity),
+        },
+      });
+      if (stockUpdate.count !== 1) {
+        throw new Error(
+          translate(locale, "pages.inventory.insufficientStock", {
+            available: String(currentStock),
+            unit: locked.unit,
+          })
+        );
       }
     });
 
@@ -619,7 +657,7 @@ export async function createInventoryAdjustment(formData: FormData) {
   } catch (error) {
     throw toActionError(
       error,
-      translate(locale, "pages.inventory.adjustFailed")
+      translate(locale, "pages.inventory.createWriteOffFailed")
     );
   }
 }

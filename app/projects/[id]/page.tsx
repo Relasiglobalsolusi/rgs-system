@@ -27,6 +27,9 @@ import {
 import { canAssignInventoryToProject } from "@/lib/inventory-access";
 import { INVENTORY_ISSUE_PROJECT_STATUSES } from "@/lib/inventory";
 import {
+  listProjectEquipmentAssets,
+} from "@/lib/equipment-asset";
+import {
   daysBetweenDates,
   isContractSubCategory,
 } from "@/lib/project-contract";
@@ -82,6 +85,10 @@ import { cn } from "@/lib/utils";
 import ContractExtensionsHistory from "@/components/projects/ContractExtensionsHistory";
 import ProjectAssignStaffChip from "@/components/projects/ProjectAssignStaffChip";
 import ProjectDetailActionBar from "@/components/projects/ProjectDetailActionBar";
+import ProjectEquipmentPicker, {
+  type EquipmentAssetOption,
+  type AssignedEquipmentAsset,
+} from "@/components/projects/ProjectEquipmentPicker";
 import ProjectInventoryPanel from "@/components/projects/ProjectInventoryPanel";
 import ProjectLocationMap from "@/components/projects/ProjectLocationMap";
 
@@ -98,6 +105,8 @@ function statusTone(
     case "IN_PROGRESS":
     case "ON_HOLD":
       return "active";
+    case "WAITING_FOR_APPROVAL":
+      return "warning";
     case "COMPLETED":
       return "success";
     case "PLANNED":
@@ -239,6 +248,28 @@ export default async function ProjectDetailPage({
       : [];
   const staffEmployees = annotateStaffPickerConflicts(employees, staffConflicts);
 
+  // Equipment asset queries — only for staff who can assign inventory
+  const [availableEquipmentAssets, assignedEquipmentAssets] =
+    canAssignStock && isPlanningProjectStatus(project.status) === false
+      ? await Promise.all([
+          prisma.equipmentAsset.findMany({
+            where: {
+              companyId: project.companyId,
+              status: "AVAILABLE",
+              item: { itemType: "Equipment", active: true },
+            },
+            select: {
+              id: true,
+              assetCode: true,
+              serialNo: true,
+              item: { select: { id: true, sku: true, name: true } },
+            },
+            orderBy: [{ item: { name: "asc" } }, { assetCode: "asc" }],
+          }),
+          listProjectEquipmentAssets(project.companyId, project.id),
+        ])
+      : [[], []];
+
   const canViewInventory = canAccess(permissionUser, "inventory");
   const inventoryCatalogItems = catalogItems.map((item) => ({
     id: item.id,
@@ -299,6 +330,11 @@ export default async function ProjectDetailPage({
   const isRegularContract = isContractSubCategory(project.subCategory);
   const canEndContract =
     canManage && project.status === "IN_PROGRESS" && isRegularContract;
+  // G3: non-regular In Progress projects can be submitted for approval.
+  const showSubmitForApproval =
+    canManage &&
+    !isRegularContract &&
+    project.status === "IN_PROGRESS";
   const showCompletedJobDuration =
     project.status === "COMPLETED" && !isRegularContract;
   const actualDurationDays = showCompletedJobDuration
@@ -312,7 +348,8 @@ export default async function ProjectDetailPage({
     ? "/projects?view=completed"
     : inPlanning
       ? "/projects?view=planning"
-      : project.status === "IN_PROGRESS"
+      : project.status === "IN_PROGRESS" ||
+          project.status === "WAITING_FOR_APPROVAL"
         ? "/projects?view=in-progress"
         : "/projects";
 
@@ -345,7 +382,8 @@ export default async function ProjectDetailPage({
     ? t("pages.projects.completedTitle")
     : inPlanning
       ? t("pages.projects.planningTitle")
-      : project.status === "IN_PROGRESS"
+      : project.status === "IN_PROGRESS" ||
+          project.status === "WAITING_FOR_APPROVAL"
         ? t("pages.projects.inProgressTitle")
         : t("pages.projects.filterAllProjects");
   // Map legacy ON_HOLD / CANCELLED to workflow labels (no product chrome for those enums).
@@ -389,6 +427,7 @@ export default async function ProjectDetailPage({
         canEndContract={canEndContract}
         inPlanning={inPlanning}
         showMoveToInProgress={inPlanning}
+        showSubmitForApproval={showSubmitForApproval}
         canMoveBackToPlanning={canMoveBackToPlanning}
         moveBackBlockedByCollection={moveBackBlockedByCollection}
         billingHref={billingHref}
@@ -862,6 +901,45 @@ export default async function ProjectDetailPage({
                   ))}
                 </div>
               )}
+            </SectionCard>
+          ) : null}
+
+          {/* ── Equipment Assets section — mirrors staff section ── */}
+          {!inPlanning && showInventoryCosts ? (
+            <SectionCard className={sectionCardClassName}>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <h3 className={sectionTitleClassName}>
+                    {t("pages.projects.equipmentPicker.sectionTitle")}
+                  </h3>
+                  {assignedEquipmentAssets.length === 0 ? (
+                    <p className="mt-1 max-w-2xl text-sm text-subtle">
+                      {t("pages.projects.equipmentPicker.noAssignedAssetsHint")}
+                    </p>
+                  ) : null}
+                </div>
+                {canAssignStock ? (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span
+                      className={cn(
+                        buttonVariants({ variant: "infoBadge", size: "badge" }),
+                        "pointer-events-none gap-1"
+                      )}
+                      aria-live="polite"
+                    >
+                      {assignedEquipmentAssets.length}{" "}
+                      {t("pages.projects.equipmentPicker.assigned")}
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+              <ProjectEquipmentPicker
+                projectId={project.id}
+                projectStatus={project.status}
+                availableAssets={availableEquipmentAssets as EquipmentAssetOption[]}
+                assignedAssets={assignedEquipmentAssets as AssignedEquipmentAsset[]}
+                canAssign={canAssignStock}
+              />
             </SectionCard>
           ) : null}
         </div>

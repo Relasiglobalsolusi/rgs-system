@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/project-billing";
 
+import {
+  filterPositionsForEmployeeCreateActor,
+  resolveEmployeeCreateActorTier,
+} from "@/lib/employee-create-hierarchy";
 import { canManageEmployees } from "@/lib/project-access";
 import { requireModule, toPermissionUser } from "@/lib/session";
 
@@ -17,6 +21,7 @@ export default async function EmployeesPage() {
   const permissionUser = toPermissionUser(session);
   const canManage = canManageEmployees(permissionUser);
   const canArchive = canManage;
+  const createActorTier = await resolveEmployeeCreateActorTier(session);
 
   const company = await prisma.company.findFirst();
 
@@ -45,6 +50,7 @@ export default async function EmployeesPage() {
           select: {
             id: true,
             name: true,
+            slug: true,
           },
         },
         projectAssignments: {
@@ -161,6 +167,11 @@ export default async function EmployeesPage() {
     sortOrder: position.sortOrder,
   }));
 
+  const assignablePositions = filterPositionsForEmployeeCreateActor(
+    createActorTier,
+    positionOptions
+  );
+
   return (
     <AppShell
       titleKey="pages.employees.title"
@@ -187,11 +198,12 @@ export default async function EmployeesPage() {
               )
             : undefined
         }
-        positions={positionOptions}
+        positions={assignablePositions}
         managePositions={canManage ? positions : undefined}
         projects={projects}
         canManage={canManage}
         canArchive={canArchive}
+        createActorTier={createActorTier}
       />
     </AppShell>
   );

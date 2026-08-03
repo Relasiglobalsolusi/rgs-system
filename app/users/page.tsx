@@ -3,9 +3,9 @@ import { canAccess } from "@/lib/permissions";
 import {
   canManageClients,
   canManageEmployees,
-  canManageVendors,
 } from "@/lib/project-access";
 import { requireModule, toPermissionUser } from "@/lib/session";
+import { resolveAdminRecoverablePassword } from "@/lib/recoverable-password";
 
 import AppShell from "@/components/layout/AppShell";
 import PageIntro from "@/components/i18n/PageIntro";
@@ -22,7 +22,6 @@ export default async function UsersPage({ searchParams }: Props) {
   const canManage = canAccess(permissionUser, "users");
   const canViewPassword = canManage;
   const manageClients = canManageClients(permissionUser);
-  const manageVendors = canManageVendors(permissionUser);
   const manageEmployees = canManageEmployees(permissionUser);
   const { clientId: filterClientId } = await searchParams;
 
@@ -41,16 +40,12 @@ export default async function UsersPage({ searchParams }: Props) {
     );
   }
 
-  const [
-    users,
-    filterClient,
-    clientsWithoutPortalLogin,
-    vendorsWithoutPortalLogin,
-    employeesWithoutPortalLogin,
-  ] = await Promise.all([
+  const [users, filterClient, clientsWithoutPortalLogin, employeesWithoutPortalLogin] =
+    await Promise.all([
       prisma.user.findMany({
         where: {
           companyId: company.id,
+          vendorId: null,
           ...(filterClientId ? { clientId: filterClientId } : {}),
         },
         select: {
@@ -90,9 +85,6 @@ export default async function UsersPage({ searchParams }: Props) {
           client: {
             select: { id: true, name: true, active: true },
           },
-          vendor: {
-            select: { id: true, name: true, active: true },
-          },
         },
         orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
       }),
@@ -126,35 +118,6 @@ export default async function UsersPage({ searchParams }: Props) {
           clientSince: true,
           active: true,
           _count: { select: { projects: true, users: true } },
-          users: {
-            select: { id: true, username: true, active: true },
-            orderBy: { username: "asc" },
-          },
-        },
-        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      }),
-      prisma.vendor.findMany({
-        where: {
-          companyId: company.id,
-          users: { none: {} },
-        },
-        select: {
-          id: true,
-          name: true,
-          shortCode: true,
-          email: true,
-          phone: true,
-          address: true,
-          npwp: true,
-          taxIdDocumentUrl: true,
-          contactPersonFirstName: true,
-          contactPersonLastName: true,
-          contactPersonPosition: true,
-          contactPersonEmail: true,
-          contactPersonPhone: true,
-          vendorSince: true,
-          paymentTermsDays: true,
-          active: true,
           users: {
             select: { id: true, username: true, active: true },
             orderBy: { username: "asc" },
@@ -206,22 +169,34 @@ export default async function UsersPage({ searchParams }: Props) {
       ) : null}
 
       <UserDirectory
-        users={users.map((user) => ({
-          ...user,
-          moduleOverrides:
-            user.moduleOverrides &&
-            typeof user.moduleOverrides === "object" &&
-            !Array.isArray(user.moduleOverrides)
-              ? (user.moduleOverrides as Record<string, boolean>)
-              : null,
-        }))}
+        users={users.map((user) => {
+          const recoverable = canViewPassword
+            ? resolveAdminRecoverablePassword(user.passwordDisplay)
+            : null;
+
+          return {
+            ...user,
+            vendor: null,
+            ...(recoverable
+              ? {
+                  passwordDisplay: recoverable.plaintext,
+                  recoverableStoredAtRest: recoverable.storedAtRest,
+                  decryptFailed: recoverable.decryptFailed,
+                }
+              : {}),
+            moduleOverrides:
+              user.moduleOverrides &&
+              typeof user.moduleOverrides === "object" &&
+              !Array.isArray(user.moduleOverrides)
+                ? (user.moduleOverrides as Record<string, boolean>)
+                : null,
+          };
+        })}
         clientsWithoutPortalLogin={clientsWithoutPortalLogin}
-        vendorsWithoutPortalLogin={vendorsWithoutPortalLogin}
         employeesWithoutPortalLogin={employeesWithoutPortalLogin}
         canEditPermissions={canManage}
         canViewPassword={canViewPassword}
         canManageClients={manageClients}
-        canManageVendors={manageVendors}
         canManageEmployees={manageEmployees}
         currentUserId={session.user.id}
       />

@@ -4,8 +4,6 @@ import { useMemo, useState } from "react";
 
 import ClientGeneratePortalLoginDialog from "@/components/clients/ClientGeneratePortalLoginDialog";
 import ClientEditDialog from "@/components/clients/ClientEditDialog";
-import VendorGeneratePortalLoginDialog from "@/components/vendors/VendorGeneratePortalLoginDialog";
-import VendorEditDialog from "@/components/vendors/VendorEditDialog";
 import BulkGeneratePortalLoginDialog from "@/components/users/BulkGeneratePortalLoginDialog";
 import EmployeeGeneratePortalLoginDialog from "@/components/users/EmployeeGeneratePortalLoginDialog";
 import BulkActionBar from "@/components/ui/BulkActionBar";
@@ -47,26 +45,6 @@ export type ClientWithoutPortalLogin = {
   users: Array<{ id: string; username: string; active: boolean }>;
 };
 
-export type VendorWithoutPortalLogin = {
-  id: string;
-  name: string;
-  shortCode: string;
-  email: string | null;
-  phone: string | null;
-  address: string | null;
-  npwp: string | null;
-  taxIdDocumentUrl?: string | null;
-  contactPersonFirstName: string | null;
-  contactPersonLastName: string | null;
-  contactPersonPosition: string | null;
-  contactPersonEmail: string | null;
-  contactPersonPhone: string | null;
-  vendorSince: Date | string;
-  paymentTermsDays?: number | null;
-  active: boolean;
-  users: Array<{ id: string; username: string; active: boolean }>;
-};
-
 export type EmployeeWithoutPortalLogin = {
   id: string;
   employeeNo: string;
@@ -87,10 +65,6 @@ function isGenerateEligibleClient(client: { active: boolean }) {
   return client.active;
 }
 
-function isGenerateEligibleVendor(vendor: { active: boolean }) {
-  return vendor.active;
-}
-
 function isGenerateEligibleEmployee(employee: {
   status: EmployeeWithoutPortalLogin["status"];
 }) {
@@ -99,10 +73,8 @@ function isGenerateEligibleEmployee(employee: {
 
 type Props = {
   clients: ClientWithoutPortalLogin[];
-  vendors: VendorWithoutPortalLogin[];
   employees: EmployeeWithoutPortalLogin[];
   canManageClients?: boolean;
-  canManageVendors?: boolean;
   canManageEmployees?: boolean;
 };
 
@@ -122,18 +94,13 @@ function getOrgContact(row: {
 
 export default function WithoutPortalLoginView({
   clients,
-  vendors,
   employees,
   canManageClients = false,
-  canManageVendors = false,
   canManageEmployees = false,
 }: Props) {
   const { t } = useT();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedClientIds, setSelectedClientIds] = useState<Set<string>>(
-    () => new Set()
-  );
-  const [selectedVendorIds, setSelectedVendorIds] = useState<Set<string>>(
     () => new Set()
   );
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(
@@ -142,12 +109,7 @@ export default function WithoutPortalLoginView({
   const [bulkGenerateOpen, setBulkGenerateOpen] = useState(false);
   const [editClient, setEditClient] =
     useState<ClientWithoutPortalLogin | null>(null);
-  const [editVendor, setEditVendor] =
-    useState<VendorWithoutPortalLogin | null>(null);
   const [singleClientGenerateIds, setSingleClientGenerateIds] = useState<
-    string[]
-  >([]);
-  const [singleVendorGenerateIds, setSingleVendorGenerateIds] = useState<
     string[]
   >([]);
   const [singleEmployeeGenerateIds, setSingleEmployeeGenerateIds] = useState<
@@ -173,25 +135,6 @@ export default function WithoutPortalLoginView({
     [clients, searchQuery]
   );
 
-  const filteredVendors = useMemo(
-    () =>
-      vendors.filter((vendor) =>
-        matchesDirectorySearch(
-          searchQuery,
-          vendor.name,
-          vendor.shortCode,
-          vendor.email,
-          vendor.phone,
-          vendor.contactPersonFirstName,
-          vendor.contactPersonLastName,
-          vendor.contactPersonPosition,
-          vendor.contactPersonEmail,
-          vendor.contactPersonPhone
-        )
-      ),
-    [vendors, searchQuery]
-  );
-
   const filteredEmployees = useMemo(
     () =>
       employees.filter((employee) =>
@@ -215,10 +158,6 @@ export default function WithoutPortalLoginView({
     () => filteredClients.some((client) => !client.active),
     [filteredClients]
   );
-  const vendorsIncludeSoftDeleted = useMemo(
-    () => filteredVendors.some((vendor) => !vendor.active),
-    [filteredVendors]
-  );
   const employeesIncludeSoftDeleted = useMemo(
     () =>
       filteredEmployees.some(
@@ -239,18 +178,6 @@ export default function WithoutPortalLoginView({
     [canManageClients, filteredClients]
   );
 
-  const vendorSelectableIds = useMemo(
-    () =>
-      canManageVendors
-        ? new Set(
-            filteredVendors
-              .filter(isGenerateEligibleVendor)
-              .map((vendor) => vendor.id)
-          )
-        : new Set<string>(),
-    [canManageVendors, filteredVendors]
-  );
-
   const employeeSelectableIds = useMemo(
     () =>
       canManageEmployees
@@ -269,12 +196,6 @@ export default function WithoutPortalLoginView({
     [selectedClientIds, clientSelectableIds]
   );
 
-  const selectedVisibleVendorCount = useMemo(
-    () =>
-      [...selectedVendorIds].filter((id) => vendorSelectableIds.has(id)).length,
-    [selectedVendorIds, vendorSelectableIds]
-  );
-
   const selectedVisibleEmployeeCount = useMemo(
     () =>
       [...selectedEmployeeIds].filter((id) =>
@@ -288,11 +209,6 @@ export default function WithoutPortalLoginView({
     selectedVisibleClientCount === clientSelectableIds.size;
   const someClientsSelected = selectedVisibleClientCount > 0;
 
-  const allVendorsSelected =
-    vendorSelectableIds.size > 0 &&
-    selectedVisibleVendorCount === vendorSelectableIds.size;
-  const someVendorsSelected = selectedVisibleVendorCount > 0;
-
   const allEmployeesSelected =
     employeeSelectableIds.size > 0 &&
     selectedVisibleEmployeeCount === employeeSelectableIds.size;
@@ -303,11 +219,6 @@ export default function WithoutPortalLoginView({
     [selectedClientIds, clientSelectableIds]
   );
 
-  const selectedVendorIdsForAction = useMemo(
-    () => [...selectedVendorIds].filter((id) => vendorSelectableIds.has(id)),
-    [selectedVendorIds, vendorSelectableIds]
-  );
-
   const selectedEmployeeIdsForAction = useMemo(
     () =>
       [...selectedEmployeeIds].filter((id) => employeeSelectableIds.has(id)),
@@ -315,20 +226,16 @@ export default function WithoutPortalLoginView({
   );
 
   const totalSelectedCount =
-    selectedVisibleClientCount +
-    selectedVisibleVendorCount +
-    selectedVisibleEmployeeCount;
+    selectedVisibleClientCount + selectedVisibleEmployeeCount;
 
   function clearAllSelection() {
     setSelectedClientIds(new Set());
-    setSelectedVendorIds(new Set());
     setSelectedEmployeeIds(new Set());
   }
 
   function handleBulkGenerate() {
     if (
       selectedClientIdsForAction.length === 0 &&
-      selectedVendorIdsForAction.length === 0 &&
       selectedEmployeeIdsForAction.length === 0
     ) {
       return;
@@ -339,16 +246,6 @@ export default function WithoutPortalLoginView({
   function toggleClientSelect(id: string) {
     if (!clientSelectableIds.has(id)) return;
     setSelectedClientIds((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  function toggleVendorSelect(id: string) {
-    if (!vendorSelectableIds.has(id)) return;
-    setSelectedVendorIds((current) => {
       const next = new Set(current);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -378,22 +275,6 @@ export default function WithoutPortalLoginView({
     setSelectedClientIds((current) => {
       const next = new Set(current);
       for (const id of clientSelectableIds) next.add(id);
-      return next;
-    });
-  }
-
-  function toggleSelectAllVendors() {
-    if (allVendorsSelected) {
-      setSelectedVendorIds((current) => {
-        const next = new Set(current);
-        for (const id of vendorSelectableIds) next.delete(id);
-        return next;
-      });
-      return;
-    }
-    setSelectedVendorIds((current) => {
-      const next = new Set(current);
-      for (const id of vendorSelectableIds) next.add(id);
       return next;
     });
   }
@@ -529,116 +410,6 @@ export default function WithoutPortalLoginView({
     t,
   ]);
 
-  const vendorColumns = useMemo(() => {
-    const cols: DataTableColumn<VendorWithoutPortalLogin>[] = [];
-
-    if (canManageVendors) {
-      cols.push(
-        createSelectionColumn<VendorWithoutPortalLogin>({
-          ariaLabelAll: t("pages.users.selectAllVendors"),
-          getRowAriaLabel: (vendor) =>
-            t("pages.users.selectVendorRow", { name: vendor.name }),
-          getRowId: (vendor) => vendor.id,
-          allVisibleSelected: allVendorsSelected,
-          someVisibleSelected: someVendorsSelected,
-          onToggleSelectAll: toggleSelectAllVendors,
-          onToggleSelect: toggleVendorSelect,
-          selectedIds: selectedVendorIds,
-          selectableIds: vendorSelectableIds,
-        })
-      );
-    }
-
-    cols.push(
-      {
-        key: "name",
-        title: t("pages.vendors.columns.vendor"),
-        width: "16rem",
-        className: "min-w-[16rem]",
-        render: (vendor) => (
-          <p className="font-semibold text-text">{vendor.name}</p>
-        ),
-      },
-      {
-        key: "shortCode",
-        title: t("pages.vendors.columns.shortCode"),
-        render: (vendor) => (
-          <span className="font-mono text-sm text-muted">
-            {vendor.shortCode || "—"}
-          </span>
-        ),
-      },
-      {
-        key: "contact",
-        title: t("pages.vendors.columns.contact"),
-        width: "14rem",
-        className: "min-w-[14rem]",
-        render: (vendor) => {
-          const person = formatContactPersonName(
-            vendor.contactPersonFirstName,
-            vendor.contactPersonLastName
-          );
-          const contact = getOrgContact(vendor);
-          if (!person && !contact) {
-            return <span className="text-subtle">—</span>;
-          }
-          return (
-            <div className="min-w-0">
-              {person ? <p className="text-text">{person}</p> : null}
-              {contact ? (
-                <p className="mt-0.5 text-sm text-subtle">{contact}</p>
-              ) : null}
-            </div>
-          );
-        },
-      }
-    );
-
-    if (canManageVendors) {
-      cols.push({
-        key: "actions",
-        title: t("pages.vendors.columns.actions"),
-        width: GENERATE_ACTIONS_COLUMN_WIDTH,
-        align: "center",
-        className: "min-w-[14rem] overflow-visible whitespace-nowrap",
-        render: (vendor) => {
-          const canGenerate = isGenerateEligibleVendor(vendor);
-          return (
-            <div className="flex shrink-0 items-center justify-center whitespace-nowrap">
-              <Button
-                type="button"
-                size="badge"
-                variant="successBadge"
-                disabled={!canGenerate}
-                title={
-                  canGenerate
-                    ? undefined
-                    : t("pages.users.withoutPortalRestoreHint")
-                }
-                className={cn(flexibleBadgeChipClassName)}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  if (canGenerate) setSingleVendorGenerateIds([vendor.id]);
-                }}
-              >
-                {t("pages.users.generatePortalLogin")}
-              </Button>
-            </div>
-          );
-        },
-      });
-    }
-
-    return cols;
-  }, [
-    canManageVendors,
-    allVendorsSelected,
-    someVendorsSelected,
-    selectedVendorIds,
-    vendorSelectableIds,
-    t,
-  ]);
-
   const employeeColumns = useMemo(() => {
     const cols: DataTableColumn<EmployeeWithoutPortalLogin>[] = [];
 
@@ -753,11 +524,9 @@ export default function WithoutPortalLoginView({
   const trimmedSearch = searchQuery.trim();
   const hasActiveSearch = trimmedSearch !== "";
   const showClients = filteredClients.length > 0;
-  const showVendors = filteredVendors.length > 0;
   const showEmployees = filteredEmployees.length > 0;
-  const isEmpty = !showClients && !showVendors && !showEmployees;
-  const canManageAny =
-    canManageClients || canManageVendors || canManageEmployees;
+  const isEmpty = !showClients && !showEmployees;
+  const canManageAny = canManageClients || canManageEmployees;
 
   return (
     <>
@@ -826,36 +595,6 @@ export default function WithoutPortalLoginView({
             </section>
           ) : null}
 
-          {showVendors ? (
-            <section>
-              <div className="mb-3">
-                <h3 className="text-base font-semibold text-text">
-                  {t("pages.users.withoutPortalVendors")}
-                </h3>
-                <p className="mt-0.5 text-sm text-muted">
-                  {vendorsIncludeSoftDeleted
-                    ? t("pages.users.withoutPortalRestoreHint")
-                    : t("pages.users.withoutPortalSectionCount", {
-                        count: filteredVendors.length,
-                      })}
-                </p>
-              </div>
-
-              <DataTable
-                columns={vendorColumns}
-                data={filteredVendors}
-                getRowKey={(vendor) => vendor.id}
-                onRowClick={
-                  canManageVendors ? setEditVendor : undefined
-                }
-                isRowSelected={(vendor) =>
-                  selectedVendorIds.has(vendor.id)
-                }
-                emptyMessage={t("pages.users.withoutPortalEmptyVendors")}
-              />
-            </section>
-          ) : null}
-
           {showEmployees ? (
             <section>
               <div className="mb-3">
@@ -898,19 +637,6 @@ export default function WithoutPortalLoginView({
         />
       ) : null}
 
-      {canManageVendors && editVendor ? (
-        <VendorEditDialog
-          key={editVendor.id}
-          vendor={editVendor}
-          showDelete={false}
-          open
-          onOpenChange={(open) => {
-            if (!open) setEditVendor(null);
-          }}
-          showTrigger={false}
-        />
-      ) : null}
-
       {canManageAny && bulkGenerateOpen ? (
         <BulkGeneratePortalLoginDialog
           open={bulkGenerateOpen}
@@ -922,9 +648,6 @@ export default function WithoutPortalLoginView({
           }}
           clientIds={
             canManageClients ? selectedClientIdsForAction : []
-          }
-          vendorIds={
-            canManageVendors ? selectedVendorIdsForAction : []
           }
           employeeIds={
             canManageEmployees ? selectedEmployeeIdsForAction : []
@@ -940,17 +663,6 @@ export default function WithoutPortalLoginView({
           }}
           selectedCount={singleClientGenerateIds.length}
           selectedIds={singleClientGenerateIds}
-        />
-      ) : null}
-
-      {canManageVendors && singleVendorGenerateIds.length > 0 ? (
-        <VendorGeneratePortalLoginDialog
-          open
-          onOpenChange={(open) => {
-            if (!open) setSingleVendorGenerateIds([]);
-          }}
-          selectedCount={singleVendorGenerateIds.length}
-          selectedIds={singleVendorGenerateIds}
         />
       ) : null}
 

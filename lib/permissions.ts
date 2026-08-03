@@ -16,10 +16,6 @@ import {
 
   FolderKanban,
 
-  Globe,
-
-  History,
-
   LayoutDashboard,
 
   LogIn,
@@ -29,6 +25,8 @@ import {
   ShoppingBag,
 
   Package,
+
+  Tags,
 
   Truck,
 
@@ -42,6 +40,8 @@ import {
 
   HandCoins,
 
+  Banknote,
+
   PieChart,
 
 } from "lucide-react";
@@ -50,6 +50,10 @@ import type { EmployeeType, Placement, UserRole } from "@prisma/client";
 import { isHeadOfficePlacement } from "@/lib/placement";
 import { localizeDepartmentLabel } from "@/lib/i18n/labels";
 import type { AppLocale } from "@/lib/i18n/locale";
+import {
+  isDirectorPosition,
+  isOperationsManagerPosition,
+} from "@/lib/positions";
 
 
 
@@ -75,6 +79,8 @@ export const MODULES = [
 
   "inventory",
 
+  "itemCatalog",
+
   "invoicing",
 
   "clients",
@@ -99,9 +105,9 @@ export type ModuleKey = (typeof MODULES)[number];
 
 
 
-/** Legacy module removed from navigation; kept for existing permission overrides. */
+/** Legacy modules removed from navigation; kept for existing permission overrides. */
 
-export const HIDDEN_MODULES: ModuleKey[] = ["departments", "settings"];
+export const HIDDEN_MODULES: ModuleKey[] = ["departments", "settings", "website"];
 
 
 
@@ -171,10 +177,12 @@ export function getMenuItemNavKey(item: Pick<MenuItem, "module" | "navKey">) {
 export const EXTRA_MENU_NAV_KEYS = [
   "taxInvoices",
   "purchaseInvoices",
-  "vendorUploadHistory",
   "vendorPayments",
   "reconciliation",
   "financialReport",
+  "payroll",
+  "thr",
+  "vat",
 ] as const;
 
 
@@ -223,6 +231,7 @@ export function getClientModuleOverrides(): Record<ModuleKey, boolean> {
     approvals: false,
     reports: true,
     inventory: false,
+    itemCatalog: false,
     invoicing: true,
     clients: false,
     vendors: false,
@@ -254,6 +263,7 @@ export function getVendorModuleOverrides(): Record<ModuleKey, boolean> {
     approvals: false,
     reports: false,
     inventory: false,
+    itemCatalog: false,
     invoicing: true,
     clients: false,
     vendors: false,
@@ -264,41 +274,6 @@ export function getVendorModuleOverrides(): Record<ModuleKey, boolean> {
     website: false,
   };
 }
-
-/**
- * Finance nav for vendor portal accounts — flat under Finance / Keuangan.
- * Scoped to this vendor’s AP surfaces only.
- */
-export const VENDOR_FINANCE_MENU_ITEMS: MenuItem[] = [
-  {
-    icon: FileText,
-    label: "Invoice and Billing",
-    href: "/billing/purchase-invoices",
-    module: "invoicing",
-    navKey: "invoicing",
-  },
-  {
-    icon: Receipt,
-    label: "Tax Invoice",
-    href: "/billing/purchase-invoices?view=tax",
-    module: "invoicing",
-    navKey: "taxInvoices",
-  },
-  {
-    icon: History,
-    label: "Upload History",
-    href: "/billing/purchase-invoices?view=uploads",
-    module: "invoicing",
-    navKey: "vendorUploadHistory",
-  },
-  {
-    icon: Wallet,
-    label: "Payment & Settlement",
-    href: "/billing/purchase-invoices?view=payments",
-    module: "invoicing",
-    navKey: "vendorPayments",
-  },
-];
 
 /**
  * Finance nav for client portal — flat under Finance / Keuangan (scoped AR).
@@ -358,13 +333,6 @@ export const FINANCE_MENU_ITEMS: MenuItem[] = [
     navKey: "taxInvoices",
   },
   {
-    icon: History,
-    label: "Upload History",
-    href: "/billing/purchase-invoices?view=uploads",
-    module: "invoicing",
-    navKey: "vendorUploadHistory",
-  },
-  {
     icon: Wallet,
     label: "Payment & Settlement",
     href: "/billing/settlements",
@@ -379,6 +347,13 @@ export const FINANCE_MENU_ITEMS: MenuItem[] = [
     navKey: "thr",
   },
   {
+    icon: Banknote,
+    label: "Payroll",
+    href: "/billing/payroll",
+    module: "invoicing",
+    navKey: "payroll",
+  },
+  {
     icon: PieChart,
     label: "Financial Report",
     href: "/billing/financial-report",
@@ -390,12 +365,22 @@ export const FINANCE_MENU_ITEMS: MenuItem[] = [
 type EmployeeModulePresetOptions = {
   placement?: Placement | null;
   employeeType?: EmployeeType | null;
+  /** Optional position — when provided, OMs and Directors default to approvals: true. */
+  jobPosition?: { slug?: string | null; name?: string | null } | null;
 };
 
 function isHeadOfficeEmployeePreset(options?: EmployeeModulePresetOptions) {
   return (
     isHeadOfficePlacement(options?.placement) ||
     options?.employeeType === "HEAD_OFFICE"
+  );
+}
+
+function isApproverPosition(options?: EmployeeModulePresetOptions): boolean {
+  if (!options?.jobPosition) return false;
+  return (
+    isOperationsManagerPosition(options.jobPosition) ||
+    isDirectorPosition(options.jobPosition)
   );
 }
 
@@ -418,12 +403,14 @@ export const activeFieldStaffWhere = {
  * Module overrides applied when creating an employee login.
  * Field / site staff: Dashboard, Progress, CICO, Leave & Sick only.
  * HO / corporate: Dashboard, Projects, Progress, Attendance Report, Leave & Sick.
+ * OMs and Directors also receive Approvals by default.
  * Existing users keep stored overrides until Permissions is re-saved.
  */
 export function getEmployeeModuleOverrides(
   options?: EmployeeModulePresetOptions
 ): Record<ModuleKey, boolean> {
   const isHo = isHeadOfficeEmployeePreset(options);
+  const isApprover = isApproverPosition(options);
   return {
     dashboard: true,
     // Field staff do not get Projects; HO keeps project access.
@@ -433,11 +420,13 @@ export function getEmployeeModuleOverrides(
     cico: !isHo,
     attendance: isHo,
     shifts: isHo,
+    // All employees get Leave & Sick; OMs/Directors also get Approvals.
     leaves: true,
-    approvals: false,
+    approvals: isApprover,
     reports: false,
     // Inventory is HO operations (stock + project costing), not field portal.
     inventory: isHo,
+    itemCatalog: isHo,
     invoicing: false,
     clients: false,
     vendors: false,
@@ -517,12 +506,13 @@ export function getAccessibleModules(
     employee?: {
       employeeNo: string;
       employeeType?: EmployeeType | null;
+      jobPosition?: { slug?: string | null; name?: string | null } | null;
     } | null;
   }
 ): ModuleKey[] {
   // HO admin accounts always see the full ERP catalog; moduleOverrides are for staff only.
   if (isHoAdminAccount(user)) {
-    return [...MODULES];
+    return MODULES.filter((module) => module !== "website");
   }
 
   const overrides = user.moduleOverrides ?? {};
@@ -530,21 +520,25 @@ export function getAccessibleModules(
   const isVendorPortal = Boolean(user.vendorId || user.vendor);
   const isClientPortal = Boolean(user.clientId || user.client);
 
+  // Vendor portal access is disabled — block all modules for vendor-linked accounts.
+  if (isVendorPortal) {
+    return [];
+  }
+
+  const accountUser = user as AccountTypeUser;
+
   return MODULES.filter((module) => {
-    // Portal accounts never get HO directory / CMS modules, even via overrides.
-    if (
-      (isClientPortal || isVendorPortal) &&
-      ADMIN_SCOPE_MODULES.includes(module)
-    ) {
+    // Website CMS retired from ERP — no account may access it, even via stored overrides.
+    if (module === "website") {
       return false;
     }
-    // Vendor portal never gets the Vendors directory (HO-only edit surface).
-    if (isVendorPortal && module === "vendors") {
+    // Portal accounts never get HO directory modules, even via overrides.
+    if (isClientPortal && ADMIN_SCOPE_MODULES.includes(module)) {
       return false;
     }
-    // Vendor portal never gets Progress Reports (clients may keep Progress).
-    if (isVendorPortal && module === "progress") {
-      return false;
+    // OM / Director always get Approvals; stored false overrides must not block them.
+    if (module === "approvals" && isApproverAccount(accountUser)) {
+      return true;
     }
     if (module in overrides) {
       return overrides[module];
@@ -581,11 +575,17 @@ export type AccountTypeUser = PermissionUser & {
 
     placement?: Placement | null;
 
+    /** Position slug/name — when present, OMs and Directors default to approvals. */
+    jobPosition?: { slug?: string | null; name?: string | null } | null;
+
   } | null;
 
 };
 
-
+/** OM / Director — always entitled to Approvals at runtime (overrides cannot revoke). */
+export function isApproverAccount(user: AccountTypeUser): boolean {
+  return isApproverPosition({ jobPosition: user.employee?.jobPosition ?? null });
+}
 
 /** Modules restricted on employee/client portal presets. */
 
@@ -601,7 +601,7 @@ export const ADMIN_SCOPE_MODULES: ModuleKey[] = [
 
   "inventory",
 
-  "website",
+  "itemCatalog",
 
 ];
 
@@ -681,6 +681,7 @@ export function getAccountTypeBaselineModules(
     return getEmployeeModuleOverrides({
       employeeType: user.employee?.employeeType ?? user.employeeType ?? null,
       placement: user.employee?.placement ?? user.placement ?? null,
+      jobPosition: user.employee?.jobPosition ?? null,
     });
   }
 
@@ -810,6 +811,8 @@ export const ROUTE_MODULE_MAP: Record<string, ModuleKey> = {
 
   "/inventory": "inventory",
 
+  "/item-catalog": "itemCatalog",
+
   "/billing": "invoicing",
 
   "/invoicing": "invoicing",
@@ -823,8 +826,6 @@ export const ROUTE_MODULE_MAP: Record<string, ModuleKey> = {
   "/employees": "employees",
 
   "/departments": "employees",
-
-  "/website": "website",
 
   "/multi-project-unlock": "projects",
 
@@ -956,18 +957,6 @@ export const menu: MenuSection[] = [
 
       },
 
-      {
-
-        icon: Globe,
-
-        label: "Website CMS",
-
-        href: "/website",
-
-        module: "website",
-
-      },
-
     ],
 
   },
@@ -1081,6 +1070,18 @@ export const menu: MenuSection[] = [
 
       {
 
+        icon: Tags,
+
+        label: "Item Catalog",
+
+        href: "/item-catalog",
+
+        module: "itemCatalog",
+
+      },
+
+      {
+
         icon: Package,
 
         label: "Inventory",
@@ -1169,8 +1170,6 @@ export const menu: MenuSection[] = [
  * Sidebar catalog for the signed-in user.
  * - Admin / HO (no clientId/vendorId): full `menu` catalog — every category/page —
  *   so they can see the ERP and delegate module access per user.
- * - Vendor portal: Overview (Dashboard) + flat Finance vendor items
- *   (their invoices, PPN masukan, Upload History, Payment & Settlement).
  * - Client portal: flat Finance with Invoice and Billing only (scoped AR).
  * - Employee: filtered by module overrides + baselines as usual.
  */
@@ -1178,7 +1177,6 @@ export function getMenuForUser(
   user: Parameters<typeof getAccessibleModules>[0]
 ) {
   const accessible = new Set(getAccessibleModules(user));
-  const isVendorPortal = Boolean(user.vendorId || user.vendor);
   const isClientPortal = Boolean(user.clientId || user.client);
 
   return menu
@@ -1186,8 +1184,7 @@ export function getMenuForUser(
       // Portal accounts get scoped Finance trees; HO/admin keeps full AR/AP.
       let sectionItems = section.items;
       if (section.title === "Finance") {
-        if (isVendorPortal) sectionItems = VENDOR_FINANCE_MENU_ITEMS;
-        else if (isClientPortal) sectionItems = CLIENT_FINANCE_MENU_ITEMS;
+        if (isClientPortal) sectionItems = CLIENT_FINANCE_MENU_ITEMS;
       }
 
       return {
@@ -1233,6 +1230,8 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
   reports: "Monthly Reports",
 
   inventory: "Inventory",
+
+  itemCatalog: "Item Catalog",
 
   invoicing: "Invoice and Billing",
 

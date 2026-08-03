@@ -4,9 +4,15 @@ import {
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
 import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { KeyRound, UserPlus } from "lucide-react";
 
-import { createUser, resetUserAccount, updateUser } from "@/app/users/actions";
+import {
+  createUser,
+  resetUserAccount,
+  updateUser,
+  type ResetUserAccountResult,
+} from "@/app/users/actions";
 import AdminPasswordDisplay from "@/components/users/AdminPasswordDisplay";
 import StatusBadge from "@/components/ui/StatusBadge";
 import UserPermanentlyRemovePortalLoginDialog from "@/components/users/UserPermanentlyRemovePortalLoginDialog";
@@ -47,6 +53,8 @@ type EditUser = {
   active: boolean;
   /** Present only when the viewer may see recoverable passwords. */
   passwordDisplay?: string | null;
+  recoverableStoredAtRest?: boolean;
+  decryptFailed?: boolean;
   mustSetPassword?: boolean;
   passwordSetupCompletedAt?: Date | string | null;
   employee: {
@@ -91,6 +99,7 @@ function formatEmployeeLinkLabel(employee: NonNullable<EditUser["employee"]>): s
 
 export default function UserDialog(props: Props) {
   const { t } = useT();
+  const router = useRouter();
   const isEdit = props.mode === "edit";
   const showTrigger = props.showTrigger ?? true;
   const canEditUsername = props.canEditUsername ?? true;
@@ -105,6 +114,9 @@ export default function UserDialog(props: Props) {
   const [pending, startTransition] = useTransition();
   const [resetPending, startResetTransition] = useTransition();
   const [baseline, setBaseline] = useState<HtmlFormDirtyBaseline | null>(null);
+  const [accountOverride, setAccountOverride] =
+    useState<Partial<EditUser> | null>(null);
+  const [formRevision, setFormRevision] = useState(0);
 
   const formId = isEdit ? `edit-user-form-${props.user.id}` : "create-user-form";
   const linkLabel = isEdit
@@ -129,6 +141,8 @@ export default function UserDialog(props: Props) {
 
   function resetFormState() {
     resetDirtyTracking();
+    setAccountOverride(null);
+    setFormRevision(0);
   }
 
   function closeDialog() {
@@ -163,7 +177,7 @@ export default function UserDialog(props: Props) {
     });
 
     return () => cancelAnimationFrame(frame);
-  }, [open, formId]);
+  }, [open, formId, formRevision]);
 
   async function submit(formData: FormData) {
     // Login active/revoked is controlled only via Revoke Access / Restore Access.
@@ -189,6 +203,20 @@ export default function UserDialog(props: Props) {
     });
   }
 
+  function applyResetResult(result: ResetUserAccountResult) {
+    setAccountOverride({
+      passwordDisplay: result.passwordDisplay,
+      recoverableStoredAtRest: false,
+      decryptFailed: false,
+      email: result.email,
+      mustSetPassword: result.mustSetPassword,
+      passwordSetupCompletedAt: result.passwordSetupCompletedAt,
+    });
+    setFormRevision((current) => current + 1);
+    resetDirtyTracking();
+    setBaseline(null);
+  }
+
   function handleResetAccount() {
     if (!isEdit) return;
 
@@ -201,10 +229,10 @@ export default function UserDialog(props: Props) {
 
     startResetTransition(async () => {
       try {
-        await resetUserAccount(props.user.id);
+        const result = await resetUserAccount(props.user.id);
+        applyResetResult(result);
         setExitConfirmOpen(false);
-        setOpen(false);
-        setBaseline(null);
+        router.refresh();
       } catch (error) {
         showRejectionFromError(error, t("pages.users.errors.resetFailed"));
       }
@@ -246,7 +274,9 @@ export default function UserDialog(props: Props) {
       : undefined;
 
   const editUser =
-    isEdit && props.mode === "edit" ? props.user : null;
+    isEdit && props.mode === "edit"
+      ? { ...props.user, ...accountOverride }
+      : null;
   const passwordSetupContext =
     editUser && editUser.passwordDisplay !== undefined
       ? {
@@ -260,6 +290,8 @@ export default function UserDialog(props: Props) {
     editUser && passwordSetupContext
       ? getAdminPasswordDisplayState({
           passwordDisplay: editUser.passwordDisplay,
+          recoverableStoredAtRest: editUser.recoverableStoredAtRest,
+          decryptFailed: editUser.decryptFailed,
           ...passwordSetupContext,
           passwordSetupCompletedAt: passwordSetupContext.passwordSetupCompletedAt
             ? new Date(passwordSetupContext.passwordSetupCompletedAt)
@@ -351,7 +383,7 @@ export default function UserDialog(props: Props) {
         >
           <form
             id={formId}
-            key={`${formId}-${open ? "open" : "closed"}`}
+            key={`${formId}-${open ? "open" : "closed"}-${formRevision}`}
             action={submit}
             onInput={handleFormInput}
           >
@@ -368,7 +400,7 @@ export default function UserDialog(props: Props) {
                     id="user-name"
                     name="name"
                     placeholder={t("pages.users.form.displayNamePlaceholder")}
-                    defaultValue={isEdit ? props.user.name : ""}
+                    defaultValue={isEdit ? (editUser?.name ?? "") : ""}
                     required
                     className={employeeInputClass}
                   />
@@ -390,7 +422,7 @@ export default function UserDialog(props: Props) {
                     id="user-username"
                     name="username"
                     placeholder={t("pages.users.form.usernamePlaceholder")}
-                    defaultValue={isEdit ? props.user.username : ""}
+                    defaultValue={isEdit ? (editUser?.username ?? "") : ""}
                     required
                     minLength={3}
                     maxLength={32}
@@ -415,7 +447,7 @@ export default function UserDialog(props: Props) {
                     name="email"
                     type="email"
                     placeholder={t("pages.users.form.recoveryEmailPlaceholder")}
-                    defaultValue={isEdit ? (props.user.email ?? "") : ""}
+                    defaultValue={isEdit ? (editUser?.email ?? "") : ""}
                     required
                     className={employeeInputClass}
                   />
@@ -444,7 +476,7 @@ export default function UserDialog(props: Props) {
                   </div>
                 ) : null}
 
-                {isEdit && props.user.passwordDisplay !== undefined ? (
+                {isEdit && editUser && editUser.passwordDisplay !== undefined ? (
                   <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-medium text-text">
@@ -466,7 +498,10 @@ export default function UserDialog(props: Props) {
                     </p>
                     <div className="rounded-lg border border-border bg-elevated px-3 py-2.5">
                       <AdminPasswordDisplay
-                        password={props.user.passwordDisplay}
+                        key={editUser.passwordDisplay ?? "none"}
+                        password={editUser.passwordDisplay}
+                        recoverableStoredAtRest={editUser.recoverableStoredAtRest}
+                        decryptFailed={editUser.decryptFailed}
                         setup={passwordSetupContext}
                       />
                     </div>

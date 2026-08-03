@@ -37,6 +37,7 @@ import DirectorySearchInput, {
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
+import type { EmployeeCreateActorTier } from "@/lib/employee-create-hierarchy";
 import { useT } from "@/lib/i18n/use-t";
 import { isRosterActiveEmployeeStatus } from "@/lib/user-directory-status";
 import type { EmploymentType, Placement } from "@prisma/client";
@@ -53,6 +54,7 @@ type Employee = {
   portalAccessRequested: boolean;
   positionId: string | null;
   position: string | null;
+  jobPosition?: { id: string; name: string; slug: string } | null;
   categoryId: string | null;
   category: { id: string; name: string; prefix: string; slug?: string } | null;
   idDocumentUrl: string | null;
@@ -67,7 +69,6 @@ type Employee = {
   jkkEnabled: boolean;
   jkmEnabled: boolean;
   jkkPercent: number | null;
-  jobPosition: { id: string; name: string } | null;
   projectAssignments: {
     project: { id: string; name: string; location: string | null };
   }[];
@@ -88,6 +89,7 @@ type Props = {
   projects: ProjectOption[];
   canManage?: boolean;
   canArchive?: boolean;
+  createActorTier?: EmployeeCreateActorTier;
 };
 
 export default function EmployeeDirectory({
@@ -99,6 +101,7 @@ export default function EmployeeDirectory({
   projects,
   canManage = false,
   canArchive = false,
+  createActorTier = "OTHER",
 }: Props) {
   const { t } = useT();
   const [tab, setTab] = useState<EmployeeDirectoryView>("allEmployees");
@@ -553,6 +556,7 @@ export default function EmployeeDirectory({
           projects={projects}
           canManage={canManage}
           canArchive={canArchive}
+          createActorTier={createActorTier}
           directoryView={tab}
           showSelection={listShowSelection}
           selectedIds={selectedIds}

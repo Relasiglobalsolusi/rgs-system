@@ -5,10 +5,10 @@ import {
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { SlidersHorizontal } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { createInventoryAdjustment } from "@/app/inventory/actions";
+import { writeOffInventoryStock } from "@/app/inventory/actions";
 import type { InventoryCatalogItem } from "@/components/inventory/inventory-types";
 import {
   captureHtmlFormBaseline,
@@ -18,6 +18,7 @@ import {
   EmployeeUnsavedExitDialog,
   employeeDialogFieldClass,
   employeeDialogFormClass,
+  employeeDialogGridClass,
   employeeDialogHintClass,
   employeeDialogLabelClass,
   employeeInputClass,
@@ -37,7 +38,7 @@ import {
 import { formatDateForInput } from "@/lib/format-tenure";
 import { useT } from "@/lib/i18n/use-t";
 
-const FORM_ID = "create-inventory-adjust-form";
+const FORM_ID = "create-inventory-write-off-form";
 
 type Props = {
   open: boolean;
@@ -45,7 +46,7 @@ type Props = {
   items: InventoryCatalogItem[];
 };
 
-export default function InventoryAdjustDialog({
+export default function InventoryWriteOffDialog({
   open,
   onOpenChange,
   items,
@@ -56,7 +57,8 @@ export default function InventoryAdjustDialog({
   const [pending, startTransition] = useTransition();
   const [baseline, setBaseline] = useState<HtmlFormDirtyBaseline | null>(null);
 
-  const activeItems = items.filter((item) => item.active);
+  const stockedItems = items.filter((item) => item.active && item.currentStock > 0);
+  const selected = stockedItems.find((item) => item.id === itemId);
 
   const { isDirty, handleFormInput, resetDirtyTracking } = useHtmlFormDirty(
     FORM_ID,
@@ -105,15 +107,39 @@ export default function InventoryAdjustDialog({
       showRejection({ reasons: t("pages.inventory.itemRequired") });
       return;
     }
+    if (stockedItems.length === 0) {
+      showRejection({ reasons: t("pages.inventory.noStockToIssue") });
+      return;
+    }
+    const qty = Number(
+      String(formData.get("quantity") ?? "").replace(/,/g, "").trim()
+    );
+    if (
+      selected &&
+      (!Number.isFinite(qty) || qty <= 0 || qty > selected.currentStock + 1e-9)
+    ) {
+      showRejection({
+        reasons: t("pages.inventory.quantityExceedsStock", {
+          available: String(selected.currentStock),
+          unit: selected.unit,
+        }),
+      });
+      return;
+    }
+    const reason = String(formData.get("reason") ?? "").trim();
+    if (!reason) {
+      showRejection({ reasons: t("pages.inventory.writeOffReasonRequired") });
+      return;
+    }
     formData.set("itemId", itemId);
 
     startTransition(async () => {
       try {
-        await createInventoryAdjustment(formData);
-        toast.success(t("pages.inventory.adjustCreated"));
+        await writeOffInventoryStock(formData);
+        toast.success(t("pages.inventory.writeOffCreated"));
         closeDialog();
       } catch (error) {
-        showRejectionFromError(error, t("pages.inventory.adjustFailed"));
+        showRejectionFromError(error, t("pages.inventory.createWriteOffFailed"));
       }
     });
   }
@@ -122,10 +148,10 @@ export default function InventoryAdjustDialog({
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <EmployeeDialogShell
-          icon={SlidersHorizontal}
-          title={t("pages.inventory.adjustStock")}
-          description={t("pages.inventory.adjustStockDesc")}
-          maxWidth="md"
+          icon={Trash2}
+          title={t("pages.inventory.addWriteOff")}
+          description={t("pages.inventory.addWriteOffDesc")}
+          maxWidth="lg"
           footer={
             <>
               <EmployeeSecondaryButton
@@ -137,11 +163,11 @@ export default function InventoryAdjustDialog({
               <EmployeePrimaryButton
                 type="submit"
                 form={FORM_ID}
-                disabled={pending || activeItems.length === 0}
+                disabled={pending || stockedItems.length === 0}
               >
                 {pending
                   ? t("common.actions.saving")
-                  : t("pages.inventory.saveAdjustment")}
+                  : t("pages.inventory.saveWriteOff")}
               </EmployeePrimaryButton>
             </>
           }
@@ -166,59 +192,73 @@ export default function InventoryAdjustDialog({
                   />
                 </SelectTrigger>
                 <SelectContent>
-                  {activeItems.map((item) => (
+                  {stockedItems.map((item) => (
                     <SelectItem key={item.id} value={item.id}>
-                      {item.name} ({item.currentStock} {item.unit})
+                      {item.name} — {item.currentStock} {item.unit}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {selected ? (
+                <p className={employeeDialogHintClass}>
+                  {t("pages.inventory.form.writeOffItemHint", {
+                    available: String(selected.currentStock),
+                    unit: selected.unit,
+                  })}
+                </p>
+              ) : (
+                <p className={employeeDialogHintClass}>
+                  {t("pages.inventory.form.issueItemHint")}
+                </p>
+              )}
+            </div>
+
+            <div className={employeeDialogGridClass}>
+              <div className={employeeDialogFieldClass}>
+                <label className={employeeDialogLabelClass} htmlFor="writeoff-qty">
+                  {t("pages.inventory.form.quantity")}
+                </label>
+                <input
+                  id="writeoff-qty"
+                  name="quantity"
+                  type="number"
+                  min={0.001}
+                  step="any"
+                  required
+                  max={selected?.currentStock}
+                  className={employeeInputClass}
+                />
+              </div>
+              <div className={employeeDialogFieldClass}>
+                <label className={employeeDialogLabelClass} htmlFor="writeoff-date">
+                  {t("pages.inventory.form.writeOffDate")}
+                </label>
+                <input
+                  id="writeoff-date"
+                  name="movedAt"
+                  type="date"
+                  required
+                  defaultValue={formatDateForInput(new Date())}
+                  className={employeeInputClass}
+                />
+              </div>
             </div>
 
             <div className={employeeDialogFieldClass}>
-              <label className={employeeDialogLabelClass} htmlFor="adj-delta">
-                {t("pages.inventory.form.quantityDelta")}
-              </label>
-              <input
-                id="adj-delta"
-                name="quantityDelta"
-                type="number"
-                step="any"
-                required
-                className={employeeInputClass}
-                placeholder={t("pages.inventory.form.quantityDeltaPlaceholder")}
-              />
-              <p className={employeeDialogHintClass}>
-                {t("pages.inventory.form.quantityDeltaHint")}
-              </p>
-            </div>
-
-            <div className={employeeDialogFieldClass}>
-              <label className={employeeDialogLabelClass} htmlFor="adj-date">
-                {t("pages.inventory.form.adjustmentDate")}
-              </label>
-              <input
-                id="adj-date"
-                name="movedAt"
-                type="date"
-                required
-                defaultValue={formatDateForInput(new Date())}
-                className={employeeInputClass}
-              />
-            </div>
-
-            <div className={employeeDialogFieldClass}>
-              <label className={employeeDialogLabelClass} htmlFor="adj-notes">
-                {t("pages.inventory.form.auditNote")}
+              <label className={employeeDialogLabelClass} htmlFor="writeoff-reason">
+                {t("pages.inventory.form.writeOffReason")}
               </label>
               <textarea
-                id="adj-notes"
-                name="notes"
+                id="writeoff-reason"
+                name="reason"
                 rows={3}
                 required
-                className={`${employeeInputClass} h-auto min-h-[5rem] py-3`}
-                placeholder={t("pages.inventory.form.auditNotePlaceholder")}
+                placeholder={t("pages.inventory.form.writeOffReasonPlaceholder")}
+                className={`${employeeInputClass} h-auto min-h-[4.5rem] py-3`}
               />
+              <p className={employeeDialogHintClass}>
+                {t("pages.inventory.form.writeOffReasonHint")}
+              </p>
             </div>
           </form>
         </EmployeeDialogShell>

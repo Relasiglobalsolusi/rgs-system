@@ -24,8 +24,6 @@ import type { AppLocale } from "@/lib/i18n/locale";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
 import { canManageVendors } from "@/lib/project-access";
-import { parseCreatePortalLoginFlag } from "@/lib/create-portal-login-flag";
-import { provisionVendorUser } from "@/lib/provision-linked-user";
 import { requireModule, toPermissionUser } from "@/lib/session";
 import { normalizeAndValidatePhone } from "@/lib/phone";
 import { capitalizeName, capitalizeProper } from "@/lib/text-case";
@@ -152,9 +150,6 @@ export async function createVendor(formData: FormData) {
         fieldLabel: translate(locale, "pages.vendors.form.vendorSince"),
       }) ?? new Date();
     const paymentTermsDays = parsePaymentTermsDays(formData);
-    const createPortalLogin = parseCreatePortalLoginFlag(
-      formData.get("createPortalLogin")
-    );
 
     if (!name) {
       throw new Error(translate(locale, "pages.vendors.vendorNameRequired"));
@@ -201,21 +196,9 @@ export async function createVendor(formData: FormData) {
         },
       });
 
-      if (createPortalLogin) {
-        await provisionVendorUser(tx, {
-          companyId: company.id,
-          vendorId: vendor.id,
-          vendorName: name,
-          contactPersonFirstName,
-          contactPersonLastName: contactPersonLastName || null,
-        });
-      }
     });
 
     revalidatePath("/vendors");
-    if (createPortalLogin) {
-      revalidatePath("/users");
-    }
   } catch (error) {
     throw toActionError(
       error,
@@ -369,30 +352,7 @@ export async function updateVendor(id: string, formData: FormData) {
         return;
       }
 
-      if (contactRenamed && existing.active) {
-        // Username is contact-derived — rotate credentials on rename.
-        const hadActiveLogin = existing.users.some((user) => user.active);
-        await hardDeleteLinkedUserLogins(
-          tx,
-          existing.users.map((user) => user.id)
-        );
-        const created = await provisionVendorUser(tx, {
-          vendorId: id,
-          companyId: existing.companyId,
-          vendorName: name,
-          contactPersonFirstName,
-          contactPersonLastName,
-        });
-        if (created && !hadActiveLogin) {
-          await tx.user.update({
-            where: { id: created.id },
-            data: { active: false },
-          });
-        }
-        return;
-      }
-
-      // Display name only (or rename on soft-deleted vendor without re-provision).
+      // Sync display name on linked user records (portal access is disabled).
       await tx.user.updateMany({
         where: { vendorId: id },
         data: { name: contactDisplay },
@@ -586,103 +546,6 @@ export async function bulkReactivateVendors(
   return result;
 }
 
-/**
- * Provision portal logins for vendors with no linked User (No Portal Login).
- * Uses the same credential template as single create / bulk import.
- * Vendors that already have a linked login (active or revoked) are skipped —
- * Restore Access is the only path for revoked credentials.
- */
-export async function generateVendorPortalLogins(
-  ids: string[]
-): Promise<BulkActionResult> {
-  const locale = await getServerLocale();
-  await assertCanManageVendors(locale);
-
-  const result = createBulkActionResult();
-  const uniqueIds = [...new Set(ids.filter(Boolean))];
-
-  if (uniqueIds.length === 0) {
-    return result;
-  }
-
-  const company = await prisma.company.findFirst({ select: { id: true } });
-  if (!company) {
-    throw new Error(translate(locale, "pages.vendors.companyNotFound"));
-  }
-
-  for (const id of uniqueIds) {
-    try {
-      const provisioned = await prisma.$transaction(async (tx) => {
-        const vendor = await tx.vendor.findUnique({
-          where: { id },
-          select: {
-            id: true,
-            name: true,
-            active: true,
-            contactPersonFirstName: true,
-            contactPersonLastName: true,
-            _count: { select: { users: true } },
-          },
-        });
-
-        if (!vendor) {
-          throw new Error(translate(locale, "pages.vendors.notFound"));
-        }
-
-        if (!vendor.active) {
-          throw new Error(
-            translate(locale, "pages.vendors.portalLoginDeletedVendor", {
-              name: vendor.name,
-            })
-          );
-        }
-
-        // Already linked (active or revoked) — do not reactivate via Generate.
-        if (vendor._count.users > 0) {
-          return false;
-        }
-
-        const contactPersonFirstName =
-          vendor.contactPersonFirstName?.trim() ?? "";
-        if (!contactPersonFirstName) {
-          throw new Error(
-            translate(locale, "pages.vendors.portalLoginContactRequired", {
-              name: vendor.name,
-            })
-          );
-        }
-
-        const user = await provisionVendorUser(tx, {
-          companyId: company.id,
-          vendorId: vendor.id,
-          vendorName: vendor.name,
-          contactPersonFirstName,
-          contactPersonLastName: vendor.contactPersonLastName,
-        });
-
-        return Boolean(user);
-      });
-
-      if (provisioned) {
-        recordBulkSuccess(result);
-      }
-    } catch (error) {
-      recordBulkFailure(
-        result,
-        error instanceof Error
-          ? error.message
-          : translate(locale, "pages.vendors.generatePortalFailed")
-      );
-    }
-  }
-
-  if (result.successCount > 0) {
-    revalidatePath("/vendors");
-    revalidatePath("/users");
-  }
-
-  return result;
-}
 
 /** Permanent delete — only for deleted (soft-deleted) vendors. Hard-deletes portal users. */
 export async function deleteVendor(id: string) {

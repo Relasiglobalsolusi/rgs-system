@@ -6,7 +6,6 @@ import {
   Building2,
   KeyRound,
   Shield,
-  Truck,
   UserRound,
   Users,
 } from "lucide-react";
@@ -16,9 +15,8 @@ import UserDialog from "@/components/users/UserDialog";
 import WithoutPortalLoginView, {
   type ClientWithoutPortalLogin,
   type EmployeeWithoutPortalLogin,
-  type VendorWithoutPortalLogin,
 } from "@/components/users/WithoutPortalLoginView";
-import { getAccountType, type AccountType } from "@/lib/permissions";
+import { getAccountType } from "@/lib/permissions";
 import {
   isPermanentlyRemovedLinkedUser,
   isRevokedAccessUser,
@@ -55,6 +53,8 @@ type UserRow = {
   role: UserRole;
   active: boolean;
   passwordDisplay?: string | null;
+  recoverableStoredAtRest?: boolean;
+  decryptFailed?: boolean;
   mustSetPassword?: boolean;
   passwordSetupCompletedAt?: Date | string | null;
   moduleOverrides: Record<string, boolean> | null;
@@ -72,7 +72,7 @@ type UserRow = {
     category?: { name: string; prefix: string } | null;
   } | null;
   client: { id: string; name: string; active?: boolean } | null;
-  vendor: { id: string; name: string; active?: boolean } | null;
+  vendor?: { id: string; name: string; active?: boolean } | null;
 };
 
 type DirectoryView = "active" | "revoked" | "trash";
@@ -81,9 +81,8 @@ type StatView =
   | "revoked"
   | "noPortalLogin"
   | "deletedClient"
-  | "deletedVendor"
   | "deletedEmployee";
-type TypeFilterTab = "all" | Lowercase<AccountType>;
+type TypeFilterTab = "all" | "admin" | "client" | "employee";
 type BulkDialogMode =
   | "deactivate"
   | "revoke"
@@ -94,12 +93,10 @@ type BulkDialogMode =
 type Props = {
   users: UserRow[];
   clientsWithoutPortalLogin?: ClientWithoutPortalLogin[];
-  vendorsWithoutPortalLogin?: VendorWithoutPortalLogin[];
   employeesWithoutPortalLogin?: EmployeeWithoutPortalLogin[];
   canEditPermissions?: boolean;
   canViewPassword?: boolean;
   canManageClients?: boolean;
-  canManageVendors?: boolean;
   canManageEmployees?: boolean;
   currentUserId?: string;
 };
@@ -107,12 +104,10 @@ type Props = {
 export default function UserDirectory({
   users,
   clientsWithoutPortalLogin = [],
-  vendorsWithoutPortalLogin = [],
   employeesWithoutPortalLogin = [],
   canEditPermissions = false,
   canViewPassword = false,
   canManageClients = false,
-  canManageVendors = false,
   canManageEmployees = false,
   currentUserId,
 }: Props) {
@@ -125,7 +120,6 @@ export default function UserDirectory({
     { id: "all", label: t("common.actions.all") },
     { id: "admin", label: t("common.roles.admin"), icon: Shield },
     { id: "client", label: t("common.roles.client"), icon: Users },
-    { id: "vendor", label: t("common.roles.vendor"), icon: Truck },
     { id: "employee", label: t("common.roles.employee"), icon: UserRound },
   ];
   const [statView, setStatView] = useState<StatView>("active");
@@ -141,7 +135,6 @@ export default function UserDirectory({
     enabledUsers,
     revokedUsers,
     deletedClientUsers,
-    deletedVendorUsers,
     deletedEmployeeUsers,
     deletedAdminUsers,
   } = useMemo(() => {
@@ -153,7 +146,6 @@ export default function UserDirectory({
     const enabled: UserRow[] = [];
     const revoked: UserRow[] = [];
     const deletedClient: UserRow[] = [];
-    const deletedVendor: UserRow[] = [];
     const deletedEmployee: UserRow[] = [];
     // No Deleted Admin stat card — surface soft-deleted admins under Admin when
     // any Deleted* trash view is open so Restore remains reachable.
@@ -171,8 +163,6 @@ export default function UserDirectory({
         const accountType = getAccountType(user);
         if (accountType === "Client") {
           deletedClient.push(user);
-        } else if (accountType === "Vendor") {
-          deletedVendor.push(user);
         } else if (accountType === "Employee") {
           deletedEmployee.push(user);
         } else {
@@ -195,16 +185,13 @@ export default function UserDirectory({
       enabledUsers: enabled,
       revokedUsers: revoked,
       deletedClientUsers: deletedClient,
-      deletedVendorUsers: deletedVendor,
       deletedEmployeeUsers: deletedEmployee,
       deletedAdminUsers: deletedAdmin,
     };
   }, [users]);
 
   const noPortalLoginCount =
-    clientsWithoutPortalLogin.length +
-    vendorsWithoutPortalLogin.length +
-    employeesWithoutPortalLogin.length;
+    clientsWithoutPortalLogin.length + employeesWithoutPortalLogin.length;
 
   const directoryStats = useMemo(
     () => ({
@@ -212,7 +199,6 @@ export default function UserDirectory({
       revoked: revokedUsers.length,
       noPortalLogin: noPortalLoginCount,
       deletedClient: deletedClientUsers.length,
-      deletedVendor: deletedVendorUsers.length,
       deletedEmployee: deletedEmployeeUsers.length,
     }),
     [
@@ -220,7 +206,6 @@ export default function UserDirectory({
       revokedUsers.length,
       noPortalLoginCount,
       deletedClientUsers.length,
-      deletedVendorUsers.length,
       deletedEmployeeUsers.length,
     ]
   );
@@ -241,9 +226,6 @@ export default function UserDirectory({
     if (statView === "deletedClient") {
       return [...deletedClientUsers, ...deletedAdminUsers];
     }
-    if (statView === "deletedVendor") {
-      return [...deletedVendorUsers, ...deletedAdminUsers];
-    }
     if (statView === "deletedEmployee") {
       return [...deletedEmployeeUsers, ...deletedAdminUsers];
     }
@@ -253,7 +235,6 @@ export default function UserDirectory({
     enabledUsers,
     revokedUsers,
     deletedClientUsers,
-    deletedVendorUsers,
     deletedEmployeeUsers,
     deletedAdminUsers,
   ]);
@@ -264,17 +245,11 @@ export default function UserDirectory({
       admin: 0,
       employee: 0,
       client: 0,
-      vendor: 0,
     };
 
     for (const user of tabUsers) {
       const type = getAccountType(user).toLowerCase();
-      if (
-        type === "admin" ||
-        type === "employee" ||
-        type === "client" ||
-        type === "vendor"
-      ) {
+      if (type === "admin" || type === "employee" || type === "client") {
         counts[type] += 1;
       }
     }
@@ -295,8 +270,7 @@ export default function UserDirectory({
             ? `${user.employee.firstName} ${user.employee.lastName}`
             : null,
           user.employee?.employeeNo,
-          user.client?.name,
-          user.vendor?.name
+          user.client?.name
         )
       ),
     [tabUsers, searchQuery]
@@ -306,7 +280,6 @@ export default function UserDirectory({
   const usersByType = useMemo(() => {
     const admins: UserRow[] = [];
     const clients: UserRow[] = [];
-    const vendors: UserRow[] = [];
     const employees: UserRow[] = [];
 
     for (const user of searchedUsers) {
@@ -315,17 +288,15 @@ export default function UserDirectory({
         admins.push(user);
       } else if (type === "Client") {
         clients.push(user);
-      } else if (type === "Vendor") {
-        vendors.push(user);
       } else {
         employees.push(user);
       }
     }
 
-    return { admins, clients, vendors, employees };
+    return { admins, clients, employees };
   }, [searchedUsers]);
 
-  // Fixed order: Admin → Clients → Vendors → Employees (same on active / revoked / trash).
+  // Fixed order: Admin → Clients → Employees (same on active / revoked / trash).
   const typeSections = useMemo(() => {
     const sections: {
       id: Exclude<TypeFilterTab, "all">;
@@ -343,30 +314,18 @@ export default function UserDirectory({
         users: usersByType.clients,
       },
       {
-        id: "vendor",
-        label: t("pages.users.sections.vendors"),
-        users: usersByType.vendors,
-      },
-      {
         id: "employee",
         label: t("pages.users.sections.employees"),
         users: usersByType.employees,
       },
     ];
 
-    const hasActiveSearch = searchQuery.trim() !== "";
-
     return sections.filter((section) => {
       if (typeFilter !== "all" && section.id !== typeFilter) return false;
       if (section.users.length > 0) return true;
-      // Keep Vendors visible (even empty) so it is never folded into Clients.
-      if (section.id === "vendor" && typeFilter === "all" && !hasActiveSearch) {
-        return true;
-      }
-      // Type chip selected with zero rows — still show that section empty.
       return typeFilter === section.id;
     });
-  }, [usersByType, typeFilter, searchQuery, t]);
+  }, [usersByType, typeFilter, t]);
 
   const visibleUsers = useMemo(
     () => typeSections.flatMap((section) => section.users),
@@ -489,11 +448,9 @@ export default function UserDirectory({
           ? t("pages.users.emptyRevoked")
           : statView === "deletedClient"
             ? t("pages.users.emptyDeletedClient")
-            : statView === "deletedVendor"
-              ? t("pages.users.emptyDeletedVendor")
-              : statView === "deletedEmployee"
-                ? t("pages.users.emptyDeletedEmployee")
-                : t("pages.users.emptyDeletedList");
+            : statView === "deletedEmployee"
+              ? t("pages.users.emptyDeletedEmployee")
+              : t("pages.users.emptyDeletedList");
 
   const emptyDescription = hasActiveSearch
     ? t("pages.users.emptySearchDesc")
@@ -505,11 +462,9 @@ export default function UserDirectory({
           ? t("pages.users.emptyRevokedDesc")
           : statView === "deletedClient"
             ? t("pages.users.emptyDeletedClientDesc")
-            : statView === "deletedVendor"
-              ? t("pages.users.emptyDeletedVendorDesc")
-              : statView === "deletedEmployee"
-                ? t("pages.users.emptyDeletedEmployeeDesc")
-                : t("pages.users.emptyTrash");
+            : statView === "deletedEmployee"
+              ? t("pages.users.emptyDeletedEmployeeDesc")
+              : t("pages.users.emptyTrash");
 
   return (
     <>
@@ -556,16 +511,6 @@ export default function UserDirectory({
         />
         <DirectoryStatCard
           compact
-          title={t("pages.users.deletedVendor")}
-          value={directoryStats.deletedVendor}
-          subtitle={t("pages.users.deletedVendorSubtitle")}
-          icon={<Truck size={15} />}
-          accent="danger"
-          selected={statView === "deletedVendor"}
-          onClick={() => selectStat("deletedVendor")}
-        />
-        <DirectoryStatCard
-          compact
           title={t("pages.users.deletedEmployee")}
           value={directoryStats.deletedEmployee}
           subtitle={t("pages.users.deletedEmployeeSubtitle")}
@@ -579,10 +524,8 @@ export default function UserDirectory({
       {isNoPortalLoginView ? (
         <WithoutPortalLoginView
           clients={clientsWithoutPortalLogin}
-          vendors={vendorsWithoutPortalLogin}
           employees={employeesWithoutPortalLogin}
           canManageClients={canManageClients}
-          canManageVendors={canManageVendors}
           canManageEmployees={canManageEmployees}
         />
       ) : (
@@ -590,10 +533,7 @@ export default function UserDirectory({
           <div className="mb-3 flex flex-wrap items-center gap-2">
             {typeTabs
               .filter(
-                (tab) =>
-                  tab.id === "all" ||
-                  tab.id === "vendor" ||
-                  typeCounts[tab.id] > 0
+                (tab) => tab.id === "all" || typeCounts[tab.id] > 0
               )
               .map((tab) => {
                 const Icon = tab.icon;
@@ -722,16 +662,8 @@ export default function UserDirectory({
                     {section.users.length === 0 ? (
                       <SectionCard>
                         <EmptyState
-                          title={
-                            section.id === "vendor"
-                              ? t("pages.users.emptyVendors")
-                              : emptyTitle
-                          }
-                          description={
-                            section.id === "vendor"
-                              ? t("pages.users.emptyVendorsDesc")
-                              : emptyDescription
-                          }
+                          title={emptyTitle}
+                          description={emptyDescription}
                         />
                       </SectionCard>
                     ) : (

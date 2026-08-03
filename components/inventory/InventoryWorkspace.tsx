@@ -1,32 +1,18 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
   Boxes,
-  FileSpreadsheet,
-  Package,
-  ShoppingCart,
   FolderKanban,
-  SlidersHorizontal,
+  ShoppingCart,
+  Trash2,
 } from "lucide-react";
-import { toast } from "sonner";
 
-import {
-  deactivateInventoryItem,
-  reactivateInventoryItem,
-} from "@/app/inventory/actions";
-import {
-  confirmBulkImportInventoryItems,
-  previewBulkImportInventoryItems,
-} from "@/app/inventory/import-actions";
-import BulkImportDialog from "@/components/bulk-import/BulkImportDialog";
-import InventoryAdjustDialog from "@/components/inventory/InventoryAdjustDialog";
 import InventoryIssueDialog from "@/components/inventory/InventoryIssueDialog";
-import InventoryItemDialog from "@/components/inventory/InventoryItemDialog";
-import InventoryItemEditDialog from "@/components/inventory/InventoryItemEditDialog";
 import InventoryPurchaseDialog from "@/components/inventory/InventoryPurchaseDialog";
+import InventoryWriteOffDialog from "@/components/inventory/InventoryWriteOffDialog";
 import type {
   InventoryCatalogItem,
   InventoryIssueRow,
@@ -34,6 +20,7 @@ import type {
   InventoryPurchaseRow,
   InventoryTab,
   InventoryVendorOption,
+  InventoryWriteOffRow,
 } from "@/components/inventory/inventory-types";
 import DirectoryAddButton from "@/components/ui/DirectoryAddButton";
 import DirectorySearchInput, {
@@ -43,23 +30,19 @@ import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
-import StatusBadge from "@/components/ui/StatusBadge";
-import { Button } from "@/components/ui/button";
 import { stockValueOnHand } from "@/lib/inventory";
 import { formatDisplayDate } from "@/lib/format-date";
 import { formatContractPrice } from "@/lib/project-billing";
 import { useT } from "@/lib/i18n/use-t";
-import {
-  showRejectionFromError,
-} from "@/components/ui/rejection-notice";
 
 type Props = {
   canManage: boolean;
-  /** OM+ / Director / HO admin — issue stock to projects. */
+  /** OM+ / Director / HO admin — issue stock to projects and write off stock. */
   canAssignToProject: boolean;
   items: InventoryCatalogItem[];
   purchases: InventoryPurchaseRow[];
   issues: InventoryIssueRow[];
+  writeOffs: InventoryWriteOffRow[];
   vendors: InventoryVendorOption[];
   projects: InventoryProjectOption[];
 };
@@ -70,33 +53,26 @@ export default function InventoryWorkspace({
   items,
   purchases,
   issues,
+  writeOffs,
   vendors,
   projects,
 }: Props) {
   const { t } = useT();
-  const [tab, setTab] = useState<InventoryTab>("items");
+  const [tab, setTab] = useState<InventoryTab>("stock");
   const [searchQuery, setSearchQuery] = useState("");
-  const [createItemOpen, setCreateItemOpen] = useState(false);
-  const [bulkImportOpen, setBulkImportOpen] = useState(false);
-  const [editItem, setEditItem] = useState<InventoryCatalogItem | null>(null);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [issueOpen, setIssueOpen] = useState(false);
-  const [adjustOpen, setAdjustOpen] = useState(false);
-  const [pending, startTransition] = useTransition();
+  const [writeOffOpen, setWriteOffOpen] = useState(false);
 
   const activeItems = useMemo(
     () => items.filter((item) => item.active),
     [items]
   );
-  const inactiveItems = useMemo(
-    () => items.filter((item) => !item.active),
-    [items]
-  );
+  /** Fixed low-stock threshold: warn whenever on-hand stock drops below 5 units. */
+  const LOW_STOCK_THRESHOLD = 5;
   const lowStockCount = useMemo(
     () =>
-      activeItems.filter(
-        (item) => item.minStock > 0 && item.currentStock <= item.minStock
-      ).length,
+      activeItems.filter((item) => item.currentStock < LOW_STOCK_THRESHOLD).length,
     [activeItems]
   );
   const totalStockValue = useMemo(
@@ -110,19 +86,6 @@ export default function InventoryWorkspace({
   );
 
   const trimmedSearch = searchQuery.trim();
-
-  const visibleItems = useMemo(() => {
-    const source = tab === "items" ? items : activeItems;
-    return source.filter((item) =>
-      matchesDirectorySearch(
-        searchQuery,
-        item.name,
-        item.sku,
-        item.itemType,
-        item.description
-      )
-    );
-  }, [tab, items, activeItems, searchQuery]);
 
   const visiblePurchases = useMemo(
     () =>
@@ -153,6 +116,20 @@ export default function InventoryWorkspace({
     [issues, searchQuery]
   );
 
+  const visibleWriteOffs = useMemo(
+    () =>
+      writeOffs.filter((row) =>
+        matchesDirectorySearch(
+          searchQuery,
+          row.item.name,
+          row.item.sku,
+          row.reason,
+          row.createdBy?.username
+        )
+      ),
+    [writeOffs, searchQuery]
+  );
+
   const visibleStock = useMemo(
     () =>
       activeItems.filter((item) =>
@@ -165,107 +142,6 @@ export default function InventoryWorkspace({
       ),
     [activeItems, searchQuery]
   );
-
-  function toggleItemActive(item: InventoryCatalogItem) {
-    const formData = new FormData();
-    formData.set("id", item.id);
-    startTransition(async () => {
-      try {
-        if (item.active) {
-          await deactivateInventoryItem(formData);
-          toast.success(t("pages.inventory.itemDeactivated"));
-        } else {
-          await reactivateInventoryItem(formData);
-          toast.success(t("pages.inventory.itemReactivated"));
-        }
-      } catch (error) {
-        showRejectionFromError(
-          error,
-          item.active
-            ? t("pages.inventory.deactivateItemFailed")
-            : t("pages.inventory.reactivateItemFailed")
-        );
-      }
-    });
-  }
-
-  const itemColumns: DataTableColumn<InventoryCatalogItem>[] = [
-    {
-      key: "sku",
-      title: t("pages.inventory.columns.sku"),
-      width: "7rem",
-      render: (row) => (
-        <span className="font-mono text-sm text-muted">{row.sku}</span>
-      ),
-    },
-    {
-      key: "name",
-      title: t("pages.inventory.columns.item"),
-      share: 2,
-      render: (row) => (
-        <div>
-          <p className="font-medium text-text">{row.name}</p>
-          {row.description ? (
-            <p className="mt-0.5 line-clamp-1 text-xs text-subtle">
-              {row.description}
-            </p>
-          ) : null}
-        </div>
-      ),
-    },
-    {
-      key: "itemType",
-      title: t("pages.inventory.columns.itemType"),
-      width: "8rem",
-    },
-    {
-      key: "active",
-      title: t("pages.inventory.columns.status"),
-      width: "7rem",
-      align: "center",
-      render: (row) => (
-        <StatusBadge status={row.active ? "active" : "inactive"} compact>
-          {row.active
-            ? t("pages.inventory.status.active")
-            : t("pages.inventory.status.inactive")}
-        </StatusBadge>
-      ),
-    },
-    ...(canManage
-      ? [
-          {
-            key: "actions",
-            title: t("pages.inventory.columns.actions"),
-            width: "11rem",
-            align: "right" as const,
-            render: (row: InventoryCatalogItem) => (
-              <div className="flex flex-wrap justify-end gap-2">
-                <Button
-                  type="button"
-                  size="badgeFlex"
-                  variant="outline"
-                  disabled={pending}
-                  onClick={() => setEditItem(row)}
-                >
-                  {t("common.actions.edit")}
-                </Button>
-                <Button
-                  type="button"
-                  size="badgeFlex"
-                  variant={row.active ? "outline" : "successBadge"}
-                  disabled={pending}
-                  onClick={() => toggleItemActive(row)}
-                >
-                  {row.active
-                    ? t("pages.inventory.deactivate")
-                    : t("common.actions.restore")}
-                </Button>
-              </div>
-            ),
-          },
-        ]
-      : []),
-  ];
 
   const purchaseColumns: DataTableColumn<InventoryPurchaseRow>[] = [
     {
@@ -389,6 +265,61 @@ export default function InventoryWorkspace({
     },
   ];
 
+  const writeOffColumns: DataTableColumn<InventoryWriteOffRow>[] = [
+    {
+      key: "movedAt",
+      title: t("pages.inventory.columns.date"),
+      width: "8rem",
+      render: (row) => formatDisplayDate(row.movedAt),
+    },
+    {
+      key: "item",
+      title: t("pages.inventory.columns.item"),
+      share: 2,
+      render: (row) => (
+        <div>
+          <p className="font-medium text-text">{row.item.name}</p>
+          <p className="text-xs text-subtle">{row.item.sku}</p>
+        </div>
+      ),
+    },
+    {
+      key: "quantity",
+      title: t("pages.inventory.columns.qty"),
+      width: "7rem",
+      align: "right",
+      render: (row) => `${row.quantity} ${row.item.unit}`,
+    },
+    {
+      key: "unitCost",
+      title: t("pages.inventory.columns.unitCost"),
+      width: "8rem",
+      align: "right",
+      render: (row) => (row.unitCost > 0 ? formatContractPrice(row.unitCost) : "—"),
+    },
+    {
+      key: "totalCost",
+      title: t("pages.inventory.columns.writeOffValue"),
+      width: "9rem",
+      align: "right",
+      render: (row) => (row.totalCost > 0 ? formatContractPrice(row.totalCost) : "—"),
+    },
+    {
+      key: "reason",
+      title: t("pages.inventory.columns.writeOffReason"),
+      share: 2,
+      render: (row) => (
+        <span className="text-sm text-text">{row.reason}</span>
+      ),
+    },
+    {
+      key: "createdBy",
+      title: t("pages.inventory.columns.writtenOffBy"),
+      width: "9rem",
+      render: (row) => row.createdBy?.username ?? "—",
+    },
+  ];
+
   const stockColumns: DataTableColumn<InventoryCatalogItem>[] = [
     {
       key: "sku",
@@ -410,7 +341,7 @@ export default function InventoryWorkspace({
       width: "8rem",
       align: "right",
       render: (row) => {
-        const low = row.minStock > 0 && row.currentStock <= row.minStock;
+        const low = row.currentStock < LOW_STOCK_THRESHOLD;
         return (
           <span className={low ? "font-semibold text-warning" : undefined}>
             {row.currentStock} {row.unit}
@@ -459,15 +390,6 @@ export default function InventoryWorkspace({
     InventoryTab,
     { title: string; description: string; rows: unknown[] }
   > = {
-    items: {
-      title: trimmedSearch
-        ? t("pages.inventory.emptySearch", { query: trimmedSearch })
-        : t("pages.inventory.emptyItems"),
-      description: trimmedSearch
-        ? t("pages.inventory.emptySearchDesc")
-        : t("pages.inventory.emptyItemsDesc"),
-      rows: visibleItems,
-    },
     purchases: {
       title: trimmedSearch
         ? t("pages.inventory.emptySearch", { query: trimmedSearch })
@@ -486,6 +408,15 @@ export default function InventoryWorkspace({
         : t("pages.inventory.emptyIssuesDesc"),
       rows: visibleIssues,
     },
+    writeOffs: {
+      title: trimmedSearch
+        ? t("pages.inventory.emptySearch", { query: trimmedSearch })
+        : t("pages.inventory.emptyWriteOffs"),
+      description: trimmedSearch
+        ? t("pages.inventory.emptySearchDesc")
+        : t("pages.inventory.emptyWriteOffsDesc"),
+      rows: visibleWriteOffs,
+    },
     stock: {
       title: trimmedSearch
         ? t("pages.inventory.emptySearch", { query: trimmedSearch })
@@ -503,16 +434,16 @@ export default function InventoryWorkspace({
     <>
       <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <DirectoryStatCard
-          title={t("pages.inventory.tabs.items")}
-          value={activeItems.length}
-          subtitle={t("pages.inventory.stats.itemsSubtitle", {
-            inactive: String(inactiveItems.length),
+          title={t("pages.inventory.tabs.stock")}
+          value={formatContractPrice(totalStockValue)}
+          subtitle={t("pages.inventory.stats.stockSubtitle", {
+            low: String(lowStockCount),
           })}
-          icon={<Package size={18} />}
-          accent="info"
-          selected={tab === "items"}
+          icon={<Boxes size={18} />}
+          accent={lowStockCount > 0 ? "danger" : "info"}
+          selected={tab === "stock"}
           onClick={() => {
-            setTab("items");
+            setTab("stock");
             setSearchQuery("");
           }}
         />
@@ -541,16 +472,14 @@ export default function InventoryWorkspace({
           }}
         />
         <DirectoryStatCard
-          title={t("pages.inventory.tabs.stock")}
-          value={formatContractPrice(totalStockValue)}
-          subtitle={t("pages.inventory.stats.stockSubtitle", {
-            low: String(lowStockCount),
-          })}
-          icon={<Boxes size={18} />}
-          accent={lowStockCount > 0 ? "danger" : "info"}
-          selected={tab === "stock"}
+          title={t("pages.inventory.tabs.writeOffs")}
+          value={writeOffs.length}
+          subtitle={t("pages.inventory.stats.writeOffsSubtitle")}
+          icon={<Trash2 size={18} />}
+          accent="danger"
+          selected={tab === "writeOffs"}
           onClick={() => {
-            setTab("stock");
+            setTab("writeOffs");
             setSearchQuery("");
           }}
         />
@@ -569,20 +498,6 @@ export default function InventoryWorkspace({
         />
         {canManage ? (
           <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-            {tab === "items" ? (
-              <>
-                <DirectoryAddButton
-                  label={t("pages.inventory.addItem")}
-                  onClick={() => setCreateItemOpen(true)}
-                />
-                <DirectoryAddButton
-                  label={t("common.actions.addBulk")}
-                  variant="infoBadge"
-                  icon={<FileSpreadsheet className="h-3.5 w-3.5 shrink-0" />}
-                  onClick={() => setBulkImportOpen(true)}
-                />
-              </>
-            ) : null}
             {tab === "purchases" ? (
               <DirectoryAddButton
                 label={t("pages.inventory.addPurchase")}
@@ -595,11 +510,10 @@ export default function InventoryWorkspace({
                 onClick={() => setIssueOpen(true)}
               />
             ) : null}
-            {tab === "stock" ? (
+            {tab === "writeOffs" && canAssignToProject ? (
               <DirectoryAddButton
-                label={t("pages.inventory.adjustStock")}
-                icon={<SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />}
-                onClick={() => setAdjustOpen(true)}
+                label={t("pages.inventory.addWriteOff")}
+                onClick={() => setWriteOffOpen(true)}
               />
             ) : null}
           </div>
@@ -610,12 +524,6 @@ export default function InventoryWorkspace({
         <SectionCard>
           <EmptyState title={empty.title} description={empty.description} />
         </SectionCard>
-      ) : tab === "items" ? (
-        <DataTable
-          columns={itemColumns}
-          data={visibleItems}
-          getRowKey={(row) => row.id}
-        />
       ) : tab === "purchases" ? (
         <DataTable
           columns={purchaseColumns}
@@ -628,6 +536,12 @@ export default function InventoryWorkspace({
           data={visibleIssues}
           getRowKey={(row) => row.id}
         />
+      ) : tab === "writeOffs" ? (
+        <DataTable
+          columns={writeOffColumns}
+          data={visibleWriteOffs}
+          getRowKey={(row) => row.id}
+        />
       ) : (
         <DataTable
           columns={stockColumns}
@@ -638,26 +552,6 @@ export default function InventoryWorkspace({
 
       {canManage ? (
         <>
-          <InventoryItemDialog
-            open={createItemOpen}
-            onOpenChange={setCreateItemOpen}
-            showTrigger={false}
-          />
-          <BulkImportDialog
-            open={bulkImportOpen}
-            onOpenChange={setBulkImportOpen}
-            entityLabel="inventoryItem"
-            templateUrl="/api/inventory/bulk-template"
-            onPreview={previewBulkImportInventoryItems}
-            onConfirm={confirmBulkImportInventoryItems}
-          />
-          <InventoryItemEditDialog
-            item={editItem}
-            open={editItem != null}
-            onOpenChange={(next) => {
-              if (!next) setEditItem(null);
-            }}
-          />
           <InventoryPurchaseDialog
             open={purchaseOpen}
             onOpenChange={setPurchaseOpen}
@@ -665,18 +559,20 @@ export default function InventoryWorkspace({
             vendors={vendors}
           />
           {canAssignToProject ? (
-            <InventoryIssueDialog
-              open={issueOpen}
-              onOpenChange={setIssueOpen}
-              items={items}
-              projects={projects}
-            />
+            <>
+              <InventoryIssueDialog
+                open={issueOpen}
+                onOpenChange={setIssueOpen}
+                items={items}
+                projects={projects}
+              />
+              <InventoryWriteOffDialog
+                open={writeOffOpen}
+                onOpenChange={setWriteOffOpen}
+                items={items}
+              />
+            </>
           ) : null}
-          <InventoryAdjustDialog
-            open={adjustOpen}
-            onOpenChange={setAdjustOpen}
-            items={items}
-          />
         </>
       ) : null}
     </>

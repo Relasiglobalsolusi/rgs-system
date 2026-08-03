@@ -396,16 +396,17 @@ export async function clientApproveBillingReview(periodId: string) {
     shouldReleaseCrewAfterBillingReviewAgree,
     releaseProjectCrewAfterProgressApproved,
   } = await import("@/lib/workforce-crew");
-  if (
-    shouldReleaseCrewAfterBillingReviewAgree({
-      subCategory: period.project.subCategory,
-      billingMode: period.project.billingMode,
-      milestonePercent: period.milestonePercent,
-    })
-  ) {
+  const shouldRelease = shouldReleaseCrewAfterBillingReviewAgree({
+    subCategory: period.project.subCategory,
+    billingMode: period.project.billingMode,
+    milestonePercent: period.milestonePercent,
+  });
+  if (shouldRelease) {
     await prisma.$transaction(async (tx) => {
       await releaseProjectCrewAfterProgressApproved(tx, period.projectId);
     });
+    // G3: crew/equipment released on approve; project stays active until paid.
+    // Payment Due is derived from the issued AWAITING_PAYMENT invoice (not COMPLETED).
   }
 
   // Issue invoice (skips HO manage gate via internal flag path).
@@ -561,16 +562,16 @@ export async function hoApproveClientRevision(formData: FormData) {
     shouldReleaseCrewAfterBillingReviewAgree,
     releaseProjectCrewAfterProgressApproved,
   } = await import("@/lib/workforce-crew");
-  if (
-    shouldReleaseCrewAfterBillingReviewAgree({
-      subCategory: period.project.subCategory,
-      billingMode: period.project.billingMode,
-      milestonePercent: period.milestonePercent,
-    })
-  ) {
+  const shouldReleaseOnHoApprove = shouldReleaseCrewAfterBillingReviewAgree({
+    subCategory: period.project.subCategory,
+    billingMode: period.project.billingMode,
+    milestonePercent: period.milestonePercent,
+  });
+  if (shouldReleaseOnHoApprove) {
     await prisma.$transaction(async (tx) => {
       await releaseProjectCrewAfterProgressApproved(tx, period.projectId);
     });
+    // G3: same as client approve — release crew; Payment Due until invoice is paid.
   }
 
   await issueInvoiceAfterClientApproval(periodId, session.user.id);

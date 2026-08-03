@@ -206,6 +206,21 @@ export function canManageInventory(
   return true;
 }
 
+export function canManageItemCatalog(
+  user: PermissionUser &
+    AccountTypeUser & { clientId?: string | null; vendorId?: string | null }
+) {
+  if (isClientPortalUser(user) || isVendorPortalUser(user)) return false;
+  if (!canAccess(user, "itemCatalog")) return false;
+  if (isAdminAccount(user)) return true;
+
+  const employeeType =
+    user.employee?.employeeType ?? user.employeeType ?? null;
+  if (employeeType === "PROJECT_SITE") return false;
+
+  return true;
+}
+
 /**
  * Finance → Financial Report (client / project P&L).
  * HO admin / HO staff with invoicing only — never client or vendor portals,
@@ -248,12 +263,5 @@ export function canManageEmployees(
 }
 
 export function canViewReports(user: PermissionUser) {
-  return canAccess(user, "reports");
-}
-
-export function canLockReports(
-  user: PermissionUser & { clientId?: string | null; vendorId?: string | null }
-) {
-  if (isClientPortalUser(user) || isVendorPortalUser(user)) return false;
   return canAccess(user, "reports");
 }

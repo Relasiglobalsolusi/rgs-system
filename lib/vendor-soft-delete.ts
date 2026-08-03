@@ -8,19 +8,51 @@ import { prisma } from "@/lib/prisma";
 type Tx = Prisma.TransactionClient | typeof prisma;
 
 export type VendorSoftDeleteBlocker = {
-  code: "unsettledPurchases" | "pendingTaxInvoices";
+  code: "outstandingPayables" | "pendingTaxInvoices";
   count: number;
 };
 
 /**
- * Vendors may be soft-deleted while purchase history remains in the database.
- * Purchase invoices are not cascade-deleted; the vendor record is marked inactive.
+ * Block vendor soft-delete while money is still owed or tax documents are open.
+ *
+ * Outstanding payables: PurchaseInvoice has no paidAt / payment-status field, so
+ * every linked supplier bill is treated as unpaid AP (same proxy as Settlements AP
+ * and Purchase Invoices → Payment & Settlement). Block when aggregate amount > 0.
+ *
+ * Pending tax invoices: PPN enabled but Faktur Pajak (taxInvoiceFilePath) missing.
  */
 export async function getVendorSoftDeleteBlockers(
-  _vendorId: string,
-  _db: Tx = prisma
+  vendorId: string,
+  db: Tx = prisma
 ): Promise<VendorSoftDeleteBlocker[]> {
-  return [];
+  const blockers: VendorSoftDeleteBlocker[] = [];
+
+  const p = db as typeof prisma;
+
+  const [payablesAgg, pendingTaxCount] = await Promise.all([
+    p.purchaseInvoice.aggregate({
+      where: { vendorId },
+      _count: { id: true },
+      _sum: { amount: true },
+    }),
+    p.purchaseInvoice.count({
+      where: { vendorId, includesPpn: true, taxInvoiceFilePath: null },
+    }),
+  ]);
+
+  const outstandingTotal = payablesAgg._sum.amount?.toNumber() ?? 0;
+  if (payablesAgg._count.id > 0 && outstandingTotal > 0) {
+    blockers.push({
+      code: "outstandingPayables",
+      count: payablesAgg._count.id,
+    });
+  }
+
+  if (pendingTaxCount > 0) {
+    blockers.push({ code: "pendingTaxInvoices", count: pendingTaxCount });
+  }
+
+  return blockers;
 }
 
 export function formatVendorSoftDeleteBlockers(
@@ -37,9 +69,17 @@ export function formatVendorSoftDeleteBlockers(
 }
 
 export async function assertVendorCanBeSoftDeleted(
-  _vendorId: string,
-  _db: Tx = prisma,
-  _locale: AppLocale = DEFAULT_LOCALE
+  vendorId: string,
+  db: Tx = prisma,
+  locale: AppLocale = DEFAULT_LOCALE
 ): Promise<void> {
-  // Purchase history is retained; soft-delete is always allowed.
+  const blockers = await getVendorSoftDeleteBlockers(vendorId, db);
+  if (blockers.length === 0) return;
+
+  const messages = formatVendorSoftDeleteBlockers(blockers, locale);
+  throw new Error(
+    translate(locale, "pages.vendors.softDeleteBlocked", {
+      blockers: messages.join(", "),
+    })
+  );
 }

@@ -67,4 +67,20 @@ export type InventoryIssueRow = {
   } | null;
 };
 
-export type InventoryTab = "items" | "purchases" | "issues" | "stock";
+export type InventoryWriteOffRow = {
+  id: string;
+  movedAt: string;
+  quantity: number;
+  unitCost: number;
+  totalCost: number;
+  reason: string;
+  createdBy: { id: string; username: string | null } | null;
+  item: {
+    id: string;
+    sku: string;
+    name: string;
+    unit: string;
+  };
+};
+
+export type InventoryTab = "purchases" | "issues" | "stock" | "writeOffs";

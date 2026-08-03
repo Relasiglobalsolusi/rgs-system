@@ -148,7 +148,16 @@ export async function updateUser(userId: string, formData: FormData) {
   revalidateUserDirectoryPaths();
 }
 
-export async function resetUserAccount(userId: string) {
+export type ResetUserAccountResult = {
+  passwordDisplay: null;
+  email: null;
+  mustSetPassword: true;
+  passwordSetupCompletedAt: null;
+};
+
+export async function resetUserAccount(
+  userId: string
+): Promise<ResetUserAccountResult> {
   await requireModule("users");
 
   const user = await prisma.user.findUnique({
@@ -179,11 +188,14 @@ export async function resetUserAccount(userId: string) {
     });
   });
 
-  revalidatePath("/users");
-  revalidatePath("/employees");
-  revalidatePath("/clients");
-  revalidatePath("/first-login");
-  revalidatePath("/login");
+  revalidateUserDirectoryPaths();
+
+  return {
+    passwordDisplay: credentials.passwordDisplay,
+    email: credentials.email,
+    mustSetPassword: credentials.mustSetPassword,
+    passwordSetupCompletedAt: credentials.passwordSetupCompletedAt,
+  };
 }
 
 /**

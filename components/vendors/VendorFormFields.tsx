@@ -6,9 +6,6 @@ import { Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { PhoneInput } from "@/components/ui/PhoneInput";
 import { Textarea } from "@/components/ui/textarea";
-import YesNoChoiceCards, {
-  type YesNoChoice,
-} from "@/components/ui/YesNoChoiceCards";
 import {
   employeeDialogFieldClass,
   employeeDialogGridClass,
@@ -79,8 +76,6 @@ export default function VendorFormFields({
   onFormValuesChange,
 }: Props) {
   const { t } = useT();
-  const [createPortalLogin, setCreatePortalLogin] =
-    useState<YesNoChoice>("No");
   const taxIdFileInputRef = useRef<HTMLInputElement>(null);
   const [selectedTaxIdFileName, setSelectedTaxIdFileName] = useState("");
 
@@ -442,43 +437,6 @@ export default function VendorFormFields({
         </div>
       </div>
 
-      {mode === "create" ? (
-        <div className={employeeDialogSectionClass}>
-          <SectionHeading
-            title={t("pages.vendors.form.portalAccess")}
-            description={t("pages.vendors.form.portalAccessDesc")}
-          />
-
-          <div className={employeeDialogGridClass}>
-            <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
-              <label
-                id="vendor-create-portal-login-label"
-                htmlFor="vendor-create-portal-login"
-                className={employeeDialogLabelClass}
-              >
-                {t("pages.vendors.form.createPortalLogin")}
-              </label>
-              <YesNoChoiceCards
-                id="vendor-create-portal-login"
-                labelledBy="vendor-create-portal-login-label"
-                value={createPortalLogin}
-                onChange={(value) => {
-                  setCreatePortalLogin(value);
-                  onFormValuesChange?.();
-                }}
-              />
-              <input
-                type="hidden"
-                name="createPortalLogin"
-                value={createPortalLogin}
-              />
-              <p className={employeeDialogHintClass}>
-                {t("pages.vendors.form.createPortalLoginHint")}
-              </p>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

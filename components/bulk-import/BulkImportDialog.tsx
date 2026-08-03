@@ -335,7 +335,7 @@ export default function BulkImportDialog({
         : entityLabel === "project"
           ? t("pages.projects.title").toLowerCase()
           : entityLabel === "inventoryItem"
-            ? t("pages.inventory.tabs.items").toLowerCase()
+            ? t("pages.itemCatalog.title").toLowerCase()
             : t("pages.employees.title").toLowerCase();
   const title =
     entityLabel === "client"

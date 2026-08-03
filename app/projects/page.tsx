@@ -15,6 +15,7 @@ import {
   isProjectSubCategory,
   PROJECT_SUB_CATEGORIES,
 } from "@/lib/project-subcategory";
+import { isContractSubCategory } from "@/lib/project-contract";
 import {
   localizeSubCategory,
   localizeSubCategoryShort,
@@ -539,7 +540,14 @@ export default async function ProjectsPage({
       const canFinish =
         canManage &&
         (filterView === "in-progress" || filterView === undefined) &&
-        project.status === "IN_PROGRESS";
+        project.status === "IN_PROGRESS" &&
+        isContractSubCategory(project.subCategory);
+      // G3: non-regular IN_PROGRESS projects can be submitted for approval from directory.
+      const canSubmitForApproval =
+        canManage &&
+        (filterView === "in-progress" || filterView === undefined) &&
+        project.status === "IN_PROGRESS" &&
+        !isContractSubCategory(project.subCategory);
       const eligibleForMoveBack =
         canManage &&
         (filterView === "in-progress" || filterView === undefined) &&
@@ -572,6 +580,7 @@ export default async function ProjectsPage({
         reconcileTarget,
         canStart,
         canFinish,
+        canSubmitForApproval,
         canMoveToPlanning,
         moveBackBlockedByCollection,
         canMarkPaid,

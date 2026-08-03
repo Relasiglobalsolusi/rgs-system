@@ -53,6 +53,8 @@ type UserRow = {
   role: UserRole;
   active: boolean;
   passwordDisplay?: string | null;
+  recoverableStoredAtRest?: boolean;
+  decryptFailed?: boolean;
   mustSetPassword?: boolean;
   passwordSetupCompletedAt?: Date | string | null;
   moduleOverrides: Record<string, boolean> | null;
@@ -70,7 +72,7 @@ type UserRow = {
     category?: { name: string; prefix: string } | null;
   } | null;
   client: { id: string; name: string; active?: boolean } | null;
-  vendor: { id: string; name: string; active?: boolean } | null;
+  vendor?: { id: string; name: string; active?: boolean } | null;
 };
 
 function getLinkedRecordLabel(user: UserRow): string | null {
@@ -155,6 +157,10 @@ function buildEditUser(row: UserRow, canViewPassword: boolean) {
     passwordDisplay: canViewPassword
       ? (row.passwordDisplay ?? null)
       : undefined,
+    recoverableStoredAtRest: canViewPassword
+      ? row.recoverableStoredAtRest
+      : undefined,
+    decryptFailed: canViewPassword ? row.decryptFailed : undefined,
     mustSetPassword: canViewPassword ? row.mustSetPassword : undefined,
     passwordSetupCompletedAt: canViewPassword
       ? (row.passwordSetupCompletedAt ?? null)
@@ -169,7 +175,7 @@ function buildEditUser(row: UserRow, canViewPassword: boolean) {
         }
       : null,
     client: row.client,
-    vendor: row.vendor,
+    vendor: row.vendor ?? null,
   };
 }
 
@@ -519,6 +525,8 @@ export default function UserTable({
         render: (row) => (
           <AdminPasswordDisplay
             password={row.passwordDisplay}
+            recoverableStoredAtRest={row.recoverableStoredAtRest}
+            decryptFailed={row.decryptFailed}
             setup={buildPasswordSetupContext(row)}
             compact
           />

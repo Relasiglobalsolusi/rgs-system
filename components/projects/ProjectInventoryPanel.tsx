@@ -108,9 +108,14 @@ export default function ProjectInventoryPanel({
     <>
       <SectionCard className={sectionCardClassName}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h3 className={sectionTitleClassName}>
-            {t("pages.projects.detail.inventoryIssues")}
-          </h3>
+          <div className="min-w-0">
+            <h3 className={sectionTitleClassName}>
+              {t("pages.projects.detail.inventoryIssues")}
+            </h3>
+            <p className="mt-1 max-w-2xl text-sm text-subtle">
+              {t("pages.projects.detail.inventoryEquipmentReleaseHint")}
+            </p>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             {canAssignStock && canIssueToStatus ? (
               <Button

@@ -5,6 +5,12 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { reorderEmployees } from "@/app/employees/actions";
 import EmployeeEditDialog from "@/components/employees/EmployeeEditDialog";
+import {
+  canAssignEmployeePosition,
+  employeeCreateHierarchyError,
+  type EmployeeCreateActorTier,
+} from "@/lib/employee-create-hierarchy";
+import { showRejection } from "@/components/ui/rejection-notice";
 import EmployeeDeleteDialog from "@/components/employees/EmployeeDeleteDialog";
 import EmployeeReactivateDialog from "@/components/employees/EmployeeReactivateDialog";
 import EmployeeArchiveDialog from "@/components/employees/EmployeeArchiveDialog";
@@ -43,6 +49,7 @@ type Employee = {
   portalAccessRequested: boolean;
   positionId: string | null;
   position: string | null;
+  jobPosition?: { id: string; name: string; slug: string } | null;
   categoryId: string | null;
   category: { name: string; prefix: string; slug?: string } | null;
   idDocumentUrl: string | null;
@@ -88,6 +95,7 @@ type Props = {
   projects: ProjectOption[];
   canManage?: boolean;
   canArchive?: boolean;
+  createActorTier?: EmployeeCreateActorTier;
   directoryView?: EmployeeDirectoryView;
   showSelection?: boolean;
   selectedIds?: Set<string>;
@@ -105,6 +113,7 @@ export default function EmployeeTable({
   projects,
   canManage = false,
   canArchive = false,
+  createActorTier = "OTHER",
   directoryView = "allEmployees",
   showSelection = false,
   selectedIds,
@@ -123,6 +132,30 @@ export default function EmployeeTable({
   const [archiving, setArchiving] = useState<Employee | null>(null);
 
   const isTrash = directoryView === "trash";
+
+  function canEditEmployeeRecord(employee: Employee) {
+    const position = employee.jobPosition ?? {
+      slug: null,
+      name: employee.position,
+    };
+    return canAssignEmployeePosition(createActorTier, position);
+  }
+
+  function openEdit(employee: Employee) {
+    if (!canEditEmployeeRecord(employee)) {
+      const position = employee.jobPosition ?? {
+        slug: null,
+        name: employee.position,
+      };
+      showRejection({
+        reasons: position
+          ? employeeCreateHierarchyError(createActorTier, position)
+          : "You can only manage employees below your level.",
+      });
+      return;
+    }
+    setEditing(employee);
+  }
 
   function reorder(ids: string[]) {
     if (!canManage || isTrash) return;
@@ -338,7 +371,7 @@ export default function EmployeeTable({
         columns={columns}
         data={employees}
         getRowKey={(employee) => employee.id}
-        onRowClick={canManage && !isTrash ? setEditing : undefined}
+        onRowClick={canManage && !isTrash ? openEdit : undefined}
         reorderable={canManage && !isTrash}
         onReorder={reorder}
         isRowSelected={(employee) => selectedIds?.has(employee.id) ?? false}

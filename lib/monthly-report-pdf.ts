@@ -22,7 +22,6 @@ export type MonthlyReportPdfInput = {
   periodLabel: string;
   projects: ProjectMonthlyReport[];
   company?: CompanyForPdf | null;
-  locked: boolean;
   locale?: AppLocale;
 };
 
@@ -76,7 +75,6 @@ function drawTitleBlock(
     `Generated ${formatDisplayDate(new Date())}`,
     `${input.projects.length} project${input.projects.length !== 1 ? "s" : ""}`,
   ];
-  if (input.locked) metaBits.push("Locked");
 
   doc
     .font("Helvetica")

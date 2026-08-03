@@ -1,6 +1,5 @@
 "use server";
 
-import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 
 import { prisma } from "@/lib/prisma";
@@ -10,6 +9,7 @@ import {
   isValidRecoveryEmail,
   needsInitialPasswordSetup,
   normalizeRecoveryEmail,
+  resolvePasswordChange,
 } from "@/lib/user-account";
 import { isPlaceholderPasswordHash } from "@/lib/unusable-password";
 import { normalizeUsername } from "@/lib/username";
@@ -94,16 +94,13 @@ export async function setInitialPassword(
     return { status: "email_taken" };
   }
 
-  const passwordHash = await bcrypt.hash(password, 12);
+  const credentials = await resolvePasswordChange(password);
 
   await prisma.user.update({
     where: { id: user.id },
     data: {
-      passwordHash,
-      passwordDisplay: password,
-      mustSetPassword: false,
+      ...credentials,
       email: recoveryEmail,
-      passwordSetupCompletedAt: new Date(),
     },
   });
 

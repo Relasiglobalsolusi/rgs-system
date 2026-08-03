@@ -1,10 +1,12 @@
-import { randomBytes } from "crypto";
-
 import bcrypt from "bcryptjs";
 
 import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
 import { prisma } from "@/lib/prisma";
+import {
+  encryptRecoverablePassword,
+  hasRecoverablePasswordStored,
+} from "@/lib/recoverable-password";
 import { createUnusablePasswordHash } from "@/lib/unusable-password";
 
 export async function resolveNewAccountPassword(rawPassword: string): Promise<{
@@ -22,7 +24,7 @@ export async function resolveNewAccountPassword(rawPassword: string): Promise<{
     return {
       passwordHash: await bcrypt.hash(password, 12),
       mustSetPassword: true,
-      passwordDisplay: password,
+      passwordDisplay: encryptRecoverablePassword(password),
     };
   }
 
@@ -32,41 +34,87 @@ export async function resolveNewAccountPassword(rawPassword: string): Promise<{
   };
 }
 
-const TEMP_PASSWORD_ALPHABET =
-  "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
-const TEMP_PASSWORD_LENGTH = 12;
-
-/** System-generated login password for admin reset / recoverable display. */
-export function generateTemporaryPassword(): string {
-  const bytes = randomBytes(TEMP_PASSWORD_LENGTH);
-  let out = "";
-  for (let i = 0; i < TEMP_PASSWORD_LENGTH; i += 1) {
-    out += TEMP_PASSWORD_ALPHABET[bytes[i]! % TEMP_PASSWORD_ALPHABET.length]!;
-  }
-  return out;
-}
-
 /**
  * Credentials used when an admin resets an account to first-login setup.
- * Issues a temporary password the admin can read in Current Password; the
- * user must replace it on first-login. Legacy rows without passwordDisplay
- * need this reset once — their old password cannot be recovered from bcrypt.
+ * Matches fresh portal provision: unusable placeholder hash, no recoverable
+ * copy, recovery email cleared — user completes /first-login to choose password.
  */
 export async function resolveFirstLoginResetCredentials(): Promise<{
   passwordHash: string;
   mustSetPassword: true;
-  passwordDisplay: string;
+  passwordDisplay: null;
   email: null;
   passwordSetupCompletedAt: null;
 }> {
-  const password = generateTemporaryPassword();
   return {
-    passwordHash: await bcrypt.hash(password, 12),
+    passwordHash: await createUnusablePasswordHash(),
     mustSetPassword: true,
-    passwordDisplay: password,
+    passwordDisplay: null,
     email: null,
     passwordSetupCompletedAt: null,
   };
+}
+
+/** Hash + admin recoverable copy for any user-chosen or admin-set login password. */
+export async function resolvePasswordChange(plaintext: string): Promise<{
+  passwordHash: string;
+  passwordDisplay: string;
+  mustSetPassword: false;
+  passwordSetupCompletedAt: Date;
+}> {
+  const password = plaintext;
+  if (!password || password.length < 8) {
+    throw new Error("Password must be at least 8 characters.");
+  }
+
+  return {
+    passwordHash: await bcrypt.hash(password, 12),
+    passwordDisplay: encryptRecoverablePassword(password),
+    mustSetPassword: false,
+    passwordSetupCompletedAt: new Date(),
+  };
+}
+
+/**
+ * After a successful login, backfill missing recoverable copy or setup timestamp
+ * for legacy rows that completed first-login before recoverable storage existed.
+ */
+export async function syncRecoverablePasswordOnLogin(
+  userId: string,
+  user: {
+    mustSetPassword: boolean;
+    passwordDisplay?: string | null;
+    passwordSetupCompletedAt?: Date | null;
+    email?: string | null;
+  },
+  loginPassword: string
+): Promise<void> {
+  const data: {
+    passwordDisplay?: string;
+    passwordSetupCompletedAt?: Date;
+  } = {};
+
+  if (
+    !user.passwordSetupCompletedAt &&
+    !user.mustSetPassword &&
+    user.email &&
+    !hasRecoverablePasswordStored(user.passwordDisplay)
+  ) {
+    data.passwordSetupCompletedAt = new Date();
+  }
+
+  if (!hasRecoverablePasswordStored(user.passwordDisplay)) {
+    data.passwordDisplay = encryptRecoverablePassword(loginPassword);
+  }
+
+  if (Object.keys(data).length === 0) {
+    return;
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data,
+  });
 }
 
 export async function assertUsernameAvailable(
@@ -144,7 +192,7 @@ export function needsInitialPasswordSetup(
   }
 
   // Admin-issued temporary password the user has not replaced yet.
-  if (user.passwordDisplay?.trim()) {
+  if (hasRecoverablePasswordStored(user.passwordDisplay)) {
     return true;
   }
 
@@ -162,7 +210,11 @@ export function needsInitialPasswordSetup(
   return false;
 }
 
-export type AdminPasswordDisplayState = "recoverable" | "pending" | "hidden";
+export type AdminPasswordDisplayState =
+  | "recoverable"
+  | "pending"
+  | "hidden"
+  | "decrypt_failed";
 
 /**
  * Admin UI: how to label the Current Password field when passwordDisplay may be
@@ -170,12 +222,21 @@ export type AdminPasswordDisplayState = "recoverable" | "pending" | "hidden";
  */
 export function getAdminPasswordDisplayState(user: {
   passwordDisplay?: string | null;
+  recoverableStoredAtRest?: boolean;
+  decryptFailed?: boolean;
   mustSetPassword?: boolean;
   email?: string | null;
   passwordSetupCompletedAt?: Date | null;
   isLinkedPortalLogin?: boolean;
 }): AdminPasswordDisplayState {
-  if (user.passwordDisplay?.trim()) {
+  if (user.decryptFailed) {
+    return "decrypt_failed";
+  }
+
+  if (
+    hasRecoverablePasswordStored(user.passwordDisplay) ||
+    user.recoverableStoredAtRest
+  ) {
     return "recoverable";
   }
 

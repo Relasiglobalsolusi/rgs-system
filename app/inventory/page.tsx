@@ -36,7 +36,7 @@ export default async function InventoryPage() {
     );
   }
 
-  const [items, purchases, issues, vendors, projects] = await Promise.all([
+  const [items, purchases, issues, writeOffs, vendors, projects] = await Promise.all([
     prisma.inventoryItem.findMany({
       where: { companyId: company.id },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -64,6 +64,23 @@ export default async function InventoryPage() {
         },
         project: {
           select: { id: true, name: true, status: true },
+        },
+      },
+      orderBy: { movedAt: "desc" },
+      take: 200,
+    }),
+    prisma.inventoryMovement.findMany({
+      where: {
+        companyId: company.id,
+        type: "WRITE_OFF",
+        voidedAt: null,
+      },
+      include: {
+        item: {
+          select: { id: true, sku: true, name: true, unit: true },
+        },
+        createdBy: {
+          select: { id: true, username: true },
         },
       },
       orderBy: { movedAt: "desc" },
@@ -122,6 +139,17 @@ export default async function InventoryPage() {
     project: row.project,
   }));
 
+  const writeOffRows = writeOffs.map((row) => ({
+    id: row.id,
+    movedAt: row.movedAt.toISOString(),
+    quantity: Math.abs(decimalToNumber(row.quantity) ?? 0),
+    unitCost: decimalToNumber(row.unitCost) ?? 0,
+    totalCost: decimalToNumber(row.totalCost) ?? 0,
+    reason: row.notes ?? "",
+    createdBy: row.createdBy,
+    item: row.item,
+  }));
+
   return (
     <AppShell
       titleKey="pages.inventory.title"
@@ -142,6 +170,7 @@ export default async function InventoryPage() {
         items={catalogItems}
         purchases={purchaseRows}
         issues={issueRows}
+        writeOffs={writeOffRows}
         vendors={vendors}
         projects={projects}
       />

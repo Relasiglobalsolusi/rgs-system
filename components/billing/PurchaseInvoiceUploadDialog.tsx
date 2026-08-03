@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { ScanLine, Upload } from "lucide-react";
+import { Plus, ScanLine, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -47,7 +47,18 @@ import {
   formatExtractedAmountForInput,
   type ExtractPurchaseInvoiceResult,
 } from "@/lib/purchase-invoice-extract-client";
+import { formatContractPrice } from "@/lib/project-billing";
 import { cn } from "@/lib/utils";
+import {
+  DEFAULT_PRODUCT_PPN_RATE_PERCENT,
+  PURCHASE_PPN_RATE_PRESETS,
+  parsePpnRatePercent,
+  ppnRateFromPercent,
+  splitInclusiveVat,
+} from "@/lib/vat";
+import { outlineChipTones } from "@/components/ui/StatusBadge";
+
+type PurchaseCategoryChoice = "PRODUCT" | "SERVICE";
 
 export type PurchaseInvoiceVendorOption = {
   id: string;
@@ -55,16 +66,41 @@ export type PurchaseInvoiceVendorOption = {
   paymentTermsDays: number;
 };
 
-const VENDOR_MANUAL = "__manual__";
+export type PurchaseCatalogItemOption = {
+  id: string;
+  name: string;
+  sku: string;
+  unit: string;
+  lastUnitCost: number | null;
+};
+
+type PurchaseLineDraft = {
+  key: string;
+  itemId: string;
+  quantity: string;
+  unitPrice: string;
+};
+
+function newPurchaseLine(): PurchaseLineDraft {
+  return {
+    key: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    itemId: "",
+    quantity: "1",
+    unitPrice: "",
+  };
+}
 
 type PurchaseInvoiceUploadDialogProps = {
   vendors: PurchaseInvoiceVendorOption[];
-  /** Vendor portal: lock supplier to the signed-in vendor (no manual entry). */
+  /** Active catalog items for line selection (HO). Empty = vendor portal header-only. */
+  catalogItems?: PurchaseCatalogItemOption[];
+  /** Vendor portal: lock supplier to the signed-in vendor. */
   lockToVendor?: boolean;
 };
 
 export default function PurchaseInvoiceUploadDialog({
   vendors,
+  catalogItems = [],
   lockToVendor = false,
 }: PurchaseInvoiceUploadDialogProps) {
   const { t } = useT();
@@ -78,21 +114,40 @@ export default function PurchaseInvoiceUploadDialog({
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [taxFile, setTaxFile] = useState<File | null>(null);
   const [includesPpn, setIncludesPpn] = useState<YesNoChoice>("No");
+  const [purchaseCategory, setPurchaseCategory] =
+    useState<PurchaseCategoryChoice>("PRODUCT");
+  const [ppnRatePercent, setPpnRatePercent] = useState(
+    String(DEFAULT_PRODUCT_PPN_RATE_PERCENT)
+  );
   const [invoiceDate, setInvoiceDate] = useState(todayDateInput);
   const [invoiceRef, setInvoiceRef] = useState("");
   const [amount, setAmount] = useState("");
-  const [vendorChoice, setVendorChoice] = useState(
-    lockedVendorId ?? VENDOR_MANUAL
-  );
-  const [manualVendorName, setManualVendorName] = useState("");
+  const [lines, setLines] = useState<PurchaseLineDraft[]>([newPurchaseLine()]);
+  const [vendorChoice, setVendorChoice] = useState(lockedVendorId ?? "");
   const [extractFilled, setExtractFilled] = useState(false);
 
-  const isManualVendor = !lockedVendorId && vendorChoice === VENDOR_MANUAL;
-  const selectedVendor = isManualVendor
-    ? null
-    : vendors.find((vendor) => vendor.id === vendorChoice) ?? null;
+  const requireItemLines = !lockToVendor;
+  const selectedVendor =
+    vendors.find((vendor) => vendor.id === vendorChoice) ?? null;
   const withPpn = includesPpn === "Yes";
   const busy = pending || extracting;
+  const parsedRate = parsePpnRatePercent(ppnRatePercent);
+  const linesTotal = lines.reduce((sum, line) => {
+    const qty = Number(line.quantity);
+    const price = Number(line.unitPrice);
+    if (!Number.isFinite(qty) || !Number.isFinite(price)) return sum;
+    return sum + qty * price;
+  }, 0);
+  const amountNumber = requireItemLines
+    ? linesTotal
+    : Number(String(amount).replace(/,/g, "").trim());
+  const vatPreview =
+    withPpn &&
+    parsedRate != null &&
+    Number.isFinite(amountNumber) &&
+    amountNumber > 0
+      ? splitInclusiveVat(amountNumber, ppnRateFromPercent(parsedRate))
+      : null;
 
   const purchaseDueHint = (() => {
     if (!selectedVendor || !/^\d{4}-\d{2}-\d{2}$/.test(invoiceDate)) {
@@ -121,11 +176,13 @@ export default function PurchaseInvoiceUploadDialog({
       setDocumentFile(null);
       setTaxFile(null);
       setIncludesPpn("No");
+      setPurchaseCategory("PRODUCT");
+      setPpnRatePercent(String(DEFAULT_PRODUCT_PPN_RATE_PERCENT));
       setInvoiceDate(todayDateInput());
       setInvoiceRef("");
       setAmount("");
-      setVendorChoice(lockedVendorId ?? VENDOR_MANUAL);
-      setManualVendorName("");
+      setLines([newPurchaseLine()]);
+      setVendorChoice(lockedVendorId ?? "");
       setExtractFilled(false);
     }
   }, [open, lockedVendorId]);
@@ -141,7 +198,7 @@ export default function PurchaseInvoiceUploadDialog({
     if (fields.invoiceDate) {
       setInvoiceDate(fields.invoiceDate);
     }
-    if (fields.amount != null) {
+    if (fields.amount != null && !requireItemLines) {
       setAmount(formatExtractedAmountForInput(fields.amount));
     }
     if (fields.includesPpn != null) {
@@ -153,23 +210,13 @@ export default function PurchaseInvoiceUploadDialog({
 
     if (lockedVendorId) {
       setVendorChoice(lockedVendorId);
-      setManualVendorName("");
-      return;
-    }
-
-    if (lockedVendorId) {
-      setVendorChoice(lockedVendorId);
-      setManualVendorName("");
       return;
     }
 
     if (matchedVendorId && vendors.some((v) => v.id === matchedVendorId)) {
       setVendorChoice(matchedVendorId);
-      setManualVendorName("");
-    } else if (fields.supplierName) {
-      setVendorChoice(VENDOR_MANUAL);
-      setManualVendorName(fields.supplierName);
     }
+    // Unmatched OCR names are ignored — vendor must be chosen from the directory.
   }
 
   function runInvoiceExtract(file: File) {
@@ -209,34 +256,66 @@ export default function PurchaseInvoiceUploadDialog({
     const form = event.currentTarget;
     const formData = new FormData(form);
     formData.set("includesPpn", withPpn ? "true" : "false");
+    formData.set("purchaseCategory", purchaseCategory);
     formData.set("invoiceRef", invoiceRef.trim());
     formData.set("invoiceDate", invoiceDate);
-    formData.set("amount", amount.trim());
 
-    if (lockedVendorId) {
-      const vendor = vendors.find((item) => item.id === lockedVendorId);
-      if (!vendor) {
-        setError(t("pages.billing.purchaseVendorRequired"));
+    const vendorId = lockedVendorId ?? vendorChoice;
+    const vendor = vendors.find((item) => item.id === vendorId);
+    if (!vendor) {
+      setError(t("pages.billing.purchaseVendorRequired"));
+      return;
+    }
+    formData.set("supplierName", vendor.name);
+    formData.set("vendorId", vendor.id);
+
+    if (requireItemLines) {
+      if (catalogItems.length === 0) {
+        setError(t("pages.billing.purchaseCatalogEmpty"));
         return;
       }
-      formData.set("supplierName", vendor.name);
-      formData.set("vendorId", vendor.id);
-    } else if (isManualVendor) {
-      const name = manualVendorName.trim();
-      if (!name) {
-        setError(t("pages.billing.purchaseVendorRequired"));
+      const parsedLines: {
+        itemId: string;
+        quantity: number;
+        unitPrice: number;
+      }[] = [];
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]!;
+        if (!line.itemId) {
+          setError(t("pages.billing.purchaseLineItemRequired", { n: i + 1 }));
+          return;
+        }
+        const quantity = Number(line.quantity);
+        const unitPrice = Number(line.unitPrice);
+        if (!Number.isFinite(quantity) || quantity <= 0) {
+          setError(t("pages.billing.purchaseLineQtyRequired", { n: i + 1 }));
+          return;
+        }
+        if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+          setError(t("pages.billing.purchaseLineCostRequired", { n: i + 1 }));
+          return;
+        }
+        parsedLines.push({ itemId: line.itemId, quantity, unitPrice });
+      }
+      if (parsedLines.length === 0) {
+        setError(t("pages.billing.purchaseLinesRequired"));
         return;
       }
-      formData.set("supplierName", name);
-      formData.delete("vendorId");
+      formData.set("linesJson", JSON.stringify(parsedLines));
+      formData.set("amount", String(Math.round(linesTotal * 100) / 100));
     } else {
-      const vendor = vendors.find((item) => item.id === vendorChoice);
-      if (!vendor) {
-        setError(t("pages.billing.purchaseVendorRequired"));
+      formData.set("amount", amount.trim());
+      formData.delete("linesJson");
+    }
+
+    if (withPpn) {
+      if (parsedRate == null) {
+        setError(t("pages.billing.purchasePpnRateRequired"));
         return;
       }
-      formData.set("supplierName", vendor.name);
-      formData.set("vendorId", vendor.id);
+      formData.set("ppnRatePercent", String(parsedRate));
+    } else {
+      formData.delete("ppnRatePercent");
     }
 
     if (!documentFile || documentFile.size <= 0) {
@@ -271,21 +350,26 @@ export default function PurchaseInvoiceUploadDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button type="button" variant="permissionsBadge" size="badgeFlex">
-          <Upload className="h-3.5 w-3.5" aria-hidden />
+          <Plus className="h-3.5 w-3.5" aria-hidden />
           {t("pages.billing.purchaseUpload")}
         </Button>
       </DialogTrigger>
       <EmployeeDialogShell
-        icon={Upload}
+        icon={Plus}
         title={t("pages.billing.purchaseUploadTitle")}
         description={t("pages.billing.purchaseUploadDesc")}
-        maxWidth="md"
+        maxWidth="lg"
         footer={
           <div className="flex w-full flex-col gap-3">
             <EmployeePrimaryButton
               type="submit"
               form="purchase-invoice-upload-form"
-              disabled={busy || !documentFile}
+              disabled={
+                busy ||
+                !documentFile ||
+                (!lockedVendorId && (vendors.length === 0 || !vendorChoice)) ||
+                (requireItemLines && catalogItems.length === 0)
+              }
             >
               {pending
                 ? t("pages.billing.purchaseUploading")
@@ -365,9 +449,13 @@ export default function PurchaseInvoiceUploadDialog({
                   />
                   <input type="hidden" name="vendorId" value={lockedVendorId} />
                 </>
+              ) : vendors.length === 0 ? (
+                <p className={employeeDialogHintClass} role="status">
+                  {t("pages.billing.purchaseVendorRegisterFirst")}
+                </p>
               ) : (
                 <Select
-                  value={vendorChoice}
+                  value={vendorChoice || undefined}
                   onValueChange={(value) => {
                     if (value == null) return;
                     setVendorChoice(value);
@@ -378,10 +466,12 @@ export default function PurchaseInvoiceUploadDialog({
                     id="purchase-vendor"
                     className={cn(employeeSelectTriggerClass, "w-full")}
                   >
-                    <SelectValue>
+                    <SelectValue
+                      placeholder={t("pages.billing.purchaseVendorSelect")}
+                    >
                       {(value) => {
-                        if (!value || value === VENDOR_MANUAL) {
-                          return t("pages.billing.purchaseVendorEnterManually");
+                        if (!value) {
+                          return t("pages.billing.purchaseVendorSelect");
                         }
                         const vendor = vendors.find((item) => item.id === value);
                         return vendor?.name ?? null;
@@ -389,9 +479,6 @@ export default function PurchaseInvoiceUploadDialog({
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={VENDOR_MANUAL}>
-                      {t("pages.billing.purchaseVendorEnterManually")}
-                    </SelectItem>
                     {vendors.map((vendor) => (
                       <SelectItem key={vendor.id} value={vendor.id}>
                         {vendor.name}
@@ -400,22 +487,13 @@ export default function PurchaseInvoiceUploadDialog({
                   </SelectContent>
                 </Select>
               )}
-              {isManualVendor ? (
-                <Input
-                  id="purchase-vendor-manual"
-                  name="supplierName"
-                  required
-                  disabled={busy}
-                  value={manualVendorName}
-                  onChange={(event) => setManualVendorName(event.target.value)}
-                  placeholder={t("pages.billing.purchaseSupplierPlaceholder")}
-                  autoComplete="organization"
-                  className={cn(employeeInputClass, "mt-2")}
-                />
-              ) : null}
               {purchaseDueHint ? (
                 <p className={cn(employeeDialogHintClass, "mt-2")}>
                   {purchaseDueHint}
+                </p>
+              ) : !lockedVendorId && vendors.length > 0 ? (
+                <p className={cn(employeeDialogHintClass, "mt-2")}>
+                  {t("pages.billing.purchaseVendorMustBeRegistered")}
                 </p>
               ) : null}
             </div>
@@ -457,26 +535,211 @@ export default function PurchaseInvoiceUploadDialog({
               />
             </div>
 
-            <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
-              <label
-                htmlFor="purchase-amount"
-                className={employeeDialogLabelClass}
-              >
-                {t("pages.billing.purchaseAmount")}
-                <span className="text-red-400"> *</span>
-              </label>
-              <Input
-                id="purchase-amount"
-                name="amount"
-                required
-                disabled={busy}
-                inputMode="decimal"
-                value={amount}
-                onChange={(event) => setAmount(event.target.value)}
-                placeholder={t("pages.billing.purchaseAmountPlaceholder")}
-                className={employeeInputClass}
-              />
-            </div>
+            {requireItemLines ? (
+              <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label className={employeeDialogLabelClass}>
+                    {t("pages.billing.purchaseItemsBought")}
+                    <span className="text-red-400"> *</span>
+                  </label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={busy || catalogItems.length === 0}
+                    className="gap-1.5"
+                    onClick={() =>
+                      setLines((current) => [...current, newPurchaseLine()])
+                    }
+                  >
+                    <Plus className="h-3.5 w-3.5" aria-hidden />
+                    {t("pages.billing.purchaseAddItem")}
+                  </Button>
+                </div>
+                {catalogItems.length === 0 ? (
+                  <p className={employeeDialogHintClass}>
+                    {t("pages.billing.purchaseCatalogEmpty")}
+                  </p>
+                ) : (
+                  <div className="mt-2 space-y-3">
+                    {lines.map((line, index) => {
+                      const item = catalogItems.find(
+                        (entry) => entry.id === line.itemId
+                      );
+                      const qty = Number(line.quantity);
+                      const price = Number(line.unitPrice);
+                      const lineTotal =
+                        Number.isFinite(qty) && Number.isFinite(price)
+                          ? qty * price
+                          : null;
+                      return (
+                        <div
+                          key={line.key}
+                          className="rounded-xl border border-border bg-elevated/40 p-3 space-y-2"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-semibold text-subtle">
+                              {t("pages.billing.purchaseLineLabel", {
+                                n: index + 1,
+                              })}
+                            </p>
+                            {lines.length > 1 ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                disabled={busy}
+                                className="h-8 px-2 text-danger"
+                                onClick={() =>
+                                  setLines((current) =>
+                                    current.filter((row) => row.key !== line.key)
+                                  )
+                                }
+                                aria-label={t("pages.billing.purchaseRemoveItem")}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                              </Button>
+                            ) : null}
+                          </div>
+                          <div className="grid gap-2 sm:grid-cols-[minmax(0,1.6fr)_6rem_8rem]">
+                            <Select
+                              value={line.itemId || undefined}
+                              onValueChange={(value) => {
+                                if (value == null) return;
+                                const selected = catalogItems.find(
+                                  (entry) => entry.id === value
+                                );
+                                setLines((current) =>
+                                  current.map((row) =>
+                                    row.key === line.key
+                                      ? {
+                                          ...row,
+                                          itemId: value,
+                                          unitPrice:
+                                            selected?.lastUnitCost != null
+                                              ? String(selected.lastUnitCost)
+                                              : row.unitPrice,
+                                        }
+                                      : row
+                                  )
+                                );
+                              }}
+                              disabled={busy}
+                            >
+                              <SelectTrigger
+                                className={cn(
+                                  employeeSelectTriggerClass,
+                                  "w-full"
+                                )}
+                              >
+                                <SelectValue
+                                  placeholder={t(
+                                    "pages.billing.purchaseSelectItem"
+                                  )}
+                                >
+                                  {(value) => {
+                                    if (!value) {
+                                      return t("pages.billing.purchaseSelectItem");
+                                    }
+                                    const selected = catalogItems.find(
+                                      (entry) => entry.id === value
+                                    );
+                                    return selected
+                                      ? `${selected.name} (${selected.sku})`
+                                      : null;
+                                  }}
+                                </SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                {catalogItems.map((entry) => (
+                                  <SelectItem key={entry.id} value={entry.id}>
+                                    {entry.name} ({entry.sku})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Input
+                              inputMode="decimal"
+                              disabled={busy}
+                              value={line.quantity}
+                              onChange={(event) => {
+                                const value = event.target.value;
+                                setLines((current) =>
+                                  current.map((row) =>
+                                    row.key === line.key
+                                      ? { ...row, quantity: value }
+                                      : row
+                                  )
+                                );
+                              }}
+                              placeholder={t("pages.billing.purchaseQty")}
+                              className={employeeInputClass}
+                              aria-label={t("pages.billing.purchaseQty")}
+                            />
+                            <Input
+                              inputMode="decimal"
+                              disabled={busy}
+                              value={line.unitPrice}
+                              onChange={(event) => {
+                                const value = event.target.value;
+                                setLines((current) =>
+                                  current.map((row) =>
+                                    row.key === line.key
+                                      ? { ...row, unitPrice: value }
+                                      : row
+                                  )
+                                );
+                              }}
+                              placeholder={t("pages.billing.purchaseUnitCost")}
+                              className={employeeInputClass}
+                              aria-label={t("pages.billing.purchaseUnitCost")}
+                            />
+                          </div>
+                          <p className={employeeDialogHintClass}>
+                            {item
+                              ? t("pages.billing.purchaseLineUnitHint", {
+                                  unit: item.unit,
+                                })
+                              : t("pages.billing.purchaseSelectItem")}
+                            {lineTotal != null
+                              ? ` · ${t("pages.billing.purchaseLineTotal", {
+                                  amount: formatContractPrice(lineTotal),
+                                })}`
+                              : null}
+                          </p>
+                        </div>
+                      );
+                    })}
+                    <p className="text-sm font-semibold tabular-nums text-text">
+                      {t("pages.billing.purchaseAmountTotal", {
+                        amount: formatContractPrice(linesTotal),
+                      })}
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+                <label
+                  htmlFor="purchase-amount"
+                  className={employeeDialogLabelClass}
+                >
+                  {t("pages.billing.purchaseAmount")}
+                  <span className="text-red-400"> *</span>
+                </label>
+                <Input
+                  id="purchase-amount"
+                  name="amount"
+                  required
+                  disabled={busy}
+                  inputMode="decimal"
+                  value={amount}
+                  onChange={(event) => setAmount(event.target.value)}
+                  placeholder={t("pages.billing.purchaseAmountPlaceholder")}
+                  className={employeeInputClass}
+                />
+              </div>
+            )}
 
             <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
               <label
@@ -497,11 +760,68 @@ export default function PurchaseInvoiceUploadDialog({
 
             <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
               <label
+                id="purchase-category-label"
+                className={employeeDialogLabelClass}
+              >
+                {t("pages.billing.purchaseCategory")}
+                <span className="text-red-400"> *</span>
+              </label>
+              <div
+                id="purchase-category"
+                role="radiogroup"
+                aria-labelledby="purchase-category-label"
+                className="grid grid-cols-2 gap-2"
+              >
+                {(
+                  [
+                    ["PRODUCT", t("pages.billing.purchaseCategoryProduct")],
+                    ["SERVICE", t("pages.billing.purchaseCategoryService")],
+                  ] as const
+                ).map(([value, label]) => {
+                  const active = purchaseCategory === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      disabled={busy}
+                      onClick={() => {
+                        setPurchaseCategory(value);
+                        if (value === "PRODUCT") {
+                          setPpnRatePercent(
+                            String(DEFAULT_PRODUCT_PPN_RATE_PERCENT)
+                          );
+                        } else {
+                          // Services often use a different rate — require an explicit entry.
+                          setPpnRatePercent("");
+                        }
+                      }}
+                      className={cn(
+                        "inline-flex min-h-8 w-full items-center justify-center rounded-xl px-3 py-1.5 text-xs font-semibold tracking-wide transition",
+                        active && outlineChipTones.emeraldInteractive,
+                        !active &&
+                          "border border-border bg-elevated text-muted hover:border-border-strong hover:bg-card-hover hover:text-text"
+                      )}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className={employeeDialogHintClass}>
+                {t("pages.billing.purchaseCategoryHint")}
+              </p>
+            </div>
+
+            <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+              <label
                 id="purchase-includes-ppn-label"
                 htmlFor="purchase-includes-ppn"
                 className={employeeDialogLabelClass}
               >
                 {t("pages.billing.purchaseIncludesPpn")}
+                <span className="text-red-400"> *</span>
               </label>
               <YesNoChoiceCards
                 id="purchase-includes-ppn"
@@ -511,6 +831,13 @@ export default function PurchaseInvoiceUploadDialog({
                   setIncludesPpn(value);
                   if (value === "No") {
                     setTaxFile(null);
+                  } else if (
+                    purchaseCategory === "PRODUCT" &&
+                    !ppnRatePercent.trim()
+                  ) {
+                    setPpnRatePercent(
+                      String(DEFAULT_PRODUCT_PPN_RATE_PERCENT)
+                    );
                   }
                 }}
               />
@@ -520,18 +847,75 @@ export default function PurchaseInvoiceUploadDialog({
             </div>
 
             {withPpn ? (
-              <div className="sm:col-span-2 space-y-2">
-                <BillingDocumentFilePick
-                  id="purchase-tax-document"
-                  label={t("pages.billing.purchaseTaxInvoiceOptional")}
-                  fileName={taxFile?.name ?? null}
-                  onPick={setTaxFile}
-                  disabled={busy}
-                />
-                <p className={employeeDialogHintClass}>
-                  {t("pages.billing.purchaseTaxInvoiceHint")}
-                </p>
-              </div>
+              <>
+                <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+                  <label
+                    htmlFor="purchase-ppn-rate"
+                    className={employeeDialogLabelClass}
+                  >
+                    {t("pages.billing.purchasePpnRate")}
+                    <span className="text-red-400"> *</span>
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {PURCHASE_PPN_RATE_PRESETS.map((rate) => {
+                      const active = parsedRate === rate;
+                      return (
+                        <button
+                          key={rate}
+                          type="button"
+                          disabled={busy}
+                          onClick={() => setPpnRatePercent(String(rate))}
+                          className={cn(
+                            "inline-flex min-h-8 items-center justify-center rounded-xl px-3 py-1.5 text-xs font-semibold tracking-wide transition",
+                            active && outlineChipTones.emeraldInteractive,
+                            !active &&
+                              "border border-border bg-elevated text-muted hover:border-border-strong hover:bg-card-hover hover:text-text"
+                          )}
+                        >
+                          {rate}%
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <Input
+                    id="purchase-ppn-rate"
+                    name="ppnRatePercent"
+                    required
+                    disabled={busy}
+                    inputMode="decimal"
+                    value={ppnRatePercent}
+                    onChange={(event) => setPpnRatePercent(event.target.value)}
+                    placeholder={t("pages.billing.purchasePpnRatePlaceholder")}
+                    className={cn(employeeInputClass, "mt-2")}
+                  />
+                  <p className={employeeDialogHintClass}>
+                    {purchaseCategory === "SERVICE"
+                      ? t("pages.billing.purchasePpnRateServiceHint")
+                      : t("pages.billing.purchasePpnRateProductHint")}
+                  </p>
+                  {vatPreview ? (
+                    <p className={cn(employeeDialogHintClass, "mt-1")}>
+                      {t("pages.billing.purchaseVatPreview", {
+                        dpp: formatContractPrice(vatPreview.dpp),
+                        ppn: formatContractPrice(vatPreview.ppn),
+                      })}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="sm:col-span-2 space-y-2">
+                  <BillingDocumentFilePick
+                    id="purchase-tax-document"
+                    label={t("pages.billing.purchaseTaxInvoiceOptional")}
+                    fileName={taxFile?.name ?? null}
+                    onPick={setTaxFile}
+                    disabled={busy}
+                  />
+                  <p className={employeeDialogHintClass}>
+                    {t("pages.billing.purchaseTaxInvoiceHint")}
+                  </p>
+                </div>
+              </>
             ) : null}
           </div>
 

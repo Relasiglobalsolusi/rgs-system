@@ -1,7 +1,6 @@
 import type { AppLocale } from "@/lib/i18n/locale";
 import { DEFAULT_LOCALE } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
-import { parseCreatePortalLoginFlag } from "@/lib/create-portal-login-flag";
 import { parseRequiredClientNpwpValue } from "@/lib/npwp";
 import { normalizeImportPhoneWithCountryCode } from "@/lib/phone-normalize";
 import { capitalizeName, capitalizeProper } from "@/lib/text-case";
@@ -25,7 +24,6 @@ export type ParsedVendorImportRow = {
   contactPersonPosition: string | null;
   contactPersonEmail: string | null;
   contactPersonPhone: string | null;
-  createPortalLogin: boolean;
 };
 
 /** Empty string when the cell is blank or an N/A token. */
@@ -107,10 +105,6 @@ export function parseVendorImportRow(
     translate(locale, "pages.vendors.form.vendorSince"),
     parseDateInput(todayDateInput())
   );
-  const createPortalLogin = parseCreatePortalLoginFlag(
-    values.createPortalLogin
-  );
-
   return {
     name,
     email,
@@ -124,6 +118,5 @@ export function parseVendorImportRow(
     contactPersonPosition,
     contactPersonEmail,
     contactPersonPhone,
-    createPortalLogin,
   };
 }

@@ -7,6 +7,7 @@ import { normalizeUsername } from "@/lib/username";
 import {
   needsRecoveryEmail,
   normalizeRecoveryEmail,
+  syncRecoverablePasswordOnLogin,
 } from "@/lib/user-account";
 import { parseModuleOverrides } from "@/lib/module-overrides";
 import {
@@ -72,6 +73,7 @@ export const authOptions: NextAuthOptions = {
                 category: {
                   select: { name: true, prefix: true, slug: true },
                 },
+                jobPosition: { select: { slug: true, name: true } },
               },
             },
           },
@@ -108,6 +110,13 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
+        // Vendor portal access is disabled — vendors do not log in; HO uploads on their behalf.
+        if (user.vendorId) {
+          throw new Error(
+            "Vendor portal access is not available. Please send your invoice to the HO finance team."
+          );
+        }
+
         const passwordIsCorrect = await bcrypt.compare(
           password,
           user.passwordHash
@@ -117,17 +126,16 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        if (
-          !user.passwordSetupCompletedAt &&
-          !user.mustSetPassword &&
-          user.email &&
-          !user.passwordDisplay
-        ) {
-          await prisma.user.update({
-            where: { id: user.id },
-            data: { passwordSetupCompletedAt: new Date() },
-          });
-        }
+        await syncRecoverablePasswordOnLogin(
+          user.id,
+          {
+            mustSetPassword: user.mustSetPassword,
+            passwordDisplay: user.passwordDisplay,
+            passwordSetupCompletedAt: user.passwordSetupCompletedAt,
+            email: user.email,
+          },
+          password
+        );
 
         const moduleOverrides = parseModuleOverrides(user.moduleOverrides);
         const sidebarOrder = parseSidebarOrder(user.sidebarOrder);
@@ -156,6 +164,7 @@ export const authOptions: NextAuthOptions = {
                       slug: user.employee.category.slug,
                     }
                   : null,
+                jobPosition: user.employee.jobPosition ?? null,
               }
             : null,
           employeeType: user.employee?.employeeType ?? null,
@@ -197,6 +206,7 @@ export const authOptions: NextAuthOptions = {
               prefix: string;
               slug?: string | null;
             } | null;
+            jobPosition?: { slug: string; name: string } | null;
           } | null;
           employeeType?: EmployeeType | null;
           moduleOverrides?: Record<string, boolean> | null;
@@ -219,6 +229,7 @@ export const authOptions: NextAuthOptions = {
               employeeNo: authenticatedUser.employee.employeeNo,
               employeeType: authenticatedUser.employee.employeeType,
               category: authenticatedUser.employee.category ?? null,
+              jobPosition: authenticatedUser.employee.jobPosition ?? null,
             }
           : null;
         token.employeeType = authenticatedUser.employeeType ?? null;
@@ -256,6 +267,19 @@ export const authOptions: NextAuthOptions = {
         const prefs = await fetchUserNavPreferences(String(token.id));
         token.moduleOverrides = prefs.moduleOverrides;
         token.sidebarOrder = prefs.sidebarOrder;
+        if (token.employee) {
+          token.employee = {
+            ...token.employee,
+            jobPosition: access.jobPosition,
+          };
+        } else if (access.jobPosition) {
+          token.employee = {
+            employeeNo: "",
+            employeeType: (token.employeeType as EmployeeType) ?? "PROJECT_SITE",
+            category: null,
+            jobPosition: access.jobPosition,
+          };
+        }
       }
 
       return token;

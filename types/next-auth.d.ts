@@ -23,6 +23,7 @@ declare module "next-auth" {
           prefix: string;
           slug?: string | null;
         } | null;
+        jobPosition: { slug: string; name: string } | null;
       } | null;
       employeeType: EmployeeType | null;
       moduleOverrides: Record<string, boolean> | null;
@@ -49,6 +50,7 @@ declare module "next-auth" {
         prefix: string;
         slug?: string | null;
       } | null;
+      jobPosition?: { slug: string; name: string } | null;
     } | null;
     employeeType?: EmployeeType | null;
     moduleOverrides?: Record<string, boolean> | null;
@@ -77,6 +79,7 @@ declare module "next-auth/jwt" {
         prefix: string;
         slug?: string | null;
       } | null;
+      jobPosition: { slug: string; name: string } | null;
     } | null;
     employeeType: EmployeeType | null;
     moduleOverrides: Record<string, boolean> | null;

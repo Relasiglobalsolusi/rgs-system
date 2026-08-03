@@ -5,6 +5,7 @@ export const PLACEMENTS = [
   "ON_PROJECT",
   "HEAD_OFFICE",
   "FIELD",
+  "ON_LEAVE",
 ] as const satisfies readonly Placement[];
 
 export type PlacementCode = Placement;
@@ -22,6 +23,8 @@ export const LEGACY_SCOPE_TO_PLACEMENT: Record<string, Placement> = {
   "ON PROJECT": "ON_PROJECT",
   "ON_PROJECT": "ON_PROJECT",
   FIELD: "FIELD",
+  ON_LEAVE: "ON_LEAVE",
+  "ON LEAVE": "ON_LEAVE",
 };
 
 export function isAvailablePlacement(
@@ -46,6 +49,12 @@ export function isFieldPlacement(
   placement: Placement | null | undefined
 ): boolean {
   return placement === "FIELD";
+}
+
+export function isOnLeavePlacement(
+  placement: Placement | null | undefined
+): boolean {
+  return placement === "ON_LEAVE";
 }
 
 /** Corporate / HO placement → HEAD_OFFICE employee type; else PROJECT_SITE. */
@@ -115,6 +124,8 @@ export function formatPlacementLabel(
         return "Kantor Pusat";
       case "FIELD":
         return "Lapangan";
+      case "ON_LEAVE":
+        return "Cuti";
       default:
         return placement;
     }
@@ -128,6 +139,8 @@ export function formatPlacementLabel(
       return "Head Office";
     case "FIELD":
       return "Field";
+    case "ON_LEAVE":
+      return "On Leave";
     default:
       return placement;
   }

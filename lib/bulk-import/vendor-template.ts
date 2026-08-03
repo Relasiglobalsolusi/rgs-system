@@ -8,8 +8,6 @@ import {
   vendorTemplateTitle,
   dataSheetName,
   withDateColumnHeaderNotes,
-  yesNoDropdown,
-  yesNoPlaceholder,
 } from "@/lib/bulk-import/template-i18n";
 import {
   buildProfessionalImportTemplate,
@@ -123,14 +121,6 @@ const BASE_VENDOR_IMPORT_COLUMNS: ColumnDef[] = [
     placeholder: PHONE_FORMAT_PLACEHOLDER,
     width: 26,
   },
-  {
-    key: "createPortalLogin",
-    header: VENDOR_HEADER_LABELS.createPortalLogin!.en,
-    centerContent: true,
-    width: 12,
-    dropdownValues: ["Yes", "No"],
-    placeholder: yesNoPlaceholder("en"),
-  },
 ];
 
 /** Parser columns — English headers + bilingual aliases. */
@@ -141,7 +131,6 @@ export const VENDOR_IMPORT_COLUMNS: ColumnDef[] = applyLocalizedHeaders(
 );
 
 export function getVendorImportColumns(locale: AppLocale): ColumnDef[] {
-  const [yes, no] = yesNoDropdown(locale);
   const paymentTerms = paymentTermsDropdown(locale);
   const countryCodes = importCountryCodeDropdownValues();
   const countryCodeNote = countryCodeColumnHeaderNote(locale);
@@ -168,13 +157,6 @@ export function getVendorImportColumns(locale: AppLocale): ColumnDef[] {
         return {
           ...column,
           placeholder: localizedPhoneFormatPlaceholder(locale),
-        };
-      }
-      if (column.key === "createPortalLogin") {
-        return {
-          ...column,
-          dropdownValues: [yes, no],
-          placeholder: yesNoPlaceholder(locale),
         };
       }
       return column;

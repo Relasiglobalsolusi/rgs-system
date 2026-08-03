@@ -26,6 +26,9 @@ import {
 } from "@/lib/placement";
 import { nextCompanyScopedSortOrder } from "@/lib/persist-reorder";
 import { prisma } from "@/lib/prisma";
+import {
+  assertCanAssignEmployeePosition,
+} from "@/lib/employee-create-hierarchy";
 import { canManageEmployees } from "@/lib/project-access";
 import { SORT_ORDER_STEP } from "@/lib/reorder";
 import { requireSession, toPermissionUser } from "@/lib/session";
@@ -39,6 +42,7 @@ async function assertCanManageEmployees() {
   if (!canManageEmployees(toPermissionUser(session))) {
     throw new Error("You do not have permission to manage employees.");
   }
+  return session;
 }
 
 function normalizeKey(value: string) {
@@ -155,7 +159,7 @@ function parseForcedEmploymentType(
 export async function previewBulkImportEmployees(
   formData: FormData
 ): Promise<BulkImportPreview> {
-  await assertCanManageEmployees();
+  const session = await assertCanManageEmployees();
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
@@ -195,6 +199,7 @@ export async function previewBulkImportEmployees(
           `Position "${parsed.position}" was not found in Department "${category.name}".`
         );
       }
+      await assertCanAssignEmployeePosition(session, position);
 
       const defaultPlacement = initialPlacementForDepartment({
         categorySlug: category.slug,
@@ -248,7 +253,7 @@ export async function previewBulkImportEmployees(
 export async function confirmBulkImportEmployees(
   formData: FormData
 ): Promise<BulkImportResult> {
-  await assertCanManageEmployees();
+  const session = await assertCanManageEmployees();
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
@@ -296,6 +301,7 @@ export async function confirmBulkImportEmployees(
           `Position "${parsed.position}" was not found in Department "${category.name}".`
         );
       }
+      await assertCanAssignEmployeePosition(session, position);
 
       const defaultPlacement = initialPlacementForDepartment({
         categorySlug: category.slug,

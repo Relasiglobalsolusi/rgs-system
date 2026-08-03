@@ -26,15 +26,15 @@ import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
 import { nextCompanyScopedSortOrder } from "@/lib/persist-reorder";
 import { prisma } from "@/lib/prisma";
-import { canManageInventory } from "@/lib/project-access";
+import { canManageItemCatalog } from "@/lib/project-access";
 import { SORT_ORDER_STEP } from "@/lib/reorder";
 import { requireModule, toPermissionUser } from "@/lib/session";
 
-async function assertCanManageInventory() {
-  const session = await requireModule("inventory");
-  if (!canManageInventory(toPermissionUser(session))) {
+async function assertCanManageItemCatalog() {
+  const session = await requireModule("itemCatalog");
+  if (!canManageItemCatalog(toPermissionUser(session))) {
     const locale = await getServerLocale();
-    throw new Error(translate(locale, "pages.inventory.permissionDenied"));
+    throw new Error(translate(locale, "pages.itemCatalog.permissionDenied"));
   }
 }
 
@@ -86,7 +86,7 @@ async function loadInventoryImportContext(file: File) {
 export async function previewBulkImportInventoryItems(
   formData: FormData
 ): Promise<BulkImportPreview> {
-  await assertCanManageInventory();
+  await assertCanManageItemCatalog();
 
   const locale = await getServerLocale();
   const file = formData.get("file");
@@ -148,7 +148,7 @@ export async function previewBulkImportInventoryItems(
 export async function confirmBulkImportInventoryItems(
   formData: FormData
 ): Promise<BulkImportResult> {
-  await assertCanManageInventory();
+  await assertCanManageItemCatalog();
 
   const locale = await getServerLocale();
   const file = formData.get("file");
@@ -214,5 +214,6 @@ export async function confirmBulkImportInventoryItems(
   }
 
   revalidatePath("/inventory");
+  revalidatePath("/item-catalog");
   return result;
 }

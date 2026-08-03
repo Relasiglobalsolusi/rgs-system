@@ -1,13 +1,9 @@
 import type { EmployeeType, Placement, Prisma } from "@prisma/client";
 
-import {
-  formatContactPersonName,
-  resolveContactPersonNameParts,
-} from "@/lib/contact-person";
+import { formatContactPersonName } from "@/lib/contact-person";
 import {
   getClientModuleOverrides,
   getEmployeeModuleOverrides,
-  getVendorModuleOverrides,
 } from "@/lib/permissions";
 import { nextSortOrderFromMax } from "@/lib/reorder";
 import { resolveNewAccountPassword } from "@/lib/user-account";
@@ -201,87 +197,3 @@ export async function provisionClientUser(
   });
 }
 
-/**
- * Creates a portal login for a vendor (never reactivates revoked logins).
- * Username is derived from the contact person's first name (never company/vendor name).
- * Password is unusable until first-login setup; recovery email is left unset.
- * - Any linked user (active or revoked) → no-op (returns null).
- *   Use Users → Revoked Access → Restore Access to re-enable revoked logins.
- * - No linked user → allocates a new username and creates a User.
- */
-export async function provisionVendorUser(
-  tx: Tx,
-  options: {
-    companyId: string;
-    vendorId: string;
-    /** Vendor organization name — used only for display fallback, never for username. */
-    vendorName: string;
-    contactPersonFirstName: string;
-    contactPersonLastName?: string | null;
-  }
-) {
-  const vendor = await tx.vendor.findUnique({
-    where: { id: options.vendorId },
-    select: { active: true },
-  });
-
-  if (!vendor) {
-    throw new Error("Vendor not found.");
-  }
-
-  if (!vendor.active) {
-    throw new Error(
-      "Portal login cannot be generated for deleted vendors. Restore the vendor first."
-    );
-  }
-
-  const existingLogin = await tx.user.findFirst({
-    where: { vendorId: options.vendorId },
-    select: { id: true },
-  });
-
-  // Do not reactivate revoked/soft-deactivated logins here — Restore Access owns that.
-  if (existingLogin) {
-    return null;
-  }
-
-  const contactParts = resolveContactPersonNameParts(
-    options.contactPersonFirstName,
-    options.contactPersonLastName
-  );
-
-  const contactDisplay =
-    formatContactPersonName(
-      options.contactPersonFirstName,
-      options.contactPersonLastName
-    ) ?? options.vendorName.trim();
-
-  // Username source: contact person first name (+ last initial on collision).
-  // Do not use options.vendorName for username allocation.
-  const username = await allocateUniqueUsername({
-    firstName: contactParts.firstName,
-    lastName: contactParts.lastName,
-    fallbackCode: options.vendorId.slice(-6),
-    isTaken: (candidate) => usernameIsTaken(tx, candidate),
-  });
-
-  const { passwordHash } = await resolveNewAccountPassword("");
-  const moduleOverrides = getVendorModuleOverrides();
-  const sortOrder = await nextUserSortOrder(tx, options.companyId);
-
-  return tx.user.create({
-    data: {
-      name: contactDisplay,
-      username,
-      email: null,
-      passwordHash,
-      mustSetPassword: true,
-      role: "ADMIN",
-      moduleOverrides,
-      companyId: options.companyId,
-      vendorId: options.vendorId,
-      active: true,
-      sortOrder,
-    },
-  });
-}

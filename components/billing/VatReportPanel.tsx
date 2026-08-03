@@ -1,0 +1,337 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useMemo, useTransition } from "react";
+import { ArrowDownLeft, ArrowUpRight, Scale } from "lucide-react";
+
+import { employeeSelectTriggerClass } from "@/components/employees/employee-dialog-ui";
+import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
+import DirectoryFilterTab from "@/components/ui/DirectoryFilterTab";
+import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import EmptyState from "@/components/ui/EmptyState";
+import SectionCard from "@/components/ui/SectionCard";
+import StatusBadge from "@/components/ui/StatusBadge";
+import { buttonVariants } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { formatDisplayDate } from "@/lib/format-date";
+import { localeToBcp47 } from "@/lib/i18n/locale";
+import { useT } from "@/lib/i18n/use-t";
+import { formatContractPrice } from "@/lib/project-billing";
+import { cn } from "@/lib/utils";
+import { DEFAULT_INCLUSIVE_PPN_RATE } from "@/lib/vat";
+
+export type VatLedgerRow = {
+  id: string;
+  partyName: string;
+  detail: string;
+  date: string | null;
+  gross: number;
+  dpp: number;
+  ppn: number;
+  fakturReady: boolean;
+  href: string;
+};
+
+type Props = {
+  year: number;
+  month: number;
+  view: "output" | "input";
+  outputTotal: number;
+  inputTotal: number;
+  net: number;
+  outputRows: VatLedgerRow[];
+  inputRows: VatLedgerRow[];
+  outputPending: number;
+  inputPending: number;
+  /** Base path used for month-picker navigation and Output/Input tab links. */
+  basePath?: string;
+  /** Hide the "Open Tax Invoices" action link on the output section header. */
+  hideOutputLink?: boolean;
+};
+
+export default function VatReportPanel({
+  year,
+  month,
+  view,
+  outputTotal,
+  inputTotal,
+  net,
+  outputRows,
+  inputRows,
+  outputPending,
+  inputPending,
+  basePath = "/billing/tax-invoices",
+  hideOutputLink = false,
+}: Props) {
+  const { t, locale } = useT();
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const bcp47 = localeToBcp47(locale);
+  const rows = view === "output" ? outputRows : inputRows;
+  const ratePct = Math.round(DEFAULT_INCLUSIVE_PPN_RATE * 100);
+  const monthOptions = useMemo(
+    () => Array.from({ length: 12 }, (_, index) => index + 1),
+    []
+  );
+  const yearOptions = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    return Array.from(new Set([...Array.from({ length: 8 }, (_, i) => currentYear - 5 + i), year])).sort(
+      (a, b) => a - b
+    );
+  }, [year]);
+
+  function navigatePeriod(nextYear: number, nextMonth: number) {
+    startTransition(() => {
+      router.push(
+        `${basePath}?year=${nextYear}&month=${nextMonth}&view=${view}`
+      );
+    });
+  }
+
+  const columns: DataTableColumn<VatLedgerRow>[] = [
+    {
+      key: "party",
+      title:
+        view === "output"
+          ? t("pages.vat.columns.client")
+          : t("pages.vat.columns.vendor"),
+      width: "14rem",
+      share: 2,
+      className: "min-w-[14rem]",
+      render: (row) => (
+        <div className="min-w-0">
+          <Link
+            href={row.href}
+            className="font-medium text-primary hover:underline"
+          >
+            {row.partyName}
+          </Link>
+          <p className="mt-0.5 truncate text-sm text-subtle">{row.detail}</p>
+        </div>
+      ),
+    },
+    {
+      key: "date",
+      title: t("pages.vat.columns.date"),
+      width: "9rem",
+      className: "min-w-[9rem]",
+      render: (row) =>
+        row.date
+          ? formatDisplayDate(new Date(row.date), { timeZone: "UTC" }, bcp47)
+          : "—",
+    },
+    {
+      key: "gross",
+      title: t("pages.vat.columns.gross"),
+      width: "9rem",
+      align: "right",
+      className: "min-w-[9rem] tabular-nums",
+      render: (row) => formatContractPrice(row.gross),
+    },
+    {
+      key: "dpp",
+      title: t("pages.vat.columns.dpp"),
+      width: "9rem",
+      align: "right",
+      className: "min-w-[9rem] tabular-nums",
+      render: (row) => formatContractPrice(row.dpp),
+    },
+    {
+      key: "ppn",
+      title: t("pages.vat.columns.ppn"),
+      width: "9rem",
+      align: "right",
+      className: "min-w-[9rem] tabular-nums font-medium text-text",
+      render: (row) => formatContractPrice(row.ppn),
+    },
+    {
+      key: "status",
+      title: t("pages.vat.columns.faktur"),
+      width: "9rem",
+      className: "min-w-[9rem]",
+      render: (row) => (
+        <StatusBadge status={row.fakturReady ? "success" : "pending"}>
+          {row.fakturReady
+            ? t("pages.vat.fakturReady")
+            : t("pages.vat.fakturPending")}
+        </StatusBadge>
+      ),
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div
+        className={cn(
+          "flex flex-wrap items-end justify-between gap-4",
+          pending && "pointer-events-none opacity-70"
+        )}
+      >
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-subtle">
+            {t("pages.vat.period")}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Select
+              value={String(month)}
+              onValueChange={(value) => {
+                if (value != null) navigatePeriod(year, Number(value));
+              }}
+            >
+              <SelectTrigger
+                id="vat-month"
+                className={cn(employeeSelectTriggerClass, "w-[10rem]")}
+              >
+                <SelectValue>
+                  {(value) =>
+                    value
+                      ? t(`pages.reports.months.${value}`)
+                      : t("common.labels.month")
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {monthOptions.map((option) => (
+                  <SelectItem key={option} value={String(option)}>
+                    {t(`pages.reports.months.${option}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={String(year)}
+              onValueChange={(value) => {
+                if (value != null) navigatePeriod(Number(value), month);
+              }}
+            >
+              <SelectTrigger
+                id="vat-year"
+                className={cn(employeeSelectTriggerClass, "w-[6.5rem]")}
+              >
+                <SelectValue>
+                  {(value) => value ?? t("common.labels.year")}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {yearOptions.map((option) => (
+                  <SelectItem key={option} value={String(option)}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <p className="max-w-xl text-sm text-subtle">
+          {t("pages.vat.rateHint", { rate: ratePct })}
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <DirectoryStatCard
+          title={t("pages.vat.outputTotal")}
+          value={formatContractPrice(outputTotal)}
+          subtitle={t("pages.vat.outputTotalHint")}
+          icon={<ArrowUpRight size={18} />}
+          accent="warning"
+        />
+        <DirectoryStatCard
+          title={t("pages.vat.inputTotal")}
+          value={formatContractPrice(inputTotal)}
+          subtitle={t("pages.vat.inputTotalHint")}
+          icon={<ArrowDownLeft size={18} />}
+          accent="success"
+        />
+        <DirectoryStatCard
+          title={t("pages.vat.netPayable")}
+          value={formatContractPrice(net)}
+          subtitle={t("pages.vat.netPayableHint")}
+          icon={<Scale size={18} />}
+          accent={net < 0 ? "success" : "primary"}
+        />
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <DirectoryFilterTab
+          href={`${basePath}?year=${year}&month=${month}&view=output`}
+          active={view === "output"}
+          count={outputRows.length}
+        >
+          {t("pages.vat.tabs.output")}
+          {outputPending > 0
+            ? ` · ${t("pages.vat.pendingCount", { count: outputPending })}`
+            : null}
+        </DirectoryFilterTab>
+        <DirectoryFilterTab
+          href={`${basePath}?year=${year}&month=${month}&view=input`}
+          active={view === "input"}
+          count={inputRows.length}
+        >
+          {t("pages.vat.tabs.input")}
+          {inputPending > 0
+            ? ` · ${t("pages.vat.pendingCount", { count: inputPending })}`
+            : null}
+        </DirectoryFilterTab>
+      </div>
+
+      <SectionCard>
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-text">
+              {view === "output"
+                ? t("pages.vat.outputTitle")
+                : t("pages.vat.inputTitle")}
+            </h2>
+            <p className="mt-1 text-sm text-subtle">
+              {view === "output"
+                ? t("pages.vat.outputDesc")
+                : t("pages.vat.inputDesc")}
+            </p>
+          </div>
+          {(!hideOutputLink || view === "input") && (
+            <Link
+              href={
+                view === "output"
+                  ? "/billing/tax-invoices"
+                  : "/billing/purchase-invoices?view=tax"
+              }
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            >
+              {view === "output"
+                ? t("pages.vat.openTaxInvoices")
+                : t("pages.vat.openPurchases")}
+            </Link>
+          )}
+        </div>
+
+        {rows.length === 0 ? (
+          <EmptyState
+            title={
+              view === "output"
+                ? t("pages.vat.emptyOutput")
+                : t("pages.vat.emptyInput")
+            }
+            description={
+              view === "output"
+                ? t("pages.vat.emptyOutputDesc")
+                : t("pages.vat.emptyInputDesc")
+            }
+          />
+        ) : (
+          <DataTable
+            columns={columns}
+            data={rows}
+            getRowKey={(row) => row.id}
+          />
+        )}
+      </SectionCard>
+    </div>
+  );
+}

@@ -11,10 +11,8 @@ import VendorPermanentDeleteDialog from "@/components/vendors/VendorPermanentDel
 import VendorReactivateDialog from "@/components/vendors/VendorReactivateDialog";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import { createSelectionColumn } from "@/components/ui/data-table-selection";
-import StatusBadge from "@/components/ui/StatusBadge";
 import {
   ACTIONS_SINGLE_CHIP_COLUMN_WIDTH,
-  STATUS_COLUMN_WIDTH,
   TrashPermanentDeleteChip,
   TrashRestoreChip,
   TRASH_ACTIONS_COLUMN_WIDTH,
@@ -24,12 +22,6 @@ import { formatHiredAtLabel, formatTenure } from "@/lib/format-tenure";
 import { formatContactPersonName } from "@/lib/contact-person";
 import { useT } from "@/lib/i18n/use-t";
 import { formatPhoneForDisplay } from "@/lib/phone";
-
-export type VendorPortalUserSummary = {
-  id: string;
-  username: string;
-  active: boolean;
-};
 
 export type VendorRow = {
   id: string;
@@ -48,24 +40,7 @@ export type VendorRow = {
   vendorSince: Date | string;
   paymentTermsDays?: number | null;
   active: boolean;
-  users: VendorPortalUserSummary[];
 };
-
-/** Portal Login column: Yes (active), Revoked (linked but inactive), No (never provisioned). */
-export type VendorPortalLoginStatus = "yes" | "revoked" | "no";
-
-export function getVendorPortalLoginStatus(
-  vendor: Pick<VendorRow, "users">
-): VendorPortalLoginStatus {
-  if (vendor.users.length === 0) return "no";
-  if (vendor.users.some((user) => user.active)) return "yes";
-  return "revoked";
-}
-
-/** True when the vendor has at least one active linked portal user. */
-export function vendorHasPortalLogin(vendor: Pick<VendorRow, "users">) {
-  return getVendorPortalLoginStatus(vendor) === "yes";
-}
 
 function formatContactPersonLabel(
   firstName: string | null,
@@ -344,33 +319,6 @@ export default function VendorTable({
                   })}
           </span>
         ),
-      },
-      {
-        key: "portalLogin",
-        title: t("pages.vendors.columns.portalLogin"),
-        width: STATUS_COLUMN_WIDTH,
-        className:
-          "min-w-[10rem] overflow-visible whitespace-nowrap text-center",
-        render: (vendor) => {
-          const portalStatus = getVendorPortalLoginStatus(vendor);
-          const badgeStatus =
-            portalStatus === "yes"
-              ? "active"
-              : portalStatus === "revoked"
-                ? "revoked"
-                : "inactive";
-          const label =
-            portalStatus === "yes"
-              ? t("pages.vendors.portalStatus.yes")
-              : portalStatus === "revoked"
-                ? t("pages.vendors.portalStatus.revoked")
-                : t("pages.vendors.portalStatus.no");
-          return (
-            <StatusBadge status={badgeStatus} compact>
-              {label}
-            </StatusBadge>
-          );
-        },
       }
     );
 

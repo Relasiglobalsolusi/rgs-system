@@ -559,6 +559,7 @@ export default function SidebarRearrangeDialog({
       clientId: session.user.clientId ?? null,
       vendorId: session.user.vendorId ?? null,
       username: session.user.username,
+      employee: session.user.employee ?? null,
     });
   }, [session?.user]);
 

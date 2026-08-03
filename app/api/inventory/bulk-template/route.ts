@@ -4,7 +4,7 @@ import { getCurrentSession } from "@/lib/auth";
 import { buildInventoryImportTemplate } from "@/lib/bulk-import/inventory-template";
 import { getServerLocale, parseAppLocale } from "@/lib/i18n/locale";
 import { canAccess } from "@/lib/permissions";
-import { canManageInventory } from "@/lib/project-access";
+import { canManageItemCatalog } from "@/lib/project-access";
 import { toPermissionUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -16,9 +16,9 @@ export async function GET(request: NextRequest) {
   }
 
   const user = toPermissionUser(session);
-  if (!canAccess(user, "inventory") || !canManageInventory(user)) {
+  if (!canAccess(user, "itemCatalog") || !canManageItemCatalog(user)) {
     return NextResponse.json(
-      { error: "You do not have permission to manage inventory." },
+      { error: "You do not have permission to manage the item catalog." },
       { status: 403 }
     );
   }

@@ -72,7 +72,6 @@ export async function GET(request: NextRequest) {
       periodLabel,
       projects: report.projects,
       company,
-      locked: report.locked,
       locale,
     });
 

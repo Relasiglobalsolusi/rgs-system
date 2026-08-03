@@ -23,8 +23,8 @@ import {
 } from "@/lib/project-billing";
 import { requireModule, toPermissionUser } from "@/lib/session";
 
-/** Shared AP list filters for HO Finance children and vendor portal views. */
-const PURCHASE_VIEWS = ["tax", "uploads", "payments"] as const;
+/** AP list view filters for HO Finance. */
+const PURCHASE_VIEWS = ["tax", "payments"] as const;
 type PurchaseView = (typeof PURCHASE_VIEWS)[number];
 
 function isPurchaseView(value: string): value is PurchaseView {
@@ -46,7 +46,11 @@ export default async function PurchaseInvoicesPage({
     redirect("/billing");
   }
 
-  const portalVendorId = session.user.vendorId ?? null;
+  // Vendor portal access is disabled — vendors do not use the ERP directly.
+  if (session.user.vendorId) {
+    redirect("/billing");
+  }
+
   const params = searchParams ? await searchParams : {};
   const purchaseView =
     params.view && isPurchaseView(params.view) ? params.view : null;
@@ -54,14 +58,12 @@ export default async function PurchaseInvoicesPage({
   const user = toPermissionUser(session);
   const canManage =
     canAccess(user, "invoicing") || canAccess(user, "projects");
-  // Payment/settlement is read-only for vendors; HO may still upload elsewhere.
   const canUpload = canManage && purchaseView !== "payments";
 
-  const [invoices, vendors] = await Promise.all([
+  const [invoices, vendors, catalogItemsRaw] = await Promise.all([
     prisma.purchaseInvoice.findMany({
       where: {
         companyId: session.user.companyId,
-        ...(portalVendorId ? { vendorId: portalVendorId } : {}),
       },
       include: {
         createdBy: { select: { name: true } },
@@ -69,21 +71,31 @@ export default async function PurchaseInvoicesPage({
       },
       orderBy: [{ invoiceDate: "desc" }, { createdAt: "desc" }],
     }),
-    portalVendorId
-      ? prisma.vendor.findMany({
-          where: {
-            id: portalVendorId,
-            companyId: session.user.companyId,
-            active: true,
-          },
-          select: { id: true, name: true, paymentTermsDays: true },
-        })
-      : prisma.vendor.findMany({
-          where: { companyId: session.user.companyId, active: true },
-          select: { id: true, name: true, paymentTermsDays: true },
-          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-        }),
+    prisma.vendor.findMany({
+      where: { companyId: session.user.companyId, active: true },
+      select: { id: true, name: true, paymentTermsDays: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
+    prisma.inventoryItem.findMany({
+      where: { companyId: session.user.companyId, active: true },
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        unit: true,
+        lastUnitCost: true,
+      },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
   ]);
+
+  const catalogItems = catalogItemsRaw.map((item) => ({
+    id: item.id,
+    name: item.name,
+    sku: item.sku,
+    unit: item.unit,
+    lastUnitCost: decimalToNumber(item.lastUnitCost),
+  }));
 
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0);
@@ -95,10 +107,7 @@ export default async function PurchaseInvoicesPage({
     );
   }
 
-  const showUploadStatus =
-    purchaseView === "uploads" || Boolean(portalVendorId);
-  const showPaymentStatus =
-    purchaseView === "payments" || Boolean(portalVendorId);
+  const showPaymentStatus = purchaseView === "payments";
 
   const rows: PurchaseInvoiceTableRow[] = filtered.map((invoice) => {
     const termsDays = invoice.vendor?.paymentTermsDays ?? null;
@@ -107,11 +116,6 @@ export default async function PurchaseInvoicesPage({
         ? dueAtFromPaymentTerms(invoice.invoiceDate, termsDays)
         : null;
     const isOverdue = dueAt != null && dueAt.getTime() < today.getTime();
-    const taxStatus = invoice.taxInvoiceFilePath
-      ? "uploaded"
-      : invoice.includesPpn
-        ? "missing"
-        : "not_required";
 
     return {
       id: invoice.id,
@@ -134,42 +138,24 @@ export default async function PurchaseInvoicesPage({
       taxInvoiceFilePath: invoice.taxInvoiceFilePath,
       uploadedBy: invoice.createdBy?.name ?? null,
       uploadedAtLabel: formatDisplayDate(invoice.createdAt),
-      taxStatus,
       paymentStatus: dueAt == null ? null : isOverdue ? "overdue" : "open",
-      showUploadStatus,
       showPaymentStatus,
     };
   });
 
   const titleKey =
     purchaseView === "tax"
-      ? portalVendorId
-        ? "pages.billing.vendorTaxTitle"
-        : "pages.billing.purchaseTaxTitle"
-      : purchaseView === "uploads"
-        ? "pages.billing.vendorUploadsTitle"
-        : purchaseView === "payments"
-          ? "pages.billing.vendorPaymentsTitle"
-          : portalVendorId
-            ? "pages.billing.vendorInvoicesTitle"
-            : "pages.billing.purchase";
+      ? "pages.billing.purchaseTaxTitle"
+      : purchaseView === "payments"
+        ? "pages.billing.vendorPaymentsTitle"
+        : "pages.billing.purchase";
 
   const descriptionKey =
     purchaseView === "tax"
-      ? portalVendorId
-        ? "pages.billing.vendorTaxDesc"
-        : "pages.billing.purchaseTaxDesc"
-      : purchaseView === "uploads"
-        ? portalVendorId
-          ? "pages.billing.vendorUploadsDesc"
-          : "pages.billing.hoUploadsDesc"
-        : purchaseView === "payments"
-          ? portalVendorId
-            ? "pages.billing.vendorPaymentsDesc"
-            : "pages.billing.hoPaymentsDesc"
-          : portalVendorId
-            ? "pages.billing.vendorInvoicesDesc"
-            : "pages.billing.purchaseDescription";
+      ? "pages.billing.purchaseTaxDesc"
+      : purchaseView === "payments"
+        ? "pages.billing.hoPaymentsDesc"
+        : "pages.billing.purchaseDescription";
 
   return (
     <AppShell titleKey={titleKey} descriptionKey={descriptionKey}>
@@ -195,7 +181,7 @@ export default async function PurchaseInvoicesPage({
           {canUpload ? (
             <PurchaseInvoiceUploadDialog
               vendors={vendors}
-              lockToVendor={Boolean(portalVendorId)}
+              catalogItems={catalogItems}
             />
           ) : null}
         </div>

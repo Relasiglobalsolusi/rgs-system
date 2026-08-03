@@ -16,11 +16,21 @@ export function toPermissionUser(session: {
     moduleOverrides?: Record<string, boolean> | null;
     clientId?: string | null;
     vendorId?: string | null;
+    employee?: {
+      employeeNo: string;
+      employeeType?: EmployeeType | null;
+      jobPosition?: { slug?: string | null; name?: string | null } | null;
+    } | null;
   };
 }): PermissionUser & {
   username?: string;
   clientId?: string | null;
   vendorId?: string | null;
+  employee?: {
+    employeeNo: string;
+    employeeType?: EmployeeType | null;
+    jobPosition?: { slug?: string | null; name?: string | null } | null;
+  } | null;
 } {
   return {
     role: session.user.role as UserRole,
@@ -29,6 +39,7 @@ export function toPermissionUser(session: {
     moduleOverrides: session.user.moduleOverrides ?? null,
     clientId: session.user.clientId ?? null,
     vendorId: session.user.vendorId ?? null,
+    employee: session.user.employee ?? null,
   };
 }
 

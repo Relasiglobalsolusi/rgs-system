@@ -19,6 +19,8 @@ type SetupContext = {
 
 type Props = {
   password: string | null | undefined;
+  recoverableStoredAtRest?: boolean;
+  decryptFailed?: boolean;
   /** When omitted, empty password is treated as pending (legacy callers). */
   setup?: SetupContext;
   /** Compact inline style for directory cards. */
@@ -28,14 +30,23 @@ type Props = {
 
 function resolveDisplayState(
   password: string | null | undefined,
-  setup?: SetupContext
+  setup?: SetupContext,
+  options?: { recoverableStoredAtRest?: boolean; decryptFailed?: boolean }
 ): AdminPasswordDisplayState {
   if (!setup) {
-    return password?.trim() ? "recoverable" : "pending";
+    if (options?.decryptFailed) {
+      return "decrypt_failed";
+    }
+    if (password?.trim() || options?.recoverableStoredAtRest) {
+      return "recoverable";
+    }
+    return "pending";
   }
 
   return getAdminPasswordDisplayState({
     passwordDisplay: password,
+    recoverableStoredAtRest: options?.recoverableStoredAtRest,
+    decryptFailed: options?.decryptFailed,
     mustSetPassword: setup.mustSetPassword,
     email: setup.email,
     passwordSetupCompletedAt: setup.passwordSetupCompletedAt
@@ -51,6 +62,8 @@ function resolveDisplayState(
  */
 export default function AdminPasswordDisplay({
   password,
+  recoverableStoredAtRest,
+  decryptFailed,
   setup,
   compact = false,
   className,
@@ -58,7 +71,10 @@ export default function AdminPasswordDisplay({
   const { t } = useT();
   const [revealed, setRevealed] = useState(false);
   const value = password?.trim() || null;
-  const state = resolveDisplayState(password, setup);
+  const state = resolveDisplayState(password, setup, {
+    recoverableStoredAtRest,
+    decryptFailed,
+  });
 
   if (state === "pending") {
     return (
@@ -76,6 +92,16 @@ export default function AdminPasswordDisplay({
         {compact
           ? t("pages.users.passwordHiddenCompact")
           : t("pages.users.passwordHiddenOnFile")}
+      </span>
+    );
+  }
+
+  if (state === "decrypt_failed") {
+    return (
+      <span className={cn("text-subtle", className)}>
+        {compact
+          ? t("pages.users.passwordDecryptFailedCompact")
+          : t("pages.users.passwordDecryptFailedOnFile")}
       </span>
     );
   }

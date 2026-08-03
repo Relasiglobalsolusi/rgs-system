@@ -1,6 +1,5 @@
 "use server";
 
-import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 
 import { appPublicBaseUrl, sendTransactionalEmail } from "@/lib/mail";
@@ -9,6 +8,7 @@ import {
   createPasswordResetToken,
   getPasswordResetExpiry,
 } from "@/lib/password-reset";
+import { resolvePasswordChange } from "@/lib/user-account";
 import { normalizeUsername } from "@/lib/username";
 
 type ForgotPasswordResult =
@@ -123,17 +123,12 @@ export async function resetPassword(
     return { status: "invalid_token" };
   }
 
-  const passwordHash = await bcrypt.hash(password, 12);
+  const credentials = await resolvePasswordChange(password);
 
   await prisma.$transaction([
     prisma.user.update({
       where: { id: resetToken.userId },
-      data: {
-        passwordHash,
-        passwordDisplay: password,
-        mustSetPassword: false,
-        passwordSetupCompletedAt: new Date(),
-      },
+      data: credentials,
     }),
     prisma.passwordResetToken.delete({
       where: { id: resetToken.id },

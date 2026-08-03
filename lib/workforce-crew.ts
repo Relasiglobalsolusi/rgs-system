@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 
 import { OPEN_PROJECT_ASSIGNMENT_STATUSES } from "@/lib/employee-projects";
+import { releaseProjectEquipmentToInventory } from "@/lib/inventory-project-release";
 import { syncEmployeesLeaveEmploymentStatus } from "@/lib/leave-employment-status";
 import { isCrewPickerPosition, isOperationsManagerPosition } from "@/lib/positions";
 import { syncEmployeePortalLogin } from "@/lib/workforce-login";
@@ -49,7 +50,7 @@ export function partTimeRosterWhere(
  */
 type CrewEligibilityDb = Pick<
   Prisma.TransactionClient,
-  "employee" | "leaveRequest"
+  "employee" | "leaveRequest" | "projectAssignment"
 >;
 
 export async function assertProjectCrewEligible(
@@ -280,7 +281,11 @@ export async function releaseEmployeesFromProject(
   }
 }
 
-/** Release every assignee on a project → AVAILABLE + portal sync. */
+/**
+ * Release every assignee on a project → AVAILABLE + portal sync.
+ * Also returns Equipment inventory issued to the project (machines / assets)
+ * back to on-hand stock — same demobilization moment as crew → pool.
+ */
 export async function releaseAllProjectCrew(
   db: Prisma.TransactionClient,
   projectId: string
@@ -294,6 +299,7 @@ export async function releaseAllProjectCrew(
     projectId,
     assignments.map((row) => row.employeeId)
   );
+  await releaseProjectEquipmentToInventory(db, projectId);
 }
 
 /**

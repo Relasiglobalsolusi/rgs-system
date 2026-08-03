@@ -1070,8 +1070,12 @@ async function issueMilestonePeriodInner(
       }),
     ]);
 
-    if (milestonePercent >= 100 && project.status !== "CANCELLED") {
-      // Final milestone → COMPLETED: same crew release as Finish / End Contract.
+    if (
+      milestonePercent >= 100 &&
+      project.status !== "CANCELLED" &&
+      !opts.approvedReview
+    ) {
+      // Final milestone (HO manual issue): COMPLETED + crew release.
       await prisma.$transaction(async (tx) => {
         await tx.project.update({
           where: { id: project.id },
@@ -1360,7 +1364,7 @@ export async function createMilestoneInvoice(formData: FormData) {
     }),
   ]);
 
-  // Final milestone: mark project completed + release crew (same as Finish).
+  // Final milestone (HO manual create): mark project completed + release crew.
   if (milestonePercent >= 100 && project.status !== "CANCELLED") {
     await prisma.$transaction(async (tx) => {
       await tx.project.update({

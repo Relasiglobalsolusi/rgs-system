@@ -77,7 +77,7 @@ export default function EmployeeEditDialog({ employee, categories, positions, pr
     categoryId: employee.categoryId,
     positionId: employee.positionId,
     employmentType: employee.employmentType,
-    placement: employee.placement,
+    placement: employee.placement === "ON_LEAVE" ? undefined : employee.placement,
     portalAccessRequested: employee.portalAccessRequested,
     idDocumentUrl: employee.idDocumentUrl,
     hiredAt: employee.hiredAt,

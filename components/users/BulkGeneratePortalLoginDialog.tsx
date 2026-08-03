@@ -11,7 +11,6 @@ import { toast } from "sonner";
 
 import { generateClientPortalLogins } from "@/app/clients/actions";
 import { generateEmployeePortalLogins } from "@/app/employees/actions";
-import { generateVendorPortalLogins } from "@/app/vendors/actions";
 import {
   EmployeeDialogShell,
   EmployeePrimaryButton,
@@ -28,28 +27,17 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   clientIds: string[];
-  vendorIds: string[];
   employeeIds: string[];
 };
 
-function confirmMessageKey(
-  clientCount: number,
-  vendorCount: number,
-  employeeCount: number
-) {
-  const kinds =
-    (clientCount > 0 ? 1 : 0) +
-    (vendorCount > 0 ? 1 : 0) +
-    (employeeCount > 0 ? 1 : 0);
+function confirmMessageKey(clientCount: number, employeeCount: number) {
+  const kinds = (clientCount > 0 ? 1 : 0) + (employeeCount > 0 ? 1 : 0);
 
   if (kinds > 1) {
     return "pages.users.generatePortalConfirmMixed";
   }
   if (clientCount > 0) {
     return "pages.users.generatePortalConfirmClients";
-  }
-  if (vendorCount > 0) {
-    return "pages.users.generatePortalConfirmVendors";
   }
   return "pages.users.generatePortalConfirmEmployees";
 }
@@ -89,7 +77,6 @@ export default function BulkGeneratePortalLoginDialog({
   open,
   onOpenChange,
   clientIds,
-  vendorIds,
   employeeIds,
 }: Props) {
   const [pending, startTransition] = useTransition();
@@ -97,14 +84,9 @@ export default function BulkGeneratePortalLoginDialog({
   const { t } = useT();
 
   const clientCount = clientIds.length;
-  const vendorCount = vendorIds.length;
   const employeeCount = employeeIds.length;
-  const totalCount = clientCount + vendorCount + employeeCount;
-  const confirmKey = confirmMessageKey(
-    clientCount,
-    vendorCount,
-    employeeCount
-  );
+  const totalCount = clientCount + employeeCount;
+  const confirmKey = confirmMessageKey(clientCount, employeeCount);
 
   function handleConfirm() {
     startTransition(async () => {
@@ -113,20 +95,12 @@ export default function BulkGeneratePortalLoginDialog({
           clientCount > 0
             ? await generateClientPortalLogins(clientIds)
             : createBulkActionResult();
-        const vendorResult =
-          vendorCount > 0
-            ? await generateVendorPortalLogins(vendorIds)
-            : createBulkActionResult();
         const employeeResult =
           employeeCount > 0
             ? await generateEmployeePortalLogins(employeeIds)
             : createBulkActionResult();
 
-        const result = mergeResults(
-          clientResult,
-          vendorResult,
-          employeeResult
-        );
+        const result = mergeResults(clientResult, employeeResult);
 
         if (result.failureCount === 0) {
           toast.success(formatBulkResultMessage(result, t));

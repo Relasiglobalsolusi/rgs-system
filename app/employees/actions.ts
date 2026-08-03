@@ -53,6 +53,10 @@ import {
 } from "@/lib/workforce-login";
 import { parseEmployeeFinanceFromForm } from "@/lib/employee-bpjs";
 import { syncEmployeeLeaveEmploymentStatus } from "@/lib/leave-employment-status";
+import {
+  assertCanAssignEmployeePosition,
+  assertCanManageEmployeeRecord,
+} from "@/lib/employee-create-hierarchy";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
 
@@ -200,7 +204,7 @@ export async function previewEmployeeNumber(categoryId: string) {
 }
 
 export async function createEmployee(formData: FormData) {
-  await assertCanManageEmployees();
+  const session = await assertCanManageEmployees();
 
   const company = await prisma.company.findFirst();
   if (!company) {
@@ -231,6 +235,10 @@ export async function createEmployee(formData: FormData) {
     categoryId,
     { required: true }
   );
+  await assertCanAssignEmployeePosition(session, {
+    slug: positionSlug,
+    name: positionName,
+  });
   const employmentType = parseEmploymentType(formData.get("employmentType"));
   const placement = initialPlacementForDepartment({
     categorySlug: category.slug,
@@ -343,7 +351,7 @@ export async function reorderEmployees(ids: string[]) {
 }
 
 export async function updateEmployee(id: string, formData: FormData) {
-  await assertCanManageEmployees();
+  const session = await assertCanManageEmployees();
 
   const firstName = capitalizeName(String(formData.get("firstName") || "").trim());
   const lastName = capitalizeName(String(formData.get("lastName") || "").trim());
@@ -373,6 +381,7 @@ export async function updateEmployee(id: string, formData: FormData) {
       status: true,
       categoryId: true,
       userId: true,
+      jobPosition: { select: { slug: true, name: true } },
       category: {
         select: {
           id: true,
@@ -386,6 +395,8 @@ export async function updateEmployee(id: string, formData: FormData) {
   if (!employee) {
     throw new Error("Employee not found.");
   }
+
+  await assertCanManageEmployeeRecord(session, employee.jobPosition);
 
   if (!isRosterActiveEmployeeStatus(employee.status)) {
     throw new Error("Restore the employee before editing status or details.");
@@ -421,6 +432,10 @@ export async function updateEmployee(id: string, formData: FormData) {
     categoryId,
     { required: true }
   );
+  await assertCanAssignEmployeePosition(session, {
+    slug: positionSlug,
+    name: positionName,
+  });
   const employmentType = parseEmploymentType(formData.get("employmentType"));
   // Placement is system-driven — keep current; Assign/Release change it.
   const placement = employee.placement;

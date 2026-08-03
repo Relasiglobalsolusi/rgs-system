@@ -21,9 +21,9 @@ const PROTECTED_PREFIXES = [
   "/vendors",
   "/reports",
   "/inventory",
+  "/item-catalog",
   "/billing",
   "/invoicing",
-  "/website",
   "/multi-project-unlock",
 ];
 
@@ -79,11 +79,18 @@ export async function proxy(request: NextRequest) {
   }
 
   const moduleOverrides = access.moduleOverrides;
+  const jobPosition =
+    access.jobPosition ?? token.employee?.jobPosition ?? null;
 
   const user: PermissionUser & {
     username?: string;
     clientId?: string | null;
     vendorId?: string | null;
+    employee?: {
+      employeeNo: string;
+      employeeType?: EmployeeType | null;
+      jobPosition?: { slug?: string | null; name?: string | null } | null;
+    } | null;
   } = {
     role: String(token.role) as UserRole,
     username: token.username ? String(token.username) : undefined,
@@ -91,6 +98,14 @@ export async function proxy(request: NextRequest) {
     moduleOverrides,
     clientId: token.clientId ? String(token.clientId) : null,
     vendorId: token.vendorId ? String(token.vendorId) : null,
+    employee:
+      jobPosition || token.employee
+        ? {
+            employeeNo: token.employee?.employeeNo ?? "",
+            employeeType: (token.employeeType as EmployeeType | null) ?? null,
+            jobPosition,
+          }
+        : null,
   };
 
   if (!canAccessRoute(user, pathname)) {
@@ -132,12 +147,12 @@ export const config = {
     "/reports/:path*",
     "/inventory",
     "/inventory/:path*",
+    "/item-catalog",
+    "/item-catalog/:path*",
     "/billing",
     "/billing/:path*",
     "/invoicing",
     "/invoicing/:path*",
-    "/website",
-    "/website/:path*",
     "/multi-project-unlock",
     "/multi-project-unlock/:path*",
   ],

@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 
 export type LeaveEmploymentDb = Pick<
   Prisma.TransactionClient,
-  "employee" | "leaveRequest"
+  "employee" | "leaveRequest" | "projectAssignment"
 >;
 
 const LEAVE_DRIVEN_STATUSES = new Set(["ACTIVE", "ON_LEAVE", "LEAVE_PENDING"]);
@@ -52,9 +52,11 @@ export async function hasActiveApprovedLeavePeriod(
 /**
  * Leave-driven employment status (Asia/Jakarta day boundary):
  * 1. Approved leave covers today AND no open CICO → ON_LEAVE.
+ *    - Sets placement = ON_LEAVE and removes project assignments (unassign).
  * 2. Approved leave covers today BUT open CICO (mid-shift / overnight) → stay ACTIVE
  *    until check-out; leave takes effect only after the open attendance closes.
  * 3. Else roster staff (ACTIVE / ON_LEAVE / legacy LEAVE_PENDING) → ACTIVE.
+ *    - If transitioning back from ON_LEAVE, sets placement = AVAILABLE.
  * Pending leave requests do not change employment status or block ops.
  * On Leave is not set manually in Employee Edit.
  */
@@ -65,7 +67,7 @@ export async function syncEmployeeLeaveEmploymentStatus(
 ) {
   const employee = await db.employee.findUnique({
     where: { id: employeeId },
-    select: { status: true },
+    select: { status: true, placement: true },
   });
   if (!employee) return;
 
@@ -89,10 +91,32 @@ export async function syncEmployeeLeaveEmploymentStatus(
     }
   }
 
-  if (employee.status !== targetStatus) {
+  const statusChanging = employee.status !== targetStatus;
+
+  // Determine placement update:
+  // → ON_LEAVE: set placement = ON_LEAVE (unassign from project below).
+  // → ACTIVE from ON_LEAVE: set placement = AVAILABLE (manual reassign after).
+  const placementUpdate =
+    targetStatus === "ON_LEAVE" && employee.placement !== "ON_LEAVE"
+      ? ({ placement: "ON_LEAVE" } as const)
+      : targetStatus === "ACTIVE" && employee.status === "ON_LEAVE"
+      ? ({ placement: "AVAILABLE" } as const)
+      : null;
+
+  if (statusChanging || placementUpdate) {
     await db.employee.update({
       where: { id: employeeId },
-      data: { status: targetStatus },
+      data: {
+        status: targetStatus,
+        ...(placementUpdate ?? {}),
+      },
+    });
+  }
+
+  // Remove project assignments when leave first applies (not on repeated calls).
+  if (targetStatus === "ON_LEAVE" && employee.status !== "ON_LEAVE") {
+    await db.projectAssignment.deleteMany({
+      where: { employeeId },
     });
   }
 }

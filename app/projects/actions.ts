@@ -46,6 +46,7 @@ import {
 } from "@/app/projects/invoice-actions";
 import {
   canDeleteActiveStageProjects,
+  canManageProjects,
   getInProgressCleaningProjectDeleteBlockReason,
   isAdminDeletableProjectStatus,
   isInProgressCleaningProjectDeleteBlocked,
@@ -1615,6 +1616,159 @@ export async function finishProject(id: string): Promise<FinishProjectResult> {
       billingPath,
     },
   };
+}
+
+/**
+ * G3 flow — non-regular (General / Facade) projects only.
+ * OM+ clicks "Submit for Approval": compiles all progress reports into a PDF,
+ * sends the package to the client for Approve or Revise, and transitions the
+ * project from In Progress → Waiting for Approval.
+ *
+ * The client-approve / revise / HO-review cycle is handled by the existing
+ * billing/reconciliation actions (clientApproveBillingReview, etc.).
+ * On client approve, clientApproveBillingReview will:
+ *   - release crew + equipment
+ *   - auto-issue the invoice (period → AWAITING_PAYMENT)
+ *   - project stays non-COMPLETED until fully paid (Payment Due workflow)
+ */
+export async function submitProjectForApproval(projectId: string) {
+  const locale = await getServerLocale();
+  try {
+    const session = await requireModule("projects");
+    if (session.user.clientId || session.user.vendorId) {
+      throw new Error(translate(locale, "pages.projects.permissionDenied"));
+    }
+    const permissionUser = toPermissionUser(session);
+    if (!canManageProjects(permissionUser)) {
+      throw new Error(translate(locale, "pages.projects.permissionDenied"));
+    }
+
+    const project = await prisma.project.findFirst({
+      where: { id: projectId, companyId: session.user.companyId },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        subCategory: true,
+        billingMode: true,
+        startDate: true,
+        endDate: true,
+        clientId: true,
+        invoicePeriods: {
+          where: {
+            status: { in: ["ONGOING", "COMPILING", "AWAITING_CLIENT_REVIEW"] },
+          },
+          orderBy: { periodStart: "asc" },
+          select: {
+            id: true,
+            status: true,
+            milestonePercent: true,
+            periodStart: true,
+            periodEnd: true,
+          },
+        },
+      },
+    });
+
+    if (!project) throw new Error(translate(locale, "pages.projects.notFound"));
+
+    if (isContractSubCategory(project.subCategory)) {
+      throw new Error(
+        translate(locale, "pages.projects.submitForApproval.regularNotAllowed")
+      );
+    }
+
+    if (project.status !== "IN_PROGRESS") {
+      throw new Error(
+        translate(locale, "pages.projects.submitForApproval.inProgressOnly")
+      );
+    }
+
+    const today = toUtcDateOnly(new Date());
+
+    // Find or create the invoice period to attach this review to.
+    let periodId: string;
+
+    if (project.billingMode === "MILESTONE") {
+      // Milestone: use the first ongoing milestone period.
+      const ongoingMilestone = project.invoicePeriods.find(
+        (p) => p.status === "ONGOING"
+      );
+      if (!ongoingMilestone) {
+        throw new Error(
+          translate(
+            locale,
+            "pages.projects.submitForApproval.noOngoingMilestone"
+          )
+        );
+      }
+      periodId = ongoingMilestone.id;
+    } else {
+      // ON_COMPLETION: find or create a single completion period.
+      const existing = project.invoicePeriods.find(
+        (p) => p.status === "ONGOING" || p.status === "COMPILING"
+      );
+
+      if (existing) {
+        periodId = existing.id;
+        // Ensure label matches completion period convention.
+        await prisma.projectInvoicePeriod.update({
+          where: { id: existing.id },
+          data: { label: "Completion" },
+        });
+      } else {
+        const periodStart = project.startDate
+          ? toUtcDateOnly(project.startDate)
+          : today;
+        const periodEnd =
+          project.endDate
+            ? toUtcDateOnly(project.endDate)
+            : today.getTime() >= periodStart.getTime()
+              ? today
+              : periodStart;
+
+        const created = await prisma.projectInvoicePeriod.upsert({
+          where: {
+            projectId_periodStart_periodEnd: {
+              projectId: project.id,
+              periodStart,
+              periodEnd,
+            },
+          },
+          update: { label: "Completion" },
+          create: {
+            projectId: project.id,
+            periodStart,
+            periodEnd,
+            label: "Completion",
+            status: "ONGOING",
+          },
+        });
+        periodId = created.id;
+      }
+    }
+
+    // Transition project to Waiting for Approval.
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { status: "WAITING_FOR_APPROVAL" },
+    });
+
+    // Compile PRs into PDF + send to client for review (reuse existing billing action).
+    const { sendPeriodForClientReview } = await import(
+      "@/app/billing/reconciliation/actions"
+    );
+    await sendPeriodForClientReview(periodId, "PROGRESS");
+
+    revalidateAfterProjectLifecycle({ projectId, clientId: project.clientId });
+
+    return { periodId };
+  } catch (error) {
+    throw toActionError(
+      error,
+      translate(locale, "pages.projects.submitForApproval.failed")
+    );
+  }
 }
 
 /**

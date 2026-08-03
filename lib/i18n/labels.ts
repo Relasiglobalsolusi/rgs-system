@@ -56,6 +56,12 @@ export function localizeWorkflowChipLines(
       translate(locale, "status.workflowChip.paymentDue2"),
     ];
   }
+  if (englishWorkflowLabel === "Waiting for Approval") {
+    return [
+      translate(locale, "status.workflowChip.waitingForApproval1"),
+      translate(locale, "status.workflowChip.waitingForApproval2"),
+    ];
+  }
   return null;
 }
 

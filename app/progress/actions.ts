@@ -191,6 +191,13 @@ export async function createProgressReport(formData: FormData) {
   const session = await requireModule("progress");
   const employee = await requireSyncedEmployee(session.user.id);
 
+  // Hard gate: HO (Head Office) employees may never submit progress reports,
+  // even when they have an open CICO via adminFieldMode. Only field cleaning
+  // staff with an active CICO for the project may submit.
+  if (employee.employeeType === "HEAD_OFFICE") {
+    throw await progressError("headOfficeNotAllowed");
+  }
+
   if (employee.placement !== "ON_PROJECT") {
     throw await progressError("onProjectOnly");
   }

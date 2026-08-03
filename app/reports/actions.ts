@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import type { ProjectSubCategory } from "@prisma/client";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { prisma } from "@/lib/prisma";
@@ -67,7 +66,7 @@ async function applyReportFilters(
         (project) => project.subCategory === filters.subCategory
       );
     } else {
-      // Legacy locked snapshots may omit subCategory — resolve from live projects.
+      // Some rows may omit subCategory — resolve from live projects.
       const matching = await prisma.project.findMany({
         where: {
           companyId,
@@ -238,52 +237,13 @@ export async function getMonthlyReport(
   year: number,
   month: number,
   filters: MonthlyReportFilters = {}
-): Promise<MonthlyReportData & { locked: boolean }> {
+): Promise<MonthlyReportData> {
   const session = await requireModule("reports");
 
   const projectWhere = await getProjectWhereForUser({
     companyId: session.user.companyId,
     clientId: session.user.clientId,
   });
-
-  const existing = await prisma.invoiceCompilation.findUnique({
-    where: {
-      companyId_year_month: {
-        companyId: session.user.companyId,
-        year,
-        month,
-      },
-    },
-  });
-
-  if (existing?.locked && existing.snapshotData) {
-    const snapshot = existing.snapshotData as unknown as MonthlyReportData;
-    let scopedProjects = snapshot.projects ?? [];
-
-    if (session.user.clientId) {
-      const allowed = await prisma.project.findMany({
-        where: {
-          companyId: session.user.companyId,
-          clientId: session.user.clientId,
-        },
-        select: { id: true },
-      });
-      const allowedIds = new Set(allowed.map((project) => project.id));
-      scopedProjects = scopedProjects.filter((project) =>
-        allowedIds.has(project.projectId)
-      );
-    }
-
-    return {
-      ...snapshot,
-      projects: await applyReportFilters(
-        session.user.companyId,
-        scopedProjects,
-        filters
-      ),
-      locked: true,
-    };
-  }
 
   const locale = await getServerLocale();
   const report = await buildMonthlyReport(
@@ -304,48 +264,5 @@ export async function getMonthlyReport(
       report.projects,
       filters
     ),
-    locked: existing?.locked ?? false,
   };
-}
-
-export async function lockMonthlyReport(year: number, month: number) {
-  const session = await requireModule("reports");
-
-  if (session.user.clientId) {
-    throw new Error("Client portal users cannot lock monthly reports.");
-  }
-
-  const locale = await getServerLocale();
-  const report = await buildMonthlyReport(
-    session.user.companyId,
-    year,
-    month,
-    {},
-    locale
-  );
-
-  await prisma.invoiceCompilation.upsert({
-    where: {
-      companyId_year_month: {
-        companyId: session.user.companyId,
-        year,
-        month,
-      },
-    },
-    update: {
-      locked: true,
-      snapshotData: report,
-      createdById: session.user.id,
-    },
-    create: {
-      companyId: session.user.companyId,
-      year,
-      month,
-      locked: true,
-      snapshotData: report,
-      createdById: session.user.id,
-    },
-  });
-
-  revalidatePath("/reports");
 }

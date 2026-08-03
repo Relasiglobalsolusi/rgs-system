@@ -1,6 +1,5 @@
 "use server";
 
-import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 
 import { getCurrentSession } from "@/lib/auth";
@@ -10,6 +9,7 @@ import {
   isValidRecoveryEmail,
   needsRecoveryEmail,
   normalizeRecoveryEmail,
+  resolvePasswordChange,
 } from "@/lib/user-account";
 
 type SetPasswordResult =
@@ -68,15 +68,12 @@ export async function setPassword(formData: FormData): Promise<SetPasswordResult
     }
   }
 
-  const passwordHash = await bcrypt.hash(password, 12);
+  const credentials = await resolvePasswordChange(password);
 
   await prisma.user.update({
     where: { id: session.user.id },
     data: {
-      passwordHash,
-      passwordDisplay: password,
-      mustSetPassword: false,
-      passwordSetupCompletedAt: new Date(),
+      ...credentials,
       ...(requiresEmail ? { email: recoveryEmail } : {}),
     },
   });

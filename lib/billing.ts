@@ -73,7 +73,7 @@ function projectFullyPaidInvoiceWhere(): Prisma.ProjectWhereInput {
 export function paymentDueWhere(): Prisma.ProjectWhereInput {
   return {
     // Exclude cancelled + legacy ON_HOLD from the product Payment Due surface.
-    status: { notIn: ["CANCELLED", "ON_HOLD"] },
+    status: { notIn: ["CANCELLED", "ON_HOLD"] as ProjectStatus[] },
     OR: [
       {
         invoicePeriods: {
@@ -131,7 +131,7 @@ export function projectHistoryWhere(): Prisma.ProjectWhereInput {
 export function billingActiveProjectWhere(): Prisma.ProjectWhereInput {
   return {
     OR: [
-      { status: "IN_PROGRESS" },
+      { status: { in: ["IN_PROGRESS", "WAITING_FOR_APPROVAL"] as ProjectStatus[] } },
       {
         status: "COMPLETED",
         NOT: projectFullyPaidInvoiceWhere(),
@@ -208,7 +208,7 @@ export function isBillingActiveProject(input: {
   status: ProjectStatus | string;
   invoicePeriods: { status: string }[];
 }): boolean {
-  if (input.status === "IN_PROGRESS") {
+  if (input.status === "IN_PROGRESS" || input.status === "WAITING_FOR_APPROVAL") {
     return true;
   }
   if (input.status === "COMPLETED") {

@@ -23,11 +23,8 @@ export type PurchaseInvoiceTableRow = {
   taxInvoiceFilePath: string | null;
   uploadedBy: string | null;
   uploadedAtLabel: string;
-  /** Vendor portal upload status for tax / document tracking. */
-  taxStatus?: "uploaded" | "missing" | "not_required";
   /** Vendor portal settlement view (no paidAt yet — open vs overdue by due date). */
   paymentStatus?: "open" | "overdue" | null;
-  showUploadStatus?: boolean;
   showPaymentStatus?: boolean;
 };
 
@@ -148,37 +145,6 @@ export default function PurchaseInvoiceTable({
         ),
       },
     ];
-
-    if (rows.some((row) => row.showUploadStatus)) {
-      cols.push({
-        key: "uploadStatus",
-        title: t("pages.billing.vendorUploadStatus"),
-        width: "8.5rem",
-        align: "center",
-        className: "min-w-[8.5rem]",
-        render: (row) => {
-          if (row.taxStatus === "uploaded") {
-            return (
-              <StatusBadge status="success" compact>
-                {t("pages.billing.vendorStatusTaxUploaded")}
-              </StatusBadge>
-            );
-          }
-          if (row.taxStatus === "missing") {
-            return (
-              <StatusBadge status="warning" compact>
-                {t("pages.billing.vendorStatusTaxMissing")}
-              </StatusBadge>
-            );
-          }
-          return (
-            <StatusBadge status="inactive" compact>
-              {t("pages.billing.vendorStatusNoTaxRequired")}
-            </StatusBadge>
-          );
-        },
-      });
-    }
 
     if (rows.some((row) => row.showPaymentStatus)) {
       cols.push({

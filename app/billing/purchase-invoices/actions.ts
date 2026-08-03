@@ -17,9 +17,47 @@ import { paymentVerifyFailureMessage } from "@/lib/payment-verify-messages";
 import { canAccess } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/project-billing";
+import { mintEquipmentAssets } from "@/lib/equipment-asset";
+import { lockInventoryItemRow } from "@/lib/inventory-access";
+import { nextWeightedAvgUnitCost, toDecimal } from "@/lib/inventory";
 import { extractPurchaseInvoiceFields } from "@/lib/purchase-invoice-extract";
 import type { ExtractPurchaseInvoiceResult } from "@/lib/purchase-invoice-extract-client";
 import { requireSession, toPermissionUser } from "@/lib/session";
+import { parsePpnRatePercent } from "@/lib/vat";
+
+type PurchaseLineInput = {
+  itemId: string;
+  quantity: number;
+  unitPrice: number;
+};
+
+function parsePurchaseLinesJson(raw: string): PurchaseLineInput[] {
+  if (!raw.trim()) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("Invalid purchase lines.");
+  }
+  if (!Array.isArray(parsed)) {
+    throw new Error("Invalid purchase lines.");
+  }
+  return parsed.map((row, index) => {
+    const itemId = String((row as { itemId?: unknown })?.itemId ?? "").trim();
+    const quantity = Number((row as { quantity?: unknown })?.quantity);
+    const unitPrice = Number((row as { unitPrice?: unknown })?.unitPrice);
+    if (!itemId) {
+      throw new Error(`Select an item for line ${index + 1}.`);
+    }
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      throw new Error(`Enter a valid quantity for line ${index + 1}.`);
+    }
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+      throw new Error(`Enter a valid unit cost for line ${index + 1}.`);
+    }
+    return { itemId, quantity, unitPrice };
+  });
+}
 import {
   buildBillingDocumentFileBase,
   deleteLocalUpload,
@@ -256,12 +294,24 @@ export async function createPurchaseInvoice(formData: FormData) {
   const invoiceRef = String(formData.get("invoiceRef") ?? "").trim();
   const invoiceDateRaw = String(formData.get("invoiceDate") ?? "").trim();
   const amountRaw = String(formData.get("amount") ?? "").trim();
+  const linesRaw = String(formData.get("linesJson") ?? "").trim();
   const notesRaw = String(formData.get("notes") ?? "").trim();
   const includesPpn =
     formData.get("includesPpn") === "on" ||
     formData.get("includesPpn") === "true";
+  const purchaseCategoryRaw = String(formData.get("purchaseCategory") ?? "")
+    .trim()
+    .toUpperCase();
+  const purchaseCategory =
+    purchaseCategoryRaw === "SERVICE" ? "SERVICE" : "PRODUCT";
+  const ppnRateRaw = String(formData.get("ppnRatePercent") ?? "").trim();
 
   const portalVendorId = session.user.vendorId ?? null;
+  const lines = parsePurchaseLinesJson(linesRaw);
+  // HO purchases must specify catalog lines; vendor portal may still send header-only.
+  if (!portalVendorId && lines.length === 0) {
+    throw new Error("Add at least one purchased item.");
+  }
   let vendorId: string | null = null;
 
   // Vendor portal: always attribute uploads to the signed-in vendor.
@@ -279,7 +329,10 @@ export async function createPurchaseInvoice(formData: FormData) {
     }
     vendorId = vendor.id;
     supplierName = vendor.name;
-  } else if (vendorIdRaw) {
+  } else {
+    if (!vendorIdRaw) {
+      throw new Error("Select a registered vendor.");
+    }
     const vendor = await prisma.vendor.findFirst({
       where: {
         id: vendorIdRaw,
@@ -289,14 +342,14 @@ export async function createPurchaseInvoice(formData: FormData) {
       select: { id: true, name: true },
     });
     if (!vendor) {
-      throw new Error("Vendor not found.");
+      throw new Error("Select a registered vendor.");
     }
     vendorId = vendor.id;
     supplierName = vendor.name;
   }
 
-  if (!supplierName) {
-    throw new Error("Vendor name is required.");
+  if (!vendorId || !supplierName) {
+    throw new Error("Select a registered vendor.");
   }
   if (!invoiceRef) {
     throw new Error("Invoice Number / Ref is required.");
@@ -319,11 +372,46 @@ export async function createPurchaseInvoice(formData: FormData) {
         })
       : null;
 
-  const amount = parseAmount(amountRaw);
   const invoiceDate = taxInvoiceDateToUtcDate(invoiceDateRaw);
+
+  let lineTotal = 0;
+  if (lines.length > 0) {
+    const itemIds = [...new Set(lines.map((line) => line.itemId))];
+    const catalog = await prisma.inventoryItem.findMany({
+      where: {
+        companyId: session.user.companyId,
+        id: { in: itemIds },
+        active: true,
+      },
+      select: { id: true, tracksStock: true },
+    });
+    if (catalog.length !== itemIds.length) {
+      throw new Error("One or more items are missing from the catalog.");
+    }
+    lineTotal = lines.reduce(
+      (sum, line) => sum + line.quantity * line.unitPrice,
+      0
+    );
+    if (lineTotal < 0 || !Number.isFinite(lineTotal)) {
+      throw new Error("Enter a valid amount.");
+    }
+  }
+
+  const amount =
+    lines.length > 0
+      ? new Prisma.Decimal(Math.round(lineTotal * 100) / 100)
+      : parseAmount(amountRaw);
   const invoiceAmount = decimalToNumber(amount);
   if (invoiceAmount == null) {
     throw new Error("Enter a valid amount.");
+  }
+
+  let ppnRatePercent: number | null = null;
+  if (includesPpn) {
+    ppnRatePercent = parsePpnRatePercent(ppnRateRaw);
+    if (ppnRatePercent == null) {
+      throw new Error("Enter the VAT rate percent for this purchase.");
+    }
   }
 
   const company = await prisma.company.findUnique({
@@ -370,22 +458,117 @@ export async function createPurchaseInvoice(formData: FormData) {
   }
 
   try {
-    await prisma.purchaseInvoice.create({
-      data: {
-        companyId: session.user.companyId,
-        supplierName,
-        vendorId,
-        invoiceRef,
-        invoiceDate,
-        amount,
-        filePath,
-        taxInvoiceFilePath,
-        taxInvoiceUploadedAt: taxInvoiceFilePath ? new Date() : null,
-        ...taxInvoicePersistFields(verifiedTax),
-        notes: notesRaw || null,
-        includesPpn,
-        createdById: session.user.id,
-      },
+    await prisma.$transaction(async (tx) => {
+      const invoice = await tx.purchaseInvoice.create({
+        data: {
+          companyId: session.user.companyId,
+          supplierName,
+          vendorId,
+          invoiceRef,
+          invoiceDate,
+          amount,
+          filePath,
+          taxInvoiceFilePath,
+          taxInvoiceUploadedAt: taxInvoiceFilePath ? new Date() : null,
+          ...taxInvoicePersistFields(verifiedTax),
+          notes: notesRaw || null,
+          includesPpn,
+          purchaseCategory,
+          ppnRatePercent,
+          createdById: session.user.id,
+        },
+      });
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]!;
+        const totalPrice = line.quantity * line.unitPrice;
+        const item = await tx.inventoryItem.findFirst({
+          where: {
+            id: line.itemId,
+            companyId: session.user.companyId,
+            active: true,
+          },
+          select: { id: true, tracksStock: true, itemType: true },
+        });
+        if (!item) {
+          throw new Error("One or more items are missing from the catalog.");
+        }
+
+        const createdLine = await tx.purchaseInvoiceLine.create({
+          data: {
+            purchaseInvoiceId: invoice.id,
+            itemId: item.id,
+            quantity: toDecimal(line.quantity),
+            unitPrice: toDecimal(line.unitPrice),
+            totalPrice: toDecimal(totalPrice),
+            sortOrder: i,
+          },
+        });
+
+        if (!item.tracksStock) continue;
+
+        const locked = await lockInventoryItemRow(tx, item.id);
+        if (!locked || !locked.active) {
+          throw new Error("One or more items are missing from the catalog.");
+        }
+        const currentStock = decimalToNumber(locked.currentStock) ?? 0;
+        const avgUnitCost = decimalToNumber(locked.avgUnitCost);
+        const newAvg = nextWeightedAvgUnitCost({
+          currentStock,
+          avgUnitCost,
+          purchaseQty: line.quantity,
+          purchaseUnitPrice: line.unitPrice,
+        });
+        const newStock = currentStock + line.quantity;
+
+        const movement = await tx.inventoryMovement.create({
+          data: {
+            companyId: session.user.companyId,
+            itemId: item.id,
+            type: "PURCHASE",
+            quantity: toDecimal(line.quantity),
+            unitCost: toDecimal(line.unitPrice),
+            totalCost: toDecimal(totalPrice),
+            movedAt: invoiceDate,
+            notes: notesRaw || null,
+            createdById: session.user.id,
+          },
+        });
+
+        await tx.inventoryPurchase.create({
+          data: {
+            companyId: session.user.companyId,
+            itemId: item.id,
+            vendorId: vendorId!,
+            purchasedAt: invoiceDate,
+            quantity: toDecimal(line.quantity),
+            unitPrice: toDecimal(line.unitPrice),
+            totalPrice: toDecimal(totalPrice),
+            invoiceNo: invoiceRef,
+            receiptUrl: filePath,
+            notes: notesRaw || null,
+            movementId: movement.id,
+            purchaseInvoiceLineId: createdLine.id,
+            createdById: session.user.id,
+          },
+        });
+
+        await tx.inventoryItem.update({
+          where: { id: item.id },
+          data: {
+            currentStock: toDecimal(newStock),
+            lastUnitCost: toDecimal(line.unitPrice),
+            avgUnitCost: toDecimal(newAvg),
+          },
+        });
+
+        await mintEquipmentAssets(
+          tx,
+          session.user.companyId,
+          item.id,
+          line.quantity
+        );
+      }
     });
   } catch (error) {
     await deleteLocalUpload(filePath);
@@ -397,6 +580,8 @@ export async function createPurchaseInvoice(formData: FormData) {
 
   revalidatePath("/billing/purchase-invoices");
   revalidatePath("/billing/tax-invoices");
+  revalidatePath("/billing/vat");
+  revalidatePath("/inventory");
 }
 
 export async function uploadPurchaseTaxInvoice(formData: FormData) {

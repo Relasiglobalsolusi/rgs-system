@@ -24,12 +24,14 @@ enum EmploymentType {
   PART_TIME
 }
 
-/// Where the employee currently works — system-driven (Assign / Release), not a free dropdown.
+/// Where the employee currently works — system-driven (Assign / Release / Leave), not a free dropdown.
 enum Placement {
   AVAILABLE
   ON_PROJECT
   HEAD_OFFICE
   FIELD
+  /// Set automatically when approved leave applies; cleared to AVAILABLE when leave ends.
+  ON_LEAVE
 }
 
 enum EmploymentStatus {
@@ -52,11 +54,23 @@ enum InventoryMovementType {
   PURCHASE
   ISSUE_TO_PROJECT
   ADJUSTMENT
+  /// Permanent decrease with mandatory reason — OM+ only. Never silent.
+  WRITE_OFF
+}
+
+/// Lifecycle status of a discrete Equipment asset (physical unit).
+enum EquipmentAssetStatus {
+  AVAILABLE
+  ON_PROJECT
+  RETIRED
 }
 
 enum ProjectStatus {
   PLANNED
   IN_PROGRESS
+  /// Non-regular (General / Facade) projects submitted for client approval.
+  /// OM+ triggers Submit for Approval → PDF compiled; client must Approve or Revise.
+  WAITING_FOR_APPROVAL
   COMPLETED
   ON_HOLD
   CANCELLED
@@ -149,6 +163,11 @@ enum BillingMode {
   MILESTONE
 }
 
+enum PurchaseCategory {
+  PRODUCT
+  SERVICE
+}
+
 enum LeaveType {
   PERMISSION
   SICK
@@ -187,6 +206,7 @@ model Company {
   inventoryItems      InventoryItem[]
   inventoryPurchases  InventoryPurchase[]
   inventoryMovements  InventoryMovement[]
+  equipmentAssets     EquipmentAsset[]
   auditLogs           AuditLog[]
   websiteContent      WebsiteContent?
 
@@ -589,6 +609,7 @@ model Project {
   progressWarningAcks ProgressWarningAck[]
   contractExtensions ClientContractExtension[]
   inventoryMovements InventoryMovement[]
+  equipmentAssets    EquipmentAsset[]
 
   /// Manual directory order (lower = higher in lists).
   sortOrder Int @default(0)
@@ -666,9 +687,15 @@ model PurchaseInvoice {
   notes        String?
   /// Whether the document includes PPN (input VAT) — for later PPN Masukan workflows.
   includesPpn  Boolean  @default(false)
+  /// Product goods vs service fee — VAT % often differs for services.
+  purchaseCategory PurchaseCategory @default(PRODUCT)
+  /// PPN rate percent when includesPpn (e.g. 11 or 12). Null when no VAT.
+  ppnRatePercent Decimal? @db.Decimal(5, 2)
 
   createdById String?
   createdBy   User?   @relation("PurchaseInvoiceCreator", fields: [createdById], references: [id])
+
+  lines PurchaseInvoiceLine[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -679,6 +706,31 @@ model PurchaseInvoice {
   @@index([taxInvoiceSerial])
   @@index([taxInvoiceDocumentHash])
   @@index([taxInvoiceIssuedAt, amount])
+}
+
+/// Line items on a Finance purchase (catalog item + qty + unit cost).
+model PurchaseInvoiceLine {
+  id String @id @default(cuid())
+
+  purchaseInvoiceId String
+  purchaseInvoice   PurchaseInvoice @relation(fields: [purchaseInvoiceId], references: [id], onDelete: Cascade)
+
+  itemId String
+  item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  quantity   Decimal @db.Decimal(14, 3)
+  unitPrice  Decimal @db.Decimal(14, 2)
+  totalPrice Decimal @db.Decimal(14, 2)
+  sortOrder  Int     @default(0)
+
+  /// Stock-in created when this line tracks inventory.
+  inventoryPurchase InventoryPurchase?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([purchaseInvoiceId])
+  @@index([itemId])
 }
 
 model ProjectAssignment {
@@ -1007,12 +1059,16 @@ model InventoryItem {
   /// Manual directory order (lower = higher in lists).
   sortOrder Int     @default(0)
   active    Boolean @default(true)
+  /// When false (e.g. Consulting Fee), purchase lines record cost only — no stock.
+  tracksStock Boolean @default(true)
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   purchases InventoryPurchase[]
   movements InventoryMovement[]
+  purchaseInvoiceLines PurchaseInvoiceLine[]
+  equipmentAssets EquipmentAsset[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1047,6 +1103,10 @@ model InventoryPurchase {
   /// Ledger row created with this purchase (1:1).
   movementId String             @unique
   movement   InventoryMovement  @relation(fields: [movementId], references: [id], onDelete: Cascade)
+
+  /// Optional link back to the Finance purchase line that created this stock-in.
+  purchaseInvoiceLineId String?             @unique
+  purchaseInvoiceLine   PurchaseInvoiceLine? @relation(fields: [purchaseInvoiceLineId], references: [id], onDelete: SetNull)
 
   createdById String?
   createdBy   User?   @relation("InventoryPurchaseCreator", fields: [createdById], references: [id])
@@ -1090,6 +1150,8 @@ model InventoryMovement {
   createdBy   User?   @relation("InventoryMovementCreator", fields: [createdById], references: [id])
 
   purchase InventoryPurchase?
+  /// Set when this ISSUE_TO_PROJECT movement was created by an equipment asset assignment.
+  equipmentAsset EquipmentAsset?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1098,6 +1160,47 @@ model InventoryMovement {
   @@index([itemId, voidedAt])
   @@index([projectId, type, voidedAt])
   @@index([type])
+}
+
+/// Discrete physical unit of an Equipment catalog item.
+/// Asset code format: {ITEM_SKU}-A{####}, e.g. EQP-0001-A0001.
+/// Created automatically when an Equipment purchase is recorded (qty N → N assets).
+/// One open project assignment per asset at a time (mirrors ProjectAssignment for employees).
+model EquipmentAsset {
+  id        String               @id @default(cuid())
+  /// Company-scoped unique readable code — {ITEM_SKU}-A{####} (e.g. EQP-0001-A0001).
+  assetCode String
+
+  status EquipmentAssetStatus @default(AVAILABLE)
+
+  itemId String
+  item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  /// Populated while status is ON_PROJECT.
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  /// Linked ISSUE_TO_PROJECT movement created on assign (for financial cost tracking).
+  /// Voided on release — mirrors how consumable void returns stock.
+  movementId String?            @unique
+  movement   InventoryMovement? @relation(fields: [movementId], references: [id], onDelete: SetNull)
+
+  assignedAt DateTime?
+
+  /// Manufacturer / physical serial number (optional, user-set).
+  serialNo String?
+  notes    String?
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, assetCode])
+  @@index([companyId, status])
+  @@index([itemId, status])
+  @@index([projectId])
 }
 
 /// Annual THR (Idul Fitri) entitlement snapshot per employee.

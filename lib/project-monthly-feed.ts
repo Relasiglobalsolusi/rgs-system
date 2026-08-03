@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { addUtcDays, formatDateInput } from "@/lib/invoice-period";
+import { isMilestoneSubCategory } from "@/lib/project-billing";
 
 export type FeedProgressReport = {
   id: string;
@@ -70,10 +71,16 @@ export async function buildProjectMonthlyDayFeed(
       id: true,
       name: true,
       clientId: true,
+      subCategory: true,
       client: { select: { name: true } },
     },
   });
   if (!project?.clientId || !project.client) return null;
+
+  // Non-regular (General / Facade) projects are job-based: only show days that
+  // actually have CICO or progress report activity. Regular Cleaning keeps the
+  // full calendar view so the client can see every shift day.
+  const isJobProject = isMilestoneSubCategory(project.subCategory);
 
   const { start, end } = monthDateRange(year, month);
 
@@ -212,6 +219,8 @@ export async function buildProjectMonthlyDayFeed(
     };
   });
 
+  const filteredDays = isJobProject ? days.filter((d) => d.hasActivity) : days;
+
   return {
     year,
     month,
@@ -219,6 +228,6 @@ export async function buildProjectMonthlyDayFeed(
     projectName: project.name,
     clientId: project.clientId,
     clientName: project.client.name,
-    days,
+    days: filteredDays,
   };
 }
