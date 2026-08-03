@@ -57,11 +57,11 @@ export default function Header({
        * Mobile/tablet: greeting + actions only (no header brand lockup).
        * Desktop (lg+): sidebar brand bar owns the mark.
        */}
-      <div className="flex min-h-[7.5rem] w-full items-center gap-3 px-2.5 py-5 sm:min-h-[8.45rem] sm:gap-3.5 sm:px-[0.7rem] sm:py-[1.625rem] md:gap-4 md:px-[1.05rem] lg:h-(--app-topbar-height) lg:min-h-(--app-topbar-height) lg:justify-between lg:gap-8 lg:px-10 lg:py-0 xl:px-12">
-        <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 lg:overflow-hidden lg:pr-3">
+      <div className="flex min-h-0 w-full flex-wrap items-center gap-x-3 gap-y-3 px-2.5 py-4 sm:gap-x-3.5 sm:px-[0.7rem] sm:py-5 md:gap-x-4 md:px-[1.05rem] lg:h-(--app-topbar-height) lg:min-h-(--app-topbar-height) lg:flex-nowrap lg:justify-between lg:gap-8 lg:px-10 lg:py-0 xl:px-12">
+        <div className="flex w-full min-w-0 flex-col justify-center gap-0.5 lg:w-auto lg:flex-1 lg:overflow-hidden lg:pr-3">
           {welcomeMode ? (
             <>
-              <h1 className="text-[0.9375rem] font-bold leading-tight tracking-tight text-text break-words sm:text-base md:text-lg lg:truncate lg:text-xl lg:leading-tight">
+              <h1 className="text-[0.9375rem] font-bold leading-snug tracking-tight text-text sm:text-base md:text-lg lg:truncate lg:text-xl lg:leading-tight">
                 {timeGreeting}, {greetingName}
               </h1>
               <div className="flex min-w-0 items-center gap-1.5 text-[11px] sm:text-xs md:text-sm">
@@ -77,14 +77,14 @@ export default function Header({
             </>
           ) : (
             <>
-              <h1 className="text-[0.9375rem] font-bold leading-tight tracking-tight text-text break-words sm:text-base md:text-lg lg:truncate lg:text-xl lg:leading-tight">
+              <h1 className="text-[0.9375rem] font-bold leading-snug tracking-tight text-text sm:text-base md:text-lg lg:truncate lg:text-xl lg:leading-tight">
                 {resolvedTitle}
               </h1>
             </>
           )}
         </div>
 
-        <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-2.5 md:gap-3 lg:gap-3.5">
+        <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:gap-2.5 md:gap-3 lg:w-auto lg:gap-3.5">
           {!welcomeMode && (
             <div className="header-date-module" aria-label={headerDateLong}>
               <div className="header-date-module__icon" aria-hidden>
