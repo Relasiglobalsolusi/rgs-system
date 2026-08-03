@@ -57,7 +57,7 @@ export default function Header({
        * Mobile/tablet: greeting + actions only (no header brand lockup).
        * Desktop (lg+): sidebar brand bar owns the mark.
        */}
-      <div className="flex min-h-0 w-full flex-wrap items-center gap-x-3 gap-y-3 px-2.5 py-4 sm:gap-x-3.5 sm:px-[0.7rem] sm:py-5 md:gap-x-4 md:px-[1.05rem] lg:h-(--app-topbar-height) lg:min-h-(--app-topbar-height) lg:flex-nowrap lg:justify-between lg:gap-8 lg:px-10 lg:py-0 xl:px-12">
+      <div className="flex min-h-0 w-full flex-wrap items-center gap-x-3 gap-y-3 px-4 py-4 sm:gap-x-3.5 sm:px-7 sm:py-5 md:gap-x-4 md:px-9 lg:h-(--app-topbar-height) lg:min-h-(--app-topbar-height) lg:flex-nowrap lg:justify-between lg:gap-8 lg:px-10 lg:py-0 xl:px-12">
         <div className="flex w-full min-w-0 flex-col justify-center gap-0.5 lg:w-auto lg:flex-1 lg:overflow-hidden lg:pr-3">
           {welcomeMode ? (
             <>
@@ -84,7 +84,7 @@ export default function Header({
           )}
         </div>
 
-        <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:gap-2.5 md:gap-3 lg:w-auto lg:gap-3.5">
+        <div className="header-controls-row flex w-full shrink-0 items-center justify-center gap-1.5 sm:gap-2 md:gap-2.5 lg:w-auto lg:justify-end lg:gap-3.5">
           {!welcomeMode && (
             <div className="header-date-module" aria-label={headerDateLong}>
               <div className="header-date-module__icon" aria-hidden>
@@ -101,7 +101,7 @@ export default function Header({
           <HeaderLanguageSwitcher />
 
           <MobileNavDialog
-            triggerClassName="header-menu-trigger flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border-2 border-border bg-secondary text-text transition hover:border-accent-cyan/40 hover:bg-elevated hover:text-accent-cyan lg:hidden"
+            triggerClassName="header-menu-trigger flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border-2 border-border bg-secondary text-text transition hover:border-accent-cyan/40 hover:bg-elevated hover:text-accent-cyan sm:h-10 sm:w-10 lg:hidden"
           />
 
           {/* Avatar only below lg — full name/role live in the mobile drawer footer */}
