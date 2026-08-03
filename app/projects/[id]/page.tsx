@@ -25,7 +25,12 @@ import {
   isVendorPortalUser,
 } from "@/lib/project-access";
 import { canAssignInventoryToProject } from "@/lib/inventory-access";
-import { canIssueInventoryToProject } from "@/lib/inventory";
+import {
+  canIssueInventoryToProject,
+  getProjectInventoryCost,
+  inventoryQtyFromDecimal,
+  listProjectInventoryIssues,
+} from "@/lib/inventory";
 import {
   listProjectEquipmentAssets,
 } from "@/lib/equipment-asset";
@@ -49,10 +54,6 @@ import {
 } from "@/lib/i18n/labels";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
-import {
-  getProjectInventoryCost,
-  listProjectInventoryIssues,
-} from "@/lib/inventory";
 import {
   decimalToNumber,
   dedupeOnCompletionPeriods,
@@ -276,8 +277,8 @@ export default async function ProjectDetailPage({
     itemType: item.itemType,
     description: item.description,
     unit: item.unit,
-    minStock: decimalToNumber(item.minStock) ?? 0,
-    currentStock: decimalToNumber(item.currentStock) ?? 0,
+    minStock: inventoryQtyFromDecimal(item.minStock),
+    currentStock: inventoryQtyFromDecimal(item.currentStock),
     lastUnitCost: decimalToNumber(item.lastUnitCost),
     avgUnitCost: decimalToNumber(item.avgUnitCost),
     active: item.active,

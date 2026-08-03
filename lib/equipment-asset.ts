@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { inventoryQtyFromDecimal, normalizeInventoryQty } from "@/lib/inventory";
 import { decimalToNumber } from "@/lib/project-billing";
 
 const EQUIPMENT_ITEM_TYPE = "Equipment";
@@ -82,7 +83,7 @@ export async function mintEquipmentAssets(
   itemId: string,
   qty: number
 ): Promise<number> {
-  const wholeUnits = Math.floor(qty);
+  const wholeUnits = normalizeInventoryQty(qty);
   if (wholeUnits <= 0) return 0;
 
   const item = await db.inventoryItem.findFirst({
@@ -122,7 +123,7 @@ export async function backfillEquipmentAssets(
 
   let assetsMinted = 0;
   for (const item of items) {
-    const stockOnHand = Math.floor(decimalToNumber(item.currentStock) ?? 0);
+    const stockOnHand = inventoryQtyFromDecimal(item.currentStock);
     const [totalAssets, onProject] = await Promise.all([
       db.equipmentAsset.count({ where: { itemId: item.id } }),
       db.equipmentAsset.count({
@@ -167,7 +168,7 @@ export async function retireEquipmentAssets(
   qty: number,
   writeOffReason?: string
 ): Promise<number> {
-  const wholeUnits = Math.floor(qty);
+  const wholeUnits = normalizeInventoryQty(qty);
   if (wholeUnits <= 0) return 0;
 
   const item = await db.inventoryItem.findFirst({

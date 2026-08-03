@@ -25,6 +25,10 @@ import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge from "@/components/ui/StatusBadge";
+import {
+  ACTIONS_DUAL_CHIP_COLUMN_WIDTH,
+  trashActionChipClassName,
+} from "@/components/ui/trash-action-buttons";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/i18n/use-t";
 import { showRejectionFromError } from "@/components/ui/rejection-notice";
@@ -137,14 +141,16 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
           {
             key: "actions",
             title: t("pages.itemCatalog.columns.actions"),
-            width: "11rem",
-            align: "right" as const,
+            width: ACTIONS_DUAL_CHIP_COLUMN_WIDTH,
+            align: "center" as const,
+            className: "min-w-[20rem] overflow-visible whitespace-nowrap",
             render: (row: InventoryCatalogItem) => (
-              <div className="flex flex-wrap justify-end gap-2">
+              <div className="flex shrink-0 items-center justify-center gap-2 whitespace-nowrap">
                 <Button
                   type="button"
-                  size="badgeFlex"
+                  size="badge"
                   variant="outline"
+                  className={trashActionChipClassName}
                   disabled={pending}
                   onClick={() => setEditItem(row)}
                 >
@@ -152,8 +158,9 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
                 </Button>
                 <Button
                   type="button"
-                  size="badgeFlex"
+                  size="badge"
                   variant={row.active ? "outline" : "successBadge"}
+                  className={trashActionChipClassName}
                   disabled={pending}
                   onClick={() => toggleItemActive(row)}
                 >

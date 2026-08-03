@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 
 import { allocateAssetCodes } from "@/lib/equipment-asset";
 import {
+  inventoryQtyFromDecimal,
   movementTotalCost,
+  normalizeInventoryQty,
   toDecimal,
   INVENTORY_ISSUE_PROJECT_STATUSES,
 } from "@/lib/inventory";
@@ -119,7 +121,7 @@ export async function assignEquipmentAssetToProject(formData: FormData) {
         throw new Error(translate(locale, "pages.inventory.itemNotFound"));
       }
 
-      const currentStock = decimalToNumber(locked.currentStock) ?? 0;
+      const currentStock = inventoryQtyFromDecimal(locked.currentStock);
       if (currentStock < 1) {
         throw new Error(translate(locale, "pages.projects.equipmentPicker.noStockRemaining"));
       }
@@ -148,7 +150,7 @@ export async function assignEquipmentAssetToProject(formData: FormData) {
       // Decrement stock cache
       const stockUpdate = await tx.inventoryItem.updateMany({
         where: { id: asset.itemId, currentStock: { gte: toDecimal(1) } },
-        data: { currentStock: toDecimal(currentStock - 1) },
+        data: { currentStock: toDecimal(normalizeInventoryQty(currentStock - 1)) },
       });
       if (stockUpdate.count !== 1) {
         throw new Error(translate(locale, "pages.projects.equipmentPicker.noStockRemaining"));
@@ -213,7 +215,7 @@ export async function releaseEquipmentAssetFromProject(formData: FormData) {
       if (asset.movementId) {
         const locked = await lockInventoryItemRow(tx, asset.itemId);
         if (locked) {
-          const currentStock = decimalToNumber(locked.currentStock) ?? 0;
+          const currentStock = inventoryQtyFromDecimal(locked.currentStock);
           await tx.inventoryMovement.updateMany({
             where: { id: asset.movementId, voidedAt: null },
             data: {
@@ -223,7 +225,7 @@ export async function releaseEquipmentAssetFromProject(formData: FormData) {
           });
           await tx.inventoryItem.update({
             where: { id: asset.itemId },
-            data: { currentStock: toDecimal(currentStock + 1) },
+            data: { currentStock: toDecimal(normalizeInventoryQty(currentStock + 1)) },
           });
         }
       }

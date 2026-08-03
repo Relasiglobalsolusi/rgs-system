@@ -22,7 +22,7 @@ import {
   employeeInputClass,
   employeeSelectTriggerClass,
 } from "@/components/employees/employee-dialog-ui";
-import { Button } from "@/components/ui/button";
+import { isWholeInventoryQty } from "@/lib/inventory";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
@@ -289,6 +289,14 @@ export default function PurchaseInvoiceUploadDialog({
         const unitPrice = Number(line.unitPrice);
         if (!Number.isFinite(quantity) || quantity <= 0) {
           setError(t("pages.billing.purchaseLineQtyRequired", { n: i + 1 }));
+          return;
+        }
+        if (!isWholeInventoryQty(quantity)) {
+          setError(
+            t("pages.inventory.quantityMustBeWhole", {
+              field: t("pages.billing.purchaseQty"),
+            })
+          );
           return;
         }
         if (!Number.isFinite(unitPrice) || unitPrice < 0) {
@@ -659,7 +667,9 @@ export default function PurchaseInvoiceUploadDialog({
                               </SelectContent>
                             </Select>
                             <Input
-                              inputMode="decimal"
+                              type="number"
+                              min={1}
+                              step={1}
                               disabled={busy}
                               value={line.quantity}
                               onChange={(event) => {

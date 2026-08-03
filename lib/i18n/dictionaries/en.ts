@@ -2632,9 +2632,9 @@ export const en = {
       invoicing: "Invoicing...",
       invoiceMilestone1: "Send for",
       invoiceMilestone2: "Review",
-      createProgressInvoice: "Create progress invoice",
+      createProgressInvoice: "Send progress for review",
       createProgressInvoiceDesc:
-        "This project has no saved payment schedule. Enter a cumulative progress % to invoice the slice since the last milestone.",
+        "This project has no saved payment schedule. Pick a cumulative progress % to send a progress package for client Approve or Revise. The project moves to Pending Approval until both sides agree; the invoice is issued after approval.",
       monthlyBillingHelp:
         "Billing follows the contract start date (anniversary cycles). After a cycle ends, Reconcile compiles staff CICO into a report for the client portal (Approve or Revise). Client approval auto-issues the invoice and emails the client contact. Payment due uses the client’s payment terms (Cash = due on submit). The project stays active for future cycles.",
       noMilestonePeriods:
@@ -2673,6 +2673,7 @@ export const en = {
         "Verify this payment proof? The invoice will be marked paid.",
       saveContractPriceFailed: "Failed to save contract price.",
       createMilestoneFailed: "Failed to create milestone invoice.",
+      sendMilestoneForReviewFailed: "Failed to send milestone for review.",
       deletePeriodFailed: "Failed to delete billing period.",
       submitPaymentFailed: "Failed to submit payment for verification.",
       verifyPaymentFailed: "Failed to verify payment.",
@@ -3611,6 +3612,9 @@ export const en = {
         "No items have available stock. Record a purchase before assigning to a project.",
       quantityExceedsStock:
         "Quantity exceeds available stock. Available: {available} {unit}.",
+      quantityMustBeWhole: "{field} must be a whole number.",
+      quantityMustBePositive: "{field} must be greater than zero.",
+      quantityMustBeNonNegative: "{field} must be zero or greater.",
       costingNote:
         "Stock value and project issue costs use running weighted-average unit cost. Last purchase unit cost is shown for reference.",
       searchPlaceholder: "Search items, vendors, projects…",

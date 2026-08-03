@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import SectionCard from "@/components/ui/SectionCard";
 import { formatDisplayDate } from "@/lib/format-date";
-import { canIssueInventoryToProject } from "@/lib/inventory";
+import { canIssueInventoryToProject, formatInventoryQtyWithUnit } from "@/lib/inventory";
 import { useT } from "@/lib/i18n/use-t";
 import { formatContractPrice } from "@/lib/project-billing";
 import { cn } from "@/lib/utils";
@@ -195,7 +195,7 @@ export default function ProjectInventoryPanel({
                       <p className="text-xs text-subtle">{row.item.sku}</p>
                     </td>
                     <td className="px-3 py-3.5 text-text">
-                      {row.quantity} {row.item.unit}
+                      {formatInventoryQtyWithUnit(row.quantity, row.item.unit)}
                     </td>
                     <td className="px-3 py-3.5 text-text">
                       {formatContractPrice(row.unitCost)}
@@ -264,8 +264,7 @@ export default function ProjectInventoryPanel({
           {voidTarget ? (
             <div className="space-y-3">
               <p className="text-sm text-text">
-                {voidTarget.item.name} — {voidTarget.quantity}{" "}
-                {voidTarget.item.unit}
+                {voidTarget.item.name} — {formatInventoryQtyWithUnit(voidTarget.quantity, voidTarget.item.unit)}
               </p>
               <label className="block space-y-1.5">
                 <span className="text-xs font-semibold uppercase tracking-[0.12em] text-subtle">

@@ -11,6 +11,7 @@ import { formatDisplayDate } from "@/lib/format-date";
 import { localeToBcp47 } from "@/lib/i18n/locale";
 import { useT } from "@/lib/i18n/use-t";
 import { formatEmploymentTypeLabel } from "@/lib/placement";
+import { formatInventoryQtyWithUnit } from "@/lib/inventory";
 import { formatContractPrice } from "@/lib/project-billing";
 
 type Props = {
@@ -94,7 +95,7 @@ export default function FinancialReportProjectPanel({ detail }: Props) {
       align: "right",
       className: "min-w-[7rem] tabular-nums",
       render: (row) =>
-        `${row.quantity.toLocaleString(bcp47)} ${row.item.unit}`,
+        formatInventoryQtyWithUnit(row.quantity, row.item.unit),
     },
     {
       key: "cost",

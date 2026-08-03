@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { canManageItemCatalog } from "@/lib/project-access";
+import { inventoryQtyFromDecimal } from "@/lib/inventory";
 import { decimalToNumber } from "@/lib/project-billing";
 import { requireModule, toPermissionUser } from "@/lib/session";
 
@@ -38,8 +39,8 @@ export default async function ItemCatalogPage() {
     itemType: item.itemType,
     description: item.description,
     unit: item.unit,
-    minStock: decimalToNumber(item.minStock) ?? 0,
-    currentStock: decimalToNumber(item.currentStock) ?? 0,
+    minStock: inventoryQtyFromDecimal(item.minStock),
+    currentStock: inventoryQtyFromDecimal(item.currentStock),
     lastUnitCost: decimalToNumber(item.lastUnitCost),
     avgUnitCost: decimalToNumber(item.avgUnitCost),
     active: item.active,

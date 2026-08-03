@@ -29,6 +29,30 @@ export function decimalQty(value: Prisma.Decimal | number | null | undefined) {
   return decimalToNumber(value) ?? 0;
 }
 
+/** Inventory counts are whole units; round away float drift (e.g. 1.999 → 2). */
+export function normalizeInventoryQty(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.round(value);
+}
+
+export function inventoryQtyFromDecimal(
+  value: Prisma.Decimal | number | null | undefined
+): number {
+  return normalizeInventoryQty(decimalQty(value));
+}
+
+export function formatInventoryQty(value: number): string {
+  return String(normalizeInventoryQty(value));
+}
+
+export function formatInventoryQtyWithUnit(value: number, unit: string): string {
+  return `${formatInventoryQty(value)} ${unit}`;
+}
+
+export function isWholeInventoryQty(value: number): boolean {
+  return Number.isFinite(value) && Number.isInteger(value);
+}
+
 /**
  * Weighted-average unit cost after a stock-in of `qty` at `unitPrice`.
  * When prior stock is zero (or no avg), new purchase price becomes the avg.
@@ -119,7 +143,7 @@ export async function listProjectInventoryIssues(
   return rows.map((row) => ({
     id: row.id,
     movedAt: row.movedAt,
-    quantity: Math.abs(decimalQty(row.quantity)),
+    quantity: Math.abs(inventoryQtyFromDecimal(row.quantity)),
     unitCost: decimalQty(row.unitCost),
     totalCost: decimalQty(row.totalCost),
     notes: row.notes,

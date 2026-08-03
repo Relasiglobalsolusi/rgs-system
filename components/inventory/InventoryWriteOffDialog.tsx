@@ -40,6 +40,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatDateForInput } from "@/lib/format-tenure";
+import {
+  formatInventoryQty,
+  isWholeInventoryQty,
+} from "@/lib/inventory";
 import { useT } from "@/lib/i18n/use-t";
 
 const FORM_ID = "create-inventory-write-off-form";
@@ -118,13 +122,26 @@ export default function InventoryWriteOffDialog({
     const qty = Number(
       String(formData.get("quantity") ?? "").replace(/,/g, "").trim()
     );
-    if (
-      selected &&
-      (!Number.isFinite(qty) || qty <= 0 || qty > selected.currentStock + 1e-9)
-    ) {
+    if (!Number.isFinite(qty) || qty <= 0) {
+      showRejection({
+        reasons: t("pages.inventory.quantityMustBePositive", {
+          field: t("pages.inventory.form.quantity"),
+        }),
+      });
+      return;
+    }
+    if (!isWholeInventoryQty(qty)) {
+      showRejection({
+        reasons: t("pages.inventory.quantityMustBeWhole", {
+          field: t("pages.inventory.form.quantity"),
+        }),
+      });
+      return;
+    }
+    if (selected && qty > selected.currentStock) {
       showRejection({
         reasons: t("pages.inventory.quantityExceedsStock", {
-          available: String(selected.currentStock),
+          available: formatInventoryQty(selected.currentStock),
           unit: selected.unit,
         }),
       });
@@ -220,7 +237,7 @@ export default function InventoryWriteOffDialog({
               {selected ? (
                 <p className={employeeDialogHintClass}>
                   {t("pages.inventory.form.writeOffItemHint", {
-                    available: String(selected.currentStock),
+                    available: formatInventoryQty(selected.currentStock),
                     unit: selected.unit,
                   })}
                 </p>
@@ -240,8 +257,8 @@ export default function InventoryWriteOffDialog({
                   id="writeoff-qty"
                   name="quantity"
                   type="number"
-                  min={0.001}
-                  step="any"
+                  min={1}
+                  step={1}
                   required
                   max={selected?.currentStock}
                   className={employeeInputClass}

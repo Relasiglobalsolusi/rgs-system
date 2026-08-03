@@ -19,7 +19,7 @@ import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/project-billing";
 import { mintEquipmentAssets } from "@/lib/equipment-asset";
 import { lockInventoryItemRow } from "@/lib/inventory-access";
-import { nextWeightedAvgUnitCost, toDecimal } from "@/lib/inventory";
+import { nextWeightedAvgUnitCost, toDecimal, inventoryQtyFromDecimal, isWholeInventoryQty, normalizeInventoryQty } from "@/lib/inventory";
 import { extractPurchaseInvoiceFields } from "@/lib/purchase-invoice-extract";
 import type { ExtractPurchaseInvoiceResult } from "@/lib/purchase-invoice-extract-client";
 import { requireSession, toPermissionUser } from "@/lib/session";
@@ -51,6 +51,9 @@ function parsePurchaseLinesJson(raw: string): PurchaseLineInput[] {
     }
     if (!Number.isFinite(quantity) || quantity <= 0) {
       throw new Error(`Enter a valid quantity for line ${index + 1}.`);
+    }
+    if (!isWholeInventoryQty(quantity)) {
+      throw new Error(`Quantity for line ${index + 1} must be a whole number.`);
     }
     if (!Number.isFinite(unitPrice) || unitPrice < 0) {
       throw new Error(`Enter a valid unit cost for line ${index + 1}.`);
@@ -511,7 +514,7 @@ export async function createPurchaseInvoice(formData: FormData) {
         if (!locked || !locked.active) {
           throw new Error("One or more items are missing from the catalog.");
         }
-        const currentStock = decimalToNumber(locked.currentStock) ?? 0;
+        const currentStock = inventoryQtyFromDecimal(locked.currentStock);
         const avgUnitCost = decimalToNumber(locked.avgUnitCost);
         const newAvg = nextWeightedAvgUnitCost({
           currentStock,
@@ -519,7 +522,7 @@ export async function createPurchaseInvoice(formData: FormData) {
           purchaseQty: line.quantity,
           purchaseUnitPrice: line.unitPrice,
         });
-        const newStock = currentStock + line.quantity;
+        const newStock = normalizeInventoryQty(currentStock + line.quantity);
 
         const movement = await tx.inventoryMovement.create({
           data: {

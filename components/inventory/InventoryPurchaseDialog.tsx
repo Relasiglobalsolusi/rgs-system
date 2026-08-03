@@ -43,6 +43,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatDateForInput } from "@/lib/format-tenure";
+import { isWholeInventoryQty } from "@/lib/inventory";
 import { useT } from "@/lib/i18n/use-t";
 
 const FORM_ID = "create-inventory-purchase-form";
@@ -120,6 +121,25 @@ export default function InventoryPurchaseDialog({
     }
     if (!vendorId) {
       showRejection({ reasons: t("pages.inventory.vendorRequired") });
+      return;
+    }
+    const qty = Number(
+      String(formData.get("quantity") ?? "").replace(/,/g, "").trim()
+    );
+    if (!Number.isFinite(qty) || qty <= 0) {
+      showRejection({
+        reasons: t("pages.inventory.quantityMustBePositive", {
+          field: t("pages.inventory.form.quantity"),
+        }),
+      });
+      return;
+    }
+    if (!isWholeInventoryQty(qty)) {
+      showRejection({
+        reasons: t("pages.inventory.quantityMustBeWhole", {
+          field: t("pages.inventory.form.quantity"),
+        }),
+      });
       return;
     }
     formData.set("itemId", itemId);
@@ -280,8 +300,8 @@ export default function InventoryPurchaseDialog({
                   id="purchase-qty"
                   name="quantity"
                   type="number"
-                  min={0.001}
-                  step="any"
+                  min={1}
+                  step={1}
                   required
                   className={employeeInputClass}
                 />

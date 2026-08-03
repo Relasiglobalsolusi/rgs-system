@@ -5,8 +5,12 @@ import { Prisma } from "@prisma/client";
 
 import {
   INVENTORY_ISSUE_PROJECT_STATUSES,
+  formatInventoryQty,
+  inventoryQtyFromDecimal,
+  isWholeInventoryQty,
   movementTotalCost,
   nextWeightedAvgUnitCost,
+  normalizeInventoryQty,
   toDecimal,
 } from "@/lib/inventory";
 import {
@@ -80,18 +84,58 @@ async function requireCompany(locale: AppLocale) {
   return company;
 }
 
-function parsePositiveQty(raw: FormDataEntryValue | null, fieldLabel: string) {
-  const value = Number(String(raw ?? "").replace(/,/g, "").trim());
-  if (!Number.isFinite(value) || value <= 0) {
-    throw new Error(`${fieldLabel} must be greater than zero.`);
-  }
-  return value;
-}
-
 function parseNonNegNumber(raw: FormDataEntryValue | null, fieldLabel: string) {
   const value = Number(String(raw ?? "").replace(/,/g, "").trim());
   if (!Number.isFinite(value) || value < 0) {
     throw new Error(`${fieldLabel} must be zero or greater.`);
+  }
+  return value;
+}
+
+function parsePositiveWholeQty(
+  raw: FormDataEntryValue | null,
+  locale: AppLocale,
+  fieldKey: "pages.inventory.form.quantity" = "pages.inventory.form.quantity"
+) {
+  const value = Number(String(raw ?? "").replace(/,/g, "").trim());
+  const fieldLabel = translate(locale, fieldKey);
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(
+      translate(locale, "pages.inventory.quantityMustBePositive", {
+        field: fieldLabel,
+      })
+    );
+  }
+  if (!isWholeInventoryQty(value)) {
+    throw new Error(
+      translate(locale, "pages.inventory.quantityMustBeWhole", {
+        field: fieldLabel,
+      })
+    );
+  }
+  return value;
+}
+
+function parseNonNegWholeQty(
+  raw: FormDataEntryValue | null,
+  locale: AppLocale,
+  fieldKey: "pages.inventory.form.minStock" = "pages.inventory.form.minStock"
+) {
+  const value = Number(String(raw ?? "").replace(/,/g, "").trim());
+  const fieldLabel = translate(locale, fieldKey);
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(
+      translate(locale, "pages.inventory.quantityMustBeNonNegative", {
+        field: fieldLabel,
+      })
+    );
+  }
+  if (!isWholeInventoryQty(value)) {
+    throw new Error(
+      translate(locale, "pages.inventory.quantityMustBeWhole", {
+        field: fieldLabel,
+      })
+    );
   }
   return value;
 }
@@ -202,9 +246,9 @@ export async function updateInventoryItem(formData: FormData) {
     );
     const unitRaw = String(formData.get("unit") ?? "").trim();
     const unit = unitRaw ? unitRaw.toLowerCase() : "pcs";
-    const minStock = parseNonNegNumber(
+    const minStock = parseNonNegWholeQty(
       formData.get("minStock"),
-      translate(locale, "pages.inventory.form.minStock")
+      locale
     );
 
     if (!name) {
@@ -317,9 +361,9 @@ export async function createInventoryPurchase(formData: FormData) {
       throw new Error(translate(locale, "pages.inventory.vendorRequired"));
     }
 
-    const quantity = parsePositiveQty(
+    const quantity = parsePositiveWholeQty(
       formData.get("quantity"),
-      translate(locale, "pages.inventory.form.quantity")
+      locale
     );
     const unitPrice = parseNonNegNumber(
       formData.get("unitPrice"),
@@ -353,7 +397,7 @@ export async function createInventoryPurchase(formData: FormData) {
       if (!locked || !locked.active) {
         throw new Error(translate(locale, "pages.inventory.itemNotFound"));
       }
-      const currentStock = decimalToNumber(locked.currentStock) ?? 0;
+      const currentStock = inventoryQtyFromDecimal(locked.currentStock);
       const avgUnitCost = decimalToNumber(locked.avgUnitCost);
       const newAvg = nextWeightedAvgUnitCost({
         currentStock,
@@ -361,7 +405,7 @@ export async function createInventoryPurchase(formData: FormData) {
         purchaseQty: quantity,
         purchaseUnitPrice: unitPrice,
       });
-      const newStock = currentStock + quantity;
+      const newStock = normalizeInventoryQty(currentStock + quantity);
 
       const movement = await tx.inventoryMovement.create({
         data: {
@@ -438,9 +482,9 @@ export async function createInventoryProjectIssue(formData: FormData) {
       throw new Error(translate(locale, "pages.inventory.projectRequired"));
     }
 
-    const quantity = parsePositiveQty(
+    const quantity = parsePositiveWholeQty(
       formData.get("quantity"),
-      translate(locale, "pages.inventory.form.quantity")
+      locale
     );
     const movedAt =
       parseFormDateInput(formData.get("movedAt"), {
@@ -473,11 +517,11 @@ export async function createInventoryProjectIssue(formData: FormData) {
         throw new Error(translate(locale, "pages.inventory.itemNotFound"));
       }
 
-      const currentStock = decimalToNumber(locked.currentStock) ?? 0;
-      if (currentStock <= 0 || quantity > currentStock + 1e-9) {
+      const currentStock = inventoryQtyFromDecimal(locked.currentStock);
+      if (currentStock <= 0 || quantity > currentStock) {
         throw new Error(
           translate(locale, "pages.inventory.insufficientStock", {
-            available: String(currentStock),
+            available: formatInventoryQty(currentStock),
             unit: locked.unit,
           })
         );
@@ -515,13 +559,13 @@ export async function createInventoryProjectIssue(formData: FormData) {
           currentStock: { gte: toDecimal(quantity) },
         },
         data: {
-          currentStock: toDecimal(currentStock - quantity),
+          currentStock: toDecimal(normalizeInventoryQty(currentStock - quantity)),
         },
       });
       if (stockUpdate.count !== 1) {
         throw new Error(
           translate(locale, "pages.inventory.insufficientStock", {
-            available: String(currentStock),
+            available: formatInventoryQty(currentStock),
             unit: locked.unit,
           })
         );
@@ -567,9 +611,9 @@ export async function writeOffInventoryStock(formData: FormData) {
       throw new Error(translate(locale, "pages.inventory.writeOffReasonRequired"));
     }
 
-    const quantity = parsePositiveQty(
+    const quantity = parsePositiveWholeQty(
       formData.get("quantity"),
-      translate(locale, "pages.inventory.form.quantity")
+      locale
     );
     const movedAt =
       parseFormDateInput(formData.get("movedAt"), {
@@ -590,11 +634,11 @@ export async function writeOffInventoryStock(formData: FormData) {
         throw new Error(translate(locale, "pages.inventory.itemNotFound"));
       }
 
-      const currentStock = decimalToNumber(locked.currentStock) ?? 0;
-      if (currentStock <= 0 || quantity > currentStock + 1e-9) {
+      const currentStock = inventoryQtyFromDecimal(locked.currentStock);
+      if (currentStock <= 0 || quantity > currentStock) {
         throw new Error(
           translate(locale, "pages.inventory.insufficientStock", {
-            available: String(currentStock),
+            available: formatInventoryQty(currentStock),
             unit: locked.unit,
           })
         );
@@ -640,13 +684,13 @@ export async function writeOffInventoryStock(formData: FormData) {
           currentStock: { gte: toDecimal(quantity) },
         },
         data: {
-          currentStock: toDecimal(currentStock - quantity),
+          currentStock: toDecimal(normalizeInventoryQty(currentStock - quantity)),
         },
       });
       if (stockUpdate.count !== 1) {
         throw new Error(
           translate(locale, "pages.inventory.insufficientStock", {
-            available: String(currentStock),
+            available: formatInventoryQty(currentStock),
             unit: locked.unit,
           })
         );
@@ -707,7 +751,7 @@ export async function voidProjectInventoryIssue(formData: FormData) {
       throw new Error(translate(locale, "pages.inventory.movementNotFound"));
     }
 
-    const restoreQty = Math.abs(new Prisma.Decimal(movement.quantity).toNumber());
+    const restoreQty = inventoryQtyFromDecimal(movement.quantity);
 
     await prisma.$transaction(async (tx) => {
       const locked = await lockInventoryItemRow(tx, movement.itemId);
@@ -715,8 +759,8 @@ export async function voidProjectInventoryIssue(formData: FormData) {
         throw new Error(translate(locale, "pages.inventory.itemNotFound"));
       }
 
-      const currentStock = decimalToNumber(locked.currentStock) ?? 0;
-      const newStock = currentStock + restoreQty;
+      const currentStock = inventoryQtyFromDecimal(locked.currentStock);
+      const newStock = normalizeInventoryQty(currentStock + restoreQty);
 
       const voided = await tx.inventoryMovement.updateMany({
         where: { id: movement.id, voidedAt: null },
@@ -794,9 +838,9 @@ export async function voidInventoryMovement(formData: FormData) {
         throw new Error(translate(locale, "pages.inventory.itemNotFound"));
       }
 
-      const currentStock = decimalToNumber(locked.currentStock) ?? 0;
-      const newStock = currentStock + reverseQty;
-      if (newStock < -1e-9) {
+      const currentStock = inventoryQtyFromDecimal(locked.currentStock);
+      const newStock = normalizeInventoryQty(currentStock + reverseQty);
+      if (newStock < 0) {
         throw new Error(
           translate(locale, "pages.inventory.voidWouldGoNegative")
         );

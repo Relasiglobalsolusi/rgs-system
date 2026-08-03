@@ -265,7 +265,7 @@ export default function InventoryItemEditDialog({
                   name="minStock"
                   type="number"
                   min={0}
-                  step="any"
+                  step={1}
                   defaultValue={item.minStock}
                   className={employeeInputClass}
                 />

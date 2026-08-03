@@ -30,7 +30,7 @@ import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
-import { stockValueOnHand } from "@/lib/inventory";
+import { stockValueOnHand, formatInventoryQtyWithUnit } from "@/lib/inventory";
 import { formatDisplayDate } from "@/lib/format-date";
 import { formatContractPrice } from "@/lib/project-billing";
 import { useT } from "@/lib/i18n/use-t";
@@ -92,9 +92,9 @@ export default function InventoryWorkspace({
       purchases.filter((row) =>
         matchesDirectorySearch(
           searchQuery,
-          row.item.name,
-          row.item.sku,
-          row.vendor.name,
+          row.item?.name,
+          row.item?.sku,
+          row.vendor?.name,
           row.invoiceNo,
           row.notes
         )
@@ -107,8 +107,8 @@ export default function InventoryWorkspace({
       issues.filter((row) =>
         matchesDirectorySearch(
           searchQuery,
-          row.item.name,
-          row.item.sku,
+          row.item?.name,
+          row.item?.sku,
           row.project?.name,
           row.notes
         )
@@ -121,8 +121,8 @@ export default function InventoryWorkspace({
       writeOffs.filter((row) =>
         matchesDirectorySearch(
           searchQuery,
-          row.item.name,
-          row.item.sku,
+          row.item?.name,
+          row.item?.sku,
           row.reason,
           row.createdBy?.username
         )
@@ -156,8 +156,8 @@ export default function InventoryWorkspace({
       share: 2,
       render: (row) => (
         <div>
-          <p className="font-medium text-text">{row.item.name}</p>
-          <p className="text-xs text-subtle">{row.item.sku}</p>
+          <p className="font-medium text-text">{row.item?.name ?? "—"}</p>
+          <p className="text-xs text-subtle">{row.item?.sku ?? "—"}</p>
         </div>
       ),
     },
@@ -165,14 +165,15 @@ export default function InventoryWorkspace({
       key: "vendor",
       title: t("pages.inventory.columns.vendor"),
       share: 1.5,
-      render: (row) => row.vendor.name,
+      render: (row) => row.vendor?.name ?? "—",
     },
     {
       key: "quantity",
       title: t("pages.inventory.columns.qty"),
       width: "7rem",
       align: "right",
-      render: (row) => `${row.quantity} ${row.item.unit}`,
+      render: (row) =>
+        formatInventoryQtyWithUnit(row.quantity, row.item?.unit ?? "pcs"),
     },
     {
       key: "unitPrice",
@@ -221,8 +222,8 @@ export default function InventoryWorkspace({
       share: 2,
       render: (row) => (
         <div>
-          <p className="font-medium text-text">{row.item.name}</p>
-          <p className="text-xs text-subtle">{row.item.sku}</p>
+          <p className="font-medium text-text">{row.item?.name ?? "—"}</p>
+          <p className="text-xs text-subtle">{row.item?.sku ?? "—"}</p>
         </div>
       ),
     },
@@ -247,7 +248,8 @@ export default function InventoryWorkspace({
       title: t("pages.inventory.columns.qty"),
       width: "7rem",
       align: "right",
-      render: (row) => `${row.quantity} ${row.item.unit}`,
+      render: (row) =>
+        formatInventoryQtyWithUnit(row.quantity, row.item?.unit ?? "pcs"),
     },
     {
       key: "unitCost",
@@ -278,8 +280,8 @@ export default function InventoryWorkspace({
       share: 2,
       render: (row) => (
         <div>
-          <p className="font-medium text-text">{row.item.name}</p>
-          <p className="text-xs text-subtle">{row.item.sku}</p>
+          <p className="font-medium text-text">{row.item?.name ?? "—"}</p>
+          <p className="text-xs text-subtle">{row.item?.sku ?? "—"}</p>
         </div>
       ),
     },
@@ -288,7 +290,8 @@ export default function InventoryWorkspace({
       title: t("pages.inventory.columns.qty"),
       width: "7rem",
       align: "right",
-      render: (row) => `${row.quantity} ${row.item.unit}`,
+      render: (row) =>
+        formatInventoryQtyWithUnit(row.quantity, row.item?.unit ?? "pcs"),
     },
     {
       key: "unitCost",
@@ -333,7 +336,7 @@ export default function InventoryWorkspace({
       key: "name",
       title: t("pages.inventory.columns.item"),
       share: 2,
-      render: (row) => row.name,
+      render: (row) => row?.name ?? "—",
     },
     {
       key: "currentStock",
@@ -344,7 +347,7 @@ export default function InventoryWorkspace({
         const low = row.currentStock < LOW_STOCK_THRESHOLD;
         return (
           <span className={low ? "font-semibold text-warning" : undefined}>
-            {row.currentStock} {row.unit}
+            {formatInventoryQtyWithUnit(row.currentStock, row.unit)}
             {low ? (
               <AlertTriangle className="ml-1 inline h-3.5 w-3.5 align-text-bottom" />
             ) : null}
@@ -358,7 +361,7 @@ export default function InventoryWorkspace({
       width: "7rem",
       align: "right",
       render: (row) =>
-        row.minStock > 0 ? `${row.minStock} ${row.unit}` : "—",
+        row.minStock > 0 ? formatInventoryQtyWithUnit(row.minStock, row.unit) : "—",
     },
     {
       key: "avgUnitCost",

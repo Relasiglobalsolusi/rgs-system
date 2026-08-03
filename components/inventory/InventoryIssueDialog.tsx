@@ -45,6 +45,10 @@ import {
 } from "@/components/ui/select";
 import { formatDateForInput } from "@/lib/format-tenure";
 import { formatContractPrice } from "@/lib/project-billing";
+import {
+  formatInventoryQty,
+  isWholeInventoryQty,
+} from "@/lib/inventory";
 import { useT } from "@/lib/i18n/use-t";
 
 const FORM_ID = "create-inventory-issue-form";
@@ -142,13 +146,29 @@ export default function InventoryIssueDialog({
     const qty = Number(
       String(formData.get("quantity") ?? "").replace(/,/g, "").trim()
     );
+    if (!Number.isFinite(qty) || qty <= 0) {
+      showRejection({
+        reasons: t("pages.inventory.quantityMustBePositive", {
+          field: t("pages.inventory.form.quantity"),
+        }),
+      });
+      return;
+    }
+    if (!isWholeInventoryQty(qty)) {
+      showRejection({
+        reasons: t("pages.inventory.quantityMustBeWhole", {
+          field: t("pages.inventory.form.quantity"),
+        }),
+      });
+      return;
+    }
     if (
       selected &&
-      (!Number.isFinite(qty) || qty <= 0 || qty > selected.currentStock + 1e-9)
+      qty > selected.currentStock
     ) {
       showRejection({
         reasons: t("pages.inventory.quantityExceedsStock", {
-          available: String(selected.currentStock),
+          available: formatInventoryQty(selected.currentStock),
           unit: selected.unit,
         }),
       });
@@ -247,7 +267,7 @@ export default function InventoryIssueDialog({
                     unitCost: formatContractPrice(
                       selected.avgUnitCost ?? selected.lastUnitCost ?? 0
                     ),
-                    available: String(selected.currentStock),
+                    available: formatInventoryQty(selected.currentStock),
                     unit: selected.unit,
                   })}
                 </p>
@@ -319,8 +339,8 @@ export default function InventoryIssueDialog({
                   id="issue-qty"
                   name="quantity"
                   type="number"
-                  min={0.001}
-                  step="any"
+                  min={1}
+                  step={1}
                   required
                   max={selected?.currentStock}
                   className={employeeInputClass}

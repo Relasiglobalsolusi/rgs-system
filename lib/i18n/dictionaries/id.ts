@@ -2660,9 +2660,9 @@ export const id = {
       invoicing: "Sedang menagih...",
       invoiceMilestone1: "Kirim untuk",
       invoiceMilestone2: "Review",
-      createProgressInvoice: "Buat invoice progres",
+      createProgressInvoice: "Kirim progres untuk review",
       createProgressInvoiceDesc:
-        "Proyek ini belum punya jadwal pembayaran tersimpan. Masukkan % progres kumulatif untuk menagih bagian sejak bertahap terakhir.",
+        "Proyek ini belum punya jadwal pembayaran tersimpan. Pilih % progres kumulatif untuk mengirim paket progress agar klien Approve atau Revise. Proyek berpindah ke Persetujuan Menunggu sampai kedua pihak setuju; invoice diterbitkan setelah disetujui.",
       monthlyBillingHelp:
         "Penagihan mengikuti tanggal mulai kontrak (siklus ulang tahun). Setelah siklus berakhir, Rekonsiliasi menyusun CICO staf menjadi laporan untuk portal klien (Approve atau Revise). Persetujuan klien otomatis menerbitkan invoice dan mengirim email ke kontak klien. Jatuh tempo memakai syarat pembayaran klien (Tunai = jatuh tempo saat dikirim). Proyek tetap aktif untuk siklus berikutnya.",
       noMilestonePeriods:
@@ -2700,6 +2700,7 @@ export const id = {
         "Verifikasi bukti pembayaran ini? Invoice akan ditandai lunas.",
       saveContractPriceFailed: "Gagal menyimpan harga kontrak.",
       createMilestoneFailed: "Gagal membuat invoice bertahap.",
+      sendMilestoneForReviewFailed: "Gagal mengirim bertahap untuk review.",
       deletePeriodFailed: "Gagal menghapus periode penagihan.",
       submitPaymentFailed: "Gagal mengirim pembayaran untuk verifikasi.",
       verifyPaymentFailed: "Gagal memverifikasi pembayaran.",
@@ -3652,6 +3653,9 @@ export const id = {
         "Tidak ada item dengan stok tersedia. Catat pembelian sebelum menetapkan ke proyek.",
       quantityExceedsStock:
         "Kuantitas melebihi stok tersedia. Tersedia: {available} {unit}.",
+      quantityMustBeWhole: "{field} harus berupa bilangan bulat.",
+      quantityMustBePositive: "{field} harus lebih besar dari nol.",
+      quantityMustBeNonNegative: "{field} harus nol atau lebih besar.",
       costingNote:
         "Nilai stok dan biaya pengeluaran ke proyek memakai rata-rata tertimbang unit cost. Unit cost pembelian terakhir ditampilkan sebagai referensi.",
       searchPlaceholder: "Cari item, pemasok, proyek…",

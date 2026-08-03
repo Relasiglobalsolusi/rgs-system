@@ -1161,15 +1161,17 @@ async function issueMilestonePeriodInner(
 }
 
 /**
- * Create a milestone progress invoice for General / Facade projects.
- * Prefer {@link issueMilestonePeriod} when a schedule already exists.
- * Amount = contractPrice * (percent - alreadyInvoicedPercent) / 100
- * when using cumulative %, OR contractPrice * percent/100 when percent is
- * treated as the invoice slice. We use cumulative progress %:
- * e.g. 30 then 60 invoices 30% then another 30%.
+ * Resolve or create an ad-hoc milestone billing period (legacy projects without
+ * a saved payment schedule, or when picking a cumulative % manually).
  */
-export async function createMilestoneInvoice(formData: FormData) {
-  const session = await requireInvoiceManageAccess();
+async function ensureAdHocMilestonePeriod(
+  formData: FormData,
+  opts: {
+    status: "ONGOING" | "COMPILING";
+    requireIssueGate?: boolean;
+  }
+) {
+  await requireInvoiceManageAccess();
 
   const projectId = String(formData.get("projectId") ?? "").trim();
   const percentRaw = Number(formData.get("milestonePercent") ?? NaN);
@@ -1204,14 +1206,24 @@ export async function createMilestoneInvoice(formData: FormData) {
     );
   }
 
-  // If a matching scheduled ONGOING period exists, issue that instead of creating a duplicate.
   const scheduled = project.invoicePeriods.find(
     (p) =>
       p.milestonePercent === milestonePercent &&
-      (p.status === "ONGOING" || p.status === "COMPILING")
+      (p.status === "ONGOING" ||
+        p.status === "COMPILING" ||
+        p.status === "AWAITING_CLIENT_REVIEW")
   );
   if (scheduled) {
-    return issueMilestonePeriod(scheduled.id);
+    return {
+      periodId: scheduled.id,
+      existingScheduled: true,
+      project,
+      milestonePercent,
+      amount: decimalToNumber(scheduled.amount) ?? 0,
+      periodStart: scheduled.periodStart,
+      safeEnd: scheduled.periodEnd,
+      label: scheduled.label ?? formatMilestoneScheduleLabel(milestonePercent),
+    };
   }
 
   const contractPrice = decimalToNumber(project.contractPrice);
@@ -1234,7 +1246,6 @@ export async function createMilestoneInvoice(formData: FormData) {
     );
   }
 
-  // Prefer invoicing the next scheduled period when a plan exists.
   const nextScheduled = project.invoicePeriods
     .filter(
       (p) =>
@@ -1268,7 +1279,13 @@ export async function createMilestoneInvoice(formData: FormData) {
   const today = toUtcDateOnly(new Date());
   const lastDelivered = project.invoicePeriods
     .filter((p) =>
-      ["AWAITING_PAYMENT", "PENDING_VERIFICATION", "PAID", "OVERDUE", "COMPILING"].includes(p.status)
+      [
+        "AWAITING_PAYMENT",
+        "PENDING_VERIFICATION",
+        "PAID",
+        "OVERDUE",
+        "COMPILING",
+      ].includes(p.status)
     )
     .sort((a, b) => b.periodEnd.getTime() - a.periodEnd.getTime())[0];
 
@@ -1283,12 +1300,11 @@ export async function createMilestoneInvoice(formData: FormData) {
     : project.startDate
       ? toUtcDateOnly(project.startDate)
       : today;
-  const periodEnd = today.getTime() < periodStart.getTime() ? periodStart : today;
+  const periodEnd =
+    today.getTime() < periodStart.getTime() ? periodStart : today;
 
   const label = formatMilestoneScheduleLabel(milestonePercent);
 
-  // Avoid unique collisions if same-day re-invoice: bump end by seconds via date-only uniqueness —
-  // if same start/end exists, nudge end forward by 1 day for uniqueness (rare same-day double).
   let safeEnd = periodEnd;
   const collision = await prisma.projectInvoicePeriod.findUnique({
     where: {
@@ -1309,11 +1325,13 @@ export async function createMilestoneInvoice(formData: FormData) {
     );
   }
 
-  await assertCanIssueCommercialInvoice(
-    { clientReviewStatus: "NONE" },
-    project.status,
-    { approvedReview: false }
-  );
+  if (opts.requireIssueGate) {
+    await assertCanIssueCommercialInvoice(
+      { clientReviewStatus: "NONE" },
+      project.status,
+      { approvedReview: false }
+    );
+  }
 
   const period = await prisma.projectInvoicePeriod.create({
     data: {
@@ -1321,11 +1339,69 @@ export async function createMilestoneInvoice(formData: FormData) {
       periodStart,
       periodEnd: safeEnd,
       label,
-      status: "COMPILING",
+      status: opts.status,
       amount,
       milestonePercent,
     },
   });
+
+  return {
+    periodId: period.id,
+    existingScheduled: false,
+    project,
+    milestonePercent,
+    amount,
+    periodStart,
+    safeEnd,
+    label,
+  };
+}
+
+/**
+ * Legacy ad-hoc milestone UI: create (or reuse) a period, then send the
+ * progress package for client + HO review instead of issuing immediately.
+ */
+export async function sendAdHocMilestoneForClientReview(formData: FormData) {
+  const ready = await ensureAdHocMilestonePeriod(formData, {
+    status: "ONGOING",
+  });
+  const { sendPeriodForClientReview } = await import(
+    "@/app/billing/reconciliation/actions"
+  );
+  return sendPeriodForClientReview(ready.periodId, "PROGRESS");
+}
+
+/**
+ * Create a milestone progress invoice for General / Facade projects.
+ * Prefer {@link issueMilestonePeriod} when a schedule already exists.
+ * Amount = contractPrice * (percent - alreadyInvoicedPercent) / 100
+ * when using cumulative %, OR contractPrice * percent/100 when percent is
+ * treated as the invoice slice. We use cumulative progress %:
+ * e.g. 30 then 60 invoices 30% then another 30%.
+ */
+export async function createMilestoneInvoice(formData: FormData) {
+  const session = await requireInvoiceManageAccess();
+
+  const ready = await ensureAdHocMilestonePeriod(formData, {
+    status: "COMPILING",
+    requireIssueGate: true,
+  });
+
+  if (ready.existingScheduled) {
+    return issueMilestonePeriod(ready.periodId);
+  }
+
+  const {
+    periodId,
+    project,
+    milestonePercent,
+    amount,
+    periodStart,
+    safeEnd,
+    label,
+  } = ready;
+  const projectId = project.id;
+  const period = { id: periodId };
 
   const reports = await prisma.progressReport.findMany({
     where: {

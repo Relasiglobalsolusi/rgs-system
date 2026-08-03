@@ -1,8 +1,11 @@
 import type { Prisma } from "@prisma/client";
 
 import { lockInventoryItemRow } from "@/lib/inventory-access";
-import { toDecimal } from "@/lib/inventory";
-import { decimalToNumber } from "@/lib/project-billing";
+import {
+  inventoryQtyFromDecimal,
+  normalizeInventoryQty,
+  toDecimal,
+} from "@/lib/inventory";
 
 /** Catalog item types that return to warehouse when project crew is released. */
 export const RETURNABLE_EQUIPMENT_ITEM_TYPES = ["Equipment"] as const;
@@ -66,16 +69,14 @@ export async function releaseProjectEquipmentToInventory(
   let restored = 0;
 
   for (const movement of equipmentIssues) {
-    const restoreQty = Math.abs(
-      decimalToNumber(movement.quantity) ?? 0
-    );
+    const restoreQty = inventoryQtyFromDecimal(movement.quantity);
     if (restoreQty <= 0) continue;
 
     const locked = await lockInventoryItemRow(db, movement.itemId);
     if (!locked) continue;
 
-    const currentStock = decimalToNumber(locked.currentStock) ?? 0;
-    const newStock = currentStock + restoreQty;
+    const currentStock = inventoryQtyFromDecimal(locked.currentStock);
+    const newStock = normalizeInventoryQty(currentStock + restoreQty);
 
     const updated = await db.inventoryMovement.updateMany({
       where: { id: movement.id, voidedAt: null },

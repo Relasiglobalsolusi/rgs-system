@@ -7,9 +7,9 @@ import {
 import { useRouter } from "next/navigation";
 import { Fragment, useState, useTransition, useEffect, useMemo } from "react";
 import {
-  createMilestoneInvoice,
   deleteInvoicePeriod,
   rejectInvoicePaymentVerification,
+  sendAdHocMilestoneForClientReview,
   submitInvoicePaymentForVerification,
   updateProjectContractPrice,
   verifyInvoicePeriodPayment,
@@ -218,7 +218,7 @@ export default function ProjectBillingPanel({
     if (!nextMilestone) return;
     run(
       () => sendProgressForClientReview(nextMilestone.id),
-      t("pages.billing.createMilestoneFailed")
+      t("pages.billing.sendMilestoneForReviewFailed")
     );
   }
 
@@ -228,8 +228,8 @@ export default function ProjectBillingPanel({
     formData.set("projectId", projectId);
     formData.set("milestonePercent", String(percent));
     run(
-      () => createMilestoneInvoice(formData),
-      t("pages.billing.createMilestoneFailed")
+      () => sendAdHocMilestoneForClientReview(formData),
+      t("pages.billing.sendMilestoneForReviewFailed")
     );
   }
 
@@ -507,11 +507,21 @@ export default function ProjectBillingPanel({
                 <Button
                   key={preset}
                   size="badge"
-                  variant="mutedBadge"
+                  variant="successBadge"
+                  className={cn(flexibleBadgeChipClassName, "whitespace-normal")}
                   disabled={pending || price == null}
                   onClick={() => submitAdHocMilestone(preset)}
                 >
-                  {preset}%
+                  {pending ? (
+                    t("pages.billing.invoicing")
+                  ) : (
+                    <StackedChipLabel
+                      lines={[
+                        `${preset}%`,
+                        t("pages.reconciliation.sendForClientReview"),
+                      ]}
+                    />
+                  )}
                 </Button>
               ))}
           </div>
@@ -858,7 +868,7 @@ export default function ProjectBillingPanel({
                               onClick={() =>
                                 run(
                                   () => sendProgressForClientReview(period.id),
-                                  t("pages.billing.invoiceMilestoneFailed")
+                                  t("pages.billing.sendMilestoneForReviewFailed")
                                 )
                               }
                             >

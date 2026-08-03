@@ -2,7 +2,10 @@ import { prisma } from "@/lib/prisma";
 import { canAssignInventoryToProject } from "@/lib/inventory-access";
 import { canManageInventory } from "@/lib/project-access";
 import { decimalToNumber } from "@/lib/project-billing";
-import { INVENTORY_ISSUE_PROJECT_STATUSES } from "@/lib/inventory";
+import {
+  INVENTORY_ISSUE_PROJECT_STATUSES,
+  inventoryQtyFromDecimal,
+} from "@/lib/inventory";
 import { requireModule, toPermissionUser } from "@/lib/session";
 
 import AppShell from "@/components/layout/AppShell";
@@ -108,47 +111,53 @@ export default async function InventoryPage() {
     itemType: item.itemType,
     description: item.description,
     unit: item.unit,
-    minStock: decimalToNumber(item.minStock) ?? 0,
-    currentStock: decimalToNumber(item.currentStock) ?? 0,
+    minStock: inventoryQtyFromDecimal(item.minStock),
+    currentStock: inventoryQtyFromDecimal(item.currentStock),
     lastUnitCost: decimalToNumber(item.lastUnitCost),
     avgUnitCost: decimalToNumber(item.avgUnitCost),
     active: item.active,
   }));
 
-  const purchaseRows = purchases.map((row) => ({
-    id: row.id,
-    purchasedAt: row.purchasedAt.toISOString(),
-    quantity: decimalToNumber(row.quantity) ?? 0,
-    unitPrice: decimalToNumber(row.unitPrice) ?? 0,
-    totalPrice: decimalToNumber(row.totalPrice) ?? 0,
-    invoiceNo: row.invoiceNo,
-    receiptUrl: row.receiptUrl,
-    notes: row.notes,
-    item: row.item,
-    vendor: row.vendor,
-  }));
+  const purchaseRows = purchases
+    .filter((row) => row.item != null && row.vendor != null)
+    .map((row) => ({
+      id: row.id,
+      purchasedAt: row.purchasedAt.toISOString(),
+      quantity: Math.abs(inventoryQtyFromDecimal(row.quantity)),
+      unitPrice: decimalToNumber(row.unitPrice) ?? 0,
+      totalPrice: decimalToNumber(row.totalPrice) ?? 0,
+      invoiceNo: row.invoiceNo,
+      receiptUrl: row.receiptUrl,
+      notes: row.notes,
+      item: row.item!,
+      vendor: row.vendor!,
+    }));
 
-  const issueRows = issues.map((row) => ({
-    id: row.id,
-    movedAt: row.movedAt.toISOString(),
-    quantity: Math.abs(decimalToNumber(row.quantity) ?? 0),
-    unitCost: decimalToNumber(row.unitCost) ?? 0,
-    totalCost: decimalToNumber(row.totalCost) ?? 0,
-    notes: row.notes,
-    item: row.item,
-    project: row.project,
-  }));
+  const issueRows = issues
+    .filter((row) => row.item != null)
+    .map((row) => ({
+      id: row.id,
+      movedAt: row.movedAt.toISOString(),
+      quantity: Math.abs(inventoryQtyFromDecimal(row.quantity)),
+      unitCost: decimalToNumber(row.unitCost) ?? 0,
+      totalCost: decimalToNumber(row.totalCost) ?? 0,
+      notes: row.notes,
+      item: row.item!,
+      project: row.project,
+    }));
 
-  const writeOffRows = writeOffs.map((row) => ({
-    id: row.id,
-    movedAt: row.movedAt.toISOString(),
-    quantity: Math.abs(decimalToNumber(row.quantity) ?? 0),
-    unitCost: decimalToNumber(row.unitCost) ?? 0,
-    totalCost: decimalToNumber(row.totalCost) ?? 0,
-    reason: row.notes ?? "",
-    createdBy: row.createdBy,
-    item: row.item,
-  }));
+  const writeOffRows = writeOffs
+    .filter((row) => row.item != null)
+    .map((row) => ({
+      id: row.id,
+      movedAt: row.movedAt.toISOString(),
+      quantity: Math.abs(inventoryQtyFromDecimal(row.quantity)),
+      unitCost: decimalToNumber(row.unitCost) ?? 0,
+      totalCost: decimalToNumber(row.totalCost) ?? 0,
+      reason: row.notes ?? "",
+      createdBy: row.createdBy,
+      item: row.item!,
+    }));
 
   return (
     <AppShell
