@@ -95,7 +95,7 @@ export default function FirstLoginForm() {
     <main className="auth-surface auth-shell">
       <div className="mx-auto flex min-h-screen w-full max-w-lg items-center px-6 py-12">
         <div className="w-full">
-          <div className="mb-8">
+          <div className="mb-8 flex justify-center">
             <AuthLogo />
           </div>
 

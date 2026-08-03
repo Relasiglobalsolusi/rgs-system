@@ -117,6 +117,18 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
+        if (
+          !user.passwordSetupCompletedAt &&
+          !user.mustSetPassword &&
+          user.email &&
+          !user.passwordDisplay
+        ) {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { passwordSetupCompletedAt: new Date() },
+          });
+        }
+
         const moduleOverrides = parseModuleOverrides(user.moduleOverrides);
         const sidebarOrder = parseSidebarOrder(user.sidebarOrder);
 

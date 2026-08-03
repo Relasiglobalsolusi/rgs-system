@@ -354,6 +354,8 @@ model User {
   passwordDisplay String?
 
   mustSetPassword Boolean @default(false)
+  /// Set when the user finishes /first-login, /set-password, forgot-password, or admin password issue.
+  passwordSetupCompletedAt DateTime?
 
   role             UserRole
   active           Boolean @default(true)

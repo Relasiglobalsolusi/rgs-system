@@ -6,10 +6,12 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import {
   assertRecoveryEmailAvailable,
+  isLinkedPortalLogin,
   isValidRecoveryEmail,
   needsInitialPasswordSetup,
   normalizeRecoveryEmail,
 } from "@/lib/user-account";
+import { isPlaceholderPasswordHash } from "@/lib/unusable-password";
 import { normalizeUsername } from "@/lib/username";
 
 type FirstLoginResult =
@@ -56,6 +58,11 @@ export async function setInitialPassword(
       mustSetPassword: true,
       email: true,
       passwordDisplay: true,
+      passwordHash: true,
+      passwordSetupCompletedAt: true,
+      clientId: true,
+      vendorId: true,
+      employee: { select: { id: true } },
     },
   });
 
@@ -67,7 +74,17 @@ export async function setInitialPassword(
     return { status: "inactive" };
   }
 
-  if (!needsInitialPasswordSetup(user)) {
+  const linkedPortalLogin = isLinkedPortalLogin(user);
+  const needsSetup =
+    needsInitialPasswordSetup({
+      mustSetPassword: user.mustSetPassword,
+      email: user.email,
+      passwordDisplay: user.passwordDisplay,
+      passwordSetupCompletedAt: user.passwordSetupCompletedAt,
+      isLinkedPortalLogin: linkedPortalLogin,
+    }) || (await isPlaceholderPasswordHash(user.passwordHash));
+
+  if (!needsSetup) {
     return { status: "not_required" };
   }
 
@@ -86,6 +103,7 @@ export async function setInitialPassword(
       passwordDisplay: null,
       mustSetPassword: false,
       email: recoveryEmail,
+      passwordSetupCompletedAt: new Date(),
     },
   });
 

@@ -76,6 +76,7 @@ export async function createUser(formData: FormData) {
       passwordHash,
       mustSetPassword,
       ...(passwordDisplay ? { passwordDisplay } : {}),
+      ...(!mustSetPassword ? { passwordSetupCompletedAt: new Date() } : {}),
       role: "ADMIN",
       companyId: company.id,
       active: true,
@@ -143,6 +144,7 @@ export async function updateUser(userId: string, formData: FormData) {
     passwordHash?: string;
     passwordDisplay?: string | null;
     mustSetPassword?: boolean;
+    passwordSetupCompletedAt?: Date | null;
   } = {
     name,
     username,
@@ -156,6 +158,7 @@ export async function updateUser(userId: string, formData: FormData) {
     userData.passwordHash = await bcrypt.hash(password, 12);
     userData.passwordDisplay = password;
     userData.mustSetPassword = false;
+    userData.passwordSetupCompletedAt = new Date();
   }
 
   await prisma.user.update({
@@ -192,6 +195,7 @@ export async function resetUserAccount(userId: string) {
         passwordHash: credentials.passwordHash,
         passwordDisplay: credentials.passwordDisplay,
         mustSetPassword: credentials.mustSetPassword,
+        passwordSetupCompletedAt: credentials.passwordSetupCompletedAt,
       },
     });
   });

@@ -40,6 +40,7 @@ export async function resolveFirstLoginResetCredentials(): Promise<{
   mustSetPassword: true;
   passwordDisplay: null;
   email: null;
+  passwordSetupCompletedAt: null;
 }> {
   const { passwordHash } = await resolveNewAccountPassword("");
   return {
@@ -47,6 +48,7 @@ export async function resolveFirstLoginResetCredentials(): Promise<{
     mustSetPassword: true,
     passwordDisplay: null,
     email: null,
+    passwordSetupCompletedAt: null,
   };
 }
 
@@ -89,19 +91,37 @@ export function needsRecoveryEmail(email: string | null | undefined) {
   return !email?.trim();
 }
 
+export function isLinkedPortalLogin(user: {
+  clientId?: string | null;
+  vendorId?: string | null;
+  employee?: { id: string } | null;
+}): boolean {
+  return Boolean(user.clientId || user.vendorId || user.employee);
+}
+
 /**
  * Whether the account still needs the public /first-login setup flow
  * (choose password + recovery email), as opposed to a normal /login sign-in.
  *
- * Do not rely on mustSetPassword alone: provisioned portal logins always get an
- * unusable password hash, and legacy rows may have mustSetPassword @default(false)
+ * Uses DB state only — never form-submitted recovery email.
+ * Do not rely on mustSetPassword alone: provisioned portal logins always get a
+ * placeholder password hash, and legacy rows may have mustSetPassword @default(false)
  * even before the user completes setup.
  */
-export function needsInitialPasswordSetup(user: {
-  mustSetPassword: boolean;
-  email?: string | null;
-  passwordDisplay?: string | null;
-}): boolean {
+export function needsInitialPasswordSetup(
+  user: {
+    mustSetPassword: boolean;
+    email?: string | null;
+    passwordDisplay?: string | null;
+    passwordSetupCompletedAt?: Date | null;
+    isLinkedPortalLogin?: boolean;
+  },
+  options?: { includeLinkedLegacy?: boolean }
+): boolean {
+  if (user.passwordSetupCompletedAt) {
+    return false;
+  }
+
   if (user.mustSetPassword) {
     return true;
   }
@@ -113,6 +133,12 @@ export function needsInitialPasswordSetup(user: {
 
   // Portal / reset accounts: no recovery email means first-login never finished.
   if (needsRecoveryEmail(user.email)) {
+    return true;
+  }
+
+  // Linked portal logins without a recorded setup completion — covers legacy rows
+  // where mustSetPassword stayed false and an admin saved a recovery email early.
+  if (options?.includeLinkedLegacy !== false && user.isLinkedPortalLogin) {
     return true;
   }
 

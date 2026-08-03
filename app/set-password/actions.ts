@@ -76,6 +76,7 @@ export async function setPassword(formData: FormData): Promise<SetPasswordResult
       passwordHash,
       passwordDisplay: null,
       mustSetPassword: false,
+      passwordSetupCompletedAt: new Date(),
       ...(requiresEmail ? { email: recoveryEmail } : {}),
     },
   });

@@ -133,6 +133,7 @@ export async function resetPassword(
         // Never store self-chosen passwords in cleartext for admin view.
         passwordDisplay: null,
         mustSetPassword: false,
+        passwordSetupCompletedAt: new Date(),
       },
     }),
     prisma.passwordResetToken.delete({
