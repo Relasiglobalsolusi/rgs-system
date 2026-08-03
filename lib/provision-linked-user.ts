@@ -91,7 +91,7 @@ export async function provisionEmployeeUser(
     isTaken: (candidate) => usernameIsTaken(tx, candidate),
   });
 
-  const { passwordHash, mustSetPassword } = await resolveNewAccountPassword("");
+  const { passwordHash } = await resolveNewAccountPassword("");
   const moduleOverrides = getEmployeeModuleOverrides({
     placement: options.placement,
     employeeType: options.employeeType,
@@ -105,7 +105,7 @@ export async function provisionEmployeeUser(
       username,
       email: null,
       passwordHash,
-      mustSetPassword,
+      mustSetPassword: true,
       role: "ADMIN",
       moduleOverrides,
       companyId: options.companyId,
@@ -180,7 +180,7 @@ export async function provisionClientUser(
     isTaken: (candidate) => usernameIsTaken(tx, candidate),
   });
 
-  const { passwordHash, mustSetPassword } = await resolveNewAccountPassword("");
+  const { passwordHash } = await resolveNewAccountPassword("");
   const moduleOverrides = getClientModuleOverrides();
   const sortOrder = await nextUserSortOrder(tx, options.companyId);
 
@@ -190,7 +190,7 @@ export async function provisionClientUser(
       username,
       email: null,
       passwordHash,
-      mustSetPassword,
+      mustSetPassword: true,
       role: "ADMIN",
       moduleOverrides,
       companyId: options.companyId,
@@ -265,7 +265,7 @@ export async function provisionVendorUser(
     isTaken: (candidate) => usernameIsTaken(tx, candidate),
   });
 
-  const { passwordHash, mustSetPassword } = await resolveNewAccountPassword("");
+  const { passwordHash } = await resolveNewAccountPassword("");
   const moduleOverrides = getVendorModuleOverrides();
   const sortOrder = await nextUserSortOrder(tx, options.companyId);
 
@@ -275,7 +275,7 @@ export async function provisionVendorUser(
       username,
       email: null,
       passwordHash,
-      mustSetPassword,
+      mustSetPassword: true,
       role: "ADMIN",
       moduleOverrides,
       companyId: options.companyId,

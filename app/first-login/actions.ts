@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import {
   assertRecoveryEmailAvailable,
   isValidRecoveryEmail,
+  needsInitialPasswordSetup,
   normalizeRecoveryEmail,
 } from "@/lib/user-account";
 import { normalizeUsername } from "@/lib/username";
@@ -49,7 +50,13 @@ export async function setInitialPassword(
 
   const user = await prisma.user.findUnique({
     where: { username },
-    select: { id: true, active: true, mustSetPassword: true },
+    select: {
+      id: true,
+      active: true,
+      mustSetPassword: true,
+      email: true,
+      passwordDisplay: true,
+    },
   });
 
   if (!user) {
@@ -60,7 +67,7 @@ export async function setInitialPassword(
     return { status: "inactive" };
   }
 
-  if (!user.mustSetPassword) {
+  if (!needsInitialPasswordSetup(user)) {
     return { status: "not_required" };
   }
 

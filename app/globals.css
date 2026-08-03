@@ -84,10 +84,9 @@
   --radius-2xl: 0.625rem;
 
   /*
-   * Shared chrome tokens (rem). UI scale factor is 1.15 via html { font-size: 115% };
-   * rem tokens track that scale automatically — do not also multiply these by 1.15.
-   * Legacy px equivalents at 16px root: topbar 13rem, sidebar 19.25rem (308px),
-   * sidebar logo max 12.5rem (200px), auth hero logo 32.5rem (520px).
+   * Shared chrome tokens (rem at 16px root): topbar 13rem (208px),
+   * sidebar 19.25rem (308px), sidebar logo max 12.5rem (200px),
+   * auth hero logo 32.5rem (520px).
    */
   --app-topbar-height: 13rem;
   --app-sidebar-width: 19.25rem;
@@ -121,14 +120,8 @@
   box-sizing: border-box;
 }
 
-/*
- * Global UI scale: 1.15 (everything ~15% larger).
- * html font-size drives rem / Tailwind spacing & type; body uses rem so it
- * follows the same factor (was 14px → 0.875rem ≈ 16.1px at 115%).
- */
 html {
   height: 100%;
-  font-size: 115%;
   font-family: var(--font-inter);
   scroll-behavior: smooth;
 }
@@ -139,7 +132,7 @@ body {
   background: var(--color-background);
   color: var(--color-text);
   font-family: var(--font-inter);
-  font-size: 0.875rem;
+  font-size: 14px;
   line-height: 1.5;
   letter-spacing: 0.005em;
   -webkit-font-smoothing: antialiased;

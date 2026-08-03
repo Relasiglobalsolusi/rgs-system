@@ -88,3 +88,33 @@ export async function assertRecoveryEmailAvailable(
 export function needsRecoveryEmail(email: string | null | undefined) {
   return !email?.trim();
 }
+
+/**
+ * Whether the account still needs the public /first-login setup flow
+ * (choose password + recovery email), as opposed to a normal /login sign-in.
+ *
+ * Do not rely on mustSetPassword alone: provisioned portal logins always get an
+ * unusable password hash, and legacy rows may have mustSetPassword @default(false)
+ * even before the user completes setup.
+ */
+export function needsInitialPasswordSetup(user: {
+  mustSetPassword: boolean;
+  email?: string | null;
+  passwordDisplay?: string | null;
+}): boolean {
+  if (user.mustSetPassword) {
+    return true;
+  }
+
+  // Admin-issued temporary password the user has not replaced yet.
+  if (user.passwordDisplay?.trim()) {
+    return true;
+  }
+
+  // Portal / reset accounts: no recovery email means first-login never finished.
+  if (needsRecoveryEmail(user.email)) {
+    return true;
+  }
+
+  return false;
+}

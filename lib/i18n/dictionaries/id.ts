@@ -2605,7 +2605,7 @@ export const id = {
       targetYear: "Tahun Target",
       hariRayaDate: "Tanggal Hari Raya",
       totalAmount: "Total Jumlah",
-      generateForYear: "Buat Thr Untuk {year}",
+      generateForYear: "Buat THR Untuk {year}",
       generating: "Membuat…",
       generateSuccess:
         "THR dibuat: {created} baru, {updated} diperbarui, {skipped} dilewati.",

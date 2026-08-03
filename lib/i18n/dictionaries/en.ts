@@ -2577,7 +2577,7 @@ export const en = {
       targetYear: "Target Year",
       hariRayaDate: "Hari Raya Date",
       totalAmount: "Total Amount",
-      generateForYear: "Generate Thr For {year}",
+      generateForYear: "Generate THR For {year}",
       generating: "Generating…",
       generateSuccess:
         "THR generated: {created} created, {updated} updated, {skipped} skipped.",
