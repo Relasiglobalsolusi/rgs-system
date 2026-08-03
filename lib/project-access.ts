@@ -2,7 +2,7 @@ import type { Prisma, ProjectStatus, ProjectSubCategory } from "@prisma/client";
 
 import {
   canAccess,
-  getAccountType,
+  isHoAdminAccount,
   type AccountTypeUser,
   type PermissionUser,
 } from "@/lib/permissions";
@@ -97,7 +97,7 @@ export function isVendorPortalUser(user: {
 
 /** Office admin account (not employee-linked, not client/vendor portal). */
 export function isAdminAccount(user: AccountTypeUser): boolean {
-  return getAccountType(user) === "Admin";
+  return isHoAdminAccount(user);
 }
 
 export function canManageProjects(

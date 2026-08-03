@@ -510,6 +510,11 @@ export function getAccessibleModules(
     } | null;
   }
 ): ModuleKey[] {
+  // HO admin accounts always see the full ERP catalog; moduleOverrides are for staff only.
+  if (isHoAdminAccount(user)) {
+    return [...MODULES];
+  }
+
   const overrides = user.moduleOverrides ?? {};
   const baseline = getAccountTypeBaselineModules(user);
   const isVendorPortal = Boolean(user.vendorId || user.vendor);
@@ -592,13 +597,22 @@ export const ADMIN_SCOPE_MODULES: ModuleKey[] = [
 
 
 
-export function hasFullModuleAccess(user: PermissionUser): boolean {
-
+export function hasFullModuleAccess(
+  user: PermissionUser & AccountTypeUser
+): boolean {
+  if (isHoAdminAccount(user)) return true;
   return ADMIN_SCOPE_MODULES.every((module) => canAccess(user, module));
-
 }
 
 
+
+/**
+ * Head-office company admin login — not client/vendor portal, not employee portal.
+ * Primary owner login (`vicko`) stays admin even when linked to an HO employee record.
+ */
+export function isHoAdminAccount(user: AccountTypeUser): boolean {
+  return getAccountType(user) === "Admin";
+}
 
 export function getAccountType(user: AccountTypeUser): AccountType {
   // Vendor portal first — never label vendor-linked logins as Client.

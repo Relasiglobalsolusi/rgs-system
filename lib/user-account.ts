@@ -144,3 +144,35 @@ export function needsInitialPasswordSetup(
 
   return false;
 }
+
+export type AdminPasswordDisplayState = "recoverable" | "pending" | "hidden";
+
+/**
+ * Admin UI: how to label the Current Password field when passwordDisplay may be
+ * cleared after the user completes first-login or sets their own password.
+ */
+export function getAdminPasswordDisplayState(user: {
+  passwordDisplay?: string | null;
+  mustSetPassword?: boolean;
+  email?: string | null;
+  passwordSetupCompletedAt?: Date | null;
+  isLinkedPortalLogin?: boolean;
+}): AdminPasswordDisplayState {
+  if (user.passwordDisplay?.trim()) {
+    return "recoverable";
+  }
+
+  if (
+    needsInitialPasswordSetup({
+      mustSetPassword: user.mustSetPassword ?? false,
+      email: user.email,
+      passwordDisplay: user.passwordDisplay,
+      passwordSetupCompletedAt: user.passwordSetupCompletedAt,
+      isLinkedPortalLogin: user.isLinkedPortalLogin,
+    })
+  ) {
+    return "pending";
+  }
+
+  return "hidden";
+}

@@ -57,11 +57,14 @@ import {
 } from "@/lib/project-status";
 import type { BillingMode, ProjectStatus } from "@prisma/client";
 import {
+  assertEmployeesNotOnOtherProject,
   assertProjectCrewEligible,
   markEmployeesOnProject,
   releaseAllProjectCrew,
   releaseEmployeesFromProject,
 } from "@/lib/workforce-crew";
+import { getServerLocale } from "@/lib/i18n/locale";
+import { translate } from "@/lib/i18n/translate";
 import { DEFAULT_LOCATION_RADIUS_METERS } from "@/lib/geo";
 import { resolveProjectSiteCoordinates } from "@/lib/project-site-location";
 
@@ -81,6 +84,44 @@ const projectDeleteSelect = {
   dailyProgress: { select: { photos: { select: { url: true } } } },
   progressReports: { select: { photos: { select: { url: true } } } },
 } as const;
+
+async function projectStaffConflictMessages() {
+  const locale = await getServerLocale();
+  return {
+    generic: translate(
+      locale,
+      "pages.projects.staffPicker.alreadyOnOtherProject"
+    ),
+    forProject: (projectName: string) =>
+      translate(locale, "pages.projects.staffPicker.alreadyOnOtherProjectNamed", {
+        projectName,
+      }),
+  };
+}
+
+async function assertProjectStaffAssignable(
+  db: Parameters<typeof assertProjectCrewEligible>[0] &
+    Parameters<typeof assertEmployeesNotOnOtherProject>[0],
+  companyId: string,
+  employeeIds: string[],
+  options?: {
+    excludeProjectId?: string;
+    crewErrorMessage?: string;
+  }
+) {
+  const conflictMessages = await projectStaffConflictMessages();
+  await assertProjectCrewEligible(
+    db,
+    companyId,
+    employeeIds,
+    options?.crewErrorMessage
+  );
+  await assertEmployeesNotOnOtherProject(db, companyId, employeeIds, {
+    excludeProjectId: options?.excludeProjectId,
+    message: conflictMessages.generic,
+    messageForProject: conflictMessages.forProject,
+  });
+}
 
 type ProjectDeleteFiles = {
   invoicePeriods: {
@@ -564,7 +605,9 @@ export async function createProject(formData: FormData) {
 
       // Planning: assign staff only when moving to In Progress (not at create).
       if (!isPlanning && employeeIds.length > 0) {
-        await assertProjectCrewEligible(tx, company.id, employeeIds);
+        await assertProjectStaffAssignable(tx, company.id, employeeIds, {
+          excludeProjectId: created.id,
+        });
         await tx.projectAssignment.createMany({
           data: employeeIds.map((employeeId) => ({
             projectId: created.id,
@@ -794,7 +837,9 @@ export async function updateProject(id: string, formData: FormData) {
             await releaseEmployeesFromProject(tx, id, removedIds);
           }
           if (addedIds.length > 0) {
-            await assertProjectCrewEligible(tx, existing.companyId, addedIds);
+            await assertProjectStaffAssignable(tx, existing.companyId, addedIds, {
+              excludeProjectId: id,
+            });
             await tx.projectAssignment.createMany({
               data: addedIds.map((employeeId) => ({
                 projectId: id,
@@ -1262,7 +1307,9 @@ export async function startProject(
   if (!assignStaffLater && employeeIds.length > 0) {
     const companyId = session.user.companyId;
     if (!companyId) throw new Error("Company not found.");
-    await assertProjectCrewEligible(prisma, companyId, employeeIds);
+    await assertProjectStaffAssignable(prisma, companyId, employeeIds, {
+      excludeProjectId: id,
+    });
   }
 
   const contractStart = toUtcDateOnly(startDate);

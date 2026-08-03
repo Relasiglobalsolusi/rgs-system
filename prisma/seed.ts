@@ -328,6 +328,7 @@ async function main() {
       role: UserRole.ADMIN,
       email: "manager@rgs.co.id",
       name: "Manager RGS",
+      moduleOverrides: Prisma.DbNull,
     },
     create: {
       name: "Manager RGS",
@@ -396,6 +397,7 @@ async function main() {
       role: UserRole.ADMIN,
       email: "office@rgs.co.id",
       name: "Rina Wijaya",
+      moduleOverrides: Prisma.DbNull,
     },
     create: {
       name: "Rina Wijaya",

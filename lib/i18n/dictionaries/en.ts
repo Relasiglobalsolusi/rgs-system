@@ -767,6 +767,11 @@ export const en = {
         selectStaffPrompt: "Select staff to assign",
         noStaffSearch: "No staff match this search.",
         noStaffDepartment: "No staff in this department.",
+        alreadyOnOtherProject:
+          "This employee is already assigned to another project.",
+        alreadyOnOtherProjectNamed:
+          "This employee is already assigned to {projectName}.",
+        assignedToOtherProject: "Already assigned to {projectName}.",
       },
       locationPicker: {
         addressSearchFailed: "Could not search that address.",
@@ -2016,8 +2021,13 @@ export const en = {
       },
       usernameDisplay: "Username: {username}",
       passwordNotSet: "Password not set",
+      passwordHiddenCompact: "Password set",
       noPasswordOnFile:
-        "No password on file (first-login pending or cleared).",
+        "No password set yet (first-login pending).",
+      passwordHiddenOnFile:
+        "Password set (not shown). Recoverable copy is only kept for admin-issued temporary passwords.",
+      firstLoginComplete: "First-Login Complete",
+      firstLoginPending: "First-Login Pending",
       linkedEmployee: "Linked Employee: {label}",
       linkedClient: "Linked Client: {name}",
       linkedVendor: "Linked Vendor: {name}",
@@ -2082,7 +2092,7 @@ export const en = {
         tempPasswordPlaceholder: "Temporary password (optional)",
         currentPassword: "Current Password",
         currentPasswordHint:
-          "Recoverable copy for admins. Updated when the user sets or changes their password.",
+          "Recoverable copy when an admin issues a temporary password. Cleared after the user sets their own password.",
         accountLink: "Account Link",
         unlinkedAdmin:
           "Unlinked admin account (no employee or client link).",
@@ -3437,6 +3447,10 @@ export const en = {
       "Staff Assigned is empty — you can assign staff later. This row can still be imported.",
     crewNotEligible:
       "Select Available Full Time Operations crew (Cleaning/GC) and/or Part Time staff only.",
+    crewAlreadyOnOtherProject:
+      "This employee is already assigned to another project.",
+    crewAlreadyOnOtherProjectNamed:
+      "This employee is already assigned to {projectName}.",
     example: "Example",
     reviewImport: "Review import",
     readingFile: "Reading file...",

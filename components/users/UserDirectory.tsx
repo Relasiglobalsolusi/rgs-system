@@ -55,6 +55,8 @@ type UserRow = {
   role: UserRole;
   active: boolean;
   passwordDisplay?: string | null;
+  mustSetPassword?: boolean;
+  passwordSetupCompletedAt?: Date | string | null;
   moduleOverrides: Record<string, boolean> | null;
   employee: {
     id?: string;

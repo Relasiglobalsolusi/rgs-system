@@ -53,6 +53,8 @@ type UserRow = {
   role: UserRole;
   active: boolean;
   passwordDisplay?: string | null;
+  mustSetPassword?: boolean;
+  passwordSetupCompletedAt?: Date | string | null;
   moduleOverrides: Record<string, boolean> | null;
   employee: {
     id?: string;
@@ -134,6 +136,15 @@ function getEnabledModuleCount(user: UserRow): number {
   ).length;
 }
 
+function buildPasswordSetupContext(row: UserRow) {
+  return {
+    mustSetPassword: row.mustSetPassword,
+    email: row.email,
+    passwordSetupCompletedAt: row.passwordSetupCompletedAt,
+    isLinkedPortalLogin: Boolean(row.client || row.vendor || row.employee),
+  };
+}
+
 function buildEditUser(row: UserRow, canViewPassword: boolean) {
   return {
     id: row.id,
@@ -143,6 +154,10 @@ function buildEditUser(row: UserRow, canViewPassword: boolean) {
     active: row.active,
     passwordDisplay: canViewPassword
       ? (row.passwordDisplay ?? null)
+      : undefined,
+    mustSetPassword: canViewPassword ? row.mustSetPassword : undefined,
+    passwordSetupCompletedAt: canViewPassword
+      ? (row.passwordSetupCompletedAt ?? null)
       : undefined,
     employee: row.employee?.id
       ? {
@@ -502,7 +517,11 @@ export default function UserTable({
         key: "password",
         title: t("pages.users.columns.password"),
         render: (row) => (
-          <AdminPasswordDisplay password={row.passwordDisplay} compact />
+          <AdminPasswordDisplay
+            password={row.passwordDisplay}
+            setup={buildPasswordSetupContext(row)}
+            compact
+          />
         ),
       });
     }

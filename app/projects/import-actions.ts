@@ -51,6 +51,7 @@ import { SORT_ORDER_STEP } from "@/lib/reorder";
 import { requireModule, toPermissionUser } from "@/lib/session";
 import { capitalizeProper } from "@/lib/text-case";
 import {
+  assertEmployeesNotOnOtherProject,
   assertProjectCrewEligible,
   markEmployeesOnProject,
 } from "@/lib/workforce-crew";
@@ -431,6 +432,14 @@ export async function previewBulkImportProjects(
     locale,
     "bulkImport.crewNotEligible"
   );
+  const crewConflictGeneric = translate(
+    locale,
+    "bulkImport.crewAlreadyOnOtherProject"
+  );
+  const crewConflictForProject = (projectName: string) =>
+    translate(locale, "bulkImport.crewAlreadyOnOtherProjectNamed", {
+      projectName,
+    });
 
   const previewRows: BulkImportPreviewRow[] = [];
 
@@ -458,6 +467,10 @@ export async function previewBulkImportProjects(
           staffIds,
           crewNotEligibleMessage
         );
+        await assertEmployeesNotOnOtherProject(prisma, company.id, staffIds, {
+          message: crewConflictGeneric,
+          messageForProject: crewConflictForProject,
+        });
       }
       const emptyStaffInProgress =
         parsed.startingStage === "IN_PROGRESS" && staffIds.length === 0;
@@ -547,6 +560,14 @@ export async function confirmBulkImportProjects(
     locale,
     "bulkImport.crewNotEligible"
   );
+  const crewConflictGeneric = translate(
+    locale,
+    "bulkImport.crewAlreadyOnOtherProject"
+  );
+  const crewConflictForProject = (projectName: string) =>
+    translate(locale, "bulkImport.crewAlreadyOnOtherProjectNamed", {
+      projectName,
+    });
 
   const result = createBulkImportResult();
   let nextSortOrder = await nextCompanyScopedSortOrder("project", company.id);
@@ -647,6 +668,11 @@ export async function confirmBulkImportProjects(
             employeeIds,
             crewNotEligibleMessage
           );
+          await assertEmployeesNotOnOtherProject(tx, company.id, employeeIds, {
+            excludeProjectId: created.id,
+            message: crewConflictGeneric,
+            messageForProject: crewConflictForProject,
+          });
           await tx.projectAssignment.createMany({
             data: employeeIds.map((employeeId) => ({
               projectId: created.id,

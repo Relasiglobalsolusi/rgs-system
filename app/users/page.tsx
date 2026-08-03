@@ -61,7 +61,13 @@ export default async function UsersPage({ searchParams }: Props) {
           role: true,
           active: true,
           moduleOverrides: true,
-          ...(canViewPassword ? { passwordDisplay: true } : {}),
+          ...(canViewPassword
+            ? {
+                passwordDisplay: true,
+                mustSetPassword: true,
+                passwordSetupCompletedAt: true,
+              }
+            : {}),
           employee: {
             select: {
               id: true,

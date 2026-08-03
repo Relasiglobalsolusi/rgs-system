@@ -2,6 +2,10 @@ import { redirect } from "next/navigation";
 import type { ProjectSubCategory } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import {
+  annotateStaffPickerConflicts,
+  findEmployeesOnOtherOpenProjects,
+} from "@/lib/workforce-crew";
 
 import { requireSession, toPermissionUser } from "@/lib/session";
 
@@ -320,6 +324,16 @@ export default async function ProjectsPage({
         ? countDueMonthlyInvoiceReminders()
         : Promise.resolve(0),
     ]);
+
+  const staffConflicts =
+    canManage && employees.length > 0
+      ? await findEmployeesOnOtherOpenProjects(
+          prisma,
+          company.id,
+          employees.map((employee) => employee.id)
+        )
+      : [];
+  const staffEmployees = annotateStaffPickerConflicts(employees, staffConflicts);
 
   // Strip Prisma Decimal so project rows are safe for Client Components
   // (ProjectDirectoryActions / ProjectEditDialog). Keep numeric contract price
@@ -695,7 +709,7 @@ export default async function ProjectsPage({
               })
             : null}
           {showCreate ? (
-            <ProjectAddControl employees={employees} clients={clients} />
+            <ProjectAddControl employees={staffEmployees} clients={clients} />
           ) : null}
         </div>
       )}
@@ -765,7 +779,7 @@ export default async function ProjectsPage({
                 filterView={filterView}
                 canManage={canManage}
                 emptyMessage={t(copy.emptyMessageKey)}
-                employees={employees}
+                employees={staffEmployees}
               />
             </section>
           ))}

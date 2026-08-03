@@ -3,6 +3,10 @@ import { redirect } from "next/navigation";
 import { Download } from "lucide-react";
 
 import { prisma } from "@/lib/prisma";
+import {
+  annotateStaffPickerConflicts,
+  findEmployeesOnOtherOpenProjects,
+} from "@/lib/workforce-crew";
 import { CICO_GEOFENCE_RADIUS_METERS } from "@/lib/geo";
 
 import {
@@ -189,6 +193,17 @@ export default async function ProjectDetailPage({
       }),
     ]);
 
+  const staffConflicts =
+    canManage && employees.length > 0
+      ? await findEmployeesOnOtherOpenProjects(
+          prisma,
+          project.companyId,
+          employees.map((employee) => employee.id),
+          project.id
+        )
+      : [];
+  const staffEmployees = annotateStaffPickerConflicts(employees, staffConflicts);
+
   const canViewInventory = canAccess(permissionUser, "inventory");
 
   const billingHref =
@@ -356,7 +371,7 @@ export default async function ProjectDetailPage({
           reportCount: project._count.progressReports,
         }}
         deleteRedirectHref={listBackHref}
-        employees={employees}
+        employees={staffEmployees}
         clients={clients}
       >
         <div className="space-y-5">
@@ -806,7 +821,7 @@ export default async function ProjectDetailPage({
                         employeeId: a.employeeId,
                       })),
                     }}
-                    employees={employees}
+                    employees={staffEmployees}
                     clients={clients}
                   />
                 ) : null}

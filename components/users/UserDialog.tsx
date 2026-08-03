@@ -8,6 +8,7 @@ import { KeyRound, UserPlus } from "lucide-react";
 
 import { createUser, resetUserAccount, updateUser } from "@/app/users/actions";
 import AdminPasswordDisplay from "@/components/users/AdminPasswordDisplay";
+import StatusBadge from "@/components/ui/StatusBadge";
 import UserPermanentlyRemovePortalLoginDialog from "@/components/users/UserPermanentlyRemovePortalLoginDialog";
 import UserRevokeLoginAccessDialog from "@/components/users/UserRevokeLoginAccessDialog";
 import UserSoftDeleteDialog from "@/components/users/UserSoftDeleteDialog";
@@ -32,6 +33,10 @@ import {
 } from "@/components/ui/use-directory-dialog-open";
 import { Input } from "@/components/ui/input";
 import { useT } from "@/lib/i18n/use-t";
+import {
+  getAdminPasswordDisplayState,
+  isLinkedPortalLogin,
+} from "@/lib/user-account";
 import { cn } from "@/lib/utils";
 
 type EditUser = {
@@ -42,6 +47,8 @@ type EditUser = {
   active: boolean;
   /** Present only when the viewer may see recoverable passwords. */
   passwordDisplay?: string | null;
+  mustSetPassword?: boolean;
+  passwordSetupCompletedAt?: Date | string | null;
   employee: {
     id: string;
     employeeNo: string;
@@ -238,6 +245,29 @@ export default function UserDialog(props: Props) {
         t("pages.users.cannotRemovePortalOwn"))
       : undefined;
 
+  const editUser =
+    isEdit && props.mode === "edit" ? props.user : null;
+  const passwordSetupContext =
+    editUser && editUser.passwordDisplay !== undefined
+      ? {
+          mustSetPassword: editUser.mustSetPassword,
+          email: editUser.email,
+          passwordSetupCompletedAt: editUser.passwordSetupCompletedAt,
+          isLinkedPortalLogin: isLinkedPortalLogin(editUser),
+        }
+      : undefined;
+  const passwordDisplayState =
+    editUser && passwordSetupContext
+      ? getAdminPasswordDisplayState({
+          passwordDisplay: editUser.passwordDisplay,
+          ...passwordSetupContext,
+          passwordSetupCompletedAt: passwordSetupContext.passwordSetupCompletedAt
+            ? new Date(passwordSetupContext.passwordSetupCompletedAt)
+            : null,
+        })
+      : null;
+  const firstLoginComplete = passwordDisplayState !== "pending";
+
   return (
     <>
       <Dialog
@@ -422,15 +452,28 @@ export default function UserDialog(props: Props) {
 
                 {isEdit && props.user.passwordDisplay !== undefined ? (
                   <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
-                    <p className="text-sm font-medium text-text">
-                      {t("pages.users.form.currentPassword")}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-medium text-text">
+                        {t("pages.users.form.currentPassword")}
+                      </p>
+                      {passwordDisplayState ? (
+                        <StatusBadge
+                          status={firstLoginComplete ? "success" : "pending"}
+                          compact
+                        >
+                          {firstLoginComplete
+                            ? t("pages.users.firstLoginComplete")
+                            : t("pages.users.firstLoginPending")}
+                        </StatusBadge>
+                      ) : null}
+                    </div>
                     <p className="text-xs text-muted">
                       {t("pages.users.form.currentPasswordHint")}
                     </p>
                     <div className="rounded-lg border border-border bg-elevated px-3 py-2.5">
                       <AdminPasswordDisplay
                         password={props.user.passwordDisplay}
+                        setup={passwordSetupContext}
                       />
                     </div>
                   </div>

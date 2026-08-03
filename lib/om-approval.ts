@@ -46,9 +46,10 @@ export async function assertCanApproveProjectServiceArea(options: {
   permissionUser: PermissionUser;
   projectServiceArea: ServiceArea;
 }): Promise<void> {
-  const unrestricted =
-    hasFullModuleAccess(options.permissionUser) ||
-    options.username === "vicko";
+  const unrestricted = hasFullModuleAccess({
+    ...options.permissionUser,
+    username: options.username ?? undefined,
+  });
 
   if (unrestricted) return;
 

@@ -785,6 +785,11 @@ export const id = {
         selectStaffPrompt: "Pilih staf untuk ditugaskan",
         noStaffSearch: "Tidak ada staf yang cocok dengan pencarian ini.",
         noStaffDepartment: "Tidak ada staf di departemen ini.",
+        alreadyOnOtherProject:
+          "Karyawan ini sudah ditugaskan ke proyek lain.",
+        alreadyOnOtherProjectNamed:
+          "Karyawan ini sudah ditugaskan ke {projectName}.",
+        assignedToOtherProject: "Sudah ditugaskan ke {projectName}.",
       },
       locationPicker: {
         addressSearchFailed: "Tidak dapat mencari alamat tersebut.",
@@ -2042,8 +2047,13 @@ export const id = {
       },
       usernameDisplay: "Nama pengguna: {username}",
       passwordNotSet: "Kata sandi belum diatur",
+      passwordHiddenCompact: "Kata sandi diatur",
       noPasswordOnFile:
-        "Tidak ada kata sandi tersimpan (menunggu first-login atau sudah dihapus).",
+        "Kata sandi belum diatur (menunggu first-login).",
+      passwordHiddenOnFile:
+        "Kata sandi sudah diatur (tidak ditampilkan). Salinan yang dapat dipulihkan hanya disimpan untuk kata sandi sementara yang diterbitkan admin.",
+      firstLoginComplete: "First-Login Selesai",
+      firstLoginPending: "First-Login Tertunda",
       linkedEmployee: "Karyawan Terkait: {label}",
       linkedClient: "Klien Terkait: {name}",
       linkedVendor: "Pemasok Terkait: {name}",
@@ -2108,7 +2118,7 @@ export const id = {
         tempPasswordPlaceholder: "Kata sandi sementara (opsional)",
         currentPassword: "Kata Sandi Saat Ini",
         currentPasswordHint:
-          "Salinan yang dapat dipulihkan untuk admin. Diperbarui saat pengguna mengatur atau mengubah kata sandi.",
+          "Salinan yang dapat dipulihkan saat admin menerbitkan kata sandi sementara. Dihapus setelah pengguna mengatur kata sandi sendiri.",
         accountLink: "Tautan Akun",
         unlinkedAdmin:
           "Akun admin tanpa tautan (tidak terhubung ke karyawan atau klien).",
@@ -3479,6 +3489,10 @@ export const id = {
       "Staf Ditugaskan kosong — Anda dapat menugaskan staf nanti. Baris ini tetap dapat diimpor.",
     crewNotEligible:
       "Pilih hanya kru Operasi Penuh Waktu yang Available (Cleaning/GC) dan/atau staf Paruh Waktu.",
+    crewAlreadyOnOtherProject:
+      "Karyawan ini sudah ditugaskan ke proyek lain.",
+    crewAlreadyOnOtherProjectNamed:
+      "Karyawan ini sudah ditugaskan ke {projectName}.",
     example: "Contoh",
     reviewImport: "Tinjau impor",
     readingFile: "Membaca file...",

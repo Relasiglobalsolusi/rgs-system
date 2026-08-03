@@ -10,7 +10,7 @@ import {
   persistCompanyScopedReorder,
 } from "@/lib/persist-reorder";
 import { requireModule } from "@/lib/session";
-import { ADMIN_SCOPE_MODULES, MODULES } from "@/lib/permissions";
+import { ADMIN_SCOPE_MODULES, isHoAdminAccount, MODULES } from "@/lib/permissions";
 import { isValidUsername, normalizeUsername } from "@/lib/username";
 import {
   assertRecoveryEmailAvailable,
@@ -986,8 +986,39 @@ export async function updateUserModuleOverrides(
 ) {
   await requireModule("users");
 
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      role: true,
+      username: true,
+      clientId: true,
+      vendorId: true,
+      employee: {
+        select: { employeeNo: true, employeeType: true },
+      },
+    },
+  });
   if (!user) throw await usersLocaleError("userNotFound");
+
+  // HO admin accounts always retain full module access.
+  if (
+    isHoAdminAccount({
+      role: user.role,
+      username: user.username,
+      clientId: user.clientId,
+      vendorId: user.vendorId,
+      employee: user.employee,
+      employeeType: user.employee?.employeeType ?? null,
+    })
+  ) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { moduleOverrides: Prisma.DbNull },
+    });
+    revalidateUserDirectoryPaths();
+    return;
+  }
 
   const isPortalUser = Boolean(user.clientId || user.vendorId);
   const isVendorPortal = Boolean(user.vendorId);

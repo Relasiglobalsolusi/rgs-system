@@ -1,7 +1,7 @@
 import type { Placement, Prisma, ProjectStatus } from "@prisma/client";
 
-/** Live projects staff may still be linked to. */
-const ASSIGNABLE_STATUSES: ProjectStatus[] = [
+/** Live projects staff may still be linked to (Planning + In Progress). */
+export const OPEN_PROJECT_ASSIGNMENT_STATUSES: ProjectStatus[] = [
   "PLANNED",
   "IN_PROGRESS",
 ];
@@ -80,7 +80,7 @@ export async function parseProjectIds(
     where: {
       id: { in: projectIds },
       companyId,
-      status: { in: ASSIGNABLE_STATUSES },
+      status: { in: OPEN_PROJECT_ASSIGNMENT_STATUSES },
     },
     select: { id: true },
   });

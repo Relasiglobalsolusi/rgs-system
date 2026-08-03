@@ -1,7 +1,8 @@
 import type { Prisma } from "@prisma/client";
 
+import { OPEN_PROJECT_ASSIGNMENT_STATUSES } from "@/lib/employee-projects";
 import { syncEmployeesLeaveEmploymentStatus } from "@/lib/leave-employment-status";
-import { isCrewPickerPosition } from "@/lib/positions";
+import { isCrewPickerPosition, isOperationsManagerPosition } from "@/lib/positions";
 import { syncEmployeePortalLogin } from "@/lib/workforce-login";
 
 /**
@@ -75,6 +76,122 @@ export async function assertProjectCrewEligible(
   if (validCount !== uniqueIds.length) {
     throw new Error(errorMessage);
   }
+}
+
+/** Operations Manager — may supervise multiple open projects at once. */
+export function isMultiProjectSupervisorEmployee(employee: {
+  jobPosition?: { slug?: string | null; name?: string | null } | null;
+}): boolean {
+  return isOperationsManagerPosition(employee.jobPosition ?? {});
+}
+
+export type OtherProjectAssignmentConflict = {
+  employeeId: string;
+  projectId: string;
+  projectName: string;
+};
+
+type ProjectAssignmentDb = Pick<
+  Prisma.TransactionClient,
+  "projectAssignment" | "employee"
+>;
+
+/**
+ * Crew already linked to a different Planning / In Progress project.
+ * Operations Managers are excluded — they may supervise multiple sites.
+ */
+export async function findEmployeesOnOtherOpenProjects(
+  db: ProjectAssignmentDb,
+  companyId: string,
+  employeeIds: string[],
+  excludeProjectId?: string
+): Promise<OtherProjectAssignmentConflict[]> {
+  const uniqueIds = [...new Set(employeeIds.filter(Boolean))];
+  if (uniqueIds.length === 0) return [];
+
+  const employees = await db.employee.findMany({
+    where: { id: { in: uniqueIds }, companyId },
+    select: {
+      id: true,
+      jobPosition: { select: { slug: true, name: true } },
+    },
+  });
+
+  const crewIds = employees
+    .filter((employee) => !isMultiProjectSupervisorEmployee(employee))
+    .map((employee) => employee.id);
+  if (crewIds.length === 0) return [];
+
+  const rows = await db.projectAssignment.findMany({
+    where: {
+      employeeId: { in: crewIds },
+      ...(excludeProjectId ? { projectId: { not: excludeProjectId } } : {}),
+      project: {
+        companyId,
+        status: { in: OPEN_PROJECT_ASSIGNMENT_STATUSES },
+      },
+    },
+    select: {
+      employeeId: true,
+      projectId: true,
+      project: { select: { name: true } },
+    },
+  });
+
+  const seen = new Set<string>();
+  const conflicts: OtherProjectAssignmentConflict[] = [];
+  for (const row of rows) {
+    if (seen.has(row.employeeId)) continue;
+    seen.add(row.employeeId);
+    conflicts.push({
+      employeeId: row.employeeId,
+      projectId: row.projectId,
+      projectName: row.project.name,
+    });
+  }
+  return conflicts;
+}
+
+/** Reject crew who already have an open assignment on a different project. */
+export async function assertEmployeesNotOnOtherProject(
+  db: ProjectAssignmentDb,
+  companyId: string,
+  employeeIds: string[],
+  options?: {
+    excludeProjectId?: string;
+    message?: string;
+    messageForProject?: (projectName: string) => string;
+  }
+) {
+  const conflicts = await findEmployeesOnOtherOpenProjects(
+    db,
+    companyId,
+    employeeIds,
+    options?.excludeProjectId
+  );
+  if (conflicts.length === 0) return;
+
+  const projectName = conflicts[0]?.projectName?.trim();
+  const message =
+    (projectName && options?.messageForProject?.(projectName)) ||
+    options?.message ||
+    (projectName
+      ? `This employee is already assigned to ${projectName}.`
+      : "This employee is already assigned to another project.");
+  throw new Error(message);
+}
+
+export function annotateStaffPickerConflicts<T extends { id: string }>(
+  employees: T[],
+  conflicts: OtherProjectAssignmentConflict[]
+): Array<T & { blockedProjectName: string | null }> {
+  const byEmployee = new Map(
+    conflicts.map((row) => [row.employeeId, row.projectName])
+  );
+  return employees.map((employee) => ({
+    ...employee,
+    blockedProjectName: byEmployee.get(employee.id) ?? null,
+  }));
 }
 
 export function isDefaultCrewEmployee(employee: {

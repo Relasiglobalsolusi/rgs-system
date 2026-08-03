@@ -28,6 +28,8 @@ export type ProjectStaffEmployee = {
   lastName: string;
   employeeNo: string;
   category?: { slug?: string | null; name: string; prefix: string } | null;
+  /** Set when crew is already on another open project (managers exempt). */
+  blockedProjectName?: string | null;
 };
 
 type Props = {
@@ -110,8 +112,12 @@ export default function ProjectStaffPicker({
     () => departments[0]?.key ?? ""
   );
   const [query, setQuery] = useState("");
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(() =>
-    toIdSet(defaultCheckedIds)
+  const initialSelectedIds = useMemo(
+    () => toIdSet(defaultCheckedIds),
+    [defaultCheckedIds]
+  );
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(
+    () => initialSelectedIds
   );
 
   const employeeById = useMemo(() => {
@@ -169,6 +175,13 @@ export default function ProjectStaffPicker({
   ).length;
 
   function toggle(id: string) {
+    const employee = employeeById.get(id);
+    if (
+      employee?.blockedProjectName &&
+      !initialSelectedIds.has(id)
+    ) {
+      return;
+    }
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -340,24 +353,50 @@ export default function ProjectStaffPicker({
               <ul className="divide-y divide-border/60">
                 {visibleStaff.map((employee) => {
                   const checked = selectedIds.has(employee.id);
+                  const blockedByOtherProject =
+                    Boolean(employee.blockedProjectName) &&
+                    !initialSelectedIds.has(employee.id);
+                  const blockedHint = employee.blockedProjectName
+                    ? t("pages.projects.staffPicker.assignedToOtherProject", {
+                        projectName: employee.blockedProjectName,
+                      })
+                    : null;
                   return (
                     <li key={employee.id}>
                       <label
                         className={cn(
-                          "flex cursor-pointer items-center gap-3 px-3 py-3 text-sm transition-colors",
-                          checked
-                            ? "bg-card-tint-emerald text-primary-dark"
-                            : "text-muted hover:bg-elevated"
+                          "flex items-center gap-3 px-3 py-3 text-sm transition-colors",
+                          blockedByOtherProject
+                            ? "cursor-not-allowed bg-inset/80 text-subtle"
+                            : "cursor-pointer",
+                          !blockedByOtherProject &&
+                            (checked
+                              ? "bg-card-tint-emerald text-primary-dark"
+                              : "text-muted hover:bg-elevated")
                         )}
+                        title={blockedHint ?? undefined}
                       >
                         <input
                           type="checkbox"
                           checked={checked}
+                          disabled={blockedByOtherProject}
                           onChange={() => toggle(employee.id)}
-                          className="h-4 w-4 rounded border-slate-600 bg-elevated text-primary focus:ring-primary/30"
+                          className="h-4 w-4 rounded border-slate-600 bg-elevated text-primary focus:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50"
                         />
-                        <span className="min-w-0 flex-1 truncate font-medium">
-                          {employeeLabel(employee)}
+                        <span className="min-w-0 flex-1">
+                          <span
+                            className={cn(
+                              "block truncate font-medium",
+                              blockedByOtherProject && "text-subtle"
+                            )}
+                          >
+                            {employeeLabel(employee)}
+                          </span>
+                          {blockedHint ? (
+                            <span className="mt-0.5 block truncate text-[11px] text-subtle">
+                              {blockedHint}
+                            </span>
+                          ) : null}
                         </span>
                         <span className="shrink-0 font-mono text-xs text-subtle">
                           {employee.employeeNo}
