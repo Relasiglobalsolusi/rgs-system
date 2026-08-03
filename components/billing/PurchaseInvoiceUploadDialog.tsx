@@ -23,6 +23,7 @@ import {
   employeeSelectTriggerClass,
 } from "@/components/employees/employee-dialog-ui";
 import { isWholeInventoryQty } from "@/lib/inventory";
+import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
