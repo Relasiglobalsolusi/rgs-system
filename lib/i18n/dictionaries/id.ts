@@ -3923,6 +3923,7 @@ export const id = {
         project: "Proyek",
         unitCost: "Biaya Satuan",
         projectCost: "Biaya Proyek",
+        totalCost: "Total Biaya",
         onHand: "Stok",
         warehouseOnHand: "Gudang",
         owned: "Dimiliki",

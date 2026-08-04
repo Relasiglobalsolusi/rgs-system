@@ -3872,6 +3872,7 @@ export const en = {
         project: "Project",
         unitCost: "Unit Cost",
         projectCost: "Project Cost",
+        totalCost: "Total Cost",
         onHand: "On Hand",
         warehouseOnHand: "Warehouse",
         owned: "Owned",
