@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useT } from "@/lib/i18n/use-t";
-import { CICO_GEOFENCE_RADIUS_METERS } from "@/lib/geo";
+import { resolveGeofenceRadiusMeters } from "@/lib/geo";
 import { formatTimeRange } from "@/lib/operating-hours";
 import {
   AlertTriangle,
@@ -63,6 +63,8 @@ type Props = {
   hasProgressReport: boolean;
   /** YYYY-MM-DD for Progress Report submit default. */
   workDate: string;
+  /** Cleaning staff positions only — Progress Report before check-out. */
+  requiresProgress?: boolean;
 };
 
 function getCurrentPosition(unsupportedMessage: string) {
@@ -93,6 +95,7 @@ export default function CicoActions({
   assignedProjects,
   hasProgressReport,
   workDate,
+  requiresProgress = false,
 }: Props) {
   const { t } = useT();
   const router = useRouter();
@@ -113,7 +116,7 @@ export default function CicoActions({
   const checkedIn = !!todayRecord?.checkIn;
   const checkedOut = !!todayRecord?.checkOut;
   const needsProgressBeforeCheckout =
-    checkedIn && !checkedOut && !hasProgressReport;
+    requiresProgress && checkedIn && !checkedOut && !hasProgressReport;
   const checkInProject = todayRecord?.project
     ? [{ id: todayRecord.project.id, name: todayRecord.project.name }]
     : [];
@@ -329,7 +332,9 @@ export default function CicoActions({
                   ) : null}
                   <span className="mt-1.5 block text-xs leading-relaxed text-subtle">
                     {t("pages.cico.mustBeWithinMeters", {
-                      meters: CICO_GEOFENCE_RADIUS_METERS,
+                      meters: resolveGeofenceRadiusMeters(
+                        selected.locationRadiusMeters
+                      ),
                     })}
                   </span>
                 </span>
@@ -543,7 +548,9 @@ export default function CicoActions({
           ? t("pages.cico.adminPreview.footerNote")
           : adminFieldMode
             ? t("pages.cico.adminPreview.fieldFooterNote")
-            : t("pages.cico.footerNote")}
+            : requiresProgress
+              ? t("pages.cico.footerNote")
+              : t("pages.cico.footerNoteCheckInOnly")}
       </p>
 
       {!previewMode && checkInProject.length > 0 ? (

@@ -8,7 +8,13 @@ import {
   persistCompanyScopedReorder,
 } from "@/lib/persist-reorder";
 import { projectHistoryWhere, UNPAID_INVOICE_STATUSES } from "@/lib/billing";
-import { isProjectSubCategory } from "@/lib/project-subcategory";
+import {
+  isCommercialProjectSubCategory,
+  isProjectSubCategory,
+  isServiceProjectSubCategory,
+  serviceAreaForSubCategory,
+  subCategoryForServiceArea,
+} from "@/lib/project-subcategory";
 import {
   clampProjectDurationDays,
   daysBetweenDates,
@@ -16,6 +22,7 @@ import {
   MAX_PROJECT_DURATION_DAYS,
   MIN_PROJECT_DURATION_DAYS,
   todayDateInput,
+  usesMonthDurationTimeline,
 } from "@/lib/project-contract";
 import {
   assertBillingModeForSubCategory,
@@ -24,6 +31,7 @@ import {
   defaultBillingMode,
   isBillingMode,
   isMilestoneSubCategory,
+  parseContractPrice,
   parseMilestoneInstallmentsFromFormData,
 } from "@/lib/project-billing";
 import {
@@ -32,7 +40,9 @@ import {
   invoicingDayFromContractStart,
   isMonthlyPeriodAwaitingReconcile,
   parseBillingPeriodBasis,
+  PAYMENT_TERMS_DAYS_OPTIONS,
   toUtcDateOnly,
+  type PaymentTermsDaysOption,
 } from "@/lib/invoice-period";
 import { taxInvoiceDefaultsFromClient } from "@/lib/npwp";
 import { toActionError } from "@/lib/prisma-errors";
@@ -107,6 +117,8 @@ async function assertProjectStaffAssignable(
   options?: {
     excludeProjectId?: string;
     crewErrorMessage?: string;
+    /** Internal HO/Warehouse projects may assign In-House Cleaning Staff. */
+    allowInHouseCleaning?: boolean;
   }
 ) {
   const conflictMessages = await projectStaffConflictMessages();
@@ -114,7 +126,8 @@ async function assertProjectStaffAssignable(
     db,
     companyId,
     employeeIds,
-    options?.crewErrorMessage
+    options?.crewErrorMessage,
+    { allowInHouseCleaning: options?.allowInHouseCleaning }
   );
   await assertEmployeesNotOnOtherProject(db, companyId, employeeIds, {
     excludeProjectId: options?.excludeProjectId,
@@ -340,6 +353,147 @@ function parseSubCategory(formData: FormData) {
 }
 
 /**
+ * Resolve subcategory + service area together.
+ * Non-cleaning areas lock a 1:1 subcategory; Cleaning requires a commercial cleaning type.
+ */
+function resolveSubCategoryAndServiceArea(formData: FormData) {
+  const serviceArea = parseServiceArea(formData.get("serviceArea"));
+  const lockedSub = subCategoryForServiceArea(serviceArea);
+  if (lockedSub) {
+    return { subCategory: lockedSub, serviceArea };
+  }
+
+  const subCategory = parseSubCategory(formData);
+  if (!isCommercialProjectSubCategory(subCategory)) {
+    throw new Error("Choose a cleaning subcategory for Cleaning projects.");
+  }
+  return {
+    subCategory,
+    serviceArea: serviceAreaForSubCategory(subCategory),
+  };
+}
+
+function parseOptionalMoneyField(
+  formData: FormData,
+  key: string
+): number | null {
+  const raw = String(formData.get(key) ?? "").trim();
+  if (!raw) return null;
+  const amount = parseContractPrice(raw);
+  if (amount == null) {
+    throw new Error(`Invalid amount for ${key}.`);
+  }
+  return amount;
+}
+
+function parseRequiredMoneyField(
+  formData: FormData,
+  key: string,
+  label: string
+): number {
+  const amount = parseOptionalMoneyField(formData, key);
+  if (amount == null || amount < 0) {
+    throw new Error(`${label} is required.`);
+  }
+  return amount;
+}
+
+function parsePercentField(
+  formData: FormData,
+  key: string,
+  opts: { required: boolean; label: string }
+): number | null {
+  const raw = String(formData.get(key) ?? "").trim();
+  if (!raw) {
+    if (opts.required) throw new Error(`${opts.label} is required.`);
+    return null;
+  }
+  const num = Number(raw.replace(",", "."));
+  if (!Number.isFinite(num) || num < 0 || num > 100) {
+    throw new Error(`${opts.label} must be between 0 and 100.`);
+  }
+  return Math.round(num * 100) / 100;
+}
+
+function parseProjectPaymentTermsDays(
+  formData: FormData,
+  fallback: number
+): number {
+  const raw = String(formData.get("paymentTermsDays") ?? "").trim();
+  if (!raw) return fallback;
+  const days = Number(raw);
+  if (
+    !(PAYMENT_TERMS_DAYS_OPTIONS as readonly number[]).includes(days)
+  ) {
+    throw new Error("Invalid payment terms.");
+  }
+  return days as PaymentTermsDaysOption;
+}
+
+type ServiceCommercialFields = {
+  contractPrice: number | null;
+  setupCost: number | null;
+  profitSharePercent: number | null;
+  monthlyClientFee: number | null;
+  serviceFeePercent: number | null;
+  paymentTermsDays: number | null;
+};
+
+function parseServiceCommercialFields(
+  formData: FormData,
+  subCategory: string,
+  clientPaymentTermsDays: number
+): ServiceCommercialFields {
+  const empty: ServiceCommercialFields = {
+    contractPrice: null,
+    setupCost: null,
+    profitSharePercent: null,
+    monthlyClientFee: null,
+    serviceFeePercent: null,
+    paymentTermsDays: null,
+  };
+
+  if (subCategory === "SECURITY") {
+    return {
+      ...empty,
+      contractPrice: parseRequiredMoneyField(
+        formData,
+        "contractPrice",
+        "Monthly fee"
+      ),
+    };
+  }
+
+  if (subCategory === "PARKING") {
+    return {
+      ...empty,
+      setupCost: parseOptionalMoneyField(formData, "setupCost"),
+      profitSharePercent: parsePercentField(formData, "profitSharePercent", {
+        required: false,
+        label: "Client profit share %",
+      }),
+      monthlyClientFee: parseOptionalMoneyField(formData, "monthlyClientFee"),
+    };
+  }
+
+  if (subCategory === "PAYROLL_MANAGEMENT") {
+    return {
+      ...empty,
+      serviceFeePercent: parsePercentField(formData, "serviceFeePercent", {
+        required: true,
+        label: "Service fee %",
+      }),
+      paymentTermsDays: parseProjectPaymentTermsDays(
+        formData,
+        clientPaymentTermsDays
+      ),
+    };
+  }
+
+  return empty;
+}
+
+/**
  * Resolve billing mode from form (General/Facade) or subcategory default.
  * Enforces: MILESTONE only for General Cleaning / Facade Cleaning.
  * When form omits billingMode, prefer `fallback` if still allowed for the subcategory.
@@ -430,13 +584,15 @@ export async function createProject(formData: FormData) {
     const formDurationDays = parseDurationDays(formData);
     const clientId = String(formData.get("clientId") ?? "").trim();
     const employeeIds = formData.getAll("employeeIds").map(String);
-    const subCategory = parseSubCategory(formData);
-    const serviceArea = parseServiceArea(formData.get("serviceArea"));
+    const { subCategory, serviceArea } =
+      resolveSubCategoryAndServiceArea(formData);
     const { location, latitude, longitude, locationRadiusMeters } =
       await parseLocationFields(formData);
     const billingMode = resolveBillingMode(formData, subCategory);
     const { invoicingDay } = billingDefaults(subCategory, billingMode);
     const isContract = isContractSubCategory(subCategory);
+    const isService = isServiceProjectSubCategory(subCategory);
+    const isMonthTimeline = usesMonthDurationTimeline(subCategory);
     const billingPeriodBasis = isContract
       ? parseBillingPeriodBasis(formData.get("billingPeriodBasis")) ??
         "CONTRACT_CYCLE"
@@ -463,23 +619,34 @@ export async function createProject(formData: FormData) {
     let endDate: Date | null = null;
     let estimatedDurationDays: number | null = null;
 
+    // Month-timeline services (Security/Parking) and Regular use contract-style dates.
+    // Payroll: start required; end optional. GC/Facade: day duration required.
+    const requiresEndDate =
+      (!isContract && !isService && !isMonthTimeline) ||
+      subCategory === "SECURITY" ||
+      isContract;
+
     if (isPlanning) {
       estimatedStartDate = estimatedFromForm;
       if (!estimatedStartDate) {
         throw new Error(
-          isContract
+          isContract || isMonthTimeline || isService
             ? "Contract start date is required."
             : "Estimated project start date is required."
         );
       }
-      // Regular + General/Facade: keep duration-derived end as a planned horizon;
+      // Regular + General/Facade + services: keep duration-derived end as a planned horizon;
       // real start stays null until Move to In Progress.
       startDate = null;
       endDate = formEndDate;
-      if (!isContract && !endDate) {
-        throw new Error("Estimated project completion date is required.");
+      if (requiresEndDate && !endDate) {
+        throw new Error(
+          isContract || subCategory === "SECURITY"
+            ? "Contract end date is required."
+            : "Estimated project completion date is required."
+        );
       }
-      if (!isContract) {
+      if (!isContract && !isService) {
         estimatedDurationDays = resolveEstimatedDurationDays({
           formDurationDays,
           startDate: estimatedStartDate,
@@ -494,16 +661,20 @@ export async function createProject(formData: FormData) {
       endDate = formEndDate;
       if (!startDate) {
         throw new Error(
-          isContract
+          isContract || isMonthTimeline || isService
             ? "Contract start date is required."
             : "Project start date is required."
         );
       }
-      if (!isContract && !endDate) {
-        throw new Error("Estimated project completion date is required.");
+      if (requiresEndDate && !endDate) {
+        throw new Error(
+          isContract || subCategory === "SECURITY"
+            ? "Contract end date is required."
+            : "Estimated project completion date is required."
+        );
       }
       estimatedStartDate = estimatedFromForm ?? startDate;
-      if (!isContract) {
+      if (!isContract && !isService) {
         estimatedDurationDays = resolveEstimatedDurationDays({
           formDurationDays,
           startDate,
@@ -523,7 +694,7 @@ export async function createProject(formData: FormData) {
     // Ignore form tax fields — derive With/Without tax from the client NPWP.
     const client = await prisma.client.findFirst({
       where: { id: clientId, companyId: company.id, active: true },
-      select: { id: true, npwp: true },
+      select: { id: true, npwp: true, paymentTermsDays: true },
     });
     if (!client) {
       throw new Error(
@@ -531,6 +702,13 @@ export async function createProject(formData: FormData) {
       );
     }
     const { requiresTaxInvoice } = taxInvoiceDefaultsFromClient(client);
+    const serviceFields = isService
+      ? parseServiceCommercialFields(
+          formData,
+          subCategory,
+          client.paymentTermsDays
+        )
+      : null;
 
     await prisma.$transaction(async (tx) => {
       const created = await tx.project.create({
@@ -549,8 +727,14 @@ export async function createProject(formData: FormData) {
           invoicingDay,
           billingMode,
           billingPeriodBasis,
-          // Contract price is set later in Invoice and Billing for milestone projects.
-          contractPrice: null,
+          // Cleaning contract price is set later in Invoice and Billing.
+          // Security / Parking / Payroll store commercial terms at create.
+          contractPrice: serviceFields?.contractPrice ?? null,
+          setupCost: serviceFields?.setupCost ?? null,
+          profitSharePercent: serviceFields?.profitSharePercent ?? null,
+          monthlyClientFee: serviceFields?.monthlyClientFee ?? null,
+          serviceFeePercent: serviceFields?.serviceFeePercent ?? null,
+          paymentTermsDays: serviceFields?.paymentTermsDays ?? null,
           subCategory,
           serviceArea,
           requiresTaxInvoice,
@@ -571,6 +755,7 @@ export async function createProject(formData: FormData) {
       }
 
       // Regular In Progress create: open the first billing period immediately.
+      // Security / Parking / Payroll never create ProjectInvoicePeriod rows.
       if (
         !isPlanning &&
         isContract &&
@@ -667,8 +852,7 @@ export async function updateProject(id: string, formData: FormData) {
     const formDurationDays = parseDurationDays(formData);
     const clientId = String(formData.get("clientId") ?? "").trim();
     const employeeIds = formData.getAll("employeeIds").map(String);
-    const subCategory = parseSubCategory(formData);
-    const serviceArea = parseServiceArea(formData.get("serviceArea"));
+    const rawSubCategory = String(formData.get("subCategory") ?? "").trim();
     const { location, latitude, longitude, locationRadiusMeters } =
       await parseLocationFields(formData);
     // Payment schedule is create-only — Edit Project does not rebuild milestone periods.
@@ -684,12 +868,86 @@ export async function updateProject(id: string, formData: FormData) {
         estimatedDurationDays: true,
         estimatedStartDate: true,
         startDate: true,
+        subCategory: true,
+        contractPrice: true,
+        setupCost: true,
+        profitSharePercent: true,
+        monthlyClientFee: true,
+        serviceFeePercent: true,
+        paymentTermsDays: true,
       },
     });
     if (!existing) {
       throw new Error("Project not found.");
     }
 
+    // Internal HO/Warehouse: location/GPS/staff only — no commercial dates/client.
+    if (
+      existing.subCategory === "INTERNAL" ||
+      rawSubCategory === "INTERNAL"
+    ) {
+      if (!name) throw new Error("Project name is required.");
+      await prisma.project.update({
+        where: { id },
+        data: {
+          name,
+          location,
+          latitude,
+          longitude,
+          locationRadiusMeters,
+          clientId: null,
+          subCategory: "INTERNAL",
+          serviceArea: "HEAD_OFFICE",
+          status: "IN_PROGRESS",
+        },
+      });
+
+      if (!isPlanningProjectStatus(existing.status)) {
+        const nextIds = [...new Set(employeeIds.filter(Boolean))];
+        const previous = await prisma.projectAssignment.findMany({
+          where: { projectId: id },
+          select: { employeeId: true },
+        });
+        const previousIds = previous.map((row) => row.employeeId);
+        const previousSet = new Set(previousIds);
+        const nextSet = new Set(nextIds);
+        const addedIds = nextIds.filter((eid) => !previousSet.has(eid));
+        const removedIds = previousIds.filter((eid) => !nextSet.has(eid));
+        if (addedIds.length > 0 || removedIds.length > 0) {
+          await prisma.$transaction(async (tx) => {
+            if (removedIds.length > 0) {
+              await releaseEmployeesFromProject(tx, id, removedIds);
+            }
+            if (addedIds.length > 0) {
+              await assertProjectStaffAssignable(tx, existing.companyId, addedIds, {
+                excludeProjectId: id,
+                allowInHouseCleaning: true,
+              });
+              await tx.projectAssignment.createMany({
+                data: addedIds.map((employeeId) => ({
+                  projectId: id,
+                  employeeId,
+                })),
+                skipDuplicates: true,
+              });
+              await markEmployeesOnProject(tx, addedIds, existing.companyId);
+            }
+          });
+        }
+      }
+
+      revalidatePath(PROJECT_LIST_VIEW_PATHS.all);
+      revalidatePath(PROJECT_LIST_VIEW_PATHS.inProgress);
+      revalidatePath(`/projects/${id}`);
+      revalidatePath("/dashboard");
+      revalidatePath("/employees");
+      revalidatePath("/cico");
+      revalidatePath("/attendance");
+      return;
+    }
+
+    const { subCategory, serviceArea } =
+      resolveSubCategoryAndServiceArea(formData);
     const billingMode = resolveBillingMode(
       formData,
       subCategory,
@@ -698,10 +956,16 @@ export async function updateProject(id: string, formData: FormData) {
     const { invoicingDay } = billingDefaults(subCategory, billingMode);
     const isPlanning = isPlanningProjectStatus(existing.status);
     const isContract = isContractSubCategory(subCategory);
+    const isService = isServiceProjectSubCategory(subCategory);
+    const isMonthTimeline = usesMonthDurationTimeline(subCategory);
     const billingPeriodBasis = isContract
       ? parseBillingPeriodBasis(formData.get("billingPeriodBasis")) ??
         "CONTRACT_CYCLE"
       : null;
+    const requiresEndDate =
+      (!isContract && !isService && !isMonthTimeline) ||
+      subCategory === "SECURITY" ||
+      isContract;
 
     let startDate = formStartDate;
     const endDate = formEndDate;
@@ -713,36 +977,46 @@ export async function updateProject(id: string, formData: FormData) {
       estimatedStartDate = estimatedFromForm ?? existing.estimatedStartDate;
       if (!estimatedStartDate) {
         throw new Error(
-          isContract
+          isContract || isMonthTimeline || isService
             ? "Contract start date is required."
             : "Estimated project start date is required."
         );
       }
       // Planning keeps real start null; end is the duration-derived horizon.
       startDate = null;
-      if (!isContract && !endDate) {
-        throw new Error("Estimated project completion date is required.");
+      if (requiresEndDate && !endDate) {
+        throw new Error(
+          isContract || subCategory === "SECURITY"
+            ? "Contract end date is required."
+            : "Estimated project completion date is required."
+        );
       }
-      if (!isContract) {
+      if (!isContract && !isService) {
         estimatedDurationDays = resolveEstimatedDurationDays({
           formDurationDays,
           startDate: estimatedStartDate,
           endDate,
           existing: existing.estimatedDurationDays,
         });
+      } else if (isService) {
+        estimatedDurationDays = null;
       }
     } else {
       if (!startDate) {
         throw new Error(
-          isContract
+          isContract || isMonthTimeline || isService
             ? "Contract start date is required."
             : "Project start date is required."
         );
       }
-      if (!isContract && !endDate) {
-        throw new Error("Estimated project completion date is required.");
+      if (requiresEndDate && !endDate) {
+        throw new Error(
+          isContract || subCategory === "SECURITY"
+            ? "Contract end date is required."
+            : "Estimated project completion date is required."
+        );
       }
-      if (!isContract) {
+      if (!isContract && !isService) {
         // Freeze initial estimate once set; only backfill when missing.
         estimatedDurationDays = resolveEstimatedDurationDays({
           formDurationDays,
@@ -758,10 +1032,11 @@ export async function updateProject(id: string, formData: FormData) {
 
     // Ignore form tax fields — derive With/Without tax from the client NPWP.
     let requiresTaxInvoice = false;
+    let clientPaymentTermsDays = 14;
     if (clientId) {
       const client = await prisma.client.findFirst({
         where: { id: clientId, companyId: existing.companyId, active: true },
-        select: { id: true, npwp: true },
+        select: { id: true, npwp: true, paymentTermsDays: true },
       });
       if (!client) {
         throw new Error(
@@ -769,7 +1044,16 @@ export async function updateProject(id: string, formData: FormData) {
         );
       }
       requiresTaxInvoice = taxInvoiceDefaultsFromClient(client).requiresTaxInvoice;
+      clientPaymentTermsDays = client.paymentTermsDays;
     }
+
+    const serviceFields = isService
+      ? parseServiceCommercialFields(
+          formData,
+          subCategory,
+          existing.paymentTermsDays ?? clientPaymentTermsDays
+        )
+      : null;
 
     const leavingMilestone =
       existing.billingMode === "MILESTONE" && billingMode !== "MILESTONE";
@@ -784,7 +1068,8 @@ export async function updateProject(id: string, formData: FormData) {
           longitude,
           locationRadiusMeters,
           estimatedStartDate,
-          estimatedDurationDays: isContract ? null : estimatedDurationDays,
+          estimatedDurationDays:
+            isContract || isService ? null : estimatedDurationDays,
           startDate,
           endDate,
           status: existing.status,
@@ -794,8 +1079,33 @@ export async function updateProject(id: string, formData: FormData) {
           billingMode,
           billingPeriodBasis,
           requiresTaxInvoice,
-          // Preserve contractPrice when still milestone-eligible; clear otherwise.
-          ...(isMilestoneSubCategory(subCategory) ? {} : { contractPrice: null }),
+          // Milestone: preserve price set in billing. Service: persist form terms.
+          // Cleaning non-milestone: clear contract price.
+          ...(isService
+            ? {
+                contractPrice: serviceFields?.contractPrice ?? null,
+                setupCost: serviceFields?.setupCost ?? null,
+                profitSharePercent: serviceFields?.profitSharePercent ?? null,
+                monthlyClientFee: serviceFields?.monthlyClientFee ?? null,
+                serviceFeePercent: serviceFields?.serviceFeePercent ?? null,
+                paymentTermsDays: serviceFields?.paymentTermsDays ?? null,
+              }
+            : isMilestoneSubCategory(subCategory)
+              ? {
+                  setupCost: null,
+                  profitSharePercent: null,
+                  monthlyClientFee: null,
+                  serviceFeePercent: null,
+                  paymentTermsDays: null,
+                }
+              : {
+                  contractPrice: null,
+                  setupCost: null,
+                  profitSharePercent: null,
+                  monthlyClientFee: null,
+                  serviceFeePercent: null,
+                  paymentTermsDays: null,
+                }),
           clientId: clientId || null,
         },
       });
@@ -1256,6 +1566,8 @@ export async function startProject(
   }
 
   const isContract = isContractSubCategory(project.subCategory);
+  const isService = isServiceProjectSubCategory(project.subCategory);
+  const isMonthTimeline = usesMonthDurationTimeline(project.subCategory);
   const { startDate, endDate: formEndDate } = parseProjectDateRange(formData);
   const formDurationDays = parseDurationDays(formData);
   const assignStaffLater =
@@ -1266,7 +1578,7 @@ export async function startProject(
 
   if (!startDate) {
     throw new Error(
-      isContract
+      isContract || isMonthTimeline || isService
         ? "Real contract start date is required."
         : "Real project start date is required."
     );
@@ -1285,23 +1597,30 @@ export async function startProject(
   );
 
   let endDate = formEndDate;
-  if (isContract) {
+  if (isContract || isService || isMonthTimeline) {
     // Keep planned contract end from Planning when the dialog does not send one.
     endDate = formEndDate ?? project.endDate;
+    if (
+      (isContract || project.subCategory === "SECURITY") &&
+      !endDate
+    ) {
+      throw new Error("Contract end date is required.");
+    }
   } else if (!endDate) {
     throw new Error("Estimated project completion date is required.");
   }
 
-  const estimatedDurationDays = isContract
-    ? null
-    : resolveEstimatedDurationDays({
-        formDurationDays,
-        startDate,
-        endDate,
-        existing: project.estimatedDurationDays,
-        // Keep the planning estimate when present; backfill only if missing.
-        preserveExisting: true,
-      });
+  const estimatedDurationDays =
+    isContract || isService
+      ? null
+      : resolveEstimatedDurationDays({
+          formDurationDays,
+          startDate,
+          endDate,
+          existing: project.estimatedDurationDays,
+          // Keep the planning estimate when present; backfill only if missing.
+          preserveExisting: true,
+        });
 
   if (!assignStaffLater && employeeIds.length > 0) {
     const companyId = session.user.companyId;
@@ -1333,14 +1652,13 @@ export async function startProject(
           : {}),
         // Never clear the planning estimate.
         estimatedStartDate: project.estimatedStartDate ?? contractStart,
-        ...(isContract
-          ? {}
-          : { estimatedDurationDays }),
+        ...(isContract || isService ? {} : { estimatedDurationDays }),
         ...(invoicingDay != null ? { invoicingDay } : {}),
       },
     });
 
-    // Regular Cleaning: open the first billing period immediately.
+    // Regular Cleaning only: open the first billing period immediately.
+    // Security / Parking / Payroll Management never create invoice periods.
     if (isContract && project.billingMode === "MONTHLY") {
       const first = firstMonthlyPeriodBounds(
         billingPeriodBasis,
@@ -1420,6 +1738,7 @@ export async function moveProjectToPlanning(id: string): Promise<void> {
       id: true,
       status: true,
       clientId: true,
+      subCategory: true,
       invoicePeriods: {
         where: {
           status: { in: ["AWAITING_PAYMENT", "OVERDUE", "PENDING_VERIFICATION", "COMPILING"] },
@@ -1431,6 +1750,9 @@ export async function moveProjectToPlanning(id: string): Promise<void> {
   });
   if (!project) {
     throw new Error("Project not found.");
+  }
+  if (project.subCategory === "INTERNAL") {
+    throw new Error("Internal projects stay In Progress and cannot move to Planning.");
   }
   if (project.status !== "IN_PROGRESS") {
     throw new Error("Only In Progress projects can move back to Planning.");
@@ -1671,9 +1993,21 @@ export async function submitProjectForApproval(projectId: string) {
 
     if (!project) throw new Error(translate(locale, "pages.projects.notFound"));
 
+    if (project.subCategory === "INTERNAL") {
+      throw new Error(
+        translate(locale, "pages.projects.submitForApproval.internalNotAllowed")
+      );
+    }
+
     if (isContractSubCategory(project.subCategory)) {
       throw new Error(
         translate(locale, "pages.projects.submitForApproval.regularNotAllowed")
+      );
+    }
+
+    if (!isMilestoneSubCategory(project.subCategory)) {
+      throw new Error(
+        translate(locale, "pages.projects.submitForApproval.notAllowed")
       );
     }
 

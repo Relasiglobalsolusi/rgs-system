@@ -18,6 +18,13 @@ type CategoryDb = Pick<
   "employeeCategory" | "position" | "employee"
 >;
 
+/** Canonical workforce departments (EmployeeCategory). Prefix = employee number code. */
+export const DEFAULT_WORKFORCE_DEPARTMENTS = [
+  { slug: "corporate", name: "Corporate", prefix: "COR", sortOrder: 10 },
+  { slug: "warehouse", name: "Warehouse", prefix: "WRH", sortOrder: 15 },
+  { slug: "operations", name: "Operations", prefix: "OPR", sortOrder: 20 },
+] as const;
+
 export const DEFAULT_POSITIONS_BY_CATEGORY_SLUG: Record<
   string,
   Array<{ slug: string; name: string; description: string; sortOrder: number }>
@@ -38,7 +45,7 @@ export const DEFAULT_POSITIONS_BY_CATEGORY_SLUG: Record<
     {
       slug: "in-house-cleaning-staff",
       name: "In-House Cleaning Staff",
-      description: "Internal Facility Cleaning",
+      description: "Head Office facility cleaning (assign to Internal Head Office project)",
       sortOrder: 30,
     },
     {
@@ -52,6 +59,26 @@ export const DEFAULT_POSITIONS_BY_CATEGORY_SLUG: Record<
       name: "Finance Admin",
       description: "Finance Administration",
       sortOrder: 50,
+    },
+  ],
+  warehouse: [
+    {
+      slug: "warehouse-supervisor",
+      name: "Warehouse Supervisor",
+      description: "Warehouse leadership - transfer orders, inventory, office CICO",
+      sortOrder: 10,
+    },
+    {
+      slug: "warehouse-staff",
+      name: "Warehouse Staff",
+      description: "Warehouse floor crew (no portal login by default)",
+      sortOrder: 20,
+    },
+    {
+      slug: "in-house-cleaning-staff",
+      name: "In-House Cleaning Staff",
+      description: "Warehouse facility cleaning (assign to Internal Warehouse project)",
+      sortOrder: 30,
     },
   ],
   operations: [
@@ -112,24 +139,77 @@ export function isDirectorPosition(position: {
   );
 }
 
-export function isCrewPickerPosition(position: {
+export function isWarehouseSupervisorPosition(position: {
   slug?: string | null;
   name?: string | null;
 }): boolean {
   const slug = (position.slug ?? "").trim().toLowerCase();
   const name = (position.name ?? "").trim().toLowerCase();
-  if (isOperationsManagerPosition(position)) {
-    return false;
-  }
+  return (
+    slug === "warehouse-supervisor" ||
+    name === "warehouse supervisor"
+  );
+}
+
+export function isWarehouseStaffPosition(position: {
+  slug?: string | null;
+  name?: string | null;
+}): boolean {
+  const slug = (position.slug ?? "").trim().toLowerCase();
+  const name = (position.name ?? "").trim().toLowerCase();
+  return slug === "warehouse-staff" || name === "warehouse staff";
+}
+
+export function isInHouseCleaningStaffPosition(position: {
+  slug?: string | null;
+  name?: string | null;
+}): boolean {
+  const slug = (position.slug ?? "").trim().toLowerCase();
+  const name = (position.name ?? "").trim().toLowerCase();
+  return (
+    slug === "in-house-cleaning-staff" ||
+    name === "in-house cleaning staff" ||
+    name === "in house cleaning staff"
+  );
+}
+
+export function isFieldCleaningStaffPosition(position: {
+  slug?: string | null;
+  name?: string | null;
+}): boolean {
+  const slug = (position.slug ?? "").trim().toLowerCase();
+  const name = (position.name ?? "").trim().toLowerCase();
   return (
     slug === "cleaning-staff" ||
     slug === "gc-staff" ||
-    slug === "in-house-cleaning-staff" ||
     name === "cleaning staff" ||
-    name === "gc staff" ||
-    name === "in-house cleaning staff" ||
-    name.includes("gondola")
+    name === "gc staff"
   );
+}
+
+/**
+ * Cleaning crew positions that require a Progress Report before CICO check-out.
+ * Cleaning Staff, GC Staff, In-House Cleaning Staff — position only.
+ */
+export function isCleaningStaffPosition(position: {
+  slug?: string | null;
+  name?: string | null;
+}): boolean {
+  return (
+    isFieldCleaningStaffPosition(position) ||
+    isInHouseCleaningStaffPosition(position)
+  );
+}
+
+export function isCrewPickerPosition(position: {
+  slug?: string | null;
+  name?: string | null;
+}): boolean {
+  const name = (position.name ?? "").trim().toLowerCase();
+  if (isOperationsManagerPosition(position)) {
+    return false;
+  }
+  return isCleaningStaffPosition(position) || name.includes("gondola");
 }
 
 export function isSecurityStaffPosition(position: {
@@ -148,6 +228,39 @@ export function isParkingStaffPosition(position: {
   const slug = (position.slug ?? "").trim().toLowerCase();
   const name = (position.name ?? "").trim().toLowerCase();
   return slug.includes("parking") || name.includes("parking");
+}
+
+/** Ensure Corporate / Warehouse / Operations exist, then seed default positions. */
+export async function ensureWorkforceDepartments(
+  db: Pick<Prisma.TransactionClient, "employeeCategory" | "position">,
+  companyId: string
+) {
+  for (const item of DEFAULT_WORKFORCE_DEPARTMENTS) {
+    await db.employeeCategory.upsert({
+      where: {
+        companyId_slug: {
+          companyId,
+          slug: item.slug,
+        },
+      },
+      update: {
+        name: item.name,
+        prefix: item.prefix,
+        sortOrder: item.sortOrder,
+        active: true,
+      },
+      create: {
+        companyId,
+        name: item.name,
+        slug: item.slug,
+        prefix: item.prefix,
+        sortOrder: item.sortOrder,
+        active: true,
+      },
+    });
+  }
+
+  await ensureDefaultPositions(db, companyId);
 }
 
 export async function ensureDefaultPositions(

@@ -58,7 +58,7 @@ type UserForPermissions = {
     employeeType: EmployeeType;
     employmentType: EmploymentType;
     placement: Placement;
-    jobPosition?: { id: string; name: string } | null;
+    jobPosition?: { id: string; name: string; slug?: string | null } | null;
   } | null;
 };
 
@@ -150,6 +150,12 @@ export default function UserPermissionsDialog({
         ? getEmployeeModuleOverrides({
             placement: user.employee.placement,
             employeeType: user.employee.employeeType,
+            jobPosition: user.employee.jobPosition
+              ? {
+                  slug: user.employee.jobPosition.slug,
+                  name: user.employee.jobPosition.name,
+                }
+              : null,
           })
         : getAccountTypeBaselineModules(user),
     [user]

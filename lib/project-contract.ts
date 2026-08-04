@@ -1,6 +1,6 @@
 import { formatAppDateInput } from "@/lib/progress-report-compliance";
 
-/** Regular Cleaning projects are treated as ongoing site contracts. */
+/** Regular Cleaning projects are treated as ongoing site contracts with invoice periods. */
 export const CONTRACT_SUBCATEGORY = "REGULAR_CLEANING" as const;
 
 export const DEFAULT_CONTRACT_DURATION_MONTHS = 12;
@@ -26,10 +26,28 @@ export function clampProjectDurationDays(value: number): number {
   return days;
 }
 
+/**
+ * Regular Cleaning only — month-duration contracts with billing periods / period basis.
+ * Security also uses a month timeline but does NOT create ProjectInvoicePeriod rows.
+ */
 export function isContractSubCategory(
   value: string | null | undefined
 ): boolean {
   return value === CONTRACT_SUBCATEGORY;
+}
+
+/**
+ * Month-based contract timeline UI (start + duration months).
+ * Includes Regular Cleaning and Security; Parking is optional via the create form.
+ */
+export function usesMonthDurationTimeline(
+  value: string | null | undefined
+): boolean {
+  return (
+    value === CONTRACT_SUBCATEGORY ||
+    value === "SECURITY" ||
+    value === "PARKING"
+  );
 }
 
 /** Today's calendar date (YYYY-MM-DD) in Asia/Jakarta. */

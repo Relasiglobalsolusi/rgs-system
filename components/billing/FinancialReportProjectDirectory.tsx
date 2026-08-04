@@ -29,7 +29,7 @@ import {
 import { useT } from "@/lib/i18n/use-t";
 import {
   PROJECT_FILTER_ALL,
-  PROJECT_SUB_CATEGORIES,
+  COMMERCIAL_PROJECT_SUB_CATEGORIES,
   isProjectSubCategory,
 } from "@/lib/project-subcategory";
 import { formatContractPrice } from "@/lib/project-billing";
@@ -234,7 +234,7 @@ export default function FinancialReportProjectDirectory({
               <SelectItem value={PROJECT_FILTER_ALL}>
                 {t("common.actions.all")}
               </SelectItem>
-              {PROJECT_SUB_CATEGORIES.map((value) => (
+              {COMMERCIAL_PROJECT_SUB_CATEGORIES.map((value) => (
                 <SelectItem key={value} value={value}>
                   {localizeSubCategory(value, locale)}
                 </SelectItem>

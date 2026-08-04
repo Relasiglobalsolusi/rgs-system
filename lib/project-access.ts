@@ -127,6 +127,8 @@ export function isInProgressCleaningProjectDeleteBlocked(opts: {
   status: ProjectStatus | string | null | undefined;
   subCategory: ProjectSubCategory | string | null | undefined;
 }): boolean {
+  // Internal HO/Warehouse sites may be deleted (system can recreate empty shells).
+  if (opts.subCategory === "INTERNAL") return false;
   return (
     opts.status === "IN_PROGRESS" &&
     isCleaningProjectSubCategory(opts.subCategory)

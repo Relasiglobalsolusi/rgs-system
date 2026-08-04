@@ -5,7 +5,13 @@ import { requireModule, toPermissionUser } from "@/lib/session";
 import { canAccess } from "@/lib/permissions";
 import { isPlanningProjectStatus } from "@/lib/project-status";
 import { getMostUrgentUnpaidPeriod } from "@/lib/billing";
-import { decimalToNumber, formatProjectTitle } from "@/lib/project-billing";
+import {
+  decimalToNumber,
+  formatContractPrice,
+  formatProjectTitle,
+  usesInvoicePeriods,
+} from "@/lib/project-billing";
+import { isServiceProjectSubCategory } from "@/lib/project-subcategory";
 import { localizeSubCategory } from "@/lib/i18n/labels";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
@@ -58,6 +64,8 @@ export default async function BillingProjectPage({
 
   const inPlanning = isPlanningProjectStatus(project.status);
   const pageTitle = formatProjectTitle(project.name, null, locale);
+  const isService = isServiceProjectSubCategory(project.subCategory);
+  const opensPeriods = usesInvoicePeriods(project.subCategory);
 
   if (inPlanning) {
     return (
@@ -96,7 +104,120 @@ export default async function BillingProjectPage({
     );
   }
 
-  // Sync anniversary cycles for this project (no auto-issue — reconcile then submit).
+  // Security / Parking / Payroll Management: commercial terms only — never sync periods.
+  if (isService || !opensPeriods) {
+    const monthlyFee = decimalToNumber(project.contractPrice);
+    const setupCost = decimalToNumber(project.setupCost);
+    const profitShare = decimalToNumber(project.profitSharePercent);
+    const monthlyClientFee = decimalToNumber(project.monthlyClientFee);
+    const serviceFee = decimalToNumber(project.serviceFeePercent);
+
+    return (
+      <AppShell
+        title={pageTitle}
+        description={`${localizeSubCategory(project.subCategory, locale)} · ${project.client.name}`}
+      >
+        <BillingBreadcrumbs
+          items={[
+            { label: t("pages.billing.title"), href: "/billing" },
+            { label: project.client.name, href: `/billing/${clientId}` },
+            { label: pageTitle },
+          ]}
+        />
+
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-subtle">
+            {t("pages.projects.detail.serviceBillingNote")}
+          </p>
+          <BackLink href={`/projects/${project.id}`} direction="forward">
+            {t("pages.billing.projectDetails")}
+          </BackLink>
+        </div>
+
+        <SectionCard>
+          <h3 className="mb-4 text-lg font-semibold text-text">
+            {t("pages.billing.serviceCommercialTitle")}
+          </h3>
+          <dl
+            className={
+              project.subCategory === "PARKING"
+                ? "grid gap-4 text-sm sm:grid-cols-3"
+                : project.subCategory === "PAYROLL_MANAGEMENT"
+                  ? "grid gap-4 text-sm sm:grid-cols-2"
+                  : "grid gap-4 text-sm"
+            }
+          >
+            {project.subCategory === "SECURITY" ? (
+              <div>
+                <dt className="text-subtle">
+                  {t("pages.projects.serviceCommercial.monthlyFee")}
+                </dt>
+                <dd className="mt-1 font-medium text-text">
+                  {formatContractPrice(monthlyFee)}
+                </dd>
+              </div>
+            ) : null}
+            {project.subCategory === "PARKING" ? (
+              <>
+                <div>
+                  <dt className="text-subtle">
+                    {t("pages.projects.serviceCommercial.setupCost")}
+                  </dt>
+                  <dd className="mt-1 font-medium text-text">
+                    {formatContractPrice(setupCost)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-subtle">
+                    {t("pages.projects.serviceCommercial.profitSharePercent")}
+                  </dt>
+                  <dd className="mt-1 font-medium text-text">
+                    {profitShare != null ? `${profitShare}%` : "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-subtle">
+                    {t("pages.projects.serviceCommercial.monthlyClientFee")}
+                  </dt>
+                  <dd className="mt-1 font-medium text-text">
+                    {formatContractPrice(monthlyClientFee)}
+                  </dd>
+                </div>
+              </>
+            ) : null}
+            {project.subCategory === "PAYROLL_MANAGEMENT" ? (
+              <>
+                <div>
+                  <dt className="text-subtle">
+                    {t("pages.projects.serviceCommercial.serviceFeePercent")}
+                  </dt>
+                  <dd className="mt-1 font-medium text-text">
+                    {serviceFee != null ? `${serviceFee}%` : "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-subtle">
+                    {t("pages.projects.serviceCommercial.paymentTermsDays")}
+                  </dt>
+                  <dd className="mt-1 font-medium text-text">
+                    {project.paymentTermsDays === 0
+                      ? t("common.paymentTerms.cashShort")
+                      : project.paymentTermsDays != null
+                        ? t("common.paymentTerms.netShort", {
+                            days: project.paymentTermsDays,
+                          })
+                        : "—"}
+                  </dd>
+                </div>
+              </>
+            ) : null}
+          </dl>
+        </SectionCard>
+      </AppShell>
+    );
+  }
+
+  // Sync anniversary cycles for cleaning projects only (no auto-issue).
   if (
     project.billingMode === "MONTHLY" &&
     project.status !== "COMPLETED" &&

@@ -60,6 +60,7 @@ export async function provisionEmployeeUser(
       status: true,
       userId: true,
       user: { select: { id: true, active: true } },
+      jobPosition: { select: { slug: true, name: true } },
     },
   });
 
@@ -91,6 +92,7 @@ export async function provisionEmployeeUser(
   const moduleOverrides = getEmployeeModuleOverrides({
     placement: options.placement,
     employeeType: options.employeeType,
+    jobPosition: existing.jobPosition,
   });
 
   const sortOrder = await nextUserSortOrder(tx, options.companyId);

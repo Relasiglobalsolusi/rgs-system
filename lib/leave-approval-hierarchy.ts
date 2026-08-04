@@ -275,6 +275,31 @@ export function filterLeaveRequestsForReviewer<T extends LeaveRequestWithEmploye
   );
 }
 
+/** True when the reviewer is the same person as the leave requester. */
+export function isOwnLeaveRequest(
+  request: LeaveRequestWithEmployee,
+  reviewer: LeaveReviewerProfile
+): boolean {
+  const requester = leaveRequesterFromEmployee(request.employee);
+  return Boolean(
+    (reviewer.employeeId &&
+      reviewer.employeeId === requester.employeeId) ||
+      (reviewer.userId &&
+        requester.userId &&
+        reviewer.userId === requester.userId)
+  );
+}
+
+/**
+ * Pending leave submitted by the signed-in reviewer — visible for tracking,
+ * but not actionable (self-approval is never allowed).
+ */
+export function filterOwnPendingLeaveRequests<
+  T extends LeaveRequestWithEmployee,
+>(requests: T[], reviewer: LeaveReviewerProfile): T[] {
+  return requests.filter((request) => isOwnLeaveRequest(request, reviewer));
+}
+
 export async function countPendingLeaveRequestsForReviewer(options: {
   companyId: string;
   reviewer: LeaveReviewerProfile;

@@ -64,17 +64,31 @@ export function employeeTypeFromPlacement(
   return isHeadOfficePlacement(placement) ? "HEAD_OFFICE" : "PROJECT_SITE";
 }
 
+/** Corporate (COR) and Warehouse (WRH) are site-based desk / facility departments. */
+export function isHeadOfficeWorkforceDepartment(options: {
+  categorySlug?: string | null;
+  categoryPrefix?: string | null;
+}): boolean {
+  const slug = (options.categorySlug ?? "").trim().toLowerCase();
+  const prefix = (options.categoryPrefix ?? "").trim().toUpperCase();
+  return (
+    slug === "corporate" ||
+    slug === "warehouse" ||
+    prefix === "COR" ||
+    prefix === "WRH" ||
+    prefix === "HO"
+  );
+}
+
 /**
  * Soft-restore default placement:
- * Corporate department → HEAD_OFFICE; everyone else → AVAILABLE.
+ * Corporate / Warehouse → HEAD_OFFICE; everyone else → AVAILABLE.
  */
 export function placementOnSoftRestore(options: {
   categorySlug?: string | null;
   categoryPrefix?: string | null;
 }): Placement {
-  const slug = (options.categorySlug ?? "").trim().toLowerCase();
-  const prefix = (options.categoryPrefix ?? "").trim().toUpperCase();
-  if (slug === "corporate" || prefix === "COR" || prefix === "HO") {
+  if (isHeadOfficeWorkforceDepartment(options)) {
     return "HEAD_OFFICE";
   }
   return "AVAILABLE";
@@ -82,7 +96,7 @@ export function placementOnSoftRestore(options: {
 
 /**
  * Initial placement when creating an employee (no free Placement dropdown).
- * Corporate → HEAD_OFFICE; otherwise AVAILABLE (Assign sets ON_PROJECT / FIELD).
+ * Corporate / Warehouse → HEAD_OFFICE; otherwise AVAILABLE (Assign sets ON_PROJECT / FIELD).
  */
 export function initialPlacementForDepartment(options: {
   categorySlug?: string | null;
@@ -181,18 +195,4 @@ export function parseEmploymentTypeImportValue(
     return "PART_TIME";
   }
   return null;
-}
-
-/** CICO / Progress: only when currently ON_PROJECT. */
-export function canAccessSiteWorkModules(
-  placement: Placement | null | undefined
-): boolean {
-  return isOnProjectPlacement(placement);
-}
-
-/** Leave / Sick: allowed when AVAILABLE. */
-export function canRequestLeaveWhenAvailable(
-  placement: Placement | null | undefined
-): boolean {
-  return isAvailablePlacement(placement);
 }

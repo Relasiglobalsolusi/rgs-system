@@ -27,7 +27,12 @@ import {
   findOpenCicoAttendance,
   hasOpenCicoForProjectWorkDay,
 } from "@/lib/cico-attendance";
-import { isCleaningProjectSubCategory } from "@/lib/project-subcategory";
+import { requiresCicoProgressReport } from "@/lib/cico-access";
+import { usesInvoicePeriods } from "@/lib/project-billing";
+import {
+  isCleaningProjectSubCategory,
+  isInternalProjectSubCategory,
+} from "@/lib/project-subcategory";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
 
@@ -142,10 +147,15 @@ async function assertValidProgressPhotos(photos: File[]) {
 async function ensureOngoingPeriod(projectId: string, reportDate: Date) {
   const project = await prisma.project.findUnique({
     where: { id: projectId },
-    select: { billingMode: true, startDate: true },
+    select: { billingMode: true, startDate: true, subCategory: true },
   });
 
-  if (!project || project.billingMode !== "MONTHLY" || !project.startDate) {
+  if (
+    !project ||
+    project.billingMode !== "MONTHLY" ||
+    !project.startDate ||
+    !usesInvoicePeriods(project.subCategory)
+  ) {
     return null;
   }
 
@@ -191,15 +201,13 @@ export async function createProgressReport(formData: FormData) {
   const session = await requireModule("progress");
   const employee = await requireSyncedEmployee(session.user.id);
 
-  // Hard gate: HO (Head Office) employees may never submit progress reports,
-  // even when they have an open CICO via adminFieldMode. Only field cleaning
-  // staff with an active CICO for the project may submit.
-  if (employee.employeeType === "HEAD_OFFICE") {
-    throw await progressError("headOfficeNotAllowed");
-  }
-
   if (employee.placement !== "ON_PROJECT") {
     throw await progressError("onProjectOnly");
+  }
+
+  // Progress is position-gated: Cleaning Staff, GC Staff, In-House Cleaning only.
+  if (!requiresCicoProgressReport(employee)) {
+    throw await progressError("cleaningPositionOnly");
   }
 
   const projectId = String(formData.get("projectId") ?? "").trim();
@@ -247,6 +255,14 @@ export async function createProgressReport(formData: FormData) {
     throw await progressError("notAssigned");
   }
 
+  // Desk HO cannot submit — exception: assigned to an Internal (HO/Warehouse) cleaning site.
+  if (
+    employee.employeeType === "HEAD_OFFICE" &&
+    !isInternalProjectSubCategory(assignment.project.subCategory)
+  ) {
+    throw await progressError("headOfficeNotAllowed");
+  }
+
   if (!isCleaningProjectSubCategory(assignment.project.subCategory)) {
     throw await progressError("cleaningOnly");
   }
@@ -255,7 +271,9 @@ export async function createProgressReport(formData: FormData) {
     throw await progressError("inProgressOnly");
   }
 
-  const period = await ensureOngoingPeriod(projectId, reportDate);
+  const period = isInternalProjectSubCategory(assignment.project.subCategory)
+    ? null
+    : await ensureOngoingPeriod(projectId, reportDate);
 
   const topSort = await prisma.progressReport.findFirst({
     where: { project: { companyId: session.user.companyId } },
@@ -309,6 +327,10 @@ export async function createProgressReport(formData: FormData) {
 export async function updateProgressReport(formData: FormData) {
   const session = await requireModule("progress");
   const employee = await requireSyncedActiveEmployee(session.user.id);
+
+  if (!requiresCicoProgressReport(employee)) {
+    throw await progressError("cleaningPositionOnly");
+  }
 
   const reportId = String(formData.get("reportId") ?? "").trim();
   if (!reportId) throw await progressError("reportNotFound");

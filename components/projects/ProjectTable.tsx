@@ -26,6 +26,7 @@ import {
 } from "@/lib/i18n/labels";
 import type { AppLocale } from "@/lib/i18n/locale";
 import { useT } from "@/lib/i18n/use-t";
+import { isInternalProjectSubCategory } from "@/lib/project-subcategory";
 import {
   getProjectWorkflowStatusLabel,
   isPlanningProjectStatus,
@@ -289,12 +290,20 @@ export default function ProjectTable({
   const router = useRouter();
   const [, startTransition] = useTransition();
 
+  /** Internal section has no directory workflow chips — hide empty Actions. */
+  const isInternalTable =
+    rows.length > 0 &&
+    rows.every((row) =>
+      isInternalProjectSubCategory(row.project.subCategory)
+    );
   /**
    * Workflow chips only — Edit / Delete / downloads are on the detail page.
    * Completed has no directory workflow chips.
+   * Internal: no Finish / Approval / Back to Planning — omit the column.
    * Payment Due: also show actions column when Finance can open billing.
    */
   const showActions =
+    !isInternalTable &&
     filterView !== "completed" &&
     (canManage || (filterView === "payment-due" && canOpenBilling));
   /** Payment Due: due date sits between Status and Actions. */
@@ -322,29 +331,55 @@ export default function ProjectTable({
   }
 
   const columns = useMemo(() => {
+    // Internal: four equal columns (~25% of free width after reorder gutter).
+    const internalEqual = isInternalTable
+      ? ({ width: "25%", share: 1, className: "min-w-0" } as const)
+      : null;
+
     const cols: DataTableColumn<ProjectTableRow>[] = [
       {
         key: "project",
         title: t("pages.projects.columns.project"),
-        width: "16rem",
-        share: 2.25,
-        className: "min-w-[16rem]",
-        render: (row) => (
-          <div className="min-w-0 text-left">
-            <p className="font-semibold text-text">{row.displayTitle}</p>
-            <p className="mt-0.5 max-w-md truncate text-sm text-subtle">
-              {[row.location, row.clientName].filter(Boolean).join(" · ") ||
-                t("pages.projects.noLocation")}
-            </p>
-          </div>
-        ),
+        width: internalEqual?.width ?? "16rem",
+        share: internalEqual?.share ?? 2.25,
+        className: internalEqual?.className ?? "min-w-[16rem]",
+        render: (row) => {
+          const isInternal = isInternalProjectSubCategory(
+            row.project.subCategory
+          );
+          // Internal HO/Warehouse: seeded location duplicates the name — title only.
+          if (isInternal) {
+            return (
+              <div className="min-w-0 text-left">
+                <p className="font-semibold text-text">{row.displayTitle}</p>
+              </div>
+            );
+          }
+          const locationDistinct =
+            row.location?.trim() &&
+            row.location.trim().toLowerCase() !==
+              row.displayTitle.trim().toLowerCase()
+              ? row.location.trim()
+              : null;
+          const subtitle = [locationDistinct, row.clientName]
+            .filter(Boolean)
+            .join(" · ");
+          return (
+            <div className="min-w-0 text-left">
+              <p className="font-semibold text-text">{row.displayTitle}</p>
+              <p className="mt-0.5 max-w-md truncate text-sm text-subtle">
+                {subtitle || t("pages.projects.noLocation")}
+              </p>
+            </div>
+          );
+        },
       },
       {
         key: "timeline",
         title: t("pages.projects.timeline"),
-        width: "11rem",
-        share: 1,
-        className: "min-w-[11rem]",
+        width: internalEqual?.width ?? "11rem",
+        share: internalEqual?.share ?? 1,
+        className: internalEqual?.className ?? "min-w-[11rem]",
         render: (row) => {
           // Planning: no progress reports / staff assignment yet — hide counts.
           const showOpsCounts = !isPlanningProjectStatus(row.project.status);
@@ -377,10 +412,12 @@ export default function ProjectTable({
       {
         key: "cleaningType",
         title: t("pages.projects.cleaningType"),
-        width: STATUS_COLUMN_WIDTH,
-        share: 1,
+        width: internalEqual?.width ?? STATUS_COLUMN_WIDTH,
+        share: internalEqual?.share ?? 1,
         align: "center",
-        className: "min-w-[10rem] overflow-visible whitespace-nowrap",
+        className: internalEqual
+          ? `${internalEqual.className} overflow-visible whitespace-nowrap`
+          : "min-w-[10rem] overflow-visible whitespace-nowrap",
         render: (row) => (
           <StatusBadge status="success" compact>
             {localizeSubCategory(row.project.subCategory, locale)}
@@ -390,10 +427,12 @@ export default function ProjectTable({
       {
         key: "status",
         title: t("pages.projects.columns.status"),
-        width: STATUS_COLUMN_WIDTH,
-        share: 1,
+        width: internalEqual?.width ?? STATUS_COLUMN_WIDTH,
+        share: internalEqual?.share ?? 1,
         align: "center",
-        className: "min-w-[10rem] overflow-visible whitespace-nowrap",
+        className: internalEqual
+          ? `${internalEqual.className} overflow-visible whitespace-nowrap`
+          : "min-w-[10rem] overflow-visible whitespace-nowrap",
         render: (row) => {
           const paymentDue = isPaymentDueRow(row, filterView);
           const englishLabel = getProjectWorkflowStatusLabel({
@@ -547,6 +586,7 @@ export default function ProjectTable({
     canManage,
     employees,
     filterView,
+    isInternalTable,
     locale,
     showActions,
     showPaidColumn,

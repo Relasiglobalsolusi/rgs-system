@@ -5,6 +5,7 @@ import {
   canManageProjects,
   getProjectWhereForUser,
 } from "@/lib/project-access";
+import { requiresCicoProgressReport } from "@/lib/cico-access";
 import { getOpenCicoProgressLock } from "@/lib/cico-attendance";
 import {
   CLEANING_PROJECT_SUB_CATEGORIES,
@@ -290,17 +291,21 @@ export default async function ProgressPage({
     !isClient &&
     employee?.status === "ACTIVE" &&
     Boolean(openCicoProject) &&
-    employee?.placement === "ON_PROJECT";
+    employee?.placement === "ON_PROJECT" &&
+    requiresCicoProgressReport(employee);
   const showCheckInRequired =
     Boolean(employee) &&
     !isClient &&
     employee?.status === "ACTIVE" &&
     assignedCleaningProjects.length > 0 &&
     employee?.placement === "ON_PROJECT" &&
+    requiresCicoProgressReport(employee) &&
     !openCicoProject;
-  // Clients + managers: view feed only. Active staff submit/edit their own reports.
+  // Clients + managers: view feed only. Cleaning positions submit/edit their own reports.
   const canEditReports =
-    !isViewerFeed && employee?.status === "ACTIVE";
+    !isViewerFeed &&
+    employee?.status === "ACTIVE" &&
+    requiresCicoProgressReport(employee);
 
   const grouped: ProgressDirectoryProject[] = directoryProjects.map(
     (project) => {
@@ -322,7 +327,6 @@ export default async function ProgressPage({
           lastName: assignment.employee.lastName,
           employeeNo: assignment.employee.employeeNo,
           category: assignment.employee.category,
-          missing: false,
           reports: reports.map((report) => ({
             id: report.id,
             notes: report.notes,
@@ -361,7 +365,9 @@ export default async function ProgressPage({
               ? t("pages.progress.onLeaveMessage")
               : showCheckInRequired
                 ? t("pages.progress.checkInRequiredMessage")
-                : t("pages.progress.myReportsHint")}
+                : requiresCicoProgressReport(employee)
+                  ? t("pages.progress.myReportsHint")
+                  : t("pages.progress.myReportsHintViewOnly")}
           </p>
         </div>
         {canSubmit && openCicoProject ? (

@@ -33,6 +33,7 @@ type ClientOption = {
   id: string;
   name: string;
   npwp: string | null;
+  paymentTermsDays?: number | null;
 };
 
 type EditProject = {
@@ -52,6 +53,12 @@ type EditProject = {
   billingMode: BillingMode;
   billingPeriodBasis?: BillingPeriodBasis | null;
   requiresTaxInvoice: boolean;
+  contractPrice?: number | null;
+  setupCost?: number | null;
+  profitSharePercent?: number | null;
+  monthlyClientFee?: number | null;
+  serviceFeePercent?: number | null;
+  paymentTermsDays?: number | null;
   clientId: string | null;
   status: ProjectStatus | string;
   assignments: { employeeId: string }[];
@@ -76,7 +83,7 @@ type Props = {
   showSubmitForApproval?: boolean;
   canMoveBackToPlanning: boolean;
   moveBackBlockedByCollection: boolean;
-  billingHref: string;
+  billingHref: string | null;
   projectId: string;
   projectName: string;
   subCategory: ProjectSubCategory;
@@ -123,7 +130,7 @@ export default function ProjectDetailActionBar({
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  const showBilling = canManage && !inPlanning;
+  const showBilling = canManage && !inPlanning && Boolean(billingHref);
   const showEdit = canManage;
   const showEndContract = canEndContract;
   const showDelete = canDelete || Boolean(deleteBlockedReason);
@@ -136,7 +143,12 @@ export default function ProjectDetailActionBar({
   const showWorkflow = showStart || showSubmit || showReturn || showReturnBlocked;
   const showSecondary = showBilling || showEdit;
   const hasTopActions = showWorkflow || showSecondary;
-  const showExtendContract = canManage && showEndContract && Boolean(endDate);
+  // Contract extension history is Regular Cleaning only (period-based contracts).
+  const showExtendContract =
+    canManage &&
+    showEndContract &&
+    Boolean(endDate) &&
+    subCategory === "REGULAR_CLEANING";
   const hasBottomActions =
     showDelete || showEndContract || showExtendContract;
 
@@ -189,7 +201,7 @@ export default function ProjectDetailActionBar({
                   "border-t border-border/70 pt-3 sm:border-t-0 sm:pt-0"
               )}
             >
-              {showBilling ? (
+              {showBilling && billingHref ? (
                 <Link
                   href={billingHref}
                   className={cn(

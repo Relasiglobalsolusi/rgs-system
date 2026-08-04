@@ -5,15 +5,10 @@ export const PROJECT_SERVICE_AREAS = [
   "CLEANING",
   "PARKING",
   "SECURITY",
+  "PAYROLL_MANAGEMENT",
 ] as const satisfies readonly ServiceArea[];
 
-/** @deprecated Use {@link PROJECT_SERVICE_AREAS} for project/site areas. */
-export const SERVICE_AREAS = PROJECT_SERVICE_AREAS;
-
 export type ProjectServiceAreaValue = (typeof PROJECT_SERVICE_AREAS)[number];
-
-/** @deprecated Use {@link ProjectServiceAreaValue}. */
-export type ServiceAreaValue = ProjectServiceAreaValue;
 
 /** All areas an Operations Manager may hold for approvals. */
 export const OM_APPROVAL_AREAS = [
@@ -28,6 +23,7 @@ const LABELS: Record<ServiceArea, string> = {
   PARKING: "Parking",
   SECURITY: "Security",
   HEAD_OFFICE: "Head Office",
+  PAYROLL_MANAGEMENT: "Payroll Management",
 };
 
 /** Display order for project Service Area labels. */
@@ -35,6 +31,7 @@ export const SERVICE_AREA_ORDER: ServiceArea[] = [
   "CLEANING",
   "PARKING",
   "SECURITY",
+  "PAYROLL_MANAGEMENT",
 ];
 
 /** Display order for OM Approval Areas checkboxes. */
@@ -51,11 +48,6 @@ export function serviceAreaLabel(area: ServiceArea): string {
 
 export function isProjectServiceArea(value: string): value is ProjectServiceAreaValue {
   return (PROJECT_SERVICE_AREAS as readonly string[]).includes(value);
-}
-
-/** @deprecated Use {@link isProjectServiceArea}. */
-export function isServiceArea(value: string): value is ServiceArea {
-  return isProjectServiceArea(value);
 }
 
 export function parseServiceArea(

@@ -23,7 +23,8 @@ import {
   getEmployeeModuleOverrides,
 } from "../lib/permissions";
 import {
-  ensureDefaultPositions,
+  DEFAULT_WORKFORCE_DEPARTMENTS,
+  ensureWorkforceDepartments,
   normalizePositionTitleCase,
   retireFinanceDepartments,
 } from "../lib/positions";
@@ -77,22 +78,9 @@ async function main() {
     },
   });
 
-  const department = await prisma.department.upsert({
-    where: { code: "CLN" },
-    update: {},
-    create: {
-      name: "Cleaning Service",
-      code: "CLN",
-      description: "Staff operations",
-      companyId: company.id,
-    },
-  });
-
-  // Workforce departments only — Corporate / Operations (finance roles are Corporate positions)
-  const defaultCategories = [
-    { slug: "corporate", name: "Corporate", prefix: "COR", sortOrder: 10 },
-    { slug: "operations", name: "Operations", prefix: "OPR", sortOrder: 20 },
-  ] as const;
+  // Workforce departments: Corporate / Warehouse / Operations (EmployeeCategory).
+  // Legacy Department (CLN) is unused — org/numbering uses EmployeeCategory.
+  const defaultCategories = DEFAULT_WORKFORCE_DEPARTMENTS;
 
   // Retire legacy department categories if still present
   const retired = await prisma.employeeCategory.findMany({
@@ -167,7 +155,7 @@ async function main() {
   }
 
   await retireFinanceDepartments(prisma);
-  await ensureDefaultPositions(prisma, company.id);
+  await ensureWorkforceDepartments(prisma, company.id);
   await normalizePositionTitleCase(prisma, company.id);
 
   const cleaningPosition = await prisma.position.findFirst({
@@ -470,7 +458,6 @@ async function main() {
       status: EmploymentStatus.ACTIVE,
       archivedFromDirectory: false,
       companyId: company.id,
-      departmentId: department.id,
       userId: staffUser.id,
       hiredAt: new Date("2024-01-15"),
     },
@@ -509,7 +496,6 @@ async function main() {
       status: EmploymentStatus.ACTIVE,
       archivedFromDirectory: false,
       companyId: company.id,
-      departmentId: department.id,
       userId: staff2User.id,
       hiredAt: new Date("2024-03-01"),
     },
@@ -545,7 +531,6 @@ async function main() {
       position: directorPosition?.name ?? "Director",
       status: EmploymentStatus.ACTIVE,
       companyId: company.id,
-      departmentId: department.id,
       userId: vickoUser.id,
       hiredAt: new Date("2024-02-01"),
     },

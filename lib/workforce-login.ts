@@ -7,6 +7,11 @@ import type {
 
 import { softDeactivateEmployeeLogin } from "@/lib/linked-login-lifecycle";
 import { employeeTypeFromPlacement } from "@/lib/placement";
+import {
+  isInHouseCleaningStaffPosition,
+  isWarehouseStaffPosition,
+  isWarehouseSupervisorPosition,
+} from "@/lib/positions";
 import { provisionEmployeeUser } from "@/lib/provision-linked-user";
 
 type Tx = Prisma.TransactionClient;
@@ -51,20 +56,31 @@ export function shouldHaveActivePortalLogin(options: {
 
 /**
  * Default portal Yes/No for create/import when not specified.
- * Site/ops crew → Yes; Corporate can still opt in via Excel/form.
+ * - Warehouse Staff → No (floor crew; Supervisor directs them)
+ * - Warehouse Supervisor / In-House Cleaning / Corporate desk / field crew → Yes
  */
 export function defaultPortalAccessRequested(options: {
   placement: Placement;
   categorySlug?: string | null;
+  jobPosition?: { slug?: string | null; name?: string | null } | null;
 }): boolean {
+  if (isWarehouseStaffPosition(options.jobPosition ?? {})) {
+    return false;
+  }
+  if (
+    isWarehouseSupervisorPosition(options.jobPosition ?? {}) ||
+    isInHouseCleaningStaffPosition(options.jobPosition ?? {})
+  ) {
+    return true;
+  }
   if (options.placement === "HEAD_OFFICE") {
     return true;
   }
   const slug = (options.categorySlug ?? "").trim().toLowerCase();
-  if (slug === "corporate") {
+  if (slug === "corporate" || slug === "warehouse") {
     return true;
   }
-  // Site crew default need access
+  // Site / operations crew default need access for CICO
   return true;
 }
 
@@ -82,6 +98,7 @@ export async function syncEmployeePortalLogin(
     status: string;
     userId?: string | null;
     employeeType?: EmployeeType;
+    jobPosition?: { slug?: string | null; name?: string | null } | null;
   }
 ) {
   const employeeType =

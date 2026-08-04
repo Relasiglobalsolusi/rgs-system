@@ -132,6 +132,7 @@ export default function ProjectBillingPanel({
 }: Props) {
   const { t, locale } = useT();
   const showExtensions = isContractSubCategory(subCategory);
+  const showPeriodBasisUi = isContractSubCategory(subCategory);
   const [paymentDialogPeriodId, setPaymentDialogPeriodId] = useState<
     string | null
   >(null);
@@ -298,12 +299,13 @@ export default function ProjectBillingPanel({
   }
 
   const modeLabel = localizeBillingMode(billingMode, locale);
-  const basisLabel = isMonthly
-    ? localizeBillingPeriodBasis(
-        billingPeriodBasis ?? "CONTRACT_CYCLE",
-        locale
-      )
-    : null;
+  const basisLabel =
+    isMonthly && showPeriodBasisUi
+      ? localizeBillingPeriodBasis(
+          billingPeriodBasis ?? "CONTRACT_CYCLE",
+          locale
+        )
+      : null;
   const priorOpenWarn = useMemo(
     () =>
       isMonthly
@@ -341,7 +343,7 @@ export default function ProjectBillingPanel({
               {t("pages.billing.billingPeriodBasis")}: {basisLabel}
             </p>
           ) : null}
-          {isMonthly && (
+          {isMonthly && showPeriodBasisUi ? (
             <p className="mt-1 text-xs text-subtle">
               {billingPeriodBasis === "CALENDAR_MONTH"
                 ? t("pages.billing.calendarMonthInvoiceDay")
@@ -354,7 +356,7 @@ export default function ProjectBillingPanel({
                   })
                 : ""}
             </p>
-          )}
+          ) : null}
         </div>
         <div className="rounded-xl border border-border bg-elevated px-4 py-3">
           <p className="text-xs uppercase tracking-wider text-subtle">

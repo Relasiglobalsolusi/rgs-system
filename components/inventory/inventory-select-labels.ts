@@ -1,6 +1,5 @@
 import type {
   InventoryCatalogItem,
-  InventoryProjectOption,
   InventoryVendorOption,
 } from "@/components/inventory/inventory-types";
 
@@ -18,8 +17,4 @@ export function formatCatalogItemStockLabel(item: InventoryCatalogItem): string 
 
 export function formatVendorLabel(vendor: InventoryVendorOption): string {
   return `${vendor.name} (${vendor.shortCode})`;
-}
-
-export function formatProjectLabel(project: InventoryProjectOption): string {
-  return project.name;
 }

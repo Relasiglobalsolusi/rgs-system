@@ -252,6 +252,7 @@ export async function createEmployee(formData: FormData) {
       ? defaultPortalAccessRequested({
           placement,
           categorySlug: category.slug,
+          jobPosition: { slug: positionSlug, name: positionName },
         })
       : parseCreatePortalLoginFlag(portalRaw);
   const isOm = isOperationsManagerPosition({
@@ -265,6 +266,15 @@ export async function createEmployee(formData: FormData) {
   const displayPosition = isOm
     ? formatOperationsManagerLabel(omApprovalAreas)
     : positionName;
+  const { defaultInternalHomeSite } = await import("@/lib/office-cico");
+  const internalHomeSite =
+    employeeType !== "HEAD_OFFICE"
+      ? "NONE"
+      : defaultInternalHomeSite({
+          categorySlug: category.slug,
+          categoryPrefix: category.prefix,
+          jobPosition: { slug: positionSlug, name: positionName },
+        });
 
   if (!firstName) throw new Error("First name is required.");
   if (!lastName) throw new Error("Last name is required.");
@@ -293,6 +303,7 @@ export async function createEmployee(formData: FormData) {
         employeeType,
         employmentType,
         placement,
+        internalHomeSite,
         portalAccessRequested,
         categoryId,
         positionId,
@@ -326,6 +337,7 @@ export async function createEmployee(formData: FormData) {
       status: "ACTIVE",
       userId: null,
       employeeType,
+      jobPosition: { slug: positionSlug, name: positionName },
     });
   });
 
@@ -437,11 +449,18 @@ export async function updateEmployee(id: string, formData: FormData) {
     name: positionName,
   });
   const employmentType = parseEmploymentType(formData.get("employmentType"));
-  // Placement is system-driven — keep current; Assign/Release change it.
-  const placement = employee.placement;
+  // Placement is system-driven — Assign/Release change ON_PROJECT.
+  // Department moves between Corporate/Warehouse ↔ Operations reset the desk/field default.
+  const categoryChanged = categoryId !== employee.categoryId;
+  let placement = employee.placement;
+  if (categoryChanged && placement !== "ON_PROJECT" && placement !== "ON_LEAVE") {
+    placement = initialPlacementForDepartment({
+      categorySlug: category.slug,
+      categoryPrefix: category.prefix,
+    });
+  }
   const employeeType = employeeTypeFromPlacement(placement);
   const hiredAt = parseHiredAt(formData.get("hiredAt"));
-  const categoryChanged = categoryId !== employee.categoryId;
 
   // Portal Yes/No may be omitted on edit (keep existing)
   const portalRaw = formData.get("createPortalLogin");
@@ -460,6 +479,15 @@ export async function updateEmployee(id: string, formData: FormData) {
   const displayPosition = isOm
     ? formatOperationsManagerLabel(omApprovalAreas)
     : positionName;
+  const { defaultInternalHomeSite } = await import("@/lib/office-cico");
+  const internalHomeSite =
+    employeeType !== "HEAD_OFFICE"
+      ? "NONE"
+      : defaultInternalHomeSite({
+          categorySlug: category.slug,
+          categoryPrefix: category.prefix,
+          jobPosition: { slug: positionSlug, name: positionName },
+        });
 
   const idDocumentUrl = await saveIdDocument(formData);
 
@@ -479,6 +507,7 @@ export async function updateEmployee(id: string, formData: FormData) {
         employeeType,
         employmentType,
         placement,
+        internalHomeSite,
         status,
         portalAccessRequested,
         categoryId,
@@ -512,6 +541,7 @@ export async function updateEmployee(id: string, formData: FormData) {
       status,
       userId: updated.userId,
       employeeType,
+      jobPosition: { slug: positionSlug, name: positionName },
     });
   });
 

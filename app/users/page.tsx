@@ -75,7 +75,7 @@ export default async function UsersPage({ searchParams }: Props) {
               status: true,
               archivedFromDirectory: true,
               jobPosition: {
-                select: { id: true, name: true },
+                select: { id: true, name: true, slug: true },
               },
               category: {
                 select: { name: true, prefix: true },

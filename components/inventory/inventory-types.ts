@@ -18,12 +18,6 @@ export type InventoryVendorOption = {
   shortCode: string;
 };
 
-export type InventoryProjectOption = {
-  id: string;
-  name: string;
-  status: string;
-};
-
 export type InventoryPurchaseRow = {
   id: string;
   purchasedAt: string;

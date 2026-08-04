@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import {
@@ -45,11 +45,13 @@ export function CancelMaterialRequestButton({ id }: { id: string }) {
 export function ReviewMaterialRequestButtons({ id }: { id: string }) {
   const { t } = useT();
   const [pending, startTransition] = useTransition();
+  const [reviewNote, setReviewNote] = useState("");
 
   function review(decision: "APPROVE" | "REJECT") {
     const formData = new FormData();
     formData.set("id", id);
     formData.set("decision", decision);
+    formData.set("reviewNote", reviewNote);
     startTransition(async () => {
       try {
         await reviewMaterialRequest(formData);
@@ -58,6 +60,7 @@ export function ReviewMaterialRequestButtons({ id }: { id: string }) {
             ? t("pages.materialRequests.approved")
             : t("pages.materialRequests.rejected")
         );
+        setReviewNote("");
       } catch (error) {
         showRejectionFromError(
           error,
@@ -68,24 +71,33 @@ export function ReviewMaterialRequestButtons({ id }: { id: string }) {
   }
 
   return (
-    <div className="flex flex-wrap gap-2">
-      <Button
-        type="button"
-        size="sm"
-        disabled={pending}
-        onClick={() => review("APPROVE")}
-      >
-        {t("common.actions.approve")}
-      </Button>
-      <Button
-        type="button"
-        size="sm"
-        variant="secondary"
-        disabled={pending}
-        onClick={() => review("REJECT")}
-      >
-        {t("common.actions.reject")}
-      </Button>
+    <div className="flex w-full min-w-[16rem] flex-col gap-2 sm:max-w-sm">
+      <textarea
+        value={reviewNote}
+        onChange={(e) => setReviewNote(e.target.value)}
+        rows={2}
+        placeholder={t("pages.materialRequests.reviewNotePlaceholder")}
+        className="w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-ring"
+      />
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button
+          type="button"
+          size="sm"
+          disabled={pending}
+          onClick={() => review("APPROVE")}
+        >
+          {t("common.actions.approve")}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          disabled={pending}
+          onClick={() => review("REJECT")}
+        >
+          {t("common.actions.reject")}
+        </Button>
+      </div>
     </div>
   );
 }

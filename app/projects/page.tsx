@@ -4,6 +4,7 @@ import type { ProjectSubCategory } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   annotateStaffPickerConflicts,
+  assignableProjectCrewOrWhere,
   findEmployeesOnOtherOpenProjects,
 } from "@/lib/workforce-crew";
 
@@ -13,10 +14,12 @@ import { getProjectWhereForUser, canManageProjects } from "@/lib/project-access"
 import { canAccess } from "@/lib/permissions";
 import { formatDisplayDate } from "@/lib/format-date";
 import {
+  isInternalProjectSubCategory,
   isProjectSubCategory,
-  PROJECT_SUB_CATEGORIES,
+  CLIENT_PROJECT_SUB_CATEGORIES,
 } from "@/lib/project-subcategory";
 import { isContractSubCategory } from "@/lib/project-contract";
+import { isMilestoneSubCategory } from "@/lib/project-billing";
 import {
   localizeSubCategory,
   localizeSubCategoryShort,
@@ -82,11 +85,15 @@ const SUBCATEGORY_CHIP_VIEWS = new Set<ProjectListView | undefined>([
   "pending-approval",
 ]);
 
-/** Directory tables: Regular → Facade → General (empty types hidden). */
+/** Directory tables: Internal on top, then Regular → Facade → General. */
 const PROJECT_DIRECTORY_TYPE_ORDER = [
+  "INTERNAL",
   "REGULAR_CLEANING",
   "FACADE_CLEANING",
   "GENERAL_CLEANING",
+  "SECURITY",
+  "PARKING",
+  "PAYROLL_MANAGEMENT",
 ] as const satisfies readonly ProjectSubCategory[];
 
 function isProjectListView(value: string): value is ProjectListView {
@@ -221,6 +228,16 @@ export default async function ProjectsPage({
     );
   }
 
+  // Ensure Head Office / Warehouse Internal projects exist (and migrate legacy rows).
+  if (!session.user.clientId) {
+    try {
+      const { getAttendanceDirectory } = await import("@/app/attendance/actions");
+      await getAttendanceDirectory();
+    } catch {
+      // Directory still loads if ensure fails.
+    }
+  }
+
   // Auto-compile due Regular Cleaning anniversary invoices on stage views.
   if (
     canManage &&
@@ -298,18 +315,10 @@ export default async function ProjectsPage({
             where: {
               companyId: company.id,
               status: "ACTIVE",
-              OR: [
-                {
-                  employmentType: "FULL_TIME",
-                  placement: "AVAILABLE",
-                  category: { slug: "operations", active: true },
-                  jobPosition: {
-                    active: true,
-                    slug: { in: ["cleaning-staff", "gc-staff"] },
-                  },
-                },
-                { employmentType: "PART_TIME" },
-              ],
+              // Include In-House Cleaning for Internal project edits on this page.
+              OR: assignableProjectCrewOrWhere(company.id, {
+                includeInHouseCleaning: true,
+              }),
             },
             include: {
               category: { select: { name: true, prefix: true, slug: true } },
@@ -449,13 +458,16 @@ export default async function ProjectsPage({
   const tableRows: ProjectTableRow[] = directoryItems.map(
     ({ key, project, focusPeriod }) => {
       const isPlanningCard = project.status === PROJECT_PLANNING_STATUS;
+      const isInternal = isInternalProjectSubCategory(project.subCategory);
       const timeline = isPlanningCard
         ? project.estimatedStartDate
           ? `Est. start ${formatDisplayDate(project.estimatedStartDate)}`
           : "Estimate TBD"
-        : `${
-            project.startDate ? formatDisplayDate(project.startDate) : "-"
-          } → ${project.endDate ? formatDisplayDate(project.endDate) : "-"}`;
+        : isInternal && !project.startDate && !project.endDate
+          ? t("pages.projects.internalOngoing")
+          : `${
+              project.startDate ? formatDisplayDate(project.startDate) : "-"
+            } → ${project.endDate ? formatDisplayDate(project.endDate) : "-"}`;
 
       const location = project.location?.trim() || null;
       const clientName = project.client?.name ?? null;
@@ -553,17 +565,21 @@ export default async function ProjectsPage({
         project.status === PROJECT_PLANNING_STATUS;
       const canFinish =
         canManage &&
+        !isInternal &&
         (filterView === "in-progress" || filterView === undefined) &&
         project.status === "IN_PROGRESS" &&
         isContractSubCategory(project.subCategory);
-      // G3: non-regular IN_PROGRESS projects can be submitted for approval from directory.
+      // G3: General / Facade IN_PROGRESS projects can be submitted for approval.
+      // Internal + Security / Parking / Payroll have no cleaning approval chips.
       const canSubmitForApproval =
         canManage &&
+        !isInternal &&
         (filterView === "in-progress" || filterView === undefined) &&
         project.status === "IN_PROGRESS" &&
-        !isContractSubCategory(project.subCategory);
+        isMilestoneSubCategory(project.subCategory);
       const eligibleForMoveBack =
         canManage &&
+        !isInternal &&
         (filterView === "in-progress" || filterView === undefined) &&
         project.status === "IN_PROGRESS";
       const canMoveToPlanning = eligibleForMoveBack && !hasOpenCollection;
@@ -613,7 +629,10 @@ export default async function ProjectsPage({
         view: filterView,
       }),
     },
-    ...PROJECT_SUB_CATEGORIES.map((value) => ({
+    ...[
+      "INTERNAL" as const,
+      ...CLIENT_PROJECT_SUB_CATEGORIES,
+    ].map((value) => ({
       key: value,
       label: localizeSubCategoryShort(value, locale),
       href: buildProjectsHref({

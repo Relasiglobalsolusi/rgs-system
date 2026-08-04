@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { getAttendanceClients } from "@/app/attendance/actions";
+import { getAttendanceDirectory } from "@/app/attendance/actions";
 import { requireModule } from "@/lib/session";
 
 import AppShell from "@/components/layout/AppShell";
@@ -9,10 +9,10 @@ import AttendanceClientDirectory from "@/components/attendance/AttendanceClientD
 
 export default async function AttendanceReportPage() {
   const session = await requireModule("attendance");
-  const clients = await getAttendanceClients();
+  const directory = await getAttendanceDirectory();
 
-  if (session.user.clientId && clients.length === 1) {
-    redirect(`/attendance/${clients[0]!.id}`);
+  if (session.user.clientId && directory.clients.length === 1) {
+    redirect(`/attendance/${directory.clients[0]!.id}`);
   }
 
   const isClientPortal = Boolean(session.user.clientId);
@@ -27,7 +27,10 @@ export default async function AttendanceReportPage() {
       }
     >
       <AttendanceBreadcrumbs items={[{ labelKey: "pages.attendance.title" }]} />
-      <AttendanceClientDirectory clients={clients} />
+      <AttendanceClientDirectory
+        clients={directory.clients}
+        internalSites={directory.internalSites}
+      />
     </AppShell>
   );
 }

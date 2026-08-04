@@ -2,6 +2,7 @@ import type { BillingMode, ProjectSubCategory } from "@prisma/client";
 import { getLocale, type AppLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
 import { isContractSubCategory } from "@/lib/project-contract";
+import { isServiceProjectSubCategory } from "@/lib/project-subcategory";
 import { formatInvoicePeriodDateRange } from "@/lib/invoice-period";
 
 export const BILLING_MODES = [
@@ -43,10 +44,22 @@ export function isMilestoneSubCategory(
   return value === "GENERAL_CLEANING" || value === "FACADE_CLEANING";
 }
 
+/**
+ * True when create/start opens ProjectInvoicePeriod rows (Regular monthly / GC-Facade).
+ * Security, Parking, and Payroll Management never use cleaning-style periods.
+ */
+export function usesInvoicePeriods(
+  value: ProjectSubCategory | string | null | undefined
+): boolean {
+  if (isServiceProjectSubCategory(value)) return false;
+  return isContractSubCategory(value) || isMilestoneSubCategory(value);
+}
+
 /** Billing modes allowed for a subcategory (server + UI guard). */
 export function allowedBillingModesForSubCategory(
   subCategory: ProjectSubCategory | string
 ): readonly BillingMode[] {
+  if (isServiceProjectSubCategory(subCategory)) return ["MONTHLY"];
   if (isContractSubCategory(subCategory)) return ["MONTHLY"];
   if (isMilestoneSubCategory(subCategory)) {
     return MILESTONE_ELIGIBLE_BILLING_MODES;

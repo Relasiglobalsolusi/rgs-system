@@ -3,7 +3,11 @@ import type { Prisma } from "@prisma/client";
 import { OPEN_PROJECT_ASSIGNMENT_STATUSES } from "@/lib/employee-projects";
 import { releaseProjectEquipmentToInventory } from "@/lib/inventory-project-release";
 import { syncEmployeesLeaveEmploymentStatus } from "@/lib/leave-employment-status";
-import { isCrewPickerPosition, isOperationsManagerPosition } from "@/lib/positions";
+import { employeeTypeFromPlacement } from "@/lib/placement";
+import {
+  isInHouseCleaningStaffPosition,
+  isOperationsManagerPosition,
+} from "@/lib/positions";
 import { syncEmployeePortalLogin } from "@/lib/workforce-login";
 
 /**
@@ -31,6 +35,29 @@ export function availableFullTimeCrewWhere(
 }
 
 /**
+ * In-House Cleaning Staff (Corporate / Warehouse) for Internal HO/Warehouse sites.
+ * Start as HEAD_OFFICE; AVAILABLE after Employees → Release.
+ */
+export function availableInHouseCleaningCrewWhere(
+  companyId: string
+): Prisma.EmployeeWhereInput {
+  return {
+    companyId,
+    status: "ACTIVE",
+    employmentType: "FULL_TIME",
+    placement: { in: ["HEAD_OFFICE", "AVAILABLE"] },
+    category: {
+      active: true,
+      slug: { in: ["corporate", "warehouse"] },
+    },
+    jobPosition: {
+      active: true,
+      slug: "in-house-cleaning-staff",
+    },
+  };
+}
+
+/**
  * Part Time Roster — never labeled “available”; ready to add to a project.
  * Assignment-only: ACTIVE (ON_LEAVE excluded from assignable crew).
  */
@@ -44,9 +71,39 @@ export function partTimeRosterWhere(
   };
 }
 
+export type AssignableCrewWhereOptions = {
+  /** Include In-House Cleaning Staff (Internal projects only). */
+  includeInHouseCleaning?: boolean;
+  /** Keep employees already linked to this project in the picker. */
+  includeAssignedToProjectId?: string;
+};
+
+/** Staff picker / eligibility OR branches for project assignment. */
+export function assignableProjectCrewOrWhere(
+  companyId: string,
+  options?: AssignableCrewWhereOptions
+): Prisma.EmployeeWhereInput[] {
+  const branches: Prisma.EmployeeWhereInput[] = [
+    availableFullTimeCrewWhere(companyId),
+    partTimeRosterWhere(companyId),
+  ];
+  if (options?.includeInHouseCleaning) {
+    branches.push(availableInHouseCleaningCrewWhere(companyId));
+  }
+  if (options?.includeAssignedToProjectId) {
+    branches.push({
+      projectAssignments: {
+        some: { projectId: options.includeAssignedToProjectId },
+      },
+    });
+  }
+  return branches;
+}
+
 /**
  * HO / invalid crew must not be assignable as project staff.
- * Same eligibility as Move to In Progress: Available FT Ops Cleaning/GC + PT roster.
+ * Commercial: Available FT Ops Cleaning/GC + PT roster.
+ * Internal: also In-House Cleaning Staff (Corporate / Warehouse).
  */
 type CrewEligibilityDb = Pick<
   Prisma.TransactionClient,
@@ -57,7 +114,8 @@ export async function assertProjectCrewEligible(
   db: CrewEligibilityDb,
   companyId: string,
   employeeIds: string[],
-  errorMessage = "Select Available Full Time Operations crew (Cleaning/GC) and/or Part Time staff only."
+  errorMessage = "Select Available Full Time Operations crew (Cleaning/GC) and/or Part Time staff only.",
+  options?: { allowInHouseCleaning?: boolean }
 ) {
   const uniqueIds = [...new Set(employeeIds.filter(Boolean))];
   if (uniqueIds.length === 0) return;
@@ -67,15 +125,18 @@ export async function assertProjectCrewEligible(
   const validCount = await db.employee.count({
     where: {
       id: { in: uniqueIds },
-      OR: [
-        availableFullTimeCrewWhere(companyId),
-        partTimeRosterWhere(companyId),
-      ],
+      OR: assignableProjectCrewOrWhere(companyId, {
+        includeInHouseCleaning: options?.allowInHouseCleaning,
+      }),
     },
   });
 
   if (validCount !== uniqueIds.length) {
-    throw new Error(errorMessage);
+    throw new Error(
+      options?.allowInHouseCleaning
+        ? "Select Available Full Time Operations crew (Cleaning/GC), In-House Cleaning Staff, and/or Part Time staff only."
+        : errorMessage
+    );
   }
 }
 
@@ -195,19 +256,6 @@ export function annotateStaffPickerConflicts<T extends { id: string }>(
   }));
 }
 
-export function isDefaultCrewEmployee(employee: {
-  employmentType: string;
-  placement: string;
-  category?: { slug?: string | null } | null;
-  jobPosition?: { slug?: string | null; name?: string | null } | null;
-}): boolean {
-  if (employee.employmentType !== "FULL_TIME") return false;
-  if (employee.placement !== "AVAILABLE") return false;
-  if (employee.category?.slug !== "operations") return false;
-  if (!employee.jobPosition) return false;
-  return isCrewPickerPosition(employee.jobPosition);
-}
-
 const employeeReleaseSelect = {
   id: true,
   companyId: true,
@@ -219,6 +267,7 @@ const employeeReleaseSelect = {
   userId: true,
   user: { select: { active: true } },
   status: true,
+  jobPosition: { select: { slug: true, name: true } },
 } as const;
 
 function isEmployeeLoginRevoked(employee: {
@@ -256,12 +305,17 @@ export async function releaseEmployeesFromProject(
     });
     if (remaining > 0) continue;
 
-    // Ops → AVAILABLE (never auto HEAD_OFFICE on project release)
+    // In-House Cleaning → HEAD_OFFICE desk pool; Ops crew → AVAILABLE.
+    const placement = isInHouseCleaningStaffPosition(employee.jobPosition ?? {})
+      ? ("HEAD_OFFICE" as const)
+      : ("AVAILABLE" as const);
+    const employeeType = employeeTypeFromPlacement(placement);
+
     await db.employee.update({
       where: { id: employee.id },
       data: {
-        placement: "AVAILABLE",
-        employeeType: "PROJECT_SITE",
+        placement,
+        employeeType,
       },
     });
 
@@ -272,11 +326,11 @@ export async function releaseEmployeesFromProject(
       lastName: employee.lastName,
       employeeNo: employee.employeeNo,
       employmentType: employee.employmentType,
-      placement: "AVAILABLE",
+      placement,
       portalAccessRequested: employee.portalAccessRequested,
       status: employee.status,
       userId: employee.userId,
-      employeeType: "PROJECT_SITE",
+      employeeType,
     });
   }
 }

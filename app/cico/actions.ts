@@ -1,15 +1,21 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type {
+  EmployeeType,
+  EmploymentStatus,
+  InternalHomeSite,
+  Placement,
+} from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireModule, getEmployeeForUser, toPermissionUser } from "@/lib/session";
 import {
   isHoAdminAccount,
 } from "@/lib/permissions";
 import {
-  CICO_GEOFENCE_RADIUS_METERS,
   haversineDistanceMeters,
   isWithinGeofence,
+  resolveGeofenceRadiusMeters,
 } from "@/lib/geo";
 import {
   isLateCheckIn,
@@ -18,7 +24,10 @@ import {
 import { toUtcDateOnly } from "@/lib/invoice-period";
 import { resolveCicoWorkDay } from "@/lib/cico-work-day";
 import { findOpenCicoAttendance } from "@/lib/cico-attendance";
-import { isCleaningProjectSubCategory } from "@/lib/project-subcategory";
+import {
+  isCleaningProjectSubCategory,
+  isInternalProjectSubCategory,
+} from "@/lib/project-subcategory";
 import { saveUpload } from "@/lib/upload";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
@@ -28,6 +37,16 @@ import {
   isEmployeeActiveForOperations,
   syncEmployeeLeaveEmploymentStatus,
 } from "@/lib/leave-employment-status";
+import {
+  canUseOfficeCico,
+  internalHomeSiteToProjectName,
+  isOfficeClockEarlyLeave,
+  isOfficeClockLate,
+} from "@/lib/office-cico";
+import {
+  isCicoFieldEligible,
+  requiresCicoProgressReport,
+} from "@/lib/cico-access";
 
 /** Hard gate: check-out requires ≥1 Progress Report for this employee × project × work day. */
 async function hasProgressReportForWorkDay(
@@ -69,8 +88,19 @@ async function requireCicoPhoto(formData: FormData, kind: "checkIn" | "checkOut"
   return photo;
 }
 
+type CicoCheckInEmployee = {
+  id: string;
+  companyId: string;
+  placement: Placement;
+  employeeType: EmployeeType;
+  internalHomeSite: InternalHomeSite;
+  status: EmploymentStatus;
+  archivedFromDirectory: boolean;
+  jobPosition?: { name?: string | null; slug?: string | null } | null;
+};
+
 async function getProjectForCicoCheckIn(
-  employeeId: string,
+  employee: CicoCheckInEmployee,
   projectId: string,
   adminFieldMode: boolean
 ) {
@@ -92,7 +122,7 @@ async function getProjectForCicoCheckIn(
     }
 
     const assignment = await prisma.projectAssignment.findFirst({
-      where: { employeeId, projectId },
+      where: { employeeId: employee.id, projectId },
     });
 
     return {
@@ -101,10 +131,26 @@ async function getProjectForCicoCheckIn(
         shiftStart: assignment?.shiftStart ?? null,
         shiftEnd: assignment?.shiftEnd ?? null,
       },
+      mode: isInternalProjectSubCategory(project.subCategory)
+        ? ("office" as const)
+        : ("field" as const),
     };
   }
 
-  return getAssignedProjectForEmployee(employeeId, projectId);
+  // Cleaning assignment wins over office clock.
+  const assigned = await prisma.projectAssignment.findFirst({
+    where: { employeeId: employee.id, projectId },
+    select: { id: true },
+  });
+  if (assigned || isCicoFieldEligible(employee)) {
+    return getAssignedProjectForEmployee(employee.id, projectId);
+  }
+
+  if (canUseOfficeCico(employee)) {
+    return getOfficeHomeProjectForEmployee(employee, projectId);
+  }
+
+  throw await cicoError("onProjectOnly");
 }
 
 async function getAssignedProjectForEmployee(
@@ -134,7 +180,58 @@ async function getAssignedProjectForEmployee(
     throw await cicoError("noSiteLocation");
   }
 
-  return { project, assignment };
+  return { project, assignment, mode: "field" as const };
+}
+
+/** Office clock: HO/Warehouse desk staff check into their home Internal site (no assignment). */
+async function getOfficeHomeProjectForEmployee(
+  employee: {
+    id: string;
+    companyId: string;
+    internalHomeSite: InternalHomeSite;
+  },
+  projectId: string
+) {
+  const expectedName = internalHomeSiteToProjectName(employee.internalHomeSite);
+  if (!expectedName) {
+    throw await cicoError("selectProject");
+  }
+
+  const project = await prisma.project.findFirst({
+    where: {
+      id: projectId,
+      companyId: employee.companyId,
+      status: "IN_PROGRESS",
+      OR: [{ subCategory: "INTERNAL" }, { name: expectedName }],
+    },
+  });
+
+  if (!project) {
+    throw await cicoError("selectProject");
+  }
+
+  // Must match the employee's home site (HO ops → Head Office, warehouse → Warehouse).
+  const { isAttendanceHeadOfficeName, isAttendanceWarehouseName } = await import(
+    "@/lib/attendance-internal-sites"
+  );
+  const nameOk =
+    (employee.internalHomeSite === "HEAD_OFFICE_OPERATIONS" &&
+      isAttendanceHeadOfficeName(project.name)) ||
+    (employee.internalHomeSite === "WAREHOUSE" &&
+      isAttendanceWarehouseName(project.name));
+  if (!nameOk) {
+    throw await cicoError("selectProject");
+  }
+
+  if (project.latitude == null || project.longitude == null) {
+    throw await cicoError("noSiteLocation");
+  }
+
+  return {
+    project,
+    assignment: { shiftStart: "09:00", shiftEnd: "17:00" },
+    mode: "office" as const,
+  };
 }
 
 async function parseCoords(formData: FormData) {
@@ -162,9 +259,9 @@ async function requireCicoSessionEmployee(formData?: FormData) {
     throw await cicoError("invalidRequest");
   }
 
-  const employee =
-    (await ensureLeaveEmploymentSyncedForUser(session.user.id)) ??
-    (await getEmployeeForUser(session.user.id));
+  // Sync leave status first, then reload with jobPosition (office CICO exemption).
+  await ensureLeaveEmploymentSyncedForUser(session.user.id);
+  const employee = await getEmployeeForUser(session.user.id);
   if (!employee) throw await cicoError("employeeProfileNotFound");
 
   if (employee.archivedFromDirectory) {
@@ -175,11 +272,11 @@ async function requireCicoSessionEmployee(formData?: FormData) {
     return { session, employee, adminFieldMode: true as const };
   }
 
-  if (employee.placement !== "ON_PROJECT") {
-    throw await cicoError("onProjectOnly");
+  if (isCicoFieldEligible(employee) || canUseOfficeCico(employee)) {
+    return { session, employee, adminFieldMode: false as const };
   }
 
-  return { session, employee, adminFieldMode: false as const };
+  throw await cicoError("onProjectOnly");
 }
 
 async function requireCicoEmployeeForCheckIn(formData?: FormData) {
@@ -226,13 +323,13 @@ export async function checkIn(formData: FormData) {
   if (!projectId) throw await cicoError("selectProject");
 
   const { latitude, longitude } = await parseCoords(formData);
-  const { project, assignment } = await getProjectForCicoCheckIn(
-    employee.id,
+  const { project, assignment, mode } = await getProjectForCicoCheckIn(
+    employee,
     projectId,
     adminFieldMode
   );
 
-  const radius = CICO_GEOFENCE_RADIUS_METERS;
+  const radius = resolveGeofenceRadiusMeters(project.locationRadiusMeters);
   const distance = haversineDistanceMeters(
     latitude,
     longitude,
@@ -284,8 +381,14 @@ export async function checkIn(formData: FormData) {
   const checkInPhotoUrl = await saveUpload(photo, "uploads/cico");
 
   const checkInAt = now;
-  const expectedStart = resolveExpectedShiftStart(assignment);
-  const late = isLateCheckIn(checkInAt, expectedStart);
+  const expectedStart =
+    mode === "office"
+      ? "09:00"
+      : resolveExpectedShiftStart(assignment);
+  const late =
+    mode === "office"
+      ? isOfficeClockLate(checkInAt)
+      : isLateCheckIn(checkInAt, expectedStart);
   const lateNote =
     late === true && expectedStart
       ? translate(
@@ -350,15 +453,29 @@ export async function checkOut(formData: FormData) {
     throw await cicoError("mustCheckInFirst");
   }
 
-  // Canonical flow: no Progress Report for this shift/work day → block check-out.
-  const hasProgress = await hasProgressReportForWorkDay(
-    employee.id,
-    existing.projectId,
-    existing.date
-  );
-  if (!hasProgress) {
-    throw await cicoError("progressRequiredBeforeCheckOut");
+  // Progress required only for cleaning staff positions.
+  if (requiresCicoProgressReport(employee)) {
+    const hasProgress = await hasProgressReportForWorkDay(
+      employee.id,
+      existing.projectId,
+      existing.date
+    );
+    if (!hasProgress) {
+      throw await cicoError("progressRequiredBeforeCheckOut");
+    }
   }
+
+  const assignedToOpenProject = existing.projectId
+    ? await prisma.projectAssignment.findFirst({
+        where: { employeeId: employee.id, projectId: existing.projectId },
+        select: { id: true },
+      })
+    : null;
+  const officeDeskCheckout =
+    existing.project != null &&
+    isInternalProjectSubCategory(existing.project.subCategory) &&
+    !assignedToOpenProject &&
+    canUseOfficeCico(employee);
 
   if (
     !existing.project ||
@@ -371,7 +488,9 @@ export async function checkOut(formData: FormData) {
   const photo = await requireCicoPhoto(formData, "checkOut");
   const checkOutPhotoUrl = await saveUpload(photo, "uploads/cico");
 
-  const radius = CICO_GEOFENCE_RADIUS_METERS;
+  const radius = resolveGeofenceRadiusMeters(
+    existing.project.locationRadiusMeters
+  );
   const distance = haversineDistanceMeters(
     latitude,
     longitude,
@@ -398,6 +517,11 @@ export async function checkOut(formData: FormData) {
     });
   }
 
+  const earlyNote =
+    officeDeskCheckout && isOfficeClockEarlyLeave(now)
+      ? translate(await getServerLocale(), "pages.cico.errors.earlyCheckOutNote")
+      : null;
+
   await prisma.attendance.update({
     where: { id: existing.id },
     data: {
@@ -406,6 +530,13 @@ export async function checkOut(formData: FormData) {
       checkOutLng: longitude,
       checkOutDistanceMeters: distance,
       checkOutPhotoUrl,
+      ...(earlyNote
+        ? {
+            note: existing.note
+              ? `${existing.note} · ${earlyNote}`
+              : earlyNote,
+          }
+        : {}),
     },
   });
 

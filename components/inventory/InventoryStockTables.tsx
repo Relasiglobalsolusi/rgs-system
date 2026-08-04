@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 
 import { matchInventoryItemType } from "@/components/inventory/inventory-category";
+import InventoryStockItemDetailDialog from "@/components/inventory/InventoryStockItemDetailDialog";
 import type { InventoryCatalogItem } from "@/components/inventory/inventory-types";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import EmptyState from "@/components/ui/EmptyState";
@@ -24,6 +25,9 @@ type Props = {
 export default function InventoryStockTables({ items, searchQuery }: Props) {
   const { t } = useT();
   const trimmedSearch = searchQuery.trim();
+  const [detailItem, setDetailItem] = useState<InventoryCatalogItem | null>(
+    null
+  );
 
   const chemicalItems = useMemo(
     () =>
@@ -133,6 +137,8 @@ export default function InventoryStockTables({ items, searchQuery }: Props) {
           columns={stockColumns}
           data={rows}
           getRowKey={(row) => row.id}
+          onRowClick={setDetailItem}
+          isRowSelected={(row) => row.id === detailItem?.id}
         />
       </div>
     );
@@ -163,27 +169,40 @@ export default function InventoryStockTables({ items, searchQuery }: Props) {
   }
 
   return (
-    <div className="space-y-8">
-      {chemicalItems.length > 0
-        ? renderCategoryTable(
-            t("pages.inventory.overview.categoryChemicals"),
-            chemicalItems
-          )
-        : null}
+    <>
+      <p className="mb-3 text-xs leading-relaxed text-muted">
+        {t("pages.inventory.stock.itemClickHint")}
+      </p>
+      <div className="space-y-8">
+        {chemicalItems.length > 0
+          ? renderCategoryTable(
+              t("pages.inventory.overview.categoryChemicals"),
+              chemicalItems
+            )
+          : null}
 
-      {consumableItems.length > 0
-        ? renderCategoryTable(
-            t("pages.inventory.overview.categoryConsumables"),
-            consumableItems
-          )
-        : null}
+        {consumableItems.length > 0
+          ? renderCategoryTable(
+              t("pages.inventory.overview.categoryConsumables"),
+              consumableItems
+            )
+          : null}
 
-      {otherItems.length > 0
-        ? renderCategoryTable(
-            t("pages.inventory.overview.categoryOthers"),
-            otherItems
-          )
-        : null}
-    </div>
+        {otherItems.length > 0
+          ? renderCategoryTable(
+              t("pages.inventory.overview.categoryOthers"),
+              otherItems
+            )
+          : null}
+      </div>
+
+      <InventoryStockItemDetailDialog
+        open={detailItem != null}
+        onOpenChange={(next) => {
+          if (!next) setDetailItem(null);
+        }}
+        item={detailItem}
+      />
+    </>
   );
 }

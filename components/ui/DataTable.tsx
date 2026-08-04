@@ -148,11 +148,17 @@ function isGutterColumn<T>(column: DataTableColumn<T>) {
   return Boolean(column.selectionColumn || column.reorderColumn);
 }
 
+/** True when `width` is a percentage (layout hint), not a rem/px floor. */
+function isPercentageWidth(width: string | undefined) {
+  return Boolean(width && /^\d+(\.\d+)?%$/.test(width.trim()));
+}
+
 /** Hard min width for a column — never percentage, never shrinks below this. */
 function columnMinWidth<T>(column: DataTableColumn<T>) {
   if (column.selectionColumn) return SELECTION_COLUMN_WIDTH;
   if (column.reorderColumn) return REORDER_COLUMN_WIDTH;
-  if (column.width) return column.width;
+  // Percentage `width` is a share of free space, not a min-width floor.
+  if (column.width && !isPercentageWidth(column.width)) return column.width;
   return MIN_FLEX_COLUMN_WIDTH;
 }
 
@@ -165,13 +171,22 @@ function columnShareWeight<T>(column: DataTableColumn<T>) {
   return DEFAULT_COLUMN_SHARE;
 }
 
+function gutterWidthSum<T>(columns: DataTableColumn<T>[]) {
+  const parts = columns
+    .filter(isGutterColumn)
+    .map((column) => columnMinWidth(column));
+  return parts.length > 0 ? parts.join(" + ") : "0px";
+}
+
 /**
  * Fixed gutters keep absolute rem widths; remaining columns split free width
  * by `share` (equal by default, larger for primary identity columns).
+ * Free width = 100% minus gutter rem sum so equal shares stay visually equal.
  */
 function columnWidthStyle<T>(
   column: DataTableColumn<T>,
-  shareTotal: number
+  shareTotal: number,
+  gutterSum: string
 ): CSSProperties {
   const minWidth = columnMinWidth(column);
 
@@ -184,8 +199,14 @@ function columnWidthStyle<T>(
     return { width: minWidth, minWidth };
   }
 
+  const fraction = weight / shareTotal;
   return {
-    width: `${(weight / shareTotal) * 100}%`,
+    width:
+      gutterSum === "0px"
+        ? isPercentageWidth(column.width)
+          ? column.width!
+          : `${fraction * 100}%`
+        : `calc((100% - (${gutterSum})) * ${fraction})`,
     minWidth,
   };
 }
@@ -256,6 +277,11 @@ export default function DataTable<T>({
         (sum, column) => sum + columnShareWeight(column),
         0
       ),
+    [displayColumns]
+  );
+
+  const gutterSum = useMemo(
+    () => gutterWidthSum(displayColumns),
     [displayColumns]
   );
 
@@ -351,7 +377,7 @@ export default function DataTable<T>({
             {displayColumns.map((column) => (
               <col
                 key={String(column.key)}
-                style={columnWidthStyle(column, shareTotal)}
+                style={columnWidthStyle(column, shareTotal, gutterSum)}
               />
             ))}
           </colgroup>
@@ -374,7 +400,7 @@ export default function DataTable<T>({
                     }
                     onClick={isGutter ? stopGutterCellClick : undefined}
                     onPointerDown={isGutter ? stopGutterCellClick : undefined}
-                    style={columnWidthStyle(column, shareTotal)}
+                    style={columnWidthStyle(column, shareTotal, gutterSum)}
                     className={cn(
                       "h-11 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-subtle",
                       columnAlignClass(column.align),
@@ -461,7 +487,7 @@ export default function DataTable<T>({
                           onPointerDown={
                             isGutter ? stopGutterCellClick : undefined
                           }
-                          style={columnWidthStyle(column, shareTotal)}
+                          style={columnWidthStyle(column, shareTotal, gutterSum)}
                           className={cn(
                             "overflow-visible whitespace-normal px-4 py-3.5",
                             columnAlignClass(column.align),

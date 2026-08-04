@@ -17,6 +17,7 @@ type ClientOption = {
   id: string;
   name: string;
   npwp?: string | null;
+  paymentTermsDays?: number | null;
 };
 
 type Props = {

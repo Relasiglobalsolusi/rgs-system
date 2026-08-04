@@ -15,7 +15,6 @@ import {
   searchInventorySoldOffs,
 } from "@/app/inventory/actions";
 import InventoryAssetList from "@/components/inventory/InventoryAssetList";
-import InventoryIssueDialog from "@/components/inventory/InventoryIssueDialog";
 import InventoryProjectIssues from "@/components/inventory/InventoryProjectIssues";
 import InventoryPurchaseDialog from "@/components/inventory/InventoryPurchaseDialog";
 import InventoryReverseWriteOffDialog from "@/components/inventory/InventoryReverseWriteOffDialog";
@@ -29,7 +28,6 @@ import type {
   InventoryCatalogItem,
   InventoryIssueRow,
   InventoryOverviewAssetRow,
-  InventoryProjectOption,
   InventoryPurchaseRow,
   InventorySoldOffRow,
   InventoryTab,
@@ -55,7 +53,7 @@ import { formatContractPrice } from "@/lib/project-billing";
 
 type Props = {
   canManage: boolean;
-  /** OM+ / Director / HO admin — issue stock to projects and write off stock. */
+  /** OM+ / Director / HO admin — write off / sell stock (issues only via MR → TO). */
   canAssignToProject: boolean;
   items: InventoryCatalogItem[];
   purchases: InventoryPurchaseRow[];
@@ -63,7 +61,6 @@ type Props = {
   writeOffs: InventoryWriteOffRow[];
   soldOffs: InventorySoldOffRow[];
   vendors: InventoryVendorOption[];
-  projects: InventoryProjectOption[];
   equipmentAssets: InventoryOverviewAssetRow[];
 };
 
@@ -76,14 +73,12 @@ export default function InventoryWorkspace({
   writeOffs,
   soldOffs,
   vendors,
-  projects,
   equipmentAssets,
 }: Props) {
   const { t } = useT();
   const [tab, setTab] = useState<InventoryTab>("stock");
   const [searchQuery, setSearchQuery] = useState("");
   const [purchaseOpen, setPurchaseOpen] = useState(false);
-  const [issueOpen, setIssueOpen] = useState(false);
   const [writeOffOpen, setWriteOffOpen] = useState(false);
   const [soldOffOpen, setSoldOffOpen] = useState(false);
   const [reverseWriteOffTarget, setReverseWriteOffTarget] =
@@ -449,12 +444,6 @@ export default function InventoryWorkspace({
                 onClick={() => setPurchaseOpen(true)}
               />
             ) : null}
-            {tab === "issues" && canAssignToProject ? (
-              <DirectoryAddButton
-                label={t("pages.inventory.addIssue")}
-                onClick={() => setIssueOpen(true)}
-              />
-            ) : null}
             {tab === "writeOffs" && canAssignToProject ? (
               <DirectoryAddButton
                 label={t("pages.inventory.addWriteOff")}
@@ -538,12 +527,6 @@ export default function InventoryWorkspace({
           />
           {canAssignToProject ? (
             <>
-              <InventoryIssueDialog
-                open={issueOpen}
-                onOpenChange={setIssueOpen}
-                items={items}
-                projects={projects}
-              />
               <InventoryWriteOffDialog
                 open={writeOffOpen}
                 onOpenChange={setWriteOffOpen}

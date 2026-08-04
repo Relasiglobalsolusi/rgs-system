@@ -13,7 +13,8 @@ import {
   getEmployeeModuleOverrides,
 } from "../lib/permissions";
 import {
-  ensureDefaultPositions,
+  DEFAULT_WORKFORCE_DEPARTMENTS,
+  ensureWorkforceDepartments,
   normalizePositionTitleCase,
   retireFinanceDepartments,
 } from "../lib/positions";
@@ -26,10 +27,7 @@ async function main() {
   });
   if (!company) throw new Error("Company not found");
 
-  for (const item of [
-    { slug: "corporate", name: "Corporate", prefix: "COR", sortOrder: 10 },
-    { slug: "operations", name: "Operations", prefix: "OPR", sortOrder: 20 },
-  ] as const) {
+  for (const item of DEFAULT_WORKFORCE_DEPARTMENTS) {
     await prisma.employeeCategory.upsert({
       where: {
         companyId_slug: { companyId: company.id, slug: item.slug },
@@ -44,7 +42,7 @@ async function main() {
     });
   }
   await retireFinanceDepartments(prisma);
-  await ensureDefaultPositions(prisma, company.id);
+  await ensureWorkforceDepartments(prisma, company.id);
   await normalizePositionTitleCase(prisma, company.id);
 
   const passwordHash = await bcrypt.hash("admin123", 12);

@@ -9,7 +9,9 @@ import {
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
 import { Button } from "@/components/ui/button";
+import { formatInventoryQtyWithUnit } from "@/lib/inventory";
 import { useT } from "@/lib/i18n/use-t";
+import { cn } from "@/lib/utils";
 
 export type MaterialRequestCatalogItem = {
   id: string;
@@ -41,14 +43,10 @@ export default function MaterialRequestForm({
   ]);
   const [notes, setNotes] = useState("");
 
-  const itemOptions = useMemo(
-    () =>
-      items.map((item) => ({
-        id: item.id,
-        label: `${item.name} (${item.sku}) · ${item.currentStock} ${item.unit}`,
-      })),
-    [items]
-  );
+  const itemsById = useMemo(() => {
+    const map = new Map(items.map((item) => [item.id, item]));
+    return map;
+  }, [items]);
 
   function addLine() {
     setLines((prev) => [
@@ -87,93 +85,168 @@ export default function MaterialRequestForm({
   }
 
   return (
-    <div className="space-y-4">
-      <p className="rounded-xl border border-border bg-elevated/40 px-4 py-3 text-sm text-muted">
-        {checkedInProjectName
-          ? t("pages.materialRequests.checkedInHint", {
-              project: checkedInProjectName,
-            })
-          : t("pages.materialRequests.mustBeCheckedIn")}
-      </p>
-
-      <div className="space-y-3">
-        {lines.map((line, index) => (
-          <div
-            key={line.key}
-            className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_8rem_auto]"
-          >
-            <select
-              className="rounded-xl border border-border bg-elevated px-3 py-2 text-sm text-text"
-              value={line.itemId}
-              onChange={(event) =>
-                setLines((prev) =>
-                  prev.map((row, i) =>
-                    i === index ? { ...row, itemId: event.target.value } : row
-                  )
-                )
-              }
-            >
-              <option value="">
-                {t("pages.materialRequests.selectItem")}
-              </option>
-              {itemOptions.map((opt) => (
-                <option key={opt.id} value={opt.id}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-            <input
-              type="number"
-              min={1}
-              step={1}
-              className="rounded-xl border border-border bg-elevated px-3 py-2 text-sm text-text"
-              value={line.quantity}
-              onChange={(event) =>
-                setLines((prev) =>
-                  prev.map((row, i) =>
-                    i === index
-                      ? { ...row, quantity: event.target.value }
-                      : row
-                  )
-                )
-              }
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={lines.length <= 1 || pending}
-              onClick={() =>
-                setLines((prev) => prev.filter((_, i) => i !== index))
-              }
-            >
-              {t("common.actions.remove")}
-            </Button>
-          </div>
-        ))}
+    <div className="space-y-5">
+      <div
+        className={cn(
+          "rounded-xl border px-4 py-3 text-sm",
+          checkedInProjectName
+            ? "border-emerald-500/30 bg-emerald-500/10 text-text"
+            : "border-amber-500/30 bg-amber-500/10 text-muted"
+        )}
+      >
+        {checkedInProjectName ? (
+          <>
+            <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-subtle">
+              {t("pages.materialRequests.checkedInProjectLabel")}
+            </p>
+            <p className="mt-1 font-semibold text-text">
+              {checkedInProjectName}
+            </p>
+            <p className="mt-1 text-xs text-subtle">
+              {t("pages.materialRequests.checkedInHintDetail")}
+            </p>
+          </>
+        ) : (
+          t("pages.materialRequests.mustBeCheckedIn")
+        )}
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="secondary" onClick={addLine}>
-          {t("pages.materialRequests.addLine")}
+      <div>
+        <p className="mb-2 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-subtle">
+          {t("pages.materialRequests.columns.requestedItems")}
+        </p>
+        <div className="overflow-x-auto rounded-xl border border-border">
+          <table className="w-full min-w-[36rem] text-sm">
+            <thead className="bg-elevated/60 text-left text-[0.6875rem] uppercase tracking-[0.12em] text-subtle">
+              <tr>
+                <th className="px-3 py-2.5 font-semibold">
+                  {t("pages.materialRequests.columns.item")}
+                </th>
+                <th className="px-3 py-2.5 font-semibold text-right">
+                  {t("pages.materialRequests.columns.qty")}
+                </th>
+                <th className="px-3 py-2.5 font-semibold text-right">
+                  {t("pages.materialRequests.columns.onHand")}
+                </th>
+                <th className="px-3 py-2.5 font-semibold text-right">
+                  {t("common.labels.actions")}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map((line, index) => {
+                const selected = itemsById.get(line.itemId);
+                return (
+                  <tr key={line.key} className="border-t border-border">
+                    <td className="px-3 py-2.5">
+                      <select
+                        className="w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-text"
+                        value={line.itemId}
+                        onChange={(event) =>
+                          setLines((prev) =>
+                            prev.map((row, i) =>
+                              i === index
+                                ? { ...row, itemId: event.target.value }
+                                : row
+                            )
+                          )
+                        }
+                      >
+                        <option value="">
+                          {t("pages.materialRequests.selectItem")}
+                        </option>
+                        {items.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.name} ({item.sku})
+                          </option>
+                        ))}
+                      </select>
+                      {selected ? (
+                        <p className="mt-1 text-xs text-subtle">
+                          {selected.sku} · {selected.unit}
+                        </p>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-2.5 text-right">
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        className="w-24 rounded-xl border border-border bg-card px-3 py-2 text-right text-sm tabular-nums text-text"
+                        value={line.quantity}
+                        onChange={(event) =>
+                          setLines((prev) =>
+                            prev.map((row, i) =>
+                              i === index
+                                ? { ...row, quantity: event.target.value }
+                                : row
+                            )
+                          )
+                        }
+                      />
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-muted">
+                      {selected
+                        ? formatInventoryQtyWithUnit(
+                            selected.currentStock,
+                            selected.unit
+                          )
+                        : "—"}
+                    </td>
+                    <td className="px-3 py-2.5 text-right">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={lines.length <= 1 || pending}
+                        onClick={() =>
+                          setLines((prev) =>
+                            prev.filter((_, i) => i !== index)
+                          )
+                        }
+                      >
+                        {t("common.actions.remove")}
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="mt-3">
+          <Button type="button" variant="secondary" size="sm" onClick={addLine}>
+            {t("pages.materialRequests.addLine")}
+          </Button>
+        </div>
+      </div>
+
+      <div>
+        <label className="mb-2 block text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-subtle">
+          {t("pages.materialRequests.columns.notes")}
+        </label>
+        <textarea
+          className="min-h-[4.5rem] w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-text"
+          placeholder={t("pages.materialRequests.notesPlaceholder")}
+          value={notes}
+          onChange={(event) => setNotes(event.target.value)}
+        />
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+        <p className="text-xs text-subtle">
+          {t("pages.materialRequests.submitHint")}
+        </p>
+        <Button
+          type="button"
+          disabled={pending || !checkedInProjectName}
+          onClick={submit}
+        >
+          {pending
+            ? t("common.actions.saving")
+            : t("pages.materialRequests.submit")}
         </Button>
       </div>
-
-      <textarea
-        className="min-h-[4rem] w-full rounded-xl border border-border bg-elevated px-3 py-2 text-sm text-text"
-        placeholder={t("pages.materialRequests.notesPlaceholder")}
-        value={notes}
-        onChange={(event) => setNotes(event.target.value)}
-      />
-
-      <Button
-        type="button"
-        disabled={pending || !checkedInProjectName}
-        onClick={submit}
-      >
-        {pending
-          ? t("common.actions.saving")
-          : t("pages.materialRequests.submit")}
-      </Button>
     </div>
   );
 }

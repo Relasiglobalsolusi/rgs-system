@@ -52,7 +52,10 @@ import { localizeDepartmentLabel } from "@/lib/i18n/labels";
 import type { AppLocale } from "@/lib/i18n/locale";
 import {
   isDirectorPosition,
+  isInHouseCleaningStaffPosition,
   isOperationsManagerPosition,
+  isWarehouseStaffPosition,
+  isWarehouseSupervisorPosition,
 } from "@/lib/positions";
 
 
@@ -452,6 +455,9 @@ export const activeFieldStaffWhere = {
  * Module overrides applied when creating an employee login.
  * Field / site staff: Dashboard, Progress, CICO, Leave & Sick only.
  * HO / corporate: Dashboard, Projects, Progress, Attendance Report, Leave & Sick.
+ * Warehouse Supervisor: Transfer Orders + Inventory + CICO.
+ * In-House Cleaning Staff: Progress + CICO + Material Requests.
+ * Warehouse Staff: no portal by default; minimal if login is forced.
  * OMs and Directors also receive Approvals by default.
  * Existing users keep stored overrides until Permissions is re-saved.
  */
@@ -460,21 +466,74 @@ export function getEmployeeModuleOverrides(
 ): Record<ModuleKey, boolean> {
   const isHo = isHeadOfficeEmployeePreset(options);
   const isApprover = isApproverPosition(options);
+  const job = options?.jobPosition ?? null;
+  const inHouseCleaning = isInHouseCleaningStaffPosition(job ?? {});
+  const warehouseSupervisor = isWarehouseSupervisorPosition(job ?? {});
+  const warehouseStaff = isWarehouseStaffPosition(job ?? {});
+
+  const denied: Record<ModuleKey, boolean> = {
+    dashboard: true,
+    projects: false,
+    progress: false,
+    cico: false,
+    attendance: false,
+    shifts: false,
+    leaves: true,
+    approvals: false,
+    materialRequests: false,
+    transferOrders: false,
+    reports: false,
+    inventory: false,
+    itemCatalog: false,
+    invoicing: false,
+    clients: false,
+    vendors: false,
+    users: false,
+    employees: false,
+    departments: false,
+    settings: false,
+    website: false,
+  };
+
+  if (warehouseStaff) {
+    return denied;
+  }
+
+  if (inHouseCleaning) {
+    return {
+      ...denied,
+      progress: true,
+      cico: true,
+      materialRequests: true,
+    };
+  }
+
+  if (warehouseSupervisor) {
+    return {
+      ...denied,
+      projects: true,
+      cico: true,
+      attendance: true,
+      shifts: true,
+      transferOrders: true,
+      inventory: true,
+      itemCatalog: true,
+    };
+  }
+
   return {
     dashboard: true,
     // Field staff do not get Projects; HO keeps project access.
     projects: isHo,
     progress: true,
-    // Field staff use CICO; HO/desk staff use Attendance Report.
-    cico: !isHo,
+    cico: true,
     attendance: isHo,
     shifts: isHo,
-    // All employees get Leave & Sick; OMs/Directors also get Approvals.
     leaves: true,
     approvals: isApprover,
-    // Field staff request materials while CICO'd; warehouse/HO fulfill transfer orders.
+    // Field staff request materials; Warehouse Supervisor fulfills Transfer Orders.
     materialRequests: !isHo,
-    transferOrders: isHo,
+    transferOrders: false,
     reports: false,
     // Inventory is HO operations (stock + project costing), not field portal.
     inventory: isHo,

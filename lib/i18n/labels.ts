@@ -146,6 +146,18 @@ export function localizeSubCategoryChipLines(
 ): readonly [string, string] | null {
   if (!value || !isProjectSubCategory(value)) return null;
   const short = localizeSubCategoryShort(value, locale);
+  if (value === "INTERNAL") {
+    const suffix = translate(locale, "status.subcategory.projectSuffix");
+    return locale === "id" ? [suffix, short] : [short, suffix];
+  }
+  if (
+    value === "SECURITY" ||
+    value === "PARKING" ||
+    value === "PAYROLL_MANAGEMENT"
+  ) {
+    const suffix = translate(locale, "status.subcategory.serviceSuffix");
+    return locale === "id" ? [suffix, short] : [short, suffix];
+  }
   const suffix = translate(locale, "status.subcategory.cleaningSuffix");
   // ID noun-adjective order: "Pembersihan" / "Rutin" (not "Rutin" / "Pembersihan").
   return locale === "id" ? [suffix, short] : [short, suffix];
@@ -200,6 +212,7 @@ export function localizeModuleLabel(
 const SYSTEM_DEPARTMENT_SLUG_KEYS: Record<string, string> = {
   corporate: "corporate",
   "head-office": "headOffice",
+  warehouse: "warehouse",
   operations: "operations",
   finance: "finance",
   "cleaning-staff": "cleaningStaff",
@@ -212,6 +225,8 @@ const SYSTEM_DEPARTMENT_SLUG_KEYS: Record<string, string> = {
 const SYSTEM_DEPARTMENT_NAME_KEYS: Record<string, string> = {
   corporate: "corporate",
   "head office": "headOffice",
+  warehouse: "warehouse",
+  gudang: "warehouse",
   operations: "operations",
   finance: "finance",
   "cleaning staff": "cleaningStaff",

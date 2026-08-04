@@ -34,11 +34,13 @@ import {
   clampProjectDurationDays,
   daysBetweenDates,
   isContractSubCategory,
+  usesMonthDurationTimeline,
   toDateInputValue,
   todayDateInput,
 } from "@/lib/project-contract";
 import { detailActionBarButtonClassName } from "@/components/projects/detail-action-bar";
 import { useT } from "@/lib/i18n/use-t";
+import { isServiceProjectSubCategory } from "@/lib/project-subcategory";
 import { PROJECT_LIST_VIEW_PATHS } from "@/lib/project-status";
 import { cn } from "@/lib/utils";
 
@@ -94,6 +96,10 @@ export function useProjectStartAction({
   const [pickerKey, setPickerKey] = useState(0);
   const [pending, startTransition] = useTransition();
   const isContract = isContractSubCategory(subCategory);
+  const useContractStartUi =
+    isContract ||
+    usesMonthDurationTimeline(subCategory) ||
+    isServiceProjectSubCategory(subCategory);
 
   const defaultStart =
     toDateInputValue(startDate) ||
@@ -130,9 +136,11 @@ export function useProjectStartAction({
 
   function validateDates(): boolean {
     if (!realStartDate) {
-      showRejection({ reasons: isContract
+      showRejection({
+        reasons: useContractStartUi
           ? t("pages.projects.realContractStartRequired")
-          : t("pages.projects.realJobStartRequired") });
+          : t("pages.projects.realJobStartRequired"),
+      });
       return false;
     }
     const proof = formRef.current?.elements.namedItem("contractProof");
@@ -187,7 +195,7 @@ export function useProjectStartAction({
         icon={Play}
         title={t("pages.projects.moveToInProgress")}
         description={
-          isContract
+          useContractStartUi
             ? t("pages.projects.moveDialogContract", { name: projectName })
             : t("pages.projects.moveDialogJob", { name: projectName })
         }
@@ -237,7 +245,7 @@ export function useProjectStartAction({
             </p>
           ) : null}
 
-          {isContract ? (
+          {useContractStartUi ? (
             <div className={employeeDialogFieldClass}>
               <label className="text-sm font-medium text-muted">
                 {t("pages.projects.realContractStart")}

@@ -1,4 +1,5 @@
 import AppShell from "@/components/layout/AppShell";
+import MaterialRequestDetailCard from "@/components/material-requests/MaterialRequestDetailCard";
 import MaterialRequestForm from "@/components/material-requests/MaterialRequestForm";
 import {
   CancelMaterialRequestButton,
@@ -7,7 +8,6 @@ import {
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
 import { findOpenCicoAttendance } from "@/lib/cico-attendance";
-import { formatDisplayDate } from "@/lib/format-date";
 import { createTranslator } from "@/lib/i18n/translate";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { inventoryQtyFromDecimal } from "@/lib/inventory";
@@ -58,13 +58,26 @@ export default async function MaterialRequestsPage() {
           where: { companyId, requestedById: employee.id },
           include: {
             project: { select: { id: true, name: true } },
+            reviewedBy: { select: { name: true, username: true } },
             lines: {
               include: {
-                item: { select: { sku: true, name: true, unit: true } },
+                item: {
+                  select: {
+                    sku: true,
+                    name: true,
+                    unit: true,
+                    currentStock: true,
+                  },
+                },
               },
             },
             transferOrder: {
-              select: { id: true, status: true },
+              select: {
+                id: true,
+                status: true,
+                sentAt: true,
+                receivedAt: true,
+              },
             },
           },
           orderBy: { createdAt: "desc" },
@@ -79,9 +92,14 @@ export default async function MaterialRequestsPage() {
     >
       <div className="space-y-6">
         <SectionCard className="p-5 sm:p-6">
-          <h2 className="mb-4 text-base font-semibold text-text">
-            {t("pages.materialRequests.newRequest")}
-          </h2>
+          <div className="mb-4">
+            <h2 className="text-base font-semibold text-text">
+              {t("pages.materialRequests.newRequest")}
+            </h2>
+            <p className="mt-1 text-sm text-subtle">
+              {t("pages.materialRequests.newRequestDesc")}
+            </p>
+          </div>
           <MaterialRequestForm
             checkedInProjectName={checkedInProjectName}
             items={catalogItems.map((item) => ({
@@ -92,40 +110,61 @@ export default async function MaterialRequestsPage() {
         </SectionCard>
 
         <SectionCard className="p-5 sm:p-6">
-          <h2 className="mb-4 text-base font-semibold text-text">
-            {t("pages.materialRequests.myRequests")}
-          </h2>
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <h2 className="text-base font-semibold text-text">
+                {t("pages.materialRequests.myRequests")}
+              </h2>
+              <p className="mt-1 text-sm text-subtle">
+                {t("pages.materialRequests.myRequestsDesc")}
+              </p>
+            </div>
+            {myRequests.length > 0 ? (
+              <p className="text-sm tabular-nums text-muted">
+                {t("pages.materialRequests.requestCount", {
+                  count: myRequests.length,
+                })}
+              </p>
+            ) : null}
+          </div>
           {myRequests.length === 0 ? (
             <EmptyState
               titleKey="pages.materialRequests.emptyTitle"
               descriptionKey="pages.materialRequests.emptyDescription"
             />
           ) : (
-            <ul className="space-y-3">
+            <div className="space-y-4">
               {myRequests.map((request) => (
-                <li
+                <MaterialRequestDetailCard
                   key={request.id}
-                  className="rounded-xl border border-border bg-elevated/30 px-4 py-3"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-text">
-                        {request.project.name}
-                      </p>
-                      <p className="mt-1 text-xs text-muted">
-                        {formatDisplayDate(request.createdAt)} · {request.status}
-                      </p>
-                      <ul className="mt-2 space-y-1 text-sm text-subtle">
-                        {request.lines.map((line) => (
-                          <li key={line.id}>
-                            {line.item.name} ({line.item.sku}) —{" "}
-                            {inventoryQtyFromDecimal(line.quantity)}{" "}
-                            {line.item.unit}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
+                  request={{
+                    id: request.id,
+                    status: request.status,
+                    notes: request.notes,
+                    reviewNote: request.reviewNote,
+                    createdAt: request.createdAt,
+                    reviewedAt: request.reviewedAt,
+                    project: request.project,
+                    reviewedByName:
+                      request.reviewedBy?.name ||
+                      request.reviewedBy?.username ||
+                      null,
+                    lines: request.lines.map((line) => ({
+                      id: line.id,
+                      quantity: inventoryQtyFromDecimal(line.quantity),
+                      item: {
+                        sku: line.item.sku,
+                        name: line.item.name,
+                        unit: line.item.unit,
+                        currentStock: inventoryQtyFromDecimal(
+                          line.item.currentStock
+                        ),
+                      },
+                    })),
+                    transferOrder: request.transferOrder,
+                  }}
+                  actions={
+                    <>
                       {request.status === "REQUESTED" ? (
                         <CancelMaterialRequestButton id={request.id} />
                       ) : null}
@@ -134,11 +173,11 @@ export default async function MaterialRequestsPage() {
                           id={request.transferOrder.id}
                         />
                       ) : null}
-                    </div>
-                  </div>
-                </li>
+                    </>
+                  }
+                />
               ))}
-            </ul>
+            </div>
           )}
         </SectionCard>
       </div>

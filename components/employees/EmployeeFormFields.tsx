@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Upload } from "lucide-react";
 import type { EmploymentType } from "@prisma/client";
 
@@ -29,14 +29,20 @@ import { formatDateForInput } from "@/lib/format-tenure";
 import {
   formatEmploymentTypeLabel,
   formatPlacementLabel,
+  initialPlacementForDepartment,
 } from "@/lib/placement";
 import { localizeDepartmentLabel } from "@/lib/i18n/labels";
-import { isOperationsManagerPosition } from "@/lib/positions";
+import {
+  isInHouseCleaningStaffPosition,
+  isOperationsManagerPosition,
+  isWarehouseStaffPosition,
+} from "@/lib/positions";
 import {
   OM_APPROVAL_AREA_ORDER,
 } from "@/lib/service-area";
 import type { ServiceArea } from "@prisma/client";
 import { todayDateInput } from "@/lib/project-contract";
+import { defaultPortalAccessRequested } from "@/lib/workforce-login";
 import { useT } from "@/lib/i18n/use-t";
 
 export type EmployeeFormDefaults = {
@@ -155,10 +161,38 @@ export default function EmployeeFormFields({
     () => positions.find((position) => position.id === positionId),
     [positions, positionId]
   );
+  const selectedCategory = useMemo(
+    () => categories.find((category) => category.id === categoryId),
+    [categories, categoryId]
+  );
   const showOmApprovalAreas = isOperationsManagerPosition({
     slug: selectedPosition?.slug,
     name: selectedPosition?.name,
   });
+  const isInHouseCleaning = isInHouseCleaningStaffPosition({
+    slug: selectedPosition?.slug,
+    name: selectedPosition?.name,
+  });
+  const isWarehouseStaff = isWarehouseStaffPosition({
+    slug: selectedPosition?.slug,
+    name: selectedPosition?.name,
+  });
+
+  useEffect(() => {
+    if (mode !== "create") return;
+    const placement = initialPlacementForDepartment({
+      categorySlug: selectedCategory?.slug,
+      categoryPrefix: selectedCategory?.prefix,
+    });
+    const portalYes = defaultPortalAccessRequested({
+      placement,
+      categorySlug: selectedCategory?.slug,
+      jobPosition: selectedPosition
+        ? { slug: selectedPosition.slug, name: selectedPosition.name }
+        : null,
+    });
+    setCreatePortalLogin(portalYes ? "Yes" : "No");
+  }, [mode, selectedCategory, selectedPosition]);
 
   const selectableCategories = useMemo(() => {
     const active = categories.filter(isSelectableCategory);
@@ -448,6 +482,14 @@ export default function EmployeeFormFields({
           <input type="hidden" name="employmentType" value={employmentType} />
         </div>
 
+        {isInHouseCleaning ? (
+          <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+            <p className="text-xs text-muted">
+              {t("pages.employees.form.inHouseCleaningAssignHint")}
+            </p>
+          </div>
+        ) : null}
+
         {mode === "edit" ? (
           <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
             <label className="text-sm font-medium text-text">
@@ -525,6 +567,11 @@ export default function EmployeeFormFields({
             }}
           />
           <input type="hidden" name="createPortalLogin" value={createPortalLogin} />
+          {isWarehouseStaff ? (
+            <p className="text-xs text-muted">
+              {t("pages.employees.form.warehouseStaffPortalHint")}
+            </p>
+          ) : null}
         </div>
       </div>
 

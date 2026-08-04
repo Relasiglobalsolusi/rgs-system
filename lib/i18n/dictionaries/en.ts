@@ -362,12 +362,22 @@ export const en = {
       REGULAR_CLEANING: "Regular Cleaning",
       GENERAL_CLEANING: "General Cleaning",
       FACADE_CLEANING: "Facade Cleaning",
+      INTERNAL: "Internal Project",
+      SECURITY: "Security",
+      PARKING: "Parking",
+      PAYROLL_MANAGEMENT: "Payroll Management",
       short: {
         REGULAR_CLEANING: "Regular",
         GENERAL_CLEANING: "General",
         FACADE_CLEANING: "Facade",
+        INTERNAL: "Internal",
+        SECURITY: "Security",
+        PARKING: "Parking",
+        PAYROLL_MANAGEMENT: "Payroll",
       },
       cleaningSuffix: "Cleaning",
+      projectSuffix: "Project",
+      serviceSuffix: "Service",
     },
     billingMode: {
       MONTHLY: "Monthly",
@@ -378,30 +388,10 @@ export const en = {
       CALENDAR_MONTH: "Calendar Month",
       CONTRACT_CYCLE: "Contract Cycle",
     },
-    assignmentScope: {
-      CORPORATE: {
-        label: "Head Office",
-        description:
-          "Directors, CEO, and head office leadership not tied to a site.",
-      },
-      FIELD_OPERATIONS: {
-        label: "Field Operations",
-        description:
-          "Field staff working across sites; project assignment is optional.",
-      },
-      SITE_BASED: {
-        label: "Site Assignment",
-        description: "Assigned to one or more active project sites.",
-      },
-      UNASSIGNED: {
-        label: "Unassigned",
-        description:
-          "Pending department assignment; receives a temporary UNA employee number.",
-      },
-    },
     department: {
       corporate: "Corporate",
       headOffice: "Head Office",
+      warehouse: "Warehouse",
       operations: "Operations",
       finance: "Finance",
       cleaningStaff: "Cleaning Staff",
@@ -533,6 +523,7 @@ export const en = {
       serviceAreaCleaning: "Cleaning",
       serviceAreaParking: "Parking",
       serviceAreaSecurity: "Security",
+      serviceAreaPayroll: "Payroll Management",
       serviceAreaHeadOffice: "Head Office",
       subcategory: "Subcategory",
       billingPeriodBasis: "Billing Periods",
@@ -540,6 +531,28 @@ export const en = {
       billingPeriodBasisContractCycle: "Contract Cycle",
       billingPeriodBasisHelp:
         "Calendar Month bills each calendar month. Contract Cycle bills from the real contract start day (anniversary).",
+      createDescriptionService:
+        "Set up Security, Parking, or Payroll Management with the commercial terms for this client.",
+      serviceCommercial: {
+        monthlyFee: "Monthly Fee",
+        monthlyFeeHint: "Monthly security service fee the client pays RGS (IDR).",
+        setupCost: "Initial Setup Cost",
+        setupCostHint: "One-time parking setup cost (IDR).",
+        profitSharePercent: "Client Profit Share %",
+        profitSharePercentHint:
+          "Percentage of profit shared with the client. 0 means no profit sharing — after setup fee / monthly fees we pay them, everything is for RGS.",
+        monthlyClientFee: "Monthly Client Fee",
+        monthlyClientFeeHint:
+          "Monthly fees RGS pays the client for parking management (IDR).",
+        serviceFeePercent: "Service Fee %",
+        serviceFeePercentHint:
+          "RGS income as a percentage of reimbursed payroll. Configurable per project.",
+        paymentTermsDays: "Client Reimbursement Terms",
+        paymentTermsDaysHint:
+          "Days until the client reimburses payroll. Defaults from the client payment terms.",
+        payrollTimelineHint:
+          "Optional ops start date. Payroll Management does not use cleaning billing periods.",
+      },
       billingLabel: "Billing",
       taxInvoiceLabel: "Tax Invoice",
       companyNpwp: "Company Tax ID (NPWP)",
@@ -563,7 +576,7 @@ export const en = {
       editDescription: "Update project details, timeline, staff, and billing options.",
       deletedSuccess: "“{name}” deleted.",
       deletedFromCompletedSuccess: "“{name}” removed from Completed Projects.",
-      searchPlaceholder: "Search projects…",
+      searchPlaceholder: "Search projects...",
       emptyAll: "No projects yet",
       emptyAllDesc: "Create a project to get started.",
       emptyPlanning: "No projects in Planning",
@@ -633,6 +646,10 @@ export const en = {
         confirm: "Submit",
         regularNotAllowed:
           "Regular Cleaning uses reconcile. Reconcile the due billing period to start approval.",
+        internalNotAllowed:
+          "Internal projects do not use Submit for Approval.",
+        notAllowed:
+          "Submit for Approval is only for General Cleaning and Facade Cleaning.",
         inProgressOnly:
           "Only In Progress projects can be submitted for approval.",
         noOngoingMilestone:
@@ -650,6 +667,8 @@ export const en = {
       cleaningType: "Cleaning type",
       due: "Due",
       paid: "Paid",
+      /** Internal HO/Warehouse sites with no commercial start/end dates. */
+      internalOngoing: "Ongoing",
       noLocation: "No location",
       assigned: "assigned",
       reportOne: "report",
@@ -769,6 +788,8 @@ export const en = {
         contractPrice: "Contract price",
         anniversaryInvoiceDay:
           "Anniversary invoice day {day} (day after each cycle ends)",
+        serviceBillingNote:
+          "Commercial terms are stored on the project. Cleaning-style billing periods are not used.",
         contractPriceAndInvoices: "Contract price and invoices",
         estStart: "Est. start {date}",
         estimateTbd: "Estimate TBD",
@@ -780,8 +801,19 @@ export const en = {
         noShiftSet: "No shift set",
         noStaff: "No staff assigned yet.",
         availableAfterInProgress: " · Available after Move to In Progress",
-        siteLocation: "Site location",
-        invoicesPayments: "Invoices & payments",
+        siteLocation: "Site Location",
+        cicoSiteLocation: "CICO Site Location",
+        cicoSiteLocationHint:
+          "GPS pin and geofence radius used for Head Office and Warehouse office CICO.",
+        cicoCoordinates: "CICO Coordinates",
+        cicoGeofenceRadius: "Geofence Radius",
+        cicoGeofenceRadiusValue: "{meters} m",
+        cicoGpsNotSet: "Not Set",
+        cicoGpsEmptyManage:
+          "No GPS pin is set yet. Use Edit to paste a Maps link or place the pin — required for Warehouse and Head Office CICO.",
+        cicoGpsEmptyView:
+          "No GPS pin is set yet. Ask Head Office to configure the CICO site location on this project.",
+        invoicesPayments: "Invoices & Payments",
         viewProgressReports: "View Progress / Reports",
         viewProgressReportsChip1: "View Progress",
         viewProgressReportsChip2: "Reports",
@@ -872,8 +904,10 @@ export const en = {
         searchAddress: "Search",
         latitude: "Latitude",
         longitude: "Longitude",
-        radius: "Radius (m)",
+        radius: "Geofence Radius (m)",
         radiusPlaceholder: "Radius (m)",
+        internalCicoHint:
+          "Set the map pin and geofence radius for office CICO at this Internal site (Head Office or Warehouse).",
         pasteLabel: "Paste Google Maps coordinates / link",
         pastePlaceholder:
           "-6.200000, 106.816666 or Google Maps / share.google URL",
@@ -1615,6 +1649,7 @@ export const en = {
       },
       columns: {
         employee: "Employee",
+        status: "Status",
         employeeNo: "ID",
         department: "Department",
         position: "Position",
@@ -1634,9 +1669,6 @@ export const en = {
       departmentCountOne: "{count} department",
       addDepartment: "Add Department",
       emptyDepartments: "No departments yet. Add one to organize employees.",
-      assignmentScopes: "Manage Positions",
-      assignmentScopesDescription:
-        "Positions are job titles within a department (for example Operations → Cleaning Staff). Placement is where someone works and is set by Assign / Release, not by a free dropdown.",
       unassignedCannotDelete: "System positions cannot be deleted while in use",
       assign: "Assign",
       positionDialog: {
@@ -1702,43 +1734,6 @@ export const en = {
         noEmployeesAssigned:
           "No employees are assigned. This action cannot be undone.",
       },
-      scopeDialog: {
-        addScope: "Add Scope",
-        createTitle: "Create Assignment Scope",
-        createDescription:
-          "Add a scope for classifying how employees are placed across sites and ERP access.",
-        createButton: "Create Scope",
-        creating: "Creating...",
-        editTitle: "Edit Assignment Scope",
-        editDescription: "Update the scope label or availability.",
-        scopeName: "Scope Name",
-        namePlaceholder: "e.g. Regional Supervisors",
-        descriptionOptional: "Optional description",
-        activeAvailable: "Active (available for new assignments)",
-        codeLabel: "Code: {code}",
-        employeeCountOne: "{count} employee assigned",
-        employeeCountOther: "{count} employees assigned",
-        createFailed: "Failed to create assignment scope.",
-        updateFailed: "Failed to update assignment scope.",
-        deleteFailed: "Failed to delete assignment scope.",
-        deleteTitle: "Delete assignment scope?",
-        deleteConfirm: "Delete scope",
-        deleteDescWithEmployees:
-          "Choose where to move assigned employees before deleting this scope.",
-        deleteDescEmpty: "This assignment scope will be permanently removed.",
-        employeesAssignedOne:
-          "There is {count} employee assigned to this scope.",
-        employeesAssignedOther:
-          "There are {count} employees assigned to this scope.",
-        moveEmployeesTo: "Move Employees To",
-        selectDestination: "Select Destination",
-        chooseDestination: "Choose a destination assignment scope.",
-        noReassignTarget:
-          "No other active assignment scope is available. Activate another scope or reassign employees manually before deleting.",
-        noEmployeesAssigned:
-          "No employees are assigned. This action cannot be undone.",
-        emptyConfigured: "No assignment scopes configured.",
-      },
       assignDialog: {
         titleOne: "Assign to department",
         titleBulk: "Assign {count} employees",
@@ -1758,12 +1753,6 @@ export const en = {
           "Employees receive a new {prefix} employee number. Portal login is restored if it was paused, or created automatically for CICO, progress reports, and leave & sick.",
         selectActive: "Select an active department to assign.",
       },
-      projectMultiSelect: {
-        selectProjects: "Select projects",
-        searchPlaceholder: "Search by name or location...",
-        removeProject: "Remove project",
-        noProjects: "No projects found",
-      },
       form: {
         department: "Department",
         departmentControlsHint:
@@ -1775,52 +1764,29 @@ export const en = {
           "{label} — managed through Assign / Release.",
         employmentType: "Employment Type",
         selectEmploymentType: "Select Employment Type",
+        inHouseCleaningAssignHint:
+          "In-House Cleaning Staff: assign them to the Internal Head Office or Warehouse project for CICO (department tells which site).",
+        warehouseStaffPortalHint:
+          "Warehouse Staff usually do not need portal login — the Warehouse Supervisor runs Transfer Orders and directs the floor crew.",
         status: "Status",
-        selectStatus: "Select Status",
-        statusHint:
-          "Active and On Leave stay on the roster. Portal login follows the same rules for both.",
         statusActiveHint:
           "On Leave is set when an approved leave period includes today. Active staff can use CICO and Progress.",
         statusOnLeaveHint:
           "On Leave from an approved leave request. CICO and Progress are paused until the leave period ends.",
         statusLeavePendingHint:
           "A leave request is pending approval. Employment status stays Active; CICO and Progress continue as usual.",
-        leavePendingNotAssignable:
-          "Employees applying for leave cannot be assigned until the request is reviewed.",
-        departmentHint:
-          "Choose a department first to auto-generate the employee number.",
         selectDepartment: "Select department",
         selectPosition: "Select position",
-        noDepartment: "No department",
         employeeNumber: "Employee Number",
-        employeeNoTemp:
-          "Temporary UNA number until assigned to an active department.",
         employeeNoPreview:
           "Preview of the next number for the selected department.",
         employeeNoReassign:
           "Department changed — employee will be reassigned to the next available number.",
         employeeNoLocked: "Assigned number cannot be changed.",
         selectDeptFirst: "Select a department first",
-        assignmentScope: "Assignment Scope",
-        assignmentScopeHint:
-          "Choose whether this employee is site-based, in field operations, holds a corporate leadership role, or is pending assignment.",
-        headOfficeRoleTitle: "Head Office role — no site assignment",
-        headOfficeRoleHint:
-          "Use this for directors, CEO, and other head office leadership who are not assigned to a specific project site.",
-        pendingAssignmentTitle: "Pending assignment — Unassigned",
-        pendingAssignmentHint:
-          "Employee receives a temporary UNA number. Portal login stays off (paused if they already had one) until reassigned to an active department.",
-        assignedSites: "Assigned Sites / Projects",
-        assignedSitesOptional: "(optional)",
-        assignedSitesHint:
-          "Select one or more active project sites for this employee.",
-        assignedSitesHintOptional:
-          "Optionally link this employee to one or more active project sites.",
-        noActiveProjects: "No active projects available.",
         firstName: "First Name",
         lastName: "Last Name",
         position: "Position",
-        positionLocked: "Set automatically from the selected department.",
         positionHint:
           "Choose a position available for the selected department.",
         approvalAreas: "Approval Areas",
@@ -1829,12 +1795,7 @@ export const en = {
         startDate: "Start Date",
         startDateHint: "Employee hire or start date for tenure tracking.",
         contactEmail: "Contact email",
-        contactEmailHint:
-          "Optional. For HR contact only — not used as the login username.",
         portalLogin: "Portal Login",
-        createPortalLogin: "Create portal login access for this employee?",
-        createPortalLoginHint:
-          "Yes creates a linked Users login (username from first name). Full Time logins stay on when requested. Part Time logins are active only while On Project. Corporate/Head Office can use Yes for desk access overrides.",
         finances: "Finances",
         financesHint:
           "Base pay and BPJS settings. Contributions recalculate as you change options.",
@@ -2006,7 +1967,7 @@ export const en = {
         "Create a linked Users portal login for this client. Login ID is an 8-letter id from the client name.",
       generateClientConfirm: "Generate Portal Login",
       generateFailed: "Failed to generate portal login.",
-      withoutPortalSearch: "Search clients or employees...",
+      withoutPortalSearch: "Search clients...",
       withoutPortalEmpty: "Everyone already has a portal login",
       withoutPortalEmptyDesc:
         "Clients and employees without a linked Users login appear here.",
@@ -2377,8 +2338,8 @@ export const en = {
       invoiceCountForClient: "{count} invoice(s)",
       attention: "Attention",
       openInProgress: "Open In Progress",
-      searchClients: "Search clients…",
-      searchProjects: "Search projects…",
+      searchClients: "Search clients...",
+      searchProjects: "Search projects...",
       clientProjectsDesc: "Ongoing projects with billing for this client.",
       awaitingOrLate: "Awaiting Payment or late",
       noTaxPending: "No Tax Invoices pending",
@@ -2567,6 +2528,7 @@ export const en = {
         "This project is in Planning. Use {action} on the project page when the work order is ready — billing and invoices unlock after that.",
       paymentHistoryDesc:
         "Payment history, due dates, and invoice actions for this project.",
+      serviceCommercialTitle: "Service Commercial Terms",
       billingMode: "Billing mode",
       billingPeriodBasis: "Billing Periods",
       anniversaryInvoiceDay: "Anniversary invoice day: {day}",
@@ -2926,7 +2888,7 @@ export const en = {
     progress: {
       title: "Progress Reports",
       description:
-        "Site photo reports for field cleaning staff. Upload while on shift — check-out is blocked until at least one report is submitted for the project.",
+        "Site photo reports for cleaning staff (Cleaning Staff, GC Staff, In-House Cleaning). Upload while on shift — check-out is blocked until at least one report is submitted for the project.",
       feedDescription:
         "Monitor Progress Reports in real time (view only). Open a project for the photo feed, or filter by employee.",
       chooseProject: "Choose Project",
@@ -2941,20 +2903,20 @@ export const en = {
       noPhotosYet: "No photos yet",
       myReportsTitle: "My Progress Reports",
       myReportsHint:
-        "Upload Progress Reports while working. You must submit at least one Progress Report before CICO check-out.",
+        "Upload Progress Reports while working. Cleaning staff must submit at least one Progress Report before CICO check-out.",
+      myReportsHintViewOnly:
+        "Progress Reports for cleaning staff on this project. Check-in and check-out do not require a Progress Report for your position.",
       checkInRequiredMessage:
         "Check in via CICO for your project before submitting a Progress Report.",
       onLeaveMessage:
         "Progress reports are paused while you are On Leave. Contact Head Office if your status should be updated.",
-      leavePendingMessage:
-        "Progress reports are paused while your leave request is pending approval. Contact Head Office if your status should be updated.",
       submitReport: "Submit Progress Report",
       editReport: "Edit Progress Report",
       dialogTitle: "Progress Report",
       dialogDescription:
-        "Field cleaning staff: select your project, service area, and notes, then upload site photos. You may submit multiple reports per project and day. Project, Service Area, Notes, and at least one photo are required.",
+        "Cleaning staff: select your project, service area, and notes, then upload site photos. You may submit multiple reports per project and day. Project, Service Area, Notes, and at least one photo are required.",
       dialogDescriptionCicoLocked:
-        "Field cleaning staff: select your service area and notes, then upload site photos for today's open CICO work day. Project, Service Area, Notes, and at least one photo are required.",
+        "Cleaning staff: select your service area and notes, then upload site photos for today's open CICO work day. Project, Service Area, Notes, and at least one photo are required.",
       editDialogTitle: "Edit Progress Report",
       editDialogDescription:
         "Update the service area, notes, or photos for this progress report. The report date cannot be changed. Keep or add at least one photo.",
@@ -2964,7 +2926,7 @@ export const en = {
       saveChanges: "Save Changes",
       emptyTitle: "No Progress Reports",
       emptyDescription:
-        "No projects or photo reports for this date. Field cleaning staff should upload site photos for each assigned cleaning project while on shift.",
+        "No projects or photo reports for this date. Cleaning staff should upload site photos for each assigned cleaning project (including Internal) while on shift.",
       emptyForDate: "No progress reports for this date.",
       submittedBy: "Submitted by",
       selectProject: "Select Project",
@@ -2986,8 +2948,6 @@ export const en = {
       assignedEmployeeOther: "{count} assigned employees",
       reportCountOne: "{count} Progress Report",
       reportCountOther: "{count} Progress Reports",
-      missingEmployeeCount: "{count} missing after shift",
-      noReportsAfterShift: "No progress report after shift end.",
       noReportsYet: "No progress reports yet for this date.",
       untitledReport: "Progress Report",
       existingPhotos: "Existing Photos",
@@ -2999,23 +2959,6 @@ export const en = {
         "JPG, PNG, WebP, or GIF. Up to 10 MB each. Multiple photos allowed.",
       submittedCountOne: "{count} report submitted",
       submittedCountOther: "{count} reports submitted",
-      missingUploadChecksNote:
-        " · Missing checks apply after each assignee's shift ends",
-      missingUploadsTitleOne: "Missing uploads — {count} field cleaner",
-      missingUploadsTitleOther: "Missing uploads — {count} field cleaners",
-      missingBadge: "Missing",
-      needToReportToday: "Your shift ended — progress report still needed",
-      noReportOnDate: "No progress report on {date}",
-      missingProjectsPrefix: "Missing:",
-      missingReportTitle: "Missing Cleaning Progress Report",
-      missingReportMessage:
-        "One or more assigned cleaning projects still need a progress report after your shift ended. Submit at least one report per project for that shift day.",
-      uploadNow: "Upload Now",
-      acknowledgeAll: "Acknowledge All",
-      acknowledge: "Acknowledge",
-      remindLater: "Remind Me Later",
-      openProgressReports: "Open Progress Reports",
-      noUploadOn: "— no upload on {date}",
       submitted: "Submitted",
       noNotes: "No notes for this report.",
       noPhotos: "No photos attached",
@@ -3041,14 +2984,16 @@ export const en = {
         photoTooLarge: "Each photo must be 10 MB or smaller.",
         notAssigned: "You are not assigned to this project.",
         cleaningOnly:
-          "Progress reports are only for field cleaning projects (Regular, General, or Facade Cleaning).",
+          "Progress reports are only for cleaning projects (Regular, General, Facade, or Internal).",
+        cleaningPositionOnly:
+          "Progress reports are only for cleaning staff positions (Cleaning Staff, GC Staff, or In-House Cleaning Staff).",
         inProgressOnly:
           "Progress reports are only for In Progress projects (work order received).",
         reportNotFound: "Progress report not found.",
         editDenied:
           "Only the report author can edit this progress report.",
         headOfficeNotAllowed:
-          "Head Office staff cannot submit progress reports. Only field cleaning staff with an open CICO may submit.",
+          "Head Office desk staff cannot submit progress reports for commercial sites. In-House Cleaning Staff may submit on assigned Internal sites with an open CICO.",
         checkInRequired:
           "You must check in via CICO before submitting a Progress Report.",
         checkInRequiredForProject:
@@ -3074,20 +3019,23 @@ export const en = {
     },
     cico: {
       title: "CICO",
-      description: "Check-In / Check-Out for field cleaning staff.",
+      description:
+        "Check-In / Check-Out for field staff and office clock for Head Office / Warehouse.",
       employeeOnly: "CICO is only available for employee accounts.",
       noEmployeeProfile:
         "CICO requires a linked employee profile. Ask an administrator to link your login to an employee record.",
       activeOnlyMessage:
         "CICO is only available for Active staff. Contact Head Office if your status should be updated.",
       onProjectOnlyMessage:
-        "CICO is only available while your placement is On Project and you are assigned to a cleaning site.",
+        "Field CICO is available while you are On Project and assigned to a cleaning site. In-House Cleaning Staff: assign them to the Internal Head Office or Warehouse project first. Warehouse Supervisor and Corporate desk staff use office CICO.",
       descriptionDetail:
         "Check-In / Check-Out at your assigned cleaning project site using GPS and on-site photos.",
+      officeDescription:
+        "Office clock at Head Office or Warehouse. GPS and photo required. Hours 09:00–17:00 (15 min late grace).",
       errors: {
         notAssigned: "You are not assigned to this project.",
         cleaningOnly:
-          "CICO is only for field cleaning projects (Regular, General, or Facade Cleaning).",
+          "CICO is only for cleaning projects (Regular, General, Facade, or Internal).",
         inProgressOnly:
           "Check-in is only available for In Progress projects (work order received).",
         noSiteLocation: "This project has no site location configured yet.",
@@ -3119,6 +3067,7 @@ export const en = {
         tooFarCheckOut:
           "You are {distance} m from {site}. Check out within {radius} m of that project site.",
         lateCheckInNote: "Late check-in (expected before {time}).",
+        earlyCheckOutNote: "Left early (before 17:00).",
         progressRequiredBeforeCheckOut:
           "A Progress Report is required to check out. Please upload it and retry CICO.",
       },
@@ -3163,7 +3112,9 @@ export const en = {
         "A Progress Report is required to check out. Please upload it and retry CICO.",
       uploadProgressNow: "Upload Progress Report",
       footerNote:
-        "CICO is for Active On Project cleaning staff at assigned Regular, General, or Facade Cleaning sites. GPS geofence and on-site photos are required for check-in and check-out. Check-out also requires at least one Progress Report for this shift day.",
+        "CICO for Active On Project cleaning staff at assigned cleaning sites (including Internal). GPS geofence and on-site photos are required for check-in and check-out. Check-out also requires at least one Progress Report for this shift day.",
+      footerNoteCheckInOnly:
+        "GPS geofence and on-site photos are required for check-in and check-out. A Progress Report is not required for your position.",
       chooseImageFile: "Please choose an image file for your on-site photo.",
       photoRequiredAlert:
         "A check-in photo is required. Take a photo that shows you at this project site.",
@@ -3204,7 +3155,7 @@ export const en = {
           "Sample project layout — controls are disabled for Head Office accounts.",
         fieldWorkerFlow: "Field CICO",
         fieldWorkerFlowHint:
-          "Select an In Progress project, then check in at site. Geofence, photo, and Progress Report rules still apply.",
+          "Select an In Progress project, then check in at site. Geofence and photo rules apply; Progress Report before check-out applies only for cleaning staff positions.",
         controlsDisabled:
           "Check-in, check-out, and photo upload are disabled in preview mode.",
         noSampleProject:
@@ -3222,10 +3173,16 @@ export const en = {
     attendance: {
       title: "Attendance Report",
       description: "Head-office view of site attendance by date and project.",
-      descriptionAdmin: "Select a client to view project attendance.",
+      descriptionAdmin:
+        "Internal sites first (Head Office, Warehouse), then client projects.",
       descriptionClient: "Select a project to view attendance records.",
       clientProjectsDesc: "Select a project to view monthly attendance.",
       breadcrumbAria: "Attendance report navigation",
+      internalSection: "Internal",
+      internalSectionDesc: "RGS Head Office and Warehouse attendance.",
+      internalSiteHint: "Internal site",
+      projectsSection: "Projects",
+      projectsSectionDesc: "Client project sites.",
       noClients: "No clients found",
       noClientsDesc: "No active clients with projects.",
       noClientsMatch: "No clients match your search.",
@@ -3268,7 +3225,7 @@ export const en = {
       title: "Shifts",
       description:
         "Choose an active project, then set planned shift times for assigned staff. Assign who works a site under Projects; set when they work here. CICO still records actual punch times.",
-      searchProjectsPlaceholder: "Search Projects...",
+      searchProjectsPlaceholder: "Search projects...",
       searchEmployeesPlaceholder: "Search Employees...",
       searchPlaceholder: "Search...",
       emptyProjectsTitle: "No Active Projects",
@@ -3370,10 +3327,20 @@ export const en = {
       emptyDescription: "No pending requests to review.",
       emptyLeaveTitle: "No leave requests",
       emptyLeaveDescription: "No pending leave or sick requests.",
+      emptyLeaveOnlyOwnDescription:
+        "Nothing for you to approve right now. Your own request is listed above and needs another approver.",
       emptyMaterialsTitle: "No material requests",
       emptyMaterialsDescription: "No pending material requests to review.",
       leaveSection: "Leave & Sick",
+      leaveSectionDesc: "Pending leave and sick requests waiting for your decision.",
+      ownPendingTitle: "Your request is waiting for another approver",
+      ownPendingDesc:
+        "You cannot approve your own leave. Ask another HO admin / Director (e.g. manager) to review it in Approvals.",
+      statusPending: "Pending",
       materialsSection: "Material Requests",
+      materialsSectionDesc:
+        "Review what was requested, check warehouse stock, then approve (creates a Transfer Order) or reject.",
+      pendingCount: "{count} pending",
       proof: "Proof",
       period: "Period",
       columns: {
@@ -3389,16 +3356,28 @@ export const en = {
       description:
         "Request materials for the project you are checked into. OM approves, then warehouse sends a transfer order.",
       newRequest: "New Request",
+      newRequestDesc:
+        "Pick catalog items and quantities for your checked-in project. Warehouse stock is shown for reference.",
       myRequests: "My Requests",
+      myRequestsDesc:
+        "Track approval status, transfer progress, and confirm receipt when the warehouse marks the order sent.",
+      requestCount: "{count} requests",
+      lineCount: "{count} items",
+      submittedOn: "Submitted {date}",
       emptyTitle: "No Requests Yet",
       emptyDescription: "Submit a request while checked in via CICO.",
       mustBeCheckedIn:
         "You must be checked in (CICO) to a project before requesting materials.",
       checkedInHint: "Requesting for checked-in project: {project}",
+      checkedInProjectLabel: "Checked-in project",
+      checkedInHintDetail:
+        "This request will be tied to this project and appear in Approvals for OM review.",
       selectItem: "Select item…",
       addLine: "Add Line",
-      notesPlaceholder: "Optional notes",
+      notesPlaceholder: "Optional notes for OM / warehouse (urgency, location on site…)",
+      reviewNotePlaceholder: "Optional review note (required context for rejects recommended)",
       submit: "Submit Request",
+      submitHint: "After submit: Approvals → Transfer Orders → Confirm Received on site.",
       linesRequired: "Add at least one item.",
       quantityInvalid: "Quantity must be a positive whole number.",
       projectInvalid: "Checked-in project cannot receive materials right now.",
@@ -3410,23 +3389,91 @@ export const en = {
       reviewFailed: "Could not review material request.",
       approved: "Material request approved — transfer order created.",
       rejected: "Material request rejected.",
+      noLines: "No line items.",
+      stockShort: "Below request",
+      status: {
+        requested: "Requested",
+        approved: "Approved",
+        rejected: "Rejected",
+        cancelled: "Cancelled",
+      },
+      columns: {
+        item: "Item",
+        sku: "SKU",
+        qty: "Qty requested",
+        onHand: "On hand",
+        requester: "Requester",
+        reviewed: "Reviewed",
+        notes: "Notes",
+        reviewNote: "Review note",
+        requestedItems: "Requested items",
+      },
     },
     transferOrders: {
       title: "Transfer Orders",
       description:
-        "Warehouse queue: send approved materials to projects, then site confirms receipt.",
+        "Warehouse Queue: browse by client and project, send approved materials, then site confirms receipt.",
+      directoryTitle: "Clients & Sites",
+      directoryDesc:
+        "Browse clients and internal sites. Open a project for its warehouse queue and transfer-order history.",
+      clientProjectsDesc:
+        "Choose a project to open its warehouse queue and transfer-order history.",
+      breadcrumbAria: "Transfer orders navigation",
+      searchClients: "Search clients...",
+      searchProjects: "Search projects...",
+      noClientsMatch: "No clients match your search.",
+      noProjects: "No Projects",
+      noProjectsDesc: "This client has no accessible projects.",
+      noProjectsMatch: "No projects match your search.",
+      internalSection: "Internal",
+      internalSectionDesc:
+        "Head Office and Warehouse queues and transfer-order history.",
+      internalSiteHint: "Internal site queue",
+      clientsSection: "Clients",
+      clientsSectionDesc:
+        "Browse clients and projects. Badges show pending send / in transit.",
+      projectsSection: "Projects",
+      projectCountOne: "{count} project",
+      projectCountOther: "{count} projects",
+      badgePending: "{count} pending",
+      badgeInTransit: "{count} transit",
+      queueTitle: "Warehouse Queue",
+      queueDesc:
+        "Each card shows the destination project, requester, item breakdown, and stock availability before you mark sent.",
       emptyTitle: "No Transfer Orders",
-      emptyDescription: "Approved material requests appear here for warehouse.",
+      emptyDescription:
+        "Approved material requests appear here when a client or site has items to send.",
+      emptyProjectDescription:
+        "No transfer orders for this project yet. Approved material requests will show here.",
       notFound: "Transfer order not found.",
       sendFailed: "Could not mark transfer as sent.",
-      sent: "Transfer marked as sent — stock issued to project.",
+      sent: "Transfer marked as sent - stock issued to project.",
       markSent: "Mark Sent",
       receiveFailed: "Could not confirm receipt.",
+      receiveDenied:
+        "You do not have permission to confirm transfer receipt.",
       received: "Receipt confirmed.",
       confirmReceived: "Confirm Received",
       mustBeCheckedInToReceive:
         "Check in (CICO) to this project before confirming receipt.",
       requestedBy: "Requested by {name}",
+      sentBy: "Sent by {name}",
+      receivedBy: "Received by {name}",
+      statPending: "{count} pending send",
+      statSent: "{count} in transit",
+      statReceived: "{count} received",
+      status: {
+        pendingSend: "Pending send",
+        sent: "Sent",
+        received: "Received",
+        cancelled: "Cancelled",
+      },
+      columns: {
+        createdAt: "Created",
+        sentAt: "Sent",
+        receivedAt: "Received",
+        itemsToSend: "Items to send",
+      },
     },
     reports: {
       title: "Client Reports",
@@ -3445,8 +3492,8 @@ export const en = {
       periodRangeHint: "Available from {from} through {to}.",
       viewReport: "View Report",
       changePeriod: "Change Period",
-      searchClients: "Search clients…",
-      searchProjects: "Search projects…",
+      searchClients: "Search clients...",
+      searchProjects: "Search projects...",
       noClients: "No Clients",
       noClientsDesc: "No clients with accessible projects were found.",
       noClientsMatch: "No clients match your search.",
@@ -3661,7 +3708,9 @@ export const en = {
       savePurchase: "Save Stock Receipt",
       addIssue: "Issue To Project",
       addIssueDesc:
-        "Assign stock to an in-progress project. Cost is locked at the current weighted average.",
+        "Stock is issued only through Material Requests → Approvals → Transfer Orders.",
+      issueViaTransferOrderOnly:
+        "Stock can only be issued through Material Requests → Approvals → Transfer Orders. Direct inventory issues are disabled.",
       saveIssue: "Issue Stock",
       addWriteOff: "Write Off Stock",
       addWriteOffDesc:
@@ -3695,7 +3744,7 @@ export const en = {
       clientNotFound: "Linked client was not found.",
       clientTypeMismatch:
         "Linked client must match the selected buyer type.",
-      searchClientsFailed: "Could not search clients.",
+      searchClientsFailed: "Could not Search clients...",
       deactivate: "Deactivate",
       viewReceipt: "View Receipt",
       viewSaleInvoice: "View Invoice",
@@ -3715,6 +3764,22 @@ export const en = {
       saleDetailsExTaxHint: "Does not include tax.",
       saleDetailsGainLossHint:
         "Gain/loss uses ex-tax sale vs ex-tax cost.",
+      stockDetailTitle: "Stock Item Detail",
+      stockDetailDesc:
+        "Lifetime receipts, warehouse stock, and project assignments for this item.",
+      stockDetailBought: "Bought (All Time)",
+      stockDetailAssigned: "Assigned",
+      stockDetailInStock: "In Stock",
+      stockDetailWrittenOff: "Written Off",
+      stockDetailSold: "Sold",
+      stockDetailAssignmentsTitle: "Assigned By Project",
+      stockDetailAssignmentsDesc:
+        "Lifetime totals per project (all issue dates combined). Voided issues are excluded.",
+      stockDetailEmptyAssignments: "No Project Assignments",
+      stockDetailEmptyAssignmentsDesc:
+        "This item has not been issued to any project yet.",
+      stockDetailLoading: "Loading item detail…",
+      stockDetailLoadFailed: "Could not load stock item detail.",
       itemCreated: "Catalog item created.",
       itemUpdated: "Catalog item updated.",
       itemDeactivated: "Catalog item deactivated.",
@@ -3768,7 +3833,7 @@ export const en = {
         "Record a stock receipt against a catalog item to increase warehouse stock.",
       emptyIssues: "No Project Issues Yet",
       emptyIssuesDesc:
-        "Issue stock to an In Progress, Pending Approval, or On Hold project. Consumables and chemicals book cost; equipment is location/custody only.",
+        "Project issues appear here after a Transfer Order is marked sent. Request stock via Material Requests → Approvals → Transfer Orders.",
       emptyWriteOffs: "No Write-Offs Yet",
       emptyWriteOffsDesc:
         "Write-offs permanently reduce on-hand stock with a mandatory reason.",
@@ -3816,6 +3881,8 @@ export const en = {
           "No issued items match the current filters for this project.",
       },
       stock: {
+        itemClickHint:
+          "Click a stock item to see lifetime bought, assigned, in-stock totals, and where it was issued by project.",
         equipmentClickHint:
           "Click an equipment item to see warehouse and on-project units. On Hand is warehouse only — units on projects stay company-owned.",
         equipmentLocations: "Equipment Locations",
@@ -3974,7 +4041,7 @@ export const en = {
         taxRateHint:
           "Defaults to 12%. Change this if the invoice uses a different tax rate.",
         linkClient: "Link Client (Optional)",
-        clientSearchPlaceholder: "Search clients by name, code, or NPWP…",
+        clientSearchPlaceholder: "Search clients...",
         clientOptionalPlaceholder: "Select Client (Optional)",
         clientNoSearchMatch: "No clients match this search.",
         linkClientHint:

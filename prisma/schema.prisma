@@ -97,6 +97,21 @@ enum ProjectSubCategory {
   REGULAR_CLEANING
   GENERAL_CLEANING
   FACADE_CLEANING
+  /// Company Head Office / Warehouse — no client billing; dual CICO (office + cleaning).
+  INTERNAL
+  /// Monthly security service for a client site (no cleaning invoice periods).
+  SECURITY
+  /// Parking management — RGS revenue + optional client share/fees (no invoice periods).
+  PARKING
+  /// Client payroll management — RGS pays staff first; client reimburses + service fee.
+  PAYROLL_MANAGEMENT
+}
+
+/// Desk home site for office CICO (HO Operations vs Warehouse). Cleaning staff use project assignment instead.
+enum InternalHomeSite {
+  NONE
+  HEAD_OFFICE_OPERATIONS
+  WAREHOUSE
 }
 
 /// Project work lane — matched to OM Approval Areas for approve/dashboard scope.
@@ -105,6 +120,8 @@ enum ServiceArea {
   PARKING
   SECURITY
   HEAD_OFFICE
+  /// Client payroll management service projects.
+  PAYROLL_MANAGEMENT
 }
 
 /// Client organization type (tax identity + Multi-Project defaults).
@@ -345,6 +362,8 @@ model Employee {
   omApprovalAreas     ServiceArea[]    @default([])
 
   employeeType        EmployeeType     @default(PROJECT_SITE)
+  /// Office-clock target for HO desk / warehouse desk staff (not used for field cleaners).
+  internalHomeSite    InternalHomeSite @default(NONE)
   status              EmploymentStatus @default(ACTIVE)
   archivedFromDirectory Boolean @default(false)
   hiredAt      DateTime?
@@ -602,7 +621,7 @@ model Project {
   progress    Int           @default(0)
   /// Preferred day-of-month for anniversary auto-invoice (day after cycle period ends; derived from real startDate).
   invoicingDay Int          @default(1)
-  /// Total / monthly contract value (IDR). Set in Invoice and Billing; used when compiling invoices unless a period has its own amount.
+  /// Total / monthly contract value (IDR). Cleaning: set in billing. Security: monthly service fee at create.
   contractPrice Decimal?    @db.Decimal(14, 2)
   billingMode BillingMode   @default(MONTHLY)
   status      ProjectStatus @default(PLANNED)
@@ -615,6 +634,16 @@ model Project {
   contractDocumentUrl String?
   /// When true, each issued commercial invoice is queued for a tax invoice (faktur).
   requiresTaxInvoice Boolean @default(false)
+  /// Parking: one-time initial setup cost (IDR).
+  setupCost Decimal? @db.Decimal(14, 2)
+  /// Parking: % of profit shared with the client (0 = none; all remainder for RGS after setup/monthly client fees).
+  profitSharePercent Decimal? @db.Decimal(5, 2)
+  /// Parking: monthly fees RGS pays the client (IDR).
+  monthlyClientFee Decimal? @db.Decimal(14, 2)
+  /// Payroll Management: RGS service fee % on reimbursed payroll (income).
+  serviceFeePercent Decimal? @db.Decimal(5, 2)
+  /// Payroll Management: days until client reimburses (0 = Cash). Defaults from Client.paymentTermsDays.
+  paymentTermsDays Int?
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)

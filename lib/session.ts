@@ -178,5 +178,8 @@ export async function getEmployeeForUser(userId: string) {
   // userId is @unique — always resolve the signed-in user's linked employee only.
   return prisma.employee.findUnique({
     where: { userId },
+    include: {
+      jobPosition: { select: { name: true, slug: true } },
+    },
   });
 }

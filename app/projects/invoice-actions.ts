@@ -25,6 +25,7 @@ import {
   maxMilestonePercent,
   parseContractPrice,
   recalculateUnpaidMilestoneAmounts,
+  usesInvoicePeriods,
 } from "@/lib/project-billing";
 import { isContractSubCategory } from "@/lib/project-contract";
 import {
@@ -330,11 +331,17 @@ async function ensureAnniversaryPeriodsForProject(
     startDate: Date | null;
     billingMode: string;
     status: string;
+    subCategory?: string | null;
     billingPeriodBasis?: "CALENDAR_MONTH" | "CONTRACT_CYCLE" | null;
   },
   ref: Date = new Date(),
   opts?: { includeNextIfDue?: boolean }
 ) {
+  // Security / Parking / Payroll Management never open cleaning-style periods.
+  // Require subcategory so callers that omit it cannot accidentally sync.
+  if (!usesInvoicePeriods(project.subCategory)) {
+    return null;
+  }
   if (
     project.billingMode !== "MONTHLY" ||
     project.status === "COMPLETED" ||
@@ -2429,6 +2436,7 @@ export async function issueInvoicesForFinishedProject(projectId: string): Promis
       billingMode: true,
       startDate: true,
       contractPrice: true,
+      subCategory: true,
       invoicePeriods: {
         select: {
           id: true,
@@ -2446,6 +2454,11 @@ export async function issueInvoicesForFinishedProject(projectId: string): Promis
     ? `/billing/${project.clientId}/${project.id}`
     : "/billing";
 
+  // Security / Parking / Payroll Management store commercial terms only — no periods.
+  if (!usesInvoicePeriods(project.subCategory)) {
+    return { compiled: 0, billingPath };
+  }
+
   let compiled = 0;
 
   if (project.billingMode === "MONTHLY") {
@@ -2455,6 +2468,7 @@ export async function issueInvoicesForFinishedProject(projectId: string): Promis
           id: project.id,
           startDate: project.startDate,
           billingMode: project.billingMode,
+          subCategory: project.subCategory,
           // Force ensure even though finish may have set COMPLETED already.
           status: "IN_PROGRESS",
         },
@@ -2665,6 +2679,7 @@ async function runAnniversaryMonthlyInvoicingForCompany(companyId: string) {
       billingMode: true,
       billingPeriodBasis: true,
       status: true,
+      subCategory: true,
     },
   });
 
@@ -2673,6 +2688,7 @@ async function runAnniversaryMonthlyInvoicingForCompany(companyId: string) {
   const errors: string[] = [];
 
   for (const project of projects) {
+    if (!usesInvoicePeriods(project.subCategory)) continue;
     try {
       await ensureAnniversaryPeriodsForProject(project, today);
     } catch (error) {

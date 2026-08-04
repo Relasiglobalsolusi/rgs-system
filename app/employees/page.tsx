@@ -5,6 +5,7 @@ import {
   filterPositionsForEmployeeCreateActor,
   resolveEmployeeCreateActorTier,
 } from "@/lib/employee-create-hierarchy";
+import { ensureWorkforceDepartments } from "@/lib/positions";
 import { canManageEmployees } from "@/lib/project-access";
 import { requireModule, toPermissionUser } from "@/lib/session";
 
@@ -24,6 +25,11 @@ export default async function EmployeesPage() {
   const createActorTier = await resolveEmployeeCreateActorTier(session);
 
   const company = await prisma.company.findFirst();
+
+  if (company) {
+    // Keep Corporate / Warehouse (WRH) / Operations + default positions present.
+    await ensureWorkforceDepartments(prisma, company.id);
+  }
 
   if (!company) {
     return (

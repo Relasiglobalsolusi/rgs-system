@@ -1,5 +1,7 @@
 import {
   filterLeaveRequestsForReviewer,
+  filterOwnPendingLeaveRequests,
+  leaveRequestEmployeeSelect,
   resolveLeaveReviewerProfile,
 } from "@/lib/leave-approval-hierarchy";
 import { prisma } from "@/lib/prisma";
@@ -7,14 +9,15 @@ import { requireModule, toPermissionUser } from "@/lib/session";
 import { inventoryQtyFromDecimal } from "@/lib/inventory";
 import { createTranslator } from "@/lib/i18n/translate";
 import { getServerLocale } from "@/lib/i18n/locale";
-import { formatDisplayDate } from "@/lib/format-date";
+import { formatEmployeeName } from "@/lib/employee-user-link";
 
 import AppShell from "@/components/layout/AppShell";
 import SectionCard from "@/components/ui/SectionCard";
 import EmptyState from "@/components/ui/EmptyState";
+import OwnPendingLeaveNotice from "@/components/approvals/OwnPendingLeaveNotice";
 import PendingLeaveTable from "@/components/approvals/PendingLeaveTable";
+import MaterialRequestDetailCard from "@/components/material-requests/MaterialRequestDetailCard";
 import { ReviewMaterialRequestButtons } from "@/components/material-requests/MaterialRequestActions";
-import { formatEmployeeName } from "@/lib/employee-user-link";
 
 export default async function ApprovalsPage() {
   const session = await requireModule("approvals");
@@ -36,13 +39,11 @@ export default async function ApprovalsPage() {
         },
         include: {
           employee: {
-            include: {
-              jobPosition: { select: { slug: true, name: true } },
-              projectAssignments: {
-                select: {
-                  project: { select: { serviceArea: true, status: true } },
-                },
-              },
+            select: {
+              ...leaveRequestEmployeeSelect,
+              firstName: true,
+              lastName: true,
+              employeeNo: true,
             },
           },
         },
@@ -51,16 +52,30 @@ export default async function ApprovalsPage() {
     : [];
 
   const pendingLeave = filterLeaveRequestsForReviewer(pendingRaw, reviewer);
+  const ownPendingLeave = filterOwnPendingLeaveRequests(pendingRaw, reviewer);
 
   const pendingMaterials = companyId
     ? await prisma.materialRequest.findMany({
         where: { companyId, status: "REQUESTED" },
         include: {
-          project: { select: { name: true } },
-          requestedBy: { select: { firstName: true, lastName: true } },
+          project: { select: { id: true, name: true } },
+          requestedBy: {
+            select: {
+              firstName: true,
+              lastName: true,
+              employeeNo: true,
+            },
+          },
           lines: {
             include: {
-              item: { select: { sku: true, name: true, unit: true } },
+              item: {
+                select: {
+                  sku: true,
+                  name: true,
+                  unit: true,
+                  currentStock: true,
+                },
+              },
             },
           },
         },
@@ -76,13 +91,32 @@ export default async function ApprovalsPage() {
     >
       <div className="space-y-6">
         <SectionCard className="p-5 sm:p-6">
-          <h2 className="mb-4 text-base font-semibold text-text">
-            {t("pages.approvals.leaveSection")}
-          </h2>
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <h2 className="text-base font-semibold text-text">
+                {t("pages.approvals.leaveSection")}
+              </h2>
+              <p className="mt-1 text-sm text-subtle">
+                {t("pages.approvals.leaveSectionDesc")}
+              </p>
+            </div>
+            {pendingLeave.length > 0 ? (
+              <p className="text-sm tabular-nums text-muted">
+                {t("pages.approvals.pendingCount", {
+                  count: pendingLeave.length,
+                })}
+              </p>
+            ) : null}
+          </div>
+          <OwnPendingLeaveNotice data={ownPendingLeave} />
           {pendingLeave.length === 0 ? (
             <EmptyState
               titleKey="pages.approvals.emptyLeaveTitle"
-              descriptionKey="pages.approvals.emptyLeaveDescription"
+              descriptionKey={
+                ownPendingLeave.length > 0
+                  ? "pages.approvals.emptyLeaveOnlyOwnDescription"
+                  : "pages.approvals.emptyLeaveDescription"
+              }
             />
           ) : (
             <PendingLeaveTable data={pendingLeave} />
@@ -90,45 +124,61 @@ export default async function ApprovalsPage() {
         </SectionCard>
 
         <SectionCard className="p-5 sm:p-6">
-          <h2 className="mb-4 text-base font-semibold text-text">
-            {t("pages.approvals.materialsSection")}
-          </h2>
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <h2 className="text-base font-semibold text-text">
+                {t("pages.approvals.materialsSection")}
+              </h2>
+              <p className="mt-1 text-sm text-subtle">
+                {t("pages.approvals.materialsSectionDesc")}
+              </p>
+            </div>
+            {pendingMaterials.length > 0 ? (
+              <p className="text-sm tabular-nums text-muted">
+                {t("pages.approvals.pendingCount", {
+                  count: pendingMaterials.length,
+                })}
+              </p>
+            ) : null}
+          </div>
           {pendingMaterials.length === 0 ? (
             <EmptyState
               titleKey="pages.approvals.emptyMaterialsTitle"
               descriptionKey="pages.approvals.emptyMaterialsDescription"
             />
           ) : (
-            <ul className="space-y-3">
+            <div className="space-y-4">
               {pendingMaterials.map((request) => (
-                <li
+                <MaterialRequestDetailCard
                   key={request.id}
-                  className="rounded-xl border border-border bg-elevated/30 px-4 py-3"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-text">
-                        {request.project.name}
-                      </p>
-                      <p className="mt-1 text-xs text-muted">
-                        {formatEmployeeName(request.requestedBy)} ·{" "}
-                        {formatDisplayDate(request.createdAt)}
-                      </p>
-                      <ul className="mt-2 space-y-1 text-sm text-subtle">
-                        {request.lines.map((line) => (
-                          <li key={line.id}>
-                            {line.item.name} ({line.item.sku}) —{" "}
-                            {inventoryQtyFromDecimal(line.quantity)}{" "}
-                            {line.item.unit}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    <ReviewMaterialRequestButtons id={request.id} />
-                  </div>
-                </li>
+                  showStock
+                  request={{
+                    id: request.id,
+                    status: request.status,
+                    notes: request.notes,
+                    reviewNote: request.reviewNote,
+                    createdAt: request.createdAt,
+                    reviewedAt: request.reviewedAt,
+                    project: request.project,
+                    requestedByName: formatEmployeeName(request.requestedBy),
+                    requestedByNo: request.requestedBy.employeeNo,
+                    lines: request.lines.map((line) => ({
+                      id: line.id,
+                      quantity: inventoryQtyFromDecimal(line.quantity),
+                      item: {
+                        sku: line.item.sku,
+                        name: line.item.name,
+                        unit: line.item.unit,
+                        currentStock: inventoryQtyFromDecimal(
+                          line.item.currentStock
+                        ),
+                      },
+                    })),
+                  }}
+                  actions={<ReviewMaterialRequestButtons id={request.id} />}
+                />
               ))}
-            </ul>
+            </div>
           )}
         </SectionCard>
       </div>

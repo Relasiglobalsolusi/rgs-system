@@ -5,7 +5,7 @@ import {
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
 import Image from "next/image";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   createProgressReport,
@@ -109,7 +109,18 @@ export default function ProgressDialog({
   const [keptPhotoIds, setKeptPhotoIds] = useState<string[]>(
     () => editReport?.photos.map((p) => p.id) ?? []
   );
+  /** Local file picks — survives React form-action resets on failed submits. */
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    const urls = selectedFiles.map((file) => URL.createObjectURL(file));
+    setPreviewUrls(urls);
+    return () => {
+      for (const url of urls) URL.revokeObjectURL(url);
+    };
+  }, [selectedFiles]);
 
   const dateDefault =
     editReport?.reportDate || defaultDate || todayDateInput();
@@ -161,6 +172,7 @@ export default function ProgressDialog({
     setStageLabel("");
     setNotes("");
     setKeptPhotoIds([]);
+    setSelectedFiles([]);
   }
 
   async function submit(formData: FormData) {
@@ -206,6 +218,13 @@ export default function ProgressDialog({
       formData.set("date", openCicoLock.workDate);
     }
 
+    // Prefer local File state — native <input type="file"> is cleared when a
+    // React form action returns before/without awaiting the server work.
+    formData.delete("photos");
+    for (const file of selectedFiles) {
+      if (file && file.size > 0) formData.append("photos", file);
+    }
+
     if (isEdit && editReport) {
       if (editReport.reportDate !== todayDateInput()) {
         showRejection({
@@ -218,32 +237,43 @@ export default function ProgressDialog({
       for (const id of keptPhotoIds) {
         formData.append("keepPhotoIds", id);
       }
-      const newPhotos = formData.getAll("photos") as File[];
-      const hasNew = newPhotos.some((p) => p && p.size > 0);
-      if (keptPhotoIds.length === 0 && !hasNew) {
+      if (keptPhotoIds.length === 0 && selectedFiles.length === 0) {
         showRejection({ reasons: t("pages.progress.photoRequired") });
         return;
       }
+    } else if (selectedFiles.length === 0) {
+      showRejection({ reasons: t("pages.progress.photoRequired") });
+      return;
     }
 
-    startTransition(async () => {
-      try {
-        if (isEdit) {
-          await updateProgressReport(formData);
-        } else {
-          await createProgressReport(formData);
-        }
-        setOpen(false);
-        if (!isEdit) resetFormFields();
-        router.refresh();
-      } catch (error) {
-        showRejectionFromError(
-          error,
-          isEdit
-            ? t("pages.progress.editFailed")
-            : t("pages.progress.submitFailed")
-        );
-      }
+    // Await the server action so React does not treat the form as finished
+    // (and wipe the file input) while the upload is still in flight.
+    await new Promise<void>((resolve) => {
+      startTransition(() => {
+        void (async () => {
+          try {
+            if (isEdit) {
+              await updateProgressReport(formData);
+            } else {
+              await createProgressReport(formData);
+            }
+            setOpen(false);
+            if (!isEdit) resetFormFields();
+            else setSelectedFiles([]);
+            router.refresh();
+            resolve();
+          } catch (error) {
+            showRejectionFromError(
+              error,
+              isEdit
+                ? t("pages.progress.editFailed")
+                : t("pages.progress.submitFailed")
+            );
+            // Keep selectedFiles so the user does not lose the photo pick.
+            resolve();
+          }
+        })();
+      });
     });
   }
 
@@ -262,6 +292,7 @@ export default function ProgressDialog({
             setStageLabel("");
             setNotes("");
             setKeptPhotoIds([]);
+            setSelectedFiles([]);
           }
         }
       }}
@@ -500,17 +531,75 @@ export default function ProgressDialog({
               ) : null}
             </label>
             <Input
-              name="photos"
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif"
               multiple
-              required={!isEdit}
               capture="environment"
+              onChange={(event) => {
+                const picked = Array.from(event.target.files ?? []).filter(
+                  (file) => file.size > 0
+                );
+                if (picked.length === 0) return;
+                // Append — each file-picker open replaces `event.target.files`,
+                // so we must merge into local state instead of overwriting.
+                setSelectedFiles((prev) => {
+                  const seen = new Set(
+                    prev.map(
+                      (file) =>
+                        `${file.name}:${file.size}:${file.lastModified}`
+                    )
+                  );
+                  const next = [...prev];
+                  for (const file of picked) {
+                    const key = `${file.name}:${file.size}:${file.lastModified}`;
+                    if (seen.has(key)) continue;
+                    seen.add(key);
+                    next.push(file);
+                  }
+                  return next;
+                });
+                // Allow picking the same file again after remove / re-open.
+                event.target.value = "";
+              }}
               className={cn(
                 employeeInputClass,
                 "cursor-pointer file:mr-3 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-text"
               )}
             />
+            {selectedFiles.length > 0 ? (
+              <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {selectedFiles.map((file, index) => (
+                  <div
+                    key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
+                    className="relative aspect-square overflow-hidden rounded-xl border border-border bg-inset"
+                  >
+                    {previewUrls[index] ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- blob preview
+                      <img
+                        src={previewUrls[index]}
+                        alt={file.name}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSelectedFiles((prev) =>
+                          prev.filter((_, i) => i !== index)
+                        )
+                      }
+                      className="absolute right-1.5 top-1.5 rounded-full bg-black/70 p-1 text-white transition hover:bg-black/90"
+                      aria-label={t("pages.progress.removePhoto")}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                    <p className="absolute inset-x-0 bottom-0 truncate bg-black/60 px-1.5 py-1 text-[0.625rem] text-white">
+                      {file.name}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             <p className="text-xs text-subtle">
               {t("pages.progress.photoUploadHint")}
             </p>

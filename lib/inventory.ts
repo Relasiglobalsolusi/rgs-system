@@ -3,7 +3,10 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/project-billing";
 
-/** Projects that may receive inventory issues. */
+/**
+ * Project statuses eligible to receive warehouse stock
+ * (Material Request → Approvals → Transfer Order → receive).
+ */
 export const INVENTORY_ISSUE_PROJECT_STATUSES = [
   "IN_PROGRESS",
   "WAITING_FOR_APPROVAL",

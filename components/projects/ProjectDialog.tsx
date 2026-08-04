@@ -19,6 +19,7 @@ import ProjectStaffPicker, {
   type ProjectStaffEmployee,
 } from "@/components/projects/ProjectStaffPicker";
 import ProjectTimelineFields from "@/components/projects/ProjectTimelineFields";
+import ServiceCommercialFields from "@/components/projects/ServiceCommercialFields";
 import {
   captureHtmlFormBaseline,
   EmployeeDialogShell,
@@ -48,13 +49,18 @@ import {
   type DirectoryDialogControlProps,
 } from "@/components/ui/use-directory-dialog-open";
 import { FolderKanban } from "lucide-react";
-import { PROJECT_SUB_CATEGORIES } from "@/lib/project-subcategory";
+import {
+  COMMERCIAL_PROJECT_SUB_CATEGORIES,
+  isServiceProjectSubCategory,
+  subCategoryForServiceArea,
+} from "@/lib/project-subcategory";
 import type { ProjectServiceAreaValue } from "@/lib/service-area";
 import {
   DEFAULT_CONTRACT_DURATION_MONTHS,
   DEFAULT_PROJECT_DURATION_DAYS,
   isContractSubCategory,
   todayDateInput,
+  usesMonthDurationTimeline,
 } from "@/lib/project-contract";
 import {
   DEFAULT_MILESTONE_PAYMENTS,
@@ -77,6 +83,7 @@ type Client = {
   id: string;
   name: string;
   npwp?: string | null;
+  paymentTermsDays?: number | null;
 };
 
 type InitialStatus = "PLANNED" | "IN_PROGRESS";
@@ -112,7 +119,7 @@ export default function ProjectDialog({
 
   const subcategoryOptions = useMemo(
     () =>
-      PROJECT_SUB_CATEGORIES.map((value) => ({
+      COMMERCIAL_PROJECT_SUB_CATEGORIES.map((value) => ({
         value,
         label: localizeSubCategory(value, locale),
       })),
@@ -168,9 +175,12 @@ export default function ProjectDialog({
   const isBusy = pending || submitting;
 
   const isContract = isContractSubCategory(subCategory);
+  const isService = isServiceProjectSubCategory(subCategory);
+  const isMonthTimeline = usesMonthDurationTimeline(subCategory);
   const isMilestoneEligible = isMilestoneSubCategory(subCategory);
   const showPaymentPlan =
     isMilestoneEligible && billingMode === "MILESTONE";
+  const selectedClient = clients.find((item) => item.id === clientId);
 
   const controlledSignature = useMemo(
     () =>
@@ -238,6 +248,7 @@ export default function ProjectDialog({
     applyTaxDefaultsFromClient(initialClient);
     setInitialStatus("PLANNED");
     setSubCategory("REGULAR_CLEANING");
+    setServiceArea("CLEANING");
     setBillingMode(defaultBillingMode("REGULAR_CLEANING"));
     setBillingPeriodBasis("CONTRACT_CYCLE");
     resetPaymentPlan();
@@ -303,8 +314,26 @@ export default function ProjectDialog({
     if (!isMilestoneSubCategory(next) || nextMode !== "MILESTONE") {
       resetPaymentPlan();
     }
-    if (isContractSubCategory(next) && !startDate) {
+    if (
+      (isContractSubCategory(next) || usesMonthDurationTimeline(next)) &&
+      !startDate
+    ) {
       setStartDate(todayDateInput());
+    }
+  }
+
+  function handleServiceAreaChange(next: ProjectServiceAreaValue) {
+    setServiceArea(next);
+    const locked = subCategoryForServiceArea(next);
+    if (locked) {
+      handleSubCategoryChange(locked);
+      return;
+    }
+    // Switching back to Cleaning: keep a valid cleaning subcategory.
+    if (!COMMERCIAL_PROJECT_SUB_CATEGORIES.includes(
+      subCategory as (typeof COMMERCIAL_PROJECT_SUB_CATEGORIES)[number]
+    )) {
+      handleSubCategoryChange("REGULAR_CLEANING");
     }
   }
 
@@ -375,11 +404,13 @@ export default function ProjectDialog({
           icon={FolderKanban}
           title={t("pages.projects.createProject")}
           description={
-            isContract
-              ? t("pages.projects.createDescriptionContract")
-              : showPaymentPlan
-                ? t("pages.projects.createDescriptionMilestone")
-                : t("pages.projects.createDescription")
+            isService
+              ? t("pages.projects.createDescriptionService")
+              : isContract
+                ? t("pages.projects.createDescriptionContract")
+                : showPaymentPlan
+                  ? t("pages.projects.createDescriptionMilestone")
+                  : t("pages.projects.createDescription")
           }
           maxWidth="lg"
           footer={
@@ -457,11 +488,15 @@ export default function ProjectDialog({
                 { value: "CLEANING", label: t("pages.projects.serviceAreaCleaning") },
                 { value: "PARKING", label: t("pages.projects.serviceAreaParking") },
                 { value: "SECURITY", label: t("pages.projects.serviceAreaSecurity") },
+                {
+                  value: "PAYROLL_MANAGEMENT",
+                  label: t("pages.projects.serviceAreaPayroll"),
+                },
               ]}
               onChange={(value) =>
-                setServiceArea(value as ProjectServiceAreaValue)
+                handleServiceAreaChange(value as ProjectServiceAreaValue)
               }
-              columns={3}
+              columns={2}
             />
 
             {serviceArea === "CLEANING" ? (
@@ -484,6 +519,7 @@ export default function ProjectDialog({
               />
             ) : null}
 
+            {/* Regular Cleaning only — Security/Parking/Payroll have no period basis. */}
             {isContract ? (
               <>
                 <ProjectOptionPills
@@ -523,6 +559,14 @@ export default function ProjectDialog({
               />
             ) : null}
 
+            {isService ? (
+              <ServiceCommercialFields
+                key={`${subCategory}-${clientId}`}
+                subCategory={subCategory}
+                clientPaymentTermsDays={selectedClient?.paymentTermsDays}
+              />
+            ) : null}
+
             {requiresTaxInvoice ? (
               <div className={employeeDialogFieldClass}>
                 <label
@@ -550,7 +594,7 @@ export default function ProjectDialog({
             )}
 
             {/* Timeline before map so estimated start stays visible for Planning. */}
-            {isContract ? (
+            {isMonthTimeline ? (
               <ProjectTimelineFields
                 mode="contract"
                 planning={initialStatus === "PLANNED"}
@@ -559,6 +603,29 @@ export default function ProjectDialog({
                 onStartDateChange={setStartDate}
                 onDurationMonthsChange={setDurationMonths}
               />
+            ) : isService ? (
+              <div className={employeeDialogFieldClass}>
+                <label className="text-sm font-medium text-text">
+                  {initialStatus === "PLANNED"
+                    ? t("pages.projects.timelineFields.contractStart")
+                    : t("pages.projects.timelineFields.contractStart")}
+                </label>
+                <Input
+                  name={
+                    initialStatus === "PLANNED"
+                      ? "estimatedStartDate"
+                      : "startDate"
+                  }
+                  type="date"
+                  required
+                  value={startDate}
+                  onChange={(event) => setStartDate(event.target.value)}
+                  className={employeeInputClass}
+                />
+                <p className="text-xs text-subtle">
+                  {t("pages.projects.serviceCommercial.payrollTimelineHint")}
+                </p>
+              </div>
             ) : (
               <ProjectTimelineFields
                 mode="standard"

@@ -5,9 +5,10 @@ import { Download } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   annotateStaffPickerConflicts,
+  assignableProjectCrewOrWhere,
   findEmployeesOnOtherOpenProjects,
 } from "@/lib/workforce-crew";
-import { CICO_GEOFENCE_RADIUS_METERS } from "@/lib/geo";
+import { resolveGeofenceRadiusMeters } from "@/lib/geo";
 
 import {
   requireSession,
@@ -33,7 +34,13 @@ import { listProjectEquipmentAssets } from "@/lib/equipment-asset";
 import {
   daysBetweenDates,
   isContractSubCategory,
+  usesMonthDurationTimeline,
 } from "@/lib/project-contract";
+import {
+  isInternalProjectSubCategory,
+  isServiceProjectSubCategory,
+} from "@/lib/project-subcategory";
+import { isMilestoneSubCategory } from "@/lib/project-billing";
 import {
   getProjectWorkflowStatusLabel,
   isPlanningProjectStatus,
@@ -173,22 +180,12 @@ export default async function ProjectDetailPage({
             where: {
               companyId: project.companyId,
               status: "ACTIVE",
-              OR: [
-                {
-                  employmentType: "FULL_TIME",
-                  placement: "AVAILABLE",
-                  category: { slug: "operations", active: true },
-                  jobPosition: {
-                    active: true,
-                    slug: { in: ["cleaning-staff", "gc-staff"] },
-                  },
-                },
-                { employmentType: "PART_TIME" },
-                // Already on this project (edit / reassign)
-                {
-                  projectAssignments: { some: { projectId: project.id } },
-                },
-              ],
+              OR: assignableProjectCrewOrWhere(project.companyId, {
+                includeInHouseCleaning: isInternalProjectSubCategory(
+                  project.subCategory
+                ),
+                includeAssignedToProjectId: project.id,
+              }),
             },
             include: {
               category: { select: { name: true, prefix: true, slug: true } },
@@ -254,10 +251,13 @@ export default async function ProjectDetailPage({
     item: row.item,
   }));
 
+  const isInternal = isInternalProjectSubCategory(project.subCategory);
   const billingHref =
-    project.clientId != null
+    !isInternal && project.clientId != null
       ? `/billing/${project.clientId}/${project.id}`
-      : "/billing";
+      : isInternal
+        ? null
+        : "/billing";
 
   const contractPriceNum = decimalToNumber(project.contractPrice);
   const inProjectHistory =
@@ -268,33 +268,46 @@ export default async function ProjectDetailPage({
     (OPEN_COLLECTION_STATUSES as readonly string[]).includes(period.status)
   );
   const eligibleForMoveBack =
-    canManage && project.status === "IN_PROGRESS";
+    canManage && !isInternal && project.status === "IN_PROGRESS";
   const canMoveBackToPlanning = eligibleForMoveBack && !hasOpenCollection;
   const moveBackBlockedByCollection =
     eligibleForMoveBack && hasOpenCollection;
   const deleteBlockedByInProgress =
+    !isInternal &&
     isInProgressCleaningProjectDeleteBlocked({
       status: project.status,
       subCategory: project.subCategory,
     });
-  const deleteBlockedReason = getInProgressCleaningProjectDeleteBlockReason({
-    status: project.status,
-    subCategory: project.subCategory,
-  });
+  const deleteBlockedReason = isInternal
+    ? null
+    : getInProgressCleaningProjectDeleteBlockReason({
+        status: project.status,
+        subCategory: project.subCategory,
+      });
   const canDelete =
     canDeleteActiveStage &&
     isAdminDeletableProjectStatus(project.status) &&
     !deleteBlockedByInProgress;
   const isRegularContract = isContractSubCategory(project.subCategory);
+  const isService = isServiceProjectSubCategory(project.subCategory);
+  const isMonthTimeline = usesMonthDurationTimeline(project.subCategory);
+  // Regular Cleaning + Security / Parking / Payroll Management (commercial terms, no periods).
   const canEndContract =
-    canManage && project.status === "IN_PROGRESS" && isRegularContract;
-  // G3: non-regular In Progress projects can be submitted for approval.
+    canManage &&
+    !isInternal &&
+    project.status === "IN_PROGRESS" &&
+    (isRegularContract || isService);
+  // G3: General / Facade In Progress only — not Security / Parking / Payroll.
   const showSubmitForApproval =
     canManage &&
-    !isRegularContract &&
+    !isInternal &&
+    isMilestoneSubCategory(project.subCategory) &&
     project.status === "IN_PROGRESS";
   const showCompletedJobDuration =
-    project.status === "COMPLETED" && !isRegularContract;
+    project.status === "COMPLETED" &&
+    !isRegularContract &&
+    !isService &&
+    !isMonthTimeline;
   const actualDurationDays = showCompletedJobDuration
     ? daysBetweenDates(project.startDate, project.endDate)
     : null;
@@ -357,16 +370,25 @@ export default async function ProjectDetailPage({
   const statusLines = localizeWorkflowChipLines(workflowStatus, locale);
   const typeLabel = localizeSubCategory(project.subCategory, locale);
   const typeLines = localizeSubCategoryChipLines(project.subCategory, locale);
-  const pageDescription = [project.client?.name, typeLabel]
-    .filter(Boolean)
-    .join(" · ");
-  const billingSubtext =
-    (project.billingMode === "MONTHLY"
-      ? t("pages.projects.detail.anniversaryInvoiceDay", {
-          day: project.invoicingDay,
-        })
-      : t("pages.projects.detail.contractPriceAndInvoices")) +
-    (inPlanning ? t("pages.projects.detail.availableAfterInProgress") : "");
+  const pageDescription = isInternal
+    ? typeLabel
+    : [project.client?.name, typeLabel].filter(Boolean).join(" · ");
+  const billingSubtext = isService
+    ? t("pages.projects.detail.serviceBillingNote")
+    : (project.billingMode === "MONTHLY"
+        ? t("pages.projects.detail.anniversaryInvoiceDay", {
+            day: project.invoicingDay,
+          })
+        : t("pages.projects.detail.contractPriceAndInvoices")) +
+      (inPlanning ? t("pages.projects.detail.availableAfterInProgress") : "");
+  const hasSiteCoords =
+    project.latitude != null && project.longitude != null;
+  const geofenceRadiusMeters = resolveGeofenceRadiusMeters(
+    project.locationRadiusMeters
+  );
+  const coordinatesLabel = hasSiteCoords
+    ? `${project.latitude!.toFixed(6)}, ${project.longitude!.toFixed(6)}`
+    : null;
 
   return (
     <AppShell title={pageTitle} description={pageDescription || undefined}>
@@ -386,7 +408,7 @@ export default async function ProjectDetailPage({
         }
         canEndContract={canEndContract}
         inPlanning={inPlanning}
-        showMoveToInProgress={inPlanning}
+        showMoveToInProgress={!isInternal && inPlanning}
         showSubmitForApproval={showSubmitForApproval}
         canMoveBackToPlanning={canMoveBackToPlanning}
         moveBackBlockedByCollection={moveBackBlockedByCollection}
@@ -415,6 +437,12 @@ export default async function ProjectDetailPage({
           billingMode: project.billingMode,
           billingPeriodBasis: project.billingPeriodBasis,
           requiresTaxInvoice: project.requiresTaxInvoice,
+          contractPrice: contractPriceNum,
+          setupCost: decimalToNumber(project.setupCost),
+          profitSharePercent: decimalToNumber(project.profitSharePercent),
+          monthlyClientFee: decimalToNumber(project.monthlyClientFee),
+          serviceFeePercent: decimalToNumber(project.serviceFeePercent),
+          paymentTermsDays: project.paymentTermsDays,
           clientId: project.clientId,
           status: project.status,
           assignments: project.assignments.map((a) => ({
@@ -481,14 +509,16 @@ export default async function ProjectDetailPage({
 
             <table className="w-full text-sm">
               <tbody>
-                <tr className="border-b border-border">
-                  <th scope="row" className={metaLabelClassName}>
-                    {t("pages.projects.detail.client")}
-                  </th>
-                  <td className={`${metaValueClassName} font-medium`}>
-                    {project.client?.name ?? "—"}
-                  </td>
-                </tr>
+                {!isInternal ? (
+                  <tr className="border-b border-border">
+                    <th scope="row" className={metaLabelClassName}>
+                      {t("pages.projects.detail.client")}
+                    </th>
+                    <td className={`${metaValueClassName} font-medium`}>
+                      {project.client?.name ?? "—"}
+                    </td>
+                  </tr>
+                ) : null}
                 <tr className="border-b border-border">
                   <th scope="row" className={metaLabelClassName}>
                     {t("pages.projects.detail.location")}
@@ -499,7 +529,30 @@ export default async function ProjectDetailPage({
                     {project.location?.trim() || "—"}
                   </td>
                 </tr>
-                {inPlanning ? (
+                {isInternal ? (
+                  <>
+                    <tr className="border-b border-border">
+                      <th scope="row" className={metaLabelClassName}>
+                        {t("pages.projects.detail.cicoCoordinates")}
+                      </th>
+                      <td className={`${metaValueClassName} font-medium`}>
+                        {coordinatesLabel ??
+                          t("pages.projects.detail.cicoGpsNotSet")}
+                      </td>
+                    </tr>
+                    <tr className="border-b border-border">
+                      <th scope="row" className={metaLabelClassName}>
+                        {t("pages.projects.detail.cicoGeofenceRadius")}
+                      </th>
+                      <td className={`${metaValueClassName} font-medium`}>
+                        {t("pages.projects.detail.cicoGeofenceRadiusValue", {
+                          meters: geofenceRadiusMeters,
+                        })}
+                      </td>
+                    </tr>
+                  </>
+                ) : null}
+                {!isInternal && inPlanning ? (
                   <tr className="border-b border-border">
                     <th scope="row" className={metaLabelClassName}>
                       {t("pages.projects.detail.estimatedStart")}
@@ -508,7 +561,8 @@ export default async function ProjectDetailPage({
                       {timeline}
                     </td>
                   </tr>
-                ) : (
+                ) : null}
+                {!isInternal && !inPlanning ? (
                   <tr className="border-b border-border">
                     <th
                       scope="row"
@@ -554,8 +608,8 @@ export default async function ProjectDetailPage({
                       </div>
                     </td>
                   </tr>
-                )}
-                {showCompletedJobDuration ? (
+                ) : null}
+                {!isInternal && showCompletedJobDuration ? (
                   <tr className="border-b border-border">
                     <th scope="row" className={metaLabelClassName}>
                       {t("pages.projects.detail.actualDurationDays")}
@@ -585,16 +639,99 @@ export default async function ProjectDetailPage({
                     </td>
                   </tr>
                 ) : null}
-                <tr className="border-b border-border">
-                  <th scope="row" className={metaLabelClassName}>
-                    {t("pages.projects.detail.contractPrice")}
-                  </th>
-                  <td className={`${metaValueClassName} font-medium`}>
-                    {formatContractPrice(contractPriceNum)}
-                  </td>
-                </tr>
-                {showInventoryCosts ? (
+                {!isInternal && project.subCategory === "SECURITY" ? (
                   <tr className="border-b border-border">
+                    <th scope="row" className={metaLabelClassName}>
+                      {t("pages.projects.serviceCommercial.monthlyFee")}
+                    </th>
+                    <td className={`${metaValueClassName} font-medium`}>
+                      {formatContractPrice(contractPriceNum)}
+                    </td>
+                  </tr>
+                ) : null}
+                {!isInternal && project.subCategory === "PARKING" ? (
+                  <>
+                    <tr className="border-b border-border">
+                      <th scope="row" className={metaLabelClassName}>
+                        {t("pages.projects.serviceCommercial.setupCost")}
+                      </th>
+                      <td className={`${metaValueClassName} font-medium`}>
+                        {formatContractPrice(
+                          decimalToNumber(project.setupCost)
+                        )}
+                      </td>
+                    </tr>
+                    <tr className="border-b border-border">
+                      <th scope="row" className={metaLabelClassName}>
+                        {t(
+                          "pages.projects.serviceCommercial.profitSharePercent"
+                        )}
+                      </th>
+                      <td className={`${metaValueClassName} font-medium`}>
+                        {decimalToNumber(project.profitSharePercent) != null
+                          ? `${decimalToNumber(project.profitSharePercent)}%`
+                          : "—"}
+                      </td>
+                    </tr>
+                    <tr className="border-b border-border">
+                      <th scope="row" className={metaLabelClassName}>
+                        {t(
+                          "pages.projects.serviceCommercial.monthlyClientFee"
+                        )}
+                      </th>
+                      <td className={`${metaValueClassName} font-medium`}>
+                        {formatContractPrice(
+                          decimalToNumber(project.monthlyClientFee)
+                        )}
+                      </td>
+                    </tr>
+                  </>
+                ) : null}
+                {!isInternal &&
+                project.subCategory === "PAYROLL_MANAGEMENT" ? (
+                  <>
+                    <tr className="border-b border-border">
+                      <th scope="row" className={metaLabelClassName}>
+                        {t(
+                          "pages.projects.serviceCommercial.serviceFeePercent"
+                        )}
+                      </th>
+                      <td className={`${metaValueClassName} font-medium`}>
+                        {decimalToNumber(project.serviceFeePercent) != null
+                          ? `${decimalToNumber(project.serviceFeePercent)}%`
+                          : "—"}
+                      </td>
+                    </tr>
+                    <tr className="border-b border-border">
+                      <th scope="row" className={metaLabelClassName}>
+                        {t(
+                          "pages.projects.serviceCommercial.paymentTermsDays"
+                        )}
+                      </th>
+                      <td className={`${metaValueClassName} font-medium`}>
+                        {project.paymentTermsDays === 0
+                          ? t("common.paymentTerms.cashShort")
+                          : project.paymentTermsDays != null
+                            ? t("common.paymentTerms.netShort", {
+                                days: project.paymentTermsDays,
+                              })
+                            : "—"}
+                      </td>
+                    </tr>
+                  </>
+                ) : null}
+                {!isInternal && !isService ? (
+                  <tr className="border-b border-border">
+                    <th scope="row" className={metaLabelClassName}>
+                      {t("pages.projects.detail.contractPrice")}
+                    </th>
+                    <td className={`${metaValueClassName} font-medium`}>
+                      {formatContractPrice(contractPriceNum)}
+                    </td>
+                  </tr>
+                ) : null}
+                {showInventoryCosts ? (
+                  <tr className={isInternal ? undefined : "border-b border-border"}>
                     <th scope="row" className={metaLabelClassName}>
                       {t("pages.projects.detail.inventoryCost")}
                     </th>
@@ -603,34 +740,55 @@ export default async function ProjectDetailPage({
                     </td>
                   </tr>
                 ) : null}
-                <tr>
-                  <th scope="row" className={metaLabelClassName}>
-                    {t("pages.projects.detail.billing")}
-                  </th>
-                  <td className={metaValueClassName}>
-                    <div className="space-y-1">
-                      <p className="font-medium">{modeLabel}</p>
-                      <p className="text-sm leading-snug text-subtle">
-                        {billingSubtext}
-                      </p>
-                    </div>
-                  </td>
-                </tr>
+                {!isInternal ? (
+                  <tr>
+                    <th scope="row" className={metaLabelClassName}>
+                      {t("pages.projects.detail.billing")}
+                    </th>
+                    <td className={metaValueClassName}>
+                      <div className="space-y-1">
+                        <p className="font-medium">{modeLabel}</p>
+                        <p className="text-sm leading-snug text-subtle">
+                          {billingSubtext}
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </SectionCard>
 
-          {project.latitude != null && project.longitude != null && (
+          {(hasSiteCoords || isInternal) && (
             <SectionCard className={sectionCardClassName}>
-              <h3 className={`${sectionTitleClassName} mb-3`}>
-                {t("pages.projects.detail.siteLocation")}
+              <h3
+                className={`${sectionTitleClassName} ${
+                  isInternal ? "mb-1" : "mb-3"
+                }`}
+              >
+                {isInternal
+                  ? t("pages.projects.detail.cicoSiteLocation")
+                  : t("pages.projects.detail.siteLocation")}
               </h3>
-              <ProjectLocationMap
-                latitude={project.latitude}
-                longitude={project.longitude}
-                location={project.location}
-                radiusMeters={CICO_GEOFENCE_RADIUS_METERS}
-              />
+              {isInternal ? (
+                <p className="mb-3 text-sm leading-relaxed text-subtle">
+                  {t("pages.projects.detail.cicoSiteLocationHint")}
+                </p>
+              ) : null}
+              {hasSiteCoords ? (
+                <ProjectLocationMap
+                  latitude={project.latitude!}
+                  longitude={project.longitude!}
+                  location={project.location}
+                  radiusMeters={geofenceRadiusMeters}
+                />
+              ) : (
+                <p className="rounded-xl border border-border bg-elevated/60 px-4 py-3 text-sm leading-relaxed text-subtle">
+                  {canManage
+                    ? t("pages.projects.detail.cicoGpsEmptyManage")
+                    : t("pages.projects.detail.cicoGpsEmptyView")}
+                </p>
+              )}
             </SectionCard>
           )}
 
@@ -643,24 +801,26 @@ export default async function ProjectDetailPage({
             />
           ) : null}
 
-          {!inPlanning ? (
+          {!isInternal && !isService && !inPlanning ? (
             <SectionCard className={sectionCardClassName}>
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <h3 className={sectionTitleClassName}>
                   {t("pages.projects.detail.invoicesPayments")}
                 </h3>
-                <Link
-                  href={billingHref}
-                  className={cn(
-                    buttonVariants({
-                      variant: "successBadge",
-                      size: "badgeFlex",
-                    }),
-                    "text-xs tracking-[0.06em]"
-                  )}
-                >
-                  {t("pages.projects.detail.fullBilling")}
-                </Link>
+                {billingHref ? (
+                  <Link
+                    href={billingHref}
+                    className={cn(
+                      buttonVariants({
+                        variant: "successBadge",
+                        size: "badgeFlex",
+                      }),
+                      "text-xs tracking-[0.06em]"
+                    )}
+                  >
+                    {t("pages.projects.detail.fullBilling")}
+                  </Link>
+                ) : null}
               </div>
 
               {invoicePeriodsForDisplay.length === 0 ? (
@@ -802,12 +962,28 @@ export default async function ProjectDetailPage({
                       latitude: project.latitude,
                       longitude: project.longitude,
                       locationRadiusMeters: project.locationRadiusMeters,
+                      estimatedStartDate: project.estimatedStartDate,
+                      estimatedDurationDays: project.estimatedDurationDays,
                       startDate: project.startDate,
                       endDate: project.endDate,
                       progress: project.progress,
                       subCategory: project.subCategory,
+                      serviceArea: asProjectServiceArea(project.serviceArea),
                       billingMode: project.billingMode,
+                      billingPeriodBasis: project.billingPeriodBasis,
                       requiresTaxInvoice: project.requiresTaxInvoice,
+                      contractPrice: contractPriceNum,
+                      setupCost: decimalToNumber(project.setupCost),
+                      profitSharePercent: decimalToNumber(
+                        project.profitSharePercent
+                      ),
+                      monthlyClientFee: decimalToNumber(
+                        project.monthlyClientFee
+                      ),
+                      serviceFeePercent: decimalToNumber(
+                        project.serviceFeePercent
+                      ),
+                      paymentTermsDays: project.paymentTermsDays,
                       clientId: project.clientId,
                       status: project.status,
                       assignments: project.assignments.map((a) => ({

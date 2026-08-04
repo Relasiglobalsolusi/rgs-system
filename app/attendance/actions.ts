@@ -15,6 +15,7 @@ import {
 import { formatDisplayDate, DISPLAY_LOCALE } from "@/lib/format-date";
 import { getServerLocale, localeToBcp47 } from "@/lib/i18n/locale";
 import { formatAppDateInput } from "@/lib/progress-report-compliance";
+import { ensureInternalAttendanceSites } from "@/lib/ensure-internal-attendance-sites";
 import type { ProjectSubCategory } from "@prisma/client";
 
 export type AttendanceClientRow = {
@@ -28,6 +29,21 @@ export type AttendanceProjectRow = {
   name: string;
   location: string | null;
   subCategory: ProjectSubCategory;
+  serviceArea: string;
+};
+
+/** Pinned Head Office / Warehouse cards on the Attendance Report home. */
+export type AttendanceInternalSiteRow = {
+  /** Route client id — `"internal"` for company-owned Internal projects. */
+  clientId: string;
+  projectId: string;
+  name: string;
+  kind: "HEAD_OFFICE" | "WAREHOUSE";
+};
+
+export type AttendanceDirectory = {
+  internalSites: AttendanceInternalSiteRow[];
+  clients: AttendanceClientRow[];
 };
 
 export type AttendanceProjectContext = {
@@ -65,28 +81,81 @@ export type AttendanceMonthData = {
 };
 
 export async function getAttendanceClients(): Promise<AttendanceClientRow[]> {
+  const directory = await getAttendanceDirectory();
+  return directory.clients;
+}
+
+/** Attendance home: Internal (HO + Warehouse) then external clients. */
+export async function getAttendanceDirectory(): Promise<AttendanceDirectory> {
   const session = await requireModule("attendance");
+  const companyId = session.user.companyId;
+  if (!companyId) {
+    return { internalSites: [], clients: [] };
+  }
+
+  // Client portal: no internal RGS sites — only their client.
+  const isClientPortal = Boolean(session.user.clientId);
+  let internalClientId: string | null = null;
+  let internalSites: AttendanceInternalSiteRow[] = [];
+
+  if (!isClientPortal) {
+    const ensured = await ensureInternalAttendanceSites(companyId);
+    internalClientId = ensured.internalClientId;
+    internalSites = ensured.sites;
+  }
+
   const projectWhere = await getProjectWhereForUser({
-    companyId: session.user.companyId,
+    companyId,
     clientId: session.user.clientId,
   });
 
+  const { ATTENDANCE_INTERNAL_CLIENT_NAME, isAttendanceInternalProject } =
+    await import("@/lib/attendance-internal-sites");
+  const { normalizeClientName } = await import("@/lib/client-login-id");
+
   const clients = await prisma.client.findMany({
     where: {
-      companyId: session.user.companyId,
+      companyId,
       active: true,
       ...(session.user.clientId ? { id: session.user.clientId } : {}),
-      projects: { some: projectWhere },
+      ...(internalClientId ? { id: { not: internalClientId } } : {}),
+      nameNormalized: {
+        not: normalizeClientName(ATTENDANCE_INTERNAL_CLIENT_NAME),
+      },
+      projects: {
+        some: {
+          ...projectWhere,
+          subCategory: { not: "INTERNAL" },
+        },
+      },
     },
     include: {
-      projects: { where: projectWhere, select: { id: true } },
+      projects: {
+        where: {
+          ...projectWhere,
+          subCategory: { not: "INTERNAL" },
+        },
+        select: { id: true, name: true, serviceArea: true, subCategory: true },
+      },
     },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   });
 
-  return clients
-    .map((c) => ({ id: c.id, name: c.name, projectCount: c.projects.length }))
-    .filter((c) => c.projectCount > 0);
+  return {
+    internalSites,
+    clients: clients
+      .map((c) => {
+        const commercial = c.projects.filter(
+          (p) => !isAttendanceInternalProject(p)
+        );
+        return {
+          id: c.id,
+          name: c.name,
+          projectCount: commercial.length,
+        };
+      })
+      .filter((c) => c.projectCount > 0),
+  };
 }
 
 export async function getAttendanceProjectsForClient(
@@ -108,7 +177,13 @@ export async function getAttendanceProjectsForClient(
     include: {
       projects: {
         where: projectWhere,
-        select: { id: true, name: true, location: true, subCategory: true },
+        select: {
+          id: true,
+          name: true,
+          location: true,
+          subCategory: true,
+          serviceArea: true,
+        },
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       },
     },
@@ -116,7 +191,15 @@ export async function getAttendanceProjectsForClient(
 
   if (!client) return null;
 
-  return { clientName: client.name, projects: client.projects };
+  const { partitionAttendanceProjects } = await import(
+    "@/lib/attendance-internal-sites"
+  );
+  const { internal, projects } = partitionAttendanceProjects(client.projects);
+
+  return {
+    clientName: client.name,
+    projects: [...internal, ...projects],
+  };
 }
 
 async function getAccessibleAttendanceProject(
@@ -124,15 +207,46 @@ async function getAccessibleAttendanceProject(
   projectId: string
 ) {
   const session = await requireModule("attendance");
+  const { ATTENDANCE_INTERNAL_ROUTE_CLIENT_ID } = await import(
+    "@/lib/attendance-internal-sites"
+  );
+  const isInternalRoute = clientId === ATTENDANCE_INTERNAL_ROUTE_CLIENT_ID;
 
-  if (session.user.clientId && session.user.clientId !== clientId) {
-    return null;
+  // Client portal never sees Internal company sites.
+  if (session.user.clientId) {
+    if (isInternalRoute || session.user.clientId !== clientId) {
+      return null;
+    }
   }
 
   const projectWhere = await getProjectWhereForUser({
     companyId: session.user.companyId,
     clientId: session.user.clientId,
   });
+
+  if (isInternalRoute) {
+    return prisma.project.findFirst({
+      where: {
+        id: projectId,
+        companyId: session.user.companyId,
+        OR: [
+          { subCategory: "INTERNAL" },
+          { serviceArea: "HEAD_OFFICE" },
+        ],
+        ...projectWhere,
+      },
+      select: {
+        id: true,
+        name: true,
+        subCategory: true,
+        startDate: true,
+        estimatedStartDate: true,
+        endDate: true,
+        createdAt: true,
+        client: { select: { name: true } },
+      },
+    });
+  }
 
   return prisma.project.findFirst({
     where: {
@@ -144,6 +258,7 @@ async function getAccessibleAttendanceProject(
     select: {
       id: true,
       name: true,
+      subCategory: true,
       startDate: true,
       estimatedStartDate: true,
       endDate: true,
@@ -158,11 +273,20 @@ export async function getAttendanceProjectContext(
   projectId: string
 ): Promise<AttendanceProjectContext | null> {
   const project = await getAccessibleAttendanceProject(clientId, projectId);
-  if (!project?.client) return null;
+  if (!project) return null;
+
+  const { ATTENDANCE_INTERNAL_ROUTE_CLIENT_ID } = await import(
+    "@/lib/attendance-internal-sites"
+  );
+  const clientName =
+    clientId === ATTENDANCE_INTERNAL_ROUTE_CLIENT_ID
+      ? "Internal"
+      : project.client?.name;
+  if (!clientName) return null;
 
   return {
     projectName: project.name,
-    clientName: project.client.name,
+    clientName,
     bounds: getReportPeriodBounds(project),
   };
 }
@@ -174,7 +298,16 @@ export async function getAttendanceMonthData(
   month: number
 ): Promise<AttendanceMonthData | null> {
   const project = await getAccessibleAttendanceProject(clientId, projectId);
-  if (!project?.client) return null;
+  if (!project) return null;
+
+  const { ATTENDANCE_INTERNAL_ROUTE_CLIENT_ID } = await import(
+    "@/lib/attendance-internal-sites"
+  );
+  const clientName =
+    clientId === ATTENDANCE_INTERNAL_ROUTE_CLIENT_ID
+      ? "Internal"
+      : project.client?.name;
+  if (!clientName) return null;
 
   const locale = await getServerLocale();
   const bcp47 = localeToBcp47(locale);
@@ -204,6 +337,8 @@ export async function getAttendanceMonthData(
   ]);
 
   const shiftMap = new Map(assignments.map((a) => [a.employeeId, a]));
+  const { getOfficeCicoPunctuality } = await import("@/lib/office-cico");
+  const isInternal = project.subCategory === "INTERNAL";
 
   const dayDateLabels = new Map<string, string>();
   const dayGroups = new Map<
@@ -236,8 +371,26 @@ export async function getAttendanceMonthData(
 
     const assignment = shiftMap.get(record.employeeId);
     const expected = resolveExpectedShiftStart(assignment);
-    const isLate =
+    const officePunctuality = isInternal
+      ? getOfficeCicoPunctuality({
+          checkIn: record.checkIn,
+          checkOut: record.checkOut,
+        })
+      : null;
+    let isLate: boolean | null =
       record.checkIn != null ? isLateCheckIn(record.checkIn, expected) : null;
+    if (isInternal && record.checkIn != null && isLate == null) {
+      isLate = officePunctuality?.lateCheckIn ?? false;
+    }
+    let note = record.note;
+    if (isInternal && officePunctuality?.earlyCheckOut) {
+      const earlyTag = "Left early (before 17:00)";
+      note = note?.includes(earlyTag)
+        ? note
+        : note
+          ? `${note} · ${earlyTag}`
+          : earlyTag;
+    }
 
     dayGroups.get(dateKey)!.rows.push({
       id: record.id,
@@ -247,12 +400,14 @@ export async function getAttendanceMonthData(
       checkInDistanceMeters: record.checkInDistanceMeters,
       checkOutDistanceMeters: record.checkOutDistanceMeters,
       checkInPhotoUrl: record.checkInPhotoUrl,
-      note: record.note,
+      note,
       isLate,
-      shiftLabel: formatTimeRange(
-        assignment?.shiftStart ?? null,
-        assignment?.shiftEnd ?? null
-      ),
+      shiftLabel: isInternal
+        ? "09:00 – 17:00"
+        : formatTimeRange(
+            assignment?.shiftStart ?? null,
+            assignment?.shiftEnd ?? null
+          ),
       employee: record.employee,
       project: null,
     });
@@ -269,7 +424,7 @@ export async function getAttendanceMonthData(
 
   return {
     projectName: project.name,
-    clientName: project.client.name,
+    clientName,
     groups,
   };
 }

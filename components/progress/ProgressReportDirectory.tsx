@@ -47,7 +47,6 @@ export type ProgressDirectoryEmployee = {
   lastName: string;
   employeeNo: string;
   category: { name: string } | null;
-  missing: boolean;
   reports: ProgressDirectoryReport[];
 };
 
@@ -194,7 +193,6 @@ export default function ProgressReportDirectory({
             (sum, e) => sum + e.reports.length,
             0
           );
-          const missingCount = project.employees.filter((e) => e.missing).length;
 
           return (
             <SectionCard key={project.id} className="!p-0 overflow-hidden">
@@ -224,11 +222,6 @@ export default function ProgressReportDirectory({
                         : "pages.progress.submittedCountOther",
                       { count: reportCount }
                     )}
-                    {missingCount > 0
-                      ? ` · ${t("pages.progress.missingEmployeeCount", {
-                          count: missingCount,
-                        })}`
-                      : ""}
                   </p>
                 </div>
               </button>
@@ -273,11 +266,7 @@ export default function ProgressReportDirectory({
                               )}
                             </p>
                           </div>
-                          {employee.missing ? (
-                            <StatusBadge status="warning" compact>
-                              {t("pages.progress.missingBadge")}
-                            </StatusBadge>
-                          ) : employee.reports.length > 0 ? (
+                          {employee.reports.length > 0 ? (
                             <StatusBadge status="success" compact>
                               {t("pages.progress.submitted")}
                             </StatusBadge>
@@ -288,9 +277,7 @@ export default function ProgressReportDirectory({
                           <div className="space-y-2 border-t border-border px-3 py-3 sm:px-4">
                             {employee.reports.length === 0 ? (
                               <p className="px-1 py-2 text-sm text-subtle">
-                                {employee.missing
-                                  ? t("pages.progress.noReportsAfterShift")
-                                  : t("pages.progress.noReportsYet")}
+                                {t("pages.progress.noReportsYet")}
                               </p>
                             ) : (
                               employee.reports.map((report) => (

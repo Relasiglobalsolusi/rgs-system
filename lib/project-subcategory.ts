@@ -1,26 +1,88 @@
-import type { ProjectSubCategory } from "@prisma/client";
+import type { ProjectSubCategory, ServiceArea } from "@prisma/client";
 
 export type { ProjectSubCategory };
 
+/** Commercial + Internal + non-cleaning services — full enum set used in the app. */
 export const PROJECT_SUB_CATEGORIES = [
+  "REGULAR_CLEANING",
+  "GENERAL_CLEANING",
+  "FACADE_CLEANING",
+  "INTERNAL",
+  "SECURITY",
+  "PARKING",
+  "PAYROLL_MANAGEMENT",
+] as const satisfies readonly ProjectSubCategory[];
+
+/** Client-facing cleaning types (directory filters / create dialog pills). */
+export const COMMERCIAL_PROJECT_SUB_CATEGORIES = [
   "REGULAR_CLEANING",
   "GENERAL_CLEANING",
   "FACADE_CLEANING",
 ] as const satisfies readonly ProjectSubCategory[];
 
-/** Cleaning project types that require field progress reports. */
-export const CLEANING_PROJECT_SUB_CATEGORIES = PROJECT_SUB_CATEGORIES;
+/**
+ * Non-cleaning client service projects (Security / Parking / Payroll Management).
+ * No cleaning-style ProjectInvoicePeriod billing.
+ */
+export const SERVICE_PROJECT_SUB_CATEGORIES = [
+  "SECURITY",
+  "PARKING",
+  "PAYROLL_MANAGEMENT",
+] as const satisfies readonly ProjectSubCategory[];
+
+/** All client-facing project types (cleaning commercial + service). */
+export const CLIENT_PROJECT_SUB_CATEGORIES = [
+  ...COMMERCIAL_PROJECT_SUB_CATEGORIES,
+  ...SERVICE_PROJECT_SUB_CATEGORIES,
+] as const satisfies readonly ProjectSubCategory[];
+
+/**
+ * Types that support field-style CICO + progress when staff are assigned.
+ * Includes Internal (HO/Warehouse cleaning crew).
+ */
+export const CLEANING_PROJECT_SUB_CATEGORIES = [
+  ...COMMERCIAL_PROJECT_SUB_CATEGORIES,
+  "INTERNAL",
+] as const satisfies readonly ProjectSubCategory[];
 
 export const PROJECT_SUB_CATEGORY_LABELS: Record<ProjectSubCategory, string> = {
   REGULAR_CLEANING: "Regular Cleaning",
   GENERAL_CLEANING: "General Cleaning",
   FACADE_CLEANING: "Facade Cleaning",
+  INTERNAL: "Internal Project",
+  SECURITY: "Security",
+  PARKING: "Parking",
+  PAYROLL_MANAGEMENT: "Payroll Management",
 };
 
 export function isProjectSubCategory(
   value: string
 ): value is ProjectSubCategory {
   return (PROJECT_SUB_CATEGORIES as readonly string[]).includes(value);
+}
+
+export function isInternalProjectSubCategory(
+  value: ProjectSubCategory | string | null | undefined
+): boolean {
+  return value === "INTERNAL";
+}
+
+export function isCommercialProjectSubCategory(
+  value: ProjectSubCategory | string | null | undefined
+): value is ProjectSubCategory {
+  return (
+    typeof value === "string" &&
+    (COMMERCIAL_PROJECT_SUB_CATEGORIES as readonly string[]).includes(value)
+  );
+}
+
+export function isServiceProjectSubCategory(
+  value: ProjectSubCategory | string | null | undefined
+): value is ProjectSubCategory {
+  return (
+    typeof value === "string" &&
+    (SERVICE_PROJECT_SUB_CATEGORIES as readonly string[]).includes(value)
+  );
 }
 
 export function isCleaningProjectSubCategory(
@@ -32,6 +94,40 @@ export function isCleaningProjectSubCategory(
   );
 }
 
+/** Subcategory locked to a non-cleaning service area (1:1). */
+export function subCategoryForServiceArea(
+  area: ServiceArea | string | null | undefined
+): ProjectSubCategory | null {
+  switch (area) {
+    case "SECURITY":
+      return "SECURITY";
+    case "PARKING":
+      return "PARKING";
+    case "PAYROLL_MANAGEMENT":
+      return "PAYROLL_MANAGEMENT";
+    default:
+      return null;
+  }
+}
+
+/** Canonical service area for a subcategory (Internal → Head Office). */
+export function serviceAreaForSubCategory(
+  subCategory: ProjectSubCategory | string | null | undefined
+): ServiceArea {
+  switch (subCategory) {
+    case "SECURITY":
+      return "SECURITY";
+    case "PARKING":
+      return "PARKING";
+    case "PAYROLL_MANAGEMENT":
+      return "PAYROLL_MANAGEMENT";
+    case "INTERNAL":
+      return "HEAD_OFFICE";
+    default:
+      return "CLEANING";
+  }
+}
+
 export function getProjectSubCategoryLabel(
   value: ProjectSubCategory | string | null | undefined
 ): string {
@@ -39,23 +135,37 @@ export function getProjectSubCategoryLabel(
   return PROJECT_SUB_CATEGORY_LABELS[value];
 }
 
-/** Short filter/table label — Regular / General / Facade (fits fixed chip). */
+/** Short filter/table label — Regular / General / Facade / Internal / Security / … */
 export function getProjectSubCategoryShortLabel(
   value: ProjectSubCategory | string | null | undefined
 ): string {
+  if (isInternalProjectSubCategory(value)) return "Internal";
+  if (value === "PAYROLL_MANAGEMENT") return "Payroll";
+  if (value === "SECURITY" || value === "PARKING") {
+    return getProjectSubCategoryLabel(value);
+  }
   const full = getProjectSubCategoryLabel(value);
   if (full === "-") return full;
-  return full.replace(" Cleaning", "");
+  return full.replace(" Cleaning", "").replace(" Project", "");
 }
 
 /**
- * Two-line StatusBadge label for full cleaning type
- * (REGULAR / CLEANING) inside the fixed 7.5rem chip.
+ * Two-line StatusBadge label
+ * (REGULAR / CLEANING) or (INTERNAL / PROJECT) / (SECURITY / SERVICE) inside the fixed chip.
  */
 export function getProjectSubCategoryChipLines(
   value: ProjectSubCategory | string | null | undefined
 ): readonly [string, string] | null {
   if (!value || !isProjectSubCategory(value)) return null;
+  if (isInternalProjectSubCategory(value)) {
+    return ["Internal", "Project"] as const;
+  }
+  if (isServiceProjectSubCategory(value)) {
+    if (value === "PAYROLL_MANAGEMENT") {
+      return ["Payroll", "Mgmt"] as const;
+    }
+    return [getProjectSubCategoryShortLabel(value), "Service"] as const;
+  }
   const short = getProjectSubCategoryShortLabel(value);
   return [short, "Cleaning"] as const;
 }

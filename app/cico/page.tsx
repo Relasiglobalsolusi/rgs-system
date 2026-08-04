@@ -25,8 +25,12 @@ import { refreshLeaveEmploymentForUser } from "@/lib/leave-employment-status";
 import {
   canViewCicoAdminPreview,
   canUseCicoAdminFieldPreview,
+  canUseOfficeCico,
   isCicoFieldEligible,
+  isCicoOperationalEligible,
+  requiresCicoProgressReport,
 } from "@/lib/cico-access";
+import { internalHomeSiteToProjectName } from "@/lib/office-cico";
 import type { AttendanceCheckInRow } from "@/components/attendance/AttendanceCheckInTable";
 
 import AppShell from "@/components/layout/AppShell";
@@ -177,8 +181,11 @@ export default async function CicoPage() {
       ? formatDateInput(toUtcDateOnly(adminTodayRecord.date))
       : todayInput;
 
+    const adminRequiresProgress = requiresCicoProgressReport(employee);
+
     const progressCount =
       adminFieldMode &&
+      adminRequiresProgress &&
       employee &&
       adminTodayRecord?.projectId &&
       adminTodayRecord.checkIn &&
@@ -192,7 +199,8 @@ export default async function CicoPage() {
           })
         : 0;
 
-    const hasProgressReport = progressCount > 0;
+    const hasProgressReport =
+      !adminRequiresProgress || progressCount > 0;
 
     const shiftKey = (employeeId: string, projectIdValue: string | null) =>
       `${employeeId}:${projectIdValue ?? ""}`;
@@ -273,6 +281,7 @@ export default async function CicoPage() {
           selectableProjects={selectableProjects}
           todayRecord={adminTodayRecord}
           hasProgressReport={hasProgressReport}
+          requiresProgress={adminRequiresProgress}
           hasEmployeeProfile={!!employee}
         />
       </AppShell>
@@ -292,16 +301,20 @@ export default async function CicoPage() {
     );
   }
 
-  if (!isCicoFieldEligible(employee)) {
+  if (!isCicoOperationalEligible(employee)) {
     if (employee.archivedFromDirectory || employee.status !== "ACTIVE") {
       return (
         <AppShell
           titleKey="pages.cico.title"
           descriptionKey="pages.cico.description"
         >
-          <SectionCard>
-            <p className="text-subtle">{t("pages.cico.activeOnlyMessage")}</p>
-          </SectionCard>
+          <div className="mx-auto w-full max-w-2xl">
+            <SectionCard>
+              <p className="text-center text-subtle">
+                {t("pages.cico.activeOnlyMessage")}
+              </p>
+            </SectionCard>
+          </div>
         </AppShell>
       );
     }
@@ -311,9 +324,13 @@ export default async function CicoPage() {
         titleKey="pages.cico.title"
         descriptionKey="pages.cico.description"
       >
-        <SectionCard>
-          <p className="text-subtle">{t("pages.cico.onProjectOnlyMessage")}</p>
-        </SectionCard>
+        <div className="mx-auto w-full max-w-2xl">
+          <SectionCard>
+            <p className="text-center text-subtle">
+              {t("pages.cico.onProjectOnlyMessage")}
+            </p>
+          </SectionCard>
+        </div>
       </AppShell>
     );
   }
@@ -321,8 +338,13 @@ export default async function CicoPage() {
   const cleaningSubs: ProjectSubCategory[] = [
     ...CLEANING_PROJECT_SUB_CATEGORIES,
   ];
+  const officeMode =
+    canUseOfficeCico(employee) && !isCicoFieldEligible(employee);
+  const homeSiteName = officeMode
+    ? internalHomeSiteToProjectName(employee.internalHomeSite)
+    : null;
 
-  const [todayRecord, assignments, history] = await Promise.all([
+  const [todayRecord, assignments, officeProjects, history] = await Promise.all([
     getCicoWorkAttendance(employee.id),
     prisma.projectAssignment.findMany({
       where: {
@@ -341,11 +363,31 @@ export default async function CicoPage() {
             name: true,
             location: true,
             locationRadiusMeters: true,
+            subCategory: true,
           },
         },
       },
       orderBy: { project: { name: "asc" } },
     }),
+    officeMode && homeSiteName
+      ? prisma.project.findMany({
+          where: {
+            companyId: session.user.companyId,
+            status: "IN_PROGRESS",
+            name: homeSiteName,
+            latitude: { not: null },
+            longitude: { not: null },
+          },
+          select: {
+            id: true,
+            name: true,
+            location: true,
+            locationRadiusMeters: true,
+            subCategory: true,
+          },
+          take: 1,
+        })
+      : Promise.resolve([]),
     prisma.attendance.findMany({
       where: { employeeId: employee.id },
       include: {
@@ -364,8 +406,13 @@ export default async function CicoPage() {
     ? formatDateInput(toUtcDateOnly(todayRecord.date))
     : formatAppDateInput();
 
+  const requiresProgress = requiresCicoProgressReport(employee);
+
   const progressCount =
-    todayRecord?.projectId && todayRecord.checkIn && !todayRecord.checkOut
+    requiresProgress &&
+    todayRecord?.projectId &&
+    todayRecord.checkIn &&
+    !todayRecord.checkOut
       ? await prisma.progressReport.count({
           where: {
             employeeId: employee.id,
@@ -375,21 +422,35 @@ export default async function CicoPage() {
         })
       : 0;
 
-  const hasProgressReport = progressCount > 0;
+  const hasProgressReport = !requiresProgress || progressCount > 0;
 
-  const assignedProjects = assignments.map((assignment) => ({
-    id: assignment.project.id,
-    name: assignment.project.name,
-    location: assignment.project.location,
-    locationRadiusMeters: assignment.project.locationRadiusMeters,
-    shiftStart: assignment.shiftStart,
-    shiftEnd: assignment.shiftEnd,
-  }));
+  const assignedProjects =
+    assignments.length > 0
+      ? assignments.map((assignment) => ({
+          id: assignment.project.id,
+          name: assignment.project.name,
+          location: assignment.project.location,
+          locationRadiusMeters: assignment.project.locationRadiusMeters,
+          shiftStart: assignment.shiftStart,
+          shiftEnd: assignment.shiftEnd,
+        }))
+      : officeProjects.map((project) => ({
+          id: project.id,
+          name: project.name,
+          location: project.location,
+          locationRadiusMeters: project.locationRadiusMeters,
+          shiftStart: "09:00",
+          shiftEnd: "17:00",
+        }));
 
   return (
     <AppShell
       titleKey="pages.cico.title"
-      descriptionKey="pages.cico.descriptionDetail"
+      descriptionKey={
+        officeMode && assignments.length === 0
+          ? "pages.cico.officeDescription"
+          : "pages.cico.descriptionDetail"
+      }
     >
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-8 pb-8">
         <SectionCard className="px-6 py-7 sm:px-8 sm:py-8">
@@ -401,6 +462,7 @@ export default async function CicoPage() {
             assignedProjects={assignedProjects}
             hasProgressReport={hasProgressReport}
             workDate={workDate}
+            requiresProgress={requiresProgress}
           />
           {todayRecord && (
             <div className="mt-6 flex flex-wrap gap-x-8 gap-y-3 border-t border-border pt-5 text-sm text-subtle">

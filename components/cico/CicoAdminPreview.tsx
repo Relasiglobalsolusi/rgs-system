@@ -42,6 +42,8 @@ type Props = {
   selectableProjects?: SelectableProject[];
   todayRecord?: TodayRecord | null;
   hasProgressReport?: boolean;
+  /** Cleaning positions only — matches operational CICO checkout gate. */
+  requiresProgress?: boolean;
   hasEmployeeProfile?: boolean;
 };
 
@@ -54,6 +56,7 @@ export default function CicoAdminPreview({
   selectableProjects = [],
   todayRecord = null,
   hasProgressReport = false,
+  requiresProgress = false,
   hasEmployeeProfile = true,
 }: Props) {
   const { t } = useT();
@@ -182,6 +185,7 @@ export default function CicoAdminPreview({
               todayRecord={adminFieldMode ? todayRecord : null}
               assignedProjects={fieldProjects}
               hasProgressReport={adminFieldMode ? hasProgressReport : false}
+              requiresProgress={adminFieldMode ? requiresProgress : false}
               workDate={workDate}
             />
             {adminFieldMode && todayRecord && (

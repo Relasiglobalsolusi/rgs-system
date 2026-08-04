@@ -1,0 +1,13 @@
+-- Security / Parking / Payroll Management project types + commercial fields.
+
+ALTER TYPE "ProjectSubCategory" ADD VALUE IF NOT EXISTS 'SECURITY';
+ALTER TYPE "ProjectSubCategory" ADD VALUE IF NOT EXISTS 'PARKING';
+ALTER TYPE "ProjectSubCategory" ADD VALUE IF NOT EXISTS 'PAYROLL_MANAGEMENT';
+
+ALTER TYPE "ServiceArea" ADD VALUE IF NOT EXISTS 'PAYROLL_MANAGEMENT';
+
+ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "setupCost" DECIMAL(14,2);
+ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "profitSharePercent" DECIMAL(5,2);
+ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "monthlyClientFee" DECIMAL(14,2);
+ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "serviceFeePercent" DECIMAL(5,2);
+ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "paymentTermsDays" INTEGER;

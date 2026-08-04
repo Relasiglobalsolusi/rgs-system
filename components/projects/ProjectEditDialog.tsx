@@ -18,6 +18,7 @@ import ProjectStaffPicker, {
   type ProjectStaffEmployee,
 } from "@/components/projects/ProjectStaffPicker";
 import ProjectTimelineFields from "@/components/projects/ProjectTimelineFields";
+import ServiceCommercialFields from "@/components/projects/ServiceCommercialFields";
 import {
   captureHtmlFormBaseline,
   EmployeeDialogShell,
@@ -49,7 +50,12 @@ import {
 import { Pencil } from "lucide-react";
 import { localizeBillingMode, localizeSubCategory } from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
-import { PROJECT_SUB_CATEGORIES } from "@/lib/project-subcategory";
+import {
+  COMMERCIAL_PROJECT_SUB_CATEGORIES,
+  isInternalProjectSubCategory,
+  isServiceProjectSubCategory,
+  subCategoryForServiceArea,
+} from "@/lib/project-subcategory";
 import type { ProjectServiceAreaValue } from "@/lib/service-area";
 import {
   DEFAULT_CONTRACT_DURATION_MONTHS,
@@ -60,6 +66,7 @@ import {
   monthsBetweenDates,
   toDateInputValue,
   todayDateInput,
+  usesMonthDurationTimeline,
 } from "@/lib/project-contract";
 import {
   defaultBillingMode,
@@ -80,6 +87,7 @@ type Client = {
   id: string;
   name: string;
   npwp?: string | null;
+  paymentTermsDays?: number | null;
 };
 
 type Project = {
@@ -99,6 +107,12 @@ type Project = {
   billingMode?: BillingMode;
   billingPeriodBasis?: BillingPeriodBasis | null;
   requiresTaxInvoice?: boolean;
+  contractPrice?: number | null;
+  setupCost?: number | null;
+  profitSharePercent?: number | null;
+  monthlyClientFee?: number | null;
+  serviceFeePercent?: number | null;
+  paymentTermsDays?: number | null;
   clientId: string | null;
   /** When PLANNED, Edit hides Assign Staff (assignment happens at Move to In Progress). */
   status?: ProjectStatus | string;
@@ -158,13 +172,17 @@ export default function ProjectEditDialog({
   const { t, locale } = useT();
   const { open, setOpen } = useDirectoryDialogOpen(controlledOpen, onOpenChange);
 
+  const isInternal = isInternalProjectSubCategory(project.subCategory);
   const subcategoryOptions = useMemo(
     () =>
-      PROJECT_SUB_CATEGORIES.map((value) => ({
+      (isInternal
+        ? (["INTERNAL"] as const)
+        : COMMERCIAL_PROJECT_SUB_CATEGORIES
+      ).map((value) => ({
         value,
         label: localizeSubCategory(value, locale),
       })),
-    [locale]
+    [locale, isInternal]
   );
 
   const generalFacadeBillingOptions = useMemo(
@@ -230,7 +248,10 @@ export default function ProjectEditDialog({
     project.assignments.map((assignment) => assignment.employeeId)
   );
   const isContract = isContractSubCategory(subCategory);
+  const isService = isServiceProjectSubCategory(subCategory);
+  const isMonthTimeline = usesMonthDurationTimeline(subCategory);
   const isMilestoneEligible = isMilestoneSubCategory(subCategory);
+  const selectedClient = clients.find((item) => item.id === clientId);
   const formId = `edit-project-form-${project.id}`;
 
   const controlledSignature = useMemo(
@@ -352,7 +373,7 @@ export default function ProjectEditDialog({
     setSubCategory(next);
     // Clear invalid combos: Regular → MONTHLY; leaving General/Facade clears milestone.
     setBillingMode(defaultBillingMode(next));
-    if (isContractSubCategory(next)) {
+    if (isContractSubCategory(next) || usesMonthDurationTimeline(next)) {
       if (!startDate) {
         setStartDate(todayDateInput());
       }
@@ -362,15 +383,39 @@ export default function ProjectEditDialog({
     }
   }
 
+  function handleServiceAreaChange(next: ProjectServiceAreaValue) {
+    setServiceArea(next);
+    const locked = subCategoryForServiceArea(next);
+    if (locked) {
+      handleSubCategoryChange(locked);
+      return;
+    }
+    if (
+      !COMMERCIAL_PROJECT_SUB_CATEGORIES.includes(
+        subCategory as (typeof COMMERCIAL_PROJECT_SUB_CATEGORIES)[number]
+      )
+    ) {
+      handleSubCategoryChange("REGULAR_CLEANING");
+    }
+  }
+
   async function submit(formData: FormData) {
-    formData.set("clientId", clientId);
-    formData.set("subCategory", subCategory);
-    formData.set("serviceArea", serviceArea);
-    formData.set("billingMode", billingMode);
-    if (isContract) {
-      formData.set("billingPeriodBasis", billingPeriodBasis);
-    } else {
+    if (isInternal) {
+      formData.set("clientId", "");
+      formData.set("subCategory", "INTERNAL");
+      formData.set("serviceArea", "HEAD_OFFICE");
+      formData.set("billingMode", billingMode);
       formData.delete("billingPeriodBasis");
+    } else {
+      formData.set("clientId", clientId);
+      formData.set("subCategory", subCategory);
+      formData.set("serviceArea", serviceArea);
+      formData.set("billingMode", billingMode);
+      if (isContract) {
+        formData.set("billingPeriodBasis", billingPeriodBasis);
+      } else {
+        formData.delete("billingPeriodBasis");
+      }
     }
     // Tax mode + NPWP are derived server-side from the selected client record.
     formData.delete("requiresTaxInvoice");
@@ -435,61 +480,71 @@ export default function ProjectEditDialog({
               />
             </div>
 
-            <div className={employeeDialogFieldClass}>
-              <label className="text-sm font-medium text-text">
-                {t("common.labels.client")}
-              </label>
-              <Select
-                value={clientId || "none"}
-                onValueChange={handleClientChange}
-              >
-                <SelectTrigger className={employeeSelectTriggerClass}>
-                  <SelectValue placeholder={t("pages.projects.selectClient")}>
-                    {(value) => {
-                      if (!value || value === "none") return null;
-                      const client = clients.find((item) => item.id === value);
-                      return client?.name ?? null;
-                    }}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none" className="text-muted">
-                    {t("pages.projects.selectClient")}
-                  </SelectItem>
-                  {clients.map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.name}
+            {!isInternal ? (
+              <div className={employeeDialogFieldClass}>
+                <label className="text-sm font-medium text-text">
+                  {t("common.labels.client")}
+                </label>
+                <Select
+                  value={clientId || "none"}
+                  onValueChange={handleClientChange}
+                >
+                  <SelectTrigger className={employeeSelectTriggerClass}>
+                    <SelectValue placeholder={t("pages.projects.selectClient")}>
+                      {(value) => {
+                        if (!value || value === "none") return null;
+                        const client = clients.find((item) => item.id === value);
+                        return client?.name ?? null;
+                      }}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none" className="text-muted">
+                      {t("pages.projects.selectClient")}
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                    {clients.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <input type="hidden" name="clientId" value="" />
+            )}
 
-            <ProjectOptionPills
-              label={t("pages.projects.serviceArea")}
-              value={serviceArea}
-              options={[
-                { value: "CLEANING", label: t("pages.projects.serviceAreaCleaning") },
-                { value: "PARKING", label: t("pages.projects.serviceAreaParking") },
-                { value: "SECURITY", label: t("pages.projects.serviceAreaSecurity") },
-              ]}
-              onChange={(value) =>
-                setServiceArea(value as ProjectServiceAreaValue)
-              }
-              columns={3}
-            />
+            {!isInternal ? (
+              <ProjectOptionPills
+                label={t("pages.projects.serviceArea")}
+                value={serviceArea}
+                options={[
+                  { value: "CLEANING", label: t("pages.projects.serviceAreaCleaning") },
+                  { value: "PARKING", label: t("pages.projects.serviceAreaParking") },
+                  { value: "SECURITY", label: t("pages.projects.serviceAreaSecurity") },
+                  {
+                    value: "PAYROLL_MANAGEMENT",
+                    label: t("pages.projects.serviceAreaPayroll"),
+                  },
+                ]}
+                onChange={(value) =>
+                  handleServiceAreaChange(value as ProjectServiceAreaValue)
+                }
+                columns={2}
+              />
+            ) : null}
 
-            {serviceArea === "CLEANING" ? (
+            {isInternal || serviceArea === "CLEANING" ? (
               <ProjectOptionPills
                 label={t("pages.projects.subcategory")}
                 value={subCategory}
                 options={subcategoryOptions}
-                onChange={handleSubCategoryChange}
+                onChange={isInternal ? () => undefined : handleSubCategoryChange}
                 columns={3}
               />
             ) : null}
 
-            {isMilestoneEligible ? (
+            {!isInternal && isMilestoneEligible ? (
               <>
                 <ProjectOptionPills
                   label={t("pages.projects.billingLabel")}
@@ -506,7 +561,7 @@ export default function ProjectEditDialog({
               </>
             ) : null}
 
-            {isContract ? (
+            {!isInternal && isContract ? (
               <>
                 <ProjectOptionPills
                   label={t("pages.projects.billingPeriodBasis")}
@@ -536,53 +591,96 @@ export default function ProjectEditDialog({
               </>
             ) : null}
 
-            {requiresTaxInvoice ? (
-              <div className={employeeDialogFieldClass}>
-                <label
-                  htmlFor={`edit-project-npwp-${project.id}`}
-                  className="text-sm font-medium text-text"
-                >
-                  {t("pages.projects.companyNpwp")}
-                </label>
-                <Input
-                  id={`edit-project-npwp-${project.id}`}
-                  value={npwp}
-                  readOnly
-                  tabIndex={-1}
-                  autoComplete="off"
-                  className={cn(employeeInputClass, "bg-elevated text-muted")}
-                />
-                <p className="text-xs text-subtle">
-                  {t("pages.projects.companyNpwpHint")}
-                </p>
-              </div>
-            ) : (
-              <p className="text-xs text-subtle">
-                {t("pages.projects.withoutTaxNote")}
-              </p>
-            )}
+            {!isInternal && isService ? (
+              <ServiceCommercialFields
+                key={`${subCategory}-${clientId}-${open ? "open" : "closed"}`}
+                subCategory={subCategory}
+                defaults={{
+                  contractPrice: project.contractPrice,
+                  setupCost: project.setupCost,
+                  profitSharePercent: project.profitSharePercent,
+                  monthlyClientFee: project.monthlyClientFee,
+                  serviceFeePercent: project.serviceFeePercent,
+                  paymentTermsDays: project.paymentTermsDays,
+                }}
+                clientPaymentTermsDays={selectedClient?.paymentTermsDays}
+              />
+            ) : null}
 
+            {!isInternal ? (
+              requiresTaxInvoice ? (
+                <div className={employeeDialogFieldClass}>
+                  <label
+                    htmlFor={`edit-project-npwp-${project.id}`}
+                    className="text-sm font-medium text-text"
+                  >
+                    {t("pages.projects.companyNpwp")}
+                  </label>
+                  <Input
+                    id={`edit-project-npwp-${project.id}`}
+                    value={npwp}
+                    readOnly
+                    tabIndex={-1}
+                    autoComplete="off"
+                    className={cn(employeeInputClass, "bg-elevated text-muted")}
+                  />
+                  <p className="text-xs text-subtle">
+                    {t("pages.projects.companyNpwpHint")}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-subtle">
+                  {t("pages.projects.withoutTaxNote")}
+                </p>
+              )
+            ) : null}
+
+            {isInternal ? (
+              <p className="text-xs leading-relaxed text-subtle">
+                {t("pages.projects.locationPicker.internalCicoHint")}
+              </p>
+            ) : null}
             <LocationPicker value={locationValue} onChange={setLocationValue} />
 
-            {isContract ? (
-              <ProjectTimelineFields
-                mode="contract"
-                planning={isPlanningProjectStatus(project.status)}
-                startDate={startDate}
-                durationMonths={durationMonths}
-                onStartDateChange={setStartDate}
-                onDurationMonthsChange={setDurationMonths}
-              />
-            ) : (
-              <ProjectTimelineFields
-                mode="standard"
-                planning={isPlanningProjectStatus(project.status)}
-                startDate={startDate}
-                durationDays={durationDays}
-                onStartDateChange={setStartDate}
-                onDurationDaysChange={setDurationDays}
-              />
-            )}
+            {!isInternal ? (
+              isMonthTimeline ? (
+                <ProjectTimelineFields
+                  mode="contract"
+                  planning={isPlanningProjectStatus(project.status)}
+                  startDate={startDate}
+                  durationMonths={durationMonths}
+                  onStartDateChange={setStartDate}
+                  onDurationMonthsChange={setDurationMonths}
+                />
+              ) : isService ? (
+                <div className={employeeDialogFieldClass}>
+                  <label className="text-sm font-medium text-text">
+                    {t("pages.projects.timelineFields.contractStart")}
+                  </label>
+                  <Input
+                    name={
+                      isPlanningProjectStatus(project.status)
+                        ? "estimatedStartDate"
+                        : "startDate"
+                    }
+                    type="date"
+                    required
+                    value={startDate}
+                    onChange={(event) => setStartDate(event.target.value)}
+                    className={employeeInputClass}
+                  />
+                </div>
+              ) : (
+                <ProjectTimelineFields
+                  mode="standard"
+                  planning={isPlanningProjectStatus(project.status)}
+                  startDate={startDate}
+                  durationDays={durationDays}
+                  onStartDateChange={setStartDate}
+                  onDurationDaysChange={setDurationDays}
+                />
+              )
+            ) : null}
 
             {!isPlanningProjectStatus(project.status) ? (
               <ProjectStaffPicker

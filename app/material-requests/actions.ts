@@ -6,7 +6,10 @@ import { Prisma } from "@prisma/client";
 import { findOpenCicoAttendance } from "@/lib/cico-attendance";
 import { translate } from "@/lib/i18n/translate";
 import { getServerLocale } from "@/lib/i18n/locale";
-import { toDecimal } from "@/lib/inventory";
+import {
+  INVENTORY_ISSUE_PROJECT_STATUSES,
+  toDecimal,
+} from "@/lib/inventory";
 import type { AppLocale } from "@/lib/i18n/locale";
 import { prisma } from "@/lib/prisma";
 import { requireModule } from "@/lib/session";
@@ -95,7 +98,7 @@ export async function createMaterialRequest(formData: FormData) {
       where: {
         id: projectId,
         companyId: company.id,
-        status: { in: ["IN_PROGRESS", "WAITING_FOR_APPROVAL", "ON_HOLD"] },
+        status: { in: [...INVENTORY_ISSUE_PROJECT_STATUSES] },
       },
       select: { id: true },
     });

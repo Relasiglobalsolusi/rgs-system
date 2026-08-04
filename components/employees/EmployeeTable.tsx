@@ -200,31 +200,48 @@ export default function EmployeeTable({
         title: t("pages.employees.columns.employee"),
         share: 2,
         render: (employee) => (
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="font-semibold text-text">
-              {employee.firstName} {employee.lastName}
-            </p>
-            {employee.status === "ON_LEAVE" ? (
-              <StatusBadge
-                status="info"
-                compact
-                lines={[
-                  t("pages.employees.onLeaveChipLine1"),
-                  t("pages.employees.onLeaveChipLine2"),
-                ]}
-              />
-            ) : employee.hasPendingLeaveRequest ? (
-              <StatusBadge
-                status="warning"
-                compact
-                lines={[
-                  t("pages.employees.leavePendingChipLine1"),
-                  t("pages.employees.leavePendingChipLine2"),
-                ]}
-              />
-            ) : null}
-          </div>
+          <p className="font-semibold text-text">
+            {employee.firstName} {employee.lastName}
+          </p>
         ),
+      },
+      {
+        key: "leaveStatus",
+        title: t("pages.employees.columns.status"),
+        align: "center",
+        width: "8.5rem",
+        className: "min-w-[8.5rem]",
+        render: (employee) => {
+          if (employee.status === "ON_LEAVE") {
+            return (
+              <div className="flex justify-center">
+                <StatusBadge
+                  status="info"
+                  compact
+                  lines={[
+                    t("pages.employees.onLeaveChipLine1"),
+                    t("pages.employees.onLeaveChipLine2"),
+                  ]}
+                />
+              </div>
+            );
+          }
+          if (employee.hasPendingLeaveRequest) {
+            return (
+              <div className="flex justify-center">
+                <StatusBadge
+                  status="warning"
+                  compact
+                  lines={[
+                    t("pages.employees.leavePendingChipLine1"),
+                    t("pages.employees.leavePendingChipLine2"),
+                  ]}
+                />
+              </div>
+            );
+          }
+          return <span className="text-muted">—</span>;
+        },
       },
       {
         key: "number",

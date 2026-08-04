@@ -98,7 +98,7 @@ async function loadEmployeeImportContext(file: File) {
     }),
     prisma.position.findMany({
       where: { companyId: company.id, active: true },
-      select: { id: true, name: true, categoryId: true },
+      select: { id: true, name: true, slug: true, categoryId: true },
     }),
   ]);
 
@@ -216,6 +216,7 @@ export async function previewBulkImportEmployees(
         defaultPortalAccessRequested({
           placement,
           categorySlug: category.slug,
+          jobPosition: { slug: position.slug, name: position.name },
         });
 
       previewRows.push({
@@ -318,7 +319,14 @@ export async function confirmBulkImportEmployees(
         defaultPortalAccessRequested({
           placement,
           categorySlug: category.slug,
+          jobPosition: { slug: position.slug, name: position.name },
         });
+      const { defaultInternalHomeSite } = await import("@/lib/office-cico");
+      const internalHomeSite = defaultInternalHomeSite({
+        categorySlug: category.slug,
+        categoryPrefix: category.prefix,
+        jobPosition: { slug: position.slug, name: position.name },
+      });
 
       const sortOrder = nextSortOrder;
       nextSortOrder += SORT_ORDER_STEP;
@@ -342,6 +350,7 @@ export async function confirmBulkImportEmployees(
             employeeType,
             employmentType: parsed.employmentType,
             placement,
+            internalHomeSite,
             portalAccessRequested,
             categoryId: category.id,
             hiredAt: parsed.hiredAt,
@@ -364,6 +373,7 @@ export async function confirmBulkImportEmployees(
           portalAccessRequested,
           status: "ACTIVE",
           employeeType,
+          jobPosition: { slug: position.slug, name: position.name },
         });
 
         return employeeNo;

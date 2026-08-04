@@ -374,12 +374,22 @@ export const id = {
       REGULAR_CLEANING: "Pembersihan Rutin",
       GENERAL_CLEANING: "Pembersihan General",
       FACADE_CLEANING: "Pembersihan Fasad",
+      INTERNAL: "Proyek Internal",
+      SECURITY: "Security",
+      PARKING: "Parking",
+      PAYROLL_MANAGEMENT: "Manajemen Payroll",
       short: {
         REGULAR_CLEANING: "Rutin",
         GENERAL_CLEANING: "General",
         FACADE_CLEANING: "Fasad",
+        INTERNAL: "Internal",
+        SECURITY: "Security",
+        PARKING: "Parking",
+        PAYROLL_MANAGEMENT: "Payroll",
       },
       cleaningSuffix: "Pembersihan",
+      projectSuffix: "Proyek",
+      serviceSuffix: "Layanan",
     },
     billingMode: {
       MONTHLY: "Bulanan",
@@ -390,30 +400,10 @@ export const id = {
       CALENDAR_MONTH: "Bulan Kalender",
       CONTRACT_CYCLE: "Siklus Kontrak",
     },
-    assignmentScope: {
-      CORPORATE: {
-        label: "Kantor Pusat",
-        description:
-          "Direktur, CEO, dan pimpinan kantor pusat yang tidak terikat ke lokasi.",
-      },
-      FIELD_OPERATIONS: {
-        label: "Operasi Lapangan",
-        description:
-          "Staf lapangan yang bekerja lintas lokasi; penugasan proyek bersifat opsional.",
-      },
-      SITE_BASED: {
-        label: "Penugasan Lokasi",
-        description: "Ditugaskan ke satu atau lebih lokasi proyek aktif.",
-      },
-      UNASSIGNED: {
-        label: "Belum Ditugaskan",
-        description:
-          "Menunggu penugasan departemen; mendapat nomor karyawan UNA sementara.",
-      },
-    },
     department: {
       corporate: "Korporat",
       headOffice: "Kantor Pusat",
+      warehouse: "Gudang",
       operations: "Operasi",
       finance: "Keuangan",
       cleaningStaff: "Staf Kebersihan",
@@ -548,6 +538,7 @@ export const id = {
       serviceAreaCleaning: "Cleaning",
       serviceAreaParking: "Parking",
       serviceAreaSecurity: "Security",
+      serviceAreaPayroll: "Manajemen Payroll",
       serviceAreaHeadOffice: "Head Office",
       subcategory: "Subkategori",
       billingPeriodBasis: "Periode Penagihan",
@@ -555,6 +546,28 @@ export const id = {
       billingPeriodBasisContractCycle: "Siklus Kontrak",
       billingPeriodBasisHelp:
         "Bulan Kalender menagih tiap bulan kalender. Siklus Kontrak menagih dari hari mulai kontrak nyata (ulang tahun).",
+      createDescriptionService:
+        "Siapkan Security, Parking, atau Manajemen Payroll dengan syarat komersial untuk klien ini.",
+      serviceCommercial: {
+        monthlyFee: "Biaya Bulanan",
+        monthlyFeeHint: "Biaya layanan security bulanan yang dibayar klien ke RGS (IDR).",
+        setupCost: "Biaya Setup Awal",
+        setupCostHint: "Biaya setup parking sekali bayar (IDR).",
+        profitSharePercent: "% Bagian Laba Klien",
+        profitSharePercentHint:
+          "Persentase laba yang dibagi ke klien. 0 berarti tidak ada bagi hasil — setelah biaya setup / biaya bulanan yang kami bayar ke klien, semuanya untuk RGS.",
+        monthlyClientFee: "Biaya Bulanan ke Klien",
+        monthlyClientFeeHint:
+          "Biaya bulanan yang RGS bayar ke klien untuk pengelolaan parking (IDR).",
+        serviceFeePercent: "% Biaya Layanan",
+        serviceFeePercentHint:
+          "Pendapatan RGS sebagai persentase dari payroll yang diganti. Dapat diatur per proyek.",
+        paymentTermsDays: "Syarat Penggantian Klien",
+        paymentTermsDaysHint:
+          "Hari hingga klien mengganti payroll. Default dari syarat pembayaran klien.",
+        payrollTimelineHint:
+          "Tanggal mulai ops opsional. Manajemen Payroll tidak memakai periode penagihan cleaning.",
+      },
       billingLabel: "Penagihan",
       taxInvoiceLabel: "Faktur Pajak",
       companyNpwp: "NPWP perusahaan",
@@ -650,6 +663,10 @@ export const id = {
         confirm: "Ajukan",
         regularNotAllowed:
           "Regular Cleaning memakai rekonsiliasi. Rekonsiliasi periode penagihan jatuh tempo untuk memulai persetujuan.",
+        internalNotAllowed:
+          "Proyek Internal tidak memakai Ajukan untuk Persetujuan.",
+        notAllowed:
+          "Ajukan untuk Persetujuan hanya untuk Pembersihan General dan Fasad.",
         inProgressOnly:
           "Hanya proyek In Progress yang dapat diajukan untuk persetujuan.",
         noOngoingMilestone:
@@ -667,6 +684,8 @@ export const id = {
       cleaningType: "Jenis pembersihan",
       due: "Jatuh tempo",
       paid: "Lunas",
+      /** Internal HO/Warehouse sites with no commercial start/end dates. */
+      internalOngoing: "Berlangsung",
       noLocation: "Tidak ada lokasi",
       assigned: "ditugaskan",
       reportOne: "laporan",
@@ -787,6 +806,8 @@ export const id = {
         contractPrice: "Harga kontrak",
         anniversaryInvoiceDay:
           "Invoice anniversary hari ke-{day} (sehari setelah setiap siklus berakhir)",
+        serviceBillingNote:
+          "Syarat komersial disimpan di proyek. Periode penagihan gaya cleaning tidak digunakan.",
         contractPriceAndInvoices: "Harga kontrak dan invoice",
         estStart: "Est. mulai {date}",
         estimateTbd: "Estimasi belum ditentukan",
@@ -798,8 +819,19 @@ export const id = {
         noShiftSet: "Belum ada shift",
         noStaff: "Belum ada staf yang ditugaskan.",
         availableAfterInProgress: " · Tersedia setelah Pindah ke Berjalan",
-        siteLocation: "Lokasi situs",
-        invoicesPayments: "Invoice & pembayaran",
+        siteLocation: "Lokasi Situs",
+        cicoSiteLocation: "Lokasi Situs CICO",
+        cicoSiteLocationHint:
+          "Pin GPS dan radius geofence yang dipakai untuk CICO kantor Head Office dan Warehouse.",
+        cicoCoordinates: "Koordinat CICO",
+        cicoGeofenceRadius: "Radius Geofence",
+        cicoGeofenceRadiusValue: "{meters} m",
+        cicoGpsNotSet: "Belum Diatur",
+        cicoGpsEmptyManage:
+          "Pin GPS belum diatur. Gunakan Edit untuk menempel tautan Maps atau menempatkan pin — wajib untuk CICO Warehouse dan Head Office.",
+        cicoGpsEmptyView:
+          "Pin GPS belum diatur. Minta Head Office mengatur lokasi situs CICO pada proyek ini.",
+        invoicesPayments: "Invoice & Pembayaran",
         viewProgressReports: "Lihat Progress / Laporan",
         viewProgressReportsChip1: "Lihat Progress",
         viewProgressReportsChip2: "Laporan",
@@ -890,8 +922,10 @@ export const id = {
         searchAddress: "Cari",
         latitude: "Lintang",
         longitude: "Bujur",
-        radius: "Radius (m)",
+        radius: "Radius Geofence (m)",
         radiusPlaceholder: "Radius (m)",
+        internalCicoHint:
+          "Atur pin peta dan radius geofence untuk CICO kantor di situs Internal ini (Head Office atau Warehouse).",
         pasteLabel: "Tempel koordinat / tautan Google Maps",
         pastePlaceholder:
           "-6.200000, 106.816666 atau URL Google Maps / share.google",
@@ -1638,6 +1672,7 @@ export const id = {
       },
       columns: {
         employee: "Karyawan",
+        status: "Status",
         employeeNo: "ID",
         department: "Departemen",
         position: "Jabatan",
@@ -1658,9 +1693,6 @@ export const id = {
       addDepartment: "Tambah Departemen",
       emptyDepartments:
         "Belum ada departemen. Tambahkan satu untuk mengelompokkan karyawan.",
-      assignmentScopes: "Kelola Jabatan",
-      assignmentScopesDescription:
-        "Jabatan adalah posisi dalam departemen (misalnya Operasi → Cleaning Staff). Penempatan adalah tempat bekerja dan diatur oleh Tugaskan / Lepaskan, bukan dropdown bebas.",
       unassignedCannotDelete: "Jabatan sistem tidak dapat dihapus saat masih dipakai",
       assign: "Tugaskan",
       positionDialog: {
@@ -1727,43 +1759,6 @@ export const id = {
         noEmployeesAssigned:
           "Tidak ada karyawan yang ditugaskan. Tindakan ini tidak dapat dibatalkan.",
       },
-      scopeDialog: {
-        addScope: "Tambah Cakupan",
-        createTitle: "Buat Cakupan Penugasan",
-        createDescription:
-          "Tambahkan cakupan untuk mengklasifikasikan penempatan karyawan di lokasi dan akses ERP.",
-        createButton: "Buat Cakupan",
-        creating: "Membuat...",
-        editTitle: "Edit Cakupan Penugasan",
-        editDescription: "Perbarui label cakupan atau ketersediaan.",
-        scopeName: "Nama Cakupan",
-        namePlaceholder: "mis. Supervisor Regional",
-        descriptionOptional: "Deskripsi opsional",
-        activeAvailable: "Aktif (tersedia untuk penugasan baru)",
-        codeLabel: "Kode: {code}",
-        employeeCountOne: "{count} karyawan ditugaskan",
-        employeeCountOther: "{count} karyawan ditugaskan",
-        createFailed: "Gagal membuat cakupan penugasan.",
-        updateFailed: "Gagal memperbarui cakupan penugasan.",
-        deleteFailed: "Gagal menghapus cakupan penugasan.",
-        deleteTitle: "Hapus cakupan penugasan?",
-        deleteConfirm: "Hapus cakupan",
-        deleteDescWithEmployees:
-          "Pilih ke mana karyawan yang ditugaskan dipindahkan sebelum menghapus cakupan ini.",
-        deleteDescEmpty: "Cakupan penugasan ini akan dihapus secara permanen.",
-        employeesAssignedOne:
-          "Ada {count} karyawan yang ditugaskan ke cakupan ini.",
-        employeesAssignedOther:
-          "Ada {count} karyawan yang ditugaskan ke cakupan ini.",
-        moveEmployeesTo: "Pindahkan karyawan ke",
-        selectDestination: "Pilih tujuan",
-        chooseDestination: "Pilih cakupan penugasan tujuan.",
-        noReassignTarget:
-          "Tidak ada cakupan penugasan aktif lain. Aktifkan cakupan lain atau tugaskan ulang karyawan secara manual sebelum menghapus.",
-        noEmployeesAssigned:
-          "Tidak ada karyawan yang ditugaskan. Tindakan ini tidak dapat dibatalkan.",
-        emptyConfigured: "Belum ada cakupan penugasan.",
-      },
       assignDialog: {
         titleOne: "Tetapkan ke departemen",
         titleBulk: "Tetapkan {count} karyawan",
@@ -1783,12 +1778,6 @@ export const id = {
           "Karyawan mendapat nomor {prefix} baru. Login portal dipulihkan jika sempat dijeda, atau dibuat otomatis untuk CICO, laporan progres, serta cuti & sakit.",
         selectActive: "Pilih departemen aktif untuk ditugaskan.",
       },
-      projectMultiSelect: {
-        selectProjects: "Pilih proyek",
-        searchPlaceholder: "Cari nama atau lokasi...",
-        removeProject: "Hapus proyek",
-        noProjects: "Tidak ada proyek",
-      },
       form: {
         department: "Departemen",
         departmentControlsHint:
@@ -1800,52 +1789,29 @@ export const id = {
           "{label} — dikelola melalui Tugaskan / Lepaskan.",
         employmentType: "Jenis Kepegawaian",
         selectEmploymentType: "Pilih Jenis Kepegawaian",
+        inHouseCleaningAssignHint:
+          "In-House Cleaning Staff: tugaskan ke proyek Internal Head Office atau Warehouse untuk CICO (departemen menentukan lokasinya).",
+        warehouseStaffPortalHint:
+          "Warehouse Staff biasanya tidak perlu login portal — Warehouse Supervisor yang menjalankan Transfer Order dan mengarahkan kru.",
         status: "Status",
-        selectStatus: "Pilih Status",
-        statusHint:
-          "Aktif dan Sedang Cuti tetap di daftar. Login portal mengikuti aturan yang sama untuk keduanya.",
         statusActiveHint:
           "Sedang Cuti diatur ketika periode cuti yang disetujui mencakup hari ini. Staf Aktif dapat menggunakan CICO dan Progress.",
         statusOnLeaveHint:
           "Sedang Cuti dari permohonan cuti yang disetujui. CICO dan Progress dijeda hingga periode cuti berakhir.",
         statusLeavePendingHint:
           "Permohonan cuti menunggu persetujuan. Status kepegawaian tetap Aktif; CICO dan Progress berjalan seperti biasa.",
-        leavePendingNotAssignable:
-          "Karyawan yang mengajukan cuti tidak dapat ditugaskan hingga permohonan ditinjau.",
-        departmentHint:
-          "Pilih departemen terlebih dahulu untuk membuat nomor karyawan otomatis.",
         selectDepartment: "Pilih departemen",
         selectPosition: "Pilih jabatan",
-        noDepartment: "Tanpa departemen",
         employeeNumber: "Nomor Karyawan",
-        employeeNoTemp:
-          "Nomor UNA sementara hingga ditugaskan ke departemen aktif.",
         employeeNoPreview:
           "Pratinjau nomor berikutnya untuk departemen yang dipilih.",
         employeeNoReassign:
           "Departemen diubah — karyawan akan mendapat nomor berikutnya yang tersedia.",
         employeeNoLocked: "Nomor yang ditetapkan tidak dapat diubah.",
         selectDeptFirst: "Pilih departemen terlebih dahulu",
-        assignmentScope: "Cakupan Penugasan",
-        assignmentScopeHint:
-          "Pilih apakah karyawan berbasis lokasi, operasi lapangan, peran kepemimpinan korporat, atau menunggu penugasan.",
-        headOfficeRoleTitle: "Peran Kantor Pusat — tanpa penugasan lokasi",
-        headOfficeRoleHint:
-          "Gunakan untuk direktur, CEO, dan pimpinan kantor pusat lain yang tidak ditugaskan ke lokasi proyek tertentu.",
-        pendingAssignmentTitle: "Menunggu penugasan — Belum Ditugaskan",
-        pendingAssignmentHint:
-          "Karyawan mendapat nomor UNA sementara. Login portal tetap nonaktif (dijeda jika sudah punya) hingga ditugaskan ulang ke departemen aktif.",
-        assignedSites: "Lokasi / Proyek Ditugaskan",
-        assignedSitesOptional: "(opsional)",
-        assignedSitesHint:
-          "Pilih satu atau lebih lokasi proyek aktif untuk karyawan ini.",
-        assignedSitesHintOptional:
-          "Opsional tautkan karyawan ini ke satu atau lebih lokasi proyek aktif.",
-        noActiveProjects: "Tidak ada proyek aktif.",
         firstName: "Nama Depan",
         lastName: "Nama Belakang",
         position: "Jabatan",
-        positionLocked: "Ditetapkan otomatis dari departemen yang dipilih.",
         positionHint:
           "Pilih jabatan yang tersedia untuk departemen terpilih.",
         approvalAreas: "Area Persetujuan",
@@ -1854,12 +1820,7 @@ export const id = {
         startDate: "Tanggal Mulai",
         startDateHint: "Tanggal masuk atau mulai untuk pelacakan masa kerja.",
         contactEmail: "Email Kontak",
-        contactEmailHint:
-          "Opsional. Hanya untuk kontak HR — tidak dipakai sebagai nama pengguna login.",
         portalLogin: "Login Portal",
-        createPortalLogin: "Buat akses login portal untuk karyawan ini?",
-        createPortalLoginHint:
-          "Ya membuat login Users terkait (nama pengguna dari nama depan). Login Penuh Waktu tetap aktif jika diminta. Login Paruh Waktu hanya aktif saat Di Proyek. Corporate/Kantor Pusat dapat memakai Ya untuk akses meja.",
         finances: "Keuangan",
         financesHint:
           "Gaji pokok dan pengaturan BPJS. Iuran dihitung ulang saat opsi diubah.",
@@ -2594,6 +2555,7 @@ export const id = {
         "Proyek ini masih dalam Perencanaan. Gunakan {action} di halaman proyek saat work order siap — penagihan dan invoice terbuka setelah itu.",
       paymentHistoryDesc:
         "Riwayat pembayaran, jatuh tempo, dan aksi invoice untuk proyek ini.",
+      serviceCommercialTitle: "Syarat Komersial Layanan",
       billingMode: "Mode penagihan",
       billingPeriodBasis: "Periode Penagihan",
       anniversaryInvoiceDay: "Hari invoice ulang tahun: {day}",
@@ -2959,7 +2921,7 @@ export const id = {
     progress: {
       title: "Laporan Progress",
       description:
-        "Laporan foto lokasi untuk staf cleaning lapangan. Unggah selama shift — check-out diblokir sampai minimal satu laporan dikirim untuk proyek.",
+        "Laporan foto lokasi untuk staf cleaning (Cleaning Staff, GC Staff, In-House Cleaning). Unggah selama shift — check-out diblokir sampai minimal satu laporan dikirim untuk proyek.",
       feedDescription:
         "Pantau Laporan Progress secara real time (hanya lihat). Buka proyek untuk umpan foto, atau filter menurut karyawan.",
       chooseProject: "Pilih Proyek",
@@ -2974,20 +2936,20 @@ export const id = {
       noPhotosYet: "Belum ada foto",
       myReportsTitle: "Laporan Progress Saya",
       myReportsHint:
-        "Unggah Laporan Progress saat bekerja. Anda harus mengirim minimal satu Laporan Progress sebelum check-out CICO.",
+        "Unggah Laporan Progress saat bekerja. Staf cleaning harus mengirim minimal satu Laporan Progress sebelum check-out CICO.",
+      myReportsHintViewOnly:
+        "Laporan Progress untuk staf cleaning pada proyek ini. Check-in dan check-out tidak memerlukan Laporan Progress untuk jabatan Anda.",
       checkInRequiredMessage:
         "Check in melalui CICO untuk proyek Anda sebelum mengirim Laporan Progress.",
       onLeaveMessage:
         "Laporan progress dijeda saat Anda Sedang Cuti. Hubungi Head Office jika status Anda perlu diperbarui.",
-      leavePendingMessage:
-        "Laporan progress dijeda selama permohonan cuti menunggu persetujuan. Hubungi Head Office jika status Anda perlu diperbarui.",
       submitReport: "Kirim Laporan Progress",
       editReport: "Ubah Laporan Progress",
       dialogTitle: "Laporan Progress",
       dialogDescription:
-        "Staf cleaning lapangan: pilih proyek, area layanan, dan catatan, lalu unggah foto lokasi. Anda boleh mengirim beberapa laporan per proyek dan hari. Proyek, Area Layanan, Catatan, dan minimal satu foto wajib diisi.",
+        "Staf cleaning: pilih proyek, area layanan, dan catatan, lalu unggah foto lokasi. Anda boleh mengirim beberapa laporan per proyek dan hari. Proyek, Area Layanan, Catatan, dan minimal satu foto wajib diisi.",
       dialogDescriptionCicoLocked:
-        "Staf cleaning lapangan: pilih area layanan dan catatan, lalu unggah foto lokasi untuk hari kerja CICO yang sedang terbuka. Proyek, Area Layanan, Catatan, dan minimal satu foto wajib diisi.",
+        "Staf cleaning: pilih area layanan dan catatan, lalu unggah foto lokasi untuk hari kerja CICO yang sedang terbuka. Proyek, Area Layanan, Catatan, dan minimal satu foto wajib diisi.",
       editDialogTitle: "Ubah Laporan Progress",
       editDialogDescription:
         "Perbarui area layanan, catatan, atau foto untuk laporan progress ini. Tanggal laporan tidak dapat diubah. Pertahankan atau tambahkan minimal satu foto.",
@@ -2997,7 +2959,7 @@ export const id = {
       saveChanges: "Simpan Perubahan",
       emptyTitle: "Belum Ada Laporan Progress",
       emptyDescription:
-        "Tidak ada proyek atau laporan foto untuk tanggal ini. Staf cleaning lapangan harus mengunggah foto lokasi untuk setiap proyek cleaning yang ditugaskan selama shift.",
+        "Tidak ada proyek atau laporan foto untuk tanggal ini. Staf cleaning harus mengunggah foto lokasi untuk setiap proyek cleaning yang ditugaskan (termasuk Internal) selama shift.",
       emptyForDate: "Tidak ada laporan progress untuk tanggal ini.",
       submittedBy: "Dikirim oleh",
       selectProject: "Pilih Proyek",
@@ -3019,8 +2981,6 @@ export const id = {
       assignedEmployeeOther: "{count} karyawan ditugaskan",
       reportCountOne: "{count} Laporan Progress",
       reportCountOther: "{count} Laporan Progress",
-      missingEmployeeCount: "{count} belum ada setelah shift",
-      noReportsAfterShift: "Belum ada laporan progress setelah shift berakhir.",
       noReportsYet: "Belum ada laporan progress untuk tanggal ini.",
       untitledReport: "Laporan Progress",
       existingPhotos: "Foto yang Ada",
@@ -3033,24 +2993,6 @@ export const id = {
         "JPG, PNG, WebP, atau GIF. Maksimal 10 MB per file. Beberapa foto diperbolehkan.",
       submittedCountOne: "{count} laporan dikirim",
       submittedCountOther: "{count} laporan dikirim",
-      missingUploadChecksNote:
-        " · Pemeriksaan hilang berlaku setelah shift masing-masing petugas berakhir",
-      missingUploadsTitleOne: "Unggahan hilang — {count} petugas cleaning lapangan",
-      missingUploadsTitleOther:
-        "Unggahan hilang — {count} petugas cleaning lapangan",
-      missingBadge: "Belum Ada",
-      needToReportToday: "Shift Anda berakhir — laporan progress masih diperlukan",
-      noReportOnDate: "Belum ada laporan progress pada {date}",
-      missingProjectsPrefix: "Belum ada:",
-      missingReportTitle: "Laporan Progress Cleaning Belum Ada",
-      missingReportMessage:
-        "Satu atau lebih proyek cleaning yang ditugaskan masih membutuhkan laporan progress setelah shift berakhir. Kirim minimal satu laporan per proyek untuk hari shift tersebut.",
-      uploadNow: "Unggah Sekarang",
-      acknowledgeAll: "Tandai Semua Sudah Dibaca",
-      acknowledge: "Tandai Sudah Dibaca",
-      remindLater: "Ingatkan Nanti",
-      openProgressReports: "Buka Laporan Progress",
-      noUploadOn: "— belum diunggah pada {date}",
       submitted: "Terkirim",
       noNotes: "Tidak ada catatan untuk laporan ini.",
       noPhotos: "Tidak ada foto terlampir",
@@ -3076,14 +3018,16 @@ export const id = {
         photoTooLarge: "Setiap foto maksimal 10 MB.",
         notAssigned: "Anda tidak ditugaskan ke proyek ini.",
         cleaningOnly:
-          "Laporan progress hanya untuk proyek cleaning lapangan (Regular, General, atau Facade Cleaning).",
+          "Laporan progress hanya untuk proyek cleaning (Rutin, General, Fasad, atau Internal).",
+        cleaningPositionOnly:
+          "Laporan progress hanya untuk jabatan staf cleaning (Cleaning Staff, GC Staff, atau In-House Cleaning Staff).",
         inProgressOnly:
           "Laporan progress hanya untuk proyek Sedang Berjalan (perintah kerja diterima).",
         reportNotFound: "Laporan progress tidak ditemukan.",
         editDenied:
           "Hanya penulis laporan yang dapat mengubah laporan progress ini.",
         headOfficeNotAllowed:
-          "Staf Kantor Pusat tidak dapat mengirim laporan progress. Hanya staf cleaning lapangan dengan CICO terbuka yang dapat mengirim.",
+          "Staf meja Kantor Pusat tidak dapat mengirim laporan progress untuk situs komersial. In-House Cleaning Staff boleh mengirim di proyek Internal yang ditugaskan dengan CICO terbuka.",
         checkInRequired:
           "Anda harus check in melalui CICO sebelum mengirim Laporan Progress.",
         checkInRequiredForProject:
@@ -3111,20 +3055,23 @@ export const id = {
     },
     cico: {
       title: "CICO",
-      description: "Check-In / Check-Out untuk staf cleaning lapangan.",
+      description:
+        "Check-In / Check-Out untuk staf lapangan dan clock kantor Head Office / Warehouse.",
       employeeOnly: "CICO hanya tersedia untuk akun karyawan.",
       noEmployeeProfile:
         "CICO membutuhkan profil karyawan yang terhubung. Minta administrator menghubungkan login Anda ke data karyawan.",
       activeOnlyMessage:
         "CICO hanya tersedia untuk staf Aktif. Hubungi Kantor Pusat jika status Anda perlu diperbarui.",
       onProjectOnlyMessage:
-        "CICO hanya tersedia saat penempatan Anda Di Proyek dan Anda ditugaskan ke lokasi cleaning.",
+        "CICO lapangan tersedia saat Anda Di Proyek dan ditugaskan ke lokasi cleaning. In-House Cleaning Staff: tugaskan dulu ke proyek Internal Head Office atau Warehouse. Warehouse Supervisor dan staf meja Corporate memakai CICO kantor.",
       descriptionDetail:
         "Check-In / Check-Out di lokasi proyek cleaning yang ditugaskan menggunakan GPS dan foto di lokasi.",
+      officeDescription:
+        "Clock kantor di Head Office atau Warehouse. GPS dan foto wajib. Jam 09:00–17:00 (toleransi terlambat 15 menit).",
       errors: {
         notAssigned: "Anda tidak ditugaskan ke proyek ini.",
         cleaningOnly:
-          "CICO hanya untuk proyek cleaning lapangan (Pembersihan Rutin, General, atau Fasad).",
+          "CICO hanya untuk proyek cleaning (Rutin, General, Fasad, atau Internal).",
         inProgressOnly:
           "Check-in hanya tersedia untuk proyek Sedang Berjalan (perintah kerja diterima).",
         noSiteLocation: "Proyek ini belum memiliki lokasi situs yang dikonfigurasi.",
@@ -3157,6 +3104,7 @@ export const id = {
         tooFarCheckOut:
           "Anda berjarak {distance} m dari {site}. Check-out dalam radius {radius} m dari lokasi proyek tersebut.",
         lateCheckInNote: "Check-in terlambat (seharusnya sebelum {time}).",
+        earlyCheckOutNote: "Pulang lebih awal (sebelum 17:00).",
         progressRequiredBeforeCheckOut:
           "Laporan Progress wajib untuk check-out. Silakan unggah lalu coba CICO lagi.",
       },
@@ -3201,7 +3149,9 @@ export const id = {
         "Laporan Progress wajib untuk check-out. Silakan unggah lalu coba CICO lagi.",
       uploadProgressNow: "Unggah Laporan Progress",
       footerNote:
-        "CICO untuk staf cleaning Aktif Di Proyek pada lokasi Pembersihan Rutin, General, atau Fasad yang ditugaskan. GPS geofence dan foto di lokasi wajib untuk check-in dan check-out. Check-out juga membutuhkan minimal satu Laporan Progress untuk hari shift ini.",
+        "CICO untuk staf cleaning Aktif Di Proyek pada lokasi cleaning yang ditugaskan (termasuk Internal). GPS geofence dan foto di lokasi wajib untuk check-in dan check-out. Check-out juga membutuhkan minimal satu Laporan Progress untuk hari shift ini.",
+      footerNoteCheckInOnly:
+        "GPS geofence dan foto di lokasi wajib untuk check-in dan check-out. Laporan Progress tidak wajib untuk jabatan Anda.",
       chooseImageFile: "Pilih file gambar untuk foto di lokasi Anda.",
       photoRequiredAlert:
         "Foto check-in wajib. Ambil foto yang menunjukkan Anda di lokasi proyek ini.",
@@ -3242,7 +3192,7 @@ export const id = {
           "Contoh tampilan proyek — kontrol dinonaktifkan untuk akun Kantor Pusat.",
         fieldWorkerFlow: "CICO Lapangan",
         fieldWorkerFlowHint:
-          "Pilih proyek Sedang Berjalan, lalu check-in di lokasi. Aturan geofence, foto, dan Laporan Progress tetap berlaku.",
+          "Pilih proyek Sedang Berjalan, lalu check-in di lokasi. Aturan geofence dan foto berlaku; Laporan Progress sebelum check-out hanya untuk jabatan staf cleaning.",
         controlsDisabled:
           "Check-in, check-out, dan unggah foto dinonaktifkan dalam mode pratinjau.",
         noSampleProject:
@@ -3260,10 +3210,16 @@ export const id = {
     attendance: {
       title: "Laporan Kehadiran",
       description: "Tampilan kantor pusat untuk kehadiran lokasi per tanggal dan proyek.",
-      descriptionAdmin: "Pilih klien untuk melihat kehadiran proyek.",
+      descriptionAdmin:
+        "Situs internal dulu (Kantor Pusat, Gudang), lalu proyek klien.",
       descriptionClient: "Pilih proyek untuk melihat rekap kehadiran.",
       clientProjectsDesc: "Pilih proyek untuk melihat kehadiran bulanan.",
       breadcrumbAria: "Navigasi laporan kehadiran",
+      internalSection: "Internal",
+      internalSectionDesc: "Kehadiran Kantor Pusat dan Gudang RGS.",
+      internalSiteHint: "Situs internal",
+      projectsSection: "Proyek",
+      projectsSectionDesc: "Situs proyek klien.",
       noClients: "Klien tidak ditemukan",
       noClientsDesc: "Tidak ada klien aktif dengan proyek.",
       noClientsMatch: "Tidak ada klien yang cocok.",
@@ -3409,11 +3365,22 @@ export const id = {
       emptyDescription: "Tidak ada permintaan menunggu tinjauan.",
       emptyLeaveTitle: "Tidak ada permintaan izin",
       emptyLeaveDescription: "Tidak ada izin atau sakit menunggu tinjauan.",
+      emptyLeaveOnlyOwnDescription:
+        "Tidak ada yang perlu Anda setujui saat ini. Permintaan Anda ada di atas dan membutuhkan peninjau lain.",
       emptyMaterialsTitle: "Tidak ada permintaan material",
       emptyMaterialsDescription:
         "Tidak ada permintaan material menunggu tinjauan.",
       leaveSection: "Izin & Sakit",
+      leaveSectionDesc:
+        "Permintaan izin dan sakit yang menunggu keputusan Anda.",
+      ownPendingTitle: "Permintaan Anda menunggu peninjau lain",
+      ownPendingDesc:
+        "Anda tidak dapat menyetujui izin sendiri. Minta HO admin / Direktur lain (mis. manager) meninjau di Approvals.",
+      statusPending: "Menunggu",
       materialsSection: "Permintaan Material",
+      materialsSectionDesc:
+        "Tinjau detail permintaan, cek stok gudang, lalu setujui (membuat Transfer Order) atau tolak.",
+      pendingCount: "{count} menunggu",
       proof: "Bukti",
       period: "Periode",
       columns: {
@@ -3429,16 +3396,31 @@ export const id = {
       description:
         "Ajukan material untuk proyek tempat Anda check-in. OM menyetujui, lalu gudang mengirim transfer order.",
       newRequest: "Permintaan Baru",
+      newRequestDesc:
+        "Pilih item katalog dan kuantitas untuk proyek check-in Anda. Stok gudang ditampilkan sebagai referensi.",
       myRequests: "Permintaan Saya",
+      myRequestsDesc:
+        "Lacak status persetujuan, progress transfer, dan konfirmasi penerimaan saat gudang menandai terkirim.",
+      requestCount: "{count} permintaan",
+      lineCount: "{count} item",
+      submittedOn: "Dikirim {date}",
       emptyTitle: "Belum Ada Permintaan",
       emptyDescription: "Ajukan permintaan saat check-in lewat CICO.",
       mustBeCheckedIn:
         "Anda harus check-in (CICO) ke proyek sebelum meminta material.",
       checkedInHint: "Meminta untuk proyek check-in: {project}",
+      checkedInProjectLabel: "Proyek check-in",
+      checkedInHintDetail:
+        "Permintaan ini terikat ke proyek ini dan muncul di Approvals untuk tinjauan OM.",
       selectItem: "Pilih item…",
       addLine: "Tambah Baris",
-      notesPlaceholder: "Catatan opsional",
+      notesPlaceholder:
+        "Catatan opsional untuk OM / gudang (urgensi, lokasi di site…)",
+      reviewNotePlaceholder:
+        "Catatan tinjauan opsional (disarankan saat menolak)",
       submit: "Kirim Permintaan",
+      submitHint:
+        "Setelah kirim: Approvals → Transfer Orders → Konfirmasi Diterima di site.",
       linesRequired: "Tambah minimal satu item.",
       quantityInvalid: "Kuantitas harus bilangan bulat positif.",
       projectInvalid: "Proyek check-in tidak dapat menerima material saat ini.",
@@ -3450,24 +3432,91 @@ export const id = {
       reviewFailed: "Tidak dapat meninjau permintaan material.",
       approved: "Permintaan disetujui — transfer order dibuat.",
       rejected: "Permintaan material ditolak.",
+      noLines: "Tidak ada baris item.",
+      stockShort: "Kurang dari permintaan",
+      status: {
+        requested: "Diminta",
+        approved: "Disetujui",
+        rejected: "Ditolak",
+        cancelled: "Dibatalkan",
+      },
+      columns: {
+        item: "Item",
+        sku: "SKU",
+        qty: "Qty diminta",
+        onHand: "Stok gudang",
+        requester: "Pemohon",
+        reviewed: "Ditinjau",
+        notes: "Catatan",
+        reviewNote: "Catatan tinjauan",
+        requestedItems: "Item yang diminta",
+      },
     },
     transferOrders: {
       title: "Transfer Barang",
       description:
-        "Antrian gudang: kirim material yang disetujui ke proyek, lalu site konfirmasi penerimaan.",
+        "Antrian Gudang: telusuri per klien dan proyek, kirim material yang disetujui, lalu site konfirmasi penerimaan.",
+      directoryTitle: "Klien & Lokasi",
+      directoryDesc:
+        "Telusuri klien dan lokasi internal. Buka proyek untuk antrian gudang dan riwayat transfer order.",
+      clientProjectsDesc:
+        "Pilih proyek untuk membuka antrian gudang dan riwayat transfer order.",
+      breadcrumbAria: "Navigasi transfer barang",
+      searchClients: "Cari klien...",
+      searchProjects: "Cari proyek...",
+      noClientsMatch: "Tidak ada klien yang cocok dengan pencarian Anda.",
+      noProjects: "Belum Ada Proyek",
+      noProjectsDesc: "Klien ini tidak punya proyek yang dapat diakses.",
+      noProjectsMatch: "Tidak ada proyek yang cocok dengan pencarian Anda.",
+      internalSection: "Internal",
+      internalSectionDesc:
+        "Antrian dan riwayat transfer order Head Office serta Warehouse.",
+      internalSiteHint: "Antrian lokasi internal",
+      clientsSection: "Klien",
+      clientsSectionDesc:
+        "Telusuri klien dan proyek. Lencana menunjukkan menunggu kirim / dalam perjalanan.",
+      projectsSection: "Proyek",
+      projectCountOne: "{count} proyek",
+      projectCountOther: "{count} proyek",
+      badgePending: "{count} menunggu",
+      badgeInTransit: "{count} transit",
+      queueTitle: "Antrian Gudang",
+      queueDesc:
+        "Setiap kartu menampilkan proyek tujuan, pemohon, rincian item, dan ketersediaan stok sebelum Anda menandai terkirim.",
       emptyTitle: "Belum Ada Transfer Order",
       emptyDescription:
-        "Permintaan material yang disetujui muncul di sini untuk gudang.",
+        "Permintaan material yang disetujui muncul di sini ketika klien atau lokasi punya barang untuk dikirim.",
+      emptyProjectDescription:
+        "Belum ada transfer order untuk proyek ini. Permintaan material yang disetujui akan muncul di sini.",
       notFound: "Transfer order tidak ditemukan.",
       sendFailed: "Tidak dapat menandai transfer sebagai terkirim.",
       sent: "Transfer ditandai terkirim — stok dikeluarkan ke proyek.",
       markSent: "Tandai Terkirim",
       receiveFailed: "Tidak dapat mengonfirmasi penerimaan.",
+      receiveDenied:
+        "Anda tidak memiliki izin untuk mengonfirmasi penerimaan transfer.",
       received: "Penerimaan dikonfirmasi.",
       confirmReceived: "Konfirmasi Diterima",
       mustBeCheckedInToReceive:
         "Check-in (CICO) ke proyek ini sebelum mengonfirmasi penerimaan.",
       requestedBy: "Diminta oleh {name}",
+      sentBy: "Dikirim oleh {name}",
+      receivedBy: "Diterima oleh {name}",
+      statPending: "{count} menunggu kirim",
+      statSent: "{count} dalam perjalanan",
+      statReceived: "{count} diterima",
+      status: {
+        pendingSend: "Menunggu kirim",
+        sent: "Terkirim",
+        received: "Diterima",
+        cancelled: "Dibatalkan",
+      },
+      columns: {
+        createdAt: "Dibuat",
+        sentAt: "Dikirim",
+        receivedAt: "Diterima",
+        itemsToSend: "Item yang dikirim",
+      },
     },
     reports: {
       title: "Laporan Klien",
@@ -3704,7 +3753,9 @@ export const id = {
       savePurchase: "Simpan Penerimaan Stok",
       addIssue: "Keluarkan Ke Proyek",
       addIssueDesc:
-        "Tetapkan stok ke proyek yang sedang berjalan. Biaya dikunci pada rata-rata tertimbang saat ini.",
+        "Stok hanya dikeluarkan melalui Permintaan Material → Persetujuan → Transfer Order.",
+      issueViaTransferOrderOnly:
+        "Stok hanya dapat dikeluarkan melalui Permintaan Material → Persetujuan → Transfer Order. Pengeluaran inventaris langsung dinonaktifkan.",
       saveIssue: "Keluarkan Stok",
       addWriteOff: "Hapus Stok (Write-Off)",
       addWriteOffDesc:
@@ -3760,6 +3811,22 @@ export const id = {
       saleDetailsExTaxHint: "Tidak termasuk pajak.",
       saleDetailsGainLossHint:
         "Laba/rugi memakai penjualan sebelum pajak vs dasar biaya sebelum pajak.",
+      stockDetailTitle: "Detail Item Stok",
+      stockDetailDesc:
+        "Penerimaan sepanjang waktu, stok gudang, dan penugasan proyek untuk item ini.",
+      stockDetailBought: "Dibeli (Sepanjang Waktu)",
+      stockDetailAssigned: "Ditugaskan",
+      stockDetailInStock: "Stok Gudang",
+      stockDetailWrittenOff: "Dihapus (Write-Off)",
+      stockDetailSold: "Terjual",
+      stockDetailAssignmentsTitle: "Ditugaskan Per Proyek",
+      stockDetailAssignmentsDesc:
+        "Total sepanjang waktu per proyek (semua tanggal pengeluaran digabung). Pengeluaran yang dibatalkan tidak dihitung.",
+      stockDetailEmptyAssignments: "Belum Ada Penugasan Proyek",
+      stockDetailEmptyAssignmentsDesc:
+        "Item ini belum dikeluarkan ke proyek mana pun.",
+      stockDetailLoading: "Memuat detail item…",
+      stockDetailLoadFailed: "Tidak dapat memuat detail item stok.",
       itemCreated: "Item katalog dibuat.",
       itemUpdated: "Item katalog diperbarui.",
       itemDeactivated: "Item katalog dinonaktifkan.",
@@ -3815,7 +3882,7 @@ export const id = {
         "Catat penerimaan stok terhadap item katalog untuk menambah stok gudang.",
       emptyIssues: "Belum Ada Pengeluaran Proyek",
       emptyIssuesDesc:
-        "Keluarkan stok ke proyek Berjalan, Menunggu Persetujuan, atau Ditunda. Bahan habis pakai dan kimia membebankan biaya; peralatan hanya lokasi/penahanan.",
+        "Pengeluaran ke proyek muncul di sini setelah Transfer Order ditandai terkirim. Ajukan stok melalui Permintaan Material → Persetujuan → Transfer Order.",
       emptyWriteOffs: "Belum Ada Write-Off",
       emptyWriteOffsDesc:
         "Write-off mengurangi stok secara permanen dengan alasan wajib yang tercatat.",
@@ -3864,6 +3931,8 @@ export const id = {
           "Tidak ada item yang cocok dengan filter saat ini untuk proyek ini.",
       },
       stock: {
+        itemClickHint:
+          "Klik item stok untuk melihat total dibeli, ditugaskan, stok gudang, dan ke proyek mana item dikeluarkan.",
         equipmentClickHint:
           "Klik item peralatan untuk melihat unit di gudang dan di proyek. Stok adalah gudang saja — unit di proyek tetap milik perusahaan.",
         equipmentLocations: "Lokasi Peralatan",

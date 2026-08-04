@@ -2,10 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { canAssignInventoryToProject } from "@/lib/inventory-access";
 import { canManageInventory } from "@/lib/project-access";
 import { decimalToNumber } from "@/lib/project-billing";
-import {
-  INVENTORY_ISSUE_PROJECT_STATUSES,
-  inventoryQtyFromDecimal,
-} from "@/lib/inventory";
+import { inventoryQtyFromDecimal } from "@/lib/inventory";
 import { requireModule, toPermissionUser } from "@/lib/session";
 
 import AppShell from "@/components/layout/AppShell";
@@ -47,7 +44,6 @@ export default async function InventoryPage() {
     writeOffs,
     soldOffs,
     vendors,
-    projects,
     assetRows,
   ] = await Promise.all([
       prisma.inventoryItem.findMany({
@@ -154,14 +150,6 @@ export default async function InventoryPage() {
       prisma.vendor.findMany({
         where: { companyId: company.id, active: true },
         select: { id: true, name: true, shortCode: true },
-        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      }),
-      prisma.project.findMany({
-        where: {
-          companyId: company.id,
-          status: { in: [...INVENTORY_ISSUE_PROJECT_STATUSES] },
-        },
-        select: { id: true, name: true, status: true },
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       }),
       prisma.equipmentAsset.findMany({
@@ -308,7 +296,6 @@ export default async function InventoryPage() {
         writeOffs={writeOffRows}
         soldOffs={soldOffRows}
         vendors={vendors}
-        projects={projects}
         equipmentAssets={overviewAssets}
       />
     </AppShell>

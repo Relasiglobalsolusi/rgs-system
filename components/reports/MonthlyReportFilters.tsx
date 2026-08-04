@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PROJECT_SUB_CATEGORIES } from "@/lib/project-subcategory";
+import { COMMERCIAL_PROJECT_SUB_CATEGORIES } from "@/lib/project-subcategory";
 import { localizeSubCategoryShort } from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
@@ -203,7 +203,7 @@ export default function MonthlyReportFilters({
           >
             {t("common.actions.all")}
           </DirectoryFilterTab>
-          {PROJECT_SUB_CATEGORIES.map((value) => (
+          {COMMERCIAL_PROJECT_SUB_CATEGORIES.map((value) => (
             <DirectoryFilterTab
               key={value}
               active={subCategory === value}

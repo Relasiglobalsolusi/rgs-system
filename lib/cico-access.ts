@@ -1,4 +1,4 @@
-import type { Employee, EmployeeType, Placement } from "@prisma/client";
+import type { Employee, EmployeeType } from "@prisma/client";
 
 import {
   canAccess,
@@ -6,8 +6,9 @@ import {
   type AccountTypeUser,
   type PermissionUser,
 } from "@/lib/permissions";
-import { isHeadOfficePlacement } from "@/lib/placement";
 import { isEmployeeActiveForOperations } from "@/lib/leave-employment-status";
+import { canUseOfficeCico } from "@/lib/office-cico";
+import { isCleaningStaffPosition } from "@/lib/positions";
 
 type CicoEmployee = Pick<
   Employee,
@@ -15,11 +16,14 @@ type CicoEmployee = Pick<
   | "status"
   | "placement"
   | "employeeType"
->;
+  | "internalHomeSite"
+> & {
+  jobPosition?: { name?: string | null; slug?: string | null } | null;
+};
 
 /**
- * Active on-project field cleaning staff who may perform real CICO check-in/out.
- * Excludes head-office / corporate employees even when placement is ON_PROJECT.
+ * Active on-project field staff who may perform real CICO check-in/out.
+ * Excludes head-office desk employees (they use office CICO instead).
  */
 export function isCicoFieldEligible(
   employee: CicoEmployee | null | undefined
@@ -29,9 +33,28 @@ export function isCicoFieldEligible(
   if (!isEmployeeActiveForOperations(employee.status)) return false;
   if (employee.placement !== "ON_PROJECT") return false;
   if (employee.employeeType === "HEAD_OFFICE") return false;
-  if (isHeadOfficePlacement(employee.placement)) return false;
   return true;
 }
+
+/** Field CICO or HO/Warehouse office clock. */
+export function isCicoOperationalEligible(
+  employee: CicoEmployee | null | undefined
+): boolean {
+  return isCicoFieldEligible(employee) || canUseOfficeCico(employee);
+}
+
+/**
+ * Progress before checkout — cleaning staff positions only
+ * (Cleaning Staff, GC Staff, In-House Cleaning Staff).
+ */
+export function requiresCicoProgressReport(
+  employee: CicoEmployee | null | undefined
+): boolean {
+  if (!employee) return false;
+  return isCleaningStaffPosition(employee.jobPosition ?? {});
+}
+
+export { canUseOfficeCico };
 
 type CicoPreviewUser = PermissionUser &
   AccountTypeUser & {
@@ -57,7 +80,7 @@ export function canViewCicoAdminPreview(
   employee: CicoEmployee | null | undefined
 ): boolean {
   if (user.clientId) return false;
-  if (isCicoFieldEligible(employee)) return false;
+  if (isCicoOperationalEligible(employee)) return false;
   if (isHoAdminAccount(user)) return true;
 
   const employeeType =
