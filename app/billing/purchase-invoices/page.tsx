@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { ShoppingBag } from "lucide-react";
 
+import PurchaseInvoicePeriodControl from "@/components/billing/PurchaseInvoicePeriodControl";
 import PurchaseInvoiceTable, {
   type PurchaseInvoiceTableRow,
 } from "@/components/billing/PurchaseInvoiceTable";
@@ -22,6 +23,7 @@ import {
   formatContractPrice,
 } from "@/lib/project-billing";
 import { requireFinanceChild, toPermissionUser } from "@/lib/session";
+import { jakartaYearMonth, utcRangeForJakartaMonth } from "@/lib/vat";
 
 /** AP list view filters for HO Finance. */
 const PURCHASE_VIEWS = ["tax", "payments"] as const;
@@ -31,7 +33,11 @@ function isPurchaseView(value: string): value is PurchaseView {
   return (PURCHASE_VIEWS as readonly string[]).includes(value);
 }
 
-type SearchParams = Promise<{ view?: string }>;
+type SearchParams = Promise<{
+  view?: string;
+  year?: string;
+  month?: string;
+}>;
 
 export default async function PurchaseInvoicesPage({
   searchParams,
@@ -55,6 +61,17 @@ export default async function PurchaseInvoicesPage({
   const purchaseView =
     params.view && isPurchaseView(params.view) ? params.view : null;
 
+  const nowYm = jakartaYearMonth();
+  const year = Math.max(
+    2000,
+    Math.min(2100, Number(params.year) || nowYm.year)
+  );
+  const month = Math.max(
+    1,
+    Math.min(12, Number(params.month) || nowYm.month)
+  );
+  const { start, endExclusive } = utcRangeForJakartaMonth(year, month);
+
   const user = toPermissionUser(session);
   const canManage =
     canAccess(user, "invoicing") || canAccess(user, "projects");
@@ -64,6 +81,8 @@ export default async function PurchaseInvoicesPage({
     prisma.purchaseInvoice.findMany({
       where: {
         companyId: session.user.companyId,
+        // Filter by supplier invoice date (not createdAt).
+        invoiceDate: { gte: start, lt: endExclusive },
       },
       include: {
         createdBy: { select: { name: true } },
@@ -159,25 +178,30 @@ export default async function PurchaseInvoicesPage({
 
   return (
     <AppShell titleKey={titleKey} descriptionKey={descriptionKey}>
-      <SectionCard>
-        <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/30 bg-card-tint-emerald text-primary-dark">
-                <ShoppingBag className="h-4 w-4" aria-hidden />
-              </div>
-              <div className="min-w-0">
-                <h2 className="text-lg font-semibold text-text">
-                  {t(titleKey)}
-                </h2>
-              </div>
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/30 bg-card-tint-emerald text-primary-dark">
+              <ShoppingBag className="h-4 w-4" aria-hidden />
             </div>
-            <p className="mt-2 text-sm text-muted">{t(descriptionKey)}</p>
-            <p className="mt-1 text-xs text-subtle">
-              {t("pages.billing.purchaseCount", { count: rows.length })}
-            </p>
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold tracking-tight text-text">
+                {t(titleKey)}
+              </h2>
+              <p className="mt-0.5 text-sm text-subtle">{t(descriptionKey)}</p>
+            </div>
           </div>
+          <p className="mt-2 text-xs font-medium tabular-nums text-muted">
+            {t("pages.billing.purchaseCount", { count: rows.length })}
+          </p>
+        </div>
 
+        <div className="flex flex-wrap items-end gap-3">
+          <PurchaseInvoicePeriodControl
+            year={year}
+            month={month}
+            view={purchaseView}
+          />
           {canUpload ? (
             <PurchaseInvoiceUploadDialog
               vendors={vendors}
@@ -185,20 +209,22 @@ export default async function PurchaseInvoicesPage({
             />
           ) : null}
         </div>
+      </div>
 
-        {rows.length === 0 ? (
+      {rows.length === 0 ? (
+        <SectionCard className="p-5 sm:p-6">
           <EmptyState
-            titleKey="pages.billing.purchaseEmpty"
-            descriptionKey="pages.billing.purchaseEmptyDesc"
+            titleKey="pages.billing.purchaseEmptyPeriod"
+            descriptionKey="pages.billing.purchaseEmptyPeriodDesc"
           />
-        ) : (
-          <PurchaseInvoiceTable
-            rows={rows}
-            canManage={canUpload}
-            readOnlyPayment={purchaseView === "payments"}
-          />
-        )}
-      </SectionCard>
+        </SectionCard>
+      ) : (
+        <PurchaseInvoiceTable
+          rows={rows}
+          canManage={canUpload}
+          readOnlyPayment={purchaseView === "payments"}
+        />
+      )}
     </AppShell>
   );
 }

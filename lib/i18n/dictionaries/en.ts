@@ -2239,9 +2239,13 @@ export const en = {
       vendorStatusOpen: "Open",
       vendorStatusOverdue: "Overdue",
       purchaseCount: "{count} purchase invoice(s)",
+      purchasePeriod: "Period",
       purchaseEmpty: "No Purchases Yet",
       purchaseEmptyDesc:
         "Add a purchase with a registered vendor, invoice details, amount, and document.",
+      purchaseEmptyPeriod: "No Purchases This Month",
+      purchaseEmptyPeriodDesc:
+        "No purchases have an invoice date in the selected month. Try another period or add a purchase.",
       purchaseUpload: "Add Purchase",
       purchaseUploadTitle: "Add Purchase",
       purchaseUploadDesc:
@@ -2313,24 +2317,27 @@ export const en = {
       purchaseUploadFailed: "Failed to save purchase.",
       purchaseUploaded: "Added",
       purchaseViewFile: "View",
+      purchaseViewInvoiceAction: "View Invoice",
       purchaseInvoice: "Purchase invoice",
-      purchaseTaxInvoice: "Tax invoice",
+      purchaseTaxInvoice: "Tax Invoice",
       purchaseTaxInvoiceOptional: "Tax Invoice (optional)",
       purchaseTaxInvoiceHint:
-        "Optional faktur pajak for input VAT (PPN masukan). Strict AI checks apply when attached (RGS as buyer, supplier as seller). You can also attach it later from the table.",
+        "Optional faktur pajak for input VAT (PPN masukan). Strict AI checks apply when attached (RGS as buyer, supplier as seller). You can also attach it later from the purchase card.",
       purchaseChooseTaxInvoice: "Choose a tax invoice file.",
       purchaseUploadTaxInvoice: "Upload",
-      purchaseUploadTaxInvoiceTitle: "Upload tax invoice",
+      purchaseUploadTaxInvoiceAction: "Upload Tax Invoice",
+      purchaseUploadTaxInvoiceTitle: "Upload Tax Invoice",
       purchaseUploadTaxInvoiceDesc:
         "Attach the faktur pajak (input VAT) for this purchase.",
       purchaseUploadTaxInvoiceCallout:
         "Strict checks for PPN masukan: RGS as buyer, supplier as seller, company Tax ID (NPWP) when configured, taxable base + VAT (DPP + PPN) / total within ±2 IDR, unique serial. Unclear or swapped parties are rejected.",
       purchaseTaxInvoiceVerifyRejected:
         "Tax invoice could not be saved — document check failed:",
-      purchaseUploadTaxInvoiceConfirm: "Save tax invoice",
+      purchaseUploadTaxInvoiceConfirm: "Save Tax Invoice",
       purchaseUploadTaxInvoiceFailed: "Failed to upload tax invoice.",
       purchaseNoTaxInvoice: "—",
       purchaseViewTaxInvoice: "View",
+      purchaseViewTaxInvoiceAction: "View Tax Invoice",
       taxPendingCount: "{count} pending",
       taxInvoiceDueBadge: "Tax invoice due",
       taxClientsNeedingAttention: "{count} clients need attention",

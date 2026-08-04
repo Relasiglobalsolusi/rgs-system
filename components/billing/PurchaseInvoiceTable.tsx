@@ -1,12 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState, type ReactNode } from "react";
+import { Eye, FileText, Upload } from "lucide-react";
 
 import PurchaseTaxInvoiceUploadDialog from "@/components/billing/PurchaseTaxInvoiceUploadDialog";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
+import { Button } from "@/components/ui/button";
 import ProofLightbox from "@/components/ui/ProofLightbox";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { useT } from "@/lib/i18n/use-t";
+import { cn } from "@/lib/utils";
 
 export type PurchaseInvoiceTableRow = {
   id: string;
@@ -46,6 +48,183 @@ type Props = {
   readOnlyPayment?: boolean;
 };
 
+function MetaRow({
+  label,
+  value,
+  className,
+}: {
+  label: string;
+  value: ReactNode;
+  className?: string;
+}) {
+  if (value == null || value === "") return null;
+  return (
+    <div className={cn("min-w-0", className)}>
+      <dt className="text-[0.625rem] font-medium uppercase tracking-[0.1em] text-subtle">
+        {label}
+      </dt>
+      <dd className="mt-1 text-sm text-text">{value}</dd>
+    </div>
+  );
+}
+
+function PurchaseInvoiceCard({
+  row,
+  canManage,
+  readOnlyPayment,
+  onViewFile,
+  onUploadTax,
+}: {
+  row: PurchaseInvoiceTableRow;
+  canManage: boolean;
+  readOnlyPayment: boolean;
+  onViewFile: (src: string, title: string) => void;
+  onUploadTax: (target: TaxUploadTarget) => void;
+}) {
+  const { t } = useT();
+
+  const taxAction = row.taxInvoiceFilePath ? (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className="w-full justify-start"
+      onClick={() =>
+        onViewFile(
+          row.taxInvoiceFilePath!,
+          t("pages.billing.purchaseTaxInvoice")
+        )
+      }
+    >
+      <FileText className="h-3.5 w-3.5" aria-hidden />
+      {t("pages.billing.purchaseViewTaxInvoiceAction")}
+    </Button>
+  ) : canManage && !readOnlyPayment ? (
+    <Button
+      type="button"
+      variant="accent"
+      size="sm"
+      className="w-full justify-start"
+      onClick={() =>
+        onUploadTax({
+          id: row.id,
+          supplierName: row.supplierName,
+          invoiceRef: row.invoiceRef,
+        })
+      }
+    >
+      <Upload className="h-3.5 w-3.5" aria-hidden />
+      {t("pages.billing.purchaseUploadTaxInvoiceAction")}
+    </Button>
+  ) : (
+    <span className="inline-flex min-h-7 items-center px-1 text-sm text-subtle">
+      {t("pages.billing.purchaseNoTaxInvoice")}
+    </span>
+  );
+
+  return (
+    <article className="rounded-2xl border border-border-strong/65 bg-elevated p-4 shadow-[0_12px_28px_-20px_rgba(0,0,0,0.72)] sm:p-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-5">
+        <div className="min-w-0 flex-1 space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 space-y-1">
+              <h3 className="text-base font-semibold tracking-tight text-text">
+                {row.supplierName}
+              </h3>
+              <p className="truncate text-sm text-subtle">{row.invoiceRef}</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {row.showPaymentStatus ? (
+                row.paymentStatus === "overdue" ? (
+                  <StatusBadge status="danger" compact>
+                    {t("pages.billing.vendorStatusOverdue")}
+                  </StatusBadge>
+                ) : row.paymentStatus === "open" ? (
+                  <StatusBadge status="info" compact>
+                    {t("pages.billing.vendorStatusOpen")}
+                  </StatusBadge>
+                ) : null
+              ) : null}
+              {row.includesPpn ? (
+                <StatusBadge status="success" compact>
+                  {t("pages.billing.purchaseIncludesPpnChip")}
+                </StatusBadge>
+              ) : (
+                <StatusBadge status="inactive" compact>
+                  {t("pages.billing.purchaseNoPpnChip")}
+                </StatusBadge>
+              )}
+            </div>
+          </div>
+
+          <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            <MetaRow
+              label={t("pages.billing.purchaseInvoiceDate")}
+              value={row.invoiceDateLabel}
+            />
+            <MetaRow
+              label={t("pages.billing.purchasePaymentTerms")}
+              value={
+                <span className="tabular-nums">
+                  {row.paymentTermsLabel ?? "—"}
+                </span>
+              }
+            />
+            <MetaRow
+              label={t("pages.billing.paymentDue")}
+              value={row.dueDateLabel ?? "—"}
+            />
+            <MetaRow
+              label={t("pages.billing.columns.amount")}
+              value={
+                <span className="font-semibold tabular-nums">
+                  {row.amountLabel}
+                </span>
+              }
+            />
+            <MetaRow
+              label={t("pages.billing.purchaseUploaded")}
+              value={
+                <span>
+                  {row.uploadedAtLabel}
+                  {row.uploadedBy ? (
+                    <span className="mt-0.5 block text-xs text-subtle">
+                      {row.uploadedBy}
+                    </span>
+                  ) : null}
+                </span>
+              }
+            />
+            {row.notes ? (
+              <MetaRow
+                label={t("pages.billing.purchaseNotes")}
+                value={row.notes}
+                className="sm:col-span-2 lg:col-span-3 xl:col-span-5"
+              />
+            ) : null}
+          </dl>
+        </div>
+
+        <div className="flex w-full shrink-0 flex-col gap-2 sm:w-[12.5rem]">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full justify-start"
+            onClick={() =>
+              onViewFile(row.filePath, t("pages.billing.purchaseInvoice"))
+            }
+          >
+            <Eye className="h-3.5 w-3.5" aria-hidden />
+            {t("pages.billing.purchaseViewInvoiceAction")}
+          </Button>
+          {taxAction}
+        </div>
+      </div>
+    </article>
+  );
+}
+
 export default function PurchaseInvoiceTable({
   rows,
   canManage = false,
@@ -55,211 +234,24 @@ export default function PurchaseInvoiceTable({
   const [lightbox, setLightbox] = useState<LightboxState | null>(null);
   const [taxUpload, setTaxUpload] = useState<TaxUploadTarget | null>(null);
 
-  const columns = useMemo(() => {
-    const cols: DataTableColumn<PurchaseInvoiceTableRow>[] = [
-      {
-        key: "supplier",
-        title: t("pages.billing.purchaseSupplier"),
-        width: "12rem",
-        share: 2,
-        className: "min-w-[12rem]",
-        render: (row) => (
-          <div className="min-w-0">
-            <p className="font-semibold text-text">{row.supplierName}</p>
-            <p className="mt-0.5 truncate text-sm text-subtle">
-              {row.invoiceRef}
-            </p>
-          </div>
-        ),
-      },
-      {
-        key: "date",
-        title: t("pages.billing.purchaseInvoiceDate"),
-        width: "8rem",
-        className: "min-w-[8rem] whitespace-nowrap",
-        render: (row) => (
-          <p className="text-muted">{row.invoiceDateLabel}</p>
-        ),
-      },
-      {
-        key: "paymentTerms",
-        title: t("pages.billing.purchasePaymentTerms"),
-        width: "7.5rem",
-        className: "min-w-[7.5rem] whitespace-nowrap",
-        render: (row) => (
-          <p className="tabular-nums text-muted">
-            {row.paymentTermsLabel ?? "—"}
-          </p>
-        ),
-      },
-      {
-        key: "dueDate",
-        title: t("pages.billing.paymentDue"),
-        width: "8rem",
-        className: "min-w-[8rem] whitespace-nowrap",
-        render: (row) => (
-          <p className="text-muted">{row.dueDateLabel ?? "—"}</p>
-        ),
-      },
-      {
-        key: "amount",
-        title: t("pages.billing.columns.amount"),
-        width: "9rem",
-        align: "right",
-        className: "min-w-[9rem] whitespace-nowrap",
-        render: (row) => (
-          <p className="font-medium text-text">{row.amountLabel}</p>
-        ),
-      },
-      {
-        key: "ppn",
-        title: t("pages.billing.purchasePpnColumn"),
-        width: "8.5rem",
-        align: "center",
-        className: "min-w-[8.5rem]",
-        render: (row) =>
-          row.includesPpn ? (
-            <StatusBadge status="info" compact>
-              {t("pages.billing.purchaseIncludesPpnChip")}
-            </StatusBadge>
-          ) : (
-            <StatusBadge status="inactive" compact>
-              {t("pages.billing.purchaseNoPpnChip")}
-            </StatusBadge>
-          ),
-      },
-      {
-        key: "uploaded",
-        title: t("pages.billing.purchaseUploaded"),
-        width: "10rem",
-        className: "min-w-[10rem]",
-        render: (row) => (
-          <div className="min-w-0">
-            <p className="text-muted">{row.uploadedAtLabel}</p>
-            {row.uploadedBy ? (
-              <p className="mt-0.5 truncate text-xs text-subtle">
-                {row.uploadedBy}
-              </p>
-            ) : null}
-          </div>
-        ),
-      },
-    ];
-
-    if (rows.some((row) => row.showPaymentStatus)) {
-      cols.push({
-        key: "paymentStatus",
-        title: t("pages.billing.vendorPaymentStatus"),
-        width: "7.5rem",
-        align: "center",
-        className: "min-w-[7.5rem]",
-        render: (row) => {
-          if (row.paymentStatus === "overdue") {
-            return (
-              <StatusBadge status="danger" compact>
-                {t("pages.billing.vendorStatusOverdue")}
-              </StatusBadge>
-            );
-          }
-          if (row.paymentStatus === "open") {
-            return (
-              <StatusBadge status="info" compact>
-                {t("pages.billing.vendorStatusOpen")}
-              </StatusBadge>
-            );
-          }
-          return <span className="text-sm text-subtle">—</span>;
-        },
-      });
-    }
-
-    cols.push(
-      {
-        key: "file",
-        title: t("pages.billing.purchaseDocument"),
-        width: "7rem",
-        align: "center",
-        className: "min-w-[7rem]",
-        render: (row) => (
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              setLightbox({
-                src: row.filePath,
-                title: t("pages.billing.purchaseInvoice"),
-              });
-            }}
-            className="text-sm font-medium text-primary-dark hover:underline"
-          >
-            {t("pages.billing.purchaseViewFile")}
-          </button>
-        ),
-      },
-      {
-        key: "taxInvoice",
-        title: t("pages.billing.purchaseTaxInvoice"),
-        width: "8rem",
-        align: "center",
-        className: "min-w-[8rem]",
-        render: (row) => {
-          if (row.taxInvoiceFilePath) {
-            return (
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setLightbox({
-                    src: row.taxInvoiceFilePath!,
-                    title: t("pages.billing.purchaseTaxInvoice"),
-                  });
-                }}
-                className="text-sm font-medium text-primary-dark hover:underline"
-              >
-                {t("pages.billing.purchaseViewTaxInvoice")}
-              </button>
-            );
-          }
-
-          if (canManage && !readOnlyPayment) {
-            return (
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setTaxUpload({
-                    id: row.id,
-                    supplierName: row.supplierName,
-                    invoiceRef: row.invoiceRef,
-                  });
-                }}
-                className="text-sm font-medium text-primary-dark hover:underline"
-              >
-                {t("pages.billing.purchaseUploadTaxInvoice")}
-              </button>
-            );
-          }
-
-          return (
-            <span className="text-sm text-subtle">
-              {t("pages.billing.purchaseNoTaxInvoice")}
-            </span>
-          );
-        },
-      }
-    );
-
-    return cols;
-  }, [canManage, readOnlyPayment, rows, t]);
+  if (rows.length === 0) {
+    return null;
+  }
 
   return (
     <>
-      <DataTable
-        columns={columns}
-        data={rows}
-        getRowKey={(row) => row.id}
-        emptyMessage={t("pages.billing.purchaseEmpty")}
-      />
+      <div className="flex flex-col gap-5">
+        {rows.map((row) => (
+          <PurchaseInvoiceCard
+            key={row.id}
+            row={row}
+            canManage={canManage}
+            readOnlyPayment={readOnlyPayment}
+            onViewFile={(src, title) => setLightbox({ src, title })}
+            onUploadTax={setTaxUpload}
+          />
+        ))}
+      </div>
       <ProofLightbox
         open={lightbox != null}
         onOpenChange={(open) => {

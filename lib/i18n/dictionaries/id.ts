@@ -2264,9 +2264,13 @@ export const id = {
       vendorStatusOpen: "Terbuka",
       vendorStatusOverdue: "Terlambat",
       purchaseCount: "{count} faktur pembelian",
+      purchasePeriod: "Periode",
       purchaseEmpty: "Belum Ada Pembelian",
       purchaseEmptyDesc:
         "Tambah pembelian dengan pemasok terdaftar, detail faktur, jumlah, dan dokumen.",
+      purchaseEmptyPeriod: "Tidak Ada Pembelian Bulan Ini",
+      purchaseEmptyPeriodDesc:
+        "Tidak ada pembelian dengan tanggal faktur pada bulan yang dipilih. Coba periode lain atau tambah pembelian.",
       purchaseUpload: "Tambah Pembelian",
       purchaseUploadTitle: "Tambah Pembelian",
       purchaseUploadDesc:
@@ -2338,13 +2342,15 @@ export const id = {
       purchaseUploadFailed: "Gagal menyimpan pembelian.",
       purchaseUploaded: "Ditambah",
       purchaseViewFile: "Lihat",
+      purchaseViewInvoiceAction: "Lihat Faktur",
       purchaseInvoice: "Faktur pembelian",
       purchaseTaxInvoice: "Faktur Pajak",
       purchaseTaxInvoiceOptional: "Faktur Pajak (opsional)",
       purchaseTaxInvoiceHint:
-        "Opsional faktur pajak untuk PPN masukan. Jika dilampirkan, dicek ketat (RGS sebagai pembeli, pemasok sebagai penjual). Anda juga bisa melampirkannya nanti dari tabel.",
+        "Opsional faktur pajak untuk PPN masukan. Jika dilampirkan, dicek ketat (RGS sebagai pembeli, pemasok sebagai penjual). Anda juga bisa melampirkannya nanti dari kartu pembelian.",
       purchaseChooseTaxInvoice: "Pilih file faktur pajak.",
       purchaseUploadTaxInvoice: "Unggah",
+      purchaseUploadTaxInvoiceAction: "Unggah Faktur Pajak",
       purchaseUploadTaxInvoiceTitle: "Unggah Faktur Pajak",
       purchaseUploadTaxInvoiceDesc:
         "Lampirkan faktur pajak (PPN masukan) untuk pembelian ini.",
@@ -2356,6 +2362,7 @@ export const id = {
       purchaseUploadTaxInvoiceFailed: "Gagal mengunggah Faktur Pajak.",
       purchaseNoTaxInvoice: "—",
       purchaseViewTaxInvoice: "Lihat",
+      purchaseViewTaxInvoiceAction: "Lihat Faktur Pajak",
       taxPendingCount: "{count} menunggu",
       taxInvoiceDueBadge: "Faktur pajak jatuh tempo",
       taxClientsNeedingAttention: "{count} klien perlu perhatian",
