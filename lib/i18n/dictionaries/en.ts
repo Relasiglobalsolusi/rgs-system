@@ -2259,6 +2259,7 @@ export const en = {
       purchaseVendorRegisterFirst:
         "Register a vendor under Vendors before adding a purchase.",
       purchaseInvoiceRef: "Invoice Number / Ref",
+      purchaseInvoiceRefShort: "Invoice #{ref}",
       purchaseInvoiceRefPlaceholder: "e.g. INV-1042",
       purchaseInvoiceDate: "Invoice Date",
       purchasePaymentTerms: "Payment terms",

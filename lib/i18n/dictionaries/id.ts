@@ -2284,6 +2284,7 @@ export const id = {
       purchaseVendorRegisterFirst:
         "Daftarkan pemasok di Pemasok sebelum menambah pembelian.",
       purchaseInvoiceRef: "Nomor Faktur / Ref",
+      purchaseInvoiceRefShort: "No. {ref}",
       purchaseInvoiceRefPlaceholder: "mis. INV-1042",
       purchaseInvoiceDate: "Tanggal Faktur",
       purchasePaymentTerms: "Syarat Pembayaran",

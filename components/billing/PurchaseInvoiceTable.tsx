@@ -130,38 +130,42 @@ function PurchaseInvoiceCard({
     </span>
   );
 
+  const taxBadge = row.includesPpn ? (
+    <StatusBadge status="success" compact>
+      {t("pages.billing.purchaseIncludesPpnChip")}
+    </StatusBadge>
+  ) : (
+    <StatusBadge status="inactive" compact>
+      {t("pages.billing.purchaseNoPpnChip")}
+    </StatusBadge>
+  );
+
+  const paymentStatusBadge = row.showPaymentStatus ? (
+    row.paymentStatus === "overdue" ? (
+      <StatusBadge status="danger" compact>
+        {t("pages.billing.vendorStatusOverdue")}
+      </StatusBadge>
+    ) : row.paymentStatus === "open" ? (
+      <StatusBadge status="info" compact>
+        {t("pages.billing.vendorStatusOpen")}
+      </StatusBadge>
+    ) : null
+  ) : null;
+
   return (
     <article className="rounded-2xl border border-border-strong/65 bg-elevated p-4 shadow-[0_12px_28px_-20px_rgba(0,0,0,0.72)]">
-      <div className="flex flex-wrap items-start gap-x-3 gap-y-1.5">
-        <h3 className="min-w-0 truncate text-sm font-semibold tracking-tight text-text">
+      <div className="flex min-w-0 items-center gap-2">
+        <h3 className="truncate text-sm font-semibold tracking-tight text-text">
           {row.supplierName}
         </h3>
-        <p className="min-w-0 truncate text-sm text-subtle">{row.invoiceRef}</p>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {row.showPaymentStatus ? (
-            row.paymentStatus === "overdue" ? (
-              <StatusBadge status="danger" compact>
-                {t("pages.billing.vendorStatusOverdue")}
-              </StatusBadge>
-            ) : row.paymentStatus === "open" ? (
-              <StatusBadge status="info" compact>
-                {t("pages.billing.vendorStatusOpen")}
-              </StatusBadge>
-            ) : null
-          ) : null}
-          {row.includesPpn ? (
-            <StatusBadge status="success" compact>
-              {t("pages.billing.purchaseIncludesPpnChip")}
-            </StatusBadge>
-          ) : (
-            <StatusBadge status="inactive" compact>
-              {t("pages.billing.purchaseNoPpnChip")}
-            </StatusBadge>
-          )}
-        </div>
+        <p className="min-w-0 truncate text-xs text-subtle">
+          {t("pages.billing.purchaseInvoiceRefShort", {
+            ref: row.invoiceRef,
+          })}
+        </p>
       </div>
 
-      <dl className="mt-3.5 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+      <dl className="mt-3 grid grid-cols-2 items-center gap-x-4 gap-y-3 border-t border-border pt-3 sm:grid-cols-5">
         <MetaRow
           label={t("pages.billing.purchaseInvoiceDate")}
           value={row.invoiceDateLabel}
@@ -183,6 +187,10 @@ function PurchaseInvoiceCard({
           value={row.amountLabel}
           emphasize
         />
+        <div className="col-span-2 flex items-center justify-end gap-1.5 sm:col-span-1 sm:justify-center">
+          {paymentStatusBadge}
+          {taxBadge}
+        </div>
       </dl>
 
       {row.notes ? (
@@ -194,8 +202,8 @@ function PurchaseInvoiceCard({
         </p>
       ) : null}
 
-      <div className="mt-3.5 flex flex-col gap-2.5 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-        <p className="min-w-0 text-xs leading-snug text-subtle">
+      <div className="mt-3.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-2.5 border-t border-border pt-3">
+        <p className="min-w-0 flex-1 text-xs leading-snug text-subtle">
           {t("pages.billing.purchaseUploaded")}
           {row.uploadedBy ? (
             <>
@@ -208,7 +216,7 @@ function PurchaseInvoiceCard({
           </span>
           {row.uploadedAtLabel}
         </p>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-2">
           <Button
             type="button"
             variant="outline"

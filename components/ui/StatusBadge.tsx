@@ -40,13 +40,21 @@ type StatusBadgeProps = {
  * Width grows with content (badgeFlex-style) so long locale labels like
  * PERENCANAAN stay inside the border — never ellipsis mid-word.
  * Multi-word labels should still stack via `lines` or StackedChipLabel.
+ *
+ * Centering: plain inline-flex + items-center + justify-center + leading-none.
+ * No optical pb nudges or display-mode swaps — those fight Inter caps.
  */
 export const compactChipClassName =
-  "box-border inline-flex h-[2.75rem] min-h-[2.75rem] w-auto min-w-[7.5rem] max-w-none shrink-0 items-center justify-center overflow-hidden whitespace-nowrap rounded-md px-2.5 py-0 text-xs font-semibold uppercase leading-none tracking-[0.06em]";
+  "box-border inline-flex h-[2.75rem] min-h-[2.75rem] w-auto min-w-[7.5rem] max-w-none shrink-0 items-center justify-center overflow-hidden whitespace-nowrap rounded-md px-2.5 py-0 text-xs font-semibold uppercase leading-none tracking-[0.04em]";
 
 /** Larger identity chips — project detail status / cleaning type overview. */
 export const largeChipClassName =
-  "box-border inline-flex h-[3.5rem] min-h-[3.5rem] w-auto min-w-[9.75rem] max-w-none shrink-0 items-center justify-center overflow-hidden whitespace-nowrap rounded-md px-3.5 py-0 text-sm font-semibold uppercase leading-none tracking-[0.06em]";
+  "box-border inline-flex h-[3.5rem] min-h-[3.5rem] w-auto min-w-[9.75rem] max-w-none shrink-0 items-center justify-center overflow-hidden whitespace-nowrap rounded-md px-3.5 py-0 text-sm font-semibold uppercase leading-none tracking-[0.04em]";
+
+/**
+ * @deprecated Single-line chips render children directly; kept for imports.
+ */
+export const chipLabelClassName = "leading-none";
 
 /** Alias — same size as compactChipClassName (ERP-wide uniform chips). */
 export const chipClassName = compactChipClassName;
@@ -62,11 +70,11 @@ const chipSizeClassName: Record<StatusBadgeSize, string> = {
  * Inherits parent chip text color.
  */
 export const stackedChipLabelClassName =
-  "flex flex-col items-center justify-center text-center text-[0.5625rem] font-semibold uppercase leading-[1.15] tracking-[0.04em] text-inherit";
+  "flex h-full w-full flex-col items-center justify-center text-center text-[0.5625rem] font-semibold uppercase leading-[1.15] tracking-[0.04em] text-inherit";
 
 /** Stacked label scale for `size="lg"` chips. */
 export const largeStackedChipLabelClassName =
-  "flex flex-col items-center justify-center text-center text-xs font-semibold uppercase leading-[1.2] tracking-[0.04em] text-inherit";
+  "flex h-full w-full flex-col items-center justify-center text-center text-xs font-semibold uppercase leading-[1.2] tracking-[0.04em] text-inherit";
 
 /** @deprecated Prefer stackedChipLabelClassName — kept for existing imports. */
 export const permanentDeleteLabelClassName = stackedChipLabelClassName;
@@ -153,14 +161,12 @@ export default function StatusBadge({
   size = "md",
   className,
 }: StatusBadgeProps) {
-  const stacked = Boolean(lines);
-
   return (
     <span
       className={cn(
         chipSizeClassName[size],
         styles[status],
-        stacked && "whitespace-normal",
+        lines ? "whitespace-normal" : null,
         className
       )}
     >

@@ -2,7 +2,7 @@
 
 import { useRef, type FormEvent, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { ShieldCheck, Upload } from "lucide-react";
+import { ShieldCheck, Upload, X } from "lucide-react";
 
 import {
   EmployeePrimaryButton,
@@ -40,27 +40,47 @@ export function BillingDocumentFilePick({
   const inputRef = useRef<HTMLInputElement>(null);
   const { t } = useT();
 
+  function clearFile() {
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
+    onPick(null);
+  }
+
   return (
     <div className="space-y-2">
       <label htmlFor={id} className="text-sm font-semibold text-text">
         {label}
         {required ? <span className="text-red-400"> *</span> : null}
       </label>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => inputRef.current?.click()}
-        className={cn(
-          "flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-elevated px-4 py-4 text-sm transition",
-          "hover:border-primary/40 hover:bg-card-hover disabled:cursor-not-allowed disabled:opacity-50",
-          fileName ? "text-text" : "text-muted"
-        )}
-      >
-        <Upload className="h-4 w-4 shrink-0" />
-        <span className="truncate">
-          {fileName ?? t("pages.billing.paymentReceivedDropOrBrowse")}
-        </span>
-      </button>
+      <div className="relative">
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => inputRef.current?.click()}
+          className={cn(
+            "flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-elevated px-4 py-4 text-sm transition",
+            "hover:border-primary/40 hover:bg-card-hover disabled:cursor-not-allowed disabled:opacity-50",
+            fileName ? "pr-11 text-text" : "text-muted"
+          )}
+        >
+          <Upload className="h-4 w-4 shrink-0" />
+          <span className="truncate">
+            {fileName ?? t("pages.billing.paymentReceivedDropOrBrowse")}
+          </span>
+        </button>
+        {fileName ? (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={clearFile}
+            aria-label={t("common.actions.remove")}
+            className="absolute top-1/2 right-2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-muted transition hover:bg-card-hover hover:text-text disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        ) : null}
+      </div>
       <input
         ref={inputRef}
         id={id}
