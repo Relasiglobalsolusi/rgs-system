@@ -48,23 +48,24 @@ type Props = {
   readOnlyPayment?: boolean;
 };
 
-function MetaRow({
-  label,
-  value,
+function MetaSep() {
+  return (
+    <span className="select-none text-border-strong" aria-hidden>
+      ·
+    </span>
+  );
+}
+
+function MetaFact({
+  children,
   className,
 }: {
-  label: string;
-  value: ReactNode;
+  children: ReactNode;
   className?: string;
 }) {
-  if (value == null || value === "") return null;
+  if (children == null || children === "") return null;
   return (
-    <div className={cn("min-w-0", className)}>
-      <dt className="text-[0.625rem] font-medium uppercase tracking-[0.1em] text-subtle">
-        {label}
-      </dt>
-      <dd className="mt-1 text-sm text-text">{value}</dd>
-    </div>
+    <span className={cn("min-w-0 text-subtle", className)}>{children}</span>
   );
 }
 
@@ -83,12 +84,14 @@ function PurchaseInvoiceCard({
 }) {
   const { t } = useT();
 
+  const actionBtnClass = "h-7 w-full justify-center gap-1.5 px-2.5";
+
   const taxAction = row.taxInvoiceFilePath ? (
     <Button
       type="button"
       variant="outline"
       size="sm"
-      className="w-full justify-start"
+      className={actionBtnClass}
       onClick={() =>
         onViewFile(
           row.taxInvoiceFilePath!,
@@ -104,7 +107,7 @@ function PurchaseInvoiceCard({
       type="button"
       variant="accent"
       size="sm"
-      className="w-full justify-start"
+      className={actionBtnClass}
       onClick={() =>
         onUploadTax({
           id: row.id,
@@ -117,100 +120,95 @@ function PurchaseInvoiceCard({
       {t("pages.billing.purchaseUploadTaxInvoiceAction")}
     </Button>
   ) : (
-    <span className="inline-flex min-h-7 items-center px-1 text-sm text-subtle">
+    <span className="inline-flex h-7 items-center justify-center px-1 text-xs text-subtle">
       {t("pages.billing.purchaseNoTaxInvoice")}
     </span>
   );
 
+  const uploadedMeta = (
+    <>
+      {row.uploadedAtLabel}
+      {row.uploadedBy ? (
+        <>
+          {" "}
+          <span className="text-muted">{row.uploadedBy}</span>
+        </>
+      ) : null}
+    </>
+  );
+
   return (
-    <article className="rounded-2xl border border-border-strong/65 bg-elevated p-4 shadow-[0_12px_28px_-20px_rgba(0,0,0,0.72)] sm:p-5">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-5">
-        <div className="min-w-0 flex-1 space-y-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0 space-y-1">
-              <h3 className="text-base font-semibold tracking-tight text-text">
-                {row.supplierName}
-              </h3>
-              <p className="truncate text-sm text-subtle">{row.invoiceRef}</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {row.showPaymentStatus ? (
-                row.paymentStatus === "overdue" ? (
-                  <StatusBadge status="danger" compact>
-                    {t("pages.billing.vendorStatusOverdue")}
-                  </StatusBadge>
-                ) : row.paymentStatus === "open" ? (
-                  <StatusBadge status="info" compact>
-                    {t("pages.billing.vendorStatusOpen")}
-                  </StatusBadge>
-                ) : null
-              ) : null}
-              {row.includesPpn ? (
-                <StatusBadge status="success" compact>
-                  {t("pages.billing.purchaseIncludesPpnChip")}
+    <article className="rounded-2xl border border-border-strong/65 bg-elevated px-3.5 py-3 shadow-[0_12px_28px_-20px_rgba(0,0,0,0.72)] sm:px-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <h3 className="truncate text-sm font-semibold tracking-tight text-text">
+              {row.supplierName}
+            </h3>
+            {row.showPaymentStatus ? (
+              row.paymentStatus === "overdue" ? (
+                <StatusBadge status="danger" compact>
+                  {t("pages.billing.vendorStatusOverdue")}
                 </StatusBadge>
-              ) : (
-                <StatusBadge status="inactive" compact>
-                  {t("pages.billing.purchaseNoPpnChip")}
+              ) : row.paymentStatus === "open" ? (
+                <StatusBadge status="info" compact>
+                  {t("pages.billing.vendorStatusOpen")}
                 </StatusBadge>
-              )}
-            </div>
+              ) : null
+            ) : null}
+            {row.includesPpn ? (
+              <StatusBadge status="success" compact>
+                {t("pages.billing.purchaseIncludesPpnChip")}
+              </StatusBadge>
+            ) : (
+              <StatusBadge status="inactive" compact>
+                {t("pages.billing.purchaseNoPpnChip")}
+              </StatusBadge>
+            )}
           </div>
 
-          <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-            <MetaRow
-              label={t("pages.billing.purchaseInvoiceDate")}
-              value={row.invoiceDateLabel}
-            />
-            <MetaRow
-              label={t("pages.billing.purchasePaymentTerms")}
-              value={
-                <span className="tabular-nums">
-                  {row.paymentTermsLabel ?? "—"}
-                </span>
-              }
-            />
-            <MetaRow
-              label={t("pages.billing.paymentDue")}
-              value={row.dueDateLabel ?? "—"}
-            />
-            <MetaRow
-              label={t("pages.billing.columns.amount")}
-              value={
-                <span className="font-semibold tabular-nums">
-                  {row.amountLabel}
-                </span>
-              }
-            />
-            <MetaRow
-              label={t("pages.billing.purchaseUploaded")}
-              value={
-                <span>
-                  {row.uploadedAtLabel}
-                  {row.uploadedBy ? (
-                    <span className="mt-0.5 block text-xs text-subtle">
-                      {row.uploadedBy}
-                    </span>
-                  ) : null}
-                </span>
-              }
-            />
-            {row.notes ? (
-              <MetaRow
-                label={t("pages.billing.purchaseNotes")}
-                value={row.notes}
-                className="sm:col-span-2 lg:col-span-3 xl:col-span-5"
-              />
-            ) : null}
-          </dl>
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm leading-snug">
+            <MetaFact className="font-medium text-muted">{row.invoiceRef}</MetaFact>
+            <MetaSep />
+            <MetaFact>{row.invoiceDateLabel}</MetaFact>
+            <MetaSep />
+            <MetaFact className="tabular-nums">
+              {row.paymentTermsLabel ?? "—"}
+            </MetaFact>
+            <MetaSep />
+            <MetaFact className="text-text">{row.dueDateLabel ?? "—"}</MetaFact>
+            <MetaSep />
+            <span className="text-base font-semibold tabular-nums tracking-tight text-text">
+              {row.amountLabel}
+            </span>
+          </div>
+
+          <p className="text-xs leading-snug text-subtle">
+            <span className="font-medium uppercase tracking-[0.08em] text-muted">
+              {t("pages.billing.purchaseUploaded")}
+            </span>
+            <span className="mx-1.5 text-border-strong" aria-hidden>
+              ·
+            </span>
+            {uploadedMeta}
+          </p>
+
+          {row.notes ? (
+            <p className="truncate text-xs text-subtle">
+              <span className="font-medium text-muted">
+                {t("pages.billing.purchaseNotes")}:{" "}
+              </span>
+              {row.notes}
+            </p>
+          ) : null}
         </div>
 
-        <div className="flex w-full shrink-0 flex-col gap-2 sm:w-[12.5rem]">
+        <div className="flex w-full shrink-0 flex-col gap-1.5 sm:w-[10.25rem]">
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="w-full justify-start"
+            className={actionBtnClass}
             onClick={() =>
               onViewFile(row.filePath, t("pages.billing.purchaseInvoice"))
             }
@@ -240,7 +238,7 @@ export default function PurchaseInvoiceTable({
 
   return (
     <>
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-2.5">
         {rows.map((row) => (
           <PurchaseInvoiceCard
             key={row.id}
