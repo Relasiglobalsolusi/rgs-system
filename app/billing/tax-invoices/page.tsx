@@ -99,6 +99,7 @@ export default async function TaxInvoicesPage({
         dueAt: true,
         amount: true,
         revisedInvoiceAmount: true,
+        ppnRatePercent: true,
         taxInvoiceDocumentPath: true,
         taxInvoiceIssuedAt: true,
         taxInvoiceDoneAt: true,
@@ -159,18 +160,28 @@ export default async function TaxInvoicesPage({
     })
     .map((period) => {
       const gross = periodCommercialAmount(period);
-      const split = splitInclusiveVat(gross);
+      const storedRatePercent = decimalToNumber(period.ppnRatePercent);
+      const rate =
+        storedRatePercent != null && storedRatePercent > 0
+          ? ppnRateFromPercent(storedRatePercent)
+          : DEFAULT_INCLUSIVE_PPN_RATE;
+      const split = splitInclusiveVat(gross, rate);
       const fakturReady = Boolean(
         period.taxInvoiceDocumentPath || period.taxInvoiceDoneAt
       );
       const clientId = period.project.client?.id;
+      const rateLabel =
+        storedRatePercent != null ? `${storedRatePercent}%` : null;
       return {
         id: period.id,
         partyName: period.project.client?.name ?? "—",
         detail: [
           period.project.name,
           period.label?.trim() || t("pages.vat.invoicePeriodFallback"),
-        ].join(" · "),
+          rateLabel,
+        ]
+          .filter(Boolean)
+          .join(" · "),
         date: (period.taxInvoiceIssuedAt ?? period.dueAt ?? period.periodEnd)
           .toISOString(),
         gross: split.gross,

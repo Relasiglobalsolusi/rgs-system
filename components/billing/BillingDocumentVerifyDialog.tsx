@@ -126,6 +126,8 @@ type Props = {
   /** Optional compact note under the dropzone (AI verify hint, PPN note, etc.). */
   callout?: string;
   calloutIcon?: LucideIcon;
+  /** Extra fields between file pick and callout (e.g. editable PPN rate). */
+  children?: ReactNode;
   error: string | null;
   pending: boolean;
   canSubmit: boolean;
@@ -153,6 +155,7 @@ export default function BillingDocumentVerifyDialog({
   onFilePick,
   callout,
   calloutIcon,
+  children,
   error,
   pending,
   canSubmit,
@@ -212,6 +215,8 @@ export default function BillingDocumentVerifyDialog({
               onPick={onFilePick}
               disabled={pending}
             />
+
+            {children}
 
             {callout ? (
               <DocumentCallout icon={calloutIcon}>{callout}</DocumentCallout>

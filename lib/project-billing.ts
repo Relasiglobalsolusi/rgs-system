@@ -45,14 +45,40 @@ export function isMilestoneSubCategory(
 }
 
 /**
- * True when create/start opens ProjectInvoicePeriod rows (Regular monthly / GC-Facade).
- * Security, Parking, and Payroll Management never use cleaning-style periods.
+ * True when create/start opens ProjectInvoicePeriod rows.
+ * Regular Cleaning + Security (monthly contract cycle) and GC/Facade (milestones).
+ * Parking / Payroll Management stay commercial-terms only (no periods here).
+ *
+ * Parking revenue engine (manual monthly revenue log → profit = revenue − ALL
+ * project outflows: owner profit-share, lease, setup, purchases, wages, etc. —
+ * no special exclusions) is deferred — hook: billing page when PARKING.
+ *
+ * Payroll Management economics (workflow deferred; do not contradict):
+ * client sets wages → RGS fronts wage bill (cost) → bills wage bill +
+ * configurable management fee % (`serviceFeePercent`, RGS profit only) →
+ * client reimburses per project payment terms.
  */
 export function usesInvoicePeriods(
   value: ProjectSubCategory | string | null | undefined
 ): boolean {
+  if (value === "SECURITY") return true;
   if (isServiceProjectSubCategory(value)) return false;
   return isContractSubCategory(value) || isMilestoneSubCategory(value);
+}
+
+/**
+ * Payroll Management: RGS profit = management fee only (`serviceFeePercent`).
+ * Fronted client wage bill is project cost (not profit). Full monthly
+ * pay-then-bill workflow is deferred — keep labels/helpers aligned.
+ */
+export function payrollManagementFeePercent(
+  serviceFeePercent: number | null | undefined
+): number | null {
+  if (serviceFeePercent == null || !Number.isFinite(serviceFeePercent)) {
+    return null;
+  }
+  if (serviceFeePercent < 0 || serviceFeePercent > 100) return null;
+  return Math.round(serviceFeePercent * 100) / 100;
 }
 
 /** Billing modes allowed for a subcategory (server + UI guard). */

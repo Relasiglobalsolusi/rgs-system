@@ -11,6 +11,7 @@ import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge from "@/components/ui/StatusBadge";
 import {
   getIdulFitriDate,
+  isWithinThrGenerateWindow,
   resolveThrTargetYear,
   THR_GENERATE_LEAD_DAYS,
 } from "@/lib/employee-thr";
@@ -39,6 +40,7 @@ export default async function ThrPage() {
 
   const targetYear = resolveThrTargetYear() ?? new Date().getUTCFullYear();
   const hariRaya = getIdulFitriDate(targetYear);
+  const inThrWindow = hariRaya ? isWithinThrGenerateWindow(hariRaya) : false;
 
   const payments = await prisma.thrPayment.findMany({
     where: {
@@ -93,16 +95,24 @@ export default async function ThrPage() {
                 })}
               </p>
             </div>
-            <ThrGenerateButton
-              year={targetYear}
-              label={t("pages.thr.generateForYear", {
-                year: String(targetYear),
-              })}
-              pendingLabel={t("pages.thr.generating")}
-              successLabel={t("pages.thr.generateSuccess")}
-              errorLabel={t("pages.thr.generateFailed")}
-              action={generateThrForYear}
-            />
+            {inThrWindow ? (
+              <ThrGenerateButton
+                year={targetYear}
+                label={t("pages.thr.generateForYear", {
+                  year: String(targetYear),
+                })}
+                pendingLabel={t("pages.thr.generating")}
+                successLabel={t("pages.thr.generateSuccess")}
+                errorLabel={t("pages.thr.generateFailed")}
+                action={generateThrForYear}
+              />
+            ) : (
+              <p className="max-w-xs text-right text-xs text-subtle">
+                {t("pages.thr.generateOutsideWindow", {
+                  days: String(THR_GENERATE_LEAD_DAYS),
+                })}
+              </p>
+            )}
           </div>
 
           <div className="grid gap-3 text-sm sm:grid-cols-3">

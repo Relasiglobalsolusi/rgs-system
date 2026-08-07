@@ -322,8 +322,8 @@ export const en = {
       readyToInvoice2: "Invoice",
       awaitingClientReview1: "Awaiting",
       awaitingClientReview2: "Client",
-      taxInvoiceDue1: "Tax Invoice",
-      taxInvoiceDue2: "Due",
+      taxInvoiceDue1: "Tax",
+      taxInvoiceDue2: "Pending",
       taxInvoiceDone1: "Tax Invoice",
       taxInvoiceDone2: "Sent",
       latePayment1: "Late",
@@ -544,14 +544,16 @@ export const en = {
         monthlyClientFee: "Monthly Client Fee",
         monthlyClientFeeHint:
           "Monthly fees RGS pays the client for parking management (IDR).",
-        serviceFeePercent: "Service Fee %",
+        serviceFeePercent: "Management Fee %",
         serviceFeePercentHint:
-          "RGS income as a percentage of reimbursed payroll. Configurable per project.",
+          "RGS income only — a configurable percent of the client’s monthly wage bill (example: 6%). Not hard-coded.",
         paymentTermsDays: "Client Reimbursement Terms",
         paymentTermsDaysHint:
-          "Days until the client reimburses payroll. Defaults from the client payment terms.",
+          "Days until the client reimburses the fronted wage bill plus management fee. Defaults from the client payment terms.",
         payrollTimelineHint:
-          "Optional ops start date. Payroll Management does not use cleaning billing periods.",
+          "Optional ops start date. Client sets wages each month; RGS fronts that wage bill (project cost), then bills wage bill + management fee. Full pay-then-bill workflow is separate from cleaning periods.",
+        payrollEconomicsHint:
+          "Economics: fronted payroll = cost; management fee % = RGS profit; client reimburses wage bill + fee.",
       },
       billingLabel: "Billing",
       taxInvoiceLabel: "Tax Invoice",
@@ -789,7 +791,7 @@ export const en = {
         anniversaryInvoiceDay:
           "Anniversary invoice day {day} (day after each cycle ends)",
         serviceBillingNote:
-          "Commercial terms are stored on the project. Cleaning-style billing periods are not used.",
+          "Commercial terms are stored on the project. Parking and Payroll Management do not use monthly invoice periods here.",
         contractPriceAndInvoices: "Contract price and invoices",
         estStart: "Est. start {date}",
         estimateTbd: "Estimate TBD",
@@ -2189,8 +2191,8 @@ export const en = {
         "Tax invoices where RGS is the buyer (for input VAT credit).",
       ppnMasukanEmpty: "No input VAT records yet",
       ppnMasukanEmptyDesc:
-        "Upload supplier purchase invoices under Purchases. PPN Masukan matching will connect here later.",
-      ppnMasukanComingSoon: "Coming soon",
+        "Upload supplier purchase invoices under Purchases. Input VAT (PPN Masukan) from those bills appears in this report when they include tax or have a tax invoice file.",
+      ppnMasukanComingSoon: "Open Purchases",
       ppnMasukanOpenPurchase: "Open Purchases",
       purchase: "Purchases",
       purchaseDescription:
@@ -2238,6 +2240,7 @@ export const en = {
       vendorStatusNoTaxRequired: "No tax required",
       vendorStatusOpen: "Open",
       vendorStatusOverdue: "Overdue",
+      vendorStatusPaid: "Paid",
       purchaseCount: "{count} purchase invoice(s)",
       purchasePeriod: "Period",
       purchaseEmpty: "No Purchases Yet",
@@ -2301,6 +2304,8 @@ export const en = {
       purchasePpnRate: "Tax Rate",
       purchasePpnRatePlaceholder: "e.g. 12",
       purchasePpnRateRequired: "Enter the tax rate percent for this purchase.",
+      outputPpnRateHint:
+        "Output PPN (PPN Keluaran) rate for this invoice. Editable — not locked to 11%. Default is the current product rate.",
       purchasePpnRateHint:
         "Defaults to 12%. Change this if the invoice uses a different tax rate.",
       purchaseVatPreview: "Estimated DPP {dpp} · Tax {tax} (tax-inclusive amount).",
@@ -2339,6 +2344,20 @@ export const en = {
       purchaseNoTaxInvoice: "—",
       purchaseViewTaxInvoice: "View",
       purchaseViewTaxInvoiceAction: "View Tax Invoice",
+      purchaseMarkPaid: "Mark Paid",
+      purchaseMarkPaidTitle: "Mark Purchase Paid",
+      purchaseMarkPaidDesc:
+        "Upload proof of payment to record when this supplier bill was paid and close AP.",
+      purchaseMarkPaidHint:
+        "Attach the transfer receipt or payment confirmation. This closes the payable.",
+      purchaseMarkPaidConfirm: "Confirm Paid",
+      purchaseMarkPaidPending: "Recording…",
+      purchaseMarkPaidFailed: "Failed to mark purchase as paid.",
+      purchaseMarkPaidInvoiceRequired: "Purchase invoice is required.",
+      purchaseMarkPaidNotFound: "Purchase invoice not found.",
+      purchaseMarkPaidAlreadyPaid: "This purchase is already marked paid.",
+      purchasePaidAt: "Paid At",
+      purchaseViewPaymentProof: "View Payment Proof",
       taxPendingCount: "{count} pending",
       taxInvoiceDueBadge: "Tax invoice due",
       taxClientsNeedingAttention: "{count} clients need attention",
@@ -2681,7 +2700,7 @@ export const en = {
     financialReport: {
       title: "Financial Report",
       description:
-        "Client and project P&L from contract value, confirmed payments, inventory issues, and assigned employee wages.",
+        "Company-wide P&L first, then drill into clients and projects — from contract value, confirmed payments, inventory issues, and assigned employee wages.",
       clientProjectsDesc: "Project financial summary for this client.",
       projectDetailDesc: "P&L for {client}.",
       totalClients: "Total Clients",
@@ -2770,7 +2789,7 @@ export const en = {
         "Lebaran THR uses base pay and tenure. Eligible from one full month of service.",
       summaryTitle: "THR Generation",
       summaryDesc:
-        "Records auto-generate when this page opens within {days} days before Idul Fitri. You can also generate manually for the target year.",
+        "Records auto-generate when this page opens within {days} days before Idul Fitri. Manual generate is only available inside that window.",
       targetYear: "Target Year",
       hariRayaDate: "Hari Raya Date",
       totalAmount: "Total Amount",
@@ -2779,6 +2798,9 @@ export const en = {
       generateSuccess:
         "THR generated: {created} created, {updated} updated, {skipped} skipped.",
       generateFailed: "Failed to generate THR.",
+      generateOutsideWindow:
+        "THR can only be generated within {days} days before Idul Fitri.",
+      generateOutsideWindowShort: "Outside Idul Fitri Window",
       paymentsTitle: "Generated Payments",
       paymentsDesc: "THR rows for {year}.",
       emptyTitle: "No THR Payments Yet",
@@ -2804,10 +2826,10 @@ export const en = {
       description: "Employee payroll and pay processing for head office.",
       directoryTitle: "Payroll",
       directoryDesc:
-        "Payroll runs and related pay adjustments are managed here.",
+        "Payroll runs for head-office staff. Manual Rp deductions (not percent) will attach here later.",
       periodTitle: "Pay Period",
       periodDesc:
-        "Select a month and year to view the computed payroll for that period.",
+        "Select a month and year to view the computed payroll for that period. Adjustments are a fixed Rp amount when enabled — not a percentage.",
       totalEmployees: "Employees",
       totalWage: "Total Wages",
       totalNetPay: "Total Net Pay",

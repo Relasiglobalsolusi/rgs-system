@@ -22,7 +22,8 @@ export const COMMERCIAL_PROJECT_SUB_CATEGORIES = [
 
 /**
  * Non-cleaning client service projects (Security / Parking / Payroll Management).
- * No cleaning-style ProjectInvoicePeriod billing.
+ * Parking + Payroll Management stay commercial-terms stubs (no invoice periods).
+ * Security uses Regular-like monthly periods — see `usesInvoicePeriods`.
  */
 export const SERVICE_PROJECT_SUB_CATEGORIES = [
   "SECURITY",
@@ -43,6 +44,18 @@ export const CLIENT_PROJECT_SUB_CATEGORIES = [
 export const CLEANING_PROJECT_SUB_CATEGORIES = [
   ...COMMERCIAL_PROJECT_SUB_CATEGORIES,
   "INTERNAL",
+] as const satisfies readonly ProjectSubCategory[];
+
+/**
+ * Projects where assigned field staff may submit progress photos.
+ * Cleaning (+ Internal) and Security. No forced interval / SOP scheduler —
+ * staff may report whenever; managers set expectations offline.
+ *
+ * Parking / Payroll Management: not progress-eligible.
+ */
+export const PROGRESS_ELIGIBLE_PROJECT_SUB_CATEGORIES = [
+  ...CLEANING_PROJECT_SUB_CATEGORIES,
+  "SECURITY",
 ] as const satisfies readonly ProjectSubCategory[];
 
 export const PROJECT_SUB_CATEGORY_LABELS: Record<ProjectSubCategory, string> = {
@@ -91,6 +104,18 @@ export function isCleaningProjectSubCategory(
   return (
     typeof value === "string" &&
     (CLEANING_PROJECT_SUB_CATEGORIES as readonly string[]).includes(value)
+  );
+}
+
+/** True when field staff may submit progress reports (no cadence scheduler). */
+export function isProgressEligibleProjectSubCategory(
+  value: ProjectSubCategory | string | null | undefined
+): boolean {
+  return (
+    typeof value === "string" &&
+    (PROGRESS_ELIGIBLE_PROJECT_SUB_CATEGORIES as readonly string[]).includes(
+      value
+    )
   );
 }
 

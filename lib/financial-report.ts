@@ -7,6 +7,9 @@ import { decimalToNumber } from "@/lib/project-billing";
 /**
  * Financial Report P&L definitions (HO Finance only):
  *
+ * UX order (product): company-wide first, then drill/list per client → project.
+ * Full rebuild of the company-wide landing can defer — do not contradict this.
+ *
  * - Contract value: Project.contractPrice (IDR), summed across a client's projects.
  * - Money in: ProjectInvoicePeriod rows with status === "PAID" (confirmed cash;
  *   PENDING_VERIFICATION is excluded). Amount =
@@ -15,6 +18,11 @@ import { decimalToNumber } from "@/lib/project-billing";
  *   chemicals / other ISSUE_TO_PROJECT costs) + wage cost of employees currently
  *   assigned to the project (see below). Equipment deployments are location/custody
  *   only and are excluded from inventoryOut / project inventory cost.
+ * - Parking (deferred engine): net profit = manual monthly revenue − ALL outflows
+ *   logged against the project (owner profit-share, lease, setup, purchases, wages,
+ *   etc.) — no special exclusions.
+ * - Payroll Management (deferred workflow): fronted wage bill = cost; RGS profit =
+ *   management fee % only (`serviceFeePercent`).
  * - Client profit: contract value − spending (contract margin).
  * - Project profit: money in − money out (confirmed receipts vs inventory + wages).
  *

@@ -15,10 +15,7 @@ export type VendorSoftDeleteBlocker = {
 /**
  * Block vendor soft-delete while money is still owed or tax documents are open.
  *
- * Outstanding payables: PurchaseInvoice has no paidAt / payment-status field, so
- * every linked supplier bill is treated as unpaid AP (same proxy as Settlements AP
- * and Purchase Invoices → Payment & Settlement). Block when aggregate amount > 0.
- *
+ * Outstanding payables: unpaid PurchaseInvoice rows (paidAt is null).
  * Pending tax invoices: PPN enabled but Faktur Pajak (taxInvoiceFilePath) missing.
  */
 export async function getVendorSoftDeleteBlockers(
@@ -31,7 +28,7 @@ export async function getVendorSoftDeleteBlockers(
 
   const [payablesAgg, pendingTaxCount] = await Promise.all([
     p.purchaseInvoice.aggregate({
-      where: { vendorId },
+      where: { vendorId, paidAt: null },
       _count: { id: true },
       _sum: { amount: true },
     }),

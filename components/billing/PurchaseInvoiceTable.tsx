@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Eye, FileText, Upload } from "lucide-react";
+import { Banknote, Eye, FileText, Upload } from "lucide-react";
 
+import PurchaseMarkPaidDialog from "@/components/billing/PurchaseMarkPaidDialog";
 import PurchaseTaxInvoiceUploadDialog from "@/components/billing/PurchaseTaxInvoiceUploadDialog";
 import { Button } from "@/components/ui/button";
 import ProofLightbox from "@/components/ui/ProofLightbox";
@@ -20,14 +21,18 @@ export type PurchaseInvoiceTableRow = {
   dueDateLabel: string | null;
   amountLabel: string;
   includesPpn: boolean;
+  /** PPN on but faktur pajak not uploaded yet. */
+  taxIncomplete?: boolean;
   notes: string | null;
   filePath: string;
   taxInvoiceFilePath: string | null;
   uploadedBy: string | null;
   uploadedAtLabel: string;
-  /** Vendor portal settlement view (no paidAt yet — open vs overdue by due date). */
-  paymentStatus?: "open" | "overdue" | null;
+  /** Open / overdue for unpaid; paid when paidAt set. */
+  paymentStatus?: "open" | "overdue" | "paid" | null;
   showPaymentStatus?: boolean;
+  paidAtLabel?: string | null;
+  paymentProofPath?: string | null;
 };
 
 type LightboxState = {
@@ -41,11 +46,19 @@ type TaxUploadTarget = {
   invoiceRef: string;
 };
 
+type MarkPaidTarget = {
+  id: string;
+  supplierName: string;
+  invoiceRef: string;
+};
+
 type Props = {
   rows: PurchaseInvoiceTableRow[];
   canManage?: boolean;
-  /** Hide tax-upload actions (payment/settlement read-only). */
+  /** Hide tax-upload actions (payment/settlement read-only for tax). */
   readOnlyPayment?: boolean;
+  /** Show Mark Paid when unpaid (Purchases card + Payment view). */
+  canMarkPaid?: boolean;
 };
 
 function MetaRow({
@@ -80,16 +93,21 @@ function PurchaseInvoiceCard({
   row,
   canManage,
   readOnlyPayment,
+  canMarkPaid,
   onViewFile,
   onUploadTax,
+  onMarkPaid,
 }: {
   row: PurchaseInvoiceTableRow;
   canManage: boolean;
   readOnlyPayment: boolean;
+  canMarkPaid: boolean;
   onViewFile: (src: string, title: string) => void;
   onUploadTax: (target: TaxUploadTarget) => void;
+  onMarkPaid: (target: MarkPaidTarget) => void;
 }) {
   const { t } = useT();
+  const isPaid = row.paymentStatus === "paid" || Boolean(row.paidAtLabel);
 
   const taxAction = row.taxInvoiceFilePath ? (
     <Button
@@ -130,18 +148,12 @@ function PurchaseInvoiceCard({
     </span>
   );
 
-  const taxBadge = row.includesPpn ? (
-    <StatusBadge status="success" compact>
-      {t("pages.billing.purchaseIncludesPpnChip")}
-    </StatusBadge>
-  ) : (
-    <StatusBadge status="inactive" compact>
-      {t("pages.billing.purchaseNoPpnChip")}
-    </StatusBadge>
-  );
-
   const paymentStatusBadge = row.showPaymentStatus ? (
-    row.paymentStatus === "overdue" ? (
+    row.paymentStatus === "paid" ? (
+      <StatusBadge status="success" compact>
+        {t("pages.billing.vendorStatusPaid")}
+      </StatusBadge>
+    ) : row.paymentStatus === "overdue" ? (
       <StatusBadge status="danger" compact>
         {t("pages.billing.vendorStatusOverdue")}
       </StatusBadge>
@@ -150,7 +162,50 @@ function PurchaseInvoiceCard({
         {t("pages.billing.vendorStatusOpen")}
       </StatusBadge>
     ) : null
+  ) : isPaid ? (
+    <StatusBadge status="success" compact>
+      {t("pages.billing.vendorStatusPaid")}
+    </StatusBadge>
   ) : null;
+
+  const markPaidAction =
+    canMarkPaid && !isPaid ? (
+      <Button
+        type="button"
+        variant="accent"
+        size="sm"
+        className="h-8 gap-1.5"
+        onClick={() =>
+          onMarkPaid({
+            id: row.id,
+            supplierName: row.supplierName,
+            invoiceRef: row.invoiceRef,
+          })
+        }
+      >
+        <Banknote className="h-3.5 w-3.5" aria-hidden />
+        {t("pages.billing.purchaseMarkPaid")}
+      </Button>
+    ) : null;
+
+  const paymentProofAction =
+    row.paymentProofPath && isPaid ? (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-8 gap-1.5"
+        onClick={() =>
+          onViewFile(
+            row.paymentProofPath!,
+            t("pages.billing.proofOfPayment")
+          )
+        }
+      >
+        <Eye className="h-3.5 w-3.5" aria-hidden />
+        {t("pages.billing.purchaseViewPaymentProof")}
+      </Button>
+    ) : null;
 
   return (
     <article className="rounded-2xl border border-border-strong/65 bg-elevated p-4 shadow-[0_12px_28px_-20px_rgba(0,0,0,0.72)]">
@@ -179,8 +234,16 @@ function PurchaseInvoiceCard({
           }
         />
         <MetaRow
-          label={t("pages.billing.paymentDue")}
-          value={row.dueDateLabel ?? "—"}
+          label={
+            isPaid
+              ? t("pages.billing.purchasePaidAt")
+              : t("pages.billing.paymentDue")
+          }
+          value={
+            isPaid
+              ? (row.paidAtLabel ?? "—")
+              : (row.dueDateLabel ?? "—")
+          }
         />
         <MetaRow
           label={t("pages.billing.purchaseAmount")}
@@ -189,7 +252,19 @@ function PurchaseInvoiceCard({
         />
         <div className="col-span-2 flex items-center justify-end gap-1.5 sm:col-span-1 sm:justify-center">
           {paymentStatusBadge}
-          {taxBadge}
+          {row.taxIncomplete ? (
+            <StatusBadge status="pending" compact>
+              {t("pages.billing.vendorAwaitingTax")}
+            </StatusBadge>
+          ) : row.includesPpn ? (
+            <StatusBadge status="success" compact>
+              {t("pages.billing.purchaseIncludesPpnChip")}
+            </StatusBadge>
+          ) : (
+            <StatusBadge status="inactive" compact>
+              {t("pages.billing.purchaseNoPpnChip")}
+            </StatusBadge>
+          )}
         </div>
       </dl>
 
@@ -216,7 +291,7 @@ function PurchaseInvoiceCard({
           </span>
           {row.uploadedAtLabel}
         </p>
-        <div className="ml-auto flex shrink-0 items-center gap-2">
+        <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
           <Button
             type="button"
             variant="outline"
@@ -230,6 +305,8 @@ function PurchaseInvoiceCard({
             {t("pages.billing.purchaseViewInvoiceAction")}
           </Button>
           {taxAction}
+          {paymentProofAction}
+          {markPaidAction}
         </div>
       </div>
     </article>
@@ -240,10 +317,12 @@ export default function PurchaseInvoiceTable({
   rows,
   canManage = false,
   readOnlyPayment = false,
+  canMarkPaid = false,
 }: Props) {
   const { t } = useT();
   const [lightbox, setLightbox] = useState<LightboxState | null>(null);
   const [taxUpload, setTaxUpload] = useState<TaxUploadTarget | null>(null);
+  const [markPaid, setMarkPaid] = useState<MarkPaidTarget | null>(null);
 
   if (rows.length === 0) {
     return null;
@@ -258,8 +337,10 @@ export default function PurchaseInvoiceTable({
             row={row}
             canManage={canManage}
             readOnlyPayment={readOnlyPayment}
+            canMarkPaid={canMarkPaid}
             onViewFile={(src, title) => setLightbox({ src, title })}
             onUploadTax={setTaxUpload}
+            onMarkPaid={setMarkPaid}
           />
         ))}
       </div>
@@ -280,6 +361,17 @@ export default function PurchaseInvoiceTable({
           purchaseInvoiceId={taxUpload.id}
           supplierName={taxUpload.supplierName}
           invoiceRef={taxUpload.invoiceRef}
+        />
+      ) : null}
+      {markPaid ? (
+        <PurchaseMarkPaidDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setMarkPaid(null);
+          }}
+          purchaseInvoiceId={markPaid.id}
+          supplierName={markPaid.supplierName}
+          invoiceRef={markPaid.invoiceRef}
         />
       ) : null}
     </>

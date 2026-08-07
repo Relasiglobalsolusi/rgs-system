@@ -350,7 +350,7 @@ export default function ProjectDialog({
     formData.set("subCategory", subCategory);
     formData.set("serviceArea", serviceArea);
     formData.set("billingMode", billingMode);
-    if (isContract) {
+    if (isContract || subCategory === "SECURITY") {
       formData.set("billingPeriodBasis", billingPeriodBasis);
     } else {
       formData.delete("billingPeriodBasis");
@@ -519,8 +519,8 @@ export default function ProjectDialog({
               />
             ) : null}
 
-            {/* Regular Cleaning only — Security/Parking/Payroll have no period basis. */}
-            {isContract ? (
+            {/* Regular Cleaning + Security: monthly period basis. Parking/Payroll: no periods. */}
+            {isContract || subCategory === "SECURITY" ? (
               <>
                 <ProjectOptionPills
                   label={t("pages.projects.billingPeriodBasis")}

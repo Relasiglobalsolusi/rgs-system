@@ -74,6 +74,11 @@ type Props = {
    * date is forced to that work day (read-only).
    */
   openCicoLock?: OpenCicoLock | null;
+  /**
+   * Security (and similar): allow create without open CICO — staff may report
+   * anytime; managers handle cadence offline. Cleaning create still needs CICO.
+   */
+  allowWithoutCico?: boolean;
 };
 
 const FORM_ID = "progress-report-form";
@@ -88,6 +93,7 @@ export default function ProgressDialog({
   hideTrigger = false,
   editReport = null,
   openCicoLock = null,
+  allowWithoutCico = false,
 }: Props) {
   const { t } = useT();
   const router = useRouter();
@@ -125,8 +131,8 @@ export default function ProgressDialog({
   const dateDefault =
     editReport?.reportDate || defaultDate || todayDateInput();
 
-  // Create requires open CICO — date/project locked to that attendance work day.
-  const createNeedsCheckIn = !isEdit && !openCicoLock;
+  // Cleaning create needs open CICO; Security anytime path sets allowWithoutCico.
+  const createNeedsCheckIn = !isEdit && !openCicoLock && !allowWithoutCico;
   const cicoLockedDate =
     !isEdit && openCicoLock ? openCicoLock.workDate : null;
   // Staff edit: date is always locked. Create: locked to open CICO work day.
@@ -180,7 +186,7 @@ export default function ProgressDialog({
     const nextStageLabel = stageLabel.trim();
     const nextNotes = notes.trim();
 
-    if (!isEdit && !openCicoLock) {
+    if (!isEdit && !openCicoLock && !allowWithoutCico) {
       showRejection({
         reasons: t("pages.progress.errors.checkInRequired"),
       });
@@ -322,7 +328,9 @@ export default function ProgressDialog({
             ? t("pages.progress.editDialogDescription")
             : createNeedsCheckIn
               ? t("pages.progress.checkInRequiredMessage")
-              : t("pages.progress.dialogDescriptionCicoLocked")
+              : allowWithoutCico && !openCicoLock
+                ? t("pages.progress.dialogDescription")
+                : t("pages.progress.dialogDescriptionCicoLocked")
         }
         maxWidth="lg"
         footer={

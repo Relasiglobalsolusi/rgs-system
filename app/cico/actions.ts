@@ -25,7 +25,7 @@ import { toUtcDateOnly } from "@/lib/invoice-period";
 import { resolveCicoWorkDay } from "@/lib/cico-work-day";
 import { findOpenCicoAttendance } from "@/lib/cico-attendance";
 import {
-  isCleaningProjectSubCategory,
+  isProgressEligibleProjectSubCategory,
   isInternalProjectSubCategory,
 } from "@/lib/project-subcategory";
 import { saveUpload } from "@/lib/upload";
@@ -168,7 +168,7 @@ async function getAssignedProjectForEmployee(
 
   const project = assignment.project;
 
-  if (!isCleaningProjectSubCategory(project.subCategory)) {
+  if (!isProgressEligibleProjectSubCategory(project.subCategory)) {
     throw await cicoError("cleaningOnly");
   }
 

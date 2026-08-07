@@ -2,7 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 
-import { getIdulFitriDate, resolveThrTargetYear } from "@/lib/employee-thr";
+import {
+  getIdulFitriDate,
+  isWithinThrGenerateWindow,
+  resolveThrTargetYear,
+  THR_GENERATE_LEAD_DAYS,
+} from "@/lib/employee-thr";
 import { prisma } from "@/lib/prisma";
 import { requireModule, toPermissionUser } from "@/lib/session";
 import { isClientPortalUser, isVendorPortalUser } from "@/lib/project-access";
@@ -23,14 +28,25 @@ export async function generateThrForYear(year?: number) {
   if (targetYear == null) {
     throw new Error("Could not resolve an Idul Fitri date for the target year.");
   }
-  if (!getIdulFitriDate(targetYear)) {
+  const hariRaya = getIdulFitriDate(targetYear);
+  if (!hariRaya) {
     throw new Error(`Could not compute Idul Fitri date for ${targetYear}.`);
   }
+  if (!isWithinThrGenerateWindow(hariRaya)) {
+    throw new Error(
+      `THR can only be generated within ${THR_GENERATE_LEAD_DAYS} days before Idul Fitri.`
+    );
+  }
 
+  // Never force-generate outside the Hari Raya window from casual UI.
   const result = await generateThrPaymentsForCompany(session.user.companyId, {
     year: targetYear,
-    forceOutsideWindow: true,
   });
+  if (!result.inWindow) {
+    throw new Error(
+      `THR can only be generated within ${THR_GENERATE_LEAD_DAYS} days before Idul Fitri.`
+    );
+  }
 
   revalidatePath("/billing/thr");
   return result;

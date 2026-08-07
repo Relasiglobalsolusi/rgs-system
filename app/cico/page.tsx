@@ -18,7 +18,7 @@ import {
 } from "@/lib/invoice-period";
 import { getCicoWorkAttendance } from "@/lib/cico-attendance";
 import { formatAppDateInput } from "@/lib/progress-report-compliance";
-import { CLEANING_PROJECT_SUB_CATEGORIES } from "@/lib/project-subcategory";
+import { PROGRESS_ELIGIBLE_PROJECT_SUB_CATEGORIES } from "@/lib/project-subcategory";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
 import { refreshLeaveEmploymentForUser } from "@/lib/leave-employment-status";
@@ -67,7 +67,7 @@ export default async function CicoPage() {
     const todayInput = formatDateInput(toUtcDateOnly(new Date()));
     const reportDate = parseDateInput(todayInput);
     const cleaningSubs: ProjectSubCategory[] = [
-      ...CLEANING_PROJECT_SUB_CATEGORIES,
+      ...PROGRESS_ELIGIBLE_PROJECT_SUB_CATEGORIES,
     ];
     const adminFieldMode = canUseCicoAdminFieldPreview(permissionUser);
 
@@ -336,7 +336,7 @@ export default async function CicoPage() {
   }
 
   const cleaningSubs: ProjectSubCategory[] = [
-    ...CLEANING_PROJECT_SUB_CATEGORIES,
+    ...PROGRESS_ELIGIBLE_PROJECT_SUB_CATEGORIES,
   ];
   const officeMode =
     canUseOfficeCico(employee) && !isCicoFieldEligible(employee);

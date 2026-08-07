@@ -70,7 +70,7 @@ export const BILLING_CHIP_LINES = {
   readyToReconcile: ["Ready to", "Reconcile"],
   readyToInvoice: ["Ready to", "Invoice"],
   awaitingClientReview: ["Awaiting", "Client"],
-  taxInvoiceDue: ["Tax Invoice", "Due"],
+  taxInvoiceDue: ["Tax", "Pending"],
   taxInvoiceDone: ["Tax Invoice", "Sent"],
   latePayment: ["Late", "Payment"],
   paymentDue: ["Payment", "Due"],
@@ -165,6 +165,55 @@ export function dueAtFromClientPaymentTerms(
 
 /** Alias for AP / purchase invoices using the same Net/Cash day math. */
 export const dueAtFromPaymentTerms = dueAtFromClientPaymentTerms;
+
+export type PurchasePaymentDisplay = {
+  dueAt: Date | null;
+  /** Unpaid and past dueAt (computed). Not a DB OVERDUE writer. */
+  isOverdue: boolean;
+  isPaid: boolean;
+  key: "paid" | "overdue" | "open" | "no_due";
+};
+
+/**
+ * AP payment display: Overdue = unpaid AND past computed dueAt.
+ * Prefer this over unused DB status writers.
+ */
+export function getPurchasePaymentDisplay(
+  invoice: {
+    invoiceDate: Date;
+    paidAt?: Date | null;
+    paymentTermsDays?: number | null;
+  },
+  now: Date = new Date()
+): PurchasePaymentDisplay {
+  const isPaid = invoice.paidAt != null;
+  const dueAt =
+    invoice.paymentTermsDays != null
+      ? dueAtFromPaymentTerms(invoice.invoiceDate, invoice.paymentTermsDays)
+      : null;
+  if (isPaid) {
+    return { dueAt, isOverdue: false, isPaid: true, key: "paid" };
+  }
+  if (dueAt == null) {
+    return { dueAt: null, isOverdue: false, isPaid: false, key: "no_due" };
+  }
+  const today = toUtcDateOnly(now);
+  const isOverdue = toUtcDateOnly(dueAt).getTime() < today.getTime();
+  return {
+    dueAt,
+    isOverdue,
+    isPaid: false,
+    key: isOverdue ? "overdue" : "open",
+  };
+}
+
+/** AP tax incomplete: PPN enabled but faktur pajak not uploaded yet. */
+export function isPurchaseTaxIncomplete(invoice: {
+  includesPpn: boolean;
+  taxInvoiceFilePath?: string | null;
+}): boolean {
+  return invoice.includesPpn && !invoice.taxInvoiceFilePath;
+}
 
 export function resolveInvoiceDueAt(period: {
   dueAt?: Date | null;

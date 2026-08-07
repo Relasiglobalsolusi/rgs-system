@@ -13,8 +13,9 @@ import { formatDisplayDate } from "@/lib/format-date";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
 import {
-  dueAtFromPaymentTerms,
+  getPurchasePaymentDisplay,
   isCashPaymentTerms,
+  isPurchaseTaxIncomplete,
 } from "@/lib/invoice-period";
 import { canAccess } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -116,25 +117,34 @@ export default async function PurchaseInvoicesPage({
     lastUnitCost: decimalToNumber(item.lastUnitCost),
   }));
 
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
+  const now = new Date();
 
   let filtered = invoices;
   if (purchaseView === "tax") {
     filtered = invoices.filter(
       (invoice) => invoice.includesPpn || Boolean(invoice.taxInvoiceFilePath)
     );
+    // Surface tax-incomplete (PPN on, faktur missing) first.
+    filtered = [...filtered].sort((a, b) => {
+      const aPending = isPurchaseTaxIncomplete(a) ? 0 : 1;
+      const bPending = isPurchaseTaxIncomplete(b) ? 0 : 1;
+      return aPending - bPending;
+    });
   }
 
   const showPaymentStatus = purchaseView === "payments";
 
   const rows: PurchaseInvoiceTableRow[] = filtered.map((invoice) => {
     const termsDays = invoice.vendor?.paymentTermsDays ?? null;
-    const dueAt =
-      termsDays != null
-        ? dueAtFromPaymentTerms(invoice.invoiceDate, termsDays)
-        : null;
-    const isOverdue = dueAt != null && dueAt.getTime() < today.getTime();
+    const payment = getPurchasePaymentDisplay(
+      {
+        invoiceDate: invoice.invoiceDate,
+        paidAt: invoice.paidAt,
+        paymentTermsDays: termsDays,
+      },
+      now
+    );
+    const taxIncomplete = isPurchaseTaxIncomplete(invoice);
 
     return {
       id: invoice.id,
@@ -147,18 +157,24 @@ export default async function PurchaseInvoicesPage({
           : isCashPaymentTerms(termsDays)
             ? t("common.paymentTerms.cashShort")
             : t("common.paymentTerms.netShort", { days: termsDays }),
-      dueDateLabel: dueAt
-        ? formatDisplayDate(dueAt, { timeZone: "UTC" })
+      dueDateLabel: payment.dueAt
+        ? formatDisplayDate(payment.dueAt, { timeZone: "UTC" })
         : null,
       amountLabel: formatContractPrice(decimalToNumber(invoice.amount)),
       includesPpn: invoice.includesPpn,
+      taxIncomplete,
       notes: invoice.notes,
       filePath: invoice.filePath,
       taxInvoiceFilePath: invoice.taxInvoiceFilePath,
       uploadedBy: invoice.createdBy?.name ?? null,
       uploadedAtLabel: formatDisplayDate(invoice.createdAt),
-      paymentStatus: dueAt == null ? null : isOverdue ? "overdue" : "open",
-      showPaymentStatus,
+      paymentStatus:
+        payment.key === "no_due" ? null : payment.key,
+      showPaymentStatus: showPaymentStatus || payment.isPaid,
+      paidAtLabel: invoice.paidAt
+        ? formatDisplayDate(invoice.paidAt)
+        : null,
+      paymentProofPath: invoice.paymentProofPath,
     };
   });
 
@@ -223,6 +239,7 @@ export default async function PurchaseInvoicesPage({
           rows={rows}
           canManage={canUpload}
           readOnlyPayment={purchaseView === "payments"}
+          canMarkPaid={canManage}
         />
       )}
     </AppShell>

@@ -161,6 +161,41 @@ export async function saveUpload(
 }
 
 /**
+ * Load a previously saved public upload (`/uploads/...`) as a `File` for
+ * server-side AI verification (e.g. HO confirm of client payment proof).
+ */
+export async function fileFromPublicUpload(
+  publicPath: string,
+  fallbackName = "upload.bin"
+): Promise<File> {
+  const { readFile } = await import("fs/promises");
+  const cleaned = publicPath.split("?")[0].trim();
+  if (!cleaned.startsWith("/uploads/")) {
+    throw new Error("Invalid upload path.");
+  }
+  const relative = cleaned.replace(/^\/+/, "").replace(/\//g, path.sep);
+  const publicRoot = path.resolve(process.cwd(), "public");
+  const full = path.resolve(publicRoot, relative);
+  if (!full.startsWith(publicRoot + path.sep) && full !== publicRoot) {
+    throw new Error("Invalid upload path.");
+  }
+  const buffer = await readFile(full);
+  const name = path.basename(full) || fallbackName;
+  const ext = path.extname(name).toLowerCase();
+  const type =
+    ext === ".pdf"
+      ? "application/pdf"
+      : ext === ".png"
+        ? "image/png"
+        : ext === ".webp"
+          ? "image/webp"
+          : ext === ".gif"
+            ? "image/gif"
+            : "image/jpeg";
+  return new File([Uint8Array.from(buffer)], name, { type });
+}
+
+/**
  * Best-effort delete for files stored under public/uploads/...
  * Ignores missing files and non-local paths.
  */

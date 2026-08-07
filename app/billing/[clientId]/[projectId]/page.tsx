@@ -11,7 +11,6 @@ import {
   formatProjectTitle,
   usesInvoicePeriods,
 } from "@/lib/project-billing";
-import { isServiceProjectSubCategory } from "@/lib/project-subcategory";
 import { localizeSubCategory } from "@/lib/i18n/labels";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
@@ -64,7 +63,6 @@ export default async function BillingProjectPage({
 
   const inPlanning = isPlanningProjectStatus(project.status);
   const pageTitle = formatProjectTitle(project.name, null, locale);
-  const isService = isServiceProjectSubCategory(project.subCategory);
   const opensPeriods = usesInvoicePeriods(project.subCategory);
 
   if (inPlanning) {
@@ -104,8 +102,16 @@ export default async function BillingProjectPage({
     );
   }
 
-  // Security / Parking / Payroll Management: commercial terms only — never sync periods.
-  if (isService || !opensPeriods) {
+  // Parking / Payroll Management: commercial terms only — never sync periods.
+  // Security uses Regular-like monthly periods (`opensPeriods` / usesInvoicePeriods).
+  //
+  // Parking deferred: manual monthly revenue entry + net profit =
+  //   revenue − ALL project outflows (owner profit-share, lease, setup, purchases,
+  //   wages, etc. — no special exclusions). Hook: this stub when subCategory === PARKING.
+  //
+  // Payroll Management deferred pay-then-bill: client wages → RGS fronts (cost) →
+  // bill wage bill + management fee % (`serviceFeePercent`, RGS profit only).
+  if (!opensPeriods) {
     const monthlyFee = decimalToNumber(project.contractPrice);
     const setupCost = decimalToNumber(project.setupCost);
     const profitShare = decimalToNumber(project.profitSharePercent);

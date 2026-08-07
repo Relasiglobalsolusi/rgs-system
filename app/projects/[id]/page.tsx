@@ -40,7 +40,6 @@ import {
   isInternalProjectSubCategory,
   isServiceProjectSubCategory,
 } from "@/lib/project-subcategory";
-import { isMilestoneSubCategory } from "@/lib/project-billing";
 import {
   getProjectWorkflowStatusLabel,
   isPlanningProjectStatus,
@@ -63,6 +62,8 @@ import {
   formatContractPrice,
   formatInvoicePeriodLabel,
   formatProjectTitle,
+  isMilestoneSubCategory,
+  usesInvoicePeriods,
 } from "@/lib/project-billing";
 import { canAccess } from "@/lib/permissions";
 import {
@@ -291,7 +292,7 @@ export default async function ProjectDetailPage({
   const isRegularContract = isContractSubCategory(project.subCategory);
   const isService = isServiceProjectSubCategory(project.subCategory);
   const isMonthTimeline = usesMonthDurationTimeline(project.subCategory);
-  // Regular Cleaning + Security / Parking / Payroll Management (commercial terms, no periods).
+  // Regular + Security (contract cycle) + Parking / Payroll Management (service).
   const canEndContract =
     canManage &&
     !isInternal &&
@@ -373,7 +374,8 @@ export default async function ProjectDetailPage({
   const pageDescription = isInternal
     ? typeLabel
     : [project.client?.name, typeLabel].filter(Boolean).join(" · ");
-  const billingSubtext = isService
+  const opensBillingPeriods = usesInvoicePeriods(project.subCategory);
+  const billingSubtext = !opensBillingPeriods
     ? t("pages.projects.detail.serviceBillingNote")
     : (project.billingMode === "MONTHLY"
         ? t("pages.projects.detail.anniversaryInvoiceDay", {
@@ -801,7 +803,7 @@ export default async function ProjectDetailPage({
             />
           ) : null}
 
-          {!isInternal && !isService && !inPlanning ? (
+          {!isInternal && opensBillingPeriods && !inPlanning ? (
             <SectionCard className={sectionCardClassName}>
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <h3 className={sectionTitleClassName}>

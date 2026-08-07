@@ -19,6 +19,7 @@ import { deleteLocalUpload, saveUpload } from "@/lib/upload";
 import {
   contractCyclePeriodBounds,
   formatDateInput,
+  monthPeriodBounds,
   parseDateInput,
   resolveContractCycleIndex,
   toUtcDateOnly,
@@ -27,10 +28,10 @@ import {
   findOpenCicoAttendance,
   hasOpenCicoForProjectWorkDay,
 } from "@/lib/cico-attendance";
-import { requiresCicoProgressReport } from "@/lib/cico-access";
+import { canSubmitFieldProgressReport } from "@/lib/cico-access";
 import { usesInvoicePeriods } from "@/lib/project-billing";
 import {
-  isCleaningProjectSubCategory,
+  isProgressEligibleProjectSubCategory,
   isInternalProjectSubCategory,
 } from "@/lib/project-subcategory";
 import { getServerLocale } from "@/lib/i18n/locale";
@@ -147,7 +148,12 @@ async function assertValidProgressPhotos(photos: File[]) {
 async function ensureOngoingPeriod(projectId: string, reportDate: Date) {
   const project = await prisma.project.findUnique({
     where: { id: projectId },
-    select: { billingMode: true, startDate: true, subCategory: true },
+    select: {
+      billingMode: true,
+      startDate: true,
+      subCategory: true,
+      billingPeriodBasis: true,
+    },
   });
 
   if (
@@ -160,11 +166,14 @@ async function ensureOngoingPeriod(projectId: string, reportDate: Date) {
   }
 
   const contractStart = toUtcDateOnly(project.startDate);
-  const cycleIndex = resolveContractCycleIndex(contractStart, reportDate);
-  const { periodStart, periodEnd, label } = contractCyclePeriodBounds(
-    contractStart,
-    cycleIndex
-  );
+  const basis = project.billingPeriodBasis ?? "CONTRACT_CYCLE";
+  const { periodStart, periodEnd, label } =
+    basis === "CALENDAR_MONTH"
+      ? monthPeriodBounds(reportDate)
+      : contractCyclePeriodBounds(
+          contractStart,
+          resolveContractCycleIndex(contractStart, reportDate)
+        );
 
   const existing = await prisma.projectInvoicePeriod.findUnique({
     where: {
@@ -205,8 +214,8 @@ export async function createProgressReport(formData: FormData) {
     throw await progressError("onProjectOnly");
   }
 
-  // Progress is position-gated: Cleaning Staff, GC Staff, In-House Cleaning only.
-  if (!requiresCicoProgressReport(employee)) {
+  // Cleaning positions + Security staff (Security projects). Not a CICO checkout gate.
+  if (!canSubmitFieldProgressReport(employee)) {
     throw await progressError("cleaningPositionOnly");
   }
 
@@ -229,9 +238,6 @@ export async function createProgressReport(formData: FormData) {
   const reportDate = dateStr
     ? parseDateInput(dateStr)
     : toUtcDateOnly(new Date());
-
-  await assertOpenCicoRequiredForCreate(employee.id, projectId, reportDate);
-  await assertCanCreateProgressReport(employee, projectId, reportDate);
 
   const assignment = await prisma.projectAssignment.findUnique({
     where: {
@@ -263,13 +269,19 @@ export async function createProgressReport(formData: FormData) {
     throw await progressError("headOfficeNotAllowed");
   }
 
-  if (!isCleaningProjectSubCategory(assignment.project.subCategory)) {
+  if (!isProgressEligibleProjectSubCategory(assignment.project.subCategory)) {
     throw await progressError("cleaningOnly");
   }
 
   if (assignment.project.status !== "IN_PROGRESS") {
     throw await progressError("inProgressOnly");
   }
+
+  // Cleaning: open CICO required. Security: anytime (separate service requirement).
+  if (assignment.project.subCategory !== "SECURITY") {
+    await assertOpenCicoRequiredForCreate(employee.id, projectId, reportDate);
+  }
+  await assertCanCreateProgressReport(employee, projectId, reportDate);
 
   const period = isInternalProjectSubCategory(assignment.project.subCategory)
     ? null
@@ -328,7 +340,7 @@ export async function updateProgressReport(formData: FormData) {
   const session = await requireModule("progress");
   const employee = await requireSyncedActiveEmployee(session.user.id);
 
-  if (!requiresCicoProgressReport(employee)) {
+  if (!canSubmitFieldProgressReport(employee)) {
     throw await progressError("cleaningPositionOnly");
   }
 
@@ -374,7 +386,7 @@ export async function updateProgressReport(formData: FormData) {
     throw await progressError("editDayLocked");
   }
 
-  if (!isCleaningProjectSubCategory(existing.project.subCategory)) {
+  if (!isProgressEligibleProjectSubCategory(existing.project.subCategory)) {
     throw await progressError("cleaningOnly");
   }
 

@@ -334,8 +334,8 @@ export const id = {
       readyToInvoice2: "Invoice",
       awaitingClientReview1: "Menunggu",
       awaitingClientReview2: "Klien",
-      taxInvoiceDue1: "Faktur Pajak",
-      taxInvoiceDue2: "Jatuh Tempo",
+      taxInvoiceDue1: "Pajak",
+      taxInvoiceDue2: "Menunggu",
       taxInvoiceDone1: "Faktur Pajak",
       taxInvoiceDone2: "Terkirim",
       latePayment1: "Bayar",
@@ -559,14 +559,16 @@ export const id = {
         monthlyClientFee: "Biaya Bulanan ke Klien",
         monthlyClientFeeHint:
           "Biaya bulanan yang RGS bayar ke klien untuk pengelolaan parking (IDR).",
-        serviceFeePercent: "% Biaya Layanan",
+        serviceFeePercent: "% Biaya Manajemen",
         serviceFeePercentHint:
-          "Pendapatan RGS sebagai persentase dari payroll yang diganti. Dapat diatur per proyek.",
+          "Pendapatan RGS saja — persentase yang dapat diatur dari total gaji bulanan klien (contoh: 6%). Tidak dikunci di sistem.",
         paymentTermsDays: "Syarat Penggantian Klien",
         paymentTermsDaysHint:
-          "Hari hingga klien mengganti payroll. Default dari syarat pembayaran klien.",
+          "Hari hingga klien mengganti total gaji yang dibayar di muka ditambah biaya manajemen. Default dari syarat pembayaran klien.",
         payrollTimelineHint:
-          "Tanggal mulai ops opsional. Manajemen Payroll tidak memakai periode penagihan cleaning.",
+          "Tanggal mulai ops opsional. Klien menetapkan gaji tiap bulan; RGS menalangi tagihan gaji itu (biaya proyek), lalu menagih gaji + biaya manajemen. Alur bayar-lalu-tagih terpisah dari periode cleaning.",
+        payrollEconomicsHint:
+          "Ekonomi: gaji yang ditalangi = biaya; % biaya manajemen = laba RGS; klien mengganti gaji + biaya.",
       },
       billingLabel: "Penagihan",
       taxInvoiceLabel: "Faktur Pajak",
@@ -807,7 +809,7 @@ export const id = {
         anniversaryInvoiceDay:
           "Invoice anniversary hari ke-{day} (sehari setelah setiap siklus berakhir)",
         serviceBillingNote:
-          "Syarat komersial disimpan di proyek. Periode penagihan gaya cleaning tidak digunakan.",
+          "Syarat komersial disimpan di proyek. Parking dan Manajemen Payroll tidak memakai periode invoice bulanan di sini.",
         contractPriceAndInvoices: "Harga kontrak dan invoice",
         estStart: "Est. mulai {date}",
         estimateTbd: "Estimasi belum ditentukan",
@@ -2214,8 +2216,8 @@ export const id = {
         "Faktur pajak di mana RGS adalah pembeli (untuk kredit PPN masukan).",
       ppnMasukanEmpty: "Belum ada catatan PPN masukan",
       ppnMasukanEmptyDesc:
-        "Unggah faktur pembelian pemasok di menu Pembelian. Pencocokan PPN Masukan akan terhubung di sini nanti.",
-      ppnMasukanComingSoon: "Segera hadir",
+        "Unggah faktur pembelian pemasok di menu Pembelian. PPN Masukan dari tagihan itu muncul di laporan ini bila menyertakan pajak atau sudah punya file faktur pajak.",
+      ppnMasukanComingSoon: "Buka Pembelian",
       ppnMasukanOpenPurchase: "Buka Pembelian",
       purchase: "Pembelian",
       purchaseDescription:
@@ -2263,6 +2265,7 @@ export const id = {
       vendorStatusNoTaxRequired: "Tanpa pajak",
       vendorStatusOpen: "Terbuka",
       vendorStatusOverdue: "Terlambat",
+      vendorStatusPaid: "Lunas",
       purchaseCount: "{count} faktur pembelian",
       purchasePeriod: "Periode",
       purchaseEmpty: "Belum Ada Pembelian",
@@ -2326,6 +2329,8 @@ export const id = {
       purchasePpnRate: "Tarif Pajak",
       purchasePpnRatePlaceholder: "mis. 12",
       purchasePpnRateRequired: "Masukkan persentase tarif pajak untuk pembelian ini.",
+      outputPpnRateHint:
+        "Tarif PPN Keluaran untuk invoice ini. Dapat diubah — tidak dikunci 11%. Default mengikuti tarif produk saat ini.",
       purchasePpnRateHint:
         "Nilai bawaan 12%. Ubah jika faktur memakai tarif pajak yang berbeda.",
       purchaseVatPreview: "Perkiraan DPP {dpp} · Pajak {tax} (jumlah termasuk pajak).",
@@ -2364,6 +2369,20 @@ export const id = {
       purchaseNoTaxInvoice: "—",
       purchaseViewTaxInvoice: "Lihat",
       purchaseViewTaxInvoiceAction: "Lihat Faktur Pajak",
+      purchaseMarkPaid: "Tandai Lunas",
+      purchaseMarkPaidTitle: "Tandai Pembelian Lunas",
+      purchaseMarkPaidDesc:
+        "Unggah bukti pembayaran untuk mencatat kapan tagihan pemasok ini dilunasi dan menutup AP.",
+      purchaseMarkPaidHint:
+        "Lampirkan bukti transfer atau konfirmasi pembayaran. Ini menutup utang.",
+      purchaseMarkPaidConfirm: "Konfirmasi Lunas",
+      purchaseMarkPaidPending: "Mencatat…",
+      purchaseMarkPaidFailed: "Gagal menandai pembelian sebagai lunas.",
+      purchaseMarkPaidInvoiceRequired: "Faktur pembelian wajib diisi.",
+      purchaseMarkPaidNotFound: "Faktur pembelian tidak ditemukan.",
+      purchaseMarkPaidAlreadyPaid: "Pembelian ini sudah ditandai lunas.",
+      purchasePaidAt: "Dibayar Pada",
+      purchaseViewPaymentProof: "Lihat Bukti Pembayaran",
       taxPendingCount: "{count} menunggu",
       taxInvoiceDueBadge: "Faktur pajak jatuh tempo",
       taxClientsNeedingAttention: "{count} klien perlu perhatian",
@@ -2708,7 +2727,7 @@ export const id = {
     financialReport: {
       title: "Laporan Keuangan",
       description:
-        "Laba rugi klien dan proyek dari nilai kontrak, pembayaran terkonfirmasi, pengeluaran inventaris, dan gaji karyawan yang ditugaskan.",
+        "Laba rugi seluruh perusahaan dulu, lalu drill ke klien dan proyek — dari nilai kontrak, pembayaran terkonfirmasi, pengeluaran inventaris, dan gaji karyawan yang ditugaskan.",
       clientProjectsDesc: "Ringkasan keuangan proyek untuk klien ini.",
       projectDetailDesc: "Laba rugi untuk {client}.",
       totalClients: "Total Klien",
@@ -2802,7 +2821,7 @@ export const id = {
         "THR Lebaran memakai gaji pokok dan masa kerja. Layak mulai satu bulan penuh bekerja.",
       summaryTitle: "Pembuatan THR",
       summaryDesc:
-        "Catatan dibuat otomatis saat halaman ini dibuka dalam {days} hari sebelum Idul Fitri. Anda juga dapat membuat secara manual untuk tahun target.",
+        "Catatan dibuat otomatis saat halaman ini dibuka dalam {days} hari sebelum Idul Fitri. Generate manual hanya tersedia di dalam jendela itu.",
       targetYear: "Tahun Target",
       hariRayaDate: "Tanggal Hari Raya",
       totalAmount: "Total Jumlah",
@@ -2811,6 +2830,9 @@ export const id = {
       generateSuccess:
         "THR dibuat: {created} baru, {updated} diperbarui, {skipped} dilewati.",
       generateFailed: "Gagal membuat THR.",
+      generateOutsideWindow:
+        "THR hanya dapat dibuat dalam {days} hari sebelum Idul Fitri.",
+      generateOutsideWindowShort: "Di Luar Jendela Idul Fitri",
       paymentsTitle: "Pembayaran Yang Dibuat",
       paymentsDesc: "Baris THR untuk {year}.",
       emptyTitle: "Belum Ada Pembayaran THR",
@@ -2836,10 +2858,10 @@ export const id = {
       description: "Penggajian karyawan dan pemrosesan gaji untuk kantor pusat.",
       directoryTitle: "Penggajian",
       directoryDesc:
-        "Proses penggajian dan penyesuaian gaji terkait dikelola di sini.",
+        "Penggajian staf kantor pusat. Potongan manual Rp (bukan persen) akan ditambahkan di sini nanti.",
       periodTitle: "Periode Gaji",
       periodDesc:
-        "Pilih bulan dan tahun untuk melihat penggajian yang dihitung pada periode tersebut.",
+        "Pilih bulan dan tahun untuk melihat penggajian yang dihitung pada periode tersebut. Penyesuaian memakai jumlah Rp tetap bila diaktifkan — bukan persentase.",
       totalEmployees: "Karyawan",
       totalWage: "Total Upah",
       totalNetPay: "Total Gaji Bersih",

@@ -447,6 +447,7 @@ model User {
   reconciledInvoicePeriods ProjectInvoicePeriod[] @relation("InvoicePeriodReconciler")
   hoReviewedInvoicePeriods ProjectInvoicePeriod[] @relation("InvoicePeriodHoReviewer")
   createdPurchaseInvoices PurchaseInvoice[] @relation("PurchaseInvoiceCreator")
+  paidPurchaseInvoices    PurchaseInvoice[] @relation("PurchaseInvoicePaidBy")
   createdInventoryPurchases InventoryPurchase[] @relation("InventoryPurchaseCreator")
   createdInventorySales     InventorySale[]     @relation("InventorySaleCreator")
   createdInventoryMovements InventoryMovement[] @relation("InventoryMovementCreator")
@@ -750,6 +751,13 @@ model PurchaseInvoice {
   createdById String?
   createdBy   User?   @relation("PurchaseInvoiceCreator", fields: [createdById], references: [id])
 
+  /// When AP was marked paid (proof uploaded + recorded).
+  paidAt DateTime?
+  /// Stored under /uploads/purchase-payment-proofs.
+  paymentProofPath String?
+  paidById String?
+  paidBy   User?   @relation("PurchaseInvoicePaidBy", fields: [paidById], references: [id], onDelete: SetNull)
+
   lines PurchaseInvoiceLine[]
 
   createdAt DateTime @default(now())
@@ -757,6 +765,7 @@ model PurchaseInvoice {
 
   @@index([companyId])
   @@index([companyId, invoiceDate])
+  @@index([companyId, paidAt])
   @@index([vendorId])
   @@index([taxInvoiceSerial])
   @@index([taxInvoiceDocumentHash])
@@ -946,6 +955,8 @@ model ProjectInvoicePeriod {
 
   /// Copied from project.requiresTaxInvoice when the invoice is issued.
   taxInvoiceRequired Boolean   @default(false)
+  /// Output PPN rate % used when marking/splitting tax invoice (editable; default ~11–12).
+  ppnRatePercent Decimal? @db.Decimal(5, 2)
   /// Uploaded tax invoice (faktur pajak) document under /uploads/tax-invoices.
   taxInvoiceDocumentPath       String?
   taxInvoiceDocumentUploadedAt DateTime?

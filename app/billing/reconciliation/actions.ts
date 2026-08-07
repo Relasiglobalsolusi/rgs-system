@@ -398,10 +398,8 @@ export async function clientApproveBillingReview(periodId: string) {
     statusAfter: "CLIENT_APPROVED",
   });
 
-  // Crew release after both-parties agree (same gate as HO revision approve):
-  // - Regular / MONTHLY: never (End Contract only).
-  // - MILESTONE: only final ≥100% (also released when invoice issues → COMPLETED).
-  // - ON_COMPLETION: yes — completion package approve = job done; unpaid is finance-only.
+  // Crew/equipment: never release on billing review agree.
+  // GC/Facade → only when project is COMPLETED; Regular/Security → End Contract only.
   const {
     shouldReleaseCrewAfterBillingReviewAgree,
     releaseProjectCrewAfterProgressApproved,
@@ -415,8 +413,6 @@ export async function clientApproveBillingReview(periodId: string) {
     await prisma.$transaction(async (tx) => {
       await releaseProjectCrewAfterProgressApproved(tx, period.projectId);
     });
-    // G3: crew/equipment released on approve; project stays active until paid.
-    // Payment Due is derived from the issued AWAITING_PAYMENT invoice (not COMPLETED).
   }
 
   // Issue invoice (skips HO manage gate via internal flag path).
@@ -567,7 +563,7 @@ export async function hoApproveClientRevision(formData: FormData) {
     statusAfter: "HO_APPROVED_REVISION",
   });
 
-  // HO approve revision = both parties agree → same crew release as client immediate approve.
+  // HO approve revision = both parties agree → same crew-release gate (never on agree).
   const {
     shouldReleaseCrewAfterBillingReviewAgree,
     releaseProjectCrewAfterProgressApproved,
@@ -581,7 +577,6 @@ export async function hoApproveClientRevision(formData: FormData) {
     await prisma.$transaction(async (tx) => {
       await releaseProjectCrewAfterProgressApproved(tx, period.projectId);
     });
-    // G3: same as client approve — release crew; Payment Due until invoice is paid.
   }
 
   await issueInvoiceAfterClientApproval(periodId, session.user.id);

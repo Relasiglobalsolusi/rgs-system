@@ -5,10 +5,14 @@ import {
   canManageProjects,
   getProjectWhereForUser,
 } from "@/lib/project-access";
-import { requiresCicoProgressReport } from "@/lib/cico-access";
+import {
+  canSubmitFieldProgressReport,
+  requiresCicoProgressReport,
+} from "@/lib/cico-access";
+import { isSecurityStaffPosition } from "@/lib/positions";
 import { getOpenCicoProgressLock } from "@/lib/cico-attendance";
 import {
-  CLEANING_PROJECT_SUB_CATEGORIES,
+  PROGRESS_ELIGIBLE_PROJECT_SUB_CATEGORIES,
 } from "@/lib/project-subcategory";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
@@ -50,13 +54,13 @@ export default async function ProgressPage({
   });
 
   const activeStatuses: ProjectStatus[] = ["IN_PROGRESS"];
-  const cleaningSubs: ProjectSubCategory[] = [
-    ...CLEANING_PROJECT_SUB_CATEGORIES,
+  const progressSubs: ProjectSubCategory[] = [
+    ...PROGRESS_ELIGIBLE_PROJECT_SUB_CATEGORIES,
   ];
   const cleaningProjectFilter = {
     ...projectWhere,
     status: { in: activeStatuses },
-    subCategory: { in: cleaningSubs },
+    subCategory: { in: progressSubs },
   };
 
   const staffScope = Boolean(employee && !isViewerFeed);
@@ -228,6 +232,7 @@ export default async function ProgressPage({
     select: {
       id: true,
       name: true,
+      subCategory: true,
       assignments: {
         where: staffScope ? { employeeId: employee!.id } : undefined,
         select: {
@@ -265,17 +270,25 @@ export default async function ProgressPage({
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   });
 
-  const assignedCleaningProjects = directoryProjects.map((project) => ({
+  const assignedProjects = directoryProjects.map((project) => ({
     id: project.id,
     name: project.name,
+    subCategory: project.subCategory,
   }));
+  const assignedSecurityProjects = assignedProjects.filter(
+    (p) => p.subCategory === "SECURITY"
+  );
+  const assignedCleaningOnlyProjects = assignedProjects.filter(
+    (p) => p.subCategory !== "SECURITY"
+  );
+  const isSecurityStaff = isSecurityStaffPosition(employee?.jobPosition ?? {});
 
   const openCicoLock = employee
     ? await getOpenCicoProgressLock(employee.id)
     : null;
 
   const openCicoAssigned = openCicoLock
-    ? assignedCleaningProjects.find((p) => p.id === openCicoLock.projectId)
+    ? assignedProjects.find((p) => p.id === openCicoLock.projectId)
     : null;
   const openCicoProject =
     openCicoLock && openCicoAssigned
@@ -286,26 +299,35 @@ export default async function ProgressPage({
         }
       : null;
 
-  const canSubmit =
+  // Cleaning: need open CICO. Security staff: anytime on assigned Security projects.
+  const canSubmitSecurityAnytime =
     Boolean(employee) &&
     !isClient &&
     employee?.status === "ACTIVE" &&
-    Boolean(openCicoProject) &&
     employee?.placement === "ON_PROJECT" &&
-    requiresCicoProgressReport(employee);
+    isSecurityStaff &&
+    assignedSecurityProjects.length > 0;
+  const canSubmit =
+    (Boolean(employee) &&
+      !isClient &&
+      employee?.status === "ACTIVE" &&
+      Boolean(openCicoProject) &&
+      employee?.placement === "ON_PROJECT" &&
+      canSubmitFieldProgressReport(employee)) ||
+    canSubmitSecurityAnytime;
   const showCheckInRequired =
     Boolean(employee) &&
     !isClient &&
     employee?.status === "ACTIVE" &&
-    assignedCleaningProjects.length > 0 &&
+    assignedCleaningOnlyProjects.length > 0 &&
     employee?.placement === "ON_PROJECT" &&
     requiresCicoProgressReport(employee) &&
     !openCicoProject;
-  // Clients + managers: view feed only. Cleaning positions submit/edit their own reports.
+  // Clients + managers: view feed only. Cleaning + Security staff submit/edit their own.
   const canEditReports =
     !isViewerFeed &&
     employee?.status === "ACTIVE" &&
-    requiresCicoProgressReport(employee);
+    canSubmitFieldProgressReport(employee);
 
   const grouped: ProgressDirectoryProject[] = directoryProjects.map(
     (project) => {
@@ -365,7 +387,7 @@ export default async function ProgressPage({
               ? t("pages.progress.onLeaveMessage")
               : showCheckInRequired
                 ? t("pages.progress.checkInRequiredMessage")
-                : requiresCicoProgressReport(employee)
+                : canSubmitFieldProgressReport(employee)
                   ? t("pages.progress.myReportsHint")
                   : t("pages.progress.myReportsHintViewOnly")}
           </p>
@@ -381,6 +403,16 @@ export default async function ProgressPage({
               projectId: openCicoProject.id,
               workDate: openCicoProject.workDate,
             }}
+            triggerLabel={t("pages.progress.submitReport")}
+          />
+        ) : canSubmitSecurityAnytime ? (
+          <ProgressDialog
+            projects={assignedSecurityProjects.map((p) => ({
+              id: p.id,
+              name: p.name,
+            }))}
+            defaultProjectId={assignedSecurityProjects[0]?.id}
+            allowWithoutCico
             triggerLabel={t("pages.progress.submitReport")}
           />
         ) : null}

@@ -139,6 +139,9 @@ export default function ServiceCommercialFields({
 
     return (
       <div className="space-y-4">
+        <p className={employeeDialogHintClass}>
+          {t("pages.projects.serviceCommercial.payrollEconomicsHint")}
+        </p>
         <div className={employeeDialogFieldClass}>
           <label className="text-sm font-medium text-text">
             {t("pages.projects.serviceCommercial.serviceFeePercent")}
@@ -151,7 +154,7 @@ export default function ServiceCommercialFields({
             step="0.01"
             required
             defaultValue={percentDefault(defaults?.serviceFeePercent)}
-            placeholder="0"
+            placeholder="6"
             className={employeeInputClass}
           />
           <p className={employeeDialogHintClass}>

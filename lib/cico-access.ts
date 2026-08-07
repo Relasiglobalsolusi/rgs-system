@@ -8,7 +8,10 @@ import {
 } from "@/lib/permissions";
 import { isEmployeeActiveForOperations } from "@/lib/leave-employment-status";
 import { canUseOfficeCico } from "@/lib/office-cico";
-import { isCleaningStaffPosition } from "@/lib/positions";
+import {
+  isCleaningStaffPosition,
+  isSecurityStaffPosition,
+} from "@/lib/positions";
 
 type CicoEmployee = Pick<
   Employee,
@@ -46,12 +49,28 @@ export function isCicoOperationalEligible(
 /**
  * Progress before checkout — cleaning staff positions only
  * (Cleaning Staff, GC Staff, In-House Cleaning Staff).
+ * Security progress is a separate service requirement (not a CICO gate).
  */
 export function requiresCicoProgressReport(
   employee: CicoEmployee | null | undefined
 ): boolean {
   if (!employee) return false;
   return isCleaningStaffPosition(employee.jobPosition ?? {});
+}
+
+/**
+ * Who may submit field progress photos:
+ * cleaning positions, or Security staff (on Security projects — anytime, no
+ * forced interval; managers handle cadence offline).
+ */
+export function canSubmitFieldProgressReport(
+  employee: CicoEmployee | null | undefined
+): boolean {
+  if (!employee) return false;
+  const position = employee.jobPosition ?? {};
+  return (
+    isCleaningStaffPosition(position) || isSecurityStaffPosition(position)
+  );
 }
 
 export { canUseOfficeCico };

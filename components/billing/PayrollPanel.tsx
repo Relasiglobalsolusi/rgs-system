@@ -29,6 +29,11 @@ export type PayrollRow = {
   bpjsTk: number;
   totalDeduction: number;
   netPay: number;
+  /**
+   * Deferred: manual Rp deduction amount (not %), applied per employee/run.
+   * When built, subtract from netPay / add into totalDeduction.
+   */
+  // manualAdjustmentRp?: number;
 };
 
 type Props = {

@@ -74,9 +74,30 @@ export function partTimeRosterWhere(
 export type AssignableCrewWhereOptions = {
   /** Include In-House Cleaning Staff (Internal projects only). */
   includeInHouseCleaning?: boolean;
+  /** Include Security staff (Security projects). */
+  includeSecurityStaff?: boolean;
   /** Keep employees already linked to this project in the picker. */
   includeAssignedToProjectId?: string;
 };
+
+/** Available FT Security staff for Security project assignment. */
+export function availableSecurityCrewWhere(
+  companyId: string
+): Prisma.EmployeeWhereInput {
+  return {
+    companyId,
+    status: "ACTIVE",
+    employmentType: "FULL_TIME",
+    placement: "AVAILABLE",
+    jobPosition: {
+      active: true,
+      OR: [
+        { slug: { contains: "security", mode: "insensitive" } },
+        { name: { contains: "Security", mode: "insensitive" } },
+      ],
+    },
+  };
+}
 
 /** Staff picker / eligibility OR branches for project assignment. */
 export function assignableProjectCrewOrWhere(
@@ -89,6 +110,9 @@ export function assignableProjectCrewOrWhere(
   ];
   if (options?.includeInHouseCleaning) {
     branches.push(availableInHouseCleaningCrewWhere(companyId));
+  }
+  if (options?.includeSecurityStaff) {
+    branches.push(availableSecurityCrewWhere(companyId));
   }
   if (options?.includeAssignedToProjectId) {
     branches.push({
@@ -115,7 +139,10 @@ export async function assertProjectCrewEligible(
   companyId: string,
   employeeIds: string[],
   errorMessage = "Select Available Full Time Operations crew (Cleaning/GC) and/or Part Time staff only.",
-  options?: { allowInHouseCleaning?: boolean }
+  options?: {
+    allowInHouseCleaning?: boolean;
+    allowSecurityStaff?: boolean;
+  }
 ) {
   const uniqueIds = [...new Set(employeeIds.filter(Boolean))];
   if (uniqueIds.length === 0) return;
@@ -127,11 +154,17 @@ export async function assertProjectCrewEligible(
       id: { in: uniqueIds },
       OR: assignableProjectCrewOrWhere(companyId, {
         includeInHouseCleaning: options?.allowInHouseCleaning,
+        includeSecurityStaff: options?.allowSecurityStaff,
       }),
     },
   });
 
   if (validCount !== uniqueIds.length) {
+    if (options?.allowSecurityStaff) {
+      throw new Error(
+        "Select Available Full Time Security staff and/or Part Time staff only."
+      );
+    }
     throw new Error(
       options?.allowInHouseCleaning
         ? "Select Available Full Time Operations crew (Cleaning/GC), In-House Cleaning Staff, and/or Part Time staff only."
@@ -357,22 +390,24 @@ export async function releaseAllProjectCrew(
 }
 
 /**
- * True when both-parties agree on an ops-done billing package should release crew:
- * ON_COMPLETION completion approve, or final MILESTONE ≥100%.
- * Never for Regular / MONTHLY (End Contract only). Intermediate milestones stay held.
+ * Billing review agree / period approve must NEVER auto-release crew or equipment.
+ *
+ * - GC / Facade (MILESTONE or ON_COMPLETION): release only when the project is
+ *   marked COMPLETED (Finish / final completion path) — never when a part closes.
+ * - Regular Cleaning + Security (`isContractCycleSubCategory`): release only on
+ *   End Contract (`finishProject`), not on monthly billing agree. Mid-contract
+ *   assign/release stays manual.
+ *
+ * Do not key “don’t release” solely on `billingMode === MONTHLY` — that wrongly
+ * conflates Regular Cleaning with other MONTHLY modes. Call sites keep this gate
+ * so product rules stay explicit.
  */
-export function shouldReleaseCrewAfterBillingReviewAgree(opts: {
+export function shouldReleaseCrewAfterBillingReviewAgree(_opts: {
   subCategory: string | null | undefined;
   billingMode: string | null | undefined;
   milestonePercent: number | null | undefined;
 }): boolean {
-  const isRegularCleaning =
-    opts.subCategory === "REGULAR_CLEANING" || opts.billingMode === "MONTHLY";
-  if (isRegularCleaning) return false;
-  return (
-    opts.billingMode === "ON_COMPLETION" ||
-    (opts.milestonePercent != null && opts.milestonePercent >= 100)
-  );
+  return false;
 }
 
 /**

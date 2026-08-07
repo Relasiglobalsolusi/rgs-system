@@ -411,7 +411,7 @@ export default function ProjectEditDialog({
       formData.set("subCategory", subCategory);
       formData.set("serviceArea", serviceArea);
       formData.set("billingMode", billingMode);
-      if (isContract) {
+      if (isContract || subCategory === "SECURITY") {
         formData.set("billingPeriodBasis", billingPeriodBasis);
       } else {
         formData.delete("billingPeriodBasis");
@@ -561,7 +561,7 @@ export default function ProjectEditDialog({
               </>
             ) : null}
 
-            {!isInternal && isContract ? (
+            {!isInternal && (isContract || subCategory === "SECURITY") ? (
               <>
                 <ProjectOptionPills
                   label={t("pages.projects.billingPeriodBasis")}

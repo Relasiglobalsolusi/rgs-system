@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { FileText, ShoppingBag, Wallet } from "lucide-react";
 
+import SettlementsApMarkPaidButton from "@/components/billing/SettlementsApMarkPaidButton";
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
@@ -13,16 +14,17 @@ import { getServerLocale } from "@/lib/i18n/locale";
 import { localizeBillingStatus } from "@/lib/i18n/labels";
 import { createTranslator } from "@/lib/i18n/translate";
 import {
-  dueAtFromPaymentTerms,
   getInvoicePaymentDisplay,
+  getPurchasePaymentDisplay,
   isCashPaymentTerms,
 } from "@/lib/invoice-period";
+import { canAccess } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import {
   decimalToNumber,
   formatContractPrice,
 } from "@/lib/project-billing";
-import { requireFinanceChild } from "@/lib/session";
+import { requireFinanceChild, toPermissionUser } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
 export default async function SettlementsPage() {
@@ -36,9 +38,12 @@ export default async function SettlementsPage() {
   }
 
   const portalClientId = session.user.clientId ?? null;
+  const permissionUser = toPermissionUser(session);
+  const canMarkApPaid =
+    !portalClientId &&
+    (canAccess(permissionUser, "invoicing") ||
+      canAccess(permissionUser, "projects"));
   const now = new Date();
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
 
   const [arPeriods, apInvoices] = await Promise.all([
     prisma.projectInvoicePeriod.findMany({
@@ -49,7 +54,14 @@ export default async function SettlementsPage() {
         },
         status: { in: [...UNPAID_INVOICE_STATUSES] },
       },
-      include: {
+      select: {
+        id: true,
+        status: true,
+        amount: true,
+        revisedInvoiceAmount: true,
+        dueAt: true,
+        submittedAt: true,
+        paidAt: true,
         project: {
           select: {
             id: true,
@@ -64,11 +76,14 @@ export default async function SettlementsPage() {
       orderBy: [{ dueAt: "asc" }, { submittedAt: "desc" }],
       take: 50,
     }),
-    // HO only — AP is not a client portal surface.
+    // HO only — open AP (unpaid). Paid purchases leave this queue.
     portalClientId
       ? Promise.resolve([])
       : prisma.purchaseInvoice.findMany({
-          where: { companyId: session.user.companyId },
+          where: {
+            companyId: session.user.companyId,
+            paidAt: null,
+          },
           include: {
             vendor: { select: { paymentTermsDays: true } },
           },
@@ -92,14 +107,15 @@ export default async function SettlementsPage() {
         ? `/billing/${clientId}/${period.project.id}`
         : "/billing";
 
+    const amount =
+      decimalToNumber(period.revisedInvoiceAmount) ??
+      decimalToNumber(period.amount);
     return {
       id: period.id,
       label: period.project.name,
       clientName: client?.name ?? t("pages.billing.noClient"),
       amountLabel:
-        period.amount != null
-          ? formatContractPrice(decimalToNumber(period.amount))
-          : "—",
+        amount != null ? formatContractPrice(amount) : "—",
       dueLabel: display.dueAt
         ? formatDisplayDate(display.dueAt)
         : "—",
@@ -112,22 +128,25 @@ export default async function SettlementsPage() {
   const apRows = apInvoices
     .map((invoice) => {
       const termsDays = invoice.vendor?.paymentTermsDays ?? null;
-      const dueAt =
-        termsDays != null
-          ? dueAtFromPaymentTerms(invoice.invoiceDate, termsDays)
-          : null;
-      if (dueAt == null) return null;
-      const isOverdue = dueAt.getTime() < today.getTime();
+      const payment = getPurchasePaymentDisplay(
+        {
+          invoiceDate: invoice.invoiceDate,
+          paidAt: invoice.paidAt,
+          paymentTermsDays: termsDays,
+        },
+        now
+      );
+      if (payment.dueAt == null) return null;
       return {
         id: invoice.id,
         supplierName: invoice.supplierName,
         invoiceRef: invoice.invoiceRef,
         amountLabel: formatContractPrice(decimalToNumber(invoice.amount)),
-        dueLabel: formatDisplayDate(dueAt, { timeZone: "UTC" }),
+        dueLabel: formatDisplayDate(payment.dueAt, { timeZone: "UTC" }),
         termsLabel: isCashPaymentTerms(termsDays)
           ? t("common.paymentTerms.cashShort")
           : t("common.paymentTerms.netShort", { days: termsDays }),
-        isOverdue,
+        isOverdue: payment.isOverdue,
       };
     })
     .filter((row): row is NonNullable<typeof row> => row != null)
@@ -282,6 +301,13 @@ export default async function SettlementsPage() {
                           ? t("pages.billing.vendorStatusOverdue")
                           : t("pages.billing.vendorStatusOpen")}
                       </StatusBadge>
+                      {canMarkApPaid ? (
+                        <SettlementsApMarkPaidButton
+                          purchaseInvoiceId={row.id}
+                          supplierName={row.supplierName}
+                          invoiceRef={row.invoiceRef}
+                        />
+                      ) : null}
                     </div>
                   </li>
                 ))}

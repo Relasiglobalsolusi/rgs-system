@@ -27,13 +27,24 @@ export function clampProjectDurationDays(value: number): number {
 }
 
 /**
- * Regular Cleaning only — month-duration contracts with billing periods / period basis.
- * Security also uses a month timeline but does NOT create ProjectInvoicePeriod rows.
+ * Regular Cleaning only — helper for Regular-specific UI (e.g. some copy).
+ * Security also opens monthly ProjectInvoicePeriod rows via `usesInvoicePeriods`.
  */
 export function isContractSubCategory(
   value: string | null | undefined
 ): boolean {
   return value === CONTRACT_SUBCATEGORY;
+}
+
+/**
+ * Regular Cleaning + Security: crew/equipment release follows End Contract
+ * (not monthly billing agree / period approve). Mid-contract assign/release stays manual.
+ * Both also use monthly invoice periods (`usesInvoicePeriods`).
+ */
+export function isContractCycleSubCategory(
+  value: string | null | undefined
+): boolean {
+  return value === CONTRACT_SUBCATEGORY || value === "SECURITY";
 }
 
 /**

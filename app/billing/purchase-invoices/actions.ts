@@ -690,3 +690,93 @@ export async function uploadPurchaseTaxInvoice(formData: FormData) {
   revalidatePath("/billing/purchase-invoices");
   revalidatePath("/billing/tax-invoices");
 }
+
+/**
+ * HO Finance: mark a purchase (AP) as paid after uploading proof of payment.
+ * Closes the payable — Settlements / Payment views treat paidAt as settled.
+ */
+export async function markPurchaseInvoicePaid(formData: FormData) {
+  const session = await requirePurchaseManageAccess();
+  const locale = await getServerLocale();
+
+  const purchaseInvoiceId = String(
+    formData.get("purchaseInvoiceId") ?? ""
+  ).trim();
+  if (!purchaseInvoiceId) {
+    throw new Error(
+      translate(locale, "pages.billing.purchaseMarkPaidInvoiceRequired")
+    );
+  }
+
+  const proof = requireImageOrPdfUpload(formData.get("paymentProof"), {
+    requiredMessage: translate(locale, "pages.billing.choosePaymentProof"),
+    sizeMessage: "Payment proof must be 10 MB or smaller.",
+    typeMessage: translate(locale, "pages.billing.paymentProofImageOrPdf"),
+  });
+
+  const invoice = await prisma.purchaseInvoice.findFirst({
+    where: {
+      id: purchaseInvoiceId,
+      companyId: session.user.companyId,
+    },
+    select: {
+      id: true,
+      supplierName: true,
+      invoiceRef: true,
+      paidAt: true,
+      paymentProofPath: true,
+    },
+  });
+
+  if (!invoice) {
+    throw new Error(
+      translate(locale, "pages.billing.purchaseMarkPaidNotFound")
+    );
+  }
+  if (invoice.paidAt) {
+    throw new Error(
+      translate(locale, "pages.billing.purchaseMarkPaidAlreadyPaid")
+    );
+  }
+
+  const paidAt = new Date();
+  const paymentProofPath = await saveUpload(
+    proof,
+    "uploads/purchase-payment-proofs",
+    {
+      fileBaseName: buildBillingDocumentFileBase({
+        prefix: "Proof-of-Payment",
+        clientName: invoice.supplierName,
+        invoiceNumber: invoice.invoiceRef,
+        date: paidAt,
+      }),
+    }
+  );
+
+  try {
+    await prisma.purchaseInvoice.update({
+      where: { id: invoice.id },
+      data: {
+        paidAt,
+        paymentProofPath,
+        paidById: session.user.id,
+      },
+    });
+  } catch (error) {
+    await deleteLocalUpload(paymentProofPath);
+    throw error;
+  }
+
+  if (
+    invoice.paymentProofPath &&
+    invoice.paymentProofPath !== paymentProofPath
+  ) {
+    await deleteLocalUpload(invoice.paymentProofPath);
+  }
+
+  revalidatePath("/billing/purchase-invoices");
+  revalidatePath("/billing/settlements");
+  revalidatePath("/vendors");
+
+  return { id: invoice.id, paidAt };
+}

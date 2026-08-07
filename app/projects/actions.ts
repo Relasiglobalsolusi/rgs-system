@@ -33,6 +33,7 @@ import {
   isMilestoneSubCategory,
   parseContractPrice,
   parseMilestoneInstallmentsFromFormData,
+  usesInvoicePeriods,
 } from "@/lib/project-billing";
 import {
   clampInvoicingDay,
@@ -119,6 +120,8 @@ async function assertProjectStaffAssignable(
     crewErrorMessage?: string;
     /** Internal HO/Warehouse projects may assign In-House Cleaning Staff. */
     allowInHouseCleaning?: boolean;
+    /** Security projects may assign Security staff. */
+    allowSecurityStaff?: boolean;
   }
 ) {
   const conflictMessages = await projectStaffConflictMessages();
@@ -127,7 +130,10 @@ async function assertProjectStaffAssignable(
     companyId,
     employeeIds,
     options?.crewErrorMessage,
-    { allowInHouseCleaning: options?.allowInHouseCleaning }
+    {
+      allowInHouseCleaning: options?.allowInHouseCleaning,
+      allowSecurityStaff: options?.allowSecurityStaff,
+    }
   );
   await assertEmployeesNotOnOtherProject(db, companyId, employeeIds, {
     excludeProjectId: options?.excludeProjectId,
@@ -477,11 +483,15 @@ function parseServiceCommercialFields(
   }
 
   if (subCategory === "PAYROLL_MANAGEMENT") {
+    // Economics (full pay-then-bill workflow deferred):
+    // - Client sets monthly wage bill; RGS fronts it → project cost
+    // - serviceFeePercent = management fee % (RGS profit / income only)
+    // - Client reimburses wage bill + fee per paymentTermsDays
     return {
       ...empty,
       serviceFeePercent: parsePercentField(formData, "serviceFeePercent", {
         required: true,
-        label: "Service fee %",
+        label: "Management fee %",
       }),
       paymentTermsDays: parseProjectPaymentTermsDays(
         formData,
@@ -593,7 +603,10 @@ export async function createProject(formData: FormData) {
     const isContract = isContractSubCategory(subCategory);
     const isService = isServiceProjectSubCategory(subCategory);
     const isMonthTimeline = usesMonthDurationTimeline(subCategory);
-    const billingPeriodBasis = isContract
+    // Regular + Security: month-cycle basis for invoice periods.
+    const usesMonthlyContractPeriods =
+      isContract || subCategory === "SECURITY";
+    const billingPeriodBasis = usesMonthlyContractPeriods
       ? parseBillingPeriodBasis(formData.get("billingPeriodBasis")) ??
         "CONTRACT_CYCLE"
       : null;
@@ -754,11 +767,11 @@ export async function createProject(formData: FormData) {
         });
       }
 
-      // Regular In Progress create: open the first billing period immediately.
-      // Security / Parking / Payroll never create ProjectInvoicePeriod rows.
+      // Regular + Security In Progress create: open the first billing period.
+      // Parking / Payroll Management stay commercial-terms only (no periods).
       if (
         !isPlanning &&
-        isContract &&
+        usesInvoicePeriods(subCategory) &&
         billingMode === "MONTHLY" &&
         startDate
       ) {
@@ -789,6 +802,7 @@ export async function createProject(formData: FormData) {
       if (!isPlanning && employeeIds.length > 0) {
         await assertProjectStaffAssignable(tx, company.id, employeeIds, {
           excludeProjectId: created.id,
+          allowSecurityStaff: subCategory === "SECURITY",
         });
         await tx.projectAssignment.createMany({
           data: employeeIds.map((employeeId) => ({
@@ -922,6 +936,7 @@ export async function updateProject(id: string, formData: FormData) {
               await assertProjectStaffAssignable(tx, existing.companyId, addedIds, {
                 excludeProjectId: id,
                 allowInHouseCleaning: true,
+                allowSecurityStaff: existing.subCategory === "SECURITY",
               });
               await tx.projectAssignment.createMany({
                 data: addedIds.map((employeeId) => ({
@@ -958,7 +973,9 @@ export async function updateProject(id: string, formData: FormData) {
     const isContract = isContractSubCategory(subCategory);
     const isService = isServiceProjectSubCategory(subCategory);
     const isMonthTimeline = usesMonthDurationTimeline(subCategory);
-    const billingPeriodBasis = isContract
+    const usesMonthlyContractPeriods =
+      isContract || subCategory === "SECURITY";
+    const billingPeriodBasis = usesMonthlyContractPeriods
       ? parseBillingPeriodBasis(formData.get("billingPeriodBasis")) ??
         "CONTRACT_CYCLE"
       : null;
@@ -1146,6 +1163,7 @@ export async function updateProject(id: string, formData: FormData) {
           if (addedIds.length > 0) {
             await assertProjectStaffAssignable(tx, existing.companyId, addedIds, {
               excludeProjectId: id,
+              allowSecurityStaff: subCategory === "SECURITY",
             });
             await tx.projectAssignment.createMany({
               data: addedIds.map((employeeId) => ({
@@ -1627,13 +1645,17 @@ export async function startProject(
     if (!companyId) throw new Error("Company not found.");
     await assertProjectStaffAssignable(prisma, companyId, employeeIds, {
       excludeProjectId: id,
+      allowSecurityStaff: project.subCategory === "SECURITY",
     });
   }
 
   const contractStart = toUtcDateOnly(startDate);
+  const usesMonthlyContractPeriods =
+    isContract || project.subCategory === "SECURITY";
   const billingPeriodBasis =
-    project.billingPeriodBasis ?? (isContract ? "CONTRACT_CYCLE" : null);
-  const invoicingDay = isContract
+    project.billingPeriodBasis ??
+    (usesMonthlyContractPeriods ? "CONTRACT_CYCLE" : null);
+  const invoicingDay = usesMonthlyContractPeriods
     ? billingPeriodBasis === "CALENDAR_MONTH"
       ? 1
       : invoicingDayFromContractStart(contractStart)
@@ -1647,7 +1669,7 @@ export async function startProject(
         startDate: contractStart,
         endDate,
         contractDocumentUrl,
-        ...(isContract && !project.billingPeriodBasis
+        ...(usesMonthlyContractPeriods && !project.billingPeriodBasis
           ? { billingPeriodBasis: "CONTRACT_CYCLE" }
           : {}),
         // Never clear the planning estimate.
@@ -1657,9 +1679,12 @@ export async function startProject(
       },
     });
 
-    // Regular Cleaning only: open the first billing period immediately.
-    // Security / Parking / Payroll Management never create invoice periods.
-    if (isContract && project.billingMode === "MONTHLY") {
+    // Regular + Security: open the first billing period immediately.
+    // Parking / Payroll Management never create invoice periods.
+    if (
+      usesInvoicePeriods(project.subCategory) &&
+      project.billingMode === "MONTHLY"
+    ) {
       const first = firstMonthlyPeriodBounds(
         billingPeriodBasis,
         contractStart

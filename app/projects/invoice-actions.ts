@@ -50,6 +50,7 @@ import {
 import {
   buildBillingDocumentFileBase,
   deleteLocalUpload,
+  fileFromPublicUpload,
   saveUpload,
 } from "@/lib/upload";
 import { PROJECT_LIST_VIEW_PATHS } from "@/lib/project-status";
@@ -190,6 +191,55 @@ async function assertCanIssueCommercialInvoice(
           : "pages.billing.reviewPendingBeforeInvoice"
       )
     );
+  }
+}
+
+/**
+ * Milestone parts are independent cases. After a non-final part is invoiced,
+ * return the project to IN_PROGRESS so progress + next Submit for Approval
+ * are not stuck on WAITING_FOR_APPROVAL.
+ *
+ * Final part (100% / last scheduled): HO manual issue → COMPLETED + crew
+ * release (release only when the project is fully COMPLETED — never when a
+ * non-final part closes). Client-approved issue stays IN_PROGRESS until
+ * Mark Paid (payment → history path also COMPLETED + release).
+ */
+async function applyProjectStatusAfterMilestoneIssue(opts: {
+  projectId: string;
+  projectStatus: string;
+  milestonePercent: number;
+  schedulePercents: Array<number | null | undefined>;
+  approvedReview: boolean;
+}) {
+  if (opts.projectStatus === "CANCELLED") return;
+
+  const scheduled = opts.schedulePercents.filter(
+    (p): p is number => p != null && Number.isFinite(p)
+  );
+  const maxScheduled = scheduled.length > 0 ? Math.max(...scheduled) : 100;
+  const isFinal =
+    opts.milestonePercent >= 100 || opts.milestonePercent >= maxScheduled;
+
+  if (isFinal && !opts.approvedReview) {
+    // Project 100% COMPLETED — only then release workers/equipment.
+    await prisma.$transaction(async (tx) => {
+      await tx.project.update({
+        where: { id: opts.projectId },
+        data: { status: "COMPLETED" },
+      });
+      await releaseAllProjectCrew(tx, opts.projectId);
+    });
+    return;
+  }
+
+  if (
+    opts.projectStatus === "PLANNED" ||
+    opts.projectStatus === "WAITING_FOR_APPROVAL"
+  ) {
+    await prisma.project.update({
+      where: { id: opts.projectId },
+      data: { status: "IN_PROGRESS" },
+    });
   }
 }
 
@@ -337,7 +387,7 @@ async function ensureAnniversaryPeriodsForProject(
   ref: Date = new Date(),
   opts?: { includeNextIfDue?: boolean }
 ) {
-  // Security / Parking / Payroll Management never open cleaning-style periods.
+  // Parking / Payroll Management never open periods; Security + Regular do.
   // Require subcategory so callers that omit it cannot accidentally sync.
   if (!usesInvoicePeriods(project.subCategory)) {
     return null;
@@ -1109,25 +1159,13 @@ async function issueMilestonePeriodInner(
       }),
     ]);
 
-    if (
-      milestonePercent >= 100 &&
-      project.status !== "CANCELLED" &&
-      !opts.approvedReview
-    ) {
-      // Final milestone (HO manual issue): COMPLETED + crew release.
-      await prisma.$transaction(async (tx) => {
-        await tx.project.update({
-          where: { id: project.id },
-          data: { status: "COMPLETED" },
-        });
-        await releaseAllProjectCrew(tx, project.id);
-      });
-    } else if (project.status === "PLANNED") {
-      await prisma.project.update({
-        where: { id: project.id },
-        data: { status: "IN_PROGRESS" },
-      });
-    }
+    await applyProjectStatusAfterMilestoneIssue({
+      projectId: project.id,
+      projectStatus: project.status,
+      milestonePercent,
+      schedulePercents: project.invoicePeriods.map((p) => p.milestonePercent),
+      approvedReview: opts.approvedReview,
+    });
 
     await deliverInvoice({
       projectName: project.name,
@@ -1485,21 +1523,13 @@ export async function createMilestoneInvoice(formData: FormData) {
     }),
   ]);
 
-  // Final milestone (HO manual create): mark project completed + release crew.
-  if (milestonePercent >= 100 && project.status !== "CANCELLED") {
-    await prisma.$transaction(async (tx) => {
-      await tx.project.update({
-        where: { id: projectId },
-        data: { status: "COMPLETED" },
-      });
-      await releaseAllProjectCrew(tx, projectId);
-    });
-  } else if (project.status === "PLANNED") {
-    await prisma.project.update({
-      where: { id: projectId },
-      data: { status: "IN_PROGRESS" },
-    });
-  }
+  await applyProjectStatusAfterMilestoneIssue({
+    projectId,
+    projectStatus: project.status,
+    milestonePercent,
+    schedulePercents: project.invoicePeriods.map((p) => p.milestonePercent),
+    approvedReview: false,
+  });
 
   await deliverInvoice({
     projectName: project.name,
@@ -1801,7 +1831,9 @@ export async function markInvoicePeriodPaid(formData: FormData) {
     await deleteLocalUpload(previousProof);
   }
 
-  const periodAmount = decimalToNumber(period.amount);
+  const periodAmount =
+    decimalToNumber(period.revisedInvoiceAmount) ??
+    decimalToNumber(period.amount);
   const contractPrice = decimalToNumber(period.project.contractPrice);
   const invoiceAmount = periodAmount ?? contractPrice;
   const companyBank = resolveCompanyBankDetails(period.project.company);
@@ -1828,9 +1860,11 @@ export async function markInvoicePeriodPaid(formData: FormData) {
 
 /**
  * Client portal: upload proof of payment and submit for admin verification.
- * Status becomes PENDING_VERIFICATION (not PAID).
+ * Same AI strictness as HO mark-received (amount + bank checks) before
+ * PENDING_VERIFICATION. Upload is kept on failure for audit.
  */
 export async function submitInvoicePaymentForVerification(formData: FormData) {
+  const locale = await getServerLocale();
   const periodId = String(formData.get("periodId") ?? "").trim();
   if (!periodId) throw new Error("Invoice period is required.");
 
@@ -1848,7 +1882,9 @@ export async function submitInvoicePaymentForVerification(formData: FormData) {
         select: {
           id: true,
           clientId: true,
+          contractPrice: true,
           client: { select: { name: true, shortCode: true } },
+          company: { select: COMPANY_BANK_SELECT },
         },
       },
     },
@@ -1865,20 +1901,21 @@ export async function submitInvoicePaymentForVerification(formData: FormData) {
 
   const previousProof = period.paymentProofPath;
   const uploadedAt = new Date();
+  const invoiceNumber = commercialInvoiceNumber(period);
   const paymentProofPath = await saveUpload(proof, "uploads/payment-proofs", {
     fileBaseName: buildBillingDocumentFileBase({
       prefix: "Proof-of-Payment",
       clientShortCode: period.project.client?.shortCode,
       clientName: period.project.client?.name,
-      invoiceNumber: commercialInvoiceNumber(period),
+      invoiceNumber,
       date: uploadedAt,
     }),
   });
 
+  // Persist upload even when verification fails (audit trail).
   await prisma.projectInvoicePeriod.update({
     where: { id: periodId },
     data: {
-      status: "PENDING_VERIFICATION",
       paymentProofPath,
       paymentProofUploadedAt: uploadedAt,
       paymentVerifiedAt: null,
@@ -1890,6 +1927,35 @@ export async function submitInvoicePaymentForVerification(formData: FormData) {
     await deleteLocalUpload(previousProof);
   }
 
+  const periodAmount =
+    decimalToNumber(period.revisedInvoiceAmount) ??
+    decimalToNumber(period.amount);
+  const contractPrice = decimalToNumber(period.project.contractPrice);
+  const invoiceAmount = periodAmount ?? contractPrice;
+  const companyBank = resolveCompanyBankDetails(period.project.company);
+
+  const verification = await verifyPaymentProof({
+    paymentProof: proof,
+    invoiceAmount,
+    invoiceIssuedDate: utcCalendarDateString(period.submittedAt),
+    companyBank,
+    invoiceNumber,
+    clientName: period.project.client?.name ?? null,
+  });
+
+  if (!verification.ok) {
+    const lines = verification.failures.map((code) =>
+      paymentVerifyFailureMessage(locale, code, verification.details)
+    );
+    const header = translate(locale, "pages.billing.paymentVerifyRejected");
+    throw new Error([header, ...lines.map((line) => `• ${line}`)].join("\n"));
+  }
+
+  await prisma.projectInvoicePeriod.update({
+    where: { id: periodId },
+    data: { status: "PENDING_VERIFICATION" },
+  });
+
   revalidateBillingPaths({
     projectId: period.projectId,
     clientId: period.project.clientId,
@@ -1899,10 +1965,12 @@ export async function submitInvoicePaymentForVerification(formData: FormData) {
 }
 
 /**
- * Admin / ops: confirm client payment proof → PAID (same Completed Projects rules).
+ * Admin / ops: confirm client payment proof → PAID.
+ * Re-runs the same AI amount/bank checks as HO mark-received.
  */
 export async function verifyInvoicePeriodPayment(periodId: string) {
   const session = await requireInvoiceManageAccess();
+  const locale = await getServerLocale();
 
   const period = await prisma.projectInvoicePeriod.findUnique({
     where: { id: periodId },
@@ -1914,9 +1982,12 @@ export async function verifyInvoicePeriodPayment(periodId: string) {
           status: true,
           billingMode: true,
           startDate: true,
+          contractPrice: true,
           invoicePeriods: {
             select: { id: true, status: true, milestonePercent: true },
           },
+          client: { select: { name: true } },
+          company: { select: COMPANY_BANK_SELECT },
         },
       },
     },
@@ -1927,6 +1998,35 @@ export async function verifyInvoicePeriodPayment(periodId: string) {
   }
   if (!period.paymentProofPath) {
     throw new Error("This invoice has no payment proof to review.");
+  }
+
+  const proof = await fileFromPublicUpload(
+    period.paymentProofPath,
+    "payment-proof.bin"
+  );
+  const periodAmount =
+    decimalToNumber(period.revisedInvoiceAmount) ??
+    decimalToNumber(period.amount);
+  const contractPrice = decimalToNumber(period.project.contractPrice);
+  const invoiceAmount = periodAmount ?? contractPrice;
+  const invoiceNumber = commercialInvoiceNumber(period);
+  const companyBank = resolveCompanyBankDetails(period.project.company);
+
+  const verification = await verifyPaymentProof({
+    paymentProof: proof,
+    invoiceAmount,
+    invoiceIssuedDate: utcCalendarDateString(period.submittedAt),
+    companyBank,
+    invoiceNumber,
+    clientName: period.project.client?.name ?? null,
+  });
+
+  if (!verification.ok) {
+    const lines = verification.failures.map((code) =>
+      paymentVerifyFailureMessage(locale, code, verification.details)
+    );
+    const header = translate(locale, "pages.billing.paymentVerifyRejected");
+    throw new Error([header, ...lines.map((line) => `• ${line}`)].join("\n"));
   }
 
   return applyInvoicePeriodPaid(period, { verifiedById: session.user.id });
@@ -2016,6 +2116,13 @@ export async function markTaxInvoiceDone(formData: FormData) {
     throw new Error("Tax Invoice already marked sent.");
   }
 
+  const { parsePpnRatePercent } = await import("@/lib/vat");
+  const ppnRateRaw = String(formData.get("ppnRatePercent") ?? "").trim();
+  const ppnRatePercent = parsePpnRatePercent(ppnRateRaw);
+  if (ppnRatePercent == null) {
+    throw new Error("Enter a valid output PPN rate percent.");
+  }
+
   const previousTaxDoc = period.taxInvoiceDocumentPath;
   const uploadedAt = new Date();
   const taxInvoiceDocumentPath = await saveUpload(
@@ -2037,6 +2144,7 @@ export async function markTaxInvoiceDone(formData: FormData) {
     data: {
       taxInvoiceDocumentPath,
       taxInvoiceDocumentUploadedAt: uploadedAt,
+      ppnRatePercent,
     },
   });
 
@@ -2044,7 +2152,9 @@ export async function markTaxInvoiceDone(formData: FormData) {
     await deleteLocalUpload(previousTaxDoc);
   }
 
-  const periodAmount = decimalToNumber(period.amount);
+  const periodAmount =
+    decimalToNumber(period.revisedInvoiceAmount) ??
+    decimalToNumber(period.amount);
   const contractPrice = decimalToNumber(period.project.contractPrice);
   const invoiceAmount = periodAmount ?? contractPrice;
 
@@ -2073,6 +2183,7 @@ export async function markTaxInvoiceDone(formData: FormData) {
     data: {
       taxInvoiceDoneAt: uploadedAt,
       taxInvoiceDoneById: session.user.id,
+      ppnRatePercent,
       ...(tax
         ? {
             taxInvoiceSerial: tax.serial,
@@ -2454,7 +2565,7 @@ export async function issueInvoicesForFinishedProject(projectId: string): Promis
     ? `/billing/${project.clientId}/${project.id}`
     : "/billing";
 
-  // Security / Parking / Payroll Management store commercial terms only — no periods.
+  // Parking / Payroll Management store commercial terms only — no periods.
   if (!usesInvoicePeriods(project.subCategory)) {
     return { compiled: 0, billingPath };
   }
