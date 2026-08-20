@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 
 import { prisma } from "@/lib/prisma";
+import { getProjectWhereForUser } from "@/lib/project-access";
 import { requireModule } from "@/lib/session";
 import {
   countOpenInvoices,
@@ -44,6 +45,13 @@ export default async function BillingPage() {
     }
   }
 
+  const projectWhere = await getProjectWhereForUser({
+    companyId: session.user.companyId,
+    clientId: session.user.clientId,
+    userId: session.user.id,
+    username: session.user.username,
+  });
+
   const [clients, pendingTaxInvoiceCount, dueMonthlyReminders] =
     await Promise.all([
       prisma.client.findMany({
@@ -52,12 +60,16 @@ export default async function BillingPage() {
           active: true,
           ...(portalClientId ? { id: portalClientId } : {}),
           projects: {
-            some: billingActiveProjectWhere(),
+            some: {
+              AND: [billingActiveProjectWhere(), projectWhere],
+            },
           },
         },
         include: {
           projects: {
-            where: billingActiveProjectWhere(),
+            where: {
+              AND: [billingActiveProjectWhere(), projectWhere],
+            },
             include: {
               invoicePeriods: {
                 select: {

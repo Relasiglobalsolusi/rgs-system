@@ -9,10 +9,10 @@
 /** Inclusive PPN rate used when faktur DPP/PPN amounts are not stored. */
 export const DEFAULT_INCLUSIVE_PPN_RATE = 0.11;
 
-/** Default VAT % prefilled in purchase / sold-off forms (editable). */
-export const DEFAULT_PRODUCT_PPN_RATE_PERCENT = 12;
+/** Default VAT % prefilled on invoices / purchases / sold-off (editable). */
+export const DEFAULT_PRODUCT_PPN_RATE_PERCENT = 11;
 /** Default editable PPN % for Inventory Sold Off (ex-PPN unit price). */
-export const DEFAULT_SOLD_OFF_PPN_RATE_PERCENT = 12;
+export const DEFAULT_SOLD_OFF_PPN_RATE_PERCENT = 11;
 
 export function ppnRateFromPercent(percent: number): number {
   return percent / 100;

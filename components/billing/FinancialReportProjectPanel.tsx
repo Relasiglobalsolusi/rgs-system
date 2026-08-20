@@ -1,6 +1,12 @@
 "use client";
 
-import { ArrowDownLeft, ArrowUpRight, Percent, TrendingUp } from "lucide-react";
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  Banknote,
+  Percent,
+  TrendingUp,
+} from "lucide-react";
 
 import type { FinancialReportProjectDetail } from "@/app/billing/financial-report/actions";
 import { matchInventoryItemType } from "@/components/inventory/inventory-category";
@@ -132,28 +138,20 @@ export default function FinancialReportProjectPanel({ detail }: Props) {
       ),
     },
     {
-      key: "basePay",
-      title: t("pages.financialReport.columns.monthlyBasePay"),
-      width: "9rem",
+      key: "days",
+      title: t("pages.financialReport.columns.daysWorked"),
+      width: "7rem",
       align: "right",
-      className: "min-w-[9rem] tabular-nums",
-      render: (row) =>
-        row.monthlyBasePay != null && row.monthlyBasePay > 0
-          ? formatContractPrice(row.monthlyBasePay)
-          : "—",
+      className: "min-w-[7rem] tabular-nums",
+      render: (row) => row.daysWorked,
     },
     {
-      key: "period",
-      title: t("pages.financialReport.columns.assignmentPeriod"),
-      width: "11rem",
-      className: "min-w-[11rem]",
-      render: (row) => (
-        <span className="text-sm text-text">
-          {formatDisplayDate(row.costFrom, { timeZone: "UTC" }, bcp47)}
-          {" – "}
-          {formatDisplayDate(row.costThrough, { timeZone: "UTC" }, bcp47)}
-        </span>
-      ),
+      key: "dailyRate",
+      title: t("pages.financialReport.columns.dailyRate"),
+      width: "8rem",
+      align: "right",
+      className: "min-w-[8rem] tabular-nums",
+      render: (row) => formatContractPrice(row.dailyRate),
     },
     {
       key: "wage",
@@ -161,7 +159,27 @@ export default function FinancialReportProjectPanel({ detail }: Props) {
       width: "9rem",
       align: "right",
       className: "min-w-[9rem] tabular-nums",
-      render: (row) => formatContractPrice(row.wageCost),
+      render: (row) => (
+        <div className="min-w-0 text-right">
+          <p>{formatContractPrice(row.wageCost)}</p>
+          {row.splitNotes.length > 0 ? (
+            <p className="mt-1 text-xs leading-4 text-subtle">
+              {row.splitNotes
+                .map((note) =>
+                  note.kind === "doubleShift"
+                    ? `${row.name} · ${note.date} · ${t(
+                        "pages.financialReport.doubleShiftNote"
+                      )} · ${formatContractPrice(note.shareAmount)}`
+                    : `${row.name} · ${note.date} · ${t(
+                        "pages.financialReport.sameDaySplitNote",
+                        { count: note.siteCount }
+                      )} · ${formatContractPrice(note.shareAmount)}`
+                )
+                .join(" ")}
+            </p>
+          ) : null}
+        </div>
+      ),
     },
   ];
 
@@ -198,6 +216,15 @@ export default function FinancialReportProjectPanel({ detail }: Props) {
           accent={detail.profit < 0 ? "danger" : "primary"}
         />
         <DirectoryStatCard
+          title={t("pages.financialReport.clientsStillOwe")}
+          value={formatContractPrice(detail.clientsOwe.unpaid)}
+          subtitle={t("pages.financialReport.accountsReceivableHint", {
+            overdue: formatContractPrice(detail.clientsOwe.overdue),
+          })}
+          icon={<Banknote size={18} />}
+          accent={detail.clientsOwe.overdue > 0 ? "warning" : "muted"}
+        />
+        <DirectoryStatCard
           title={t("pages.financialReport.margin")}
           value={marginLabel}
           subtitle={
@@ -219,7 +246,7 @@ export default function FinancialReportProjectPanel({ detail }: Props) {
             {t("pages.financialReport.moneyOutBreakdownDesc")}
           </p>
         </div>
-        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-lg border border-border/70 bg-surface-muted/40 px-4 py-3">
             <dt className="text-sm text-subtle">
               {t("pages.financialReport.inventoryOut")}
@@ -234,6 +261,14 @@ export default function FinancialReportProjectPanel({ detail }: Props) {
             </dt>
             <dd className="mt-1 text-lg font-semibold tabular-nums text-text">
               {formatContractPrice(detail.wagesOut)}
+            </dd>
+          </div>
+          <div className="rounded-lg border border-border/70 bg-surface-muted/40 px-4 py-3">
+            <dt className="text-sm text-subtle">
+              {t("pages.financialReport.payRecovery")}
+            </dt>
+            <dd className="mt-1 text-lg font-semibold tabular-nums text-text">
+              {formatContractPrice(detail.payRecoveryOut)}
             </dd>
           </div>
           <div className="rounded-lg border border-border/70 bg-surface-muted/40 px-4 py-3">
@@ -298,6 +333,54 @@ export default function FinancialReportProjectPanel({ detail }: Props) {
       <SectionCard>
         <div className="mb-4">
           <h2 className="text-base font-semibold text-text">
+            {t("pages.financialReport.payRecoveryTitle")}
+          </h2>
+          <p className="mt-1 text-sm text-muted">
+            {t("pages.financialReport.payRecoveryDesc")}
+          </p>
+        </div>
+        {detail.payRecoveryLines.length === 0 ? (
+          <EmptyState
+            title={t("pages.financialReport.emptyPayRecovery")}
+            description={t("pages.financialReport.emptyPayRecoveryDesc")}
+          />
+        ) : (
+          <DataTable
+            columns={[
+              {
+                key: "employee",
+                title: t("pages.financialReport.columns.employee"),
+                share: 2,
+                render: (row) => (
+                  <div className="min-w-0">
+                    <p className="font-medium text-text">{row.employeeName}</p>
+                    <p className="mt-0.5 text-sm text-subtle">{row.employeeNo}</p>
+                  </div>
+                ),
+              },
+              {
+                key: "item",
+                title: t("pages.financialReport.columns.item"),
+                share: 1.5,
+                render: (row) => row.itemName ?? "—",
+              },
+              {
+                key: "amount",
+                title: t("pages.financialReport.columns.amount"),
+                align: "right",
+                render: (row) => formatContractPrice(row.amount),
+              },
+            ]}
+            data={detail.payRecoveryLines}
+            getRowKey={(row) => row.id}
+            emptyMessage={t("pages.financialReport.emptyPayRecovery")}
+          />
+        )}
+      </SectionCard>
+
+      <SectionCard>
+        <div className="mb-4">
+          <h2 className="text-base font-semibold text-text">
             {t("pages.financialReport.wagesTitle")}
           </h2>
           <p className="mt-1 text-sm text-muted">
@@ -313,7 +396,7 @@ export default function FinancialReportProjectPanel({ detail }: Props) {
           <DataTable
             columns={wageColumns}
             data={detail.wageLines}
-            getRowKey={(row) => row.assignmentId}
+            getRowKey={(row) => row.employeeId}
             emptyMessage={t("pages.financialReport.emptyWages")}
           />
         )}

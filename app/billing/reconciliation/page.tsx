@@ -24,6 +24,7 @@ import {
   decimalToNumber,
   formatContractPrice,
 } from "@/lib/project-billing";
+import { getProjectWhereForUser } from "@/lib/project-access";
 import { requireFinanceChild } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
@@ -62,6 +63,12 @@ export default async function ReconciliationPage({
       : "approved";
 
   const companyId = session.user.companyId;
+  const projectWhere = await getProjectWhereForUser({
+    companyId,
+    clientId: session.user.clientId,
+    userId: session.user.id,
+    username: session.user.username,
+  });
 
   const periodInclude = {
     project: {
@@ -75,7 +82,7 @@ export default async function ReconciliationPage({
   } satisfies Prisma.ProjectInvoicePeriodInclude;
 
   const approvedWhere: Prisma.ProjectInvoicePeriodWhereInput = {
-    project: { companyId },
+    project: { ...projectWhere },
     OR: [
       {
         status: InvoicePeriodStatus.AWAITING_CLIENT_REVIEW,
@@ -89,7 +96,7 @@ export default async function ReconciliationPage({
   };
 
   const revisedWhere: Prisma.ProjectInvoicePeriodWhereInput = {
-    project: { companyId },
+    project: { ...projectWhere },
     status: InvoicePeriodStatus.AWAITING_CLIENT_REVIEW,
     clientReviewStatus: { in: [...HO_REVISED_QUEUE_STATUSES] },
   };

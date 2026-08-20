@@ -33,7 +33,9 @@ import {
 } from "@/lib/placement";
 import { localizeDepartmentLabel } from "@/lib/i18n/labels";
 import {
+  defaultSecurityDepositRequired,
   isInHouseCleaningStaffPosition,
+  isAreaManagerPosition,
   isOperationsManagerPosition,
   isWarehouseStaffPosition,
 } from "@/lib/positions";
@@ -44,6 +46,9 @@ import type { ServiceArea } from "@prisma/client";
 import { todayDateInput } from "@/lib/project-contract";
 import { defaultPortalAccessRequested } from "@/lib/workforce-login";
 import { useT } from "@/lib/i18n/use-t";
+import DirectorySearchInput, {
+  matchesDirectorySearch,
+} from "@/components/ui/DirectorySearchInput";
 
 export type EmployeeFormDefaults = {
   employeeNo?: string;
@@ -59,6 +64,7 @@ export type EmployeeFormDefaults = {
   idDocumentUrl?: string | null;
   hiredAt?: Date | string | null;
   omApprovalAreas?: ServiceArea[];
+  managedProjectIds?: string[];
   status?: "ACTIVE" | "ON_LEAVE" | "LEAVE_PENDING";
 } & EmployeeFinanceDefaults;
 
@@ -86,6 +92,7 @@ export type ProjectOption = {
   name: string;
   location: string | null;
   status: string;
+  clientName?: string | null;
 };
 
 type Props = {
@@ -102,7 +109,16 @@ type Props = {
   onStatusChange?: (value: "ACTIVE" | "ON_LEAVE" | "LEAVE_PENDING") => void;
   previewEmployeeNo?: string;
   defaults?: EmployeeFormDefaults;
+  projects?: ProjectOption[];
   onFormValuesChange?: () => void;
+  /** Shared terms only — names and bank details go on bulk lines. */
+  sharedTermsOnly?: boolean;
+  /** Lock Full Time / Part Time when opened from a scoped bulk button. */
+  lockEmploymentType?: boolean;
+  /** Prefix form field names (e.g. `line.0.`) for bulk create. */
+  namePrefix?: string;
+  /** Prefix element ids so multiple forms can sit on one page. */
+  idPrefix?: string;
 };
 
 function formatRosterStatusLabel(
@@ -146,9 +162,17 @@ export default function EmployeeFormFields({
   onStatusChange,
   previewEmployeeNo,
   defaults,
+  projects = [],
   onFormValuesChange,
+  sharedTermsOnly = false,
+  lockEmploymentType = false,
+  namePrefix = "",
+  idPrefix = "",
 }: Props) {
   const { t, locale } = useT();
+  const nameOf = (field: string) =>
+    namePrefix ? `${namePrefix}${field}` : field;
+  const idOf = (id: string) => (idPrefix ? `${idPrefix}${id}` : id);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [createPortalLogin, setCreatePortalLogin] = useState<YesNoChoice>(
     defaults?.portalAccessRequested ? "Yes" : "No"
@@ -156,6 +180,10 @@ export default function EmployeeFormFields({
   const [omApprovalAreas, setOmApprovalAreas] = useState<ServiceArea[]>(
     () => defaults?.omApprovalAreas ?? ["CLEANING"]
   );
+  const [managedProjectIds, setManagedProjectIds] = useState<string[]>(
+    () => defaults?.managedProjectIds ?? []
+  );
+  const [projectSearch, setProjectSearch] = useState("");
 
   const selectedPosition = useMemo(
     () => positions.find((position) => position.id === positionId),
@@ -169,6 +197,21 @@ export default function EmployeeFormFields({
     slug: selectedPosition?.slug,
     name: selectedPosition?.name,
   });
+  const showAreaProjects = isAreaManagerPosition({
+    slug: selectedPosition?.slug,
+    name: selectedPosition?.name,
+  });
+  const visibleProjects = useMemo(() => {
+    if (!showAreaProjects) return [];
+    return projects.filter((project) =>
+      matchesDirectorySearch(
+        projectSearch,
+        project.name,
+        project.clientName,
+        project.location
+      )
+    );
+  }, [projects, projectSearch, showAreaProjects]);
   const isInHouseCleaning = isInHouseCleaningStaffPosition({
     slug: selectedPosition?.slug,
     name: selectedPosition?.name,
@@ -291,7 +334,7 @@ export default function EmployeeFormFields({
               })}
             </SelectContent>
           </Select>
-          <input type="hidden" name="categoryId" value={categoryId} />
+          <input type="hidden" name={nameOf("categoryId")} value={categoryId} />
         </div>
 
         <div className={employeeDialogFieldClass}>
@@ -299,14 +342,16 @@ export default function EmployeeFormFields({
             {t("pages.employees.form.employeeNumber")}
           </label>
           <p className="text-xs text-muted">
-            {mode === "create"
-              ? t("pages.employees.form.employeeNoPreview")
-              : categoryChanged
-                ? t("pages.employees.form.employeeNoReassign")
-                : t("pages.employees.form.employeeNoLocked")}
+            {sharedTermsOnly
+              ? t("pages.employees.form.employeeNoBulkPreview")
+              : mode === "create"
+                ? t("pages.employees.form.employeeNoPreview")
+                : categoryChanged
+                  ? t("pages.employees.form.employeeNoReassign")
+                  : t("pages.employees.form.employeeNoLocked")}
           </p>
           <Input
-            name="employeeNo"
+            name={nameOf("employeeNo")}
             value={employeeNoValue}
             readOnly
             placeholder={
@@ -330,24 +375,28 @@ export default function EmployeeFormFields({
       </div>
 
       <div className={employeeDialogGridClass}>
+        {sharedTermsOnly ? null : (
+          <>
         <Input
-          name="firstName"
+          name={nameOf("firstName")}
           placeholder={t("pages.employees.form.firstName")}
           defaultValue={defaults?.firstName}
           required
           className={employeeInputClass}
         />
         <Input
-          name="lastName"
+          name={nameOf("lastName")}
           placeholder={t("pages.employees.form.lastName")}
           defaultValue={defaults?.lastName}
           required
           className={employeeInputClass}
         />
+          </>
+        )}
 
         <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
           <label
-            htmlFor="employee-position"
+            htmlFor={idOf("employee-position")}
             className="text-sm font-medium text-text"
           >
             {t("pages.employees.form.position")}
@@ -361,7 +410,7 @@ export default function EmployeeFormFields({
             disabled={!categoryId}
           >
             <SelectTrigger
-              id="employee-position"
+              id={idOf("employee-position")}
               className={employeeSelectTriggerClass}
             >
               <SelectValue
@@ -390,7 +439,7 @@ export default function EmployeeFormFields({
               ))}
             </SelectContent>
           </Select>
-          <input type="hidden" name="positionId" value={positionId} />
+          <input type="hidden" name={nameOf("positionId")} value={positionId} />
         </div>
 
         {showOmApprovalAreas ? (
@@ -419,7 +468,7 @@ export default function EmployeeFormFields({
                   >
                     <input
                       type="checkbox"
-                      name="omApprovalAreas"
+                      name={nameOf("omApprovalAreas")}
                       value={area}
                       checked={checked}
                       onChange={() => {
@@ -443,6 +492,95 @@ export default function EmployeeFormFields({
           </div>
         ) : null}
 
+        {showAreaProjects ? (
+          <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+            <label className="text-sm font-medium text-text">
+              {t("pages.employees.form.areaProjects")}
+            </label>
+            <p className="text-xs text-muted">
+              {t("pages.employees.form.areaProjectsHint")}
+            </p>
+            {managedProjectIds.map((projectId) => (
+              <input
+                key={projectId}
+                type="hidden"
+                name={nameOf("areaManagedProjectIds")}
+                value={projectId}
+              />
+            ))}
+            {projects.length > 0 ? (
+              <div
+                className="mt-2 space-y-2"
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") event.preventDefault();
+                }}
+              >
+                <DirectorySearchInput
+                  value={projectSearch}
+                  onChange={setProjectSearch}
+                  placeholder={t("pages.employees.form.areaProjectsSearch")}
+                  className="max-w-none"
+                />
+                <p className="text-xs text-subtle">
+                  {t("pages.employees.form.areaProjectsSelected", {
+                    count: managedProjectIds.length,
+                  })}
+                </p>
+              </div>
+            ) : null}
+            <div className="mt-2 max-h-56 space-y-2 overflow-y-auto rounded-xl border border-border bg-elevated p-3">
+              {projects.length === 0 ? (
+                <p className="text-sm text-subtle">
+                  {t("pages.employees.form.areaProjectsEmpty")}
+                </p>
+              ) : visibleProjects.length === 0 ? (
+                <p className="text-sm text-subtle">
+                  {t("pages.employees.form.areaProjectsNoneMatch", {
+                    query: projectSearch.trim(),
+                  })}
+                </p>
+              ) : (
+                visibleProjects.map((project) => {
+                  const checked = managedProjectIds.includes(project.id);
+                  return (
+                    <label
+                      key={project.id}
+                      className="flex items-start gap-2 text-sm text-text"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          setManagedProjectIds((prev) =>
+                            prev.includes(project.id)
+                              ? prev.filter((id) => id !== project.id)
+                              : [...prev, project.id]
+                          );
+                          onFormValuesChange?.();
+                        }}
+                        className="mt-0.5 size-4 rounded border-border"
+                      />
+                      <span className="min-w-0">
+                        <span className="font-medium">{project.name}</span>
+                        {project.clientName ? (
+                          <span className="block text-xs text-subtle">
+                            {project.clientName}
+                            {project.location ? ` · ${project.location}` : ""}
+                          </span>
+                        ) : project.location ? (
+                          <span className="block text-xs text-subtle">
+                            {project.location}
+                          </span>
+                        ) : null}
+                      </span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        ) : null}
+
         <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
           <label className="text-sm font-medium text-text">
             {t("pages.employees.form.employmentType")}
@@ -452,6 +590,7 @@ export default function EmployeeFormFields({
             onValueChange={(value) =>
               onEmploymentTypeChange(value as "FULL_TIME" | "PART_TIME")
             }
+            disabled={lockEmploymentType}
           >
             <SelectTrigger className={employeeSelectTriggerClass}>
               <SelectValue
@@ -479,7 +618,14 @@ export default function EmployeeFormFields({
               </SelectItem>
             </SelectContent>
           </Select>
-          <input type="hidden" name="employmentType" value={employmentType} />
+          <input type="hidden" name={nameOf("employmentType")} value={employmentType} />
+          {lockEmploymentType ? (
+            <p className="text-xs text-muted">
+              {t("pages.employees.form.employmentTypeBulkLocked", {
+                type: formatEmploymentTypeLabel(employmentType, locale),
+              })}
+            </p>
+          ) : null}
         </div>
 
         {isInHouseCleaning ? (
@@ -510,7 +656,7 @@ export default function EmployeeFormFields({
 
         <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
           <label
-            htmlFor="employee-hired-at"
+            htmlFor={idOf("employee-hired-at")}
             className="text-sm font-medium text-text"
           >
             {t("pages.employees.form.startDate")}
@@ -519,8 +665,8 @@ export default function EmployeeFormFields({
             {t("pages.employees.form.startDateHint")}
           </p>
           <Input
-            id="employee-hired-at"
-            name="hiredAt"
+            id={idOf("employee-hired-at")}
+            name={nameOf("hiredAt")}
             type="date"
             defaultValue={
               formatDateForInput(defaults?.hiredAt) ||
@@ -530,16 +676,18 @@ export default function EmployeeFormFields({
           />
         </div>
 
+        {sharedTermsOnly ? null : (
+          <>
         <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
           <label
-            htmlFor="employee-email"
+            htmlFor={idOf("employee-email")}
             className="text-sm font-medium text-text"
           >
             {t("pages.employees.form.contactEmail")}
           </label>
           <Input
-            id="employee-email"
-            name="email"
+            id={idOf("employee-email")}
+            name={nameOf("email")}
             placeholder="contact@company.co.id"
             type="email"
             defaultValue={defaults?.email ?? ""}
@@ -547,26 +695,28 @@ export default function EmployeeFormFields({
           />
         </div>
         <PhoneInput
-          name="phone"
+          name={nameOf("phone")}
           defaultValue={defaults?.phone ?? ""}
           onValueChange={() => onFormValuesChange?.()}
           inputClassName={employeeInputClass}
           selectClassName={cn(employeeSelectTriggerClass, "w-[5.5rem] px-3")}
         />
+          </>
+        )}
 
         <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
           <label className="text-sm font-medium text-text">
             {t("pages.employees.form.portalLogin")}
           </label>
           <YesNoChoiceCards
-            id="createPortalLogin"
+            id={idOf("createPortalLogin")}
             value={createPortalLogin}
             onChange={(value) => {
               setCreatePortalLogin(value);
               onFormValuesChange?.();
             }}
           />
-          <input type="hidden" name="createPortalLogin" value={createPortalLogin} />
+          <input type="hidden" name={nameOf("createPortalLogin")} value={createPortalLogin} />
           {isWarehouseStaff ? (
             <p className="text-xs text-muted">
               {t("pages.employees.form.warehouseStaffPortalHint")}
@@ -577,9 +727,18 @@ export default function EmployeeFormFields({
 
       <EmployeeFinancesFields
         defaults={defaults}
+        positionSuggestsDeposit={defaultSecurityDepositRequired(
+          selectedPosition
+            ? { slug: selectedPosition.slug, name: selectedPosition.name }
+            : null
+        )}
         onFormValuesChange={onFormValuesChange}
+        includeBankFields={!sharedTermsOnly}
+        namePrefix={namePrefix}
+        idPrefix={idPrefix}
       />
 
+      {sharedTermsOnly ? null : (
       <div>
         {defaults?.idDocumentUrl ? (
           <p className="mb-2 text-xs text-muted">
@@ -608,12 +767,13 @@ export default function EmployeeFormFields({
         </button>
         <input
           ref={fileInputRef}
-          name="idDocument"
+          name={nameOf("idDocument")}
           type="file"
           accept="image/*,.pdf"
           className="sr-only"
         />
       </div>
+      )}
     </div>
   );
 }

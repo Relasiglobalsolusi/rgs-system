@@ -12,6 +12,7 @@ import {
 } from "@/lib/employee-create-hierarchy";
 import { showRejection } from "@/components/ui/rejection-notice";
 import EmployeeDeleteDialog from "@/components/employees/EmployeeDeleteDialog";
+import EmployeeResignDialog from "@/components/employees/EmployeeResignDialog";
 import EmployeeReactivateDialog from "@/components/employees/EmployeeReactivateDialog";
 import EmployeeArchiveDialog from "@/components/employees/EmployeeArchiveDialog";
 import type {
@@ -34,8 +35,9 @@ import {
   formatPlacementLabel,
 } from "@/lib/placement";
 import { localizeDepartmentLabel } from "@/lib/i18n/labels";
+import { formatContractPrice } from "@/lib/project-billing";
 import { useT } from "@/lib/i18n/use-t";
-import type { EmploymentType, Placement } from "@prisma/client";
+import type { EmploymentType, Placement, ServiceArea } from "@prisma/client";
 
 type Employee = {
   id: string;
@@ -53,9 +55,21 @@ type Employee = {
   categoryId: string | null;
   category: { name: string; prefix: string; slug?: string } | null;
   idDocumentUrl: string | null;
-  status: "ACTIVE" | "INACTIVE" | "TERMINATED" | "ON_LEAVE" | "LEAVE_PENDING";
+  status:
+    | "ACTIVE"
+    | "INACTIVE"
+    | "TERMINATED"
+    | "ON_LEAVE"
+    | "LEAVE_PENDING"
+    | "RESIGNED";
+  depositHeldAmount?: number | null;
+  depositStatus?: "NONE" | "HELD" | "RETURNED" | "KEPT_BY_COMPANY";
+  lastWorkingDay?: Date | string | null;
+  resignAccordingToProcedure?: boolean | null;
   hasPendingLeaveRequest?: boolean;
   hiredAt: Date | string | null;
+  omApprovalAreas?: ServiceArea[];
+  areaManagedProjects?: { projectId: string }[];
   basePay: number | null;
   bpjsKesehatanEnabled: boolean;
   bpjsKetenagakerjaanEnabled: boolean;
@@ -67,6 +81,9 @@ type Employee = {
   projectAssignments: {
     project: { id: string; name: string; location: string | null };
   }[];
+  operationsTeamMembership?: {
+    team: { name: string };
+  } | null;
   user: { username: string; active: boolean } | null;
 };
 
@@ -94,6 +111,7 @@ type Props = {
   positions: PositionOption[];
   projects: ProjectOption[];
   canManage?: boolean;
+  canResign?: boolean;
   canArchive?: boolean;
   createActorTier?: EmployeeCreateActorTier;
   directoryView?: EmployeeDirectoryView;
@@ -112,6 +130,7 @@ export default function EmployeeTable({
   positions,
   projects,
   canManage = false,
+  canResign = false,
   canArchive = false,
   createActorTier = "OTHER",
   directoryView = "allEmployees",
@@ -128,6 +147,7 @@ export default function EmployeeTable({
   const [, startTransition] = useTransition();
   const [editing, setEditing] = useState<Employee | null>(null);
   const [deleting, setDeleting] = useState<Employee | null>(null);
+  const [resigning, setResigning] = useState<Employee | null>(null);
   const [restoring, setRestoring] = useState<Employee | null>(null);
   const [archiving, setArchiving] = useState<Employee | null>(null);
 
@@ -212,6 +232,15 @@ export default function EmployeeTable({
         width: "8.5rem",
         className: "min-w-[8.5rem]",
         render: (employee) => {
+          if (employee.status === "RESIGNED") {
+            return (
+              <div className="flex justify-center">
+                <StatusBadge status="danger" compact>
+                  {t("pages.employees.resign")}
+                </StatusBadge>
+              </div>
+            );
+          }
           if (employee.status === "ON_LEAVE") {
             return (
               <div className="flex justify-center">
@@ -271,6 +300,15 @@ export default function EmployeeTable({
         ),
       },
       {
+        key: "team",
+        title: t("pages.employees.columns.team"),
+        render: (employee) => (
+          <span className="text-muted">
+            {employee.operationsTeamMembership?.team.name ?? "—"}
+          </span>
+        ),
+      },
+      {
         key: "employmentType",
         title: t("pages.employees.columns.employmentType"),
         render: (employee) => (
@@ -292,6 +330,32 @@ export default function EmployeeTable({
             {formatPlacementLabel(employee.placement, locale)}
           </span>
         ),
+      },
+      {
+        key: "securityDeposit",
+        title: t("pages.employees.columns.securityDeposit"),
+        render: (employee) => {
+          const status = employee.depositStatus ?? "NONE";
+          if (status === "NONE") {
+            return <span className="text-muted">—</span>;
+          }
+          const label =
+            status === "HELD"
+              ? t("pages.employees.depositStatusHeld")
+              : status === "RETURNED"
+                ? t("pages.employees.depositStatusReturned")
+                : t("pages.employees.depositStatusKept");
+          return (
+            <div>
+              <p className="font-medium text-text">{label}</p>
+              {employee.depositHeldAmount ? (
+                <p className="text-xs text-muted">
+                  {formatContractPrice(employee.depositHeldAmount)}
+                </p>
+              ) : null}
+            </div>
+          );
+        },
       },
       {
         key: "portal",
@@ -329,7 +393,7 @@ export default function EmployeeTable({
         align: "center",
         className: isTrash
           ? "min-w-[22rem] overflow-visible whitespace-nowrap max-xl:min-w-[20rem] max-xl:px-2"
-          : "min-w-[12.5rem] overflow-visible whitespace-nowrap max-xl:min-w-[11rem] max-xl:px-2",
+          : "min-w-[18rem] overflow-visible whitespace-nowrap max-xl:min-w-[16rem] max-xl:px-2",
         render: (employee) => (
           <div className="flex shrink-0 items-center justify-center gap-2 whitespace-nowrap">
             {isTrash ? (
@@ -350,16 +414,32 @@ export default function EmployeeTable({
                 ) : null}
               </>
             ) : (
-              <Button
-                size="badge"
-                variant="destructiveBadge"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setDeleting(employee);
-                }}
-              >
-                {t("common.actions.delete")}
-              </Button>
+              <>
+                {canResign &&
+                employee.status !== "RESIGNED" &&
+                employee.resignAccordingToProcedure == null ? (
+                  <Button
+                    size="badge"
+                    variant="warningBadge"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setResigning(employee);
+                    }}
+                  >
+                    {t("pages.employees.resign")}
+                  </Button>
+                ) : null}
+                <Button
+                  size="badge"
+                  variant="destructiveBadge"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setDeleting(employee);
+                  }}
+                >
+                  {t("common.actions.delete")}
+                </Button>
+              </>
             )}
           </div>
         ),
@@ -376,6 +456,7 @@ export default function EmployeeTable({
     selectedIds,
     onToggleSelect,
     canManage,
+    canResign,
     canArchive,
     isTrash,
     t,
@@ -401,6 +482,7 @@ export default function EmployeeTable({
           positions={positions}
           projects={projects}
           showDelete
+          canResign={canResign}
           open
           showTrigger={false}
           onOpenChange={(open) => !open && setEditing(null)}
@@ -412,6 +494,14 @@ export default function EmployeeTable({
           open
           onOpenChange={(open) => !open && setDeleting(null)}
           showTrigger={false}
+        />
+      ) : null}
+      {resigning ? (
+        <EmployeeResignDialog
+          employee={resigning}
+          open
+          onOpenChange={(open) => !open && setResigning(null)}
+          onResigned={() => router.refresh()}
         />
       ) : null}
       {restoring ? (

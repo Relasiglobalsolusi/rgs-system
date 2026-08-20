@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { BriefcaseBusiness } from "lucide-react";
 import { toast } from "sonner";
@@ -31,14 +31,39 @@ export default function PositionTable({
   const [, startTransition] = useTransition();
   const [editPosition, setEditPosition] = useState<PositionRow | null>(null);
 
+  const sortedPositions = useMemo(
+    () =>
+      [...positions].sort((left, right) => {
+        const departmentOrder =
+          (left.category.sortOrder ?? 0) - (right.category.sortOrder ?? 0);
+        if (departmentOrder !== 0) return departmentOrder;
+        const departmentName = left.category.name.localeCompare(
+          right.category.name
+        );
+        if (departmentName !== 0) return departmentName;
+        if (left.sortOrder !== right.sortOrder) {
+          return left.sortOrder - right.sortOrder;
+        }
+        return left.name.localeCompare(right.name);
+      }),
+    [positions]
+  );
+
   function refresh() {
     router.refresh();
   }
 
   function reorder(ids: string[]) {
+    const byId = new Map(positions.map((position) => [position.id, position]));
+    const departmentIds = [
+      ...new Set(sortedPositions.map((position) => position.categoryId)),
+    ];
+    const groupedIds = departmentIds.flatMap((categoryId) =>
+      ids.filter((id) => byId.get(id)?.categoryId === categoryId)
+    );
     startTransition(async () => {
       try {
-        await reorderPositions(ids);
+        await reorderPositions(groupedIds);
         refresh();
       } catch (error) {
         toast.error(
@@ -126,7 +151,7 @@ export default function PositionTable({
       </div>
       <DataTable
         columns={columns}
-        data={positions}
+        data={sortedPositions}
         getRowKey={(position) => position.id}
         onRowClick={setEditPosition}
         reorderable

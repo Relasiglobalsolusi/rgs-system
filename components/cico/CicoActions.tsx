@@ -23,9 +23,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formatDisplayTime } from "@/lib/format-date";
 import { useT } from "@/lib/i18n/use-t";
 import { resolveGeofenceRadiusMeters } from "@/lib/geo";
-import { formatTimeRange } from "@/lib/operating-hours";
+import { formatTimeRange, isEarlyCheckOut } from "@/lib/operating-hours";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   AlertTriangle,
   Camera,
@@ -45,19 +54,26 @@ type AssignedProject = {
   shiftEnd: string | null;
 };
 
+export type CicoSessionRecord = {
+  id?: string;
+  checkIn: Date | null;
+  checkOut: Date | null;
+  checkInPhotoUrl?: string | null;
+  checkOutPhotoUrl?: string | null;
+  lateCheckIn?: boolean;
+  earlyCheckOut?: boolean;
+  project?: { id: string; name: string } | null;
+  note?: string | null;
+};
+
 type Props = {
   /** Read-only layout preview for head-office admin / managers (no check-in/out). */
   previewMode?: boolean;
   /** HO admin field preview — distinct empty-project copy when not in previewMode. */
   adminFieldMode?: boolean;
-  todayRecord: {
-    checkIn: Date | null;
-    checkOut: Date | null;
-    checkInPhotoUrl?: string | null;
-    checkOutPhotoUrl?: string | null;
-    project?: { id: string; name: string } | null;
-    note?: string | null;
-  } | null;
+  todayRecord: CicoSessionRecord | null;
+  /** All sessions today (and overnight). Open session drives check-out. */
+  todaySessions?: CicoSessionRecord[];
   assignedProjects: AssignedProject[];
   /** ≥1 Progress Report for today's checked-in project (blocks check-out when false). */
   hasProgressReport: boolean;
@@ -92,6 +108,7 @@ export default function CicoActions({
   previewMode = false,
   adminFieldMode = false,
   todayRecord,
+  todaySessions,
   assignedProjects,
   hasProgressReport,
   workDate,
@@ -105,6 +122,7 @@ export default function CicoActions({
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [progressOpen, setProgressOpen] = useState(false);
+  const [earlyConfirmOpen, setEarlyConfirmOpen] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const selected = assignedProjects.find((project) => project.id === projectId);
@@ -113,12 +131,21 @@ export default function CicoActions({
     label: projectSelectLabel(project),
   }));
 
-  const checkedIn = !!todayRecord?.checkIn;
-  const checkedOut = !!todayRecord?.checkOut;
+  const sessions =
+    todaySessions && todaySessions.length > 0
+      ? todaySessions
+      : todayRecord
+        ? [todayRecord]
+        : [];
+  const openSession =
+    sessions.find((session) => session.checkIn && !session.checkOut) ?? null;
+  const checkedIn = !!openSession;
+  const checkedOut = !openSession && sessions.some((session) => session.checkOut);
+  const actionRecord = openSession;
   const needsProgressBeforeCheckout =
     requiresProgress && checkedIn && !checkedOut && !hasProgressReport;
-  const checkInProject = todayRecord?.project
-    ? [{ id: todayRecord.project.id, name: todayRecord.project.name }]
+  const checkInProject = actionRecord?.project
+    ? [{ id: actionRecord.project.id, name: actionRecord.project.name }]
     : [];
 
   useEffect(() => {
@@ -201,6 +228,18 @@ export default function CicoActions({
       showRejection({ reasons: t("pages.cico.checkOutPhotoRequiredAlert") });
       return;
     }
+
+    const shift = assignedProjects.find(
+      (project) => project.id === actionRecord?.project?.id
+    ) ?? selected;
+    const earlyNow =
+      shift != null &&
+      isEarlyCheckOut(new Date(), shift.shiftStart, shift.shiftEnd) === true;
+    if (earlyNow && !earlyConfirmOpen) {
+      setEarlyConfirmOpen(true);
+      return;
+    }
+    setEarlyConfirmOpen(false);
 
     setLocating(true);
     try {
@@ -365,12 +404,48 @@ export default function CicoActions({
         </div>
       )}
 
-      {checkedIn && todayRecord?.project && (
+      {sessions.length > 0 ? (
+        <div className="space-y-2 rounded-xl border border-border bg-elevated px-4 py-3 text-sm">
+          <p className="font-medium text-text">{t("pages.cico.todaysSessions")}</p>
+          <ul className="space-y-2">
+            {sessions.map((session, index) => (
+              <li
+                key={session.id ?? `${session.project?.id ?? "site"}-${index}`}
+                className="text-subtle"
+              >
+                <span className="font-medium text-text">
+                  {session.project?.name ?? t("pages.cico.projectSite")}
+                </span>
+                {": "}
+                {session.checkIn
+                  ? formatDisplayTime(session.checkIn)
+                  : "—"}
+                {" – "}
+                {session.checkOut
+                  ? formatDisplayTime(session.checkOut)
+                  : t("pages.cico.checkOutPending")}
+                {session.lateCheckIn ? (
+                  <span className="mt-0.5 block text-xs font-medium text-amber-600">
+                    {t("pages.cico.lateCheckIn")}
+                  </span>
+                ) : null}
+                {session.earlyCheckOut ? (
+                  <span className="mt-0.5 block text-xs font-medium text-amber-600">
+                    {t("pages.cico.earlyCheckOut")}
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {checkedIn && actionRecord?.project && (
         <p className="flex items-center gap-2.5 text-sm text-subtle">
           <MapPin className="h-4 w-4 shrink-0 text-primary" />
           {t("pages.cico.checkedInAt")}{" "}
           <span className="font-medium text-text">
-            {todayRecord.project.name}
+            {actionRecord.project.name}
           </span>
         </p>
       )}
@@ -403,14 +478,14 @@ export default function CicoActions({
         </div>
       )}
 
-      {checkedIn && todayRecord?.checkInPhotoUrl && (
+      {checkedIn && actionRecord?.checkInPhotoUrl && (
         <div className="space-y-2">
           <p className="text-sm font-medium text-muted">
             {t("pages.cico.checkInPhoto")}
           </p>
           <div className="relative h-36 w-full max-w-xs overflow-hidden rounded-xl border border-border bg-inset sm:h-40">
             <Image
-              src={todayRecord.checkInPhotoUrl}
+              src={actionRecord.checkInPhotoUrl}
               alt={t("pages.cico.checkInPhotoAlt")}
               fill
               className="object-cover"
@@ -420,14 +495,14 @@ export default function CicoActions({
         </div>
       )}
 
-      {checkedOut && todayRecord?.checkOutPhotoUrl && (
+      {checkedIn && actionRecord?.checkOutPhotoUrl && (
         <div className="space-y-2">
           <p className="text-sm font-medium text-muted">
             {t("pages.cico.checkOutPhoto")}
           </p>
           <div className="relative h-36 w-full max-w-xs overflow-hidden rounded-xl border border-border bg-inset sm:h-40">
             <Image
-              src={todayRecord.checkOutPhotoUrl}
+              src={actionRecord.checkOutPhotoUrl}
               alt={t("pages.cico.checkOutPhotoAlt")}
               fill
               className="object-cover"
@@ -437,8 +512,7 @@ export default function CicoActions({
         </div>
       )}
 
-      {!checkedOut && (
-        <div className="space-y-2.5">
+      <div className="space-y-2.5">
           <label className="text-sm font-medium text-muted">
             {photoLabel}{" "}
             <span className="font-normal text-amber-400">
@@ -502,12 +576,11 @@ export default function CicoActions({
               {photoAlertEmpty}
             </div>
           )}
-        </div>
-      )}
+      </div>
 
-      {todayRecord?.note && (
+      {actionRecord?.note && (
         <p className="text-sm leading-relaxed text-amber-400">
-          {todayRecord.note}
+          {actionRecord.note}
         </p>
       )}
 
@@ -571,6 +644,29 @@ export default function CicoActions({
           }}
         />
       ) : null}
+
+      <Dialog open={earlyConfirmOpen} onOpenChange={setEarlyConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("pages.cico.earlyCheckoutTitle")}</DialogTitle>
+            <DialogDescription>
+              {t("pages.cico.earlyCheckoutBody")}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setEarlyConfirmOpen(false)}
+            >
+              {t("common.actions.cancel")}
+            </Button>
+            <Button type="button" onClick={() => void handleCheckOut()}>
+              {t("common.actions.confirm")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

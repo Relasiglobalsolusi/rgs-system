@@ -9,7 +9,12 @@ import {
   persistCompanyScopedReorder,
 } from "@/lib/persist-reorder";
 import { requireModule } from "@/lib/session";
-import { ADMIN_SCOPE_MODULES, isHoAdminAccount, MODULES } from "@/lib/permissions";
+import {
+  expandLegacyFinanceOverrides,
+  isHoAdminAccount,
+  MODULES,
+  PORTAL_BLOCKED_MODULES,
+} from "@/lib/permissions";
 import { isValidUsername, normalizeUsername } from "@/lib/username";
 import {
   assertRecoveryEmailAvailable,
@@ -702,6 +707,9 @@ async function restoreUserLoginAccessRecord(id: string) {
           id: true,
           status: true,
           archivedFromDirectory: true,
+          employmentType: true,
+          placement: true,
+          jobPosition: { select: { slug: true, name: true } },
         },
       },
       client: { select: { id: true, active: true } },
@@ -738,6 +746,17 @@ async function restoreUserLoginAccessRecord(id: string) {
 
   if (user.vendor != null && user.vendor.active === false) {
     throw await usersLocaleError("restoreVendorFirst", undefined, locale);
+  }
+
+  if (
+    user.employee?.employmentType === "PART_TIME" &&
+    user.employee.placement !== "ON_PROJECT"
+  ) {
+    throw await usersLocaleError(
+      "partTimeRestoreOnProjectOnly",
+      undefined,
+      locale
+    );
   }
 
   await prisma.$transaction(async (tx) => {
@@ -1013,18 +1032,19 @@ export async function updateUserModuleOverrides(
 
   const isPortalUser = Boolean(user.clientId || user.vendorId);
   const isVendorPortal = Boolean(user.vendorId);
+  const expanded = expandLegacyFinanceOverrides(overrides);
   const sanitized: Record<string, boolean> = {};
   for (const moduleKey of MODULES) {
-    if (!(moduleKey in overrides)) continue;
-    // Portal accounts never receive HO directory / CMS modules via overrides.
-    if (isPortalUser && ADMIN_SCOPE_MODULES.includes(moduleKey)) {
+    if (!(moduleKey in expanded)) continue;
+    // Portal accounts never receive HO directory / float modules via overrides.
+    if (isPortalUser && PORTAL_BLOCKED_MODULES.includes(moduleKey)) {
       continue;
     }
     // Vendors cannot unlock Progress Reports via overrides.
     if (isVendorPortal && moduleKey === "progress") {
       continue;
     }
-    sanitized[moduleKey] = Boolean(overrides[moduleKey]);
+    sanitized[moduleKey] = Boolean(expanded[moduleKey]);
   }
 
   await prisma.user.update({

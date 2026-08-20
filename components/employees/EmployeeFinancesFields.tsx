@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   employeeDialogFieldClass,
@@ -26,11 +26,24 @@ export type EmployeeFinanceDefaults = {
   jkkEnabled?: boolean;
   jkmEnabled?: boolean;
   jkkPercent?: number | null;
+  depositStatus?: "NONE" | "HELD" | "RETURNED" | "KEPT_BY_COMPANY" | null;
+  depositHeldAmount?: number | null;
+  securityDepositRequired?: boolean;
+  cicoExempt?: boolean;
+  bankName?: string | null;
+  bankAccountNumber?: string | null;
+  bankAccountName?: string | null;
 };
 
 type Props = {
   defaults?: EmployeeFinanceDefaults;
+  /** Position-based default when creating, or when the saved value is unset. */
+  positionSuggestsDeposit?: boolean;
   onFormValuesChange?: () => void;
+  /** Bulk add keeps bank details on each person line. */
+  includeBankFields?: boolean;
+  namePrefix?: string;
+  idPrefix?: string;
 };
 
 function digitsOnly(value: string): string {
@@ -77,9 +90,16 @@ function FinanceCheckbox({
 
 export default function EmployeeFinancesFields({
   defaults,
+  positionSuggestsDeposit = false,
   onFormValuesChange,
+  includeBankFields = true,
+  namePrefix = "",
+  idPrefix = "",
 }: Props) {
   const { t } = useT();
+  const nameOf = (field: string) =>
+    namePrefix ? `${namePrefix}${field}` : field;
+  const idOf = (id: string) => (idPrefix ? `${idPrefix}${id}` : id);
   const [basePayDigits, setBasePayDigits] = useState(() =>
     defaults?.basePay != null && defaults.basePay > 0
       ? String(Math.round(defaults.basePay))
@@ -98,6 +118,17 @@ export default function EmployeeFinancesFields({
   const [jkkPercent, setJkkPercent] = useState(() =>
     defaults?.jkkPercent != null ? String(defaults.jkkPercent) : ""
   );
+  const [securityDepositRequired, setSecurityDepositRequired] = useState(() =>
+    defaults?.securityDepositRequired ?? positionSuggestsDeposit
+  );
+  const [cicoExempt, setCicoExempt] = useState(() =>
+    Boolean(defaults?.cicoExempt)
+  );
+
+  useEffect(() => {
+    if (defaults?.securityDepositRequired !== undefined) return;
+    setSecurityDepositRequired(positionSuggestsDeposit);
+  }, [defaults?.securityDepositRequired, positionSuggestsDeposit]);
 
   const input: EmployeeBpjsInput = useMemo(() => {
     const basePay = Number(basePayDigits || "0");
@@ -140,16 +171,115 @@ export default function EmployeeFinancesFields({
         </p>
       </div>
 
+      <FinanceCheckbox
+        id={idOf("security-deposit-required")}
+        name={nameOf("securityDepositRequired")}
+        checked={securityDepositRequired}
+        label={t("pages.employees.form.securityDepositRequired")}
+        onChange={(next) => {
+          setSecurityDepositRequired(next);
+          bump();
+        }}
+      />
+      <p className="text-xs text-muted">
+        {t("pages.employees.form.securityDepositRequiredHint")}
+      </p>
+
+      <FinanceCheckbox
+        id={idOf("cico-exempt")}
+        name={nameOf("cicoExempt")}
+        checked={cicoExempt}
+        label={t("pages.employees.form.cicoExempt")}
+        onChange={(next) => {
+          setCicoExempt(next);
+          bump();
+        }}
+      />
+      <p className="text-xs text-muted">
+        {t("pages.employees.form.cicoExemptHint")}
+      </p>
+
+      {defaults?.depositStatus && defaults.depositStatus !== "NONE" ? (
+        <div className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+            {t("pages.employees.columns.securityDeposit")}
+          </p>
+          <p className="mt-1 font-medium">
+            {defaults.depositStatus === "HELD"
+              ? t("pages.employees.depositStatusHeld")
+              : defaults.depositStatus === "RETURNED"
+                ? t("pages.employees.depositStatusReturned")
+                : t("pages.employees.depositStatusKept")}
+            {defaults.depositHeldAmount
+              ? ` · ${formatContractPrice(defaults.depositHeldAmount)}`
+              : ""}
+          </p>
+        </div>
+      ) : null}
+
+      {includeBankFields ? (
+        <>
       <div className={employeeDialogFieldClass}>
-        <label htmlFor="employee-base-pay" className="text-sm font-medium text-text">
+        <label htmlFor={idOf("employee-bank-name")} className="text-sm font-medium text-text">
+          {t("pages.employees.form.bankName")}
+        </label>
+        <Input
+          id={idOf("employee-bank-name")}
+          name={nameOf("bankName")}
+          defaultValue={defaults?.bankName ?? ""}
+          placeholder="Mandiri"
+          className={employeeInputClass}
+          onChange={bump}
+        />
+      </div>
+      <div className={employeeDialogFieldClass}>
+        <label
+          htmlFor={idOf("employee-bank-account-name")}
+          className="text-sm font-medium text-text"
+        >
+          {t("pages.employees.form.bankAccountName")}
+        </label>
+        <Input
+          id={idOf("employee-bank-account-name")}
+          name={nameOf("bankAccountName")}
+          defaultValue={defaults?.bankAccountName ?? ""}
+          placeholder="Nama sesuai buku tabungan"
+          className={employeeInputClass}
+          onChange={bump}
+        />
+      </div>
+      <div className={employeeDialogFieldClass}>
+        <label
+          htmlFor={idOf("employee-bank-account")}
+          className="text-sm font-medium text-text"
+        >
+          {t("pages.employees.form.bankAccountNumber")}
+        </label>
+        <Input
+          id={idOf("employee-bank-account")}
+          name={nameOf("bankAccountNumber")}
+          defaultValue={defaults?.bankAccountNumber ?? ""}
+          placeholder="1234567890"
+          className={employeeInputClass}
+          onChange={bump}
+        />
+        <p className="text-xs text-muted">
+          {t("pages.employees.form.bankHint")}
+        </p>
+      </div>
+        </>
+      ) : null}
+
+      <div className={employeeDialogFieldClass}>
+        <label htmlFor={idOf("employee-base-pay")} className="text-sm font-medium text-text">
           {t("pages.employees.form.basePay")}
         </label>
         <p className="text-xs text-muted">
           {t("pages.employees.form.basePayHint")}
         </p>
         <Input
-          id="employee-base-pay"
-          name="basePay"
+          id={idOf("employee-base-pay")}
+          name={nameOf("basePay")}
           inputMode="numeric"
           required
           value={formatIdrInput(basePayDigits)}
@@ -164,8 +294,8 @@ export default function EmployeeFinancesFields({
 
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
         <FinanceCheckbox
-          id="bpjs-kesehatan"
-          name="bpjsKesehatanEnabled"
+          id={idOf("bpjs-kesehatan")}
+          name={nameOf("bpjsKesehatanEnabled")}
           checked={bpjsKesehatanEnabled}
           label={t("pages.employees.form.bpjsKesehatan")}
           onChange={(next) => {
@@ -174,8 +304,8 @@ export default function EmployeeFinancesFields({
           }}
         />
         <FinanceCheckbox
-          id="bpjs-ketenagakerjaan"
-          name="bpjsKetenagakerjaanEnabled"
+          id={idOf("bpjs-ketenagakerjaan")}
+          name={nameOf("bpjsKetenagakerjaanEnabled")}
           checked={bpjsKetenagakerjaanEnabled}
           label={t("pages.employees.form.bpjsKetenagakerjaan")}
           onChange={(next) => {
@@ -198,8 +328,8 @@ export default function EmployeeFinancesFields({
           </p>
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             <FinanceCheckbox
-              id="jht-enabled"
-              name="jhtEnabled"
+              id={idOf("jht-enabled")}
+              name={nameOf("jhtEnabled")}
               checked={jhtEnabled}
               label={t("pages.employees.form.jht")}
               onChange={(next) => {
@@ -208,8 +338,8 @@ export default function EmployeeFinancesFields({
               }}
             />
             <FinanceCheckbox
-              id="jp-enabled"
-              name="jpEnabled"
+              id={idOf("jp-enabled")}
+              name={nameOf("jpEnabled")}
               checked={jpEnabled}
               label={t("pages.employees.form.jp")}
               onChange={(next) => {
@@ -218,8 +348,8 @@ export default function EmployeeFinancesFields({
               }}
             />
             <FinanceCheckbox
-              id="jkk-enabled"
-              name="jkkEnabled"
+              id={idOf("jkk-enabled")}
+              name={nameOf("jkkEnabled")}
               checked={jkkEnabled}
               label={t("pages.employees.form.jkk")}
               onChange={(next) => {
@@ -228,8 +358,8 @@ export default function EmployeeFinancesFields({
               }}
             />
             <FinanceCheckbox
-              id="jkm-enabled"
-              name="jkmEnabled"
+              id={idOf("jkm-enabled")}
+              name={nameOf("jkmEnabled")}
               checked={jkmEnabled}
               label={t("pages.employees.form.jkm")}
               onChange={(next) => {
@@ -240,7 +370,7 @@ export default function EmployeeFinancesFields({
           </div>
           {jkkEnabled ? (
             <div className={employeeDialogFieldClass}>
-              <label htmlFor="jkk-percent" className="text-sm font-medium text-text">
+              <label htmlFor={idOf("jkk-percent")} className="text-sm font-medium text-text">
                 {t("pages.employees.form.jkkPercent")}
               </label>
               <p className="text-xs text-muted">
@@ -250,8 +380,8 @@ export default function EmployeeFinancesFields({
                 })}
               </p>
               <Input
-                id="jkk-percent"
-                name="jkkPercent"
+                id={idOf("jkk-percent")}
+                name={nameOf("jkkPercent")}
                 type="number"
                 step="0.01"
                 min={BPJS_JKK_PERCENT_MIN}
@@ -266,7 +396,7 @@ export default function EmployeeFinancesFields({
               />
             </div>
           ) : (
-            <input type="hidden" name="jkkPercent" value="" />
+            <input type="hidden" name={nameOf("jkkPercent")} value="" />
           )}
           <ul className="list-disc space-y-1 pl-4 text-xs text-muted">
             <li>{t("pages.employees.form.bpjsTkHelpJht")}</li>
@@ -277,11 +407,11 @@ export default function EmployeeFinancesFields({
         </div>
       ) : (
         <>
-          <input type="hidden" name="jhtEnabled" value="false" />
-          <input type="hidden" name="jpEnabled" value="false" />
-          <input type="hidden" name="jkkEnabled" value="false" />
-          <input type="hidden" name="jkmEnabled" value="false" />
-          <input type="hidden" name="jkkPercent" value="" />
+          <input type="hidden" name={nameOf("jhtEnabled")} value="false" />
+          <input type="hidden" name={nameOf("jpEnabled")} value="false" />
+          <input type="hidden" name={nameOf("jkkEnabled")} value="false" />
+          <input type="hidden" name={nameOf("jkmEnabled")} value="false" />
+          <input type="hidden" name={nameOf("jkkPercent")} value="" />
         </>
       )}
 

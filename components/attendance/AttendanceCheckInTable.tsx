@@ -20,6 +20,7 @@ export type AttendanceCheckInRow = {
   checkInPhotoUrl: string | null;
   note: string | null;
   isLate: boolean | null;
+  isEarly?: boolean | null;
   shiftLabel: string;
   employee: { firstName: string; lastName: string; employeeNo: string };
   project: { name: string } | null;
@@ -128,6 +129,11 @@ export default function AttendanceCheckInTable({ data }: Props) {
             <span className="text-orange-400">
               {row.checkOut ? formatDisplayTime(row.checkOut) : "-"}
             </span>
+            {row.isEarly === true && (
+              <p className="text-xs text-amber-500">
+                {t("pages.attendance.checkedOutBeforeShiftEnd")}
+              </p>
+            )}
             {row.checkOutDistanceMeters != null && (
               <p className="text-xs text-subtle">
                 {formatDistanceMeters(row.checkOutDistanceMeters)}

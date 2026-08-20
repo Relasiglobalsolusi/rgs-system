@@ -34,6 +34,8 @@ import {
 
   Users,
 
+  UsersRound,
+
   Briefcase,
 
   Wallet,
@@ -44,6 +46,8 @@ import {
 
   PieChart,
 
+  Coins,
+
 } from "lucide-react";
 
 import type { EmployeeType, Placement, UserRole } from "@prisma/client";
@@ -53,6 +57,7 @@ import type { AppLocale } from "@/lib/i18n/locale";
 import {
   isDirectorPosition,
   isInHouseCleaningStaffPosition,
+  isAreaManagerPosition,
   isOperationsManagerPosition,
   isWarehouseStaffPosition,
   isWarehouseSupervisorPosition,
@@ -60,15 +65,30 @@ import {
 
 
 
+/**
+ * Source of truth for Users → Permissions and sidebar access.
+ * When you add a page people can turn on or off:
+ * 1. Add the key here (it then appears in the permissions list)
+ * 2. Add a sidebar item with `module` set to that key
+ * 3. Add the path in `ROUTE_MODULE_MAP`
+ * 4. Add `modules.<key>` in the EN and ID dictionaries
+ * Presets below use `fillModuleFlags`, so a new key defaults to Off for
+ * staff and portals and On for Admin. Set it to true in a preset if that
+ * role should get it without a manual toggle.
+ */
 export const MODULES = [
 
   "dashboard",
 
   "projects",
 
+  "teams",
+
   "progress",
 
   "cico",
+
+  "pettyCash",
 
   "attendance",
 
@@ -89,6 +109,20 @@ export const MODULES = [
   "itemCatalog",
 
   "invoicing",
+
+  "reconciliation",
+
+  "purchaseInvoices",
+
+  "taxInvoices",
+
+  "vendorPayments",
+
+  "thr",
+
+  "payroll",
+
+  "financialReport",
 
   "clients",
 
@@ -162,9 +196,7 @@ export type MenuItem = {
   module: ModuleKey;
 
   /**
-   * Stable identity for sidebar rearrange when multiple items share a module
-   * (e.g. Invoice and Billing + Tax Invoice both use `invoicing`).
-   * Defaults to `module` when omitted.
+   * Stable identity for sidebar rearrange. Defaults to `module` when omitted.
    */
   navKey?: string;
 
@@ -190,22 +222,28 @@ export const EXTRA_MENU_NAV_KEYS = [
   "payroll",
   "thr",
   "vat",
+  "pettyCash",
 ] as const;
 
-/** Finance children shown under the Invoicing parent toggle in Users → Permissions. */
-export const FINANCE_PERMISSION_CHILDREN = [
-  { navKey: "invoicing", label: "Invoice and Billing" },
-  { navKey: "reconciliation", label: "Reconciliation" },
-  { navKey: "purchaseInvoices", label: "Purchases" },
-  { navKey: "taxInvoices", label: "Tax Invoice" },
-  { navKey: "vendorPayments", label: "Payment & Settlement" },
-  { navKey: "thr", label: "THR" },
-  { navKey: "payroll", label: "Payroll" },
-  { navKey: "financialReport", label: "Financial Report" },
-] as const;
+/** Each Finance page is its own module — no parent group toggle. */
+export const FINANCE_MODULE_KEYS = [
+  "invoicing",
+  "reconciliation",
+  "purchaseInvoices",
+  "taxInvoices",
+  "vendorPayments",
+  "thr",
+  "payroll",
+  "financialReport",
+] as const satisfies readonly ModuleKey[];
 
-export type FinanceNavKey =
-  (typeof FINANCE_PERMISSION_CHILDREN)[number]["navKey"];
+export type FinanceNavKey = (typeof FINANCE_MODULE_KEYS)[number];
+
+export function isFinanceModuleKey(
+  module: string
+): module is FinanceNavKey {
+  return (FINANCE_MODULE_KEYS as readonly string[]).includes(module);
+}
 
 export type MenuSection = {
 
@@ -217,19 +255,20 @@ export type MenuSection = {
 
 
 
-const ALL_MODULES = Object.fromEntries(
-
-  MODULES.map((m) => [m, true])
-
-) as Record<ModuleKey, boolean>;
-
-
-
-export function getDefaultModules(): ModuleKey[] {
-
-  return [...MODULES];
-
+function fillModuleFlags(
+  fill: boolean,
+  patch: Partial<Record<ModuleKey, boolean>> = {}
+): Record<ModuleKey, boolean> {
+  return {
+    ...(Object.fromEntries(MODULES.map((module) => [module, fill])) as Record<
+      ModuleKey,
+      boolean
+    >),
+    ...patch,
+  };
 }
+
+const ALL_MODULES = fillModuleFlags(true);
 
 
 
@@ -240,29 +279,16 @@ export function getDefaultModules(): ModuleKey[] {
  * Existing client users keep stored overrides until Permissions is re-saved / reset.
  */
 export function getClientModuleOverrides(): Record<ModuleKey, boolean> {
-  return {
+  return fillModuleFlags(false, {
     dashboard: true,
     projects: true,
     progress: true,
-    cico: false,
     attendance: true,
-    shifts: false,
-    leaves: false,
-    approvals: false,
-    materialRequests: false,
-    transferOrders: false,
     reports: true,
-    inventory: false,
-    itemCatalog: false,
     invoicing: true,
-    clients: false,
-    vendors: false,
-    users: false,
-    employees: false,
-    departments: false,
-    settings: false,
-    website: false,
-  };
+    reconciliation: true,
+    vendorPayments: true,
+  });
 }
 
 /**
@@ -270,29 +296,7 @@ export function getClientModuleOverrides(): Record<ModuleKey, boolean> {
  * getAccessibleModules returns []). Kept for account-type baseline / legacy rows.
  */
 export function getVendorModuleOverrides(): Record<ModuleKey, boolean> {
-  return {
-    dashboard: false,
-    projects: false,
-    progress: false,
-    cico: false,
-    attendance: false,
-    shifts: false,
-    leaves: false,
-    approvals: false,
-    materialRequests: false,
-    transferOrders: false,
-    reports: false,
-    inventory: false,
-    itemCatalog: false,
-    invoicing: false,
-    clients: false,
-    vendors: false,
-    users: false,
-    employees: false,
-    departments: false,
-    settings: false,
-    website: false,
-  };
+  return fillModuleFlags(false);
 }
 
 /**
@@ -310,14 +314,14 @@ export const CLIENT_FINANCE_MENU_ITEMS: MenuItem[] = [
     icon: ClipboardCheck,
     label: "Reconciliation",
     href: "/billing/reconciliation",
-    module: "invoicing",
+    module: "reconciliation",
     navKey: "reconciliation",
   },
   {
     icon: Wallet,
     label: "Payment & Settlement",
     href: "/billing/settlements",
-    module: "invoicing",
+    module: "vendorPayments",
     navKey: "vendorPayments",
   },
 ];
@@ -335,49 +339,49 @@ export const FINANCE_MENU_ITEMS: MenuItem[] = [
     icon: ClipboardCheck,
     label: "Reconciliation",
     href: "/billing/reconciliation",
-    module: "invoicing",
+    module: "reconciliation",
     navKey: "reconciliation",
   },
   {
     icon: ShoppingBag,
-    label: "Purchases",
+    label: "Expenses",
     href: "/billing/purchase-invoices",
-    module: "invoicing",
+    module: "purchaseInvoices",
     navKey: "purchaseInvoices",
   },
   {
     icon: Receipt,
     label: "Tax Invoice",
     href: "/billing/tax-invoices",
-    module: "invoicing",
+    module: "taxInvoices",
     navKey: "taxInvoices",
   },
   {
     icon: Wallet,
     label: "Payment & Settlement",
     href: "/billing/settlements",
-    module: "invoicing",
+    module: "vendorPayments",
     navKey: "vendorPayments",
   },
   {
     icon: HandCoins,
     label: "THR",
     href: "/billing/thr",
-    module: "invoicing",
+    module: "thr",
     navKey: "thr",
   },
   {
     icon: Banknote,
-    label: "Payroll",
+    label: "Internal Payroll",
     href: "/billing/payroll",
-    module: "invoicing",
+    module: "payroll",
     navKey: "payroll",
   },
   {
     icon: PieChart,
     label: "Financial Report",
     href: "/billing/financial-report",
-    module: "invoicing",
+    module: "financialReport",
     navKey: "financialReport",
   },
 ];
@@ -400,8 +404,59 @@ export function isFinanceChildAccessible(
   overrides: Record<string, boolean> | null | undefined,
   navKey: string
 ): boolean {
+  if (isFinanceModuleKey(navKey)) {
+    const resolved = resolveModuleOverride(overrides, navKey);
+    return resolved !== false;
+  }
   if (!overrides) return true;
   return overrides[financeChildOverrideKey(navKey)] !== false;
+}
+
+/**
+ * Direct module key wins. Older saves used a Finance group (`invoicing`) plus
+ * `invoicing:<page>` denials — still honored until the user re-saves.
+ */
+export function resolveModuleOverride(
+  overrides: Record<string, boolean> | null | undefined,
+  module: ModuleKey
+): boolean | null {
+  if (!overrides) return null;
+  if (module in overrides) return overrides[module]!;
+  if (module !== "invoicing" && isFinanceModuleKey(module)) {
+    const legacyChild = overrides[financeChildOverrideKey(module)];
+    if (typeof legacyChild === "boolean") return legacyChild;
+    const hasPerPageFinanceKeys = FINANCE_MODULE_KEYS.some(
+      (key) => key !== "invoicing" && key in overrides
+    );
+    if (hasPerPageFinanceKeys) return null;
+    if (overrides.invoicing === false) return false;
+    if (overrides.invoicing === true) return true;
+  }
+  return null;
+}
+
+/** Rewrite old Finance-group saves into one key per page. */
+export function expandLegacyFinanceOverrides(
+  overrides: Record<string, boolean> | null | undefined,
+  baseline: Record<ModuleKey, boolean> = ALL_MODULES
+): Record<string, boolean> {
+  const source = overrides ?? {};
+  const next: Record<string, boolean> = {};
+  for (const [key, value] of Object.entries(source)) {
+    if (key.startsWith("invoicing:")) continue;
+    next[key] = value;
+  }
+  const legacyGroup =
+    Object.keys(source).some((key) => key.startsWith("invoicing:")) ||
+    ("invoicing" in source &&
+      !FINANCE_MODULE_KEYS.some((key) => key !== "invoicing" && key in source));
+  if (legacyGroup) {
+    for (const module of FINANCE_MODULE_KEYS) {
+      const resolved = resolveModuleOverride(source, module);
+      next[module] = resolved ?? baseline[module];
+    }
+  }
+  return next;
 }
 
 /** Drops Finance sub-pages explicitly denied via `invoicing:<navKey>` overrides. */
@@ -418,8 +473,51 @@ type EmployeeModulePresetOptions = {
   placement?: Placement | null;
   employeeType?: EmployeeType | null;
   /** Optional position — when provided, OMs and Directors default to approvals: true. */
-  jobPosition?: { slug?: string | null; name?: string | null } | null;
+  jobPosition?: {
+    slug?: string | null;
+    name?: string | null;
+    defaultModuleAccess?: unknown;
+  } | null;
 };
+
+export function normalizeModuleAccessMap(
+  raw: unknown
+): Record<ModuleKey, boolean> | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const record = raw as Record<string, unknown>;
+  const hasAny = MODULES.some((key) => typeof record[key] === "boolean");
+  if (!hasAny) return null;
+  return fillModuleFlags(
+    false,
+    Object.fromEntries(
+      MODULES.map((key) => [key, record[key] === true])
+    ) as Partial<Record<ModuleKey, boolean>>
+  );
+}
+
+export function parseModuleAccessFromForm(
+  formData: FormData
+): Record<ModuleKey, boolean> {
+  const raw = String(formData.get("defaultModuleAccess") ?? "").trim();
+  if (raw) {
+    try {
+      const parsed = normalizeModuleAccessMap(JSON.parse(raw));
+      if (parsed) return parsed;
+    } catch {
+      // Fall through to checkbox names.
+    }
+  }
+  return fillModuleFlags(
+    false,
+    Object.fromEntries(
+      getVisibleModules().map((key) => [
+        key,
+        formData.get(`module.${key}`) === "on" ||
+          formData.get(`module.${key}`) === "true",
+      ])
+    ) as Partial<Record<ModuleKey, boolean>>
+  );
+}
 
 function isHeadOfficeEmployeePreset(options?: EmployeeModulePresetOptions) {
   return (
@@ -432,6 +530,7 @@ function isApproverPosition(options?: EmployeeModulePresetOptions): boolean {
   if (!options?.jobPosition) return false;
   return (
     isOperationsManagerPosition(options.jobPosition) ||
+    isAreaManagerPosition(options.jobPosition) ||
     isDirectorPosition(options.jobPosition)
   );
 }
@@ -457,13 +556,18 @@ export const activeFieldStaffWhere = {
  * HO / corporate: Dashboard, Projects, Progress, Attendance Report, Leave & Sick.
  * Warehouse Supervisor: Transfer Orders + Inventory + CICO.
  * In-House Cleaning Staff: Progress + CICO + Material Requests.
- * Warehouse Staff: no portal by default; minimal if login is forced.
- * OMs and Directors also receive Approvals by default.
+ * Warehouse Staff: no portal by default; Head Office can generate a login in Users.
+ * Operations Managers, Area Managers, and Directors also receive Approvals by default.
  * Existing users keep stored overrides until Permissions is re-saved.
  */
 export function getEmployeeModuleOverrides(
   options?: EmployeeModulePresetOptions
 ): Record<ModuleKey, boolean> {
+  const stored = normalizeModuleAccessMap(
+    options?.jobPosition?.defaultModuleAccess
+  );
+  if (stored) return stored;
+
   const isHo = isHeadOfficeEmployeePreset(options);
   const isApprover = isApproverPosition(options);
   const job = options?.jobPosition ?? null;
@@ -471,29 +575,10 @@ export function getEmployeeModuleOverrides(
   const warehouseSupervisor = isWarehouseSupervisorPosition(job ?? {});
   const warehouseStaff = isWarehouseStaffPosition(job ?? {});
 
-  const denied: Record<ModuleKey, boolean> = {
+  const denied = fillModuleFlags(false, {
     dashboard: true,
-    projects: false,
-    progress: false,
-    cico: false,
-    attendance: false,
-    shifts: false,
     leaves: true,
-    approvals: false,
-    materialRequests: false,
-    transferOrders: false,
-    reports: false,
-    inventory: false,
-    itemCatalog: false,
-    invoicing: false,
-    clients: false,
-    vendors: false,
-    users: false,
-    employees: false,
-    departments: false,
-    settings: false,
-    website: false,
-  };
+  });
 
   if (warehouseStaff) {
     return denied;
@@ -513,6 +598,7 @@ export function getEmployeeModuleOverrides(
       ...denied,
       projects: true,
       cico: true,
+      pettyCash: true,
       attendance: true,
       shifts: true,
       transferOrders: true,
@@ -522,13 +608,15 @@ export function getEmployeeModuleOverrides(
   }
 
   return {
-    dashboard: true,
+    ...denied,
     // Field staff do not get Projects; HO keeps project access.
-    projects: isHo,
+    projects: isHo || isApprover,
+    teams: isHo || isApprover,
     progress: true,
     cico: true,
+    pettyCash: isHo,
     attendance: isHo,
-    shifts: isHo,
+    shifts: isHo || isApprover,
     leaves: true,
     approvals: isApprover,
     // Field staff request materials; Warehouse Supervisor fulfills Transfer Orders.
@@ -539,13 +627,6 @@ export function getEmployeeModuleOverrides(
     inventory: isHo,
     itemCatalog: isHo,
     invoicing: false,
-    clients: false,
-    vendors: false,
-    users: false,
-    employees: false,
-    departments: false,
-    settings: false,
-    website: false,
   };
 }
 
@@ -569,7 +650,7 @@ export function getModuleAccessState(
   baseline: Record<ModuleKey, boolean> = ALL_MODULES
 ): ModuleAccessState {
   const overrides = user.moduleOverrides ?? {};
-  const override = module in overrides ? overrides[module]! : null;
+  const override = resolveModuleOverride(overrides, module);
 
   return {
     default: baseline[module],
@@ -643,16 +724,20 @@ export function getAccessibleModules(
     if (module === "website") {
       return false;
     }
-    // Portal accounts never get HO directory modules, even via overrides.
-    if (isClientPortal && ADMIN_SCOPE_MODULES.includes(module)) {
+    // Portal accounts never get HO directory / float modules, even via overrides.
+    if (isClientPortal && PORTAL_BLOCKED_MODULES.includes(module)) {
       return false;
     }
     // OM / Director always get Approvals; stored false overrides must not block them.
     if (module === "approvals" && isApproverAccount(accountUser)) {
       return true;
     }
-    if (module in overrides) {
-      return overrides[module];
+    if (module === "shifts" && isApproverAccount(accountUser)) {
+      return true;
+    }
+    const override = resolveModuleOverride(overrides, module);
+    if (override !== null) {
+      return override;
     }
     return baseline[module];
   });
@@ -716,6 +801,17 @@ export const ADMIN_SCOPE_MODULES: ModuleKey[] = [
 
 ];
 
+/** Client / vendor portals cannot receive these, even via permission overrides. */
+export const PORTAL_BLOCKED_MODULES: ModuleKey[] = [
+  ...ADMIN_SCOPE_MODULES,
+  "pettyCash",
+  "purchaseInvoices",
+  "taxInvoices",
+  "thr",
+  "payroll",
+  "financialReport",
+];
+
 
 
 export function hasFullModuleAccess(
@@ -733,6 +829,13 @@ export function hasFullModuleAccess(
  */
 export function isHoAdminAccount(user: AccountTypeUser): boolean {
   return getAccountType(user) === "Admin";
+}
+
+/**
+ * Primary owner login only. Wider Admin / Director / OM accounts must not inherit this.
+ */
+export function isOwnerAccount(user: { username?: string | null }): boolean {
+  return user.username === "vicko";
 }
 
 export function getAccountType(user: AccountTypeUser): AccountType {
@@ -906,6 +1009,8 @@ export const ROUTE_MODULE_MAP: Record<string, ModuleKey> = {
 
   "/projects": "projects",
 
+  "/teams": "teams",
+
   "/progress": "progress",
 
   "/cico": "cico",
@@ -927,6 +1032,22 @@ export const ROUTE_MODULE_MAP: Record<string, ModuleKey> = {
   "/inventory": "inventory",
 
   "/item-catalog": "itemCatalog",
+
+  "/billing/petty-cash": "pettyCash",
+
+  "/billing/reconciliation": "reconciliation",
+
+  "/billing/purchase-invoices": "purchaseInvoices",
+
+  "/billing/tax-invoices": "taxInvoices",
+
+  "/billing/settlements": "vendorPayments",
+
+  "/billing/thr": "thr",
+
+  "/billing/payroll": "payroll",
+
+  "/billing/financial-report": "financialReport",
 
   "/billing": "invoicing",
 
@@ -1172,6 +1293,42 @@ export const menu: MenuSection[] = [
 
       {
 
+        icon: UsersRound,
+
+        label: "Teams",
+
+        href: "/teams",
+
+        module: "teams",
+
+        children: [
+
+          {
+
+            label: "Assignment",
+
+            href: "/teams",
+
+            primary: true,
+
+          },
+
+          {
+
+            label: "Team Availability",
+
+            href: "/teams/availability",
+
+            primary: true,
+
+          },
+
+        ],
+
+      },
+
+      {
+
         icon: CheckSquare,
 
         label: "Progress Reports",
@@ -1190,6 +1347,20 @@ export const menu: MenuSection[] = [
         href: "/cico",
 
         module: "cico",
+
+      },
+
+      {
+
+        icon: Coins,
+
+        label: "Petty Cash",
+
+        href: "/billing/petty-cash",
+
+        module: "pettyCash",
+
+        navKey: "pettyCash",
 
       },
 
@@ -1338,8 +1509,6 @@ export function getMenuForUser(
         sectionItems = isClientPortal
           ? CLIENT_FINANCE_MENU_ITEMS
           : FINANCE_MENU_ITEMS;
-        // Per-page denials (invoicing:<navKey>) only matter once invoicing
-        // itself is accessible — the module-level filter below still applies.
         sectionItems = filterFinanceMenuItems(sectionItems, overrides);
       }
 
@@ -1363,122 +1532,6 @@ export function getMenuForUser(
       };
     })
     .filter((section) => section.items.length > 0);
-}
-
-export const MODULE_LABELS: Record<ModuleKey, string> = {
-
-  dashboard: "Dashboard",
-
-  projects: "Projects",
-
-  progress: "Progress Reports",
-
-  cico: "CICO",
-
-  attendance: "Attendance Report",
-
-  shifts: "Shifts",
-
-  leaves: "Leave & Sick",
-
-  approvals: "Approvals",
-
-  materialRequests: "Material Requests",
-
-  transferOrders: "Transfer Orders",
-
-  reports: "Client Reports",
-
-  inventory: "Inventory",
-
-  itemCatalog: "Item Catalog",
-
-  invoicing: "Invoice and Billing",
-
-  clients: "Clients",
-
-  vendors: "Vendors",
-
-  users: "Users",
-
-  employees: "Employees",
-
-  departments: "Departments",
-
-  settings: "Settings",
-
-  website: "Website CMS",
-
-};
-
-
-
-export function formatEmployeeTypeLabel(type: EmployeeType | null | undefined) {
-
-  switch (type) {
-
-    case "HEAD_OFFICE":
-
-      return "Head Office";
-
-    case "PROJECT_SITE":
-
-      return "Project Site";
-
-    default:
-
-      return "-";
-
-  }
-
-}
-
-
-
-export function formatEmployeeStatusLabel(
-
-  status: "ACTIVE" | "INACTIVE" | "TERMINATED" | "ON_LEAVE" | string
-
-) {
-
-  switch (status) {
-
-    case "ACTIVE":
-
-      return "Active";
-
-    case "INACTIVE":
-
-      return "Inactive";
-
-    case "DELETED":
-
-      return "Deleted";
-
-    case "ON_LEAVE":
-
-      return "On Leave";
-
-    case "LEAVE_PENDING":
-
-      return "Applying for Leave";
-
-    case "TERMINATED":
-
-      return "Terminated";
-
-    default:
-
-      return status
-
-        .replace(/_/g, " ")
-
-        .toLowerCase()
-
-        .replace(/\b\w/g, (char) => char.toUpperCase());
-
-  }
-
 }
 
 

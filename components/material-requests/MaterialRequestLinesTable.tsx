@@ -47,10 +47,10 @@ export default function MaterialRequestLinesTable({
         className
       )}
     >
-      <table className="w-full min-w-[28rem] text-sm">
+      <table className="w-full min-w-[40rem] text-sm">
         <thead className="bg-elevated/60 text-left text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-subtle">
           <tr>
-            <th className={cn(cellPad, "font-semibold")}>
+            <th className={cn(cellPad, "text-left font-semibold")}>
               {t("pages.materialRequests.columns.item")}
             </th>
             <th className={cn(cellPad, "w-[1%] whitespace-nowrap font-semibold")}>

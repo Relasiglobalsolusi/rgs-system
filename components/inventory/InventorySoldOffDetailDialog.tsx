@@ -1,11 +1,12 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { CircleDollarSign, ExternalLink, FileText } from "lucide-react";
+import { CircleDollarSign, ExternalLink, FileText, Undo2 } from "lucide-react";
 
 import type { InventorySoldOffRow } from "@/components/inventory/inventory-types";
 import {
   EmployeeDialogShell,
+  EmployeePrimaryButton,
   EmployeeSecondaryButton,
 } from "@/components/employees/employee-dialog-ui";
 import { buttonVariants } from "@/components/ui/button";
@@ -23,6 +24,8 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   row: InventorySoldOffRow | null;
+  canReverse?: boolean;
+  onReverse?: (row: InventorySoldOffRow) => void;
 };
 
 const labelClass =
@@ -109,6 +112,8 @@ export default function InventorySoldOffDetailDialog({
   open,
   onOpenChange,
   row,
+  canReverse = false,
+  onReverse,
 }: Props) {
   const { t } = useT();
 
@@ -249,9 +254,21 @@ export default function InventorySoldOffDetailDialog({
         description={t("pages.inventory.saleDetailsDesc")}
         maxWidth="lg"
         footer={
-          <EmployeeSecondaryButton onClick={() => onOpenChange(false)}>
-            {t("common.actions.close")}
-          </EmployeeSecondaryButton>
+          <>
+            <EmployeeSecondaryButton onClick={() => onOpenChange(false)}>
+              {t("common.actions.close")}
+            </EmployeeSecondaryButton>
+            {canReverse && onReverse ? (
+              <EmployeePrimaryButton
+                type="button"
+                className="gap-1.5"
+                onClick={() => onReverse(row)}
+              >
+                <Undo2 className="h-3.5 w-3.5" />
+                {t("pages.inventory.reverseSale")}
+              </EmployeePrimaryButton>
+            ) : null}
+          </>
         }
       >
         <div className="space-y-3">

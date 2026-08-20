@@ -94,25 +94,6 @@ export function formatInventorySku(typeCode: string, sequence: number): string {
   )}`;
 }
 
-/**
- * Parse `{CODE}-{digits}` SKUs. Accepts any digit width (legacy 4-digit and current 3-digit).
- */
-export function parseInventorySku(
-  sku: string
-): { typeCode: string; sequence: number } | null {
-  const match = sku
-    .trim()
-    .toUpperCase()
-    .match(/^([A-Z0-9]+)-(\d+)$/);
-  if (!match) return null;
-  const sequence = Number.parseInt(match[2], 10);
-  if (!Number.isFinite(sequence) || sequence < 1) return null;
-  return {
-    typeCode: normalizeInventoryTypeCode(match[1]),
-    sequence,
-  };
-}
-
 function parseSkuSequence(sku: string, typeCode: string): number | null {
   const code = typeCode.trim().toUpperCase();
   const aliases = new Set<string>([
@@ -155,44 +136,6 @@ function typeCodePrefixes(typeCode: string): string[] {
   const code = normalizeInventoryTypeCode(typeCode);
   const codes = [code, ...(INVENTORY_SKU_LEGACY_ALIASES[code] ?? [])];
   return codes.map((c) => `${c}${INVENTORY_SKU_SEPARATOR}`);
-}
-
-/**
- * Canonical SKU for an existing row: current type code + 3-digit pad.
- * Returns null when the SKU is already canonical or cannot be parsed.
- *
- * - CHEM-0001 → CHM-001, CONS-0002 → CNS-002, EQP-0001 → EQP-001
- * - Custom prefixes only re-pad (TOOL-0003 → TOOL-003)
- * - When `itemType` is a preset and the SKU uses that preset/legacy code, sync to the preset code
- */
-export function canonicalizeInventorySku(
-  sku: string,
-  itemType?: string
-): string | null {
-  const trimmed = sku.trim();
-  const parsed = parseInventorySku(trimmed);
-  if (!parsed) return null;
-
-  const rawPrefix =
-    trimmed.toUpperCase().split(INVENTORY_SKU_SEPARATOR)[0] ?? "";
-  let typeCode = parsed.typeCode;
-
-  if (itemType?.trim()) {
-    const fromLabel = inventoryTypeCodeFromLabel(itemType);
-    const presetCodes = new Set<string>(Object.values(INVENTORY_ITEM_TYPE_CODES));
-    const legacyForLabel = INVENTORY_SKU_LEGACY_ALIASES[fromLabel] ?? [];
-    if (
-      presetCodes.has(fromLabel) &&
-      (rawPrefix === fromLabel ||
-        legacyForLabel.includes(rawPrefix) ||
-        normalizeInventoryTypeCode(rawPrefix) === fromLabel)
-    ) {
-      typeCode = fromLabel;
-    }
-  }
-
-  const next = formatInventorySku(typeCode, parsed.sequence);
-  return next === trimmed || next === trimmed.toUpperCase() ? null : next;
 }
 
 /**

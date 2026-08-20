@@ -29,16 +29,14 @@ import {
 } from "@/components/ui/use-directory-dialog-open";
 import { useT } from "@/lib/i18n/use-t";
 import {
-  ADMIN_SCOPE_MODULES,
-  FINANCE_PERMISSION_CHILDREN,
+  PORTAL_BLOCKED_MODULES,
   buildOverridesFromToggle,
-  financeChildOverrideKey,
+  expandLegacyFinanceOverrides,
   getAccountType,
   getAccountTypeBaselineModules,
   getAllModuleAccessStates,
   getEmployeeModuleOverrides,
   getVisibleModules,
-  isFinanceChildAccessible,
   type ModuleKey,
   type PermissionUser,
 } from "@/lib/permissions";
@@ -58,7 +56,12 @@ type UserForPermissions = {
     employeeType: EmployeeType;
     employmentType: EmploymentType;
     placement: Placement;
-    jobPosition?: { id: string; name: string; slug?: string | null } | null;
+    jobPosition?: {
+      id: string;
+      name: string;
+      slug?: string | null;
+      defaultModuleAccess?: unknown;
+    } | null;
   } | null;
 };
 
@@ -139,8 +142,8 @@ export default function UserPermissionsDialog({
   const { t } = useT();
   const { open, setOpen } = useDirectoryDialogOpen(controlledOpen, onOpenChange);
   const [pending, startTransition] = useTransition();
-  const [overrides, setOverrides] = useState<Record<string, boolean>>(
-    user.moduleOverrides ?? {}
+  const [overrides, setOverrides] = useState<Record<string, boolean>>(() =>
+    expandLegacyFinanceOverrides(user.moduleOverrides ?? {})
   );
 
   const accountType = useMemo(() => getAccountType(user), [user]);
@@ -154,6 +157,8 @@ export default function UserPermissionsDialog({
               ? {
                   slug: user.employee.jobPosition.slug,
                   name: user.employee.jobPosition.name,
+                  defaultModuleAccess:
+                    user.employee.jobPosition.defaultModuleAccess,
                 }
               : null,
           })
@@ -185,7 +190,7 @@ export default function UserPermissionsDialog({
     const modules = getVisibleModules();
     if (!isPortalUser) return modules;
     return modules.filter((module) => {
-      if (ADMIN_SCOPE_MODULES.includes(module)) return false;
+      if (PORTAL_BLOCKED_MODULES.includes(module)) return false;
       if (accountType === "Vendor" && module === "progress") return false;
       return true;
     });
@@ -194,6 +199,7 @@ export default function UserPermissionsDialog({
   const enabledCount = visibleModules.filter(
     (module) => accessStates[module].effective
   ).length;
+  const totalCount = visibleModules.length;
 
   const permissionsDescription = useMemo(() => {
     const intro = t("pages.users.permissionsDescIntro", {
@@ -215,44 +221,22 @@ export default function UserPermissionsDialog({
   function handleOpenChange(nextOpen: boolean) {
     setOpen(nextOpen);
     if (nextOpen) {
-      setOverrides(user.moduleOverrides ?? {});
+      setOverrides(
+        expandLegacyFinanceOverrides(user.moduleOverrides ?? {}, baseline)
+      );
     }
   }
 
   function handleToggle(module: ModuleKey, enabled: boolean) {
-    setOverrides((current) => {
-      const next = buildOverridesFromToggle(
+    setOverrides((current) =>
+      buildOverridesFromToggle(
         permissionUser,
         module,
         enabled,
         current,
         baseline
-      );
-      // Parent Finance off → clear child denials (all children follow parent).
-      // Parent Finance on → ensure children default on (remove explicit false).
-      if (module === "invoicing") {
-        const cleaned = { ...next };
-        for (const child of FINANCE_PERMISSION_CHILDREN) {
-          delete cleaned[financeChildOverrideKey(child.navKey)];
-        }
-        return cleaned;
-      }
-      return next;
-    });
-  }
-
-  function handleFinanceChildToggle(navKey: string, enabled: boolean) {
-    setOverrides((current) => {
-      const next = { ...current };
-      const key = financeChildOverrideKey(navKey);
-      if (enabled) {
-        // Default is on — remove explicit denial.
-        delete next[key];
-      } else {
-        next[key] = false;
-      }
-      return next;
-    });
+      )
+    );
   }
 
   function handleReset() {
@@ -339,7 +323,7 @@ export default function UserPermissionsDialog({
             <p className="mt-2 text-xs text-muted">
               {t("pages.users.permissionsModulesEnabled", {
                 enabled: enabledCount,
-                total: visibleModules.length,
+                total: totalCount,
               })}
               {overrideCount > 0
                 ? ` ${t(
@@ -355,90 +339,25 @@ export default function UserPermissionsDialog({
           <div className={employeeDialogGridClass}>
             {visibleModules.map((module) => {
               const state = accessStates[module];
-              const moduleLabel =
-                module === "invoicing"
-                  ? t("nav.sections.Finance")
-                  : t(`modules.${module}`);
+              const moduleLabel = t(`modules.${module}`);
               return (
-                <div key={module} className="space-y-2">
-                  <ModuleToggle
-                    module={module}
-                    moduleLabel={moduleLabel}
-                    enabled={state.effective}
-                    isOverridden={state.override !== null}
-                    defaultValue={state.default}
-                    disabled={pending}
-                    onToggle={handleToggle}
-                    defaultOnLabel={t("pages.users.permissionsDefaultOn")}
-                    defaultOffLabel={t("pages.users.permissionsDefaultOff")}
-                    overriddenLabel={t("pages.users.permissionsOverridden")}
-                    accessAriaLabel={t(
-                      "pages.users.permissionsModuleAccessAria",
-                      { module: moduleLabel }
-                    )}
-                  />
-                  {module === "invoicing" && state.effective ? (
-                    <div className="ml-3 space-y-2 border-l border-border pl-3">
-                      {FINANCE_PERMISSION_CHILDREN.map((child) => {
-                        const childEnabled = isFinanceChildAccessible(
-                          overrides,
-                          child.navKey
-                        );
-                        const childKey = financeChildOverrideKey(child.navKey);
-                        const childOverridden =
-                          typeof overrides[childKey] === "boolean";
-                        const childLabel = t(
-                          `nav.items.${child.label}` as "nav.items.Purchases"
-                        );
-                        return (
-                          <div
-                            key={child.navKey}
-                            className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 ${
-                              childEnabled
-                                ? "border-primary/20 bg-card-tint-emerald/60"
-                                : "border-border bg-elevated"
-                            }`}
-                          >
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium text-text">
-                                {childLabel}
-                              </p>
-                              {childOverridden ? (
-                                <p className="mt-0.5 text-[11px] text-muted">
-                                  {t("pages.users.permissionsOverridden")}
-                                </p>
-                              ) : null}
-                            </div>
-                            <button
-                              type="button"
-                              role="switch"
-                              aria-checked={childEnabled}
-                              aria-label={childLabel}
-                              disabled={pending}
-                              onClick={() =>
-                                handleFinanceChildToggle(
-                                  child.navKey,
-                                  !childEnabled
-                                )
-                              }
-                              className={`relative h-6 w-10 shrink-0 rounded-full transition disabled:opacity-50 ${
-                                childEnabled ? "bg-primary" : "bg-inset"
-                              }`}
-                            >
-                              <span
-                                className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
-                                  childEnabled
-                                    ? "translate-x-4"
-                                    : "translate-x-0"
-                                }`}
-                              />
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-                </div>
+                <ModuleToggle
+                  key={module}
+                  module={module}
+                  moduleLabel={moduleLabel}
+                  enabled={state.effective}
+                  isOverridden={state.override !== null}
+                  defaultValue={state.default}
+                  disabled={pending}
+                  onToggle={handleToggle}
+                  defaultOnLabel={t("pages.users.permissionsDefaultOn")}
+                  defaultOffLabel={t("pages.users.permissionsDefaultOff")}
+                  overriddenLabel={t("pages.users.permissionsOverridden")}
+                  accessAriaLabel={t(
+                    "pages.users.permissionsModuleAccessAria",
+                    { module: moduleLabel }
+                  )}
+                />
               );
             })}
           </div>

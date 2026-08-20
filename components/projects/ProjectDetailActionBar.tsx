@@ -17,12 +17,20 @@ import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n/use-t";
 import type { ProjectSubCategory } from "@/lib/project-subcategory";
 import type { ProjectServiceAreaValue } from "@/lib/service-area";
+import type { ProjectShiftWindow } from "@/lib/project-shifts";
 import type { ProjectStaffEmployee } from "@/components/projects/ProjectStaffPicker";
 import { detailActionBarButtonClassName } from "@/components/projects/detail-action-bar";
 import ProjectEditDialog from "@/components/projects/ProjectEditDialog";
 import ProjectDeleteDialog from "@/components/projects/ProjectDeleteDialog";
 import ProjectExtendContractButton from "@/components/projects/ProjectExtendContractButton";
 import ProjectFinishButton from "@/components/projects/ProjectFinishButton";
+import ProjectRedoJobButton from "@/components/projects/ProjectRedoJobButton";
+import ProjectRenewContractButton from "@/components/projects/ProjectRenewContractButton";
+import type { ProjectTeamOption } from "@/components/projects/ProjectTeamPicker";
+import {
+  isExtendableContractSubCategory,
+  isRedoJobSubCategory,
+} from "@/lib/project-contract";
 import ProjectStartButton, {
   ProjectReturnToPlanningBlockedChip,
   ProjectReturnToPlanningButton,
@@ -52,16 +60,27 @@ type EditProject = {
   serviceArea?: ProjectServiceAreaValue;
   billingMode: BillingMode;
   billingPeriodBasis?: BillingPeriodBasis | null;
+  billingCycleStartDay?: number | null;
+  billingCycleEndDay?: number | null;
   requiresTaxInvoice: boolean;
   contractPrice?: number | null;
   setupCost?: number | null;
   profitSharePercent?: number | null;
   monthlyClientFee?: number | null;
+  memberParkingUnitFee?: number | null;
+  memberParkingUnitCount?: number | null;
+  parkingTaxPercent?: number | null;
   serviceFeePercent?: number | null;
   paymentTermsDays?: number | null;
+  payrollCutoffStartDay?: number | null;
+  payrollCutoffEndDay?: number | null;
+  payrollTaxPercent?: number | null;
   clientId: string | null;
   status: ProjectStatus | string;
+  shiftCount?: number;
+  shifts?: ProjectShiftWindow[];
   assignments: { employeeId: string }[];
+  operationsTeamLinks?: { teamId: string }[];
 };
 
 type DeleteProject = {
@@ -96,6 +115,8 @@ type Props = {
   /** List URL to return to after delete (e.g. planning / in-progress). */
   deleteRedirectHref?: string;
   employees: ProjectStaffEmployee[];
+  teams?: ProjectTeamOption[];
+  assignedTeamIds?: string[];
   clients: ClientOption[];
   /** Page body between the top action bar and bottom Delete / End Contract. */
   children: ReactNode;
@@ -123,6 +144,8 @@ export default function ProjectDetailActionBar({
   deleteProject,
   deleteRedirectHref,
   employees,
+  teams = [],
+  assignedTeamIds = [],
   clients,
   children,
 }: Props) {
@@ -148,9 +171,21 @@ export default function ProjectDetailActionBar({
     canManage &&
     showEndContract &&
     Boolean(endDate) &&
-    subCategory === "REGULAR_CLEANING";
+    isExtendableContractSubCategory(subCategory);
+  const showRenewContract =
+    canManage &&
+    editProject.status === "COMPLETED" &&
+    isExtendableContractSubCategory(subCategory);
+  const showRedoJob =
+    canManage &&
+    editProject.status === "COMPLETED" &&
+    isRedoJobSubCategory(subCategory);
   const hasBottomActions =
-    showDelete || showEndContract || showExtendContract;
+    showDelete ||
+    showEndContract ||
+    showExtendContract ||
+    showRenewContract ||
+    showRedoJob;
 
   return (
     <>
@@ -168,9 +203,11 @@ export default function ProjectDetailActionBar({
                   startDate={startDate}
                   endDate={endDate}
                   employees={employees}
+                  teams={teams}
                   assignedEmployeeIds={editProject.assignments.map(
                     (assignment) => assignment.employeeId
                   )}
+                  assignedTeamIds={assignedTeamIds}
                   size="bar"
                 />
               ) : null}
@@ -293,11 +330,24 @@ export default function ProjectDetailActionBar({
                 size="bar"
               />
             ) : null}
+            {showRenewContract ? (
+              <ProjectRenewContractButton projectId={projectId} size="bar" />
+            ) : null}
+            {showRedoJob ? (
+              <ProjectRedoJobButton
+                projectId={projectId}
+                employees={employees}
+                teams={teams}
+                size="bar"
+              />
+            ) : null}
             {showEndContract ? (
               <ProjectFinishButton
                 projectId={projectId}
                 projectName={projectName}
                 isRegularContract
+                requiresLastDay
+                plannedEndDate={endDate}
                 mode="end-only"
                 size="bar"
               />
@@ -310,6 +360,8 @@ export default function ProjectDetailActionBar({
         <ProjectEditDialog
           project={editProject}
           employees={employees}
+          teams={teams}
+          assignedTeamIds={assignedTeamIds}
           clients={clients}
           showTrigger={false}
           open={editOpen}

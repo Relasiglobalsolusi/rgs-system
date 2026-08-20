@@ -52,6 +52,7 @@ export type BillingProjectRow = {
   contractPrice: number | null;
   openInvoices: number;
   lateInvoices: number;
+  awaitingPayment?: boolean;
 };
 
 type Props = {
@@ -165,6 +166,7 @@ export default function BillingProjectDirectory({
         render: (project) => {
           const englishLabel = getProjectWorkflowStatusLabel({
             status: project.status,
+            awaitingPayment: project.awaitingPayment,
           });
           const statusLabel = localizeProjectStatus(project.status, locale);
           const statusLines = localizeWorkflowChipLines(englishLabel, locale);

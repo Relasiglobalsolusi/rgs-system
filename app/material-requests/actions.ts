@@ -12,7 +12,8 @@ import {
 } from "@/lib/inventory";
 import type { AppLocale } from "@/lib/i18n/locale";
 import { prisma } from "@/lib/prisma";
-import { requireModule } from "@/lib/session";
+import { requireModule, toPermissionUser } from "@/lib/session";
+import { assertCanApproveProjectServiceArea } from "@/lib/om-approval";
 import { capitalizeProper } from "@/lib/text-case";
 
 function toActionError(error: unknown, fallback: string) {
@@ -184,11 +185,22 @@ export async function reviewMaterialRequest(formData: FormData) {
     await prisma.$transaction(async (tx) => {
       const request = await tx.materialRequest.findFirst({
         where: { id, companyId: company.id, status: "REQUESTED" },
-        include: { lines: true },
+        include: {
+          lines: true,
+          project: { select: { id: true, serviceArea: true } },
+        },
       });
       if (!request) {
         throw new Error(translate(locale, "pages.materialRequests.notFound"));
       }
+
+      await assertCanApproveProjectServiceArea({
+        userId: session.user.id,
+        username: session.user.username,
+        permissionUser: toPermissionUser(session),
+        projectServiceArea: request.project.serviceArea,
+        projectId: request.project.id,
+      });
 
       if (decision === "REJECT") {
         await tx.materialRequest.update({

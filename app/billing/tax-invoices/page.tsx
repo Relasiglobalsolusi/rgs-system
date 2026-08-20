@@ -28,12 +28,10 @@ type SearchParams = Promise<{
 function periodCommercialAmount(period: {
   revisedInvoiceAmount: Parameters<typeof decimalToNumber>[0];
   amount: Parameters<typeof decimalToNumber>[0];
-  project: { contractPrice: Parameters<typeof decimalToNumber>[0] };
 }): number {
   return (
     decimalToNumber(period.revisedInvoiceAmount) ??
     decimalToNumber(period.amount) ??
-    decimalToNumber(period.project.contractPrice) ??
     0
   );
 }

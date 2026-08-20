@@ -119,7 +119,7 @@ export default function MaterialRequestForm({
           <table className="w-full min-w-[36rem] text-sm">
             <thead className="bg-elevated/60 text-left text-[0.6875rem] uppercase tracking-[0.12em] text-subtle">
               <tr>
-                <th className="px-3 py-2.5 font-semibold">
+                <th className="px-3 py-2.5 text-left font-semibold">
                   {t("pages.materialRequests.columns.item")}
                 </th>
                 <th className="px-3 py-2.5 font-semibold text-right">

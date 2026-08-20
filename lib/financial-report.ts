@@ -1,60 +1,69 @@
 import type { EmploymentType } from "@prisma/client";
 
-import { formatEmployeeName } from "@/lib/employee-user-link";
+import { prismaDateFilter } from "@/lib/financial-report-query";
+import {
+  allocateCompanyWages,
+  type AllocatedWageEmployee,
+  type WageSplitNote,
+} from "@/lib/internal-payroll-wages";
 import { prisma } from "@/lib/prisma";
+import { PROJECT_PAY_RECOVERY_TYPES } from "@/lib/payroll-deductions";
 import { decimalToNumber } from "@/lib/project-billing";
+import {
+  DEFAULT_PRODUCT_PPN_RATE_PERCENT,
+  ppnRateFromPercent,
+  splitInclusiveVat,
+} from "@/lib/vat";
 
 /**
  * Financial Report P&L definitions (HO Finance only):
  *
- * UX order (product): company-wide first, then drill/list per client → project.
- * Full rebuild of the company-wide landing can defer — do not contradict this.
+ * UX order: company-wide first, then drill to clients → projects (including completed).
  *
- * - Contract value: Project.contractPrice (IDR), summed across a client's projects.
- * - Money in: ProjectInvoicePeriod rows with status === "PAID" (confirmed cash;
- *   PENDING_VERIFICATION is excluded). Amount =
- *   revisedInvoiceAmount ?? amount ?? project.contractPrice (same fallback as billing).
- * - Money out / spending: non-equipment inventory issued to the project (consumables /
- *   chemicals / other ISSUE_TO_PROJECT costs) + wage cost of employees currently
- *   assigned to the project (see below). Equipment deployments are location/custody
- *   only and are excluded from inventoryOut / project inventory cost.
- * - Parking (deferred engine): net profit = manual monthly revenue − ALL outflows
- *   logged against the project (owner profit-share, lease, setup, purchases, wages,
- *   etc.) — no special exclusions.
- * - Payroll Management (deferred workflow): fronted wage bill = cost; RGS profit =
- *   management fee % only (`serviceFeePercent`).
- * - Client profit: contract value − spending (contract margin).
- * - Project profit: money in − money out (confirmed receipts vs inventory + wages).
- *
- * Wage cost (no payroll-run model in this ERP):
- * - Source: Employee.basePay (monthly upah pokok in IDR; also used for BPJS/THR).
- * - Scope: current ProjectAssignment rows only. Releases delete assignment rows, so
- *   former assignees are not included (no assignment history).
- * - Period: inclusive UTC calendar days from assignedAt through
- *   min(today, project.endDate when set and earlier than today).
- * - Amount: calendar-month proration of monthly basePay
- *   (days overlapping month / days in that month × basePay), rounded to IDR.
- * - THR, BPJS employer cost, attendance/timesheet allocation, and paid payroll
- *   lines are not included (none are project-linked payroll actuals).
- * - Full Time and Part Time use the same monthly basePay field; there is no
- *   separate daily rate. Dual-assigned staff get full prorated basePay on each
- *   project (no timesheet split).
+ * - Money in: PAID invoice periods at the approved reconciliation amount
+ *   (else the invoice amount). Tax-inclusive receipts are split by dividing
+ *   by 1 + rate (DPP = paid ÷ 1.12 at 12%). Contract price is the agreed job
+ *   value shown separately — never copied onto every period.
+ * - Accounts payable: unpaid vendor bills (what we owe). Not a P&L expense.
+ * - Money out: stock issued to a project (ISSUE_TO_PROJECT, not equipment);
+ *   PROJECT / INTERNAL vendor bills when paid; Internal Payroll wages;
+ *   parking deal outflows; Payroll Management wages RGS actually paid.
+ * - STOCK purchases stay warehouse assets until issued. Paying the vendor
+ *   only clears AP.
+ * - Wages match Internal Payroll: daily rate = monthly pay ÷ 26; company pay =
+ *   daily rate × complete check-in+check-out days (one paid day per calendar day).
+ *   Same-day multi-site work splits that one daily rate equally (1/N).
+ *   Company cash out uses net Internal Payroll (gross minus manual deductions
+ *   plus Return of security deposit).
  */
 
 export type PaidPeriodAmountInput = {
   amount: Parameters<typeof decimalToNumber>[0];
   revisedInvoiceAmount?: Parameters<typeof decimalToNumber>[0];
   projectContractPrice?: Parameters<typeof decimalToNumber>[0];
+  ppnRatePercent?: Parameters<typeof decimalToNumber>[0];
 };
 
-/** Confirmed receipt amount for one PAID invoice period. */
-export function paidPeriodAmount(period: PaidPeriodAmountInput): number {
+/** Tax-inclusive commercial amount the client approved or was billed. */
+export function commercialPeriodGross(period: PaidPeriodAmountInput): number {
   return (
     decimalToNumber(period.revisedInvoiceAmount) ??
     decimalToNumber(period.amount) ??
-    decimalToNumber(period.projectContractPrice) ??
     0
   );
+}
+
+/**
+ * P&L income for one PAID period: approved / invoiced amount with tax
+ * taken out by dividing (amount ÷ 1.12 at 12%), never by subtracting 12%.
+ */
+export function recognizedIncomeAmount(period: PaidPeriodAmountInput): number {
+  const gross = commercialPeriodGross(period);
+  if (gross <= 0) return 0;
+  const ratePercent =
+    decimalToNumber(period.ppnRatePercent) ?? DEFAULT_PRODUCT_PPN_RATE_PERCENT;
+  if (ratePercent <= 0) return Math.round(gross);
+  return splitInclusiveVat(gross, ppnRateFromPercent(ratePercent)).dpp;
 }
 
 export function profitMarginPercent(
@@ -65,242 +74,301 @@ export function profitMarginPercent(
   return (profit / moneyIn) * 100;
 }
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-/** UTC calendar day (00:00Z). */
-export function utcCalendarDay(date: Date): Date {
-  return new Date(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
-  );
-}
-
-function daysInUtcMonth(year: number, monthIndex: number): number {
-  return new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
-}
-
-/**
- * Last day to accrue wage cost for an assignment on a project.
- * Uses project.endDate when it is on/before asOf; otherwise asOf (today).
- */
-export function wageCostThroughDate(options: {
-  asOf?: Date;
-  projectEndDate?: Date | null;
-}): Date {
-  const asOf = utcCalendarDay(options.asOf ?? new Date());
-  if (!options.projectEndDate) return asOf;
-  const end = utcCalendarDay(options.projectEndDate);
-  return end.getTime() < asOf.getTime() ? end : asOf;
-}
-
-/**
- * Prorate monthly base pay over inclusive UTC calendar days [from, through].
- * Each calendar month contributes basePay × (overlapDays / daysInMonth).
- */
-export function prorateMonthlyBasePay(
-  monthlyBasePay: number,
-  from: Date,
-  through: Date
-): number {
-  const pay = Math.max(0, Number.isFinite(monthlyBasePay) ? monthlyBasePay : 0);
-  const start = utcCalendarDay(from);
-  const end = utcCalendarDay(through);
-  if (pay <= 0 || end.getTime() < start.getTime()) return 0;
-
-  let total = 0;
-  let year = start.getUTCFullYear();
-  let month = start.getUTCMonth();
-  const endYear = end.getUTCFullYear();
-  const endMonth = end.getUTCMonth();
-
-  while (year < endYear || (year === endYear && month <= endMonth)) {
-    const monthDays = daysInUtcMonth(year, month);
-    const monthStart = new Date(Date.UTC(year, month, 1));
-    const monthEnd = new Date(Date.UTC(year, month, monthDays));
-    const overlapStart =
-      start.getTime() > monthStart.getTime() ? start : monthStart;
-    const overlapEnd = end.getTime() < monthEnd.getTime() ? end : monthEnd;
-    if (overlapEnd.getTime() >= overlapStart.getTime()) {
-      const days =
-        Math.round(
-          (overlapEnd.getTime() - overlapStart.getTime()) / MS_PER_DAY
-        ) + 1;
-      total += pay * (days / monthDays);
-    }
-    month += 1;
-    if (month > 11) {
-      month = 0;
-      year += 1;
-    }
-  }
-
-  return Math.round(total);
-}
-
 export type ProjectWageEmployeeRow = {
-  assignmentId: string;
   employeeId: string;
   employeeNo: string;
   name: string;
   employmentType: EmploymentType;
   monthlyBasePay: number | null;
-  assignedAt: Date;
-  costFrom: Date;
-  costThrough: Date;
+  dailyRate: number;
+  daysWorked: number;
   wageCost: number;
+  splitNotes: WageSplitNote[];
 };
 
-type AssignmentWageInput = {
-  assignmentId: string;
-  assignedAt: Date;
-  employee: {
-    id: string;
-    employeeNo: string;
-    firstName: string;
-    lastName: string;
-    employmentType: EmploymentType;
-    basePay: Parameters<typeof decimalToNumber>[0];
-  };
-};
-
-export function buildProjectWageEmployeeRow(
-  assignment: AssignmentWageInput,
-  projectEndDate: Date | null | undefined,
-  asOf?: Date
+function toProjectWageRow(
+  row: AllocatedWageEmployee
 ): ProjectWageEmployeeRow {
-  const monthlyBasePay = decimalToNumber(assignment.employee.basePay);
-  const costFrom = utcCalendarDay(assignment.assignedAt);
-  const costThrough = wageCostThroughDate({
-    asOf,
-    projectEndDate: projectEndDate ?? null,
-  });
-  const wageCost = prorateMonthlyBasePay(
-    monthlyBasePay ?? 0,
-    costFrom,
-    costThrough
-  );
-
   return {
-    assignmentId: assignment.assignmentId,
-    employeeId: assignment.employee.id,
-    employeeNo: assignment.employee.employeeNo,
-    name: formatEmployeeName(assignment.employee),
-    employmentType: assignment.employee.employmentType,
-    monthlyBasePay,
-    assignedAt: assignment.assignedAt,
-    costFrom,
-    costThrough,
-    wageCost,
+    employeeId: row.employeeId,
+    employeeNo: row.employeeNo,
+    name: row.name,
+    employmentType: row.employmentType,
+    monthlyBasePay: row.monthlyBasePay > 0 ? row.monthlyBasePay : null,
+    dailyRate: row.dailyRate,
+    daysWorked: row.daysWorked,
+    wageCost: row.wageCost,
+    splitNotes: row.splitNotes,
   };
 }
 
-/** Wage rows for one project (current assignees), ordered by name. */
+/** Wage rows for one project from Internal Payroll (CICO days, including history). */
 export async function listProjectWageCosts(
   projectId: string,
-  options?: { companyId?: string; asOf?: Date }
+  options?: { companyId?: string; from?: Date; toExclusive?: Date }
 ): Promise<ProjectWageEmployeeRow[]> {
-  const project = await prisma.project.findFirst({
-    where: {
-      id: projectId,
-      ...(options?.companyId ? { companyId: options.companyId } : {}),
-    },
-    select: {
-      endDate: true,
-      assignments: {
-        select: {
-          id: true,
-          assignedAt: true,
-          employee: {
-            select: {
-              id: true,
-              employeeNo: true,
-              firstName: true,
-              lastName: true,
-              employmentType: true,
-              basePay: true,
-            },
-          },
-        },
-      },
-    },
+  if (!options?.companyId) return [];
+  const allocated = await allocateCompanyWages({
+    companyId: options.companyId,
+    from: options.from,
+    toExclusive: options.toExclusive,
   });
-
-  if (!project) return [];
-
-  return project.assignments
-    .map((assignment) =>
-      buildProjectWageEmployeeRow(
-        {
-          assignmentId: assignment.id,
-          assignedAt: assignment.assignedAt,
-          employee: assignment.employee,
-        },
-        project.endDate,
-        options?.asOf
-      )
-    )
-    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+  return (allocated.get(projectId) ?? []).map(toProjectWageRow);
 }
 
-/** Sum wage cost for one project (current assignees). */
-export async function getProjectWageCost(
-  projectId: string,
-  options?: { companyId?: string; asOf?: Date }
-): Promise<number> {
-  const rows = await listProjectWageCosts(projectId, options);
-  return rows.reduce((sum, row) => sum + row.wageCost, 0);
-}
-
-/**
- * Wage cost totals keyed by projectId for many projects (one query).
- * Uses each project's endDate for the cost-through rule.
- */
 export async function getProjectWageCostsByProjectIds(
   projectIds: string[],
-  options?: { companyId?: string; asOf?: Date }
+  options?: { companyId?: string; from?: Date; toExclusive?: Date }
 ): Promise<Map<string, number>> {
   const totals = new Map<string, number>();
+  if (projectIds.length === 0 || !options?.companyId) return totals;
+  const allocated = await allocateCompanyWages({
+    companyId: options.companyId,
+    from: options.from,
+    toExclusive: options.toExclusive,
+  });
+  for (const projectId of projectIds) {
+    const rows = allocated.get(projectId) ?? [];
+    totals.set(
+      projectId,
+      rows.reduce((sum, row) => sum + row.wageCost, 0)
+    );
+  }
+  return totals;
+}
+
+export async function getSoldOffIncome(options: {
+  companyId: string;
+  year?: number;
+  clientId?: string;
+  from?: Date;
+  toExclusive?: Date;
+}): Promise<number> {
+  const soldAt = prismaDateFilter(
+    options.from ??
+      (options.year != null ? new Date(Date.UTC(options.year, 0, 1)) : undefined),
+    options.toExclusive ??
+      (options.year != null
+        ? new Date(Date.UTC(options.year + 1, 0, 1))
+        : undefined)
+  );
+  const sales = await prisma.inventorySale.findMany({
+    where: {
+      companyId: options.companyId,
+      ...(options.clientId ? { clientId: options.clientId } : {}),
+      movement: { voidedAt: null },
+      ...(soldAt ? { soldAt } : {}),
+    },
+    select: { totalPrice: true },
+  });
+  return sales.reduce(
+    (sum, sale) => sum + (decimalToNumber(sale.totalPrice) ?? 0),
+    0
+  );
+}
+
+export async function getSoldOffIncomeByClientIds(
+  companyId: string,
+  clientIds: string[],
+  from?: Date,
+  toExclusive?: Date
+): Promise<Map<string, number>> {
+  const totals = new Map<string, number>();
+  if (clientIds.length === 0) return totals;
+  const soldAt = prismaDateFilter(from, toExclusive);
+  const groups = await prisma.inventorySale.groupBy({
+    by: ["clientId"],
+    where: {
+      companyId,
+      clientId: { in: clientIds },
+      movement: { voidedAt: null },
+      ...(soldAt ? { soldAt } : {}),
+    },
+    _sum: { totalPrice: true },
+  });
+  for (const row of groups) {
+    if (!row.clientId) continue;
+    totals.set(row.clientId, decimalToNumber(row._sum.totalPrice) ?? 0);
+  }
+  return totals;
+}
+
+function inUtcRange(
+  date: Date | null | undefined,
+  from?: Date,
+  toExclusive?: Date
+): boolean {
+  if (!date) return false;
+  if (from && date.getTime() < from.getTime()) return false;
+  if (toExclusive && date.getTime() >= toExclusive.getTime()) return false;
+  return true;
+}
+
+export async function getPayrollManagementTotalsByProjectIds(
+  projectIds: string[],
+  from?: Date,
+  toExclusive?: Date
+): Promise<Map<string, { moneyIn: number; moneyOut: number }>> {
+  const totals = new Map<string, { moneyIn: number; moneyOut: number }>();
   if (projectIds.length === 0) return totals;
 
-  const assignments = await prisma.projectAssignment.findMany({
-    where: {
-      projectId: { in: projectIds },
-      ...(options?.companyId
-        ? { project: { companyId: options.companyId } }
-        : {}),
-    },
+  const periods = await prisma.payrollManagementPeriod.findMany({
+    where: { projectId: { in: projectIds } },
     select: {
-      id: true,
       projectId: true,
-      assignedAt: true,
-      project: { select: { endDate: true } },
-      employee: {
-        select: {
-          id: true,
-          employeeNo: true,
-          firstName: true,
-          lastName: true,
-          employmentType: true,
-          basePay: true,
-        },
-      },
+      status: true,
+      pdfLocked: true,
+      pdfLockedAt: true,
+      wagesPaidAt: true,
+      reimbursedAt: true,
+      wagesTotal: true,
+      feeAmount: true,
+      taxAmount: true,
+      clientBillAmount: true,
+      invoicePeriod: { select: { status: true, paidAt: true } },
     },
   });
 
-  for (const assignment of assignments) {
-    const row = buildProjectWageEmployeeRow(
-      {
-        assignmentId: assignment.id,
-        assignedAt: assignment.assignedAt,
-        employee: assignment.employee,
-      },
-      assignment.project.endDate,
-      options?.asOf
-    );
-    totals.set(
-      assignment.projectId,
-      (totals.get(assignment.projectId) ?? 0) + row.wageCost
-    );
+  const bounded = Boolean(from || toExclusive);
+  for (const period of periods) {
+    const current = totals.get(period.projectId) ?? { moneyIn: 0, moneyOut: 0 };
+    const wages = decimalToNumber(period.wagesTotal) ?? 0;
+    const fee = decimalToNumber(period.feeAmount) ?? 0;
+    const tax = decimalToNumber(period.taxAmount) ?? 0;
+    const clientBill = decimalToNumber(period.clientBillAmount) ?? 0;
+    const wageWhen = period.wagesPaidAt ?? period.pdfLockedAt;
+    const wagesRecognized =
+      Boolean(period.wagesPaidAt) ||
+      period.status === "CLIENT_APPROVED" ||
+      period.status === "WAGES_PAID" ||
+      period.status === "INVOICED" ||
+      period.status === "REIMBURSED";
+    if (
+      wagesRecognized &&
+      (bounded ? inUtcRange(wageWhen, from, toExclusive) : true)
+    ) {
+      current.moneyOut += wages;
+    }
+    const paidAt = period.invoicePeriod?.paidAt ?? period.reimbursedAt;
+    const paid =
+      period.invoicePeriod?.status === "PAID" || period.status === "REIMBURSED";
+    if (paid && (bounded ? inUtcRange(paidAt, from, toExclusive) : true)) {
+      current.moneyIn += Math.max(0, (clientBill || wages + fee + tax) - tax);
+    }
+    totals.set(period.projectId, current);
   }
+  return totals;
+}
 
+export async function getProjectPnlAdjustments(
+  companyId: string,
+  projectIds: string[],
+  options?: {
+    year?: number;
+    month?: number | null;
+    from?: Date;
+    toExclusive?: Date;
+  }
+): Promise<
+  Map<
+    string,
+    {
+      depositReturned: number;
+      keptDeposit: number;
+      payRecovery: number;
+      incidents: number;
+    }
+  >
+> {
+  const totals = new Map<
+    string,
+    {
+      depositReturned: number;
+      keptDeposit: number;
+      payRecovery: number;
+      incidents: number;
+    }
+  >();
+  for (const id of projectIds) {
+    totals.set(id, {
+      depositReturned: 0,
+      keptDeposit: 0,
+      payRecovery: 0,
+      incidents: 0,
+    });
+  }
+  if (projectIds.length === 0) return totals;
+
+  const payrollPeriodWhere =
+    options?.year != null
+      ? {
+          year: options.year,
+          ...(options.month != null ? { month: options.month } : {}),
+        }
+      : {};
+  const incurredAt = prismaDateFilter(options?.from, options?.toExclusive);
+
+  const [returns, recoveries, incidents, keptEmployees] = await Promise.all([
+    prisma.payrollDeduction.groupBy({
+      by: ["projectId"],
+      where: {
+        companyId,
+        projectId: { in: projectIds },
+        type: "RETURN_OF_SECURITY_DEPOSIT",
+        ...payrollPeriodWhere,
+      },
+      _sum: { amount: true },
+    }),
+    prisma.payrollDeduction.groupBy({
+      by: ["projectId"],
+      where: {
+        companyId,
+        projectId: { in: projectIds },
+        type: { in: [...PROJECT_PAY_RECOVERY_TYPES] },
+        ...payrollPeriodWhere,
+      },
+      _sum: { amount: true },
+    }),
+    prisma.projectExpense.groupBy({
+      by: ["projectId"],
+      where: {
+        projectId: { in: projectIds },
+        ...(incurredAt ? { incurredAt } : {}),
+      },
+      _sum: { amount: true },
+    }),
+    options?.from || options?.toExclusive || options?.year != null
+      ? Promise.resolve([])
+      : prisma.employee.findMany({
+          where: {
+            companyId,
+            depositStatus: "KEPT_BY_COMPANY",
+            depositSourceProjectId: { in: projectIds },
+          },
+          select: { depositSourceProjectId: true, depositHeldAmount: true },
+        }),
+  ]);
+
+  for (const row of returns) {
+    if (!row.projectId) continue;
+    const current = totals.get(row.projectId);
+    if (current) current.depositReturned = decimalToNumber(row._sum.amount) ?? 0;
+  }
+  for (const row of recoveries) {
+    if (!row.projectId) continue;
+    const current = totals.get(row.projectId);
+    if (current) current.payRecovery = decimalToNumber(row._sum.amount) ?? 0;
+  }
+  for (const row of incidents) {
+    const current = totals.get(row.projectId);
+    if (current) current.incidents = decimalToNumber(row._sum.amount) ?? 0;
+  }
+  for (const row of keptEmployees) {
+    if (!row.depositSourceProjectId) continue;
+    const current = totals.get(row.depositSourceProjectId);
+    if (current) {
+      current.keptDeposit += decimalToNumber(row.depositHeldAmount) ?? 0;
+    }
+  }
   return totals;
 }

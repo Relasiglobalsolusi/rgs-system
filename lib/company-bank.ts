@@ -59,16 +59,6 @@ export function resolveCompanyBankDetails(
   };
 }
 
-export function bankAccountNumbersMatch(
-  expected: string | null | undefined,
-  extracted: string | null | undefined
-): boolean {
-  const a = normalizeBankAccountNumber(expected);
-  const b = normalizeBankAccountNumber(extracted);
-  if (!a || !b) return false;
-  return a === b;
-}
-
 /**
  * Conservative minimum for any prefix/suffix credit.
  * Overlaps shorter than this stay on raw Levenshtein only (usually reject).

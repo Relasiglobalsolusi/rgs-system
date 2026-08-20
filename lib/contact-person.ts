@@ -38,39 +38,3 @@ export function resolveContactPersonNameParts(
 
   return { firstName: firstRaw, lastName: null };
 }
-
-function normalizeNamePart(value: string | null | undefined): string {
-  return (value ?? "").trim().toLowerCase();
-}
-
-/**
- * True when resolved contact-person name parts differ (case-insensitive).
- * Used by vendors: contact-derived Login ID rotates on rename.
- * Clients keep company-based Login IDs and only sync display name on rename.
- */
-export function contactPersonNamePartsChanged(
-  previous: {
-    firstName: string | null | undefined;
-    lastName?: string | null | undefined;
-  },
-  next: {
-    firstName: string | null | undefined;
-    lastName?: string | null | undefined;
-  }
-): boolean {
-  const prevParts = resolveContactPersonNameParts(
-    previous.firstName ?? "",
-    previous.lastName
-  );
-  const nextParts = resolveContactPersonNameParts(
-    next.firstName ?? "",
-    next.lastName
-  );
-
-  return (
-    normalizeNamePart(prevParts.firstName) !==
-      normalizeNamePart(nextParts.firstName) ||
-    normalizeNamePart(prevParts.lastName) !==
-      normalizeNamePart(nextParts.lastName)
-  );
-}

@@ -196,17 +196,6 @@ export function parsePhoneWithCountry(
   return tryParseWithCountry(raw, id, countryCode);
 }
 
-export function isValidPhoneForCountry(
-  raw: string,
-  countryCode: string,
-  countryId?: string | null
-): boolean {
-  const trimmed = raw.trim();
-  if (!trimmed) return false;
-  const parsed = parsePhoneWithCountry(trimmed, countryCode, countryId);
-  return Boolean(parsed?.isValid());
-}
-
 /**
  * National digits for PhoneInput / import display.
  * Soft-strips pasted +CC/CC; when libphonenumber can parse, uses its
@@ -315,27 +304,6 @@ export function normalizePhoneForStorage(
     return parsed.format("E.164");
   }
   return `${countryCode}${soft}`;
-}
-
-/**
- * Best-effort normalize to E.164 (no throw). Empty → "".
- * Prefer {@link normalizeAndValidatePhone} for Add panels / import.
- */
-export function normalizePhone(value: string): string {
-  const trimmed = value.trim();
-  if (!trimmed) return "";
-
-  const direct = parsePhoneNumberFromString(trimmed);
-  if (direct && (direct.isValid() || direct.isPossible())) {
-    return direct.format("E.164");
-  }
-
-  const parsed = parsePhoneValue(trimmed);
-  return normalizePhoneForStorage(
-    parsed.countryCode,
-    parsed.localDigits,
-    parsed.countryId
-  );
 }
 
 /**

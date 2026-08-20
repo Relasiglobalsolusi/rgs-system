@@ -108,6 +108,8 @@ export default async function DashboardPage() {
   const projectWhere = await getProjectWhereForUser({
     companyId,
     clientId: session.user.clientId,
+    userId: session.user.id,
+    username: session.user.username,
   });
   const companyFieldStaffWhere = companyId
     ? { ...activeFieldStaffWhere, companyId }

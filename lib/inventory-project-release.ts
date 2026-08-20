@@ -85,6 +85,10 @@ export async function releaseProjectEquipmentToInventory(
         assignedAt: null,
       },
     });
+    await db.equipmentAsset.updateMany({
+      where: { projectId, companyId: project.companyId, status: "IN_TRANSIT" },
+      data: { projectId: null },
+    });
     await syncEquipmentWarehouseStockForItems(db, [...affectedItemIds]);
     if (affectedItemIds.size > 0) {
       await assertEquipmentInventoryInvariants(db, project.companyId, {
@@ -135,6 +139,13 @@ export async function releaseProjectEquipmentToInventory(
       issueMovementId: null,
       assignedAt: null,
     },
+  });
+
+  // Sent-not-received units stay IN_TRANSIT for the item-return path, but must
+  // not remain assigned to the emptied site.
+  await db.equipmentAsset.updateMany({
+    where: { projectId, companyId: project.companyId, status: "IN_TRANSIT" },
+    data: { projectId: null },
   });
 
   // Source of truth after demob: AVAILABLE ledger (covers orphan assets and

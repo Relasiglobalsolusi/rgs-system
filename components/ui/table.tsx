@@ -15,11 +15,17 @@ function Table({
   return (
     <div
       data-slot="table-container"
-      className={cn("relative w-full overflow-x-auto", containerClassName)}
+      className={cn(
+        "relative w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]",
+        containerClassName
+      )}
     >
       <table
         data-slot="table"
-        className={cn("w-full caption-bottom text-sm", className)}
+        className={cn(
+          "w-full min-w-max caption-bottom text-left text-sm",
+          className
+        )}
         {...props}
       />
     </div>

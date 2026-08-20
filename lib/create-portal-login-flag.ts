@@ -1,8 +1,3 @@
-/** Gray Excel placeholder for the Portal Login Access column (English template). */
-export const CREATE_PORTAL_LOGIN_PLACEHOLDER = "Yes / No";
-/** Gray Excel placeholder for the Portal Login Access column (Indonesian template). */
-export const CREATE_PORTAL_LOGIN_PLACEHOLDER_ID = "Ya / Tidak";
-
 export function isCreatePortalLoginPlaceholder(value: string): boolean {
   const normalized = value.trim().toLowerCase().replace(/\s+/g, " ");
   return (

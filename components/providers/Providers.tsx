@@ -7,6 +7,7 @@ import { LocaleProvider } from "@/components/providers/LocaleProvider";
 import { SessionProvider } from "@/components/providers/SessionProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { RejectionNoticeHost } from "@/components/ui/rejection-notice";
+import { Toaster } from "@/components/ui/sonner";
 import type { AppLocale } from "@/lib/i18n/locale";
 
 export function Providers({
@@ -24,6 +25,7 @@ export function Providers({
         <LocaleProvider initialLocale={initialLocale}>
           {children}
           <RejectionNoticeHost />
+          <Toaster />
         </LocaleProvider>
       </ThemeProvider>
     </SessionProvider>

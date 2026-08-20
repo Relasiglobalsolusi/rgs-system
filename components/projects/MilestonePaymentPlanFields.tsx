@@ -26,6 +26,10 @@ type Props = {
   onInstallmentPercentsChange: (percents: number[]) => void;
   /** Optional contract price for amount preview (may be unset at create). */
   contractPrice?: number | null;
+  /** Prefix field names (e.g. `line.0.`) for bulk create. */
+  namePrefix?: string;
+  /** Prefix element ids so multiple plans can sit on one page. */
+  idPrefix?: string;
 };
 
 export default function MilestonePaymentPlanFields({
@@ -34,8 +38,13 @@ export default function MilestonePaymentPlanFields({
   onPaymentCountChange,
   onInstallmentPercentsChange,
   contractPrice = null,
+  namePrefix = "",
+  idPrefix = "",
 }: Props) {
   const { t } = useT();
+  const nameOf = (field: string) =>
+    namePrefix ? `${namePrefix}${field}` : field;
+  const idOf = (id: string) => (idPrefix ? `${idPrefix}${id}` : id);
   const sum =
     Math.round(
       installmentPercents.reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0) *
@@ -82,13 +91,13 @@ export default function MilestonePaymentPlanFields({
       <div className="flex flex-wrap items-end gap-3">
         <div className={employeeDialogFieldClass}>
           <label
-            htmlFor="milestone-payment-count"
+            htmlFor={idOf("milestone-payment-count")}
             className="text-sm font-medium text-muted"
           >
             {t("pages.projects.paymentPlan.numberOfPayments")}
           </label>
           <Input
-            id="milestone-payment-count"
+            id={idOf("milestone-payment-count")}
             type="number"
             min={MIN_MILESTONE_PAYMENTS}
             max={MAX_MILESTONE_PAYMENTS}
@@ -125,12 +134,11 @@ export default function MilestonePaymentPlanFields({
                 #{index + 1}
               </span>
               <Input
-                name="milestoneInstallmentPercent"
+                name={nameOf("milestoneInstallmentPercent")}
                 type="number"
                 min={0.01}
                 max={100}
                 step="0.01"
-                value={Number.isFinite(pct) ? pct : ""}
                 onChange={(e) => setInstallmentAt(index, e.target.value)}
                 required
                 className={`${employeeInputClass} h-10`}

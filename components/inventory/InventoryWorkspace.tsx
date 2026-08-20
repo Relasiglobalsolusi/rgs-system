@@ -16,7 +16,7 @@ import {
 } from "@/app/inventory/actions";
 import InventoryAssetList from "@/components/inventory/InventoryAssetList";
 import InventoryProjectIssues from "@/components/inventory/InventoryProjectIssues";
-import InventoryPurchaseDialog from "@/components/inventory/InventoryPurchaseDialog";
+import InventoryReverseSoldOffDialog from "@/components/inventory/InventoryReverseSoldOffDialog";
 import InventoryReverseWriteOffDialog from "@/components/inventory/InventoryReverseWriteOffDialog";
 import InventorySoldOffDialog from "@/components/inventory/InventorySoldOffDialog";
 import InventorySoldOffTables from "@/components/inventory/InventorySoldOffTables";
@@ -31,7 +31,6 @@ import type {
   InventoryPurchaseRow,
   InventorySoldOffRow,
   InventoryTab,
-  InventoryVendorOption,
   InventoryWriteOffRow,
 } from "@/components/inventory/inventory-types";
 import DirectoryAddButton from "@/components/ui/DirectoryAddButton";
@@ -55,34 +54,36 @@ type Props = {
   canManage: boolean;
   /** OM+ / Director / HO admin — write off / sell stock (issues only via MR → TO). */
   canAssignToProject: boolean;
+  /** Primary owner login only — reverse a completed sale. */
+  canReverseSale: boolean;
   items: InventoryCatalogItem[];
   purchases: InventoryPurchaseRow[];
   issues: InventoryIssueRow[];
   writeOffs: InventoryWriteOffRow[];
   soldOffs: InventorySoldOffRow[];
-  vendors: InventoryVendorOption[];
   equipmentAssets: InventoryOverviewAssetRow[];
 };
 
 export default function InventoryWorkspace({
   canManage,
   canAssignToProject,
+  canReverseSale,
   items,
   purchases,
   issues,
   writeOffs,
   soldOffs,
-  vendors,
   equipmentAssets,
 }: Props) {
   const { t } = useT();
   const [tab, setTab] = useState<InventoryTab>("stock");
   const [searchQuery, setSearchQuery] = useState("");
-  const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [writeOffOpen, setWriteOffOpen] = useState(false);
   const [soldOffOpen, setSoldOffOpen] = useState(false);
   const [reverseWriteOffTarget, setReverseWriteOffTarget] =
     useState<InventoryWriteOffRow | null>(null);
+  const [reverseSoldOffTarget, setReverseSoldOffTarget] =
+    useState<InventorySoldOffRow | null>(null);
   const [searchedPurchases, setSearchedPurchases] = useState<
     InventoryPurchaseRow[] | null
   >(null);
@@ -438,12 +439,6 @@ export default function InventoryWorkspace({
         />
         {canManage ? (
           <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-            {tab === "purchases" ? (
-              <DirectoryAddButton
-                label={t("pages.inventory.addPurchase")}
-                onClick={() => setPurchaseOpen(true)}
-              />
-            ) : null}
             {tab === "writeOffs" && canAssignToProject ? (
               <DirectoryAddButton
                 label={t("pages.inventory.addWriteOff")}
@@ -459,6 +454,12 @@ export default function InventoryWorkspace({
           </div>
         ) : null}
       </div>
+
+      {tab === "purchases" ? (
+        <p className="mb-3 text-sm text-subtle">
+          {t("pages.inventory.stockReceiptsViaExpenses")}
+        </p>
+      ) : null}
 
       {tab === "purchases" && trimmedSearch && searchPending ? (
         <p className="mb-3 text-xs text-muted">
@@ -481,7 +482,9 @@ export default function InventoryWorkspace({
       ) : tab === "stock" ? (
         <InventoryStockTables items={visibleStock} searchQuery={searchQuery} />
       ) : tab === "issues" ? (
-        <InventoryProjectIssues issues={issues} searchQuery={searchQuery} />
+        <div className="space-y-4">
+          <InventoryProjectIssues issues={issues} searchQuery={searchQuery} />
+        </div>
       ) : tab === "writeOffs" ? (
         <InventoryWriteOffTables
           writeOffs={writeOffs}
@@ -493,6 +496,8 @@ export default function InventoryWorkspace({
         <InventorySoldOffTables
           soldOffs={visibleSoldOffs}
           searchQuery={searchQuery}
+          canReverse={canReverseSale}
+          onReverse={setReverseSoldOffTarget}
         />
       ) : visiblePurchases.length === 0 ? (
         <SectionCard>
@@ -519,18 +524,13 @@ export default function InventoryWorkspace({
 
       {canManage ? (
         <>
-          <InventoryPurchaseDialog
-            open={purchaseOpen}
-            onOpenChange={setPurchaseOpen}
-            items={items}
-            vendors={vendors}
-          />
           {canAssignToProject ? (
             <>
               <InventoryWriteOffDialog
                 open={writeOffOpen}
                 onOpenChange={setWriteOffOpen}
                 items={items}
+                equipmentAssets={equipmentAssets}
               />
               <InventorySoldOffDialog
                 open={soldOffOpen}
@@ -547,6 +547,15 @@ export default function InventoryWorkspace({
             </>
           ) : null}
         </>
+      ) : null}
+
+      {canReverseSale ? (
+        <InventoryReverseSoldOffDialog
+          target={reverseSoldOffTarget}
+          onOpenChange={(open) => {
+            if (!open) setReverseSoldOffTarget(null);
+          }}
+        />
       ) : null}
     </>
   );

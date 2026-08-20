@@ -6,6 +6,7 @@ import {
   type PermissionUser,
 } from "@/lib/permissions";
 import {
+  isAreaManagerPosition,
   isDirectorPosition,
   isOperationsManagerPosition,
 } from "@/lib/positions";
@@ -14,13 +15,15 @@ import { prisma } from "@/lib/prisma";
 /**
  * Who is creating/editing employees.
  * HO admin (owner / Admin accounts) can assign any position including Director.
- * Director can assign OM and below, not Director.
- * OM can assign only below OM (not OM, not Director).
+ * Director can assign OM, Area Manager, and below — not Director.
+ * OM can assign Area Manager and below (not OM, not Director).
+ * Area Manager can assign only below Area Manager.
  */
 export type EmployeeCreateActorTier =
   | "HO_ADMIN"
   | "DIRECTOR"
   | "OPERATIONS_MANAGER"
+  | "AREA_MANAGER"
   | "OTHER";
 
 export type PositionRankRef = {
@@ -42,6 +45,9 @@ export function getEmployeeCreateActorTier(
   if (position && isOperationsManagerPosition(position)) {
     return "OPERATIONS_MANAGER";
   }
+  if (position && isAreaManagerPosition(position)) {
+    return "AREA_MANAGER";
+  }
   return "OTHER";
 }
 
@@ -55,6 +61,7 @@ export function canAssignEmployeePosition(
 
   const targetIsDirector = isDirectorPosition(targetPosition);
   const targetIsOm = isOperationsManagerPosition(targetPosition);
+  const targetIsAm = isAreaManagerPosition(targetPosition);
 
   if (actorTier === "DIRECTOR") {
     return !targetIsDirector;
@@ -62,7 +69,10 @@ export function canAssignEmployeePosition(
   if (actorTier === "OPERATIONS_MANAGER") {
     return !targetIsDirector && !targetIsOm;
   }
-  // Other HO staff with employees module: same as OM — below OM only.
+  if (actorTier === "AREA_MANAGER") {
+    return !targetIsDirector && !targetIsOm && !targetIsAm;
+  }
+  // Other HO staff with employees module: below OM only (may add Area Manager).
   return !targetIsDirector && !targetIsOm;
 }
 
@@ -83,8 +93,18 @@ export function employeeCreateHierarchyError(
     return "Only the account owner can add a Director.";
   }
   if (isOperationsManagerPosition(targetPosition)) {
-    if (actorTier === "OPERATIONS_MANAGER" || actorTier === "OTHER") {
+    if (
+      actorTier === "OPERATIONS_MANAGER" ||
+      actorTier === "AREA_MANAGER" ||
+      actorTier === "OTHER"
+    ) {
       return "Operations Managers can only add employees below Operations Manager.";
+    }
+    return "You cannot assign this position.";
+  }
+  if (isAreaManagerPosition(targetPosition)) {
+    if (actorTier === "AREA_MANAGER") {
+      return "Area Managers can only add employees below Area Manager.";
     }
     return "You cannot assign this position.";
   }

@@ -60,7 +60,7 @@ export async function provisionEmployeeUser(
       status: true,
       userId: true,
       user: { select: { id: true, active: true } },
-      jobPosition: { select: { slug: true, name: true } },
+      jobPosition: { select: { slug: true, name: true, defaultModuleAccess: true } },
     },
   });
 

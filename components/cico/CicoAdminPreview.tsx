@@ -41,6 +41,7 @@ type Props = {
   adminFieldMode?: boolean;
   selectableProjects?: SelectableProject[];
   todayRecord?: TodayRecord | null;
+  todaySessions?: TodayRecord[];
   hasProgressReport?: boolean;
   /** Cleaning positions only — matches operational CICO checkout gate. */
   requiresProgress?: boolean;
@@ -55,6 +56,7 @@ export default function CicoAdminPreview({
   adminFieldMode = false,
   selectableProjects = [],
   todayRecord = null,
+  todaySessions = [],
   hasProgressReport = false,
   requiresProgress = false,
   hasEmployeeProfile = true,
@@ -183,6 +185,7 @@ export default function CicoAdminPreview({
               previewMode={!adminFieldMode}
               adminFieldMode={adminFieldMode}
               todayRecord={adminFieldMode ? todayRecord : null}
+              todaySessions={adminFieldMode ? todaySessions : []}
               assignedProjects={fieldProjects}
               hasProgressReport={adminFieldMode ? hasProgressReport : false}
               requiresProgress={adminFieldMode ? requiresProgress : false}

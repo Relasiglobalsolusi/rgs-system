@@ -3,7 +3,6 @@
  * Kesehatan and JP use wage-base caps; JKK is a manual company % (0.10–1.60).
  */
 
-export const BPJS_KESEHATAN_TOTAL_RATE = 0.05;
 export const BPJS_KESEHATAN_COMPANY_RATE = 0.04;
 export const BPJS_KESEHATAN_EMPLOYEE_RATE = 0.01;
 /** Contribution base max for BPJS Kesehatan (IDR). */
@@ -156,6 +155,11 @@ export type ParsedEmployeeFinance = {
   jkkEnabled: boolean;
   jkmEnabled: boolean;
   jkkPercent: number | null;
+  securityDepositRequired: boolean;
+  cicoExempt: boolean;
+  bankName: string | null;
+  bankAccountNumber: string | null;
+  bankAccountName: string | null;
 };
 
 export function parseEmployeeFinanceFromForm(formData: FormData): ParsedEmployeeFinance {
@@ -186,6 +190,12 @@ export function parseEmployeeFinanceFromForm(formData: FormData): ParsedEmployee
     }
   }
 
+  const bankName = String(formData.get("bankName") ?? "").trim() || null;
+  const bankAccountNumber =
+    String(formData.get("bankAccountNumber") ?? "").trim() || null;
+  const bankAccountName =
+    String(formData.get("bankAccountName") ?? "").trim() || null;
+
   return {
     basePay,
     bpjsKesehatanEnabled,
@@ -195,5 +205,12 @@ export function parseEmployeeFinanceFromForm(formData: FormData): ParsedEmployee
     jkkEnabled,
     jkmEnabled,
     jkkPercent,
+    securityDepositRequired: parseCheckboxFlag(
+      formData.get("securityDepositRequired")
+    ),
+    cicoExempt: parseCheckboxFlag(formData.get("cicoExempt")),
+    bankName,
+    bankAccountNumber,
+    bankAccountName,
   };
 }

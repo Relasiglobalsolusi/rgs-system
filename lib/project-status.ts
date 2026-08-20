@@ -4,6 +4,7 @@ export const PROJECT_STATUSES = [
   "PLANNED",
   "IN_PROGRESS",
   "WAITING_FOR_APPROVAL",
+  "OFF_SITE",
   "ON_HOLD",
   "COMPLETED",
   "CANCELLED",
@@ -19,9 +20,14 @@ export const PROJECT_PLANNING_LIST_STATUSES = [
   PROJECT_PLANNING_STATUS,
 ] as const satisfies readonly ProjectStatus[];
 
-/** Field operations (CICO, progress) — only once work order is received. */
-export const PROJECT_FIELD_STATUSES = [
+/**
+ * Site work stays open while a billing period is with the client.
+ * Pending Approval is a period status on the project page — not a list stage.
+ * WAITING_FOR_APPROVAL is kept for leftover rows and treated as In Progress.
+ */
+export const PROJECT_SITE_WORK_STATUSES = [
   "IN_PROGRESS",
+  "WAITING_FOR_APPROVAL",
 ] as const satisfies readonly ProjectStatus[];
 
 /**
@@ -37,6 +43,7 @@ export const PROJECT_WAITING_FOR_APPROVAL_STATUS =
  */
 export const PROJECT_IN_PROGRESS_LIST_STATUSES = [
   "IN_PROGRESS",
+  "WAITING_FOR_APPROVAL",
 ] as const satisfies readonly ProjectStatus[];
 
 /**
@@ -67,15 +74,14 @@ export const PROJECT_ALL_LIST_STATUSES = [
   "PLANNED",
   "IN_PROGRESS",
   "WAITING_FOR_APPROVAL",
+  "OFF_SITE",
 ] as const satisfies readonly ProjectStatus[];
-
-/** @deprecated Prefer PROJECT_IN_PROGRESS_LIST_STATUSES */
-export const PROJECT_ACTIVE_LIST_STATUSES = PROJECT_IN_PROGRESS_LIST_STATUSES;
 
 export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
   PLANNED: "Planning",
   IN_PROGRESS: "In Progress",
   WAITING_FOR_APPROVAL: "Pending Approval",
+  OFF_SITE: "Off-site",
   ON_HOLD: "On Hold",
   COMPLETED: "Completed",
   CANCELLED: "Cancelled",
@@ -97,6 +103,8 @@ export const PROJECT_WORKFLOW_STATUS_LABELS = [
   "Planning",
   "In Progress",
   "Pending Approval",
+  "Off-site",
+  "Awaiting payment",
   "Payment Due",
   "Completed",
 ] as const;
@@ -111,7 +119,10 @@ export type ProjectWorkflowStatusLabel =
 export function getProjectWorkflowStatusLabel(opts: {
   status: ProjectStatus | string | null | undefined;
   paymentDue?: boolean;
+  /** Last GC/Facade part invoiced, unpaid — show Awaiting payment, not In Progress. */
+  awaitingPayment?: boolean;
 }): ProjectWorkflowStatusLabel | string {
+  if (opts.awaitingPayment) return "Awaiting payment";
   if (opts.paymentDue) return "Payment Due";
 
   switch (opts.status) {
@@ -119,9 +130,8 @@ export function getProjectWorkflowStatusLabel(opts: {
       return "Planning";
     case "IN_PROGRESS":
     case "ON_HOLD":
-      return "In Progress";
     case "WAITING_FOR_APPROVAL":
-      return "Pending Approval";
+      return "In Progress";
     case "COMPLETED":
       return "Completed";
     case "CANCELLED":
@@ -140,31 +150,14 @@ export function projectWorkflowStatusBadge(
     case "Completed":
       return "success";
     case "Payment Due":
+    case "Awaiting payment":
       return "warning";
     case "Pending Approval":
+    case "Off-site":
       return "warning";
     case "Planning":
     default:
       return "pending";
-  }
-}
-
-/**
- * Two-line chip lines for long workflow labels inside the fixed StatusBadge.
- * Single-word labels (Planning, Completed) return null — use children as-is.
- */
-export function projectWorkflowStatusChipLines(
-  label: string
-): readonly [string, string] | null {
-  switch (label) {
-    case "In Progress":
-      return ["In", "Progress"];
-    case "Payment Due":
-      return ["Payment", "Due"];
-    case "Pending Approval":
-      return ["Pending", "Approval"];
-    default:
-      return null;
   }
 }
 
@@ -174,25 +167,12 @@ export function isPlanningProjectStatus(
   return value === PROJECT_PLANNING_STATUS;
 }
 
-export function isFieldOpsProjectStatus(
+/** CICO / progress may run — review of one period does not stop the site. */
+export function isProjectOpenForSiteWork(
   value: ProjectStatus | string | null | undefined
 ): boolean {
   return (
     !!value &&
-    (PROJECT_FIELD_STATUSES as readonly string[]).includes(value)
+    (PROJECT_SITE_WORK_STATUSES as readonly string[]).includes(value)
   );
-}
-
-/** True when the project is in the mutual client + HO approval loop. */
-export function isWaitingForApproval(
-  value: ProjectStatus | string | null | undefined
-): boolean {
-  return value === "WAITING_FOR_APPROVAL";
-}
-
-/** True when the project is actively in progress (field ops or awaiting approval). */
-export function isActiveProjectStatus(
-  value: ProjectStatus | string | null | undefined
-): boolean {
-  return value === "IN_PROGRESS" || value === "WAITING_FOR_APPROVAL";
 }

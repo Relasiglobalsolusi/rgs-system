@@ -4,11 +4,19 @@ import { prisma } from "@/lib/prisma";
 import { requireModule } from "@/lib/session";
 import { getProjectWhereForUser } from "@/lib/project-access";
 import {
+  COMPLETE_SHIFT_HOURS,
+  DOUBLE_SHIFT_HOURS,
+  attendanceHours,
+  hoursMeetShift,
+  jakartaWorkDateKey,
+} from "@/lib/shift-pay";
+import {
   getReportPeriodBounds,
   type ReportPeriodBounds,
 } from "@/lib/report-period-bounds";
 import {
   formatTimeRange,
+  isEarlyCheckOut,
   isLateCheckIn,
   resolveExpectedShiftStart,
 } from "@/lib/operating-hours";
@@ -62,6 +70,10 @@ export type AttendanceMonthRow = {
   checkInPhotoUrl: string | null;
   note: string | null;
   isLate: boolean | null;
+  isEarly: boolean | null;
+  hoursWorked: number | null;
+  requiredHours: number | null;
+  underAssignedHours: boolean;
   shiftLabel: string;
   employee: { firstName: string; lastName: string; employeeNo: string };
   project: { name: string } | null;
@@ -79,11 +91,6 @@ export type AttendanceMonthData = {
   clientName: string;
   groups: AttendanceDayGroup[];
 };
-
-export async function getAttendanceClients(): Promise<AttendanceClientRow[]> {
-  const directory = await getAttendanceDirectory();
-  return directory.clients;
-}
 
 /** Attendance home: Internal (HO + Warehouse) then external clients. */
 export async function getAttendanceDirectory(): Promise<AttendanceDirectory> {
@@ -107,6 +114,8 @@ export async function getAttendanceDirectory(): Promise<AttendanceDirectory> {
   const projectWhere = await getProjectWhereForUser({
     companyId,
     clientId: session.user.clientId,
+    userId: session.user.id,
+    username: session.user.username,
   });
 
   const { ATTENDANCE_INTERNAL_CLIENT_NAME, isAttendanceInternalProject } =
@@ -141,6 +150,20 @@ export async function getAttendanceDirectory(): Promise<AttendanceDirectory> {
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   });
 
+  if (internalSites.length > 0) {
+    const allowedInternal = await prisma.project.findMany({
+      where: {
+        id: { in: internalSites.map((site) => site.projectId) },
+        ...projectWhere,
+      },
+      select: { id: true },
+    });
+    const allowedIds = new Set(allowedInternal.map((row) => row.id));
+    internalSites = internalSites.filter((site) =>
+      allowedIds.has(site.projectId)
+    );
+  }
+
   return {
     internalSites,
     clients: clients
@@ -170,6 +193,8 @@ export async function getAttendanceProjectsForClient(
   const projectWhere = await getProjectWhereForUser({
     companyId: session.user.companyId,
     clientId: session.user.clientId,
+    userId: session.user.id,
+    username: session.user.username,
   });
 
   const client = await prisma.client.findFirst({
@@ -222,6 +247,8 @@ async function getAccessibleAttendanceProject(
   const projectWhere = await getProjectWhereForUser({
     companyId: session.user.companyId,
     clientId: session.user.clientId,
+    userId: session.user.id,
+    username: session.user.username,
   });
 
   if (isInternalRoute) {
@@ -336,6 +363,24 @@ export async function getAttendanceMonthData(
     }),
   ]);
 
+  const employeeIds = [...new Set(records.map((row) => row.employeeId))];
+  const doubleShifts =
+    employeeIds.length === 0
+      ? []
+      : await prisma.doubleShiftAssignment.findMany({
+          where: {
+            projectId,
+            employeeId: { in: employeeIds },
+            date: { gte: monthStart, lt: monthEnd },
+          },
+          select: { employeeId: true, date: true },
+        });
+  const doubleShiftKeys = new Set(
+    doubleShifts.map(
+      (row) => `${row.employeeId}:${jakartaWorkDateKey(row.date)}`
+    )
+  );
+
   const shiftMap = new Map(assignments.map((a) => [a.employeeId, a]));
   const { getOfficeCicoPunctuality } = await import("@/lib/office-cico");
   const isInternal = project.subCategory === "INTERNAL";
@@ -378,19 +423,36 @@ export async function getAttendanceMonthData(
         })
       : null;
     let isLate: boolean | null =
-      record.checkIn != null ? isLateCheckIn(record.checkIn, expected) : null;
+      record.lateCheckIn === true
+        ? true
+        : record.checkIn != null
+          ? isLateCheckIn(record.checkIn, expected)
+          : null;
     if (isInternal && record.checkIn != null && isLate == null) {
       isLate = officePunctuality?.lateCheckIn ?? false;
     }
-    let note = record.note;
-    if (isInternal && officePunctuality?.earlyCheckOut) {
-      const earlyTag = "Left early (before 17:00)";
-      note = note?.includes(earlyTag)
-        ? note
-        : note
-          ? `${note} · ${earlyTag}`
-          : earlyTag;
+    let isEarly: boolean | null =
+      record.earlyCheckOut === true
+        ? true
+        : record.checkOut != null
+          ? isEarlyCheckOut(
+              record.checkOut,
+              assignment?.shiftStart,
+              assignment?.shiftEnd
+            )
+          : null;
+    if (isInternal && record.checkOut != null && isEarly == null) {
+      isEarly = officePunctuality?.earlyCheckOut ?? false;
     }
+    const note = record.note;
+    const hoursWorked = attendanceHours(record.checkIn, record.checkOut);
+    const requiredHours = doubleShiftKeys.has(
+      `${record.employeeId}:${jakartaWorkDateKey(record.date)}`
+    )
+      ? DOUBLE_SHIFT_HOURS
+      : COMPLETE_SHIFT_HOURS;
+    const underAssignedHours =
+      hoursWorked != null && !hoursMeetShift(hoursWorked, requiredHours);
 
     dayGroups.get(dateKey)!.rows.push({
       id: record.id,
@@ -402,6 +464,10 @@ export async function getAttendanceMonthData(
       checkInPhotoUrl: record.checkInPhotoUrl,
       note,
       isLate,
+      isEarly,
+      hoursWorked,
+      requiredHours,
+      underAssignedHours,
       shiftLabel: isInternal
         ? "09:00 – 17:00"
         : formatTimeRange(
@@ -427,4 +493,124 @@ export async function getAttendanceMonthData(
     clientName,
     groups,
   };
+}
+
+export type EarlyCheckOutRow = {
+  id: string;
+  employeeName: string;
+  employeeNo: string;
+  projectName: string;
+  clientName: string;
+  date: Date;
+  shiftEnd: string | null;
+  checkOut: Date;
+  reportRecorded: boolean;
+};
+
+export type EarlyCheckOutReport = {
+  year: number;
+  month: number;
+  rows: EarlyCheckOutRow[];
+};
+
+function currentAttendanceYearMonth() {
+  const now = new Date();
+  return { year: now.getFullYear(), month: now.getMonth() + 1 };
+}
+
+async function loadEarlyCheckOutRows(
+  year: number,
+  month: number
+): Promise<EarlyCheckOutRow[]> {
+  const session = await requireModule("attendance");
+  const companyId = session.user.companyId;
+  if (!companyId) return [];
+
+  const projectWhere = await getProjectWhereForUser({
+    companyId,
+    clientId: session.user.clientId,
+    userId: session.user.id,
+    username: session.user.username,
+  });
+
+  const monthStart = new Date(Date.UTC(year, month - 1, 1));
+  const monthEnd = new Date(Date.UTC(year, month, 1));
+
+  const records = await prisma.attendance.findMany({
+    where: {
+      earlyCheckOut: true,
+      checkOut: { not: null },
+      date: { gte: monthStart, lt: monthEnd },
+      project: projectWhere,
+    },
+    include: {
+      employee: {
+        select: { firstName: true, lastName: true, employeeNo: true },
+      },
+      project: {
+        select: {
+          id: true,
+          name: true,
+          client: { select: { name: true } },
+        },
+      },
+    },
+    orderBy: [{ date: "desc" }, { checkOut: "desc" }],
+    take: 200,
+  });
+
+  if (records.length === 0) return [];
+
+  const assignmentPairs = records.flatMap((record) =>
+    record.projectId
+      ? [{ projectId: record.projectId, employeeId: record.employeeId }]
+      : []
+  );
+  const assignments =
+    assignmentPairs.length === 0
+      ? []
+      : await prisma.projectAssignment.findMany({
+          where: { OR: assignmentPairs },
+          select: { projectId: true, employeeId: true, shiftEnd: true },
+        });
+  const shiftEndByPair = new Map(
+    assignments.map((row) => [`${row.projectId}:${row.employeeId}`, row.shiftEnd])
+  );
+
+  return records.flatMap((record) => {
+    if (!record.checkOut || !record.project) return [];
+    return [
+      {
+        id: record.id,
+        employeeName: `${record.employee.firstName} ${record.employee.lastName}`.trim(),
+        employeeNo: record.employee.employeeNo,
+        projectName: record.project.name,
+        clientName: record.project.client?.name ?? "Internal",
+        date: record.date,
+        shiftEnd:
+          shiftEndByPair.get(`${record.projectId}:${record.employeeId}`) ??
+          (record.project.client ? null : "17:00"),
+        checkOut: record.checkOut,
+        reportRecorded: true,
+      },
+    ];
+  });
+}
+
+export async function getEarlyCheckOutCount(): Promise<number> {
+  const { year, month } = currentAttendanceYearMonth();
+  const rows = await loadEarlyCheckOutRows(year, month);
+  return rows.length;
+}
+
+export async function getEarlyCheckOutReport(
+  year?: number,
+  month?: number
+): Promise<EarlyCheckOutReport> {
+  const current = currentAttendanceYearMonth();
+  const resolvedYear = year && year >= 2000 && year <= 2100 ? year : current.year;
+  const resolvedMonth =
+    month && month >= 1 && month <= 12 ? month : current.month;
+  const rows = await loadEarlyCheckOutRows(resolvedYear, resolvedMonth);
+  return { year: resolvedYear, month: resolvedMonth, rows };
 }

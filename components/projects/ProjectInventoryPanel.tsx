@@ -126,10 +126,10 @@ export default function ProjectInventoryPanel({
           </p>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-border">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[48rem] text-sm">
               <thead className="bg-elevated/60 text-left text-xs uppercase tracking-[0.12em] text-subtle">
                 <tr>
-                  <th className="px-3 py-2.5 font-semibold">
+                  <th className="px-3 py-2.5 text-left font-semibold">
                     {t("pages.inventory.columns.date")}
                   </th>
                   <th className="px-3 py-2.5 font-semibold">
@@ -142,7 +142,7 @@ export default function ProjectInventoryPanel({
                     {t("pages.inventory.columns.totalCost")}
                   </th>
                   {canVoidIssue ? (
-                    <th className="px-3 py-2.5 font-semibold">
+                    <th className="px-3 py-2.5 text-center font-semibold">
                       {t("pages.inventory.columns.actions")}
                     </th>
                   ) : null}
@@ -180,7 +180,7 @@ export default function ProjectInventoryPanel({
                           : formatContractPrice(row.totalCost)}
                       </td>
                       {canVoidIssue ? (
-                        <td className="px-3 py-2.5">
+                        <td className="px-3 py-2.5 text-center">
                           <Button
                             type="button"
                             variant="ghost"

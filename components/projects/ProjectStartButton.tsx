@@ -24,6 +24,10 @@ import {
 import ProjectStaffPicker, {
   type ProjectStaffEmployee,
 } from "@/components/projects/ProjectStaffPicker";
+import ProjectTeamPicker, {
+  type ProjectTeamOption,
+} from "@/components/projects/ProjectTeamPicker";
+import { isMilestoneSubCategory } from "@/lib/project-billing";
 import ProjectTimelineFields from "@/components/projects/ProjectTimelineFields";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -55,7 +59,9 @@ type StartArgs = {
   startDate?: Date | string | null;
   endDate?: Date | string | null;
   employees?: ProjectStaffEmployee[];
+  teams?: ProjectTeamOption[];
   assignedEmployeeIds?: string[];
+  assignedTeamIds?: string[];
 };
 
 function initialDurationDays(args: {
@@ -87,7 +93,9 @@ export function useProjectStartAction({
   startDate,
   endDate,
   employees = [],
+  teams = [],
   assignedEmployeeIds = [],
+  assignedTeamIds = [],
 }: StartArgs) {
   const { t } = useT();
   const router = useRouter();
@@ -293,6 +301,12 @@ export function useProjectStartAction({
             <p className="text-xs text-subtle">
               {t("pages.projects.moveDialogStaffHelp")}
             </p>
+            {isMilestoneSubCategory(subCategory) ? (
+              <ProjectTeamPicker
+                teams={teams}
+                defaultCheckedIds={assignedTeamIds}
+              />
+            ) : null}
             <ProjectStaffPicker
               key={pickerKey}
               employees={employees}
@@ -363,7 +377,9 @@ export default function ProjectStartButton({
   startDate,
   endDate,
   employees,
+  teams,
   assignedEmployeeIds,
+  assignedTeamIds,
   size = "sm",
 }: StartButtonProps) {
   const { t } = useT();
@@ -376,7 +392,9 @@ export default function ProjectStartButton({
     startDate,
     endDate,
     employees,
+    teams,
     assignedEmployeeIds,
+    assignedTeamIds,
   });
   const isBadge = size === "badge";
   const isBar = size === "bar";

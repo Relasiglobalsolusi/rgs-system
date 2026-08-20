@@ -6,8 +6,15 @@ import { prisma } from "@/lib/prisma";
 import {
   annotateStaffPickerConflicts,
   assignableProjectCrewOrWhere,
+  crewOptionsForSubCategory,
   findEmployeesOnOtherOpenProjects,
+  releaseExpiredBackupCrew,
 } from "@/lib/workforce-crew";
+import {
+  isBackupAssignmentOccupyingProject,
+  processScheduledPettyCashPays,
+} from "@/lib/petty-cash";
+import { jakartaTodayAsUtcDateOnly } from "@/lib/leave-employment-status";
 import { resolveGeofenceRadiusMeters } from "@/lib/geo";
 
 import {
@@ -34,6 +41,7 @@ import { listProjectEquipmentAssets } from "@/lib/equipment-asset";
 import {
   daysBetweenDates,
   isContractSubCategory,
+  isExtendableContractSubCategory,
   usesMonthDurationTimeline,
 } from "@/lib/project-contract";
 import {
@@ -44,6 +52,7 @@ import {
   getProjectWorkflowStatusLabel,
   isPlanningProjectStatus,
   PROJECT_LIST_VIEW_PATHS,
+  isProjectOpenForSiteWork,
 } from "@/lib/project-status";
 import {
   localizeBillingChipLines,
@@ -65,14 +74,17 @@ import {
   isMilestoneSubCategory,
   usesInvoicePeriods,
 } from "@/lib/project-billing";
+import { formatProjectShiftLabel } from "@/lib/project-shifts";
+import { canAssignSiteCover } from "@/lib/om-approval";
 import { canAccess } from "@/lib/permissions";
 import {
   getMostUrgentUnpaidPeriod,
   isProjectFullyPaid,
   OPEN_COLLECTION_STATUSES,
 } from "@/lib/billing";
-import { getInvoicePaymentDisplay } from "@/lib/invoice-period";
+import { formatDateInput, getInvoicePaymentDisplay } from "@/lib/invoice-period";
 import { formatDisplayDate } from "@/lib/format-date";
+import { isGcFacadeAwaitingPayment } from "@/lib/project-awaiting-payment";
 import { asProjectServiceArea } from "@/lib/service-area";
 import type { ProjectStatus } from "@prisma/client";
 
@@ -88,7 +100,6 @@ import StatusBadge, {
 import { cn } from "@/lib/utils";
 
 import ContractExtensionsHistory from "@/components/projects/ContractExtensionsHistory";
-import ProjectAssignStaffChip from "@/components/projects/ProjectAssignStaffChip";
 import ProjectDetailActionBar from "@/components/projects/ProjectDetailActionBar";
 import ProjectEquipmentPicker, {
   type AssignedEquipmentAsset,
@@ -110,6 +121,7 @@ function statusTone(
     case "ON_HOLD":
       return "active";
     case "WAITING_FOR_APPROVAL":
+    case "OFF_SITE":
       return "warning";
     case "COMPLETED":
       return "success";
@@ -138,6 +150,8 @@ export default async function ProjectDetailPage({
   const projectWhere = await getProjectWhereForUser({
     companyId: session.user.companyId,
     clientId: session.user.clientId,
+    userId: session.user.id,
+    username: session.user.username,
   });
 
   const allowed = await prisma.project.findFirst({
@@ -145,13 +159,37 @@ export default async function ProjectDetailPage({
     include: {
       client: true,
       assignments: {
-        include: { employee: true },
+        include: {
+          employee: true,
+          coveredEmployee: {
+            select: { firstName: true, lastName: true },
+          },
+          shift: {
+            select: {
+              id: true,
+              number: true,
+              startTime: true,
+              endTime: true,
+            },
+          },
+        },
       },
       invoicePeriods: {
         orderBy: { periodStart: "desc" },
       },
       contractExtensions: {
         orderBy: { extendedOn: "desc" },
+      },
+      operationsTeamLinks: {
+        select: { teamId: true },
+      },
+      shifts: {
+        select: {
+          number: true,
+          startTime: true,
+          endTime: true,
+        },
+        orderBy: { number: "asc" },
       },
       _count: {
         select: { progressReports: true },
@@ -163,6 +201,13 @@ export default async function ProjectDetailPage({
   if (!allowed) redirect(PROJECT_LIST_VIEW_PATHS.all);
 
   const project = allowed;
+  const canAssignCover = await canAssignSiteCover({
+    userId: session.user.id,
+    username: session.user.username,
+    permissionUser,
+    projectServiceArea: project.serviceArea,
+    projectId: project.id,
+  });
 
   const showInventoryCosts =
     !isClientPortalUser(permissionUser) &&
@@ -174,7 +219,7 @@ export default async function ProjectDetailPage({
       })
     : false;
 
-  const [employees, clients, inventoryCost, inventoryIssues] =
+  const [employees, clients, inventoryCost, inventoryIssues, operationsTeams] =
     await Promise.all([
       canManage
         ? prisma.employee.findMany({
@@ -182,15 +227,16 @@ export default async function ProjectDetailPage({
               companyId: project.companyId,
               status: "ACTIVE",
               OR: assignableProjectCrewOrWhere(project.companyId, {
-                includeInHouseCleaning: isInternalProjectSubCategory(
-                  project.subCategory
-                ),
+                ...crewOptionsForSubCategory(project.subCategory),
                 includeAssignedToProjectId: project.id,
               }),
             },
-            include: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              employeeNo: true,
               category: { select: { name: true, prefix: true, slug: true } },
-              jobPosition: { select: { name: true, slug: true } },
             },
             orderBy: [
               { employmentType: "asc" },
@@ -216,7 +262,37 @@ export default async function ProjectDetailPage({
             take: 50,
           })
         : Promise.resolve([]),
+      canManage
+        ? prisma.operationsTeam.findMany({
+            where: {
+              companyId: project.companyId,
+              kind: project.subCategory === "FACADE_CLEANING"
+                ? "FACADE_CLEANING"
+                : "GENERAL_CLEANING",
+            },
+            include: {
+              members: {
+                include: {
+                  employee: {
+                    select: { firstName: true, lastName: true },
+                  },
+                },
+              },
+            },
+            orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+          })
+        : Promise.resolve([]),
     ]);
+
+  const teamOptions = operationsTeams.map((team) => ({
+    id: team.id,
+    name: team.name,
+    kind: team.kind,
+    memberIds: team.members.map((member) => member.employeeId),
+    memberNames: team.members.map(
+      (member) => `${member.employee.firstName} ${member.employee.lastName}`
+    ),
+  }));
 
   const staffConflicts =
     canManage && employees.length > 0
@@ -228,6 +304,31 @@ export default async function ProjectDetailPage({
         )
       : [];
   const staffEmployees = annotateStaffPickerConflicts(employees, staffConflicts);
+
+  if (canManage || canAssignCover) {
+    await processScheduledPettyCashPays(prisma, project.companyId);
+  }
+  await releaseExpiredBackupCrew(prisma as never, project.companyId);
+
+  const liveFrom = jakartaTodayAsUtcDateOnly();
+  const liveStaffAssignments = project.assignments.filter((assignment) =>
+    isBackupAssignmentOccupyingProject(assignment)
+  );
+  const doubleShifts = await prisma.doubleShiftAssignment.findMany({
+    where: { projectId: project.id, date: { gte: liveFrom } },
+    select: {
+      id: true,
+      employeeId: true,
+      date: true,
+      coveringShift: {
+        select: { number: true, startTime: true, endTime: true },
+      },
+      coveredEmployee: {
+        select: { firstName: true, lastName: true },
+      },
+    },
+    orderBy: { date: "asc" },
+  });
 
   // Equipment issue/release/demob keep Inventory ↔ Projects in sync.
   // Never mint/assign on page load (caused ghost units like EQP-*-A6).
@@ -297,7 +398,7 @@ export default async function ProjectDetailPage({
     canManage &&
     !isInternal &&
     project.status === "IN_PROGRESS" &&
-    (isRegularContract || isService);
+    isExtendableContractSubCategory(project.subCategory);
   // G3: General / Facade In Progress only — not Security / Parking / Payroll.
   const showSubmitForApproval =
     canManage &&
@@ -315,14 +416,20 @@ export default async function ProjectDetailPage({
   const initialEstimatedDurationDays = showCompletedJobDuration
     ? project.estimatedDurationDays
     : null;
+  const awaitingPayment = isGcFacadeAwaitingPayment({
+    subCategory: project.subCategory,
+    status: project.status,
+    billingMode: project.billingMode,
+    invoicePeriods: project.invoicePeriods,
+  });
 
   const listBackHref = inProjectHistory
     ? "/projects?view=completed"
     : inPlanning
       ? "/projects?view=planning"
-      : project.status === "WAITING_FOR_APPROVAL"
-        ? "/projects?view=pending-approval"
-        : project.status === "IN_PROGRESS"
+      : awaitingPayment
+        ? "/projects?view=payment-due"
+        : isProjectOpenForSiteWork(project.status)
           ? "/projects?view=in-progress"
           : "/projects";
 
@@ -331,6 +438,10 @@ export default async function ProjectDetailPage({
     project.invoicePeriods,
     project.billingMode
   );
+  const paymentsReceivedCount = invoicePeriodsForDisplay.filter(
+    (period) => period.status === "PAID"
+  ).length;
+  const paymentsTotalCount = invoicePeriodsForDisplay.length;
   const locale = await getServerLocale();
   const t = createTranslator(locale);
   // History / fully paid: plain project name. Unpaid milestone: installment title.
@@ -355,17 +466,17 @@ export default async function ProjectDetailPage({
     ? t("pages.projects.completedTitle")
     : inPlanning
       ? t("pages.projects.planningTitle")
-      : project.status === "WAITING_FOR_APPROVAL"
-        ? t("pages.projects.pendingApprovalTitle")
-        : project.status === "IN_PROGRESS"
+      : awaitingPayment
+        ? t("pages.projects.paymentDueTitle")
+        : isProjectOpenForSiteWork(project.status)
           ? t("pages.projects.inProgressTitle")
           : t("pages.projects.filterAllProjects");
-  // Map legacy ON_HOLD / CANCELLED to workflow labels (no product chrome for those enums).
   const workflowStatus = getProjectWorkflowStatusLabel({
     status: project.status,
+    awaitingPayment,
   });
   const statusLabel = localizeWorkflowStatus(
-    { status: project.status },
+    { status: project.status, awaitingPayment },
     locale
   );
   const statusLines = localizeWorkflowChipLines(workflowStatus, locale);
@@ -438,18 +549,29 @@ export default async function ProjectDetailPage({
           serviceArea: asProjectServiceArea(project.serviceArea),
           billingMode: project.billingMode,
           billingPeriodBasis: project.billingPeriodBasis,
+          billingCycleStartDay: project.billingCycleStartDay,
+          billingCycleEndDay: project.billingCycleEndDay,
           requiresTaxInvoice: project.requiresTaxInvoice,
           contractPrice: contractPriceNum,
           setupCost: decimalToNumber(project.setupCost),
           profitSharePercent: decimalToNumber(project.profitSharePercent),
           monthlyClientFee: decimalToNumber(project.monthlyClientFee),
+          memberParkingUnitFee: decimalToNumber(project.memberParkingUnitFee),
+          memberParkingUnitCount: project.memberParkingUnitCount,
+          parkingTaxPercent: decimalToNumber(project.parkingTaxPercent),
           serviceFeePercent: decimalToNumber(project.serviceFeePercent),
           paymentTermsDays: project.paymentTermsDays,
+          payrollCutoffStartDay: project.payrollCutoffStartDay,
+          payrollCutoffEndDay: project.payrollCutoffEndDay,
+          payrollTaxPercent: decimalToNumber(project.payrollTaxPercent),
           clientId: project.clientId,
           status: project.status,
+          shiftCount: project.shiftCount,
+          shifts: project.shifts,
           assignments: project.assignments.map((a) => ({
             employeeId: a.employeeId,
           })),
+          operationsTeamLinks: project.operationsTeamLinks,
         }}
         deleteProject={{
           id: project.id,
@@ -460,6 +582,8 @@ export default async function ProjectDetailPage({
         }}
         deleteRedirectHref={listBackHref}
         employees={staffEmployees}
+        teams={teamOptions}
+        assignedTeamIds={project.operationsTeamLinks.map((link) => link.teamId)}
         clients={clients}
       >
         <div className="space-y-5">
@@ -687,6 +811,40 @@ export default async function ProjectDetailPage({
                         )}
                       </td>
                     </tr>
+                    <tr className="border-b border-border">
+                      <th scope="row" className={metaLabelClassName}>
+                        {t(
+                          "pages.projects.serviceCommercial.memberParkingUnitFee"
+                        )}
+                      </th>
+                      <td className={`${metaValueClassName} font-medium`}>
+                        {formatContractPrice(
+                          decimalToNumber(project.memberParkingUnitFee)
+                        )}
+                      </td>
+                    </tr>
+                    <tr className="border-b border-border">
+                      <th scope="row" className={metaLabelClassName}>
+                        {t(
+                          "pages.projects.serviceCommercial.memberParkingUnitCount"
+                        )}
+                      </th>
+                      <td className={`${metaValueClassName} font-medium`}>
+                        {project.memberParkingUnitCount ?? "—"}
+                      </td>
+                    </tr>
+                    <tr className="border-b border-border">
+                      <th scope="row" className={metaLabelClassName}>
+                        {t(
+                          "pages.projects.serviceCommercial.parkingTaxPercent"
+                        )}
+                      </th>
+                      <td className={`${metaValueClassName} font-medium`}>
+                        {decimalToNumber(project.parkingTaxPercent) != null
+                          ? `${decimalToNumber(project.parkingTaxPercent)}%`
+                          : "10%"}
+                      </td>
+                    </tr>
                   </>
                 ) : null}
                 {!isInternal &&
@@ -702,6 +860,28 @@ export default async function ProjectDetailPage({
                         {decimalToNumber(project.serviceFeePercent) != null
                           ? `${decimalToNumber(project.serviceFeePercent)}%`
                           : "—"}
+                      </td>
+                    </tr>
+                    <tr className="border-b border-border">
+                      <th scope="row" className={metaLabelClassName}>
+                        {t(
+                          "pages.projects.serviceCommercial.payrollTaxPercent"
+                        )}
+                      </th>
+                      <td className={`${metaValueClassName} font-medium`}>
+                        {decimalToNumber(project.payrollTaxPercent) != null
+                          ? `${decimalToNumber(project.payrollTaxPercent)}%`
+                          : "11%"}
+                      </td>
+                    </tr>
+                    <tr className="border-b border-border">
+                      <th scope="row" className={metaLabelClassName}>
+                        {t(
+                          "pages.projects.serviceCommercial.payrollCutoffEndDay"
+                        )}
+                      </th>
+                      <td className={`${metaValueClassName} font-medium`}>
+                        {project.payrollCutoffEndDay ?? "—"}
                       </td>
                     </tr>
                     <tr className="border-b border-border">
@@ -809,6 +989,14 @@ export default async function ProjectDetailPage({
                 <h3 className={sectionTitleClassName}>
                   {t("pages.projects.detail.invoicesPayments")}
                 </h3>
+                {paymentsTotalCount > 0 ? (
+                  <p className="text-sm text-subtle">
+                    {t("pages.projects.detail.paymentsReceivedCount", {
+                      paid: paymentsReceivedCount,
+                      total: paymentsTotalCount,
+                    })}
+                  </p>
+                ) : null}
                 {billingHref ? (
                   <Link
                     href={billingHref}
@@ -834,7 +1022,7 @@ export default async function ProjectDetailPage({
                   <table className="w-full min-w-[720px] text-left text-sm">
                     <thead>
                       <tr className="border-b border-border text-xs uppercase tracking-[0.12em] text-subtle">
-                        <th className="px-3 py-3 font-semibold">
+                        <th className="px-3 py-3 text-left font-semibold">
                           {t("pages.projects.detail.period")}
                         </th>
                         <th className="px-3 py-3 font-semibold">
@@ -868,7 +1056,9 @@ export default async function ProjectDetailPage({
                                 ? "latePayment"
                                 : display.key === "PENDING_VERIFICATION"
                                   ? "verifyingPayment"
-                                  : "awaitingPayment",
+                                  : display.key === "AWAITING_CLIENT_REVIEW"
+                                    ? "awaitingClientReview"
+                                    : "awaitingPayment",
                               locale
                             )
                           : undefined;
@@ -955,56 +1145,25 @@ export default async function ProjectDetailPage({
                 <h3 className={sectionTitleClassName}>
                   {t("pages.projects.detail.staff")}
                 </h3>
-                {canManage ? (
-                  <ProjectAssignStaffChip
-                    project={{
-                      id: project.id,
-                      name: project.name,
-                      location: project.location,
-                      latitude: project.latitude,
-                      longitude: project.longitude,
-                      locationRadiusMeters: project.locationRadiusMeters,
-                      estimatedStartDate: project.estimatedStartDate,
-                      estimatedDurationDays: project.estimatedDurationDays,
-                      startDate: project.startDate,
-                      endDate: project.endDate,
-                      progress: project.progress,
-                      subCategory: project.subCategory,
-                      serviceArea: asProjectServiceArea(project.serviceArea),
-                      billingMode: project.billingMode,
-                      billingPeriodBasis: project.billingPeriodBasis,
-                      requiresTaxInvoice: project.requiresTaxInvoice,
-                      contractPrice: contractPriceNum,
-                      setupCost: decimalToNumber(project.setupCost),
-                      profitSharePercent: decimalToNumber(
-                        project.profitSharePercent
-                      ),
-                      monthlyClientFee: decimalToNumber(
-                        project.monthlyClientFee
-                      ),
-                      serviceFeePercent: decimalToNumber(
-                        project.serviceFeePercent
-                      ),
-                      paymentTermsDays: project.paymentTermsDays,
-                      clientId: project.clientId,
-                      status: project.status,
-                      assignments: project.assignments.map((a) => ({
-                        employeeId: a.employeeId,
-                      })),
-                    }}
-                    employees={staffEmployees}
-                    clients={clients}
-                  />
+                {canAccess(permissionUser, "shifts") ? (
+                  <Link
+                    href={`/shifts?projectId=${project.id}`}
+                    className={cn(
+                      buttonVariants({ variant: "infoBadge", size: "badgeFlex" })
+                    )}
+                  >
+                    {t("pages.shifts.manageShifts")}
+                  </Link>
                 ) : null}
               </div>
 
-              {project.assignments.length === 0 ? (
+              {liveStaffAssignments.length === 0 ? (
                 <p className="text-sm text-subtle">
                   {t("pages.projects.detail.noStaff")}
                 </p>
               ) : (
                 <div className="flex flex-wrap gap-2">
-                  {project.assignments.map((assignment) => (
+                  {liveStaffAssignments.map((assignment) => (
                     <div
                       key={assignment.id}
                       className={cn(
@@ -1019,7 +1178,39 @@ export default async function ProjectDetailPage({
                       <p className="text-xs font-medium normal-case tracking-normal text-primary-dark/70">
                         {assignment.employee.employeeNo}
                       </p>
-                      {assignment.shiftStart && assignment.shiftEnd ? (
+                      {assignment.isBackup ? (
+                        <p className="mt-0.5 text-xs font-medium normal-case tracking-normal text-primary-dark/80">
+                          {assignment.shift && assignment.coveredEmployee
+                            ? t("pages.projects.detail.backupCoverChip", {
+                                start: assignment.backupStartDate
+                                  ? formatDateInput(assignment.backupStartDate)
+                                  : "—",
+                                end: assignment.backupEndDate
+                                  ? formatDateInput(assignment.backupEndDate)
+                                  : "—",
+                                rate: formatContractPrice(
+                                  decimalToNumber(assignment.dailyRate)
+                                ),
+                                shift: formatProjectShiftLabel(assignment.shift),
+                                name: `${assignment.coveredEmployee.firstName} ${assignment.coveredEmployee.lastName}`.trim(),
+                              })
+                            : t("pages.projects.detail.backupChip", {
+                                start: assignment.backupStartDate
+                                  ? formatDateInput(assignment.backupStartDate)
+                                  : "—",
+                                end: assignment.backupEndDate
+                                  ? formatDateInput(assignment.backupEndDate)
+                                  : "—",
+                                rate: formatContractPrice(
+                                  decimalToNumber(assignment.dailyRate)
+                                ),
+                              })}
+                        </p>
+                      ) : assignment.shift ? (
+                        <p className="mt-0.5 text-xs font-medium normal-case tracking-normal text-primary-dark/80">
+                          {formatProjectShiftLabel(assignment.shift)}
+                        </p>
+                      ) : assignment.shiftStart && assignment.shiftEnd ? (
                         <p className="mt-0.5 text-xs font-medium normal-case tracking-normal text-primary-dark/80">
                           {t("pages.projects.detail.shiftRange", {
                             start: assignment.shiftStart,
@@ -1031,6 +1222,25 @@ export default async function ProjectDetailPage({
                           {t("pages.projects.detail.noShiftSet")}
                         </p>
                       )}
+                      {doubleShifts
+                        .filter((row) => row.employeeId === assignment.employeeId)
+                        .map((row) => (
+                          <div key={row.id} className="mt-1">
+                            <p className="text-xs font-medium normal-case tracking-normal text-primary-dark/80">
+                              {row.coveringShift && row.coveredEmployee
+                                ? t("pages.projects.detail.doubleShiftCoverChip", {
+                                    date: formatDateInput(row.date),
+                                    shift: formatProjectShiftLabel(
+                                      row.coveringShift
+                                    ),
+                                    name: `${row.coveredEmployee.firstName} ${row.coveredEmployee.lastName}`.trim(),
+                                  })
+                                : t("pages.projects.detail.doubleShiftChip", {
+                                    date: formatDateInput(row.date),
+                                  })}
+                            </p>
+                          </div>
+                        ))}
                     </div>
                   ))}
                 </div>

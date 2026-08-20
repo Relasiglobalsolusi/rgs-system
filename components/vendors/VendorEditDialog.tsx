@@ -33,6 +33,7 @@ type Vendor = {
   id: string;
   name: string;
   shortCode: string;
+  vendorType?: "COMPANY" | "INDIVIDUAL";
   email: string | null;
   phone: string | null;
   address: string | null;
@@ -120,10 +121,16 @@ export default function VendorEditDialog({
 
   async function submit(formData: FormData) {
     const npwpRaw = String(formData.get("npwp") ?? "").trim();
+    const isIndividual =
+      String(formData.get("vendorType") ?? "").toUpperCase() === "INDIVIDUAL";
     if (!npwpRaw || !isValidNpwp(npwpRaw)) {
       const npwpMessage = !npwpRaw
-        ? t("validation.npwpRequired")
-        : t("validation.npwpInvalid");
+        ? isIndividual
+          ? t("validation.npwpOrNikRequired")
+          : t("validation.npwpRequired")
+        : isIndividual
+          ? t("validation.npwpOrNikInvalid")
+          : t("validation.npwpInvalid");
       const form = document.getElementById(formId);
       const input =
         form instanceof HTMLFormElement
@@ -219,6 +226,7 @@ export default function VendorEditDialog({
                 contactPersonPosition: vendor.contactPersonPosition ?? "",
                 contactPersonEmail: vendor.contactPersonEmail ?? "",
                 contactPersonPhone: vendor.contactPersonPhone ?? "",
+                vendorType: vendor.vendorType ?? "COMPANY",
               }}
               onFormValuesChange={handleFormInput}
             />

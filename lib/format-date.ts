@@ -24,6 +24,61 @@ function toDate(value: Date | string | number): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function isIndonesianLocale(locale: string): boolean {
+  return locale.toLowerCase().startsWith("id");
+}
+
+function dateFormatLocale(locale: string): string {
+  return isIndonesianLocale(locale) ? "id-ID" : DISPLAY_LOCALE;
+}
+
+function englishDayOrdinal(day: number): string {
+  const teens = day % 100;
+  if (teens >= 11 && teens <= 13) return `${day}th`;
+  switch (day % 10) {
+    case 1:
+      return `${day}st`;
+    case 2:
+      return `${day}nd`;
+    case 3:
+      return `${day}rd`;
+    default:
+      return `${day}th`;
+  }
+}
+
+/**
+ * Long payroll date with weekday.
+ * English: "Monday, 15th of July 2026"
+ * Indonesian: "Senin, 15 Juli 2026"
+ * Asia/Jakarta.
+ */
+export function formatEnglishOrdinalDate(
+  value: Date | string | number,
+  locale: string = DISPLAY_LOCALE,
+  timeZone: string = "Asia/Jakarta"
+): string {
+  const date = toDate(value);
+  if (!date) return "";
+  const intlLocale = dateFormatLocale(locale);
+  const parts = new Intl.DateTimeFormat(intlLocale, {
+    timeZone,
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).formatToParts(date);
+  const weekday = parts.find((part) => part.type === "weekday")?.value;
+  const day = Number(parts.find((part) => part.type === "day")?.value);
+  const month = parts.find((part) => part.type === "month")?.value;
+  const year = parts.find((part) => part.type === "year")?.value;
+  if (!weekday || !day || !month || !year) return "";
+  if (isIndonesianLocale(locale)) {
+    return `${weekday}, ${day} ${month} ${year}`;
+  }
+  return `${weekday}, ${englishDayOrdinal(day)} of ${month} ${year}`;
+}
+
 export function formatDisplayDate(
   value: Date | string | number,
   options?: Intl.DateTimeFormatOptions,

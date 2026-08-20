@@ -155,7 +155,7 @@ export default async function ThrPage() {
               <table className="min-w-full text-left text-sm">
                 <thead className="border-b border-border text-xs uppercase tracking-wide text-muted">
                   <tr>
-                    <th className="px-3 py-2 font-medium">
+                    <th className="px-3 py-2 text-left font-medium">
                       {t("pages.thr.columns.employee")}
                     </th>
                     <th className="px-3 py-2 font-medium">

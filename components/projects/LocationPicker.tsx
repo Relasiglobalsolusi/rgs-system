@@ -30,6 +30,8 @@ export type LocationValue = {
 type Props = {
   value: LocationValue;
   onChange: (value: LocationValue) => void;
+  /** Prefix hidden field names (e.g. `line.0.`) for bulk create. */
+  namePrefix?: string;
 };
 
 const DEFAULT_CENTER = { lat: -6.1754, lng: 106.8272 };
@@ -120,7 +122,13 @@ async function resolveMapsShortLink(
   }
 }
 
-export default function LocationPicker({ value, onChange }: Props) {
+export default function LocationPicker({
+  value,
+  onChange,
+  namePrefix = "",
+}: Props) {
+  const nameOf = (field: string) =>
+    namePrefix ? `${namePrefix}${field}` : field;
   const { t } = useT();
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import("leaflet").Map | null>(null);
@@ -553,12 +561,12 @@ export default function LocationPicker({ value, onChange }: Props) {
         </div>
       </div>
 
-      <input type="hidden" name="location" value={value.location} />
-      <input type="hidden" name="latitude" value={value.latitude ?? ""} />
-      <input type="hidden" name="longitude" value={value.longitude ?? ""} />
+      <input type="hidden" name={nameOf("location")} value={value.location} />
+      <input type="hidden" name={nameOf("latitude")} value={value.latitude ?? ""} />
+      <input type="hidden" name={nameOf("longitude")} value={value.longitude ?? ""} />
       <input
         type="hidden"
-        name="locationRadiusMeters"
+        name={nameOf("locationRadiusMeters")}
         value={value.locationRadiusMeters}
       />
     </div>

@@ -13,15 +13,6 @@ export const INVENTORY_ISSUE_PROJECT_STATUSES = [
   "ON_HOLD",
 ] as const;
 
-export function canIssueInventoryToProject(status: string): boolean {
-  return (INVENTORY_ISSUE_PROJECT_STATUSES as readonly string[]).includes(
-    status
-  );
-}
-
-export type InventoryCostingNote =
-  "Stock value and project issues use running weighted-average unit cost. Last purchase unit cost is shown for reference.";
-
 export function toDecimal(
   value: number | string | Prisma.Decimal
 ): Prisma.Decimal {
@@ -102,14 +93,22 @@ export const excludeEquipmentFromProjectInventoryCost: Prisma.InventoryMovementW
  */
 export async function getProjectInventoryCost(
   projectId: string,
-  options?: { companyId?: string }
+  options?: { companyId?: string; from?: Date; toExclusive?: Date }
 ): Promise<number> {
+  const movedAt =
+    options?.from || options?.toExclusive
+      ? {
+          ...(options.from ? { gte: options.from } : {}),
+          ...(options.toExclusive ? { lt: options.toExclusive } : {}),
+        }
+      : undefined;
   const where: Prisma.InventoryMovementWhereInput = {
     projectId,
     type: "ISSUE_TO_PROJECT",
     voidedAt: null,
     ...excludeEquipmentFromProjectInventoryCost,
     ...(options?.companyId ? { companyId: options.companyId } : {}),
+    ...(movedAt ? { movedAt } : {}),
   };
 
   const agg = await prisma.inventoryMovement.aggregate({
@@ -139,14 +138,27 @@ export type ProjectInventoryIssueRow = {
 /** Non-voided project issues for detail / report tables. */
 export async function listProjectInventoryIssues(
   projectId: string,
-  options?: { companyId?: string; take?: number }
+  options?: {
+    companyId?: string;
+    take?: number;
+    from?: Date;
+    toExclusive?: Date;
+  }
 ): Promise<ProjectInventoryIssueRow[]> {
+  const movedAt =
+    options?.from || options?.toExclusive
+      ? {
+          ...(options.from ? { gte: options.from } : {}),
+          ...(options.toExclusive ? { lt: options.toExclusive } : {}),
+        }
+      : undefined;
   const rows = await prisma.inventoryMovement.findMany({
     where: {
       projectId,
       type: "ISSUE_TO_PROJECT",
       voidedAt: null,
       ...(options?.companyId ? { companyId: options.companyId } : {}),
+      ...(movedAt ? { movedAt } : {}),
     },
     include: {
       item: {

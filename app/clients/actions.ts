@@ -43,6 +43,12 @@ import {
   formatClientSoftDeleteBlockers,
   getClientSoftDeleteBlockers,
 } from "@/lib/client-soft-delete";
+import {
+  bulkLineFile,
+  lineFormData,
+  parseBulkLineCount,
+} from "@/lib/bulk-create";
+import { SORT_ORDER_STEP } from "@/lib/reorder";
 import { deleteLocalUpload, saveUpload } from "@/lib/upload";
 
 const ALLOWED_PAYMENT_TERMS_DAYS = new Set<number>(PAYMENT_TERMS_DAYS_OPTIONS);
@@ -305,6 +311,184 @@ export async function createClient(formData: FormData) {
     revalidatePath("/billing");
     revalidatePath("/users");
   } catch (error) {
+    throw toActionError(
+      error,
+      translate(locale, "pages.clients.createFailed")
+    );
+  }
+}
+
+const CLIENT_LINE_FIELDS = [
+  "name",
+  "contactPersonFirstName",
+  "contactPersonLastName",
+  "contactPersonPosition",
+  "contactPersonEmail",
+  "contactPersonPhone",
+  "email",
+  "phone",
+  "address",
+  "npwp",
+  "clientType",
+  "clientSince",
+  "paymentTermsDays",
+  "multiProjectAccess",
+];
+
+export async function createClientsInBulk(formData: FormData) {
+  const locale = await getServerLocale();
+  const uploaded: string[] = [];
+  try {
+    await assertCanManageClients(locale);
+
+    const company = await prisma.company.findFirst();
+    if (!company) {
+      throw new Error(translate(locale, "pages.clients.companyNotFound"));
+    }
+
+    const lineCount = parseBulkLineCount(formData);
+    const rows: Array<{
+      identity: ReturnType<typeof resolveClientFormIdentity>;
+      clientType: ClientTypeValue;
+      address: string;
+      npwp: string;
+      taxIdDocumentUrl: string;
+      clientSince: Date;
+      paymentTermsDays: number;
+      multiProjectAccess: boolean;
+    }> = [];
+    const seenNames = new Set<string>();
+
+    for (let index = 0; index < lineCount; index += 1) {
+      const row = lineFormData(formData, index, CLIENT_LINE_FIELDS);
+      const clientType = parseClientType(row);
+      let identity: ReturnType<typeof resolveClientFormIdentity>;
+      let address: string;
+      let npwp: string;
+      let clientSince: Date;
+      let paymentTermsDays: number;
+      let multiProjectAccess: boolean;
+      try {
+        identity = resolveClientFormIdentity(row, clientType, locale);
+        address = capitalizeProper(String(row.get("address") ?? "").trim());
+        npwp = await parseRequiredClientNpwp(row, clientType, locale);
+        clientSince =
+          parseFormDateInput(row.get("clientSince"), {
+            fieldLabel: translate(locale, "pages.clients.form.clientSince"),
+          }) ?? new Date();
+        paymentTermsDays = parsePaymentTermsDays(row);
+        multiProjectAccess =
+          clientType === "INDIVIDUAL"
+            ? false
+            : String(row.get("multiProjectAccess") ?? "").toLowerCase() ===
+                "yes" ||
+              String(row.get("multiProjectAccess") ?? "") === "true";
+      } catch (error) {
+        throw new Error(
+          translate(locale, "bulkCreate.lineError", {
+            n: String(index + 1),
+            message:
+              error instanceof Error ? error.message : "Invalid client line.",
+          })
+        );
+      }
+      const key = identity.name.trim().toLowerCase();
+      if (seenNames.has(key)) {
+        throw new Error(
+          translate(locale, "bulkCreate.lineError", {
+            n: String(index + 1),
+            message: translate(locale, "pages.clients.nameAlreadyExists", {
+              name: identity.name,
+            }),
+          })
+        );
+      }
+      seenNames.add(key);
+
+      const file = bulkLineFile(formData, index, "taxIdDocument");
+      if (!file) {
+        throw new Error(
+          translate(locale, "bulkCreate.lineError", {
+            n: String(index + 1),
+            message: taxIdDocumentMissingMessage(clientType, locale),
+          })
+        );
+      }
+      const taxIdDocumentUrl = await saveUpload(file, "uploads/clients", {
+        fileBaseName: clientType === "INDIVIDUAL" ? "NPWP-NIK" : "NPWP",
+      });
+      uploaded.push(taxIdDocumentUrl);
+      rows.push({
+        identity,
+        clientType,
+        address,
+        npwp,
+        taxIdDocumentUrl,
+        clientSince,
+        paymentTermsDays,
+        multiProjectAccess,
+      });
+    }
+
+    if (rows.length === 0) {
+      throw new Error(translate(locale, "bulkCreate.emptyLines"));
+    }
+
+    let sortOrder = await nextCompanyScopedSortOrder("client", company.id);
+
+    await prisma.$transaction(async (tx) => {
+      for (const row of rows) {
+        const nameNormalized = await assertClientNameAvailable(
+          { companyId: company.id, name: row.identity.name, locale },
+          tx
+        );
+        const shortCode = await getNextClientShortCode(company.id, tx);
+        const client = await tx.client.create({
+          data: {
+            name: row.identity.name,
+            nameNormalized,
+            clientType: row.clientType,
+            shortCode,
+            email: row.identity.email || null,
+            phone: row.identity.phone || null,
+            address: row.address || null,
+            npwp: row.npwp,
+            taxIdDocumentUrl: row.taxIdDocumentUrl,
+            contactPersonFirstName: row.identity.contactPersonFirstName,
+            contactPersonLastName: row.identity.contactPersonLastName,
+            contactPersonPosition: row.identity.contactPersonPosition,
+            contactPersonEmail: row.identity.contactPersonEmail,
+            contactPersonPhone: row.identity.contactPersonPhone,
+            clientSince: row.clientSince,
+            paymentTermsDays: row.paymentTermsDays,
+            multiProjectAccess: row.multiProjectAccess,
+            multiProjectSecurityMode: row.multiProjectAccess
+              ? "MASTER_AND_GROUP"
+              : null,
+            companyId: company.id,
+            active: true,
+            sortOrder,
+          },
+        });
+
+        await provisionClientUser(tx, {
+          companyId: company.id,
+          clientId: client.id,
+          clientName: row.identity.name,
+          contactPersonFirstName: row.identity.contactPersonFirstName,
+          contactPersonLastName: row.identity.contactPersonLastName,
+          preferredLoginId: null,
+        });
+
+        sortOrder += SORT_ORDER_STEP;
+      }
+    });
+
+    revalidatePath("/clients");
+    revalidatePath("/billing");
+    revalidatePath("/users");
+  } catch (error) {
+    await Promise.all(uploaded.map((path) => deleteLocalUpload(path)));
     throw toActionError(
       error,
       translate(locale, "pages.clients.createFailed")

@@ -12,12 +12,6 @@ export type InventoryCatalogItem = {
   active: boolean;
 };
 
-export type InventoryVendorOption = {
-  id: string;
-  name: string;
-  shortCode: string;
-};
-
 export type InventoryPurchaseRow = {
   id: string;
   purchasedAt: string;
@@ -153,6 +147,8 @@ export type InventoryOverviewAssetRow = {
   serialNo: string | null;
   notes: string | null;
   assignedAt: string | null;
+  writeOffMovementId: string | null;
+  soldOffMovementId: string | null;
   item: { id: string; sku: string; name: string; itemType: string } | null;
   project: { id: string; name: string } | null;
 };

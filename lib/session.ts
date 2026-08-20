@@ -3,7 +3,7 @@ import { getCurrentSession } from "@/lib/auth";
 import { fetchUserModuleOverrides } from "@/lib/module-overrides";
 import {
   canAccess,
-  isFinanceChildAccessible,
+  isFinanceModuleKey,
   type ModuleKey,
   type PermissionUser,
 } from "@/lib/permissions";
@@ -131,17 +131,6 @@ export async function requirePasswordChangeSession() {
   return session;
 }
 
-export async function requireRole(allowed: UserRole[]) {
-  const session = await requireSession();
-  const role = session.user.role as UserRole;
-
-  if (!allowed.includes(role)) {
-    redirect("/dashboard");
-  }
-
-  return session;
-}
-
 export async function requireModule(module: ModuleKey) {
   const session = await requireSession();
   const user = toPermissionUser(session);
@@ -153,21 +142,17 @@ export async function requireModule(module: ModuleKey) {
   return session;
 }
 
-/**
- * Gates a Finance sub-page by its FINANCE_MENU_ITEMS `navKey` (e.g. "thr",
- * "purchaseInvoices"). Requires `invoicing` first (redirect to /dashboard),
- * then enforces the per-page `invoicing:<navKey>` override (redirect to the
- * Finance overview since the account can still use other Finance pages).
- */
+/** Gates one Finance page. Each page is its own module. */
 export async function requireFinanceChild(navKey: string) {
-  const session = await requireModule("invoicing");
-  const user = toPermissionUser(session);
-
-  if (!isFinanceChildAccessible(user.moduleOverrides, navKey)) {
-    redirect("/billing");
+  if (!isFinanceModuleKey(navKey)) {
+    redirect("/dashboard");
   }
+  return requireModule(navKey);
+}
 
-  return session;
+/** Operations page: field float. Own module — not implied by Projects or Finance. */
+export async function requirePettyCashAccess() {
+  return requireModule("pettyCash");
 }
 
 export async function getEmployeeForUser(userId: string) {

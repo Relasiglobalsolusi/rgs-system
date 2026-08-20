@@ -17,7 +17,10 @@ import { Button } from "@/components/ui/button";
 import {
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
-import { isEquipmentSurplusRetireNote } from "@/lib/equipment-asset";
+import {
+  equipmentRetirementKind,
+  isEquipmentSurplusRetireNote,
+} from "@/lib/equipment-asset";
 import { isBelowMinStock, formatInventoryQtyWithUnit } from "@/lib/inventory";
 import { useT } from "@/lib/i18n/use-t";
 import { formatDisplayDate } from "@/lib/format-date";
@@ -40,7 +43,8 @@ export default function InventoryAssetList({
   const [selectedEquipmentId, setSelectedEquipmentId] = useState<string | null>(
     null
   );
-  const [includeRetired, setIncludeRetired] = useState(false);
+  const [includeSold, setIncludeSold] = useState(false);
+  const [includeWrittenOff, setIncludeWrittenOff] = useState(false);
   const [editingAssetId, setEditingAssetId] = useState<string | null>(null);
   const [editSerial, setEditSerial] = useState("");
   const [editNotes, setEditNotes] = useState("");
@@ -78,21 +82,35 @@ export default function InventoryAssetList({
     if (!selectedEquipmentId) return [];
     return equipmentAssets.filter((asset) => {
       if (asset.item?.id !== selectedEquipmentId) return false;
-      if (!includeRetired && asset.status === "RETIRED") return false;
-      return true;
+      if (asset.status !== "RETIRED") return true;
+      const kind = equipmentRetirementKind(asset);
+      if (kind === "sold") return includeSold;
+      if (kind === "writtenOff") return includeWrittenOff;
+      return false;
     });
-  }, [equipmentAssets, includeRetired, selectedEquipmentId]);
+  }, [
+    equipmentAssets,
+    includeSold,
+    includeWrittenOff,
+    selectedEquipmentId,
+  ]);
 
   const selectedLocationSummary = useMemo(() => {
     const warehouse = selectedAssets.filter((a) => a.status === "AVAILABLE")
       .length;
     const onProject = selectedAssets.filter((a) => a.status === "ON_PROJECT")
       .length;
-    const retired = selectedAssets.filter((a) => a.status === "RETIRED").length;
+    const sold = selectedAssets.filter(
+      (a) => equipmentRetirementKind(a) === "sold"
+    ).length;
+    const writtenOff = selectedAssets.filter(
+      (a) => equipmentRetirementKind(a) === "writtenOff"
+    ).length;
     return {
       warehouse,
       onProject,
-      retired,
+      sold,
+      writtenOff,
       owned: warehouse + onProject,
     };
   }, [selectedAssets]);
@@ -222,9 +240,17 @@ export default function InventoryAssetList({
             </span>
           );
         }
+        const retiredKind = equipmentRetirementKind(row);
+        if (retiredKind === "sold") {
+          return (
+            <span className="inline-flex w-fit items-center rounded-full bg-card-tint-sky px-2.5 py-0.5 text-xs font-medium text-sky-300 ring-1 ring-inset ring-sky-400/20">
+              {t("pages.inventory.overview.sold")}
+            </span>
+          );
+        }
         return (
           <span className="inline-flex w-fit items-center rounded-full bg-strip px-2.5 py-0.5 text-xs font-medium text-muted ring-1 ring-inset ring-border">
-            {t("pages.inventory.overview.retired")}
+            {t("pages.inventory.overview.writtenOff")}
           </span>
         );
       },
@@ -398,12 +424,13 @@ export default function InventoryAssetList({
               </p>
               {selectedAssets.length > 0 ? (
                 <p className="mt-1 text-xs text-muted">
-                  {includeRetired
-                    ? t("pages.inventory.stock.equipmentLocationSummaryRetired", {
+                  {includeSold || includeWrittenOff
+                    ? t("pages.inventory.stock.equipmentLocationSummaryDisposed", {
                         warehouse: String(selectedLocationSummary.warehouse),
                         onProject: String(selectedLocationSummary.onProject),
                         owned: String(selectedLocationSummary.owned),
-                        retired: String(selectedLocationSummary.retired),
+                        sold: String(selectedLocationSummary.sold),
+                        writtenOff: String(selectedLocationSummary.writtenOff),
                       })
                     : t("pages.inventory.stock.equipmentLocationSummary", {
                         warehouse: String(selectedLocationSummary.warehouse),
@@ -417,11 +444,20 @@ export default function InventoryAssetList({
               <label className="flex items-center gap-2 text-xs text-muted">
                 <input
                   type="checkbox"
-                  checked={includeRetired}
-                  onChange={(e) => setIncludeRetired(e.target.checked)}
+                  checked={includeSold}
+                  onChange={(e) => setIncludeSold(e.target.checked)}
                   className="rounded border-border"
                 />
-                {t("pages.inventory.overview.showRetired")}
+                {t("pages.inventory.overview.showSold")}
+              </label>
+              <label className="flex items-center gap-2 text-xs text-muted">
+                <input
+                  type="checkbox"
+                  checked={includeWrittenOff}
+                  onChange={(e) => setIncludeWrittenOff(e.target.checked)}
+                  className="rounded border-border"
+                />
+                {t("pages.inventory.overview.showWrittenOff")}
               </label>
               <Button
                 type="button"

@@ -5,6 +5,7 @@ import {
   resolveLeaveReviewerProfile,
 } from "@/lib/leave-approval-hierarchy";
 import { prisma } from "@/lib/prisma";
+import { getProjectWhereForUser } from "@/lib/project-access";
 import { requireModule, toPermissionUser } from "@/lib/session";
 import { inventoryQtyFromDecimal } from "@/lib/inventory";
 import { createTranslator } from "@/lib/i18n/translate";
@@ -16,8 +17,14 @@ import SectionCard from "@/components/ui/SectionCard";
 import EmptyState from "@/components/ui/EmptyState";
 import OwnPendingLeaveNotice from "@/components/approvals/OwnPendingLeaveNotice";
 import PendingLeaveTable from "@/components/approvals/PendingLeaveTable";
+import {
+  getNeedsAttentionTransferOrders,
+  listProjectsForTransferAssign,
+} from "@/app/transfer-orders/actions";
 import MaterialRequestDetailCard from "@/components/material-requests/MaterialRequestDetailCard";
 import { ReviewMaterialRequestButtons } from "@/components/material-requests/MaterialRequestActions";
+import TransferOrderDetailCard from "@/components/transfer-orders/TransferOrderDetailCard";
+import { ManagerNeedsAttentionActions } from "@/components/transfer-orders/TransferOrderActions";
 
 export default async function ApprovalsPage() {
   const session = await requireModule("approvals");
@@ -54,9 +61,22 @@ export default async function ApprovalsPage() {
   const pendingLeave = filterLeaveRequestsForReviewer(pendingRaw, reviewer);
   const ownPendingLeave = filterOwnPendingLeaveRequests(pendingRaw, reviewer);
 
+  const projectWhere = companyId
+    ? await getProjectWhereForUser({
+        companyId,
+        clientId: session.user.clientId,
+        userId: session.user.id,
+        username: session.user.username,
+      })
+    : null;
+
   const pendingMaterials = companyId
     ? await prisma.materialRequest.findMany({
-        where: { companyId, status: "REQUESTED" },
+        where: {
+          companyId,
+          status: "REQUESTED",
+          ...(projectWhere ? { project: projectWhere } : {}),
+        },
         include: {
           project: { select: { id: true, name: true } },
           requestedBy: {
@@ -83,6 +103,11 @@ export default async function ApprovalsPage() {
         take: 100,
       })
     : [];
+
+  const [needsAttentionOrders, assignableProjects] = await Promise.all([
+    getNeedsAttentionTransferOrders(),
+    listProjectsForTransferAssign(),
+  ]);
 
   return (
     <AppShell
@@ -120,6 +145,49 @@ export default async function ApprovalsPage() {
             />
           ) : (
             <PendingLeaveTable data={pendingLeave} />
+          )}
+        </SectionCard>
+
+        <SectionCard className="p-5 sm:p-6">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <h2 className="text-base font-semibold text-text">
+                {t("pages.approvals.needsAttentionSection")}
+              </h2>
+              <p className="mt-1 text-sm text-subtle">
+                {t("pages.approvals.needsAttentionSectionDesc")}
+              </p>
+            </div>
+            {needsAttentionOrders.length > 0 ? (
+              <p className="text-sm tabular-nums text-muted">
+                {t("pages.approvals.pendingCount", {
+                  count: needsAttentionOrders.length,
+                })}
+              </p>
+            ) : null}
+          </div>
+          {needsAttentionOrders.length === 0 ? (
+            <EmptyState
+              titleKey="pages.approvals.emptyNeedsAttentionTitle"
+              descriptionKey="pages.approvals.emptyNeedsAttentionDescription"
+            />
+          ) : (
+            <div className="space-y-4">
+              {needsAttentionOrders.map((order) => (
+                <TransferOrderDetailCard
+                  key={order.id}
+                  showStock
+                  order={order}
+                  actions={
+                    <ManagerNeedsAttentionActions
+                      id={order.id}
+                      defaultProjectId={order.project.id}
+                      projects={assignableProjects}
+                    />
+                  }
+                />
+              ))}
+            </div>
           )}
         </SectionCard>
 

@@ -13,10 +13,15 @@ const LocationPicker = dynamic(
   () => import("@/components/projects/LocationPicker"),
   { ssr: false }
 );
+import BillingPeriodBasisFields from "@/components/projects/BillingPeriodBasisFields";
 import ProjectOptionPills from "@/components/projects/ProjectOptionPills";
+import ProjectShiftCountField from "@/components/projects/ProjectShiftCountField";
 import ProjectStaffPicker, {
   type ProjectStaffEmployee,
 } from "@/components/projects/ProjectStaffPicker";
+import ProjectTeamPicker, {
+  type ProjectTeamOption,
+} from "@/components/projects/ProjectTeamPicker";
 import ProjectTimelineFields from "@/components/projects/ProjectTimelineFields";
 import ServiceCommercialFields from "@/components/projects/ServiceCommercialFields";
 import {
@@ -57,6 +62,7 @@ import {
   subCategoryForServiceArea,
 } from "@/lib/project-subcategory";
 import type { ProjectServiceAreaValue } from "@/lib/service-area";
+import type { ProjectShiftWindow } from "@/lib/project-shifts";
 import {
   DEFAULT_CONTRACT_DURATION_MONTHS,
   DEFAULT_PROJECT_DURATION_DAYS,
@@ -88,6 +94,8 @@ type Client = {
   name: string;
   npwp?: string | null;
   paymentTermsDays?: number | null;
+  payrollCutoffStartDay?: number | null;
+  payrollCutoffEndDay?: number | null;
 };
 
 type Project = {
@@ -106,6 +114,8 @@ type Project = {
   serviceArea?: ProjectServiceAreaValue;
   billingMode?: BillingMode;
   billingPeriodBasis?: BillingPeriodBasis | null;
+  billingCycleStartDay?: number | null;
+  billingCycleEndDay?: number | null;
   requiresTaxInvoice?: boolean;
   contractPrice?: number | null;
   setupCost?: number | null;
@@ -113,10 +123,19 @@ type Project = {
   monthlyClientFee?: number | null;
   serviceFeePercent?: number | null;
   paymentTermsDays?: number | null;
+  payrollCutoffStartDay?: number | null;
+  payrollCutoffEndDay?: number | null;
+  payrollTaxPercent?: number | null;
+  memberParkingUnitFee?: number | null;
+  memberParkingUnitCount?: number | null;
+  parkingTaxPercent?: number | null;
   clientId: string | null;
   /** When PLANNED, Edit hides Assign Staff (assignment happens at Move to In Progress). */
   status?: ProjectStatus | string;
+  shiftCount?: number;
+  shifts?: ProjectShiftWindow[];
   assignments: { employeeId: string }[];
+  operationsTeamLinks?: { teamId: string }[];
 };
 
 function timelineStartForProject(project: Project): string {
@@ -132,6 +151,32 @@ function timelineStartForProject(project: Project): string {
     toDateInputValue(project.estimatedStartDate) ||
     todayDateInput()
   );
+}
+
+function cycleDayFromDateInput(value: string): number {
+  const day = Number(value.slice(8, 10));
+  return Number.isFinite(day) && day >= 1 && day <= 31 ? day : 1;
+}
+
+function customCycleDaysForProject(project: Project): {
+  fromDay: number;
+  toDay: number;
+} {
+  if (
+    project.billingCycleStartDay != null &&
+    project.billingCycleEndDay != null
+  ) {
+    return {
+      fromDay: project.billingCycleStartDay,
+      toDay: project.billingCycleEndDay,
+    };
+  }
+  const from =
+    toDateInputValue(project.startDate) ||
+    toDateInputValue(project.estimatedStartDate) ||
+    todayDateInput();
+  const day = cycleDayFromDateInput(from);
+  return { fromDay: day, toDay: day };
 }
 
 function durationDaysForProject(project: Project): number {
@@ -155,6 +200,8 @@ function durationDaysForProject(project: Project): number {
 type Props = {
   project: Project;
   employees: ProjectStaffEmployee[];
+  teams?: ProjectTeamOption[];
+  assignedTeamIds?: string[];
   clients: Client[];
   /** Compact trigger for table rows; default matches project detail page. */
   compact?: boolean;
@@ -163,6 +210,8 @@ type Props = {
 export default function ProjectEditDialog({
   project,
   employees,
+  teams = [],
+  assignedTeamIds,
   clients,
   compact: _compact = false,
   open: controlledOpen,
@@ -208,15 +257,15 @@ export default function ProjectEditDialog({
     useState<BillingPeriodBasis>(
       project.billingPeriodBasis ?? "CONTRACT_CYCLE"
     );
+  const [billingCycleStartDay, setBillingCycleStartDay] = useState(
+    () => customCycleDaysForProject(project).fromDay
+  );
+  const [billingCycleEndDay, setBillingCycleEndDay] = useState(
+    () => customCycleDaysForProject(project).toDay
+  );
   const [clientId, setClientId] = useState(
     project.clientId ?? clients[0]?.id ?? ""
   );
-  const [requiresTaxInvoice, setRequiresTaxInvoice] = useState(() => {
-    const id = project.clientId ?? clients[0]?.id ?? "";
-    return taxInvoiceDefaultsFromClient(
-      clients.find((item) => item.id === id)
-    ).requiresTaxInvoice;
-  });
   const [npwp, setNpwp] = useState(() => {
     const id = project.clientId ?? clients[0]?.id ?? "";
     return taxInvoiceDefaultsFromClient(
@@ -234,6 +283,9 @@ export default function ProjectEditDialog({
   );
   const [durationDays, setDurationDays] = useState(() =>
     durationDaysForProject(project)
+  );
+  const [shiftCount, setShiftCount] = useState(
+    project.shiftCount && project.shiftCount >= 1 ? project.shiftCount : 1
   );
   const [locationValue, setLocationValue] = useState<LocationValue>({
     location: project.location ?? "",
@@ -263,11 +315,13 @@ export default function ProjectEditDialog({
         serviceArea,
         billingMode,
         billingPeriodBasis,
-        requiresTaxInvoice,
+        billingCycleStartDay,
+        billingCycleEndDay,
         startDate,
         durationMonths,
         durationDays,
         locationValue,
+        shiftCount,
       }),
     [
       clientId,
@@ -276,11 +330,13 @@ export default function ProjectEditDialog({
       serviceArea,
       billingMode,
       billingPeriodBasis,
-      requiresTaxInvoice,
+      billingCycleStartDay,
+      billingCycleEndDay,
       startDate,
       durationMonths,
       durationDays,
       locationValue,
+      shiftCount,
     ]
   );
   const controlledSignatureRef = useRef(controlledSignature);
@@ -296,7 +352,6 @@ export default function ProjectEditDialog({
 
   function applyTaxDefaultsFromClient(client: Client | undefined) {
     const defaults = taxInvoiceDefaultsFromClient(client);
-    setRequiresTaxInvoice(defaults.requiresTaxInvoice);
     setNpwp(defaults.npwp);
   }
 
@@ -308,6 +363,9 @@ export default function ProjectEditDialog({
       project.billingMode ?? defaultBillingMode(project.subCategory)
     );
     setBillingPeriodBasis(project.billingPeriodBasis ?? "CONTRACT_CYCLE");
+    const cycle = customCycleDaysForProject(project);
+    setBillingCycleStartDay(cycle.fromDay);
+    setBillingCycleEndDay(cycle.toDay);
     setClientId(nextClientId);
     applyTaxDefaultsFromClient(clients.find((item) => item.id === nextClientId));
     setStartDate(timelineStartForProject(project));
@@ -551,7 +609,7 @@ export default function ProjectEditDialog({
                   value={billingMode}
                   options={generalFacadeBillingOptions}
                   onChange={setBillingMode}
-                  columns={2}
+                  columns={3}
                 />
                 {billingMode === "MILESTONE" ? (
                   <p className="rounded-xl border border-border bg-elevated/60 px-4 py-3 text-xs text-subtle">
@@ -562,33 +620,14 @@ export default function ProjectEditDialog({
             ) : null}
 
             {!isInternal && (isContract || subCategory === "SECURITY") ? (
-              <>
-                <ProjectOptionPills
-                  label={t("pages.projects.billingPeriodBasis")}
-                  value={billingPeriodBasis}
-                  options={[
-                    {
-                      value: "CONTRACT_CYCLE",
-                      label: t(
-                        "pages.projects.billingPeriodBasisContractCycle"
-                      ),
-                    },
-                    {
-                      value: "CALENDAR_MONTH",
-                      label: t(
-                        "pages.projects.billingPeriodBasisCalendarMonth"
-                      ),
-                    },
-                  ]}
-                  onChange={(value) =>
-                    setBillingPeriodBasis(value as BillingPeriodBasis)
-                  }
-                  columns={2}
-                />
-                <p className="text-xs text-subtle">
-                  {t("pages.projects.billingPeriodBasisHelp")}
-                </p>
-              </>
+              <BillingPeriodBasisFields
+                billingPeriodBasis={billingPeriodBasis}
+                onBillingPeriodBasisChange={setBillingPeriodBasis}
+                fromDay={billingCycleStartDay}
+                toDay={billingCycleEndDay}
+                onFromDayChange={setBillingCycleStartDay}
+                onToDayChange={setBillingCycleEndDay}
+              />
             ) : null}
 
             {!isInternal && isService ? (
@@ -601,6 +640,12 @@ export default function ProjectEditDialog({
                   profitSharePercent: project.profitSharePercent,
                   monthlyClientFee: project.monthlyClientFee,
                   serviceFeePercent: project.serviceFeePercent,
+                  payrollCutoffStartDay: project.payrollCutoffStartDay,
+                  payrollCutoffEndDay: project.payrollCutoffEndDay,
+                  payrollTaxPercent: project.payrollTaxPercent,
+                  memberParkingUnitFee: project.memberParkingUnitFee,
+                  memberParkingUnitCount: project.memberParkingUnitCount,
+                  parkingTaxPercent: project.parkingTaxPercent,
                   paymentTermsDays: project.paymentTermsDays,
                 }}
                 clientPaymentTermsDays={selectedClient?.paymentTermsDays}
@@ -608,31 +653,27 @@ export default function ProjectEditDialog({
             ) : null}
 
             {!isInternal ? (
-              requiresTaxInvoice ? (
-                <div className={employeeDialogFieldClass}>
-                  <label
-                    htmlFor={`edit-project-npwp-${project.id}`}
-                    className="text-sm font-medium text-text"
-                  >
-                    {t("pages.projects.companyNpwp")}
-                  </label>
-                  <Input
-                    id={`edit-project-npwp-${project.id}`}
-                    value={npwp}
-                    readOnly
-                    tabIndex={-1}
-                    autoComplete="off"
-                    className={cn(employeeInputClass, "bg-elevated text-muted")}
-                  />
-                  <p className="text-xs text-subtle">
-                    {t("pages.projects.companyNpwpHint")}
-                  </p>
-                </div>
-              ) : (
+              <div className={employeeDialogFieldClass}>
+                <label
+                  htmlFor={`edit-project-npwp-${project.id}`}
+                  className="text-sm font-medium text-text"
+                >
+                  {t("pages.projects.companyNpwp")}
+                </label>
+                <Input
+                  id={`edit-project-npwp-${project.id}`}
+                  value={npwp}
+                  readOnly
+                  tabIndex={-1}
+                  autoComplete="off"
+                  className={cn(employeeInputClass, "bg-elevated text-muted")}
+                />
                 <p className="text-xs text-subtle">
-                  {t("pages.projects.withoutTaxNote")}
+                  {npwp
+                    ? t("pages.projects.companyNpwpHint")
+                    : t("pages.projects.withoutTaxNote")}
                 </p>
-              )
+              </div>
             ) : null}
 
             {isInternal ? (
@@ -641,6 +682,12 @@ export default function ProjectEditDialog({
               </p>
             ) : null}
             <LocationPicker value={locationValue} onChange={setLocationValue} />
+
+            <ProjectShiftCountField
+              value={shiftCount}
+              onChange={setShiftCount}
+              windows={project.shifts}
+            />
 
             {!isInternal ? (
               isMonthTimeline ? (
@@ -683,10 +730,23 @@ export default function ProjectEditDialog({
             ) : null}
 
             {!isPlanningProjectStatus(project.status) ? (
-              <ProjectStaffPicker
-                employees={employees}
-                defaultCheckedIds={assignedIds}
-              />
+              <>
+                {isMilestoneSubCategory(subCategory) ? (
+                  <ProjectTeamPicker
+                    teams={teams.filter((team) => team.kind === subCategory)}
+                    defaultCheckedIds={
+                      assignedTeamIds ??
+                      (project.operationsTeamLinks ?? []).map(
+                        (link) => link.teamId
+                      )
+                    }
+                  />
+                ) : null}
+                <ProjectStaffPicker
+                  employees={employees}
+                  defaultCheckedIds={assignedIds}
+                />
+              </>
             ) : null}
           </form>
         </EmployeeDialogShell>

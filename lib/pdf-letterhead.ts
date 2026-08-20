@@ -128,10 +128,10 @@ export function letterheadFromCompany(
     ? customAddress.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
     : [...LETTERHEAD.addressLines];
 
-  const email =
-    company?.email?.trim() || site.contact.email || LETTERHEAD.email;
-  const phone =
-    company?.phone?.trim() || site.contact.phone || LETTERHEAD.phone;
+  // Public documents always use the corporate website contact
+  // (www.rgs.co.id), not Company.email / Company.phone from the ERP record.
+  const email = site.contact.email || LETTERHEAD.email;
+  const phone = site.contact.phone || LETTERHEAD.phone;
 
   return {
     name,

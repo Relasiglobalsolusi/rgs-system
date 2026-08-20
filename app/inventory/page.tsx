@@ -3,6 +3,7 @@ import { canAssignInventoryToProject } from "@/lib/inventory-access";
 import { canManageInventory } from "@/lib/project-access";
 import { decimalToNumber } from "@/lib/project-billing";
 import { inventoryQtyFromDecimal } from "@/lib/inventory";
+import { isOwnerAccount } from "@/lib/permissions";
 import { requireModule, toPermissionUser } from "@/lib/session";
 
 import AppShell from "@/components/layout/AppShell";
@@ -22,6 +23,9 @@ export default async function InventoryPage() {
       username: session.user.username,
     }
   );
+  const canReverseSale = isOwnerAccount({
+    username: session.user.username,
+  });
 
   const company = await prisma.company.findFirst({ select: { id: true } });
   if (!company) {
@@ -43,7 +47,6 @@ export default async function InventoryPage() {
     issues,
     writeOffs,
     soldOffs,
-    vendors,
     assetRows,
   ] = await Promise.all([
       prisma.inventoryItem.findMany({
@@ -147,11 +150,6 @@ export default async function InventoryPage() {
         orderBy: { soldAt: "desc" },
         take: 200,
       }),
-      prisma.vendor.findMany({
-        where: { companyId: company.id, active: true },
-        select: { id: true, name: true, shortCode: true },
-        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      }),
       prisma.equipmentAsset.findMany({
         where: { companyId: company.id },
         select: {
@@ -162,6 +160,8 @@ export default async function InventoryPage() {
           serialNo: true,
           notes: true,
           assignedAt: true,
+          writeOffMovementId: true,
+          soldOffMovementId: true,
           item: {
             select: { id: true, sku: true, name: true, itemType: true },
           },
@@ -274,6 +274,8 @@ export default async function InventoryPage() {
       serialNo: a.serialNo,
       notes: a.notes,
       assignedAt: a.assignedAt?.toISOString() ?? null,
+      writeOffMovementId: a.writeOffMovementId,
+      soldOffMovementId: a.soldOffMovementId,
       item: a.item!,
       project: a.project,
     }));
@@ -290,12 +292,12 @@ export default async function InventoryPage() {
       <InventoryWorkspace
         canManage={canManage}
         canAssignToProject={canAssignToProject}
+        canReverseSale={canReverseSale}
         items={catalogItems}
         purchases={purchaseRows}
         issues={issueRows}
         writeOffs={writeOffRows}
         soldOffs={soldOffRows}
-        vendors={vendors}
         equipmentAssets={overviewAssets}
       />
     </AppShell>

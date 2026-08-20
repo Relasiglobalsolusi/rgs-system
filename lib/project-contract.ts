@@ -47,6 +47,24 @@ export function isContractCycleSubCategory(
   return value === CONTRACT_SUBCATEGORY || value === "SECURITY";
 }
 
+/** Regular, Security, Parking, Payroll Management — Extend / Renew. */
+export function isExtendableContractSubCategory(
+  value: string | null | undefined
+): boolean {
+  return (
+    isContractCycleSubCategory(value) ||
+    value === "PARKING" ||
+    value === "PAYROLL_MANAGEMENT"
+  );
+}
+
+/** General / Facade — Re-do Job after Completed. */
+export function isRedoJobSubCategory(
+  value: string | null | undefined
+): boolean {
+  return value === "GENERAL_CLEANING" || value === "FACADE_CLEANING";
+}
+
 /**
  * Month-based contract timeline UI (start + duration months).
  * Includes Regular Cleaning and Security; Parking is optional via the create form.
@@ -57,7 +75,8 @@ export function usesMonthDurationTimeline(
   return (
     value === CONTRACT_SUBCATEGORY ||
     value === "SECURITY" ||
-    value === "PARKING"
+    value === "PARKING" ||
+    value === "PAYROLL_MANAGEMENT"
   );
 }
 
@@ -161,15 +180,4 @@ export function daysBetweenDates(
   const diff = Math.round((endUtc - startUtc) / 86_400_000);
   if (diff < 0) return null;
   return diff;
-}
-
-/** Best-effort day count between two dates for General/Facade edit defaults. */
-export function daysBetweenDatesOrDefault(
-  start: Date | string | null | undefined,
-  end: Date | string | null | undefined,
-  fallback: number = DEFAULT_PROJECT_DURATION_DAYS
-): number {
-  const days = daysBetweenDates(start, end);
-  if (days == null) return clampProjectDurationDays(fallback);
-  return clampProjectDurationDays(days);
 }

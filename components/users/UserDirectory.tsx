@@ -64,7 +64,12 @@ type UserRow = {
     employeeType: EmployeeType;
     employmentType: EmploymentType;
     placement: Placement;
-    jobPosition?: { id: string; name: string; slug?: string | null } | null;
+    jobPosition?: {
+      id: string;
+      name: string;
+      slug?: string | null;
+      defaultModuleAccess?: unknown;
+    } | null;
     firstName: string;
     lastName: string;
     status: string;

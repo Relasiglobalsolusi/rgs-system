@@ -40,6 +40,34 @@ enum EmploymentStatus {
   TERMINATED
   ON_LEAVE
   LEAVE_PENDING
+  RESIGNED
+}
+
+/// Security deposit on the employee record (Internal Payroll withhold / resign).
+enum SecurityDepositStatus {
+  NONE
+  HELD
+  RETURNED
+  KEPT_BY_COMPANY
+}
+
+/// Manual Internal Payroll lines. Return of security deposit is a payable (adds to net).
+enum PayrollDeductionType {
+  SECURITY_DEPOSIT
+  LOST_STOCK
+  PENALTY
+  OTHER
+  RETURN_OF_SECURITY_DEPOSIT
+  /// Company paid the client for a site incident; employee is charged back.
+  CLIENT_COMPENSATION
+  /// Remaining Internal Payroll wage withheld after not-according-to-procedure resign.
+  FORFEITED_WAGES
+}
+
+/// Operational Manager decision when CICO is under 9 hours (or 18 on a double shift).
+enum InternalPayrollDayDecisionStatus {
+  FULL_PAY
+  CUSTOM
 }
 
 /// THR (Tunjangan Hari Raya) payment lifecycle.
@@ -58,12 +86,16 @@ enum InventoryMovementType {
   WRITE_OFF
   /// Stock sold externally — reduces on-hand; sale proceeds on InventorySale (income later).
   SOLD_OFF
+  /// Warehouse send on a transfer order — stock left the warehouse, not yet booked to the project.
+  IN_TRANSIT
 }
 
 /// Lifecycle status of a discrete Equipment asset (physical unit).
 enum EquipmentAssetStatus {
   AVAILABLE
   ON_PROJECT
+  /// Sent from warehouse, not yet received on the project.
+  IN_TRANSIT
   RETIRED
 }
 
@@ -79,6 +111,14 @@ enum TransferOrderStatus {
   PENDING_SEND
   SENT
   RECEIVED
+  /// Site reported the shipment did not arrive. Item return is open.
+  NOT_RECEIVED
+  /// Warehouse or manager returned the in-transit stock to warehouse.
+  RETURNED
+  /// Item return unresolved — Operations Manager must decide.
+  NEEDS_ATTENTION
+  /// Manager wrote off the in-transit stock. Audit trail kept.
+  WRITTEN_OFF
   CANCELLED
 }
 
@@ -88,6 +128,8 @@ enum ProjectStatus {
   /// Projects in mutual client + HO approval (Regular reconcile or General/Facade Submit for Approval).
   /// OM+ triggers Submit for Approval or reconcile → PDF compiled; both parties must agree.
   WAITING_FOR_APPROVAL
+  /// Last approve done. Crew home. Payment / tax still open. CICO blocked.
+  OFF_SITE
   COMPLETED
   ON_HOLD
   CANCELLED
@@ -105,6 +147,12 @@ enum ProjectSubCategory {
   PARKING
   /// Client payroll management — RGS pays staff first; client reimburses + service fee.
   PAYROLL_MANAGEMENT
+}
+
+/// Permanent General / Facade crew roster. Assigned to jobs as a unit.
+enum OperationsTeamKind {
+  GENERAL_CLEANING
+  FACADE_CLEANING
 }
 
 /// Desk home site for office CICO (HO Operations vs Warehouse). Cleaning staff use project assignment instead.
@@ -137,6 +185,7 @@ enum MultiProjectSecurityMode {
 }
 
 /// Regular project billing period basis.
+/// CONTRACT_CYCLE is the Custom Period option (user-entered from/to cycle).
 enum BillingPeriodBasis {
   CALENDAR_MONTH
   CONTRACT_CYCLE
@@ -170,6 +219,8 @@ enum ClientReviewKind {
   RECONCILIATION
   /// General / Facade — compiled progress reports for the billing period.
   PROGRESS
+  /// Payroll Management — attendance + wage list for the client cutoff window.
+  PAYROLL_MANAGEMENT
 }
 
 /// Client ↔ HO approval loop before invoice issue.
@@ -195,11 +246,39 @@ enum BillingMode {
   MONTHLY
   ON_COMPLETION
   MILESTONE
+  /// Finish each visit, invoice that visit, come back later. Not milestone %.
+  MULTI_VISIT
 }
 
 enum PurchaseCategory {
   PRODUCT
   SERVICE
+  /// Company cash entrusted to field / operations (float top-up).
+  PETTY_CASH
+}
+
+/// What a Finance purchase is for — routes cost to stock, a project, or HO overhead.
+enum PurchasePurpose {
+  /// Warehouse / catalog stock-in (current default path).
+  STOCK
+  /// Expense belongs to a commercial project (requires projectId).
+  PROJECT
+  /// Internal / Head Office overhead — not a project cost and not stock-in.
+  INTERNAL
+  /// Funds the petty cash float. Not a P&L expense until spent.
+  PETTY_CASH
+}
+
+/// Payroll Management project period (client employee list — not RGS CICO).
+enum PayrollManagementPeriodStatus {
+  DRAFT
+  WAGES_ENTERED
+  AWAITING_CLIENT
+  CLIENT_APPROVED
+  WAGES_PAID
+  INVOICED
+  /// Legacy. New periods settle on the invoice period (Paid), not this status.
+  REIMBURSED
 }
 
 enum LeaveType {
@@ -226,6 +305,10 @@ model Company {
   /// Account holder name as printed on bank transfer proofs (optional).
   bankAccountName   String?
 
+  /// HO-typed opening cash. Displayed cash = opening + money in after − money out after.
+  cashAtBankOpening     Decimal?  @db.Decimal(14, 2)
+  cashAtBankOpeningAsOf DateTime? @db.Date
+
   users               User[]
   employees           Employee[]
   employeeCategories  EmployeeCategory[]
@@ -241,11 +324,17 @@ model Company {
   inventoryPurchases  InventoryPurchase[]
   inventorySales      InventorySale[]
   inventoryMovements  InventoryMovement[]
+  payrollDeductions   PayrollDeduction[]
+  projectExpenses     ProjectExpense[]
+  internalPayrollLocks InternalPayrollLock[]
+  internalPayrollDayDecisions InternalPayrollDayDecision[]
   equipmentAssets     EquipmentAsset[]
   materialRequests    MaterialRequest[]
   transferOrders      TransferOrder[]
   auditLogs           AuditLog[]
   websiteContent      WebsiteContent?
+  operationsTeams     OperationsTeam[]
+  pettyCashEntries    PettyCashEntry[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -295,6 +384,10 @@ model Position {
 
   categoryId String
   category   EmployeeCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  /// Default portal modules for new logins in this position.
+  /// Users → Permissions can grant a specific person more access.
+  defaultModuleAccess Json?
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -360,6 +453,8 @@ model Employee {
 
   /// OM only: which Service Areas this manager may approve and see.
   omApprovalAreas     ServiceArea[]    @default([])
+  /// Area Manager: projects this person may approve and manage under the OM.
+  areaManagedProjects AreaManagerProject[]
 
   employeeType        EmployeeType     @default(PROJECT_SITE)
   /// Office-clock target for HO desk / warehouse desk staff (not used for field cleaners).
@@ -379,6 +474,29 @@ model Employee {
   /// JKK company rate percent when enabled (0.10–1.60).
   jkkPercent Decimal? @db.Decimal(5, 2)
 
+  /// HO checkbox: this employee may have a Security deposit taken in Internal Payroll.
+  securityDepositRequired Boolean @default(false)
+  /// When true, Internal Payroll pays full monthly salary (no CICO day count).
+  cicoExempt Boolean @default(false)
+  /// Free-text bank for Internal Payroll PDF transfer instructions.
+  bankName String?
+  bankAccountNumber String?
+  /// Account holder name — must match the bank book.
+  bankAccountName String?
+  /// Last commercial project used to attribute deposit return / kept.
+  depositSourceProjectId String?
+  depositSourceProject   Project? @relation("EmployeeDepositSource", fields: [depositSourceProjectId], references: [id], onDelete: SetNull)
+  /// Security deposit withheld via Internal Payroll (sum of Security deposit lines).
+  depositHeldAmount Decimal @default(0) @db.Decimal(14, 2)
+  depositStatus     SecurityDepositStatus @default(NONE)
+
+  lastWorkingDay DateTime? @db.Date
+  resignAccordingToProcedure Boolean?
+  /// Not according to procedure: remaining Internal Payroll is not paid and becomes last-project income.
+  resignForfeitRemainingWages Boolean @default(false)
+  resignNote     String?
+  resignedAt     DateTime?
+
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
@@ -392,12 +510,20 @@ model Employee {
   user   User?   @relation(fields: [userId], references: [id])
 
   projectAssignments ProjectAssignment[]
+  coveredBackupAssignments ProjectAssignment[] @relation("BackupCoveredEmployee")
+  doubleShiftAssignments DoubleShiftAssignment[]
+  coveredDoubleShifts DoubleShiftAssignment[] @relation("DoubleShiftCoveredEmployee")
+  operationsTeamMembership OperationsTeamMember?
   progressReports    ProgressReport[]
   attendances        Attendance[]
   leaveRequests      LeaveRequest[]
   thrPayments        ThrPayment[]
   materialRequests   MaterialRequest[] @relation("MaterialRequestRequester")
   receivedTransfers  TransferOrder[]   @relation("TransferOrderReceiver")
+  payrollDeductions  PayrollDeduction[]
+  internalPayrollDayDecisions InternalPayrollDayDecision[]
+  projectExpenses    ProjectExpense[]
+  pettyCashEntries   PettyCashEntry[]
 
   /// Manual directory order (lower = higher in lists).
   sortOrder Int @default(0)
@@ -448,14 +574,28 @@ model User {
   hoReviewedInvoicePeriods ProjectInvoicePeriod[] @relation("InvoicePeriodHoReviewer")
   createdPurchaseInvoices PurchaseInvoice[] @relation("PurchaseInvoiceCreator")
   paidPurchaseInvoices    PurchaseInvoice[] @relation("PurchaseInvoicePaidBy")
+  parkingMonthlyLogs      ParkingMonthlyLog[] @relation("ParkingLogCreator")
+  payrollManagementPeriods PayrollManagementPeriod[] @relation("PayrollPeriodCreator")
+  payrollWagesPaidPeriods  PayrollManagementPeriod[] @relation("PayrollPeriodWagesPaidBy")
+  payrollInvoicedPeriods   PayrollManagementPeriod[] @relation("PayrollPeriodInvoicedBy")
+  payrollReimbursedPeriods PayrollManagementPeriod[] @relation("PayrollPeriodReimbursedBy")
+  payrollPdfLockedPeriods    PayrollManagementPeriod[] @relation("PayrollPeriodPdfLocker")
+  payrollPdfUnlockedPeriods  PayrollManagementPeriod[] @relation("PayrollPeriodPdfUnlocker")
   createdInventoryPurchases InventoryPurchase[] @relation("InventoryPurchaseCreator")
   createdInventorySales     InventorySale[]     @relation("InventorySaleCreator")
   createdInventoryMovements InventoryMovement[] @relation("InventoryMovementCreator")
+  createdPayrollDeductions  PayrollDeduction[]  @relation("PayrollDeductionCreator")
+  createdProjectExpenses    ProjectExpense[]    @relation("ProjectExpenseCreator")
+  lockedInternalPayrolls    InternalPayrollLock[] @relation("InternalPayrollLocker")
+  unlockedInternalPayrolls  InternalPayrollLock[] @relation("InternalPayrollUnlocker")
+  internalPayrollDayDecisions InternalPayrollDayDecision[] @relation("InternalPayrollDayDecider")
   reviewedMaterialRequests  MaterialRequest[]   @relation("MaterialRequestReviewer")
   sentTransferOrders        TransferOrder[]     @relation("TransferOrderSender")
   progressWarningAcks   ProgressWarningAck[]
   leaveApprovalAcks     LeaveApprovalAck[]
   billingClientReviewEvents BillingClientReviewEvent[]
+  createdPettyCashEntries   PettyCashEntry[] @relation("PettyCashEntryCreator")
+  assignedDoubleShifts      DoubleShiftAssignment[] @relation("DoubleShiftAssignedBy")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -568,12 +708,14 @@ model Vendor {
   name                   String
   /// Short uniform code for filenames / refs (e.g. V001). Auto-assigned; not editable.
   shortCode              String
+  /// Company vs Individual — drives tax ID rules (same as clients).
+  vendorType             ClientType @default(COMPANY)
   email                  String?
   phone                  String?
   address                String?
-  /// Company tax ID (NPWP) — required on create/edit.
+  /// Company tax ID (NPWP) or individual NPWP/NIK — required on create/edit.
   npwp                   String?
-  /// Uploaded NPWP document under /uploads/vendors.
+  /// Uploaded NPWP (company) or NPWP/NIK (individual) document under /uploads/vendors.
   taxIdDocumentUrl       String?
   contactPersonFirstName String?
   contactPersonLastName  String?
@@ -629,10 +771,16 @@ model Project {
   subCategory ProjectSubCategory @default(REGULAR_CLEANING)
   /// Work lane for OM Approval Areas / dashboard scope.
   serviceArea ServiceArea @default(CLEANING)
-  /// Regular: Calendar Month vs Contract Cycle (anniversary from start day).
+  /// Regular: Calendar Month vs Custom Period (stored as CONTRACT_CYCLE).
   billingPeriodBasis BillingPeriodBasis?
+  /// Custom Period from day of month (1–31). Null = infer from contract start day (legacy).
+  billingCycleStartDay Int?
+  /// Custom Period to day of month (1–31). Null = same as from day (legacy anniversary).
+  billingCycleEndDay Int?
   /// Signed contract proof — required before Planning → In Progress.
   contractDocumentUrl String?
+  /// Early End Contract: last working day chosen; reconcile the day after.
+  pendingEarlyEndReconcile Boolean @default(false)
   /// When true, each issued commercial invoice is queued for a tax invoice (faktur).
   requiresTaxInvoice Boolean @default(false)
   /// Parking: one-time initial setup cost (IDR).
@@ -645,6 +793,20 @@ model Project {
   serviceFeePercent Decimal? @db.Decimal(5, 2)
   /// Payroll Management: days until client reimburses (0 = Cash). Defaults from Client.paymentTermsDays.
   paymentTermsDays Int?
+  /// Payroll Management: client cutoff start day of month (1–31).
+  payrollCutoffStartDay Int?
+  /// Payroll Management: client cutoff end day of month (1–31).
+  payrollCutoffEndDay Int?
+  /// Payroll Management: tax % on the management fee only. Default 11.
+  payrollTaxPercent Decimal? @db.Decimal(5, 2)
+  /// Parking: monthly member fee per car (IDR). Not taxed.
+  memberParkingUnitFee Decimal? @db.Decimal(14, 2)
+  /// Parking: number of member cars on the monthly fee.
+  memberParkingUnitCount Int?
+  /// Parking: tax % on casual (normal traffic) revenue only. Default 10.
+  parkingTaxPercent Decimal? @db.Decimal(5, 2)
+  /// How many named site shifts this project runs (1–4). Hours are set on the project; HR assigns people to Shift 1–4.
+  shiftCount Int @default(1)
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -657,15 +819,27 @@ model Project {
   group   ClientProjectGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
 
   assignments    ProjectAssignment[]
+  shifts         ProjectShift[]
+  doubleShiftAssignments DoubleShiftAssignment[]
+  operationsTeamLinks OperationsTeamProject[]
+  visits         ProjectVisit[]
   progressReports ProgressReport[]
   invoicePeriods ProjectInvoicePeriod[]
   attendances    Attendance[]
   progressWarningAcks ProgressWarningAck[]
   contractExtensions ClientContractExtension[]
   inventoryMovements InventoryMovement[]
+  payrollDeductions  PayrollDeduction[]
   equipmentAssets    EquipmentAsset[]
   materialRequests   MaterialRequest[]
   transferOrders     TransferOrder[]
+  parkingMonthlyLogs ParkingMonthlyLog[]
+  payrollManagementPeriods PayrollManagementPeriod[]
+  purchaseInvoices   PurchaseInvoice[]
+  projectExpenses    ProjectExpense[]
+  pettyCashEntries   PettyCashEntry[]
+  depositSourcedEmployees Employee[] @relation("EmployeeDepositSource")
+  areaManagers AreaManagerProject[]
 
   /// Manual directory order (lower = higher in lists).
   sortOrder Int @default(0)
@@ -675,6 +849,18 @@ model Project {
 
   @@index([serviceArea])
   @@index([groupId])
+}
+
+/// Area Manager coverage — same approval authority as OM, limited to these projects.
+model AreaManagerProject {
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@id([employeeId, projectId])
+  @@index([projectId])
 }
 
 /// History of Regular contract extensions (proof required; lengthen only).
@@ -694,6 +880,8 @@ model ClientContractExtension {
   @@index([projectId])
 }
 
+/// Legacy monthly invoice snapshot — unused by product UI. Kept so hard-delete
+/// / scrub scripts and User/Company relations stay stable. Do not wire new flows.
 model InvoiceCompilation {
   id           String  @id @default(cuid())
   year         Int
@@ -747,6 +935,11 @@ model PurchaseInvoice {
   purchaseCategory PurchaseCategory @default(PRODUCT)
   /// PPN rate percent when includesPpn (e.g. 11 or 12). Null when no VAT.
   ppnRatePercent Decimal? @db.Decimal(5, 2)
+  /// STOCK (warehouse), PROJECT (tagged expense), or INTERNAL (HO overhead).
+  purpose PurchasePurpose @default(STOCK)
+  /// Required when purpose = PROJECT. Expense belongs to this project.
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   createdById String?
   createdBy   User?   @relation("PurchaseInvoiceCreator", fields: [createdById], references: [id])
@@ -757,8 +950,13 @@ model PurchaseInvoice {
   paymentProofPath String?
   paidById String?
   paidBy   User?   @relation("PurchaseInvoicePaidBy", fields: [paidById], references: [id], onDelete: SetNull)
+  /// HO in-house confirm reason when recording payment (no cloud reader required).
+  paymentManualReason String?
+  /// HO in-house confirm reason when accepting a tax invoice document.
+  taxInvoiceManualReason String?
 
   lines PurchaseInvoiceLine[]
+  pettyCashEntry PettyCashEntry?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -770,6 +968,8 @@ model PurchaseInvoice {
   @@index([taxInvoiceSerial])
   @@index([taxInvoiceDocumentHash])
   @@index([taxInvoiceIssuedAt, amount])
+  @@index([projectId])
+  @@index([companyId, purpose])
 }
 
 /// Line items on a Finance purchase (catalog item + qty + unit cost).
@@ -797,6 +997,28 @@ model PurchaseInvoiceLine {
   @@index([itemId])
 }
 
+/// Named site shift on a project (Shift 1, Shift 2, …). Times are the roster template.
+model ProjectShift {
+  id String @id @default(cuid())
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  /// 1-based shift number on this project.
+  number Int
+  startTime String
+  endTime   String
+
+  assignments ProjectAssignment[]
+  coveringDoubleShifts DoubleShiftAssignment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, number])
+  @@index([projectId])
+}
+
 model ProjectAssignment {
   id String @id @default(cuid())
 
@@ -806,14 +1028,180 @@ model ProjectAssignment {
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
+  shiftId String?
+  shift   ProjectShift? @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+
   /// Staff shift start as HH:mm (local). Expected clock-in is before this time.
   shiftStart String?
   /// Staff shift end as HH:mm (local). May be earlier than start for overnight shifts.
   shiftEnd String?
+  /// Part-time backup covering a full-time absence.
+  isBackup Boolean @default(false)
+  /// Regular employee whose named shift this backup covers.
+  coveredEmployeeId String?
+  coveredEmployee   Employee? @relation("BackupCoveredEmployee", fields: [coveredEmployeeId], references: [id], onDelete: SetNull)
+  backupStartDate DateTime? @db.Date
+  backupEndDate DateTime? @db.Date
+  /// Daily cash rate for a part-time backup. Not monthly base pay.
+  dailyRate Decimal? @db.Decimal(14, 2)
+  pettyCashEntries PettyCashEntry[]
 
   assignedAt DateTime @default(now())
 
   @@unique([projectId, employeeId])
+  @@index([shiftId])
+  @@index([coveredEmployeeId])
+}
+
+/// Same full-time employee covers the next shift on this date (not overtime).
+/// Pays two Internal Payroll daily rates for that calendar day after complete CICO.
+model DoubleShiftAssignment {
+  id String @id @default(cuid())
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  /// The extra named shift this employee takes over (the absent person's shift).
+  coveringShiftId String?
+  coveringShift   ProjectShift? @relation(fields: [coveringShiftId], references: [id], onDelete: SetNull)
+
+  /// Regular employee whose shift is being covered that date.
+  coveredEmployeeId String?
+  coveredEmployee   Employee? @relation("DoubleShiftCoveredEmployee", fields: [coveredEmployeeId], references: [id], onDelete: SetNull)
+
+  /// Jakarta calendar date the employee covers two shifts at this site.
+  date DateTime @db.Date
+
+  assignedById String
+  assignedBy   User   @relation("DoubleShiftAssignedBy", fields: [assignedById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([employeeId, date])
+  @@index([projectId, date])
+  @@index([assignedById])
+  @@index([coveringShiftId])
+  @@index([coveredEmployeeId])
+}
+
+enum PettyCashEntryKind {
+  TOP_UP
+  SPEND
+  PART_TIME_PAY
+}
+
+enum PettyCashEntryStatus {
+  SCHEDULED
+  POSTED
+  VOIDED
+}
+
+/// Field cash float: top-ups from Expenses, spends, and daily part-time pay.
+model PettyCashEntry {
+  id        String @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  kind   PettyCashEntryKind
+  status PettyCashEntryStatus @default(POSTED)
+  /// Always a positive IDR amount.
+  amount Decimal @db.Decimal(14, 2)
+  entryDate DateTime @db.Date
+  description String
+
+  purchaseInvoiceId String? @unique
+  purchaseInvoice   PurchaseInvoice? @relation(fields: [purchaseInvoiceId], references: [id], onDelete: SetNull)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+
+  assignmentId String?
+  assignment   ProjectAssignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+
+  createdById String?
+  createdBy   User? @relation("PettyCashEntryCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  postedAt DateTime?
+
+  /// Bill / receipt photo for spends. Required before a spend can post.
+  proofPath String?
+  /// Amount the document reader extracted from the proof. Must match `amount`.
+  extractedAmount Decimal? @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId, entryDate])
+  @@index([companyId, status, kind])
+  @@index([assignmentId])
+  @@index([projectId])
+}
+
+/// Permanent General Cleaning or Facade Cleaning team.
+model OperationsTeam {
+  id        String             @id @default(cuid())
+  companyId String
+  company   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name      String
+  kind      OperationsTeamKind
+
+  members      OperationsTeamMember[]
+  projectLinks OperationsTeamProject[]
+
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId, kind])
+}
+
+model OperationsTeamMember {
+  id         String         @id @default(cuid())
+  teamId     String
+  team       OperationsTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  employeeId String         @unique
+  employee   Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  assignedAt DateTime       @default(now())
+
+  @@unique([teamId, employeeId])
+  @@index([teamId])
+}
+
+/// Team deployed to a General / Facade job. Same teams persist across visits.
+model OperationsTeamProject {
+  id        String         @id @default(cuid())
+  teamId    String
+  team      OperationsTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignedAt DateTime      @default(now())
+
+  @@unique([teamId, projectId])
+  @@index([projectId])
+}
+
+/// One site visit on a General / Facade multi-visit job (not a milestone %).
+model ProjectVisit {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  visitIndex Int
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  amount    Decimal? @db.Decimal(14, 2)
+  invoicePeriodId String? @unique
+  invoicePeriod   ProjectInvoicePeriod? @relation(fields: [invoicePeriodId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, visitIndex])
+  @@index([projectId])
 }
 
 /// Staff stage / progress report with photo documentation for cleaning projects.
@@ -945,6 +1333,7 @@ model ProjectInvoicePeriod {
   revisedInvoiceNumber String?
 
   reviewEvents BillingClientReviewEvent[]
+  payrollManagementPeriod PayrollManagementPeriod?
 
   /// Client-uploaded proof of payment (image or PDF under /uploads/payment-proofs).
   paymentProofPath       String?
@@ -952,6 +1341,10 @@ model ProjectInvoicePeriod {
   paymentVerifiedAt      DateTime?
   paymentVerifiedById    String?
   paymentVerifiedBy      User?     @relation("InvoicePaymentVerifier", fields: [paymentVerifiedById], references: [id])
+  /// HO in-house confirm reason (required when accepting proof without cloud reader).
+  paymentManualReason String?
+  /// HO in-house confirm reason when marking a tax invoice sent.
+  taxInvoiceManualReason String?
 
   /// Copied from project.requiresTaxInvoice when the invoice is issued.
   taxInvoiceRequired Boolean   @default(false)
@@ -975,6 +1368,7 @@ model ProjectInvoicePeriod {
   compiledBy   User?   @relation("InvoicePeriodCompiler", fields: [compiledById], references: [id])
 
   reports ProgressReport[]
+  visit   ProjectVisit?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1040,10 +1434,17 @@ model Attendance {
   /** On-site proof photo captured at check-out (public path under /uploads/cico). */
   checkOutPhotoUrl String?
 
+  /// Field/office late check-in flag (mirrors attendance report).
+  lateCheckIn Boolean @default(false)
+  /// Field/office early check-out flag — no auto pay deduction.
+  earlyCheckOut Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([employeeId, date])
+  /// One complete CICO session per employee × calendar date × site.
+  @@unique([employeeId, date, projectId])
+  @@index([employeeId, date])
 }
 
 model LeaveRequest {
@@ -1108,6 +1509,7 @@ model InventoryItem {
   equipmentAssets EquipmentAsset[]
   materialRequestLines MaterialRequestLine[]
   transferOrderLines   TransferOrderLine[]
+  payrollDeductions    PayrollDeduction[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1166,7 +1568,7 @@ model InventorySale {
   quantity Decimal  @db.Decimal(14, 3)
   /// Pre-tax (ex-PPN) sale unit price (IDR).
   unitPrice  Decimal @db.Decimal(14, 2)
-  /// Tax-inclusive sale total (subtotal + taxAmount). TODO(FR): aggregate into money-in / income.
+  /// Tax-inclusive sale total (subtotal + taxAmount). Company income in Financial Report.
   totalPrice Decimal @db.Decimal(14, 2)
   /// Pre-tax sale total (DPP) = qty × unitPrice.
   subtotal Decimal @db.Decimal(14, 2) @default(0)
@@ -1260,6 +1662,7 @@ model InventoryMovement {
   equipmentAssetsFromWriteOff EquipmentAsset[] @relation("EquipmentWriteOff")
   /// Equipment assets retired by a sold-off (qty N, one movement).
   equipmentAssetsFromSoldOff EquipmentAsset[] @relation("EquipmentSoldOff")
+  payrollDeduction           PayrollDeduction?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1328,6 +1731,136 @@ model EquipmentAsset {
   @@index([companyId, status])
   @@index([itemId, status])
   @@index([projectId])
+}
+
+/// Manual Internal Payroll deduction or payable line for one employee-month.
+model PayrollDeduction {
+  id String @id @default(cuid())
+
+  year   Int
+  month  Int
+  type   PayrollDeductionType
+  amount Decimal @db.Decimal(14, 2)
+  reason String?
+
+  /// Lost stock: catalog item or typed name.
+  itemName  String?
+  quantity  Decimal? @db.Decimal(14, 3)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  inventoryItemId String?
+  inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+
+  /// Set only when this line created the inventory movement (void on delete).
+  inventoryMovementId String?            @unique
+  inventoryMovement   InventoryMovement? @relation(fields: [inventoryMovementId], references: [id], onDelete: SetNull)
+
+  createdById String?
+  createdBy   User?   @relation("PayrollDeductionCreator", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId, year, month])
+  @@index([companyId, year, month])
+  @@index([projectId, type])
+}
+
+/// Company paid a client for a site incident (e.g. stolen property). Project expense.
+model ProjectExpense {
+  id String @id @default(cuid())
+
+  category String @default("CLIENT_COMPENSATION")
+  amount   Decimal @db.Decimal(14, 2)
+  reason   String
+  incurredAt DateTime @default(now())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+
+  createdById String?
+  createdBy   User? @relation("ProjectExpenseCreator", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId, incurredAt])
+  @@index([companyId, incurredAt])
+}
+
+/// Frozen Internal Payroll period after HO Generate PDF. Unlock is HO-only.
+model InternalPayrollLock {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  year   Int
+  month  Int
+  locked Boolean @default(false)
+
+  lockedAt     DateTime?
+  lockedById   String?
+  lockedBy     User?   @relation("InternalPayrollLocker", fields: [lockedById], references: [id], onDelete: SetNull)
+  lockedByName String?
+
+  unlockedAt     DateTime?
+  unlockedById   String?
+  unlockedBy     User?   @relation("InternalPayrollUnlocker", fields: [unlockedById], references: [id], onDelete: SetNull)
+  unlockedByName String?
+  unlockReason   String?
+
+  /// Employee pay + day list at last Generate (attendance edits cannot change this).
+  snapshot Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, year, month])
+}
+
+/// Operational Manager Full pay / custom amount when a day is under 9 or 18 hours.
+model InternalPayrollDayDecision {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  workDate DateTime @db.Date
+  year     Int
+  month    Int
+
+  isDoubleShift Boolean
+  requiredHours Int
+  hoursWorked   Decimal  @db.Decimal(6, 2)
+  status        InternalPayrollDayDecisionStatus
+  paidAmount    Decimal  @db.Decimal(14, 2)
+
+  decidedById String?
+  decidedBy   User?     @relation("InternalPayrollDayDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, employeeId, workDate])
+  @@index([companyId, year, month])
+  @@index([employeeId, workDate])
 }
 
 /// Annual THR (Idul Fitri) entitlement snapshot per employee.
@@ -1470,4 +2003,105 @@ model TransferOrderLine {
 
   @@index([transferOrderId])
   @@index([itemId])
+}
+
+/// Parking: HO-entered actual monthly revenue. Deal terms stay on Project.
+model ParkingMonthlyLog {
+  id            String  @id @default(cuid())
+  year          Int
+  month         Int
+  revenueAmount Decimal @db.Decimal(14, 2)
+  notes         String?
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdById String?
+  createdBy   User?   @relation("ParkingLogCreator", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, year, month])
+  @@index([projectId])
+}
+
+/// Payroll Management: one client employee-pay list per calendar month.
+model PayrollManagementPeriod {
+  id     String                         @id @default(cuid())
+  year   Int
+  month  Int
+  status PayrollManagementPeriodStatus  @default(DRAFT)
+
+  /// Snapshot of project.serviceFeePercent when the list is saved.
+  serviceFeePercent Decimal @db.Decimal(5, 2)
+  wagesTotal        Decimal @db.Decimal(14, 2) @default(0)
+  feeAmount         Decimal @db.Decimal(14, 2) @default(0)
+  /// Tax on the management fee only (not on wages).
+  taxRatePercent    Decimal @db.Decimal(5, 2) @default(11)
+  taxAmount         Decimal @db.Decimal(14, 2) @default(0)
+  clientBillAmount  Decimal @db.Decimal(14, 2) @default(0)
+  notes             String?
+
+  invoicePeriodId String? @unique
+  invoicePeriod   ProjectInvoicePeriod? @relation(fields: [invoicePeriodId], references: [id], onDelete: SetNull)
+
+  wagesPaidAt     DateTime?
+  wagesPaidById   String?
+  wagesPaidBy     User?     @relation("PayrollPeriodWagesPaidBy", fields: [wagesPaidById], references: [id], onDelete: SetNull)
+
+  invoicedAt      DateTime?
+  invoicedById    String?
+  invoicedBy      User?     @relation("PayrollPeriodInvoicedBy", fields: [invoicedById], references: [id], onDelete: SetNull)
+  invoiceDueAt    DateTime?
+
+  reimbursedAt    DateTime?
+  reimbursedById  String?
+  reimbursedBy    User?     @relation("PayrollPeriodReimbursedBy", fields: [reimbursedById], references: [id], onDelete: SetNull)
+  paymentProofPath String?
+
+  /// Frozen after Head Office Generate PDF (same idea as Internal Payroll lock).
+  pdfLocked Boolean @default(false)
+  pdfLockedAt DateTime?
+  pdfLockedById String?
+  pdfLockedBy User? @relation("PayrollPeriodPdfLocker", fields: [pdfLockedById], references: [id], onDelete: SetNull)
+  pdfLockedByName String?
+  pdfUnlockedAt DateTime?
+  pdfUnlockedById String?
+  pdfUnlockedBy User? @relation("PayrollPeriodPdfUnlocker", fields: [pdfUnlockedById], references: [id], onDelete: SetNull)
+  pdfUnlockedByName String?
+  pdfUnlockReason String?
+  pdfSnapshot Json?
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdById String?
+  createdBy   User?   @relation("PayrollPeriodCreator", fields: [createdById], references: [id])
+
+  lines PayrollManagementLine[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, year, month])
+  @@index([projectId, status])
+}
+
+/// Client's employees that RGS must pay for a Payroll Management period.
+model PayrollManagementLine {
+  id            String  @id @default(cuid())
+  employeeName  String
+  amount        Decimal @db.Decimal(14, 2)
+  accountNumber String?
+  notes         String?
+  sortOrder     Int     @default(0)
+
+  periodId String
+  period   PayrollManagementPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([periodId])
 }

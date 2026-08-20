@@ -32,8 +32,9 @@ export type DataTableColumn<T> = {
   className?: string;
   headerClassName?: string;
   /**
-   * Alignment for header + body cells (default left — matches content start).
-   * Prefer `"center"` for chip / status columns whose cells are centered.
+   * Alignment for title and cells. Default is left. Action / button
+   * columns (`actions`) are always centered so Save / Remove sit under
+   * a centered Actions title. Gutters stay centered.
    */
   align?: DataTableColumnAlign;
   /**
@@ -42,9 +43,11 @@ export type DataTableColumn<T> = {
    */
   width?: string;
   /**
-   * Relative share of free table width after gutters. Primary identity
-   * columns (name/address) should use a higher share; secondary columns
-   * default to equal share (`1`).
+   * Relative share of free table width after gutters and fixed columns.
+   * Primary identity columns (name/address) should use a higher share;
+   * secondary columns default to equal share (`1`). Use `0` to lock a
+   * rem `width` (Actions / chip columns) so they never shrink into a
+   * neighbor.
    */
   share?: number;
   /** Marks the row-selection gutter column (excluded from row click). */
@@ -53,10 +56,17 @@ export type DataTableColumn<T> = {
   reorderColumn?: boolean;
 };
 
-function columnAlignClass(align: DataTableColumnAlign | undefined) {
+function columnAlignClass(align: DataTableColumnAlign) {
   if (align === "right") return "text-right";
   if (align === "center") return "text-center";
   return "text-left";
+}
+
+/** Titles: left with the data, except gutters and action buttons. */
+function columnHeaderJustifyClass(align: DataTableColumnAlign) {
+  if (align === "right") return "justify-end";
+  if (align === "center") return "justify-center";
+  return "justify-start";
 }
 
 /**
@@ -102,9 +112,9 @@ const SELECTION_COLUMN_WIDTH = "3.5rem";
 export const REORDER_COLUMN_WIDTH = "2.75rem";
 /**
  * Floor width for data columns without an explicit `width`.
- * Content-sized floors + horizontal scroll beat equal-% crushing.
+ * Columns never shrink below this — a small window scrolls sideways.
  */
-const MIN_FLEX_COLUMN_WIDTH = "10rem";
+const MIN_FLEX_COLUMN_WIDTH = "12rem";
 /** Default relative share for non-gutter columns. */
 const DEFAULT_COLUMN_SHARE = 1;
 
@@ -112,14 +122,6 @@ const INTERACTIVE_SELECTOR =
   "a, button, [role='button'], [role='menuitem'], [role='checkbox'], input, textarea, select, label";
 
 const REORDER_COLUMN_KEY = "__reorder";
-
-/** Column count including an injected reorder grip when enabled. */
-export function dataTableColumnCount(
-  columnCount: number,
-  options?: { reorderable?: boolean }
-) {
-  return columnCount + (options?.reorderable ? 1 : 0);
-}
 
 function isInteractiveTarget(
   target: EventTarget | null,
@@ -148,6 +150,17 @@ function isGutterColumn<T>(column: DataTableColumn<T>) {
   return Boolean(column.selectionColumn || column.reorderColumn);
 }
 
+/**
+ * Action / button columns and gutters are centered (title + cells).
+ * Everything else is left so the title lines up with the data under it.
+ */
+function resolveColumnAlign<T>(
+  column: DataTableColumn<T>
+): DataTableColumnAlign {
+  if (isGutterColumn(column) || isActionsColumn(column)) return "center";
+  return "left";
+}
+
 /** True when `width` is a percentage (layout hint), not a rem/px floor. */
 function isPercentageWidth(width: string | undefined) {
   return Boolean(width && /^\d+(\.\d+)?%$/.test(width.trim()));
@@ -162,53 +175,41 @@ function columnMinWidth<T>(column: DataTableColumn<T>) {
   return MIN_FLEX_COLUMN_WIDTH;
 }
 
+function isActionsColumn<T>(column: DataTableColumn<T>) {
+  const key = String(column.key).toLowerCase();
+  return key === "actions" || key.endsWith("actions");
+}
+
 function columnShareWeight<T>(column: DataTableColumn<T>) {
   if (isGutterColumn(column)) return 0;
   const share = column.share;
-  if (typeof share === "number" && Number.isFinite(share) && share > 0) {
-    return share;
+  if (typeof share === "number" && Number.isFinite(share)) {
+    return Math.max(0, share);
   }
+  // Chip columns keep a rem floor; a % share would let table-fixed crush
+  // them into the previous column on medium viewports.
+  if (isActionsColumn(column)) return 0;
   return DEFAULT_COLUMN_SHARE;
 }
 
-function gutterWidthSum<T>(columns: DataTableColumn<T>[]) {
+function isFixedWidthColumn<T>(column: DataTableColumn<T>) {
+  return isGutterColumn(column) || columnShareWeight(column) === 0;
+}
+
+function fixedWidthSum<T>(columns: DataTableColumn<T>[]) {
   const parts = columns
-    .filter(isGutterColumn)
+    .filter(isFixedWidthColumn)
     .map((column) => columnMinWidth(column));
   return parts.length > 0 ? parts.join(" + ") : "0px";
 }
 
 /**
- * Fixed gutters keep absolute rem widths; remaining columns split free width
- * by `share` (equal by default, larger for primary identity columns).
- * Free width = 100% minus gutter rem sum so equal shares stay visually equal.
+ * Columns keep a rem floor. Never size by % of the viewport — a narrow
+ * window must scroll sideways instead of cramping the table.
  */
-function columnWidthStyle<T>(
-  column: DataTableColumn<T>,
-  shareTotal: number,
-  gutterSum: string
-): CSSProperties {
+function columnWidthStyle<T>(column: DataTableColumn<T>): CSSProperties {
   const minWidth = columnMinWidth(column);
-
-  if (isGutterColumn(column)) {
-    return { width: minWidth, minWidth };
-  }
-
-  const weight = columnShareWeight(column);
-  if (shareTotal <= 0) {
-    return { width: minWidth, minWidth };
-  }
-
-  const fraction = weight / shareTotal;
-  return {
-    width:
-      gutterSum === "0px"
-        ? isPercentageWidth(column.width)
-          ? column.width!
-          : `${fraction * 100}%`
-        : `calc((100% - (${gutterSum})) * ${fraction})`,
-    minWidth,
-  };
+  return { width: minWidth, minWidth };
 }
 
 function resolveRowKey<T>(
@@ -270,20 +271,6 @@ export default function DataTable<T>({
     }
     return [gripColumn, ...columns];
   }, [columns, reorderable, t]);
-
-  const shareTotal = useMemo(
-    () =>
-      displayColumns.reduce(
-        (sum, column) => sum + columnShareWeight(column),
-        0
-      ),
-    [displayColumns]
-  );
-
-  const gutterSum = useMemo(
-    () => gutterWidthSum(displayColumns),
-    [displayColumns]
-  );
 
   const interactive = Boolean(onRowClick);
   const showEmptyMessage = rows.length === 0 && !leadingRow;
@@ -364,30 +351,32 @@ export default function DataTable<T>({
         style={{ WebkitOverflowScrolling: "touch" }}
       >
         {/*
-          Fixed layout + share-% widths: primary columns take a larger slice;
-          remaining columns split free space equally. Floor mins scroll instead
-          of crushing Actions / chips.
+          Rem column floors + min-width. A small window scrolls sideways
+          instead of cramping columns.
         */}
         <Table
           containerClassName="overflow-visible"
-          className="w-full table-fixed"
-          style={{ width: "100%", minWidth: tableMinWidth }}
+          className="min-w-full text-left"
+          style={{
+            minWidth: tableMinWidth,
+          }}
         >
           <colgroup>
             {displayColumns.map((column) => (
               <col
                 key={String(column.key)}
-                style={columnWidthStyle(column, shareTotal, gutterSum)}
+                style={columnWidthStyle(column)}
               />
             ))}
           </colgroup>
 
-          <TableHeader className="bg-elevated">
+          <TableHeader className="relative z-20 bg-elevated">
             <TableRow className="border-border hover:bg-transparent">
               {displayColumns.map((column, columnIndex) => {
                 const isLastColumn = columnIndex === displayColumns.length - 1;
                 const isGutter =
                   column.selectionColumn || column.reorderColumn;
+                const align = resolveColumnAlign(column);
 
                 return (
                   <TableHead
@@ -400,16 +389,22 @@ export default function DataTable<T>({
                     }
                     onClick={isGutter ? stopGutterCellClick : undefined}
                     onPointerDown={isGutter ? stopGutterCellClick : undefined}
-                    style={columnWidthStyle(column, shareTotal, gutterSum)}
+                    style={columnWidthStyle(column)}
                     className={cn(
-                      "h-11 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-subtle",
-                      columnAlignClass(column.align),
+                      "h-12 overflow-hidden bg-elevated px-4 py-3 align-middle text-[11px] font-semibold uppercase tracking-[0.14em] text-subtle",
+                      columnAlignClass(align),
                       columnTrailingPadClass(column, isLastColumn),
-                      column.headerClassName,
-                      column.className
+                      column.headerClassName
                     )}
                   >
-                    {column.title}
+                    <span
+                      className={cn(
+                        "inline-flex min-h-6 w-full items-center",
+                        columnHeaderJustifyClass(align)
+                      )}
+                    >
+                      {column.title}
+                    </span>
                   </TableHead>
                 );
               })}
@@ -473,6 +468,7 @@ export default function DataTable<T>({
                         columnIndex === displayColumns.length - 1;
                       const isGutter =
                         column.selectionColumn || column.reorderColumn;
+                      const align = resolveColumnAlign(column);
 
                       return (
                         <TableCell
@@ -487,10 +483,10 @@ export default function DataTable<T>({
                           onPointerDown={
                             isGutter ? stopGutterCellClick : undefined
                           }
-                          style={columnWidthStyle(column, shareTotal, gutterSum)}
+                          style={columnWidthStyle(column)}
                           className={cn(
-                            "overflow-visible whitespace-normal px-4 py-3.5",
-                            columnAlignClass(column.align),
+                            "align-middle whitespace-normal px-4 py-4",
+                            columnAlignClass(align),
                             columnTrailingPadClass(column, isLastColumn),
                             column.className
                           )}

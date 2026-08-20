@@ -41,7 +41,7 @@ export default async function SettlementsPage() {
   const permissionUser = toPermissionUser(session);
   const canMarkApPaid =
     !portalClientId &&
-    (canAccess(permissionUser, "invoicing") ||
+    (canAccess(permissionUser, "vendorPayments") ||
       canAccess(permissionUser, "projects"));
   const now = new Date();
 

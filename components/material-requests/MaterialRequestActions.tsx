@@ -7,7 +7,10 @@ import {
   cancelMaterialRequest,
   reviewMaterialRequest,
 } from "@/app/material-requests/actions";
-import { markTransferOrderReceived } from "@/app/transfer-orders/actions";
+import {
+  markTransferOrderNotReceived,
+  markTransferOrderReceived,
+} from "@/app/transfer-orders/actions";
 import { showRejectionFromError } from "@/components/ui/rejection-notice";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/i18n/use-t";
@@ -128,5 +131,44 @@ export function ReceiveTransferOrderButton({ id }: { id: string }) {
     >
       {t("pages.transferOrders.confirmReceived")}
     </Button>
+  );
+}
+
+export function DidNotReceiveTransferOrderButton({ id }: { id: string }) {
+  const { t } = useT();
+  const [pending, startTransition] = useTransition();
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant="secondary"
+      disabled={pending}
+      onClick={() => {
+        const formData = new FormData();
+        formData.set("id", id);
+        startTransition(async () => {
+          try {
+            await markTransferOrderNotReceived(formData);
+            toast.success(t("pages.transferOrders.didNotReceive"));
+          } catch (error) {
+            showRejectionFromError(
+              error,
+              t("pages.transferOrders.didNotReceiveFailed")
+            );
+          }
+        });
+      }}
+    >
+      {t("pages.transferOrders.didNotReceive")}
+    </Button>
+  );
+}
+
+export function SiteTransferReceiveActions({ id }: { id: string }) {
+  return (
+    <div className="flex flex-wrap justify-end gap-2">
+      <ReceiveTransferOrderButton id={id} />
+      <DidNotReceiveTransferOrderButton id={id} />
+    </div>
   );
 }

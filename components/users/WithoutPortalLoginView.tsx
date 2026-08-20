@@ -55,8 +55,8 @@ export type EmployeeWithoutPortalLogin = {
   employeeType: EmployeeType;
   employmentType: EmploymentType;
   placement: Placement;
-  jobPosition: { id: string; name: string } | null;
-  status: "ACTIVE" | "INACTIVE" | "TERMINATED" | "ON_LEAVE" | "LEAVE_PENDING";
+  jobPosition: { id: string; name: string; slug?: string | null } | null;
+  status: "ACTIVE" | "INACTIVE" | "TERMINATED" | "ON_LEAVE" | "LEAVE_PENDING" | "RESIGNED";
   category: { name: string } | null;
   user: { username: string; active: boolean } | null;
 };

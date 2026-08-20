@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Undo2 } from "lucide-react";
 
 import {
   compareMovedAtDesc,
@@ -11,6 +12,7 @@ import type { InventorySoldOffRow } from "@/components/inventory/inventory-types
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
+import { Button } from "@/components/ui/button";
 import { matchesDirectorySearch } from "@/components/ui/DirectorySearchInput";
 import { formatInventoryQtyWithUnit } from "@/lib/inventory";
 import { useT } from "@/lib/i18n/use-t";
@@ -21,11 +23,15 @@ import { formatUserDisplayLabel } from "@/lib/user-display";
 type Props = {
   soldOffs: InventorySoldOffRow[];
   searchQuery: string;
+  canReverse: boolean;
+  onReverse: (row: InventorySoldOffRow) => void;
 };
 
 export default function InventorySoldOffTables({
   soldOffs,
   searchQuery,
+  canReverse,
+  onReverse,
 }: Props) {
   const { t } = useT();
   const trimmedSearch = searchQuery.trim();
@@ -120,6 +126,28 @@ export default function InventorySoldOffTables({
       share: 1,
       render: (row) => formatUserDisplayLabel(row.createdBy) ?? "—",
     },
+    ...(canReverse
+      ? [
+          {
+            key: "actions",
+            title: t("pages.inventory.columns.actions"),
+            width: "8rem",
+            align: "right" as const,
+            render: (row: InventorySoldOffRow) => (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => onReverse(row)}
+              >
+                <Undo2 className="h-3.5 w-3.5" />
+                {t("pages.inventory.reverseSale")}
+              </Button>
+            ),
+          } satisfies DataTableColumn<InventorySoldOffRow>,
+        ]
+      : []),
   ];
 
   function renderCategoryTable(title: string, rows: InventorySoldOffRow[]) {
@@ -199,6 +227,11 @@ export default function InventorySoldOffTables({
           if (!next) setDetailRow(null);
         }}
         row={detailRow}
+        canReverse={canReverse}
+        onReverse={(row) => {
+          setDetailRow(null);
+          onReverse(row);
+        }}
       />
     </>
   );

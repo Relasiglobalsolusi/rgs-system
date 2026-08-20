@@ -127,7 +127,8 @@ export default function EmployeeCategoryTable({ categories }: Props) {
       key: "status",
       title: t("common.labels.status"),
       width: "10rem",
-      className: "min-w-[10rem] overflow-visible whitespace-nowrap text-center",
+      align: "center",
+      className: "min-w-[10rem] overflow-visible whitespace-nowrap",
       render: (category) => (
         <StatusBadge status={category.active ? "active" : "inactive"}>
           {category.active

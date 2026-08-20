@@ -43,17 +43,6 @@ function parseSequence(employeeNo: string, prefix: string): number | null {
   return Number.parseInt(match[1], 10);
 }
 
-function findLowestAvailableSequence(usedSequences: number[]): number {
-  const used = new Set(usedSequences);
-  let sequence = 1;
-
-  while (used.has(sequence)) {
-    sequence += 1;
-  }
-
-  return sequence;
-}
-
 function formatEmployeeNumber(prefix: string, sequence: number): string {
   return `${prefix}-${String(sequence).padStart(3, "0")}`;
 }
@@ -68,6 +57,22 @@ export async function getNextEmployeeNumber(
   categoryId: string,
   db: DbClient = prisma
 ): Promise<string> {
+  const allocated = await allocateEmployeeNumbers(companyId, categoryId, 1, db);
+  return allocated[0]!;
+}
+
+/**
+ * Allocate N sequential employee numbers for one department.
+ * Soft-deleted / archived numbers stay reserved.
+ */
+export async function allocateEmployeeNumbers(
+  companyId: string,
+  categoryId: string,
+  count: number,
+  db: DbClient = prisma
+): Promise<string[]> {
+  if (count <= 0) return [];
+
   const prefix = await resolveCategoryPrefix(db, categoryId, companyId);
 
   // Include archived tombstones so numbers are never reused.
@@ -79,12 +84,21 @@ export async function getNextEmployeeNumber(
     select: { employeeNo: true },
   });
 
-  const usedSequences = employees
-    .map((employee) => parseSequence(employee.employeeNo, prefix))
-    .filter((sequence): sequence is number => sequence !== null);
+  const used = new Set(
+    employees
+      .map((employee) => parseSequence(employee.employeeNo, prefix))
+      .filter((sequence): sequence is number => sequence !== null)
+  );
 
-  const nextSequence = findLowestAvailableSequence(usedSequences);
-  return formatEmployeeNumber(prefix, nextSequence);
+  const allocated: string[] = [];
+  let sequence = 1;
+  while (allocated.length < count) {
+    while (used.has(sequence)) sequence += 1;
+    used.add(sequence);
+    allocated.push(formatEmployeeNumber(prefix, sequence));
+    sequence += 1;
+  }
+  return allocated;
 }
 
 export async function reassignEmployeeNumber(

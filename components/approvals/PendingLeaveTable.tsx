@@ -49,8 +49,8 @@ export default function PendingLeaveTable({ data }: Props) {
         key: "type",
         title: t("pages.approvals.columns.type"),
         width: "10rem",
-        className:
-          "min-w-[10rem] overflow-visible whitespace-nowrap text-center",
+        align: "center",
+        className: "min-w-[10rem] overflow-visible whitespace-nowrap",
         render: (row) => (
           <StatusBadge status={row.type === "SICK" ? "warning" : "active"}>
             <LeaveTypeLabel type={row.type} />

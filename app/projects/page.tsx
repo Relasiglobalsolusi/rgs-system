@@ -18,8 +18,9 @@ import {
   isProjectSubCategory,
   CLIENT_PROJECT_SUB_CATEGORIES,
 } from "@/lib/project-subcategory";
-import { isContractSubCategory } from "@/lib/project-contract";
+import { isContractCycleSubCategory } from "@/lib/project-contract";
 import { isMilestoneSubCategory } from "@/lib/project-billing";
+import { isGcFacadeAwaitingPayment } from "@/lib/project-awaiting-payment";
 import {
   localizeSubCategory,
   localizeSubCategoryShort,
@@ -27,8 +28,10 @@ import {
 import {
   getMostUrgentUnpaidPeriod,
   getPaymentDueStage,
+  isPendingApprovalPeriod,
   isUnpaidInvoiceStatus,
   paymentDueWhere,
+  pendingApprovalWhere,
   projectHistoryWhere,
 } from "@/lib/billing";
 import {
@@ -37,9 +40,11 @@ import {
   formatProjectTitle,
 } from "@/lib/project-billing";
 import {
+  formatInvoicePeriodDateRange,
   isMonthlyPeriodAwaitingReconcile,
   isMonthlyPeriodReadyToInvoice,
 } from "@/lib/invoice-period";
+import { processPendingEarlyEndReconciles } from "@/lib/project-early-end";
 import {
   countDueMonthlyInvoiceReminders,
   syncDueMonthlyInvoicesOnLoad,
@@ -47,7 +52,6 @@ import {
 import {
   PROJECT_ALL_LIST_STATUSES,
   PROJECT_IN_PROGRESS_LIST_STATUSES,
-  PROJECT_PENDING_APPROVAL_LIST_STATUSES,
   PROJECT_PLANNING_LIST_STATUSES,
   PROJECT_PLANNING_STATUS,
 } from "@/lib/project-status";
@@ -214,6 +218,8 @@ export default async function ProjectsPage({
   const projectWhere = await getProjectWhereForUser({
     companyId: session.user.companyId,
     clientId: session.user.clientId,
+    userId: session.user.id,
+    username: session.user.username,
   });
 
   const company = await prisma.company.findFirst();
@@ -235,6 +241,21 @@ export default async function ProjectsPage({
       await getAttendanceDirectory();
     } catch {
       // Directory still loads if ensure fails.
+    }
+  }
+
+  if (
+    canManage &&
+    !session.user.clientId &&
+    session.user.companyId
+  ) {
+    try {
+      await processPendingEarlyEndReconciles({
+        companyId: session.user.companyId,
+        userId: session.user.id,
+      });
+    } catch {
+      // List still loads if next-day early-end reconcile is not ready.
     }
   }
 
@@ -261,14 +282,14 @@ export default async function ProjectsPage({
       : filterView === "in-progress"
         ? { status: { in: [...PROJECT_IN_PROGRESS_LIST_STATUSES] } }
         : filterView === "pending-approval"
-          ? { status: { in: [...PROJECT_PENDING_APPROVAL_LIST_STATUSES] } }
+          ? pendingApprovalWhere()
           : filterView === "payment-due"
             ? paymentDueWhere()
             : filterView === "completed"
               ? projectHistoryWhere()
               : { status: { in: [...PROJECT_ALL_LIST_STATUSES] } };
 
-  const [projectsFetched, employees, clients, filterClient, dueMonthlyReminders] =
+  const [projectsFetched, employees, clients, filterClient, dueMonthlyReminders, operationsTeams] =
     await Promise.all([
       prisma.project.findMany({
         where: {
@@ -298,11 +319,16 @@ export default async function ProjectsPage({
               milestonePercent: true,
               invoicePdfPath: true,
               reconciledAt: true,
+              clientReviewStatus: true,
+              clientReviewKind: true,
               amount: true,
               taxInvoiceRequired: true,
               taxInvoiceDoneAt: true,
               taxInvoiceDocumentPath: true,
             },
+          },
+          operationsTeamLinks: {
+            select: { teamId: true },
           },
           _count: {
             select: { assignments: true, progressReports: true },
@@ -318,11 +344,16 @@ export default async function ProjectsPage({
               // Include In-House Cleaning for Internal project edits on this page.
               OR: assignableProjectCrewOrWhere(company.id, {
                 includeInHouseCleaning: true,
+                includeSecurityStaff: true,
+                includeParkingStaff: true,
               }),
             },
-            include: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              employeeNo: true,
               category: { select: { name: true, prefix: true, slug: true } },
-              jobPosition: { select: { name: true, slug: true } },
             },
             orderBy: [
               { employmentType: "asc" },
@@ -347,7 +378,32 @@ export default async function ProjectsPage({
       canManage && !session.user.clientId
         ? countDueMonthlyInvoiceReminders()
         : Promise.resolve(0),
+      canManage
+        ? prisma.operationsTeam.findMany({
+            where: { companyId: company.id },
+            include: {
+              members: {
+                include: {
+                  employee: {
+                    select: { firstName: true, lastName: true },
+                  },
+                },
+              },
+            },
+            orderBy: [{ kind: "asc" }, { sortOrder: "asc" }, { name: "asc" }],
+          })
+        : Promise.resolve([]),
     ]);
+
+  const teamOptions = operationsTeams.map((team) => ({
+    id: team.id,
+    name: team.name,
+    kind: team.kind,
+    memberIds: team.members.map((member) => member.employeeId),
+    memberNames: team.members.map(
+      (member) => `${member.employee.firstName} ${member.employee.lastName}`
+    ),
+  }));
 
   const staffConflicts =
     canManage && employees.length > 0
@@ -370,9 +426,21 @@ export default async function ProjectsPage({
   );
 
   const now = new Date();
+  const projectsForView =
+    filterView === "in-progress"
+      ? projectsRaw.filter(
+          (project) =>
+            !isGcFacadeAwaitingPayment({
+              subCategory: project.subCategory,
+              status: project.status,
+              billingMode: project.billingMode,
+              invoicePeriods: project.invoicePeriods,
+            })
+        )
+      : projectsRaw;
   const projectsSorted =
     filterView === "payment-due"
-      ? [...projectsRaw].sort((a, b) => {
+      ? [...projectsForView].sort((a, b) => {
           const aStage = getPaymentDueStage(
             a.invoicePeriods.map((p) => ({
               ...p,
@@ -400,7 +468,7 @@ export default async function ProjectsPage({
           if (dueDiff !== 0) return dueDiff;
           return a.sortOrder - b.sortOrder;
         })
-      : projectsRaw;
+      : projectsForView;
 
   /**
    * Payment Due: one row per unpaid milestone installment.
@@ -416,6 +484,23 @@ export default async function ProjectsPage({
 
   const directoryItems: DirectoryItem[] = [];
   for (const project of projectsSorted) {
+    if (filterView === "pending-approval") {
+      const pending = [...project.invoicePeriods]
+        .filter((period) => isPendingApprovalPeriod(period))
+        .sort(
+          (a, b) =>
+            new Date(a.periodStart).getTime() -
+            new Date(b.periodStart).getTime()
+        );
+      for (const period of pending) {
+        directoryItems.push({
+          key: `${project.id}:${period.id}`,
+          project,
+          focusPeriod: period,
+        });
+      }
+      continue;
+    }
     if (filterView === "payment-due" && project.billingMode === "MILESTONE") {
       const unpaid = project.invoicePeriods
         .filter((p) => isUnpaidInvoiceStatus(p.status))
@@ -461,8 +546,10 @@ export default async function ProjectsPage({
       const isInternal = isInternalProjectSubCategory(project.subCategory);
       const timeline = isPlanningCard
         ? project.estimatedStartDate
-          ? `Est. start ${formatDisplayDate(project.estimatedStartDate)}`
-          : "Estimate TBD"
+          ? t("pages.projects.detail.estStart", {
+              date: formatDisplayDate(project.estimatedStartDate),
+            })
+          : t("pages.projects.detail.estimateTbd")
         : isInternal && !project.startDate && !project.endDate
           ? t("pages.projects.internalOngoing")
           : `${
@@ -486,23 +573,31 @@ export default async function ProjectsPage({
           : null;
       const dueLabel =
         paymentStage?.kind === "awaiting_payment" && paymentStage.dueAt != null
-          ? `Due ${formatDisplayDate(paymentStage.dueAt, { timeZone: "UTC" })}`
+          ? t("pages.projects.dueOn", {
+              date: formatDisplayDate(paymentStage.dueAt, { timeZone: "UTC" }),
+            })
           : null;
       const stageLabel =
         paymentStage?.kind === "awaiting_invoice"
-          ? "Awaiting Invoice"
+          ? t("pages.projects.awaitingInvoice")
           : paymentStage?.kind === "verifying"
-            ? "Verifying Payment"
+            ? t("pages.projects.verifyingPayment")
             : dueLabel ??
               (paymentStage?.kind === "awaiting_payment"
-                ? "Awaiting Payment"
+                ? t("pages.projects.awaitingPayment")
                 : null);
 
-      const displayTitle = formatProjectTitle(
-        project.name,
-        filterView === "completed" ? null : focusPeriod,
-        locale
-      );
+      const displayTitle =
+        filterView === "pending-approval" && focusPeriod?.periodStart && focusPeriod?.periodEnd
+          ? `${project.name} · ${formatInvoicePeriodDateRange(
+              new Date(focusPeriod.periodStart),
+              new Date(focusPeriod.periodEnd)
+            )}`
+          : formatProjectTitle(
+              project.name,
+              filterView === "completed" ? null : focusPeriod,
+              locale
+            );
 
       const hasOpenCollection = project.invoicePeriods.some((period) =>
         [
@@ -568,7 +663,7 @@ export default async function ProjectsPage({
         !isInternal &&
         (filterView === "in-progress" || filterView === undefined) &&
         project.status === "IN_PROGRESS" &&
-        isContractSubCategory(project.subCategory);
+        isContractCycleSubCategory(project.subCategory);
       // G3: General / Facade IN_PROGRESS projects can be submitted for approval.
       // Internal + Security / Parking / Payroll have no cleaning approval chips.
       const canSubmitForApproval =
@@ -751,7 +846,11 @@ export default async function ProjectsPage({
               })
             : null}
           {showCreate ? (
-            <ProjectAddControl employees={staffEmployees} clients={clients} />
+            <ProjectAddControl
+              employees={staffEmployees}
+              teams={teamOptions}
+              clients={clients}
+            />
           ) : null}
         </div>
       )}
@@ -827,6 +926,7 @@ export default async function ProjectsPage({
                 canOpenBilling={canOpenBilling}
                 emptyMessage={t(copy.emptyMessageKey)}
                 employees={staffEmployees}
+                teams={teamOptions}
               />
             </section>
           ))}

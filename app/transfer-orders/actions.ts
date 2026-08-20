@@ -1,4 +1,4 @@
-﻿"use server";
+"use server";
 
 import { revalidatePath } from "next/cache";
 import type { ProjectSubCategory, TransferOrderStatus } from "@prisma/client";
@@ -7,9 +7,15 @@ import { findOpenCicoAttendance } from "@/lib/cico-attendance";
 import {
   InsufficientEquipmentAssetsError,
   assertEquipmentInventoryInvariants,
-  assignAvailableEquipmentAssetsToProject,
   isEquipmentItemType,
+  markAvailableEquipmentAssetsInTransit,
 } from "@/lib/equipment-asset";
+import {
+  issueInTransitStockToProject,
+  returnInTransitStockToWarehouse,
+  transferOrderInTransitNote,
+  writeOffInTransitStock,
+} from "@/lib/transfer-order-return";
 import { formatEmployeeName } from "@/lib/employee-user-link";
 import { translate } from "@/lib/i18n/translate";
 import { getServerLocale } from "@/lib/i18n/locale";
@@ -103,7 +109,8 @@ function accumulateOpenOrderCounts(
   const totals = emptyOpenCounts();
   for (const row of rows) {
     const pendingInc = row.status === "PENDING_SEND" ? 1 : 0;
-    const transitInc = row.status === "SENT" ? 1 : 0;
+    const transitInc =
+      row.status === "SENT" || row.status === "NOT_RECEIVED" ? 1 : 0;
     totals.pendingSend += pendingInc;
     totals.inTransit += transitInc;
     const existing = byProject.get(row.projectId) ?? emptyOpenCounts();
@@ -141,6 +148,8 @@ export async function getTransferOrderDirectory(): Promise<TransferOrderDirector
   const projectWhere = await getProjectWhereForUser({
     companyId,
     clientId: session.user.clientId,
+    userId: session.user.id,
+    username: session.user.username,
   });
 
   const [clientsRaw, openOrders] = await Promise.all([
@@ -267,6 +276,8 @@ export async function getTransferOrderProjectsForClient(
   const projectWhere = await getProjectWhereForUser({
     companyId,
     clientId: session.user.clientId,
+    userId: session.user.id,
+    username: session.user.username,
   });
 
   if (isInternalRoute) {
@@ -446,6 +457,8 @@ export async function getTransferOrderQueueForProject(
   const projectWhere = await getProjectWhereForUser({
     companyId,
     clientId: session.user.clientId,
+    userId: session.user.id,
+    username: session.user.username,
   });
 
   const project = await prisma.project.findFirst({
@@ -546,13 +559,15 @@ export async function getTransferOrderQueueForProject(
     orders,
     stats: {
       pendingSend: orders.filter((o) => o.status === "PENDING_SEND").length,
-      inTransit: orders.filter((o) => o.status === "SENT").length,
+      inTransit: orders.filter(
+        (o) => o.status === "SENT" || o.status === "NOT_RECEIVED"
+      ).length,
       received: orders.filter((o) => o.status === "RECEIVED").length,
     },
   };
 }
 
-/** Warehouse: mark transfer sent and issue stock to the project. */
+/** Warehouse: mark transfer sent — stock leaves warehouse into in transit. */
 export async function markTransferOrderSent(formData: FormData) {
   const locale = await getServerLocale();
   let routeClientId: string | null = null;
@@ -626,12 +641,12 @@ export async function markTransferOrderSent(formData: FormData) {
             companyId: company.id,
             itemId: line.itemId,
             projectId: order.projectId,
-            type: "ISSUE_TO_PROJECT",
+            type: "IN_TRANSIT",
             quantity: toDecimal(-quantity),
             unitCost: toDecimal(unitCost),
             totalCost: toDecimal(totalCost),
             movedAt,
-            notes: `Transfer order ${order.id}`,
+            notes: transferOrderInTransitNote(order.id),
             createdById: session.user.id,
           },
         });
@@ -658,18 +673,18 @@ export async function markTransferOrderSent(formData: FormData) {
 
         if (isEquipment) {
           try {
-            await assignAvailableEquipmentAssetsToProject(
+            await markAvailableEquipmentAssetsInTransit(
               tx,
               company.id,
               line.itemId,
               order.projectId,
               quantity,
-              { issueMovementId: movement.id, assignedAt: movedAt }
+              { transitMovementId: movement.id, movedAt }
             );
             await assertEquipmentInventoryInvariants(tx, company.id, {
               itemIds: [line.itemId],
               projectId: order.projectId,
-              movementIds: [movement.id],
+              movementIds: [],
             });
           } catch (error) {
             if (error instanceof InsufficientEquipmentAssetsError) {
@@ -731,7 +746,7 @@ export async function markTransferOrderReceived(formData: FormData) {
     const id = String(formData.get("id") ?? "").trim();
     if (!id) throw new Error("Transfer order id required.");
 
-    const order = await prisma.transferOrder.findFirst({
+    const preview = await prisma.transferOrder.findFirst({
       where: { id, companyId: company.id, status: "SENT" },
       select: {
         id: true,
@@ -747,41 +762,611 @@ export async function markTransferOrderReceived(formData: FormData) {
         materialRequest: { select: { requestedById: true } },
       },
     });
-    if (!order) {
+    if (!preview) {
       throw new Error(translate(locale, "pages.transferOrders.notFound"));
     }
 
     // Allowed to confirm receipt: the original requester, or any materialRequests
     // / transferOrders user currently checked in (CICO) to the destination project.
-    const isRequester = order.materialRequest.requestedById === employee.id;
+    const isRequester = preview.materialRequest.requestedById === employee.id;
     if (!isRequester) {
       const open = await findOpenCicoAttendance(employee.id);
       const checkedInProjectId = open?.record?.projectId ?? null;
-      if (checkedInProjectId !== order.projectId) {
+      if (checkedInProjectId !== preview.projectId) {
         throw new Error(
           translate(locale, "pages.transferOrders.mustBeCheckedInToReceive")
         );
       }
     }
 
-    await prisma.transferOrder.update({
-      where: { id: order.id },
-      data: {
-        status: "RECEIVED",
-        receivedAt: new Date(),
-        receivedById: employee.id,
-      },
+    await prisma.$transaction(async (tx) => {
+      const order = await tx.transferOrder.findFirst({
+        where: { id, companyId: company.id, status: "SENT" },
+        include: {
+          lines: {
+            include: { item: { select: { id: true, itemType: true } } },
+          },
+        },
+      });
+      if (!order) {
+        throw new Error(translate(locale, "pages.transferOrders.notFound"));
+      }
+
+      const receivedAt = new Date();
+      const itemTypesByItemId = new Map(
+        order.lines.map((line) => [line.itemId, line.item.itemType])
+      );
+
+      try {
+        await issueInTransitStockToProject(tx, {
+          companyId: company.id,
+          orderId: order.id,
+          fromProjectId: order.projectId,
+          toProjectId: order.projectId,
+          userId: session.user.id,
+          itemTypesByItemId,
+        });
+        await assertEquipmentInventoryInvariants(tx, company.id, {
+          itemIds: order.lines.map((line) => line.itemId),
+          projectId: order.projectId,
+        });
+      } catch (error) {
+        if (error instanceof InsufficientEquipmentAssetsError) {
+          throw new Error(
+            translate(
+              locale,
+              "pages.inventory.insufficientEquipmentAssetsForIssue",
+              {
+                available: String(error.available),
+                requested: String(error.requested),
+              }
+            )
+          );
+        }
+        throw error;
+      }
+
+      await tx.transferOrder.update({
+        where: { id: order.id },
+        data: {
+          status: "RECEIVED",
+          receivedAt,
+          receivedById: employee.id,
+        },
+      });
     });
 
     revalidateTransferOrderTree({
-      clientId: transferOrderRouteClientId(order.project),
-      projectId: order.projectId,
+      clientId: transferOrderRouteClientId(preview.project),
+      projectId: preview.projectId,
     });
     revalidatePath("/material-requests");
+    revalidatePath("/inventory");
   } catch (error) {
     throw toActionError(
       error,
       translate(locale, "pages.transferOrders.receiveFailed")
+    );
+  }
+}
+
+async function assertCanConfirmSiteTransfer(
+  locale: AppLocale,
+  companyId: string,
+  userId: string,
+  order: {
+    projectId: string;
+    materialRequest: { requestedById: string };
+  }
+) {
+  const employee = await requireLinkedEmployee(userId, companyId);
+  const isRequester = order.materialRequest.requestedById === employee.id;
+  if (!isRequester) {
+    const open = await findOpenCicoAttendance(employee.id);
+    const checkedInProjectId = open?.record?.projectId ?? null;
+    if (checkedInProjectId !== order.projectId) {
+      throw new Error(
+        translate(locale, "pages.transferOrders.mustBeCheckedInToReceive")
+      );
+    }
+  }
+  return employee;
+}
+
+/** Site: shipment did not arrive. Do not expense the project. Opens item return. */
+export async function markTransferOrderNotReceived(formData: FormData) {
+  const locale = await getServerLocale();
+  try {
+    const session = await requireSession();
+    const permissionUser = toPermissionUser(session);
+    if (
+      !canAccess(permissionUser, "materialRequests") &&
+      !canAccess(permissionUser, "transferOrders")
+    ) {
+      throw new Error(translate(locale, "pages.transferOrders.receiveDenied"));
+    }
+    const company = await requireCompany(locale);
+    const id = String(formData.get("id") ?? "").trim();
+    if (!id) throw new Error("Transfer order id required.");
+
+    const preview = await prisma.transferOrder.findFirst({
+      where: { id, companyId: company.id, status: "SENT" },
+      select: {
+        id: true,
+        projectId: true,
+        project: {
+          select: {
+            clientId: true,
+            name: true,
+            serviceArea: true,
+            subCategory: true,
+          },
+        },
+        materialRequest: { select: { requestedById: true } },
+      },
+    });
+    if (!preview) {
+      throw new Error(translate(locale, "pages.transferOrders.notFound"));
+    }
+
+    await assertCanConfirmSiteTransfer(
+      locale,
+      company.id,
+      session.user.id,
+      preview
+    );
+
+    await prisma.transferOrder.update({
+      where: { id: preview.id },
+      data: { status: "NOT_RECEIVED" },
+    });
+
+    revalidateTransferOrderTree({
+      clientId: transferOrderRouteClientId(preview.project),
+      projectId: preview.projectId,
+    });
+    revalidatePath("/material-requests");
+    revalidatePath("/approvals");
+  } catch (error) {
+    throw toActionError(
+      error,
+      translate(locale, "pages.transferOrders.didNotReceiveFailed")
+    );
+  }
+}
+
+/** Warehouse: complete item return — restore in-transit stock to warehouse. */
+export async function completeTransferOrderItemReturn(formData: FormData) {
+  const locale = await getServerLocale();
+  try {
+    const session = await requireModule("transferOrders");
+    const company = await requireCompany(locale);
+    const id = String(formData.get("id") ?? "").trim();
+    if (!id) throw new Error("Transfer order id required.");
+
+    const preview = await prisma.transferOrder.findFirst({
+      where: { id, companyId: company.id, status: "NOT_RECEIVED" },
+      select: {
+        id: true,
+        projectId: true,
+        project: {
+          select: {
+            clientId: true,
+            name: true,
+            serviceArea: true,
+            subCategory: true,
+          },
+        },
+      },
+    });
+    if (!preview) {
+      throw new Error(translate(locale, "pages.transferOrders.notFound"));
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await returnInTransitStockToWarehouse(tx, {
+        companyId: company.id,
+        orderId: preview.id,
+        projectId: preview.projectId,
+        userId: session.user.id,
+      });
+      await tx.transferOrder.update({
+        where: { id: preview.id },
+        data: { status: "RETURNED" },
+      });
+    });
+
+    revalidateTransferOrderTree({
+      clientId: transferOrderRouteClientId(preview.project),
+      projectId: preview.projectId,
+    });
+    revalidatePath("/material-requests");
+    revalidatePath("/inventory");
+    revalidatePath("/approvals");
+  } catch (error) {
+    throw toActionError(
+      error,
+      translate(locale, "pages.transferOrders.itemReturnFailed")
+    );
+  }
+}
+
+/** Warehouse: escalate an unresolved item return to manager Needs Attention. */
+export async function escalateTransferOrderNeedsAttention(formData: FormData) {
+  const locale = await getServerLocale();
+  try {
+    const session = await requireModule("transferOrders");
+    const company = await requireCompany(locale);
+    const id = String(formData.get("id") ?? "").trim();
+    if (!id) throw new Error("Transfer order id required.");
+
+    const preview = await prisma.transferOrder.findFirst({
+      where: { id, companyId: company.id, status: "NOT_RECEIVED" },
+      select: {
+        id: true,
+        projectId: true,
+        project: {
+          select: {
+            clientId: true,
+            name: true,
+            serviceArea: true,
+            subCategory: true,
+          },
+        },
+      },
+    });
+    if (!preview) {
+      throw new Error(translate(locale, "pages.transferOrders.notFound"));
+    }
+
+    await prisma.transferOrder.update({
+      where: { id: preview.id },
+      data: { status: "NEEDS_ATTENTION" },
+    });
+
+    revalidateTransferOrderTree({
+      clientId: transferOrderRouteClientId(preview.project),
+      projectId: preview.projectId,
+    });
+    revalidatePath("/material-requests");
+    revalidatePath("/approvals");
+  } catch (error) {
+    throw toActionError(
+      error,
+      translate(locale, "pages.transferOrders.escalateFailed")
+    );
+  }
+}
+
+export type TransferOrderNeedsAttentionRow = TransferOrderQueueItem & {
+  clientName: string;
+};
+
+export async function getNeedsAttentionTransferOrders(): Promise<
+  TransferOrderNeedsAttentionRow[]
+> {
+  const session = await requireModule("approvals");
+  const companyId = session.user.companyId;
+  if (!companyId) return [];
+
+  const projectWhere = await getProjectWhereForUser({
+    companyId,
+    clientId: session.user.clientId,
+    userId: session.user.id,
+    username: session.user.username,
+  });
+
+  const orders = await prisma.transferOrder.findMany({
+    where: {
+      companyId,
+      status: "NEEDS_ATTENTION",
+      project: projectWhere,
+    },
+    include: {
+      project: {
+        select: {
+          id: true,
+          name: true,
+          client: { select: { name: true } },
+        },
+      },
+      sentBy: { select: { name: true, username: true } },
+      receivedBy: {
+        select: { firstName: true, lastName: true, employeeNo: true },
+      },
+      materialRequest: {
+        select: {
+          notes: true,
+          reviewNote: true,
+          requestedBy: {
+            select: {
+              firstName: true,
+              lastName: true,
+              employeeNo: true,
+            },
+          },
+        },
+      },
+      lines: {
+        include: {
+          item: {
+            select: {
+              sku: true,
+              name: true,
+              unit: true,
+              currentStock: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: { updatedAt: "asc" },
+    take: 100,
+  });
+
+  return orders.map((order) => ({
+    id: order.id,
+    status: order.status,
+    notes: order.notes ?? order.materialRequest.notes,
+    createdAt: order.createdAt,
+    sentAt: order.sentAt,
+    receivedAt: order.receivedAt,
+    project: order.project,
+    requestedByName: formatEmployeeName(order.materialRequest.requestedBy),
+    requestedByNo: order.materialRequest.requestedBy.employeeNo,
+    sentByName: order.sentBy?.name || order.sentBy?.username || null,
+    receivedByName: order.receivedBy
+      ? formatEmployeeName(order.receivedBy)
+      : null,
+    reviewNote: order.materialRequest.reviewNote,
+    lines: order.lines.map((line) => ({
+      id: line.id,
+      quantity: inventoryQtyFromDecimal(line.quantity),
+      item: {
+        sku: line.item.sku,
+        name: line.item.name,
+        unit: line.item.unit,
+        currentStock: inventoryQtyFromDecimal(line.item.currentStock),
+      },
+    })),
+    clientName: order.project.client?.name ?? ATTENDANCE_INTERNAL_CLIENT_NAME,
+  }));
+}
+
+export type TransferAssignProjectOption = {
+  id: string;
+  name: string;
+  clientName: string;
+};
+
+export async function listProjectsForTransferAssign(): Promise<
+  TransferAssignProjectOption[]
+> {
+  const session = await requireModule("approvals");
+  const companyId = session.user.companyId;
+  if (!companyId) return [];
+
+  const projectWhere = await getProjectWhereForUser({
+    companyId,
+    clientId: session.user.clientId,
+    userId: session.user.id,
+    username: session.user.username,
+  });
+
+  const projects = await prisma.project.findMany({
+    where: {
+      ...projectWhere,
+      status: { in: ["IN_PROGRESS", "WAITING_FOR_APPROVAL"] },
+    },
+    select: {
+      id: true,
+      name: true,
+      client: { select: { name: true } },
+    },
+    orderBy: [{ name: "asc" }],
+    take: 300,
+  });
+
+  return projects.map((project) => ({
+    id: project.id,
+    name: project.name,
+    clientName: project.client?.name ?? ATTENDANCE_INTERNAL_CLIENT_NAME,
+  }));
+}
+
+async function loadNeedsAttentionOrder(
+  companyId: string,
+  id: string
+) {
+  return prisma.transferOrder.findFirst({
+    where: { id, companyId, status: "NEEDS_ATTENTION" },
+    include: {
+      lines: {
+        include: { item: { select: { id: true, itemType: true } } },
+      },
+      project: {
+        select: {
+          id: true,
+          clientId: true,
+          name: true,
+          serviceArea: true,
+          subCategory: true,
+        },
+      },
+    },
+  });
+}
+
+/** Manager: write off in-transit stock. Decision is final. */
+export async function resolveTransferOrderWriteOff(formData: FormData) {
+  const locale = await getServerLocale();
+  try {
+    const session = await requireModule("approvals");
+    const company = await requireCompany(locale);
+    const id = String(formData.get("id") ?? "").trim();
+    if (!id) throw new Error("Transfer order id required.");
+
+    const preview = await loadNeedsAttentionOrder(company.id, id);
+    if (!preview) {
+      throw new Error(translate(locale, "pages.transferOrders.notFound"));
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await writeOffInTransitStock(tx, {
+        companyId: company.id,
+        orderId: preview.id,
+        projectId: preview.projectId,
+        userId: session.user.id,
+      });
+      await tx.transferOrder.update({
+        where: { id: preview.id },
+        data: { status: "WRITTEN_OFF" },
+      });
+    });
+
+    revalidateTransferOrderTree({
+      clientId: transferOrderRouteClientId(preview.project),
+      projectId: preview.projectId,
+    });
+    revalidatePath("/material-requests");
+    revalidatePath("/inventory");
+    revalidatePath("/approvals");
+  } catch (error) {
+    throw toActionError(
+      error,
+      translate(locale, "pages.transferOrders.writeOffFailed")
+    );
+  }
+}
+
+/** Manager: assign in-transit stock to a project and expense that project. */
+export async function resolveTransferOrderAssignToProject(formData: FormData) {
+  const locale = await getServerLocale();
+  try {
+    const session = await requireModule("approvals");
+    const company = await requireCompany(locale);
+    const id = String(formData.get("id") ?? "").trim();
+    const toProjectId = String(formData.get("projectId") ?? "").trim();
+    if (!id) throw new Error("Transfer order id required.");
+    if (!toProjectId) {
+      throw new Error(translate(locale, "pages.transferOrders.projectRequired"));
+    }
+
+    const preview = await loadNeedsAttentionOrder(company.id, id);
+    if (!preview) {
+      throw new Error(translate(locale, "pages.transferOrders.notFound"));
+    }
+
+    const projectWhere = await getProjectWhereForUser({
+      companyId: company.id,
+      clientId: session.user.clientId,
+      userId: session.user.id,
+      username: session.user.username,
+    });
+    const destination = await prisma.project.findFirst({
+      where: { id: toProjectId, ...projectWhere },
+      select: { id: true },
+    });
+    if (!destination) {
+      throw new Error(translate(locale, "pages.transferOrders.projectRequired"));
+    }
+
+    const itemTypesByItemId = new Map(
+      preview.lines.map((line) => [line.itemId, line.item.itemType])
+    );
+
+    await prisma.$transaction(async (tx) => {
+      try {
+        await issueInTransitStockToProject(tx, {
+          companyId: company.id,
+          orderId: preview.id,
+          fromProjectId: preview.projectId,
+          toProjectId: destination.id,
+          userId: session.user.id,
+          itemTypesByItemId,
+        });
+        await assertEquipmentInventoryInvariants(tx, company.id, {
+          itemIds: preview.lines.map((line) => line.itemId),
+          projectId: destination.id,
+        });
+      } catch (error) {
+        if (error instanceof InsufficientEquipmentAssetsError) {
+          throw new Error(
+            translate(
+              locale,
+              "pages.inventory.insufficientEquipmentAssetsForIssue",
+              {
+                available: String(error.available),
+                requested: String(error.requested),
+              }
+            )
+          );
+        }
+        throw error;
+      }
+
+      await tx.transferOrder.update({
+        where: { id: preview.id },
+        data: {
+          status: "RECEIVED",
+          receivedAt: new Date(),
+        },
+      });
+    });
+
+    revalidateTransferOrderTree({
+      clientId: transferOrderRouteClientId(preview.project),
+      projectId: preview.projectId,
+    });
+    revalidatePath("/material-requests");
+    revalidatePath("/inventory");
+    revalidatePath("/approvals");
+  } catch (error) {
+    throw toActionError(
+      error,
+      translate(locale, "pages.transferOrders.assignToProjectFailed")
+    );
+  }
+}
+
+/** Manager: return in-transit stock to warehouse. */
+export async function resolveTransferOrderAssignToStock(formData: FormData) {
+  const locale = await getServerLocale();
+  try {
+    const session = await requireModule("approvals");
+    const company = await requireCompany(locale);
+    const id = String(formData.get("id") ?? "").trim();
+    if (!id) throw new Error("Transfer order id required.");
+
+    const preview = await loadNeedsAttentionOrder(company.id, id);
+    if (!preview) {
+      throw new Error(translate(locale, "pages.transferOrders.notFound"));
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await returnInTransitStockToWarehouse(tx, {
+        companyId: company.id,
+        orderId: preview.id,
+        projectId: preview.projectId,
+        userId: session.user.id,
+      });
+      await tx.transferOrder.update({
+        where: { id: preview.id },
+        data: { status: "RETURNED" },
+      });
+    });
+
+    revalidateTransferOrderTree({
+      clientId: transferOrderRouteClientId(preview.project),
+      projectId: preview.projectId,
+    });
+    revalidatePath("/material-requests");
+    revalidatePath("/inventory");
+    revalidatePath("/approvals");
+  } catch (error) {
+    throw toActionError(
+      error,
+      translate(locale, "pages.transferOrders.assignToStockFailed")
     );
   }
 }

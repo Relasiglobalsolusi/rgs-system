@@ -26,18 +26,20 @@ export default function PaymentReceivedDialog({
 }: Props) {
   const { t } = useT();
   const [proofFile, setProofFile] = useState<File | null>(null);
+  const [reason, setReason] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) {
       setProofFile(null);
+      setReason("");
       setPending(false);
       setError(null);
     }
   }, [open]);
 
-  const canSubmit = Boolean(proofFile && proofFile.size > 0);
+  const canSubmit = Boolean(proofFile && proofFile.size > 0 && reason.trim());
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -53,6 +55,7 @@ export default function PaymentReceivedDialog({
       const formData = new FormData();
       formData.set("periodId", periodId);
       formData.set("paymentProof", proofFile);
+      formData.set("manualReason", reason);
       const result = await markInvoicePeriodPaid(formData);
       onOpenChange(false);
       onSuccess(result);
@@ -84,6 +87,9 @@ export default function PaymentReceivedDialog({
       fileLabel={t("pages.billing.proofOfPayment")}
       fileName={proofFile?.name ?? null}
       onFilePick={setProofFile}
+      requireReason
+      reasonValue={reason}
+      onReasonChange={setReason}
       callout={t("pages.billing.paymentVerifyHint")}
       error={error}
       pending={pending}

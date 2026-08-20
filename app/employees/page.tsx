@@ -5,8 +5,12 @@ import {
   filterPositionsForEmployeeCreateActor,
   resolveEmployeeCreateActorTier,
 } from "@/lib/employee-create-hierarchy";
-import { ensureWorkforceDepartments } from "@/lib/positions";
-import { canManageEmployees } from "@/lib/project-access";
+import {
+  backfillSecurityDepositRequiredForSiteRoles,
+  ensureWorkforceDepartments,
+} from "@/lib/positions";
+import { applyResignIfLastDayReachedMany } from "@/lib/employee-resign";
+import { canManageEmployees, canResignEmployees } from "@/lib/project-access";
 import { requireModule, toPermissionUser } from "@/lib/session";
 
 import AppShell from "@/components/layout/AppShell";
@@ -15,12 +19,20 @@ import T from "@/components/i18n/T";
 
 import EmployeeDirectory from "@/components/employees/EmployeeDirectory";
 
-const ASSIGNABLE_STATUSES = ["PLANNED", "IN_PROGRESS"] as const;
+const AREA_MANAGER_PROJECT_STATUSES = [
+  "PLANNED",
+  "IN_PROGRESS",
+  "WAITING_FOR_APPROVAL",
+  "OFF_SITE",
+  "ON_HOLD",
+  "COMPLETED",
+] as const;
 
 export default async function EmployeesPage() {
   const session = await requireModule("employees");
   const permissionUser = toPermissionUser(session);
   const canManage = canManageEmployees(permissionUser);
+  const canResign = canResignEmployees(permissionUser);
   const canArchive = canManage;
   const createActorTier = await resolveEmployeeCreateActorTier(session);
 
@@ -29,6 +41,7 @@ export default async function EmployeesPage() {
   if (company) {
     // Keep Corporate / Warehouse (WRH) / Operations + default positions present.
     await ensureWorkforceDepartments(prisma, company.id);
+    await backfillSecurityDepositRequiredForSiteRoles(prisma, company.id);
   }
 
   if (!company) {
@@ -57,6 +70,16 @@ export default async function EmployeesPage() {
             id: true,
             name: true,
             slug: true,
+          },
+        },
+        areaManagedProjects: {
+          select: {
+            projectId: true,
+          },
+        },
+        operationsTeamMembership: {
+          select: {
+            team: { select: { name: true } },
           },
         },
         projectAssignments: {
@@ -113,6 +136,7 @@ export default async function EmployeesPage() {
             name: true,
             slug: true,
             prefix: true,
+            sortOrder: true,
           },
         },
         _count: {
@@ -121,18 +145,25 @@ export default async function EmployeesPage() {
           },
         },
       },
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      orderBy: [
+        { category: { sortOrder: "asc" } },
+        { category: { name: "asc" } },
+        { sortOrder: "asc" },
+        { name: "asc" },
+      ],
     }),
     prisma.project.findMany({
       where: {
         companyId: company.id,
-        status: { in: [...ASSIGNABLE_STATUSES] },
+        subCategory: { not: "INTERNAL" },
+        status: { in: [...AREA_MANAGER_PROJECT_STATUSES] },
       },
       select: {
         id: true,
         name: true,
         location: true,
         status: true,
+        client: { select: { name: true } },
       },
       orderBy: {
         name: "asc",
@@ -140,10 +171,16 @@ export default async function EmployeesPage() {
     }),
   ]);
 
+  await applyResignIfLastDayReachedMany(
+    prisma,
+    employees.map((employee) => employee.id)
+  );
+
   const employeeRows = employees.map((employee) => ({
     ...employee,
     basePay: decimalToNumber(employee.basePay),
     jkkPercent: decimalToNumber(employee.jkkPercent),
+    depositHeldAmount: decimalToNumber(employee.depositHeldAmount) ?? 0,
     hasPendingLeaveRequest: employee._count.leaveRequests > 0,
   }));
 
@@ -206,8 +243,15 @@ export default async function EmployeesPage() {
         }
         positions={assignablePositions}
         managePositions={canManage ? positions : undefined}
-        projects={projects}
+        projects={projects.map((project) => ({
+          id: project.id,
+          name: project.name,
+          location: project.location,
+          status: project.status,
+          clientName: project.client?.name ?? null,
+        }))}
         canManage={canManage}
+        canResign={canResign}
         canArchive={canArchive}
         createActorTier={createActorTier}
       />

@@ -6,8 +6,11 @@ import {
   type AccountTypeUser,
   type PermissionUser,
 } from "@/lib/permissions";
-import { isContractSubCategory } from "@/lib/project-contract";
-import { isCleaningProjectSubCategory } from "@/lib/project-subcategory";
+import {
+  isAreaManagerPosition,
+  isOperationsManagerPosition,
+} from "@/lib/positions";
+import { isContractCycleSubCategory } from "@/lib/project-contract";
 import {
   PROJECT_IN_PROGRESS_LIST_STATUSES,
   PROJECT_PENDING_APPROVAL_LIST_STATUSES,
@@ -18,6 +21,9 @@ type SessionUser = {
   companyId: string;
   /** When set, restrict to this client's projects only (portal login). */
   clientId?: string | null;
+  /** Signed-in user — used to apply Operations Manager service-area scope. */
+  userId?: string | null;
+  username?: string | null;
 };
 
 /** Planning + In Progress + Pending Approval (+ legacy ON_HOLD) — admin-only hard delete. */
@@ -42,9 +48,18 @@ type ProjectAdminUser = AccountTypeUser & { clientId?: string | null };
 export async function getProjectWhereForUser(
   user: SessionUser
 ): Promise<Prisma.ProjectWhereInput> {
+  const omScope = user.clientId
+    ? null
+    : await (await import("@/lib/om-approval")).getOmServiceAreaListFilter({
+        userId: user.userId,
+        username: user.username,
+        clientId: user.clientId,
+      });
+
   const base: Prisma.ProjectWhereInput = {
     companyId: user.companyId,
     ...(user.clientId ? { clientId: user.clientId } : {}),
+    ...(omScope ?? {}),
   };
 
   if (!user.clientId) return base;
@@ -110,6 +125,14 @@ export function canManageProjects(
   return canAccess(user, "projects");
 }
 
+/** Head Office: create teams and allocate permanent members. */
+export function canManageTeams(
+  user: PermissionUser & { clientId?: string | null; vendorId?: string | null }
+) {
+  if (isClientPortalUser(user) || isVendorPortalUser(user)) return false;
+  return canAccess(user, "teams");
+}
+
 /**
  * Permanent delete of Planning / In Progress projects.
  * Admins only — HO employees and clients cannot delete these stages.
@@ -130,8 +153,9 @@ export function isInProgressCleaningProjectDeleteBlocked(opts: {
   // Internal HO/Warehouse sites may be deleted (system can recreate empty shells).
   if (opts.subCategory === "INTERNAL") return false;
   return (
-    opts.status === "IN_PROGRESS" &&
-    isCleaningProjectSubCategory(opts.subCategory)
+    opts.status === "IN_PROGRESS" ||
+    opts.status === "WAITING_FOR_APPROVAL" ||
+    opts.status === "OFF_SITE"
   );
 }
 
@@ -143,10 +167,10 @@ export function getInProgressCleaningProjectDeleteBlockReason(opts: {
   if (!isInProgressCleaningProjectDeleteBlocked(opts)) return null;
 
   // Regular contracts also show End Contract on the detail page.
-  if (isContractSubCategory(opts.subCategory)) {
-    return "In-progress projects cannot be deleted. Use End Contract to close this project.";
+  if (isContractCycleSubCategory(opts.subCategory)) {
+    return "Live jobs cannot be deleted. Use End Contract to close this project.";
   }
-  return "In-progress projects cannot be deleted.";
+  return "Live jobs cannot be deleted.";
 }
 
 /**
@@ -227,7 +251,7 @@ export function canManageItemCatalog(
 
 /**
  * Finance → Financial Report (client / project P&L).
- * HO admin / HO staff with invoicing only — never client or vendor portals,
+ * HO admin / HO staff with Financial Report only — never client or vendor portals,
  * and never PROJECT_SITE staff even with a mistaken override.
  */
 export function canViewFinancialReport(
@@ -235,7 +259,7 @@ export function canViewFinancialReport(
     AccountTypeUser & { clientId?: string | null; vendorId?: string | null }
 ) {
   if (isClientPortalUser(user) || isVendorPortalUser(user)) return false;
-  if (!canAccess(user, "invoicing")) return false;
+  if (!canAccess(user, "financialReport")) return false;
   if (isAdminAccount(user)) return true;
 
   const employeeType =
@@ -266,6 +290,20 @@ export function canManageEmployees(
   return true;
 }
 
-export function canViewReports(user: PermissionUser) {
-  return canAccess(user, "reports");
+/** Head Office only. Operations Manager cannot resign people. */
+export function canResignEmployees(
+  user: PermissionUser &
+    AccountTypeUser & {
+      clientId?: string | null;
+      vendorId?: string | null;
+      employee?: {
+        jobPosition?: { slug?: string | null; name?: string | null } | null;
+      } | null;
+    }
+) {
+  if (!canManageEmployees(user)) return false;
+  const jobPosition = user.employee?.jobPosition;
+  if (jobPosition && isOperationsManagerPosition(jobPosition)) return false;
+  if (jobPosition && isAreaManagerPosition(jobPosition)) return false;
+  return true;
 }

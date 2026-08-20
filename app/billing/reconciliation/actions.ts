@@ -12,8 +12,6 @@ import {
   isAwaitingClientAction,
   isInHoRevisedQueue,
 } from "@/lib/client-billing-review";
-import { formatContactPersonName } from "@/lib/contact-person";
-import { sendInvoiceEmail } from "@/lib/invoice-delivery";
 import { prisma } from "@/lib/prisma";
 import { assertCanApproveProjectServiceArea } from "@/lib/om-approval";
 import { canAccess } from "@/lib/permissions";
@@ -25,7 +23,7 @@ import {
   maxMilestonePercent,
   parseContractPrice,
 } from "@/lib/project-billing";
-import { isContractSubCategory } from "@/lib/project-contract";
+import { isContractCycleSubCategory } from "@/lib/project-contract";
 import { generateProgressReviewPdf } from "@/lib/progress-review-pdf";
 import { generateReconciliationReportPdf } from "@/lib/reconciliation-report-pdf";
 import {
@@ -64,7 +62,7 @@ async function requireHoFinanceAccess() {
     redirect("/dashboard");
   }
   const user = toPermissionUser(session);
-  if (!canAccess(user, "invoicing") && !canAccess(user, "projects")) {
+  if (!canAccess(user, "reconciliation") && !canAccess(user, "projects")) {
     redirect("/dashboard");
   }
   return session;
@@ -118,33 +116,9 @@ async function logReviewEvent(opts: {
   });
 }
 
-async function notifyClientReviewReady(opts: {
-  toEmail: string | null | undefined;
-  clientName: string | null | undefined;
-  contactPersonName: string | null;
-  projectName: string;
-  periodLabel: string;
-  kind: ClientReviewKind;
-  pdfPath: string;
-}) {
-  const kindLabel =
-    opts.kind === "PROGRESS" ? "progress report" : "reconciliation report";
-  // Reuse invoice mailer stub path with a review subject via amountLabel hack —
-  // dedicated mail helper would be nicer; keep wiring on existing SMTP infra.
-  await sendInvoiceEmail({
-    toEmail: opts.toEmail,
-    clientName: opts.clientName,
-    contactPersonName: opts.contactPersonName,
-    projectName: opts.projectName,
-    periodLabel: `${opts.periodLabel} (${kindLabel} for review)`,
-    amountLabel: "Action required: Approve or Revise in the client portal",
-    pdfPublicPath: opts.pdfPath,
-  });
-}
-
 /**
  * After HO reconcile (Regular) or when sending a progress package (General/Facade):
- * build the review PDF, mark AWAITING_CLIENT_REVIEW, notify client contact.
+ * build the review PDF and mark AWAITING_CLIENT_REVIEW.
  */
 export async function sendPeriodForClientReview(
   periodId: string,
@@ -177,8 +151,13 @@ export async function sendPeriodForClientReview(
   let reviewReportPdfPath: string;
 
   if (kind === "RECONCILIATION") {
-    if (project.billingMode !== "MONTHLY" || !isContractSubCategory(project.subCategory)) {
-      throw new Error("Reconciliation review is only for Regular Cleaning.");
+    if (
+      project.billingMode !== "MONTHLY" ||
+      !isContractCycleSubCategory(project.subCategory)
+    ) {
+      throw new Error(
+        "Reconciliation review is only for Regular Cleaning and Security."
+      );
     }
     if (!period.reconciledAt) {
       throw new Error("Reconcile this period before sending it to the client.");
@@ -219,6 +198,54 @@ export async function sendPeriodForClientReview(
       })),
       company: project.company,
     });
+  } else if (kind === "PAYROLL_MANAGEMENT") {
+    if (project.subCategory !== "PAYROLL_MANAGEMENT") {
+      throw new Error("This review is only for Payroll Management.");
+    }
+    const { writeFile, mkdir } = await import("fs/promises");
+    const path = await import("path");
+    const { buildInternalPayrollPdfBuffer } = await import(
+      "@/lib/internal-payroll-pdf"
+    );
+    const { reviewToPayrollPdfEmployees } = await import(
+      "@/lib/payroll-management-review"
+    );
+    const { snapshotToPayrollManagementReview } = await import(
+      "@/lib/payroll-management-review"
+    );
+    const pm = await prisma.payrollManagementPeriod.findFirst({
+      where: { invoicePeriodId: periodId },
+      include: { lines: { orderBy: { sortOrder: "asc" } } },
+    });
+    if (!pm) {
+      throw new Error("Generate the wage sheet before sending it to the client.");
+    }
+    const review =
+      snapshotToPayrollManagementReview(pm.pdfSnapshot) ?? [];
+    const buffer = await buildInternalPayrollPdfBuffer({
+      year: pm.year,
+      month: pm.month,
+      periodLabel: period.label ?? "Payroll Management",
+      employees: reviewToPayrollPdfEmployees(
+        review,
+        pm.lines.map((line) => ({
+          employeeName: line.employeeName,
+          amount: decimalToNumber(line.amount) ?? 0,
+          notes: line.notes,
+        })),
+        "Client adjustment"
+      ),
+      company: project.company,
+      title: "Payroll Management Wage Sheet",
+    });
+    const folder = "uploads/payroll-management-reviews";
+    const filename = `pm-review-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 8)}.pdf`;
+    const uploadDir = path.join(process.cwd(), "public", folder);
+    await mkdir(uploadDir, { recursive: true });
+    await writeFile(path.join(uploadDir, filename), buffer);
+    reviewReportPdfPath = `/${folder}/${filename}`;
   } else {
     if (!isMilestoneSubCategory(project.subCategory) && project.billingMode === "MONTHLY") {
       throw new Error("Progress review is for General / Facade projects.");
@@ -321,36 +348,45 @@ export async function sendPeriodForClientReview(
     statusAfter: "AWAITING_CLIENT",
   });
 
-  const client = project.client;
-  await notifyClientReviewReady({
-    toEmail: client?.contactPersonEmail?.trim() || client?.email,
-    clientName: client?.name,
-    contactPersonName: formatContactPersonName(
-      client?.contactPersonFirstName,
-      client?.contactPersonLastName
-    ),
-    projectName: project.name,
-    periodLabel: period.label ?? "Billing period",
-    kind,
-    pdfPath: reviewReportPdfPath,
-  });
-
   revalidateReviewPaths({
     projectId: project.id,
     clientId: project.clientId,
   });
 
-  // Enter Pending Approval while client + HO review is open (Regular reconcile
-  // and General / Facade Submit for Approval / progress review).
-  if (project.status === "IN_PROGRESS") {
+  // Review is period-level only. The job stays In Progress so CICO / progress
+  // continue. Leftover Pending Approval rows are put back to In Progress.
+  if (project.status === "WAITING_FOR_APPROVAL") {
     await prisma.project.update({
       where: { id: project.id },
-      data: { status: "WAITING_FOR_APPROVAL" },
+      data: { status: "IN_PROGRESS" },
     });
     revalidatePath("/projects");
   }
 
   return { periodId, reviewReportPdfPath };
+}
+
+async function isLastVisitPeriod(periodId: string): Promise<boolean> {
+  const visit = await prisma.projectVisit.findFirst({
+    where: { invoicePeriodId: periodId },
+    select: { projectId: true, visitIndex: true },
+  });
+  if (!visit) return false;
+  const later = await prisma.projectVisit.count({
+    where: {
+      projectId: visit.projectId,
+      visitIndex: { gt: visit.visitIndex },
+    },
+  });
+  return later === 0;
+}
+
+async function schedulePercentsForProject(projectId: string) {
+  const rows = await prisma.projectInvoicePeriod.findMany({
+    where: { projectId },
+    select: { milestonePercent: true },
+  });
+  return rows.map((row) => row.milestonePercent);
 }
 
 /** Client portal: approve reconcile/progress → auto-issue invoice + email. */
@@ -366,6 +402,7 @@ export async function clientApproveBillingReview(periodId: string) {
           clientId: true,
           billingMode: true,
           subCategory: true,
+          endDate: true,
         },
       },
     },
@@ -398,8 +435,19 @@ export async function clientApproveBillingReview(periodId: string) {
     statusAfter: "CLIENT_APPROVED",
   });
 
-  // Crew/equipment: never release on billing review agree.
-  // GC/Facade → only when project is COMPLETED; Regular/Security → End Contract only.
+  if (period.project.subCategory === "PAYROLL_MANAGEMENT") {
+    await prisma.payrollManagementPeriod.updateMany({
+      where: { invoicePeriodId: periodId },
+      data: {
+        status: "CLIENT_APPROVED",
+        wagesPaidAt: new Date(),
+        wagesPaidById: session.user.id,
+      },
+    });
+  }
+
+  // Final GC/Facade approve: crew + equipment go home now (before invoice / pay).
+  // Intermediate parts and Regular/Security stay assigned.
   const {
     shouldReleaseCrewAfterBillingReviewAgree,
     releaseProjectCrewAfterProgressApproved,
@@ -408,10 +456,18 @@ export async function clientApproveBillingReview(periodId: string) {
     subCategory: period.project.subCategory,
     billingMode: period.project.billingMode,
     milestonePercent: period.milestonePercent,
+    schedulePercents: await schedulePercentsForProject(period.projectId),
+    periodEnd: period.periodEnd,
+    contractEndDate: period.project.endDate,
+    isLastVisit: await isLastVisitPeriod(periodId),
   });
   if (shouldRelease) {
     await prisma.$transaction(async (tx) => {
       await releaseProjectCrewAfterProgressApproved(tx, period.projectId);
+      await tx.project.update({
+        where: { id: period.projectId },
+        data: { status: "OFF_SITE" },
+      });
     });
   }
 
@@ -510,6 +566,7 @@ export async function hoApproveClientRevision(formData: FormData) {
           billingMode: true,
           subCategory: true,
           serviceArea: true,
+          endDate: true,
         },
       },
     },
@@ -537,6 +594,7 @@ export async function hoApproveClientRevision(formData: FormData) {
     username: session.user.username,
     permissionUser: toPermissionUser(session),
     projectServiceArea: period.project.serviceArea,
+    projectId: period.project.id,
   });
 
   await prisma.projectInvoicePeriod.update({
@@ -563,7 +621,7 @@ export async function hoApproveClientRevision(formData: FormData) {
     statusAfter: "HO_APPROVED_REVISION",
   });
 
-  // HO approve revision = both parties agree → same crew-release gate (never on agree).
+  // HO approve revision = both parties agree → same final-part crew-release gate.
   const {
     shouldReleaseCrewAfterBillingReviewAgree,
     releaseProjectCrewAfterProgressApproved,
@@ -572,10 +630,18 @@ export async function hoApproveClientRevision(formData: FormData) {
     subCategory: period.project.subCategory,
     billingMode: period.project.billingMode,
     milestonePercent: period.milestonePercent,
+    schedulePercents: await schedulePercentsForProject(period.projectId),
+    periodEnd: period.periodEnd,
+    contractEndDate: period.project.endDate,
+    isLastVisit: await isLastVisitPeriod(periodId),
   });
   if (shouldReleaseOnHoApprove) {
     await prisma.$transaction(async (tx) => {
       await releaseProjectCrewAfterProgressApproved(tx, period.projectId);
+      await tx.project.update({
+        where: { id: period.projectId },
+        data: { status: "OFF_SITE" },
+      });
     });
   }
 

@@ -1,27 +1,51 @@
 import { notFound } from "next/navigation";
 import {
+  Banknote,
+  Landmark,
   Package,
+  Scale,
   TrendingUp,
   Wallet,
 } from "lucide-react";
 
-import { getFinancialReportClientProjects } from "@/app/billing/financial-report/actions";
+import {
+  getFinancialReportClientProjects,
+  listFinancialReportScopeClients,
+} from "@/app/billing/financial-report/actions";
 import AppShell from "@/components/layout/AppShell";
 import BillingBreadcrumbs from "@/components/billing/BillingBreadcrumbs";
+import FinancialReportFilters from "@/components/billing/FinancialReportFilters";
 import FinancialReportProjectDirectory from "@/components/billing/FinancialReportProjectDirectory";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import {
+  financialReportHref,
+  financialReportQueryString,
+  parseFinancialReportSelection,
+} from "@/lib/financial-report-query";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
 import { formatContractPrice } from "@/lib/project-billing";
 
+type SearchParams = Promise<{
+  year?: string;
+  month?: string;
+}>;
+
 export default async function FinancialReportClientPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ clientId: string }>;
+  searchParams: SearchParams;
 }) {
   const { clientId } = await params;
+  const selection = parseFinancialReportSelection(await searchParams);
+  const queryString = financialReportQueryString(selection);
   const t = createTranslator(await getServerLocale());
-  const data = await getFinancialReportClientProjects(clientId);
+  const [data, scopeClients] = await Promise.all([
+    getFinancialReportClientProjects(clientId, selection),
+    listFinancialReportScopeClients(),
+  ]);
 
   if (!data) notFound();
 
@@ -34,13 +58,18 @@ export default async function FinancialReportClientPage({
         items={[
           {
             labelKey: "pages.financialReport.title",
-            href: "/billing/financial-report",
+            href: financialReportHref("/billing/financial-report", selection),
           },
           { label: data.clientName },
         ]}
       />
+      <FinancialReportFilters
+        selection={selection}
+        clients={scopeClients}
+        scopeClientId={clientId}
+      />
 
-      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <DirectoryStatCard
           title={t("pages.financialReport.totalContractValue")}
           value={formatContractPrice(data.totalContractValue)}
@@ -49,7 +78,7 @@ export default async function FinancialReportClientPage({
           accent="info"
         />
         <DirectoryStatCard
-          title={t("pages.financialReport.totalSpending")}
+          title={t("pages.financialReport.moneyOut")}
           value={formatContractPrice(data.totalSpending)}
           subtitle={t("pages.financialReport.spendingHint")}
           icon={<Package size={18} />}
@@ -58,15 +87,41 @@ export default async function FinancialReportClientPage({
         <DirectoryStatCard
           title={t("pages.financialReport.profit")}
           value={formatContractPrice(data.profit)}
-          subtitle={t("pages.financialReport.contractMinusSpending")}
+          subtitle={t("pages.financialReport.profitHint")}
           icon={<TrendingUp size={18} />}
           accent={data.profit < 0 ? "danger" : "success"}
+        />
+        <DirectoryStatCard
+          title={t("pages.financialReport.netPosition")}
+          value={formatContractPrice(data.netPosition)}
+          subtitle={t("pages.financialReport.netPositionHint")}
+          icon={<Scale size={18} />}
+          accent={data.netPosition < 0 ? "danger" : "success"}
+        />
+        <DirectoryStatCard
+          title={t("pages.financialReport.clientsStillOwe")}
+          value={formatContractPrice(data.clientsOwe.unpaid)}
+          subtitle={t("pages.financialReport.accountsReceivableHint", {
+            overdue: formatContractPrice(data.clientsOwe.overdue),
+          })}
+          icon={<Banknote size={18} />}
+          accent={data.clientsOwe.overdue > 0 ? "warning" : "muted"}
+        />
+        <DirectoryStatCard
+          title={t("pages.financialReport.weStillOweVendors")}
+          value={formatContractPrice(data.vendorsOwe.unpaid)}
+          subtitle={t("pages.financialReport.accountsPayableHint", {
+            overdue: formatContractPrice(data.vendorsOwe.overdue),
+          })}
+          icon={<Landmark size={18} />}
+          accent={data.vendorsOwe.overdue > 0 ? "warning" : "muted"}
         />
       </div>
 
       <FinancialReportProjectDirectory
         clientId={clientId}
         projects={data.projects}
+        queryString={queryString}
       />
     </AppShell>
   );

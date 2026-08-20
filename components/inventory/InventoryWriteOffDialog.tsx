@@ -9,11 +9,16 @@ import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { writeOffInventoryStock } from "@/app/inventory/actions";
-import type { InventoryCatalogItem } from "@/components/inventory/inventory-types";
+import type {
+  InventoryCatalogItem,
+  InventoryOverviewAssetRow,
+} from "@/components/inventory/inventory-types";
 import {
   formatCatalogItemLabel,
   formatCatalogItemStockLabel,
 } from "@/components/inventory/inventory-select-labels";
+import { matchInventoryItemType } from "@/components/inventory/inventory-category";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   captureHtmlFormBaseline,
   EmployeeDialogShell,
@@ -52,21 +57,30 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   items: InventoryCatalogItem[];
+  equipmentAssets: InventoryOverviewAssetRow[];
 };
 
 export default function InventoryWriteOffDialog({
   open,
   onOpenChange,
   items,
+  equipmentAssets,
 }: Props) {
   const { t } = useT();
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [itemId, setItemId] = useState("");
+  const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
   const [pending, startTransition] = useTransition();
   const [baseline, setBaseline] = useState<HtmlFormDirtyBaseline | null>(null);
 
   const stockedItems = items.filter((item) => item.active && item.currentStock > 0);
   const selected = stockedItems.find((item) => item.id === itemId);
+  const isEquipmentSelected = Boolean(
+    selected && matchInventoryItemType(selected.itemType, "equipment")
+  );
+  const availableAssets = equipmentAssets.filter(
+    (asset) => asset.item?.id === itemId && asset.status === "AVAILABLE"
+  );
 
   const { isDirty, handleFormInput, resetDirtyTracking } = useHtmlFormDirty(
     FORM_ID,
@@ -81,6 +95,7 @@ export default function InventoryWriteOffDialog({
     resetDirtyTracking();
     setBaseline(null);
     setItemId("");
+    setSelectedAssetIds([]);
   }
 
   function handleOpenChange(
@@ -93,6 +108,7 @@ export default function InventoryWriteOffDialog({
         onOpenChange(true);
         resetDirtyTracking();
         setItemId("");
+        setSelectedAssetIds([]);
       },
       onClose: closeDialog,
       onRequestExitConfirm: () => setExitConfirmOpen(true),
@@ -110,6 +126,16 @@ export default function InventoryWriteOffDialog({
     return () => cancelAnimationFrame(frame);
   }, [open]);
 
+  function toggleAsset(assetId: string, checked: boolean) {
+    setSelectedAssetIds((prev) =>
+      checked
+        ? prev.includes(assetId)
+          ? prev
+          : [...prev, assetId]
+        : prev.filter((id) => id !== assetId)
+    );
+  }
+
   async function submit(formData: FormData) {
     if (!itemId) {
       showRejection({ reasons: t("pages.inventory.itemRequired") });
@@ -118,6 +144,17 @@ export default function InventoryWriteOffDialog({
     if (stockedItems.length === 0) {
       showRejection({ reasons: t("pages.inventory.noStockToIssue") });
       return;
+    }
+    if (isEquipmentSelected) {
+      if (selectedAssetIds.length === 0) {
+        showRejection({ reasons: t("pages.inventory.writeOffAssetsRequired") });
+        return;
+      }
+      formData.set("quantity", String(selectedAssetIds.length));
+      formData.delete("assetIds");
+      for (const assetId of selectedAssetIds) {
+        formData.append("assetIds", assetId);
+      }
     }
     const qty = Number(
       String(formData.get("quantity") ?? "").replace(/,/g, "").trim()
@@ -184,7 +221,11 @@ export default function InventoryWriteOffDialog({
               <EmployeePrimaryButton
                 type="submit"
                 form={FORM_ID}
-                disabled={pending || stockedItems.length === 0}
+                disabled={
+                  pending ||
+                  stockedItems.length === 0 ||
+                  (isEquipmentSelected && selectedAssetIds.length === 0)
+                }
               >
                 {pending
                   ? t("common.actions.saving")
@@ -205,7 +246,10 @@ export default function InventoryWriteOffDialog({
               </label>
               <Select
                 value={itemId || undefined}
-                onValueChange={(value) => setItemId(value ?? "")}
+                onValueChange={(value) => {
+                  setItemId(value ?? "");
+                  setSelectedAssetIds([]);
+                }}
                 items={stockedItems.map((item) => ({
                   value: item.id,
                   label: formatCatalogItemLabel(item),
@@ -248,21 +292,85 @@ export default function InventoryWriteOffDialog({
               )}
             </div>
 
+            {isEquipmentSelected ? (
+              <div className={employeeDialogFieldClass}>
+                <label className={employeeDialogLabelClass}>
+                  {t("pages.inventory.form.writeOffAssets")}
+                </label>
+                {availableAssets.length === 0 ? (
+                  <p className={employeeDialogHintClass}>
+                    {t("pages.inventory.form.writeOffNoAssets")}
+                  </p>
+                ) : (
+                  <div className="max-h-40 space-y-1 overflow-y-auto rounded-xl border border-border bg-elevated p-2">
+                    {availableAssets.map((asset) => {
+                      const checked = selectedAssetIds.includes(asset.id);
+                      return (
+                        <label
+                          key={asset.id}
+                          className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-text hover:bg-panel"
+                        >
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={(next) =>
+                              toggleAsset(asset.id, Boolean(next))
+                            }
+                            aria-label={asset.assetCode}
+                          />
+                          <span className="font-medium">{asset.assetCode}</span>
+                          {asset.serialNo ? (
+                            <span className="text-xs text-subtle">
+                              {asset.serialNo}
+                            </span>
+                          ) : null}
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+                <p className={employeeDialogHintClass}>
+                  {t("pages.inventory.form.writeOffAssetsHint")}
+                </p>
+              </div>
+            ) : null}
+
             <div className={employeeDialogGridClass}>
               <div className={employeeDialogFieldClass}>
                 <label className={employeeDialogLabelClass} htmlFor="writeoff-qty">
                   {t("pages.inventory.form.quantity")}
                 </label>
-                <input
-                  id="writeoff-qty"
-                  name="quantity"
-                  type="number"
-                  min={1}
-                  step={1}
-                  required
-                  max={selected?.currentStock}
-                  className={employeeInputClass}
-                />
+                {isEquipmentSelected ? (
+                  <>
+                    <input
+                      type="hidden"
+                      name="quantity"
+                      value={
+                        selectedAssetIds.length > 0
+                          ? String(selectedAssetIds.length)
+                          : ""
+                      }
+                    />
+                    <div
+                      id="writeoff-qty"
+                      className={`${employeeInputClass} flex items-center text-muted`}
+                    >
+                      {selectedAssetIds.length > 0
+                        ? String(selectedAssetIds.length)
+                        : "—"}
+                    </div>
+                  </>
+                ) : (
+                  <input
+                    id="writeoff-qty"
+                    name="quantity"
+                    type="number"
+                    min={1}
+                    step={1}
+                    required
+                    max={selected?.currentStock}
+                    className={employeeInputClass}
+                  />
+                )}
               </div>
               <div className={employeeDialogFieldClass}>
                 <label className={employeeDialogLabelClass} htmlFor="writeoff-date">

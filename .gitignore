@@ -52,6 +52,7 @@ yarn-error.log*
 .cursor/
 
 # local scratch
+/tmp/
 /tmp-*/
 /tmp-*.txt
 /tmp-*.xlsx

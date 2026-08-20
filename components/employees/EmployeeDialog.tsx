@@ -30,7 +30,7 @@ type Props = {
 
 const CREATE_FORM_ID = "create-employee-form";
 
-export default function EmployeeDialog({ categories, positions, open: controlledOpen, onOpenChange, showTrigger = true }: Props) {
+export default function EmployeeDialog({ categories, positions, projects, open: controlledOpen, onOpenChange, showTrigger = true }: Props) {
   const { t } = useT();
   const { open, setOpen } = useDirectoryDialogOpen(controlledOpen, onOpenChange);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
@@ -105,7 +105,7 @@ export default function EmployeeDialog({ categories, positions, open: controlled
         </EmployeePrimaryButton>
       }>
         <form id={CREATE_FORM_ID} action={submit} onInput={handleFormInput} onChange={handleFormChange}>
-          <EmployeeFormFields mode="create" categories={categories} positions={positions} categoryId={categoryId} onCategoryIdChange={setCategoryId} positionId={positionId} onPositionIdChange={setPositionId} employmentType={employmentType} onEmploymentTypeChange={setEmploymentType} previewEmployeeNo={previewEmployeeNo} onFormValuesChange={handleFormInput} />
+          <EmployeeFormFields mode="create" categories={categories} positions={positions} projects={projects} categoryId={categoryId} onCategoryIdChange={setCategoryId} positionId={positionId} onPositionIdChange={setPositionId} employmentType={employmentType} onEmploymentTypeChange={setEmploymentType} previewEmployeeNo={previewEmployeeNo} onFormValuesChange={handleFormInput} />
         </form>
       </EmployeeDialogShell>
     </Dialog>

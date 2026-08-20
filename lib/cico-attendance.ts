@@ -114,8 +114,11 @@ export async function getCicoWorkAttendance(
     include: {
       project: { select: { id: true, name: true } },
     },
-    orderBy: { date: "desc" },
+    orderBy: [{ date: "desc" }, { checkIn: "desc" }],
   });
+
+  const open = records.find((row) => row.checkIn && !row.checkOut);
+  if (open) return open;
 
   for (const record of records) {
     if (!record.projectId) continue;
@@ -133,11 +136,29 @@ export async function getCicoWorkAttendance(
     }
   }
 
-  const open = records.find((r) => r.checkIn && !r.checkOut);
-  if (open) return open;
   return (
     records.find(
       (r) => formatDateInput(toUtcDateOnly(r.date)) === formatDateInput(today)
     ) ?? null
   );
+}
+
+/** All CICO sessions for today and yesterday (overnight + multi-site). */
+export async function getCicoDaySessions(
+  employeeId: string,
+  now: Date = new Date()
+) {
+  const today = parseDateInput(formatAppDateInput(now));
+  const yesterday = addUtcDays(today, -1);
+
+  return prisma.attendance.findMany({
+    where: {
+      employeeId,
+      date: { in: [today, yesterday] },
+    },
+    include: {
+      project: { select: { id: true, name: true } },
+    },
+    orderBy: [{ date: "asc" }, { checkIn: "asc" }],
+  });
 }

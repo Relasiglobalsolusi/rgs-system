@@ -16,9 +16,13 @@ import { formatContractPrice } from "@/lib/project-billing";
 
 type Props = {
   clients: FinancialReportClientRow[];
+  queryString: string;
 };
 
-export default function FinancialReportClientDirectory({ clients }: Props) {
+export default function FinancialReportClientDirectory({
+  clients,
+  queryString,
+}: Props) {
   const { t } = useT();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
@@ -71,6 +75,22 @@ export default function FinancialReportClientDirectory({ clients }: Props) {
         render: (client) => formatContractPrice(client.totalContractValue),
       },
       {
+        key: "moneyIn",
+        title: t("pages.financialReport.columns.moneyIn"),
+        width: "9rem",
+        align: "right",
+        className: "min-w-[9rem] tabular-nums",
+        render: (client) => formatContractPrice(client.totalMoneyIn),
+      },
+      {
+        key: "receivable",
+        title: t("pages.financialReport.columns.receivable"),
+        width: "9rem",
+        align: "right",
+        className: "min-w-[9rem] tabular-nums",
+        render: (client) => formatContractPrice(client.clientsOwe.unpaid),
+      },
+      {
         key: "spending",
         title: t("pages.financialReport.columns.spending"),
         width: "9rem",
@@ -118,10 +138,19 @@ export default function FinancialReportClientDirectory({ clients }: Props) {
         <DirectoryStatCard
           title={t("pages.financialReport.totalProfit")}
           value={formatContractPrice(stats.profit)}
-          subtitle={t("pages.financialReport.contractMinusSpending")}
+          subtitle={t("pages.financialReport.profitHint")}
           icon={<TrendingUp size={18} />}
           accent={stats.profit < 0 ? "danger" : "success"}
         />
+      </div>
+
+      <div className="mb-4">
+        <h2 className="text-base font-semibold text-text">
+          {t("pages.financialReport.jobHistoryTitle")}
+        </h2>
+        <p className="mt-1 text-sm text-muted">
+          {t("pages.financialReport.jobHistoryDesc")}
+        </p>
       </div>
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -161,7 +190,9 @@ export default function FinancialReportClientDirectory({ clients }: Props) {
           data={visible}
           getRowKey={(client) => client.id}
           onRowClick={(client) =>
-            router.push(`/billing/financial-report/${client.id}`)
+            router.push(
+              `/billing/financial-report/${client.id}${queryString ? `?${queryString}` : ""}`
+            )
           }
           emptyMessage={t("common.empty.description")}
         />

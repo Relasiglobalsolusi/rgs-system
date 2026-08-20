@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { prisma } from "@/lib/prisma";
+import { getProjectWhereForUser } from "@/lib/project-access";
 import { requireModule } from "@/lib/session";
 import {
   countOpenInvoices,
@@ -9,6 +10,7 @@ import {
   subcategorySortIndex,
 } from "@/lib/billing";
 import { decimalToNumber, formatProjectTitle } from "@/lib/project-billing";
+import { isGcFacadeAwaitingPayment } from "@/lib/project-awaiting-payment";
 import { getServerLocale } from "@/lib/i18n/locale";
 import type { BillingMode, ProjectSubCategory } from "@prisma/client";
 
@@ -31,6 +33,13 @@ export default async function BillingClientPage({
     notFound();
   }
 
+  const projectWhere = await getProjectWhereForUser({
+    companyId: session.user.companyId,
+    clientId: session.user.clientId,
+    userId: session.user.id,
+    username: session.user.username,
+  });
+
   const client = await prisma.client.findFirst({
     where: {
       id: clientId,
@@ -40,6 +49,7 @@ export default async function BillingClientPage({
     },
     include: {
       projects: {
+        where: projectWhere,
         include: {
           invoicePeriods: {
             select: {
@@ -82,6 +92,12 @@ export default async function BillingClientPage({
         contractPrice: decimalToNumber(project.contractPrice),
         openInvoices: counts.open,
         lateInvoices: counts.late,
+        awaitingPayment: isGcFacadeAwaitingPayment({
+          subCategory: project.subCategory,
+          status: project.status,
+          billingMode: project.billingMode,
+          invoicePeriods: project.invoicePeriods,
+        }),
       };
     });
 

@@ -184,8 +184,8 @@ function warnIfOpenAiMissingInProduction(): void {
   if (openaiApiKey()) return;
   warnedMissingOpenAiInProduction = true;
   console.warn(
-    "[payment-verify] OPENAI_API_KEY is not set. Payment proof and tax invoice " +
-      "AI verification will fail closed until the key is configured on the host."
+    "[payment-verify] OPENAI_API_KEY is not set. Cloud document reading stays " +
+      "off. Head Office in-house confirm is the default path."
   );
 }
 

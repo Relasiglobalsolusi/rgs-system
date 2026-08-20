@@ -5,7 +5,6 @@ import {
   normalizeInventoryQty,
   toDecimal,
 } from "@/lib/inventory";
-import { decimalToNumber } from "@/lib/project-billing";
 
 const EQUIPMENT_ITEM_TYPE = "Equipment";
 
@@ -30,6 +29,26 @@ export function isEquipmentSurplusRetireNote(
   );
 }
 
+export type EquipmentRetirementKind = "sold" | "writtenOff";
+
+/** Why a RETIRED unit left the warehouse — sold vs written off, never a generic “retired”. */
+export function equipmentRetirementKind(asset: {
+  status: string;
+  writeOffMovementId?: string | null;
+  soldOffMovementId?: string | null;
+  notes?: string | null;
+}): EquipmentRetirementKind | null {
+  if (asset.status !== "RETIRED") return null;
+  if (asset.soldOffMovementId) return "sold";
+  if (asset.writeOffMovementId) return "writtenOff";
+  const notes = (asset.notes ?? "").trim();
+  if (notes.startsWith("Sold off")) return "sold";
+  if (notes.startsWith("Write-off") || notes.startsWith("Write-Off")) {
+    return "writtenOff";
+  }
+  return null;
+}
+
 export function isEquipmentItemType(itemType: string): boolean {
   return itemType.trim().toLowerCase() === EQUIPMENT_ITEM_TYPE.toLowerCase();
 }
@@ -47,9 +66,9 @@ export function isEquipmentItemType(itemType: string): boolean {
  * Sequence is unpadded and per-item (not company-wide).
  * Gaps left by retired assets are NOT reused — sequence only grows.
  */
-export const ASSET_CODE_SEPARATOR = "-A";
+const ASSET_CODE_SEPARATOR = "-A";
 
-export function formatAssetCode(itemSku: string, sequence: number): string {
+function formatAssetCode(itemSku: string, sequence: number): string {
   return `${itemSku}${ASSET_CODE_SEPARATOR}${sequence}`;
 }
 
@@ -67,7 +86,7 @@ function parseAssetSequence(assetCode: string, itemSku: string): number | null {
  * Allocate N sequential asset codes for the same catalog item in one pass.
  * Sequence never recycles retired/deleted codes for immutable audit trails.
  */
-export async function allocateAssetCodes(
+async function allocateAssetCodes(
   companyId: string,
   itemSku: string,
   count: number,
@@ -95,57 +114,6 @@ export async function allocateAssetCodes(
     seq++;
   }
   return allocated;
-}
-
-/**
- * Rewrite legacy zero-padded suffixes (…-A0001) to short form (…-A1).
- * Safe to re-run; skips codes that are already short or would collide.
- */
-export async function shortenPaddedAssetCodes(
-  db: DbClient = prisma,
-  companyId?: string
-): Promise<number> {
-  const assets = await db.equipmentAsset.findMany({
-    where: companyId ? { companyId } : undefined,
-    select: {
-      id: true,
-      companyId: true,
-      assetCode: true,
-      item: { select: { sku: true } },
-    },
-  });
-
-  let updated = 0;
-  for (const asset of assets) {
-    const sku = asset.item?.sku;
-    if (!sku) continue;
-    const prefix = `${sku}${ASSET_CODE_SEPARATOR}`;
-    if (!asset.assetCode.startsWith(prefix)) continue;
-    const suffix = asset.assetCode.slice(prefix.length);
-    // Only rewrite zero-padded numeric suffixes (e.g. 0001 → 1).
-    if (!/^0+\d+$/.test(suffix)) continue;
-    const seq = parseInt(suffix, 10);
-    if (isNaN(seq)) continue;
-    const shortCode = formatAssetCode(sku, seq);
-    if (shortCode === asset.assetCode) continue;
-
-    const clash = await db.equipmentAsset.findFirst({
-      where: {
-        companyId: asset.companyId,
-        assetCode: shortCode,
-        NOT: { id: asset.id },
-      },
-      select: { id: true },
-    });
-    if (clash) continue;
-
-    await db.equipmentAsset.update({
-      where: { id: asset.id },
-      data: { assetCode: shortCode },
-    });
-    updated++;
-  }
-  return updated;
 }
 
 /**
@@ -190,287 +158,26 @@ export async function mintEquipmentAssets(
 }
 
 /**
- * Fill missing EquipmentAsset.unitCost for legacy rows.
- * Prefers catalog avgUnitCost, then lastUnitCost, then latest purchase unit price.
- */
-export async function backfillEquipmentAssetUnitCosts(
-  db: DbClient = prisma,
-  companyId?: string
-): Promise<{ assetsUpdated: number }> {
-  const assets = await db.equipmentAsset.findMany({
-    where: {
-      ...(companyId ? { companyId } : {}),
-      unitCost: null,
-    },
-    select: {
-      id: true,
-      itemId: true,
-      item: {
-        select: {
-          avgUnitCost: true,
-          lastUnitCost: true,
-        },
-      },
-    },
-  });
-
-  let assetsUpdated = 0;
-  const purchasePriceByItem = new Map<string, number | null>();
-
-  for (const asset of assets) {
-    let cost =
-      decimalToNumber(asset.item.avgUnitCost) ??
-      decimalToNumber(asset.item.lastUnitCost) ??
-      null;
-
-    if (cost == null) {
-      if (!purchasePriceByItem.has(asset.itemId)) {
-        const lastPurchase = await db.inventoryPurchase.findFirst({
-          where: { itemId: asset.itemId },
-          orderBy: { purchasedAt: "desc" },
-          select: { unitPrice: true },
-        });
-        purchasePriceByItem.set(
-          asset.itemId,
-          decimalToNumber(lastPurchase?.unitPrice) ?? null
-        );
-      }
-      cost = purchasePriceByItem.get(asset.itemId) ?? null;
-    }
-
-    if (cost == null || !Number.isFinite(cost)) continue;
-
-    await db.equipmentAsset.update({
-      where: { id: asset.id },
-      data: { unitCost: toDecimal(cost) },
-    });
-    assetsUpdated++;
-  }
-
-  return { assetsUpdated };
-}
-
-/**
  * Equipment `currentStock` / On Hand = warehouse AVAILABLE units only.
  * Units ON_PROJECT remain company-owned (location change), so they are not
  * included in On Hand — unlike chemicals/consumables which consume stock.
  */
-export async function countEquipmentAssetsByStatus(
+async function countEquipmentAssetsByStatus(
   db: DbClient,
   itemId: string
-): Promise<{ available: number; onProject: number; retired: number }> {
-  const [available, onProject, retired] = await Promise.all([
+): Promise<{
+  available: number;
+  onProject: number;
+  inTransit: number;
+  retired: number;
+}> {
+  const [available, onProject, inTransit, retired] = await Promise.all([
     db.equipmentAsset.count({ where: { itemId, status: "AVAILABLE" } }),
     db.equipmentAsset.count({ where: { itemId, status: "ON_PROJECT" } }),
+    db.equipmentAsset.count({ where: { itemId, status: "IN_TRANSIT" } }),
     db.equipmentAsset.count({ where: { itemId, status: "RETIRED" } }),
   ]);
-  return { available, onProject, retired };
-}
-
-/**
- * Hard-delete surplus never-deployed AVAILABLE assets when active owned units
- * exceed net purchase stock-in (purchases minus active write-offs). Typical
- * cause: the old backfill formula `stock + onProject - totalAssets` minted an
- * extra warehouse unit while another unit was already ON_PROJECT.
- *
- * Also purges leftover RETIRED surplus-mint phantoms (system-cleanup notes,
- * never deployed, no write-off link). Real write-offs
- * (`writeOffMovementId` set or non-surplus notes) are never deleted.
- *
- * Only targets never-deployed rows (no project/movement links), newest first.
- */
-export async function deleteSurplusNeverDeployedEquipmentAssets(
-  db: DbClient = prisma,
-  companyId?: string
-): Promise<number> {
-  const legacyPhantoms = await db.equipmentAsset.deleteMany({
-    where: {
-      ...(companyId ? { companyId } : {}),
-      status: "RETIRED",
-      writeOffMovementId: null,
-      projectId: null,
-      movementId: null,
-      issueMovementId: null,
-      notes: { in: [...LEGACY_SURPLUS_RETIRE_NOTES] },
-    },
-  });
-  let deleted = legacyPhantoms.count;
-
-  const items = await db.inventoryItem.findMany({
-    where: {
-      ...(companyId ? { companyId } : {}),
-      itemType: { equals: EQUIPMENT_ITEM_TYPE, mode: "insensitive" },
-    },
-    select: { id: true, companyId: true },
-  });
-
-  for (const item of items) {
-    const movements = await db.inventoryMovement.findMany({
-      where: {
-        itemId: item.id,
-        voidedAt: null,
-        type: { in: ["PURCHASE", "WRITE_OFF", "SOLD_OFF"] },
-      },
-      select: { type: true, quantity: true },
-    });
-
-    let expectedOwned = 0;
-    for (const movement of movements) {
-      const qty = Math.abs(inventoryQtyFromDecimal(movement.quantity));
-      if (movement.type === "PURCHASE") expectedOwned += qty;
-      else if (
-        movement.type === "WRITE_OFF" ||
-        movement.type === "SOLD_OFF"
-      ) {
-        expectedOwned -= qty;
-      }
-    }
-    expectedOwned = Math.max(0, normalizeInventoryQty(expectedOwned));
-
-    const { available, onProject } = await countEquipmentAssetsByStatus(
-      db,
-      item.id
-    );
-    const surplus = available + onProject - expectedOwned;
-    if (surplus <= 0) continue;
-
-    const candidates = await db.equipmentAsset.findMany({
-      where: {
-        companyId: item.companyId,
-        itemId: item.id,
-        status: "AVAILABLE",
-        projectId: null,
-        movementId: null,
-        issueMovementId: null,
-        writeOffMovementId: null,
-        soldOffMovementId: null,
-      },
-      select: { id: true },
-      orderBy: [{ createdAt: "desc" }, { assetCode: "desc" }],
-      take: surplus,
-    });
-    if (candidates.length === 0) continue;
-
-    const removed = await db.equipmentAsset.deleteMany({
-      where: { id: { in: candidates.map((row) => row.id) } },
-    });
-    deleted += removed.count;
-  }
-  return deleted;
-}
-
-/** @deprecated Prefer {@link deleteSurplusNeverDeployedEquipmentAssets}. */
-export async function retireSurplusNeverDeployedEquipmentAssets(
-  db: DbClient = prisma,
-  companyId?: string
-): Promise<number> {
-  return deleteSurplusNeverDeployedEquipmentAssets(db, companyId);
-}
-
-/**
- * Set Equipment `currentStock` from the AVAILABLE asset ledger (source of truth
- * for warehouse qty). Does not mint or retire assets.
- */
-export async function reconcileEquipmentWarehouseStock(
-  db: DbClient = prisma,
-  companyId?: string
-): Promise<{ itemsProcessed: number; itemsAdjusted: number }> {
-  const items = await db.inventoryItem.findMany({
-    where: {
-      ...(companyId ? { companyId } : {}),
-      itemType: { equals: EQUIPMENT_ITEM_TYPE, mode: "insensitive" },
-    },
-    select: { id: true, currentStock: true },
-  });
-
-  let itemsAdjusted = 0;
-  for (const item of items) {
-    const available = await db.equipmentAsset.count({
-      where: { itemId: item.id, status: "AVAILABLE" },
-    });
-    const stockOnHand = inventoryQtyFromDecimal(item.currentStock);
-    if (stockOnHand === available) continue;
-    await db.inventoryItem.update({
-      where: { id: item.id },
-      data: { currentStock: toDecimal(available) },
-    });
-    itemsAdjusted++;
-  }
-  return { itemsProcessed: items.length, itemsAdjusted };
-}
-
-/**
- * For each Equipment catalog item:
- * - If no active assets exist but warehouse stock > 0, mint AVAILABLE assets
- *   (legacy migration before the asset ledger).
- * - Otherwise treat the asset ledger as source of truth and sync
- *   `currentStock` to the AVAILABLE count (never mint from inflated stock).
- */
-export async function backfillEquipmentAssets(
-  db: DbClient = prisma,
-  companyId?: string
-): Promise<{
-  itemsProcessed: number;
-  assetsMinted: number;
-  assetsShortened: number;
-  stockAdjusted: number;
-}> {
-  const assetsShortened = await shortenPaddedAssetCodes(db, companyId);
-
-  const items = await db.inventoryItem.findMany({
-    where: {
-      ...(companyId ? { companyId } : {}),
-      itemType: { equals: EQUIPMENT_ITEM_TYPE, mode: "insensitive" },
-      active: true,
-    },
-    select: {
-      id: true,
-      companyId: true,
-      currentStock: true,
-      avgUnitCost: true,
-      lastUnitCost: true,
-    },
-  });
-
-  let assetsMinted = 0;
-  let stockAdjusted = 0;
-  for (const item of items) {
-    const stockOnHand = inventoryQtyFromDecimal(item.currentStock);
-    const { available, onProject } = await countEquipmentAssetsByStatus(
-      db,
-      item.id
-    );
-    const activeOwned = available + onProject;
-
-    if (activeOwned === 0 && stockOnHand > 0) {
-      const legacyCost =
-        decimalToNumber(item.avgUnitCost) ??
-        decimalToNumber(item.lastUnitCost) ??
-        null;
-      assetsMinted += await mintEquipmentAssets(
-        db,
-        item.companyId,
-        item.id,
-        stockOnHand,
-        { unitCost: legacyCost }
-      );
-      continue;
-    }
-
-    if (stockOnHand !== available) {
-      await db.inventoryItem.update({
-        where: { id: item.id },
-        data: { currentStock: toDecimal(available) },
-      });
-      stockAdjusted++;
-    }
-  }
-  return {
-    itemsProcessed: items.length,
-    assetsMinted,
-    assetsShortened,
-    stockAdjusted,
-  };
+  return { available, onProject, inTransit, retired };
 }
 
 export class InsufficientEquipmentAssetsError extends Error {
@@ -640,17 +347,77 @@ export async function restoreEquipmentAssetsForWriteOff(
 }
 
 /**
- * Assign N AVAILABLE EquipmentAsset rows to a project without creating cost movements.
- * Used when a bulk ISSUE_TO_PROJECT movement already records financial cost.
- * Oldest assets first (createdAt, then assetCode). Fails if not enough AVAILABLE assets.
+ * Restore equipment assets retired by a stock sale back to AVAILABLE.
+ * Does not void the movement or restore stock — caller handles that for full reversals.
  */
-export async function assignAvailableEquipmentAssetsToProject(
+export async function restoreEquipmentAssetsForSoldOff(
+  db: DbClient,
+  companyId: string,
+  soldOffMovementId: string,
+  itemId: string,
+  qty: number,
+  soldOffReason?: string | null
+): Promise<number> {
+  const wholeUnits = normalizeInventoryQty(qty);
+  if (wholeUnits <= 0) return 0;
+
+  const linked = await db.equipmentAsset.updateMany({
+    where: {
+      companyId,
+      itemId,
+      soldOffMovementId,
+      status: "RETIRED",
+    },
+    data: {
+      status: "AVAILABLE",
+      soldOffMovementId: null,
+    },
+  });
+  if (linked.count >= wholeUnits) {
+    return linked.count;
+  }
+
+  const remaining = wholeUnits - linked.count;
+  const note = soldOffReason?.trim()
+    ? `Sold off: ${soldOffReason.trim()}`
+    : null;
+  if (!note) {
+    return linked.count;
+  }
+
+  const legacyAssets = await db.equipmentAsset.findMany({
+    where: {
+      companyId,
+      itemId,
+      status: "RETIRED",
+      soldOffMovementId: null,
+      notes: note,
+    },
+    select: { id: true },
+    orderBy: [{ updatedAt: "desc" }, { assetCode: "asc" }],
+    take: remaining,
+  });
+  if (legacyAssets.length === 0) {
+    return linked.count;
+  }
+
+  const legacy = await db.equipmentAsset.updateMany({
+    where: { id: { in: legacyAssets.map((a) => a.id) } },
+    data: {
+      status: "AVAILABLE",
+      soldOffMovementId: null,
+    },
+  });
+  return linked.count + legacy.count;
+}
+
+export async function markAvailableEquipmentAssetsInTransit(
   db: DbClient,
   companyId: string,
   itemId: string,
   projectId: string,
   qty: number,
-  options?: { issueMovementId?: string; assignedAt?: Date }
+  options?: { transitMovementId?: string; movedAt?: Date }
 ): Promise<number> {
   const wholeUnits = normalizeInventoryQty(qty);
   if (wholeUnits <= 0) return 0;
@@ -678,18 +445,112 @@ export async function assignAvailableEquipmentAssetsToProject(
     throw new InsufficientEquipmentAssetsError(availableCount, wholeUnits);
   }
 
-  const assignedAt = options?.assignedAt ?? new Date();
+  await db.equipmentAsset.updateMany({
+    where: { id: { in: assets.map((a) => a.id) } },
+    data: {
+      status: "IN_TRANSIT",
+      projectId,
+      issueMovementId: options?.transitMovementId ?? null,
+      assignedAt: options?.movedAt ?? new Date(),
+    },
+  });
+
+  return wholeUnits;
+}
+
+/**
+ * Site receive: book IN_TRANSIT assets onto the project (ON_PROJECT) and
+ * attach the ISSUE_TO_PROJECT movement. Does not change warehouse stock.
+ */
+export async function assignInTransitEquipmentAssetsToProject(
+  db: DbClient,
+  companyId: string,
+  itemId: string,
+  projectId: string,
+  qty: number,
+  options?: {
+    transitMovementId?: string;
+    issueMovementId?: string;
+    assignedAt?: Date;
+    fromProjectId?: string;
+  }
+): Promise<number> {
+  const wholeUnits = normalizeInventoryQty(qty);
+  if (wholeUnits <= 0) return 0;
+
+  const assets = await db.equipmentAsset.findMany({
+    where: {
+      companyId,
+      itemId,
+      status: "IN_TRANSIT",
+      ...(options?.transitMovementId
+        ? { issueMovementId: options.transitMovementId }
+        : { projectId: options?.fromProjectId ?? projectId }),
+    },
+    select: { id: true },
+    orderBy: [{ createdAt: "asc" }, { assetCode: "asc" }],
+    take: wholeUnits,
+  });
+  if (assets.length < wholeUnits) {
+    throw new InsufficientEquipmentAssetsError(assets.length, wholeUnits);
+  }
+
   await db.equipmentAsset.updateMany({
     where: { id: { in: assets.map((a) => a.id) } },
     data: {
       status: "ON_PROJECT",
       projectId,
-      issueMovementId: options?.issueMovementId ?? null,
-      assignedAt,
+      issueMovementId: options?.issueMovementId ?? options?.transitMovementId ?? null,
+      assignedAt: options?.assignedAt ?? new Date(),
     },
   });
 
   return wholeUnits;
+}
+
+/** Return IN_TRANSIT assets for a movement back to warehouse AVAILABLE. */
+export async function returnInTransitEquipmentAssetsToWarehouse(
+  db: DbClient,
+  companyId: string,
+  transitMovementId: string
+): Promise<number> {
+  const result = await db.equipmentAsset.updateMany({
+    where: {
+      companyId,
+      status: "IN_TRANSIT",
+      issueMovementId: transitMovementId,
+    },
+    data: {
+      status: "AVAILABLE",
+      projectId: null,
+      issueMovementId: null,
+      assignedAt: null,
+    },
+  });
+  return result.count;
+}
+
+/** Retire IN_TRANSIT assets linked to a send movement (write-off of lost stock). */
+export async function retireInTransitEquipmentAssets(
+  db: DbClient,
+  companyId: string,
+  transitMovementId: string,
+  options?: { writeOffMovementId?: string; notes?: string }
+): Promise<number> {
+  const result = await db.equipmentAsset.updateMany({
+    where: {
+      companyId,
+      status: "IN_TRANSIT",
+      issueMovementId: transitMovementId,
+    },
+    data: {
+      status: "RETIRED",
+      projectId: null,
+      writeOffMovementId: options?.writeOffMovementId ?? null,
+      notes: options?.notes ?? null,
+    },
+  });
+  return result.count;
 }
 
 /**
@@ -722,11 +583,6 @@ export async function releaseEquipmentAssetsForBulkIssue(
   return result.count;
 }
 
-/**
- * Assets linked to an ISSUE_TO_PROJECT movement via either:
- * - `movementId` (per-asset picker assign), or
- * - `issueMovementId` (bulk inventory issue / historical backfill).
- */
 async function listAssetsLinkedToIssueMovement(
   db: DbClient,
   companyId: string,
@@ -757,141 +613,6 @@ async function listAssetsLinkedToIssueMovement(
       createdAt: true,
     },
   });
-}
-
-/**
- * Release ON_PROJECT assets that exceed an open issue's quantity.
- *
- * Typical cause: page-load backfill only counted `issueMovementId`, so a picker
- * assign (linked via `movementId`) still looked like a deficit and pulled an
- * extra AVAILABLE unit onto the project without decrementing stock.
- *
- * Phantoms are returned to AVAILABLE with no stock change (stock was never
- * reduced for them). Prefer keeping `movementId` links over `issueMovementId`.
- */
-export async function releaseOverAssignedEquipmentAssets(
-  db: DbClient,
-  companyId: string,
-  projectId?: string
-): Promise<number> {
-  const issues = await db.inventoryMovement.findMany({
-    where: {
-      companyId,
-      ...(projectId ? { projectId } : {}),
-      type: "ISSUE_TO_PROJECT",
-      voidedAt: null,
-      item: { itemType: { equals: EQUIPMENT_ITEM_TYPE, mode: "insensitive" } },
-    },
-    select: {
-      id: true,
-      quantity: true,
-    },
-  });
-
-  let released = 0;
-  for (const issue of issues) {
-    const issuedQty = Math.abs(inventoryQtyFromDecimal(issue.quantity));
-    const linked = await listAssetsLinkedToIssueMovement(
-      db,
-      companyId,
-      issue.id
-    );
-    if (linked.length <= issuedQty) continue;
-
-    // Keep picker (`movementId`) links first, then oldest assignments.
-    const ranked = [...linked].sort((a, b) => {
-      const aPicker = a.movementId === issue.id ? 0 : 1;
-      const bPicker = b.movementId === issue.id ? 0 : 1;
-      if (aPicker !== bPicker) return aPicker - bPicker;
-      const aTime = (a.assignedAt ?? a.createdAt).getTime();
-      const bTime = (b.assignedAt ?? b.createdAt).getTime();
-      return aTime - bTime;
-    });
-    const phantoms = ranked.slice(issuedQty);
-    if (phantoms.length === 0) continue;
-
-    await db.equipmentAsset.updateMany({
-      where: { id: { in: phantoms.map((row) => row.id) } },
-      data: {
-        status: "AVAILABLE",
-        projectId: null,
-        movementId: null,
-        issueMovementId: null,
-        assignedAt: null,
-      },
-    });
-    released += phantoms.length;
-  }
-  return released;
-}
-
-/**
- * Release over-assigned phantoms for a project's open Equipment issues.
- *
- * Assign/mint side effects are opt-in only (`assignMissing: true`) and must
- * never run on project page load — silent re-assign caused double/ghost units.
- * Prefer scripts/reconcile-equipment-stock.ts for repair; default is release-only.
- */
-export async function backfillProjectEquipmentIssueAssignments(
-  db: DbClient,
-  companyId: string,
-  projectId: string,
-  options?: { assignMissing?: boolean }
-): Promise<number> {
-  const released = await releaseOverAssignedEquipmentAssets(
-    db,
-    companyId,
-    projectId
-  );
-  if (!options?.assignMissing) {
-    return released;
-  }
-
-  const issues = await db.inventoryMovement.findMany({
-    where: {
-      companyId,
-      projectId,
-      type: "ISSUE_TO_PROJECT",
-      voidedAt: null,
-      item: { itemType: { equals: EQUIPMENT_ITEM_TYPE, mode: "insensitive" } },
-    },
-    select: {
-      id: true,
-      itemId: true,
-      quantity: true,
-      movedAt: true,
-    },
-  });
-
-  let assigned = 0;
-  for (const issue of issues) {
-    const issuedQty = Math.abs(inventoryQtyFromDecimal(issue.quantity));
-    if (issuedQty <= 0) continue;
-
-    const linked = await listAssetsLinkedToIssueMovement(
-      db,
-      companyId,
-      issue.id
-    );
-    const deficit = issuedQty - linked.length;
-    if (deficit <= 0) continue;
-
-    const availableCount = await db.equipmentAsset.count({
-      where: { companyId, itemId: issue.itemId, status: "AVAILABLE" },
-    });
-    const toAssign = Math.min(deficit, availableCount);
-    if (toAssign <= 0) continue;
-
-    assigned += await assignAvailableEquipmentAssetsToProject(
-      db,
-      companyId,
-      issue.itemId,
-      projectId,
-      toAssign,
-      { issueMovementId: issue.id, assignedAt: issue.movedAt }
-    );
-  }
-  return released + assigned;
 }
 
 export type EquipmentInvariantViolation = {
@@ -936,7 +657,7 @@ export class EquipmentInvariantError extends Error {
  *
  * Scope with `itemIds` / `projectId` after assign, release, or demob.
  */
-export async function checkEquipmentInventoryInvariants(
+async function checkEquipmentInventoryInvariants(
   db: DbClient,
   companyId: string,
   options?: {
@@ -965,10 +686,8 @@ export async function checkEquipmentInventoryInvariants(
   const violations: EquipmentInvariantViolation[] = [];
 
   for (const item of items) {
-    const { available, onProject } = await countEquipmentAssetsByStatus(
-      db,
-      item.id
-    );
+    const { available, onProject, inTransit } =
+      await countEquipmentAssetsByStatus(db, item.id);
     const stockOnHand = inventoryQtyFromDecimal(item.currentStock);
     if (stockOnHand !== available) {
       violations.push({
@@ -980,10 +699,8 @@ export async function checkEquipmentInventoryInvariants(
       });
     }
 
-    // Owned active (non-retired custody) is exactly AVAILABLE + ON_PROJECT.
-    // Recorded for callers that want the partition explicit; not a failure mode
-    // unless purchase-net check is enabled below.
-    const activeOwned = available + onProject;
+    // Owned active (non-retired custody) is AVAILABLE + ON_PROJECT + IN_TRANSIT.
+    const activeOwned = available + onProject + inTransit;
 
     if (options?.checkOwnedVsPurchases) {
       const movements = await db.inventoryMovement.findMany({
@@ -1009,7 +726,7 @@ export async function checkEquipmentInventoryInvariants(
           kind: "OWNED_VS_ACTIVE",
           expected: expectedOwned,
           actual: activeOwned,
-          detail: "purchaseNet vs AVAILABLE+ON_PROJECT",
+          detail: "purchaseNet vs AVAILABLE+ON_PROJECT+IN_TRANSIT",
         });
       }
     }
@@ -1085,19 +802,6 @@ export async function assertEquipmentInventoryInvariants(
   if (violations.length > 0) {
     throw new EquipmentInvariantError(violations);
   }
-}
-
-/** All AVAILABLE assets for an item, ordered by assetCode. */
-export async function listAvailableAssetsForItem(
-  companyId: string,
-  itemId: string,
-  db: DbClient = prisma
-): Promise<{ id: string; assetCode: string; serialNo: string | null }[]> {
-  return db.equipmentAsset.findMany({
-    where: { companyId, itemId, status: "AVAILABLE" },
-    select: { id: true, assetCode: true, serialNo: true },
-    orderBy: { assetCode: "asc" },
-  });
 }
 
 /** All ON_PROJECT assets for a project, with catalog item info. */

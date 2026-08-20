@@ -7,8 +7,6 @@ export const THEME_COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
 /** Dispatched on `window` after `persistTheme` so client UI can re-render. */
 export const THEME_CHANGE_EVENT = "rgs-theme-change";
 
-export const APP_THEMES: readonly AppTheme[] = ["light", "dark"] as const;
-
 export function isAppTheme(value: unknown): value is AppTheme {
   return value === "light" || value === "dark";
 }
@@ -38,15 +36,6 @@ export function readClientStorageTheme(): AppTheme | null {
   } catch {
     return null;
   }
-}
-
-/**
- * Client-only stored theme. Cookie wins so FOUC script and React stay aligned.
- * Falls back to localStorage when the cookie is missing.
- */
-export function readStoredTheme(): AppTheme | null {
-  if (typeof window === "undefined") return null;
-  return readClientCookieTheme() ?? readClientStorageTheme();
 }
 
 export function applyDocumentTheme(theme: AppTheme) {

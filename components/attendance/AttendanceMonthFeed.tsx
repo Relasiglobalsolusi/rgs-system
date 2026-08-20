@@ -13,6 +13,7 @@ import ImageLightbox from "@/components/ui/ImageLightbox";
 import SectionCard from "@/components/ui/SectionCard";
 import { formatDistanceMeters } from "@/lib/geo";
 import { formatDisplayTime } from "@/lib/format-date";
+import { formatHoursWorked } from "@/lib/shift-pay";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n/use-t";
 
@@ -136,6 +137,19 @@ export default function AttendanceMonthFeed({
             <span className="text-orange-400">
               {row.checkOut ? formatDisplayTime(row.checkOut) : "-"}
             </span>
+            {row.isEarly === true && (
+              <p className="text-xs text-amber-500">
+                {t("pages.attendance.checkedOutBeforeShiftEnd")}
+              </p>
+            )}
+            {row.underAssignedHours && row.hoursWorked != null && (
+              <p className="text-xs text-amber-500">
+                {t("pages.attendance.underAssignedHours", {
+                  hours: formatHoursWorked(row.hoursWorked),
+                  required: String(row.requiredHours ?? 9),
+                })}
+              </p>
+            )}
             {row.checkOutDistanceMeters != null && (
               <p className="text-xs text-subtle">
                 {formatDistanceMeters(row.checkOutDistanceMeters)}

@@ -1,9 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { EmploymentType, Placement } from "@prisma/client";
+import type { EmploymentType, InternalHomeSite, Placement } from "@prisma/client";
 
 import {
+  allocateEmployeeNumbers,
   getNextEmployeeNumber,
   reassignEmployeeNumber,
 } from "@/lib/employee-number";
@@ -16,7 +17,7 @@ import {
   persistCompanyScopedReorder,
 } from "@/lib/persist-reorder";
 import { prisma } from "@/lib/prisma";
-import { canManageEmployees } from "@/lib/project-access";
+import { canManageEmployees, canResignEmployees } from "@/lib/project-access";
 import { parseCreatePortalLoginFlag } from "@/lib/create-portal-login-flag";
 import {
   employeeTypeFromPlacement,
@@ -24,10 +25,13 @@ import {
   placementOnSoftRestore,
 } from "@/lib/placement";
 import { requireSession, toPermissionUser } from "@/lib/session";
-import { saveUpload } from "@/lib/upload";
+import { deleteLocalUpload, saveUpload } from "@/lib/upload";
 import { normalizeAndValidatePhone } from "@/lib/phone";
 import { capitalizeName } from "@/lib/text-case";
-import { isOperationsManagerPosition } from "@/lib/positions";
+import {
+  isAreaManagerPosition,
+  isOperationsManagerPosition,
+} from "@/lib/positions";
 import {
   formatOperationsManagerLabel,
   parseOmApprovalAreas,
@@ -51,7 +55,13 @@ import {
   defaultPortalAccessRequested,
   syncEmployeePortalLogin,
 } from "@/lib/workforce-login";
+import {
+  lineFormDataFromPrefix,
+  MAX_BULK_CREATE_LINES,
+  parseBulkLineCount,
+} from "@/lib/bulk-create";
 import { parseEmployeeFinanceFromForm } from "@/lib/employee-bpjs";
+import { SORT_ORDER_STEP } from "@/lib/reorder";
 import { syncEmployeeLeaveEmploymentStatus } from "@/lib/leave-employment-status";
 import {
   assertCanAssignEmployeePosition,
@@ -188,6 +198,40 @@ async function saveIdDocument(
   return saveUpload(file, "uploads/employees");
 }
 
+async function resolveAreaManagedProjectIds(
+  formData: FormData,
+  companyId: string,
+  isAm: boolean
+): Promise<string[]> {
+  const ids = [
+    ...new Set(
+      formData
+        .getAll("areaManagedProjectIds")
+        .map((value) => String(value).trim())
+        .filter(Boolean)
+    ),
+  ];
+  if (!isAm) return [];
+  if (ids.length === 0) {
+    throw new Error("Select at least one project for Area Manager.");
+  }
+
+  const projects = await prisma.project.findMany({
+    where: {
+      id: { in: ids },
+      companyId,
+      subCategory: { not: "INTERNAL" },
+    },
+    select: { id: true },
+  });
+  if (projects.length !== ids.length) {
+    throw new Error(
+      "One or more selected projects are invalid for Area Manager coverage."
+    );
+  }
+  return ids;
+}
+
 export async function previewEmployeeNumber(categoryId: string) {
   await assertCanManageEmployees();
 
@@ -201,6 +245,44 @@ export async function previewEmployeeNumber(categoryId: string) {
   });
 
   return getNextEmployeeNumber(company.id, resolvedCategoryId!);
+}
+
+/** Preview one employee number per line, sequential within the same department. */
+export async function previewEmployeeNumbersForLines(categoryIds: string[]) {
+  await assertCanManageEmployees();
+
+  const company = await prisma.company.findFirst();
+  if (!company) {
+    throw new Error("Company not found.");
+  }
+
+  const ids = categoryIds
+    .slice(0, MAX_BULK_CREATE_LINES)
+    .map((value) => String(value ?? "").trim());
+  const counts = new Map<string, number>();
+  for (const id of ids) {
+    if (!id) continue;
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+
+  const allocated = new Map<string, string[]>();
+  for (const [categoryId, count] of counts) {
+    const resolved = await parseCategoryId(categoryId, company.id, {
+      required: true,
+    });
+    allocated.set(
+      categoryId,
+      await allocateEmployeeNumbers(company.id, resolved!, count)
+    );
+  }
+
+  const used = new Map<string, number>();
+  return ids.map((id) => {
+    if (!id) return "";
+    const offset = used.get(id) ?? 0;
+    used.set(id, offset + 1);
+    return allocated.get(id)?.[offset] ?? "";
+  });
 }
 
 export async function createEmployee(formData: FormData) {
@@ -259,10 +341,19 @@ export async function createEmployee(formData: FormData) {
     slug: positionSlug,
     name: positionName,
   });
+  const isAm = isAreaManagerPosition({
+    slug: positionSlug,
+    name: positionName,
+  });
   const omApprovalAreas = isOm ? parseOmApprovalAreas(formData) : [];
   if (isOm && omApprovalAreas.length === 0) {
     throw new Error("Select at least one Approval Area for Operations Manager.");
   }
+  const areaManagedProjectIds = await resolveAreaManagedProjectIds(
+    formData,
+    company.id,
+    isAm
+  );
   const displayPosition = isOm
     ? formatOperationsManagerLabel(omApprovalAreas)
     : positionName;
@@ -309,6 +400,15 @@ export async function createEmployee(formData: FormData) {
         positionId,
         position: displayPosition,
         omApprovalAreas,
+        ...(isAm
+          ? {
+              areaManagedProjects: {
+                create: areaManagedProjectIds.map((projectId) => ({
+                  projectId,
+                })),
+              },
+            }
+          : {}),
         idDocumentUrl: idDocumentUrl ?? null,
         hiredAt,
         companyId: company.id,
@@ -322,6 +422,11 @@ export async function createEmployee(formData: FormData) {
         jkkEnabled: finance.jkkEnabled,
         jkmEnabled: finance.jkmEnabled,
         jkkPercent: finance.jkkPercent,
+        securityDepositRequired: finance.securityDepositRequired,
+        cicoExempt: finance.cicoExempt,
+        bankName: finance.bankName,
+        bankAccountNumber: finance.bankAccountNumber,
+        bankAccountName: finance.bankAccountName,
       },
     });
 
@@ -343,6 +448,254 @@ export async function createEmployee(formData: FormData) {
 
   revalidatePath("/employees");
   revalidatePath("/users");
+}
+
+export async function createEmployeesInBulk(formData: FormData) {
+  const session = await assertCanManageEmployees();
+  const locale = await getServerLocale();
+  const uploaded: string[] = [];
+
+  try {
+    const company = await prisma.company.findFirst();
+    if (!company) {
+      throw new Error("Company not found.");
+    }
+
+    const lineCount = parseBulkLineCount(formData);
+    const people: Array<{
+      firstName: string;
+      lastName: string;
+      email: string | null;
+      phone: string | null;
+      categoryId: string;
+      positionId: string | null;
+      positionName: string | null;
+      positionSlug: string | null;
+      employmentType: EmploymentType;
+      placement: ReturnType<typeof initialPlacementForDepartment>;
+      employeeType: ReturnType<typeof employeeTypeFromPlacement>;
+      hiredAt: Date | null;
+      portalAccessRequested: boolean;
+      omApprovalAreas: ReturnType<typeof parseOmApprovalAreas>;
+      areaManagedProjectIds: string[];
+      displayPosition: string | null;
+      internalHomeSite: InternalHomeSite;
+      finance: ReturnType<typeof parseEmployeeFinanceFromForm>;
+      idDocumentUrl: string | null;
+    }> = [];
+
+    for (let index = 0; index < lineCount; index += 1) {
+      const row = lineFormDataFromPrefix(formData, index);
+      const firstName = capitalizeName(String(row.get("firstName") || "").trim());
+      const lastName = capitalizeName(String(row.get("lastName") || "").trim());
+      const categoryRaw = String(row.get("categoryId") ?? "").trim();
+      const empty = !firstName && !lastName && !categoryRaw;
+      if (empty) continue;
+
+      try {
+        if (!firstName) throw new Error("First name is required.");
+        if (!lastName) throw new Error("Last name is required.");
+
+        const categoryId = await parseCategoryId(row.get("categoryId"), company.id, {
+          required: true,
+        });
+        const category = await prisma.employeeCategory.findFirst({
+          where: { id: categoryId!, companyId: company.id },
+          select: { id: true, slug: true, prefix: true },
+        });
+        if (!category) {
+          throw new Error("Selected department was not found.");
+        }
+
+        const { positionId, positionName, positionSlug } = await parsePositionId(
+          row.get("positionId"),
+          company.id,
+          categoryId,
+          { required: true }
+        );
+        await assertCanAssignEmployeePosition(session, {
+          slug: positionSlug,
+          name: positionName,
+        });
+        const employmentType = parseEmploymentType(row.get("employmentType"));
+        const placement = initialPlacementForDepartment({
+          categorySlug: category.slug,
+          categoryPrefix: category.prefix,
+        });
+        const employeeType = employeeTypeFromPlacement(placement);
+        const hiredAt = parseHiredAt(row.get("hiredAt"));
+        const portalRaw = row.get("createPortalLogin");
+        const portalAccessRequested =
+          portalRaw == null || String(portalRaw).trim() === ""
+            ? defaultPortalAccessRequested({
+                placement,
+                categorySlug: category.slug,
+                jobPosition: { slug: positionSlug, name: positionName },
+              })
+            : parseCreatePortalLoginFlag(portalRaw);
+        const isOm = isOperationsManagerPosition({
+          slug: positionSlug,
+          name: positionName,
+        });
+        const isAm = isAreaManagerPosition({
+          slug: positionSlug,
+          name: positionName,
+        });
+        const omApprovalAreas = isOm ? parseOmApprovalAreas(row) : [];
+        if (isOm && omApprovalAreas.length === 0) {
+          throw new Error(
+            "Select at least one Approval Area for Operations Manager."
+          );
+        }
+        const areaManagedProjectIds = await resolveAreaManagedProjectIds(
+          row,
+          company.id,
+          isAm
+        );
+        const displayPosition = isOm
+          ? formatOperationsManagerLabel(omApprovalAreas)
+          : positionName;
+        const { defaultInternalHomeSite } = await import("@/lib/office-cico");
+        const internalHomeSite =
+          employeeType !== "HEAD_OFFICE"
+            ? "NONE"
+            : defaultInternalHomeSite({
+                categorySlug: category.slug,
+                categoryPrefix: category.prefix,
+                jobPosition: { slug: positionSlug, name: positionName },
+              });
+        const finance = parseEmployeeFinanceFromForm(row);
+        const idDocumentUrl = (await saveIdDocument(row)) ?? null;
+        if (idDocumentUrl) uploaded.push(idDocumentUrl);
+
+        people.push({
+          firstName,
+          lastName,
+          email: parseContactEmail(row.get("email")),
+          phone:
+            normalizeAndValidatePhone(String(row.get("phone") || ""), "Phone") ||
+            null,
+          categoryId: categoryId!,
+          positionId,
+          positionName,
+          positionSlug,
+          employmentType,
+          placement,
+          employeeType,
+          hiredAt,
+          portalAccessRequested,
+          omApprovalAreas,
+          areaManagedProjectIds,
+          displayPosition,
+          internalHomeSite,
+          finance,
+          idDocumentUrl,
+        });
+      } catch (error) {
+        throw new Error(
+          translate(locale, "bulkCreate.lineError", {
+            n: String(index + 1),
+            message:
+              error instanceof Error ? error.message : "Invalid employee line.",
+          })
+        );
+      }
+    }
+
+    if (people.length === 0) {
+      throw new Error(translate(locale, "bulkCreate.emptyLines"));
+    }
+
+    let sortOrder = await nextCompanyScopedSortOrder("employee", company.id);
+
+    await prisma.$transaction(async (tx) => {
+      for (const person of people) {
+        const employeeNo = await getNextEmployeeNumber(
+          company.id,
+          person.categoryId,
+          tx
+        );
+        const existing = await tx.employee.findUnique({
+          where: { employeeNo },
+        });
+        if (existing) {
+          throw new Error("Employee number already exists. Please try again.");
+        }
+
+        const employee = await tx.employee.create({
+          data: {
+            employeeNo,
+            firstName: person.firstName,
+            lastName: person.lastName,
+            email: person.email,
+            phone: person.phone,
+            employeeType: person.employeeType,
+            employmentType: person.employmentType,
+            placement: person.placement,
+            internalHomeSite: person.internalHomeSite,
+            portalAccessRequested: person.portalAccessRequested,
+            categoryId: person.categoryId,
+            positionId: person.positionId,
+            position: person.displayPosition,
+            omApprovalAreas: person.omApprovalAreas,
+            ...(person.areaManagedProjectIds.length > 0
+              ? {
+                  areaManagedProjects: {
+                    create: person.areaManagedProjectIds.map((projectId) => ({
+                      projectId,
+                    })),
+                  },
+                }
+              : {}),
+            idDocumentUrl: person.idDocumentUrl,
+            hiredAt: person.hiredAt,
+            companyId: company.id,
+            status: "ACTIVE",
+            sortOrder,
+            basePay: person.finance.basePay,
+            bpjsKesehatanEnabled: person.finance.bpjsKesehatanEnabled,
+            bpjsKetenagakerjaanEnabled: person.finance.bpjsKetenagakerjaanEnabled,
+            jhtEnabled: person.finance.jhtEnabled,
+            jpEnabled: person.finance.jpEnabled,
+            jkkEnabled: person.finance.jkkEnabled,
+            jkmEnabled: person.finance.jkmEnabled,
+            jkkPercent: person.finance.jkkPercent,
+            securityDepositRequired: person.finance.securityDepositRequired,
+            cicoExempt: person.finance.cicoExempt,
+            bankName: person.finance.bankName,
+            bankAccountNumber: person.finance.bankAccountNumber,
+            bankAccountName: person.finance.bankAccountName,
+          },
+        });
+
+        await syncEmployeePortalLogin(tx, {
+          companyId: company.id,
+          employeeId: employee.id,
+          firstName: person.firstName,
+          lastName: person.lastName,
+          employeeNo,
+          employmentType: person.employmentType,
+          placement: person.placement,
+          portalAccessRequested: person.portalAccessRequested,
+          status: "ACTIVE",
+          userId: null,
+          employeeType: person.employeeType,
+          jobPosition: {
+            slug: person.positionSlug,
+            name: person.positionName,
+          },
+        });
+
+        sortOrder += SORT_ORDER_STEP;
+      }
+    });
+
+    revalidatePath("/employees");
+    revalidatePath("/users");
+  } catch (error) {
+    await Promise.all(uploaded.map((path) => deleteLocalUpload(path)));
+    throw error;
+  }
 }
 
 export async function reorderEmployees(ids: string[]) {
@@ -472,10 +825,19 @@ export async function updateEmployee(id: string, formData: FormData) {
     slug: positionSlug,
     name: positionName,
   });
+  const isAm = isAreaManagerPosition({
+    slug: positionSlug,
+    name: positionName,
+  });
   const omApprovalAreas = isOm ? parseOmApprovalAreas(formData) : [];
   if (isOm && omApprovalAreas.length === 0) {
     throw new Error("Select at least one Approval Area for Operations Manager.");
   }
+  const areaManagedProjectIds = await resolveAreaManagedProjectIds(
+    formData,
+    employee.companyId,
+    isAm
+  );
   const displayPosition = isOm
     ? formatOperationsManagerLabel(omApprovalAreas)
     : positionName;
@@ -514,6 +876,16 @@ export async function updateEmployee(id: string, formData: FormData) {
         positionId,
         position: displayPosition,
         omApprovalAreas,
+        areaManagedProjects: {
+          deleteMany: {},
+          ...(isAm
+            ? {
+                create: areaManagedProjectIds.map((projectId) => ({
+                  projectId,
+                })),
+              }
+            : {}),
+        },
         hiredAt,
         basePay: finance.basePay,
         bpjsKesehatanEnabled: finance.bpjsKesehatanEnabled,
@@ -523,6 +895,11 @@ export async function updateEmployee(id: string, formData: FormData) {
         jkkEnabled: finance.jkkEnabled,
         jkmEnabled: finance.jkmEnabled,
         jkkPercent: finance.jkkPercent,
+        securityDepositRequired: finance.securityDepositRequired,
+        cicoExempt: finance.cicoExempt,
+        bankName: finance.bankName,
+        bankAccountNumber: finance.bankAccountNumber,
+        bankAccountName: finance.bankAccountName,
         ...(idDocumentUrl !== undefined ? { idDocumentUrl } : {}),
         employeeNo,
       },
@@ -803,10 +1180,6 @@ export async function bulkReactivateEmployees(
   return result;
 }
 
-export async function deleteEmployee(id: string) {
-  await deactivateEmployee(id);
-}
-
 async function archiveEmployeeFromDirectoryRecord(id: string) {
   const employee = await prisma.employee.findUnique({
     where: { id },
@@ -834,7 +1207,11 @@ async function archiveEmployeeFromDirectoryRecord(id: string) {
     return;
   }
 
-  if (employee.status !== "INACTIVE" && employee.status !== "TERMINATED") {
+  if (
+    employee.status !== "INACTIVE" &&
+    employee.status !== "TERMINATED" &&
+    employee.status !== "RESIGNED"
+  ) {
     throw new Error(
       "Only deleted employees can be permanently removed from the directory."
     );
@@ -943,6 +1320,7 @@ export async function generateEmployeePortalLogins(
             status: true,
             userId: true,
             portalAccessRequested: true,
+            jobPosition: { select: { slug: true, name: true } },
           },
         });
 
@@ -1000,6 +1378,7 @@ export async function generateEmployeePortalLogins(
           status: employee.status,
           userId: employee.userId,
           employeeType: employee.employeeType,
+          jobPosition: employee.jobPosition,
         });
 
         return sync.active;
@@ -1024,4 +1403,140 @@ export async function generateEmployeePortalLogins(
   }
 
   return result;
+}
+
+export async function resignEmployee(formData: FormData) {
+  const session = await requireSession();
+  const user = toPermissionUser(session);
+  if (!canResignEmployees(user)) {
+    throw await employeeLocaleError("resignHoOnly");
+  }
+
+  const locale = await getServerLocale();
+  const id = String(formData.get("employeeId") ?? "").trim();
+  const lastWorkingDayRaw = String(formData.get("lastWorkingDay") ?? "").trim();
+  const procedure = String(formData.get("procedure") ?? "").trim();
+  const note = String(formData.get("note") ?? "").trim();
+
+  if (!id) {
+    throw new Error(translate(locale, "pages.employees.errors.resignFailed"));
+  }
+  if (!lastWorkingDayRaw) {
+    throw new Error(translate(locale, "pages.employees.errors.lastWorkingDayRequired"));
+  }
+  if (procedure !== "according" && procedure !== "notAccording") {
+    throw new Error(translate(locale, "pages.employees.errors.procedureRequired"));
+  }
+
+  const { parseDateInput } = await import("@/lib/invoice-period");
+  const { payrollPeriodFromJakartaDate } = await import(
+    "@/lib/internal-payroll-period"
+  );
+  const { toDecimal } = await import("@/lib/inventory");
+  const { applyResignIfLastDayReached } = await import("@/lib/employee-resign");
+  const { decimalToNumber } = await import("@/lib/project-billing");
+
+  let lastWorkingDay: Date;
+  try {
+    lastWorkingDay = parseDateInput(lastWorkingDayRaw);
+  } catch {
+    throw new Error(translate(locale, "pages.employees.errors.lastWorkingDayRequired"));
+  }
+
+  const accordingToProcedure = procedure === "according";
+  const forfeitRemainingWages =
+    !accordingToProcedure &&
+    String(formData.get("forfeitRemainingWages") ?? "") === "1";
+
+  const employee = await prisma.employee.findFirst({
+    where: { id, companyId: session.user.companyId },
+    select: {
+      id: true,
+      status: true,
+      companyId: true,
+      userId: true,
+      depositHeldAmount: true,
+      depositStatus: true,
+      resignAccordingToProcedure: true,
+      depositSourceProjectId: true,
+    },
+  });
+  if (!employee) {
+    throw new Error(translate(locale, "pages.employees.errors.resignFailed"));
+  }
+  if (employee.status === "RESIGNED" || employee.resignAccordingToProcedure != null) {
+    throw new Error(translate(locale, "pages.employees.errors.alreadyResigned"));
+  }
+  if (!isRosterActiveEmployeeStatus(employee.status)) {
+    throw new Error(translate(locale, "pages.employees.errors.resignFailed"));
+  }
+
+  const held = decimalToNumber(employee.depositHeldAmount) ?? 0;
+  const ym = payrollPeriodFromJakartaDate(lastWorkingDay);
+
+  await prisma.$transaction(async (tx) => {
+    const lastCommercial = await tx.projectAssignment.findFirst({
+      where: {
+        employeeId: employee.id,
+        project: { subCategory: { not: "INTERNAL" } },
+      },
+      orderBy: { assignedAt: "desc" },
+      select: { projectId: true },
+    });
+    const depositSourceProjectId =
+      lastCommercial?.projectId ?? employee.depositSourceProjectId ?? null;
+
+    await tx.employee.update({
+      where: { id: employee.id },
+      data: {
+        lastWorkingDay,
+        resignAccordingToProcedure: accordingToProcedure,
+        resignForfeitRemainingWages: forfeitRemainingWages,
+        resignNote: note || null,
+        depositSourceProjectId,
+        depositStatus: accordingToProcedure
+          ? held > 0
+            ? "RETURNED"
+            : employee.depositStatus
+          : held > 0
+            ? "KEPT_BY_COMPANY"
+            : employee.depositStatus,
+      },
+    });
+
+    if (accordingToProcedure && held > 0 && employee.depositStatus === "HELD") {
+      await tx.payrollDeduction.create({
+        data: {
+          companyId: employee.companyId,
+          employeeId: employee.id,
+          year: ym.year,
+          month: ym.month,
+          type: "RETURN_OF_SECURITY_DEPOSIT",
+          amount: toDecimal(held),
+          reason: "Return of security deposit",
+          createdById: session.user.id,
+          projectId: depositSourceProjectId,
+        },
+      });
+    }
+
+    await applyResignIfLastDayReached(tx, employee.id);
+  });
+
+  if (forfeitRemainingWages) {
+    const { loadInternalPayrollMonth } = await import(
+      "@/lib/internal-payroll-month"
+    );
+    await loadInternalPayrollMonth({
+      companyId: employee.companyId,
+      year: ym.year,
+      month: ym.month,
+      live: true,
+    });
+  }
+
+  revalidatePath("/employees");
+  revalidatePath("/users");
+  revalidatePath("/billing/payroll");
+  revalidatePath("/billing/financial-report");
 }

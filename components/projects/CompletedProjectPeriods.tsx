@@ -60,10 +60,10 @@ export default function CompletedProjectPeriods({ periods }: Props) {
 
       {open ? (
         <div className="mt-2 overflow-x-auto rounded-lg border border-border">
-          <table className="w-full min-w-[28rem] text-left text-xs">
+          <table className="w-full min-w-[40rem] text-left text-xs">
             <thead className="bg-elevated text-[10px] uppercase tracking-wider text-subtle">
               <tr>
-                <th className="px-2 py-1.5 font-semibold">
+                <th className="px-2 py-1.5 text-left font-semibold">
                   {t("pages.billing.columns.period")}
                 </th>
                 <th className="px-2 py-1.5 font-semibold">
@@ -83,7 +83,7 @@ export default function CompletedProjectPeriods({ periods }: Props) {
             <tbody>
               {periods.map((p) => {
                 const amount = decimalToNumber(p.amount);
-                const taxNa = !p.clientHasNpwp || !p.taxInvoiceRequired;
+                const taxNa = false;
                 return (
                   <tr key={p.id} className="border-t border-border">
                     <td className="px-2 py-1.5 text-text">

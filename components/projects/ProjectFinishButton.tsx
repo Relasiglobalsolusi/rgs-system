@@ -5,16 +5,28 @@ import {
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
+import { CalendarClock } from "lucide-react";
 import {
   finishProject,
   invoiceCurrentMonth,
   reconcileCurrentMonth,
 } from "@/app/projects/actions";
+import {
+  EmployeeDialogShell,
+  EmployeePrimaryButton,
+  EmployeeSecondaryButton,
+  employeeDialogFieldClass,
+  employeeDialogHintClass,
+  employeeInputClass,
+} from "@/components/employees/employee-dialog-ui";
 import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { StackedChipLabel } from "@/components/ui/StatusBadge";
 import { detailActionBarButtonClassName } from "@/components/projects/detail-action-bar";
 import { useT } from "@/lib/i18n/use-t";
+import { toDateInputValue } from "@/lib/project-contract";
 import { cn } from "@/lib/utils";
 
 type LifecycleArgs = {
@@ -22,6 +34,9 @@ type LifecycleArgs = {
   projectName: string;
   /** Regular Cleaning contracts invoice a month without ending the project. */
   isRegularContract: boolean;
+  /** Regular / Security End Contract asks for the real last day on site. */
+  requiresLastDay?: boolean;
+  plannedEndDate?: Date | string | null;
 };
 
 /**
@@ -32,10 +47,19 @@ export function useProjectLifecycleActions({
   projectId,
   projectName,
   isRegularContract,
+  requiresLastDay = false,
+  plannedEndDate = null,
 }: LifecycleArgs) {
   const { t } = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [lastDayOpen, setLastDayOpen] = useState(false);
+  const [lastDay, setLastDay] = useState(() => {
+    const today = toDateInputValue(new Date());
+    const planned = toDateInputValue(plannedEndDate);
+    if (planned && planned < today) return planned;
+    return today;
+  });
 
   function handleInvoiceError(
     result: Awaited<ReturnType<typeof finishProject>>,
@@ -118,17 +142,10 @@ export function useProjectLifecycleActions({
     });
   }
 
-  function endOrFinish() {
-    const confirmed = window.confirm(
-      isRegularContract
-        ? t("pages.projects.finish.confirmEndContract", { name: projectName })
-        : t("pages.projects.finish.confirmFinishNamed", { name: projectName })
-    );
-    if (!confirmed) return;
-
+  function submitEndOrFinish(formData?: FormData) {
     startTransition(async () => {
       try {
-        const result = await finishProject(projectId);
+        const result = await finishProject(projectId, formData);
         if (
           handleInvoiceError(
             result,
@@ -139,6 +156,7 @@ export function useProjectLifecycleActions({
         ) {
           return;
         }
+        setLastDayOpen(false);
         router.refresh();
       } catch (error) {
         const code = error instanceof Error ? error.message : "";
@@ -164,12 +182,41 @@ export function useProjectLifecycleActions({
     });
   }
 
+  function endOrFinish() {
+    const confirmed = window.confirm(
+      isRegularContract
+        ? t("pages.projects.finish.confirmEndContract", { name: projectName })
+        : t("pages.projects.finish.confirmFinishNamed", { name: projectName })
+    );
+    if (!confirmed) return;
+    if (requiresLastDay) {
+      setLastDayOpen(true);
+      return;
+    }
+    submitEndOrFinish();
+  }
+
+  function confirmLastDay() {
+    if (!lastDay) {
+      showRejection({ reasons: t("pages.projects.finish.lastDayRequired") });
+      return;
+    }
+    const formData = new FormData();
+    formData.set("lastDay", lastDay);
+    submitEndOrFinish(formData);
+  }
+
   return {
     pending,
     reconcileThisMonth,
     invoiceThisMonth,
     endOrFinish,
     isRegularContract,
+    lastDayOpen,
+    setLastDayOpen,
+    lastDay,
+    setLastDay,
+    confirmLastDay,
   };
 }
 
@@ -191,16 +238,29 @@ export default function ProjectFinishButton({
   projectId,
   projectName,
   isRegularContract,
+  requiresLastDay = false,
+  plannedEndDate = null,
   mode = "full",
   size = "sm",
   billingAction = null,
 }: Props) {
   const { t } = useT();
-  const { pending, reconcileThisMonth, invoiceThisMonth, endOrFinish } =
-    useProjectLifecycleActions({
+  const {
+    pending,
+    reconcileThisMonth,
+    invoiceThisMonth,
+    endOrFinish,
+    lastDayOpen,
+    setLastDayOpen,
+    lastDay,
+    setLastDay,
+    confirmLastDay,
+  } = useProjectLifecycleActions({
       projectId,
       projectName,
       isRegularContract,
+      requiresLastDay,
+      plannedEndDate,
     });
   const isBadge = size === "badge";
   const isBar = size === "bar";
@@ -270,6 +330,51 @@ export default function ProjectFinishButton({
             </>
           )}
         </Button>
+        {requiresLastDay ? (
+          <Dialog open={lastDayOpen} onOpenChange={setLastDayOpen}>
+            <EmployeeDialogShell
+              icon={CalendarClock}
+              title={t("pages.projects.finish.endContract")}
+              description={t("pages.projects.finish.lastDayHint")}
+              maxWidth="md"
+              footer={
+                <div className="flex w-full flex-col gap-3 sm:flex-row sm:justify-end">
+                  <EmployeeSecondaryButton
+                    disabled={pending}
+                    onClick={() => setLastDayOpen(false)}
+                  >
+                    {t("common.actions.cancel")}
+                  </EmployeeSecondaryButton>
+                  <EmployeePrimaryButton
+                    type="button"
+                    disabled={pending}
+                    onClick={confirmLastDay}
+                  >
+                    {pending
+                      ? t("pages.projects.finish.finishing")
+                      : t("pages.projects.finish.endContract")}
+                  </EmployeePrimaryButton>
+                </div>
+              }
+            >
+              <div className={employeeDialogFieldClass}>
+                <label className="text-sm font-medium text-text">
+                  {t("pages.projects.finish.lastDay")}
+                </label>
+                <Input
+                  type="date"
+                  value={lastDay}
+                  max={toDateInputValue(new Date())}
+                  onChange={(event) => setLastDay(event.target.value)}
+                  className={employeeInputClass}
+                />
+                <p className={employeeDialogHintClass}>
+                  {t("pages.projects.finish.lastDayHint")}
+                </p>
+              </div>
+            </EmployeeDialogShell>
+          </Dialog>
+        ) : null}
       </>
     );
   }

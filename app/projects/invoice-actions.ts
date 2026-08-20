@@ -10,11 +10,7 @@ import {
   toPermissionUser,
 } from "@/lib/session";
 import { generateInvoicePeriodPdf } from "@/lib/progress-report-pdf";
-import {
-  sendInvoiceEmail,
-  sendInvoiceWhatsAppStub,
-} from "@/lib/invoice-delivery";
-import { formatContactPersonName } from "@/lib/contact-person";
+import { DEFAULT_PRODUCT_PPN_RATE_PERCENT } from "@/lib/vat";
 import {
   COMPLETION_INVOICE_LABEL,
   decimalToNumber,
@@ -27,49 +23,44 @@ import {
   recalculateUnpaidMilestoneAmounts,
   usesInvoicePeriods,
 } from "@/lib/project-billing";
-import { isContractSubCategory } from "@/lib/project-contract";
+import {
+  isContractCycleSubCategory,
+  isContractSubCategory,
+} from "@/lib/project-contract";
+import { shouldCompleteProjectAfterSettlement } from "@/lib/project-settlement";
 import {
   isProjectFullyPaid,
   OPEN_COLLECTION_STATUSES,
 } from "@/lib/billing";
 import {
-  contractCyclePeriodBounds,
+  customDayCyclePeriodBounds,
   dueAtFromClientPaymentTerms,
   invoiceIssueCalendarDate,
   isAnniversaryPeriodDue,
   isCalendarMonthPeriodBounds,
   isMonthlyPeriodAwaitingReconcile,
   isMonthlyPeriodReadyToSubmitInvoice,
-  invoicingDayFromContractStart,
-  matchingContractCycleIndex,
+  invoicingDayFromCycleToDay,
+  matchingCustomDayCycleIndex,
   monthPeriodBounds,
   previousMonthPeriodBounds,
-  resolveContractCycleIndex,
+  resolveBillingCycleDays,
+  resolveCustomDayCycleIndex,
   toUtcDateOnly,
 } from "@/lib/invoice-period";
 import {
   buildBillingDocumentFileBase,
   deleteLocalUpload,
-  fileFromPublicUpload,
   saveUpload,
 } from "@/lib/upload";
 import { PROJECT_LIST_VIEW_PATHS } from "@/lib/project-status";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
-import { resolveCompanyBankDetails } from "@/lib/company-bank";
-import {
-  taxInvoiceDateToUtcDate,
-  utcCalendarDateString,
-  verifyPaymentProof,
-  verifyTaxInvoiceDocument,
-  type TaxInvoiceConflictKind,
-} from "@/lib/payment-document-verify";
-import { paymentVerifyFailureMessage } from "@/lib/payment-verify-messages";
 import {
   canIssueCommercialInvoiceForProject,
   canIssueInvoiceAfterReview,
 } from "@/lib/client-billing-review";
-import { releaseAllProjectCrew } from "@/lib/workforce-crew";
+import { parseManualVerifyReason } from "@/lib/in-house-document-verify";
 
 const COMPANY_BANK_SELECT = {
   name: true,
@@ -195,42 +186,23 @@ async function assertCanIssueCommercialInvoice(
 }
 
 /**
- * Milestone parts are independent cases. After a non-final part is invoiced,
+ * Milestone parts are independent cases. After a part is invoiced,
  * return the project to IN_PROGRESS so progress + next Submit for Approval
  * are not stuck on WAITING_FOR_APPROVAL.
  *
- * Final part (100% / last scheduled): HO manual issue → COMPLETED + crew
- * release (release only when the project is fully COMPLETED — never when a
- * non-final part closes). Client-approved issue stays IN_PROGRESS until
- * Mark Paid (payment → history path also COMPLETED + release).
+ * Final GC/Facade part: crew already released on client approve. Stay
+ * In Progress (awaiting payment / invoiced) until Mark Paid sets COMPLETED.
+ * Intermediate parts also stay IN_PROGRESS. Do not complete on invoice issue.
  */
 async function applyProjectStatusAfterMilestoneIssue(opts: {
   projectId: string;
   projectStatus: string;
-  milestonePercent: number;
-  schedulePercents: Array<number | null | undefined>;
-  approvedReview: boolean;
+  milestonePercent?: number;
+  schedulePercents?: Array<number | null | undefined>;
+  approvedReview?: boolean;
 }) {
   if (opts.projectStatus === "CANCELLED") return;
-
-  const scheduled = opts.schedulePercents.filter(
-    (p): p is number => p != null && Number.isFinite(p)
-  );
-  const maxScheduled = scheduled.length > 0 ? Math.max(...scheduled) : 100;
-  const isFinal =
-    opts.milestonePercent >= 100 || opts.milestonePercent >= maxScheduled;
-
-  if (isFinal && !opts.approvedReview) {
-    // Project 100% COMPLETED — only then release workers/equipment.
-    await prisma.$transaction(async (tx) => {
-      await tx.project.update({
-        where: { id: opts.projectId },
-        data: { status: "COMPLETED" },
-      });
-      await releaseAllProjectCrew(tx, opts.projectId);
-    });
-    return;
-  }
+  if (opts.projectStatus === "COMPLETED") return;
 
   if (
     opts.projectStatus === "PLANNED" ||
@@ -308,12 +280,19 @@ async function getOrCreatePeriod(
   });
 }
 
-async function getOrCreateContractCyclePeriod(
+async function getOrCreateCustomCyclePeriod(
   projectId: string,
-  contractStart: Date,
-  cycleIndex: number
+  fromDay: number,
+  toDay: number,
+  cycleIndex: number,
+  anchor: Date
 ) {
-  const bounds = contractCyclePeriodBounds(contractStart, cycleIndex);
+  const bounds = customDayCyclePeriodBounds(
+    fromDay,
+    toDay,
+    cycleIndex,
+    anchor
+  );
   return getOrCreatePeriod(
     projectId,
     bounds.periodStart,
@@ -329,8 +308,14 @@ async function getOrCreateContractCyclePeriod(
 async function purgeMismatchedOngoingMonthlyPeriods(
   projectId: string,
   contractStart: Date,
-  basis: "CALENDAR_MONTH" | "CONTRACT_CYCLE" | null | undefined
+  basis: "CALENDAR_MONTH" | "CONTRACT_CYCLE" | null | undefined,
+  cycle?: { fromDay?: number | null; toDay?: number | null } | null
 ) {
+  const days = resolveBillingCycleDays(
+    contractStart,
+    cycle?.fromDay,
+    cycle?.toDay
+  );
   const ongoing = await prisma.projectInvoicePeriod.findMany({
     where: {
       projectId,
@@ -350,7 +335,9 @@ async function purgeMismatchedOngoingMonthlyPeriods(
     const matches =
       basis === "CALENDAR_MONTH"
         ? isCalendarMonthPeriodBounds(period.periodStart, period.periodEnd)
-        : matchingContractCycleIndex(
+        : matchingCustomDayCycleIndex(
+            days.fromDay,
+            days.toDay,
             contractStart,
             period.periodStart,
             period.periodEnd
@@ -373,7 +360,7 @@ async function purgeMismatchedOngoingMonthlyPeriods(
 
 /**
  * Ensure the cycle / calendar month containing `ref` (and prior when needed) exist.
- * Syncs project.invoicingDay from the real contract start for Contract Cycle.
+ * Syncs project.invoicingDay from the custom cycle to-date (or contract start).
  */
 async function ensureAnniversaryPeriodsForProject(
   project: {
@@ -383,6 +370,8 @@ async function ensureAnniversaryPeriodsForProject(
     status: string;
     subCategory?: string | null;
     billingPeriodBasis?: "CALENDAR_MONTH" | "CONTRACT_CYCLE" | null;
+    billingCycleStartDay?: number | null;
+    billingCycleEndDay?: number | null;
   },
   ref: Date = new Date(),
   opts?: { includeNextIfDue?: boolean }
@@ -405,17 +394,25 @@ async function ensureAnniversaryPeriodsForProject(
   const contractStart = toUtcDateOnly(project.startDate);
   const today = toUtcDateOnly(ref);
   const basis = project.billingPeriodBasis ?? "CONTRACT_CYCLE";
+  const days = resolveBillingCycleDays(
+    contractStart,
+    project.billingCycleStartDay,
+    project.billingCycleEndDay
+  );
   const invoicingDay =
     basis === "CALENDAR_MONTH"
       ? 1
-      : invoicingDayFromContractStart(contractStart);
+      : invoicingDayFromCycleToDay(days.toDay);
 
   await prisma.project.update({
     where: { id: project.id },
     data: { invoicingDay },
   });
 
-  await purgeMismatchedOngoingMonthlyPeriods(project.id, contractStart, basis);
+  await purgeMismatchedOngoingMonthlyPeriods(project.id, contractStart, basis, {
+    fromDay: project.billingCycleStartDay,
+    toDay: project.billingCycleEndDay,
+  });
 
   if (basis === "CALENDAR_MONTH") {
     const current = monthPeriodBounds(today);
@@ -452,26 +449,46 @@ async function ensureAnniversaryPeriodsForProject(
     return { contractStart, currentIndex: 1, invoicingDay };
   }
 
-  const currentIndex = resolveContractCycleIndex(contractStart, today);
-  await getOrCreateContractCyclePeriod(project.id, contractStart, currentIndex);
+  const currentIndex = resolveCustomDayCycleIndex(
+    days.fromDay,
+    days.toDay,
+    contractStart,
+    today
+  );
+  await getOrCreateCustomCyclePeriod(
+    project.id,
+    days.fromDay,
+    days.toDay,
+    currentIndex,
+    contractStart
+  );
   if (currentIndex > 1) {
-    await getOrCreateContractCyclePeriod(
+    await getOrCreateCustomCyclePeriod(
       project.id,
-      contractStart,
-      currentIndex - 1
+      days.fromDay,
+      days.toDay,
+      currentIndex - 1,
+      contractStart
     );
   }
 
   // Ongoing contracts: open the next cycle once the current one is due.
-  const currentBounds = contractCyclePeriodBounds(contractStart, currentIndex);
+  const currentBounds = customDayCyclePeriodBounds(
+    days.fromDay,
+    days.toDay,
+    currentIndex,
+    contractStart
+  );
   if (
     includeNextIfDue &&
     isAnniversaryPeriodDue(today, currentBounds.periodEnd)
   ) {
-    await getOrCreateContractCyclePeriod(
+    await getOrCreateCustomCyclePeriod(
       project.id,
-      contractStart,
-      currentIndex + 1
+      days.fromDay,
+      days.toDay,
+      currentIndex + 1,
+      contractStart
     );
   }
 
@@ -479,22 +496,25 @@ async function ensureAnniversaryPeriodsForProject(
 }
 
 async function cycleIndexForPeriodEnd(
-  contractStart: Date,
+  fromDay: number,
+  toDay: number,
+  anchor: Date,
   periodEnd: Date
 ): Promise<number> {
   const end = toUtcDateOnly(periodEnd);
   for (let i = 1; i < 2400; i += 1) {
-    const bounds = contractCyclePeriodBounds(contractStart, i);
+    const bounds = customDayCyclePeriodBounds(fromDay, toDay, i, anchor);
     if (bounds.periodEnd.getTime() === end.getTime()) return i;
   }
-  return resolveContractCycleIndex(contractStart, end);
+  return resolveCustomDayCycleIndex(fromDay, toDay, anchor, end);
 }
 
 async function ensureNextContractCycleAfter(
   projectId: string,
   contractStart: Date,
   periodEnd: Date,
-  basis?: "CALENDAR_MONTH" | "CONTRACT_CYCLE" | null
+  basis?: "CALENDAR_MONTH" | "CONTRACT_CYCLE" | null,
+  cycle?: { fromDay?: number | null; toDay?: number | null } | null
 ) {
   if (basis === "CALENDAR_MONTH") {
     const end = toUtcDateOnly(periodEnd);
@@ -510,52 +530,34 @@ async function ensureNextContractCycleAfter(
     );
     return;
   }
-  const index = await cycleIndexForPeriodEnd(contractStart, periodEnd);
-  await getOrCreateContractCyclePeriod(projectId, contractStart, index + 1);
+  const days = resolveBillingCycleDays(
+    contractStart,
+    cycle?.fromDay,
+    cycle?.toDay
+  );
+  const index = await cycleIndexForPeriodEnd(
+    days.fromDay,
+    days.toDay,
+    contractStart,
+    periodEnd
+  );
+  await getOrCreateCustomCyclePeriod(
+    projectId,
+    days.fromDay,
+    days.toDay,
+    index + 1,
+    contractStart
+  );
 }
 
-async function deliverInvoice(opts: {
+async function deliverInvoice(_opts: {
   projectName: string;
-  client: {
-    email: string | null;
-    name: string;
-    phone: string | null;
-    contactPersonFirstName: string | null;
-    contactPersonLastName: string | null;
-    contactPersonEmail: string | null;
-    contactPersonPhone: string | null;
-  } | null;
+  client: unknown;
   periodLabel: string;
   amount: number | null;
   pdfPath: string;
 }) {
-  const amountLabel =
-    opts.amount != null ? formatContractPrice(opts.amount) : null;
-  const toEmail =
-    opts.client?.contactPersonEmail?.trim() || opts.client?.email;
-  const toPhone =
-    opts.client?.contactPersonPhone?.trim() || opts.client?.phone;
-  await sendInvoiceEmail({
-    toEmail,
-    clientName: opts.client?.name,
-    contactPersonName: formatContactPersonName(
-      opts.client?.contactPersonFirstName,
-      opts.client?.contactPersonLastName
-    ),
-    projectName: opts.projectName,
-    periodLabel: opts.periodLabel,
-    amountLabel,
-    pdfPublicPath: opts.pdfPath,
-  });
-  await sendInvoiceWhatsAppStub({
-    toEmail,
-    clientName: opts.client?.name,
-    projectName: opts.projectName,
-    periodLabel: opts.periodLabel,
-    amountLabel,
-    pdfPublicPath: opts.pdfPath,
-    phone: toPhone,
-  });
+  // Invoices stay on the client Relasi Global Solusi account. No email or WhatsApp.
 }
 
 /** Sync anniversary cycles for one project (no path revalidation). */
@@ -567,15 +569,6 @@ export async function syncProjectMonthlyPeriods(projectId: string) {
 
   await ensureAnniversaryPeriodsForProject(project);
   return { clientId: project.clientId };
-}
-
-export async function ensureProjectInvoicePeriods(projectId: string) {
-  const { clientId } = await syncProjectMonthlyPeriods(projectId);
-
-  revalidateBillingPaths({
-    projectId,
-    clientId,
-  });
 }
 
 /**
@@ -632,7 +625,11 @@ async function compileInvoicePeriodInner(
       "Use milestone invoicing for General / Facade Cleaning projects."
     );
   }
-  if (period.project.billingMode === "MONTHLY" && !period.reconciledAt) {
+  if (
+    period.project.billingMode === "MONTHLY" &&
+    !period.reconciledAt &&
+    period.project.subCategory !== "PAYROLL_MANAGEMENT"
+  ) {
     throw new Error(
       "Reconcile this billing period before submitting the invoice."
     );
@@ -712,8 +709,10 @@ async function compileInvoicePeriodInner(
       invoiceNumber,
       company: period.project.company,
       title:
-        period.project.billingMode === "ON_COMPLETION"
-          ? "Completion Invoice"
+        period.project.subCategory === "PAYROLL_MANAGEMENT"
+          ? "Payroll Management Invoice"
+          : period.project.billingMode === "ON_COMPLETION"
+            ? "Completion Invoice"
           : "Monthly Progress Invoice",
     });
 
@@ -739,15 +738,16 @@ async function compileInvoicePeriodInner(
           compiledById: session.user.id,
           compileNote: `Compiled ${reports.length} progress report(s) for this project/location in ${period.label ?? "the period"}. Combined invoice + proof PDF generated.`,
           ...(invoiceAmount != null ? { amount: invoiceAmount } : {}),
-          ...(period.project.requiresTaxInvoice
-            ? { taxInvoiceRequired: true }
+          ...(period.ppnRatePercent == null
+            ? { ppnRatePercent: DEFAULT_PRODUCT_PPN_RATE_PERCENT }
             : {}),
+          taxInvoiceRequired: true,
         },
       }),
     ]);
 
-    // Issuing an invoice leaves Planning — same as milestone compile — so
-    // Payment Due / In Progress stay consistent without a manual move.
+    // One-shot GC/Facade: client approve already released crew. Stay In Progress
+    // until the last invoice is marked paid — do not complete on invoice issue.
     if (period.project.status === "PLANNED") {
       await prisma.project.update({
         where: { id: period.projectId },
@@ -756,12 +756,22 @@ async function compileInvoicePeriodInner(
     } else if (
       period.project.status === "WAITING_FOR_APPROVAL" &&
       period.project.billingMode === "MONTHLY" &&
-      isContractSubCategory(period.project.subCategory)
+      isContractCycleSubCategory(period.project.subCategory)
     ) {
       // Regular reconcile approval: contract continues — return to In Progress.
       await prisma.project.update({
         where: { id: period.projectId },
         data: { status: "IN_PROGRESS" },
+      });
+    }
+
+    if (period.project.subCategory === "PAYROLL_MANAGEMENT") {
+      await prisma.payrollManagementPeriod.updateMany({
+        where: { invoicePeriodId: periodId },
+        data: {
+          status: "INVOICED",
+          invoicedAt: submittedAt,
+        },
       });
     }
 
@@ -784,7 +794,11 @@ async function compileInvoicePeriodInner(
         period.projectId,
         toUtcDateOnly(period.project.startDate),
         period.periodEnd,
-        period.project.billingPeriodBasis
+        period.project.billingPeriodBasis,
+        {
+          fromDay: period.project.billingCycleStartDay,
+          toDay: period.project.billingCycleEndDay,
+        }
       );
     }
 
@@ -867,6 +881,7 @@ export async function updateProjectContractPrice(formData: FormData) {
     username: session.user.username,
     permissionUser: toPermissionUser(session),
     projectServiceArea: project.serviceArea,
+    projectId: project.id,
   });
 
   await prisma.$transaction(async (tx) => {
@@ -1154,7 +1169,8 @@ async function issueMilestonePeriodInner(
           dueAt,
           compiledById: session.user.id,
           compileNote: `${label} — ${amountLabel}. Compiled ${reports.length} report(s).`,
-          ...(project.requiresTaxInvoice ? { taxInvoiceRequired: true } : {}),
+          taxInvoiceRequired: true,
+          ppnRatePercent: DEFAULT_PRODUCT_PPN_RATE_PERCENT,
         },
       }),
     ]);
@@ -1518,7 +1534,8 @@ export async function createMilestoneInvoice(formData: FormData) {
         dueAt,
         compiledById: session.user.id,
         compileNote: `${formatMilestoneScheduleLabel(milestonePercent)} — ${amountLabel}. Compiled ${reports.length} report(s).`,
-        ...(project.requiresTaxInvoice ? { taxInvoiceRequired: true } : {}),
+        taxInvoiceRequired: true,
+        ppnRatePercent: DEFAULT_PRODUCT_PPN_RATE_PERCENT,
       },
     }),
   ]);
@@ -1614,11 +1631,16 @@ type MarkPaidPeriod = {
     status: string;
     billingMode: string;
     billingPeriodBasis?: "CALENDAR_MONTH" | "CONTRACT_CYCLE" | null;
+    billingCycleStartDay?: number | null;
+    billingCycleEndDay?: number | null;
+    subCategory?: string | null;
     startDate: Date | null;
+    endDate?: Date | null;
     invoicePeriods: {
       id: string;
       status: string;
       milestonePercent: number | null;
+      taxInvoiceDoneAt?: Date | null;
     }[];
   };
 };
@@ -1629,7 +1651,7 @@ type MarkPaidPeriod = {
  */
 async function applyInvoicePeriodPaid(
   period: MarkPaidPeriod,
-  opts?: { verifiedById?: string }
+  opts?: { verifiedById?: string; paymentManualReason?: string }
 ) {
   const paidAt = new Date();
   await prisma.projectInvoicePeriod.update({
@@ -1637,6 +1659,9 @@ async function applyInvoicePeriodPaid(
     data: {
       status: "PAID",
       paidAt,
+      ...(opts?.paymentManualReason
+        ? { paymentManualReason: opts.paymentManualReason }
+        : {}),
       ...(opts?.verifiedById
         ? {
             paymentVerifiedAt: paidAt,
@@ -1653,16 +1678,22 @@ async function applyInvoicePeriodPaid(
   const hasOpenCollection = periodsAfterPay.some((p) =>
     (OPEN_COLLECTION_STATUSES as readonly string[]).includes(p.status)
   );
-  const maxPaidOrIssued = maxMilestonePercent(periodsAfterPay);
+  const lastCycleClosed =
+    Boolean(project.endDate) &&
+    toUtcDateOnly(period.periodEnd).getTime() >=
+      toUtcDateOnly(project.endDate!).getTime();
 
-  // Final collection on an ended / fully invoiced contract → Completed Projects.
-  // Partial milestone payments (remaining schedule or progress < 100%) stay active.
-  const shouldMoveToHistory =
-    !hasOpenCollection &&
-    isProjectFullyPaid(periodsAfterPay) &&
-    (project.status === "COMPLETED" ||
-      project.billingMode === "ON_COMPLETION" ||
-      maxPaidOrIssued >= 100);
+  // Complete only after every issued/paid period has its tax invoice.
+  // Regular / Security last cycle can complete here; next month may still open
+  // before tax on earlier periods.
+  const shouldMoveToHistory = shouldCompleteProjectAfterSettlement({
+    billingMode: project.billingMode,
+    subCategory: project.subCategory,
+    projectStatus: project.status,
+    endDate: project.endDate,
+    lastPaidPeriodEnd: period.periodEnd,
+    periods: periodsAfterPay,
+  });
 
   if (shouldMoveToHistory) {
     await prisma.$transaction(async (tx) => {
@@ -1677,21 +1708,26 @@ async function applyInvoicePeriodPaid(
           status: "ONGOING",
         },
       });
-      // Mark Paid → History: same crew release as Finish / End Contract.
-      await releaseAllProjectCrew(tx, project.id);
+      // Crew already released on last-pack approve or End Contract. Do not
+      // release on Mark Paid.
     });
   } else if (
     project.billingMode === "MONTHLY" &&
     project.startDate &&
     project.status === "IN_PROGRESS" &&
-    !hasOpenCollection
+    !hasOpenCollection &&
+    !lastCycleClosed
   ) {
     // Contract continues — open the next anniversary / calendar-month cycle.
     await ensureNextContractCycleAfter(
       project.id,
       toUtcDateOnly(project.startDate),
       period.periodEnd,
-      project.billingPeriodBasis
+      project.billingPeriodBasis,
+      {
+        fromDay: project.billingCycleStartDay,
+        toDay: project.billingCycleEndDay,
+      }
     );
   }
 
@@ -1703,72 +1739,13 @@ async function applyInvoicePeriodPaid(
   return { movedToHistory: shouldMoveToHistory };
 }
 
-async function findTaxInvoiceConflict(query: {
-  serial: string | null;
-  documentHash: string;
-  issuedDate: string | null;
-  invoiceAmount: number;
-  excludeId: string;
-}): Promise<TaxInvoiceConflictKind | null> {
-  const excludePeriod =
-    query.excludeId.length > 0 ? { id: { not: query.excludeId } } : {};
-
-  if (query.serial) {
-    const bySerial = await prisma.projectInvoicePeriod.findFirst({
-      where: {
-        ...excludePeriod,
-        taxInvoiceSerial: query.serial,
-      },
-      select: { id: true },
-    });
-    if (bySerial) return "serial";
-
-    const byPurchaseSerial = await prisma.purchaseInvoice.findFirst({
-      where: { taxInvoiceSerial: query.serial },
-      select: { id: true },
-    });
-    if (byPurchaseSerial) return "serial";
-  }
-
-  const byHash = await prisma.projectInvoicePeriod.findFirst({
-    where: {
-      ...excludePeriod,
-      taxInvoiceDocumentHash: query.documentHash,
-    },
-    select: { id: true },
-  });
-  if (byHash) return "document_hash";
-
-  const byPurchaseHash = await prisma.purchaseInvoice.findFirst({
-    where: { taxInvoiceDocumentHash: query.documentHash },
-    select: { id: true },
-  });
-  if (byPurchaseHash) return "document_hash";
-
-  if (query.issuedDate) {
-    const byDateAmount = await prisma.projectInvoicePeriod.findFirst({
-      where: {
-        ...excludePeriod,
-        taxInvoiceIssuedAt: taxInvoiceDateToUtcDate(query.issuedDate),
-        amount: query.invoiceAmount,
-        OR: [{ status: "PAID" }, { taxInvoiceDoneAt: { not: null } }],
-      },
-      select: { id: true },
-    });
-    if (byDateAmount) return "date_amount";
-  }
-
-  return null;
-}
-
 /**
  * Admin / ops: mark Payment received after uploading proof of payment.
  * Tax invoice (faktur) is tracked separately via markTaxInvoiceDone.
- * Upload is stored first; AI verification must pass before PAID.
+ * Files stay on this server. Head Office confirms in-house with a required reason.
  */
 export async function markInvoicePeriodPaid(formData: FormData) {
-  await requireInvoiceManageAccess();
-  const locale = await getServerLocale();
+  const session = await requireInvoiceManageAccess();
 
   const periodId = String(formData.get("periodId") ?? "").trim();
   if (!periodId) throw new Error("Invoice period is required.");
@@ -1789,10 +1766,20 @@ export async function markInvoicePeriodPaid(formData: FormData) {
           clientId: true,
           status: true,
           billingMode: true,
+          billingPeriodBasis: true,
+          billingCycleStartDay: true,
+          billingCycleEndDay: true,
+          subCategory: true,
           startDate: true,
+          endDate: true,
           contractPrice: true,
           invoicePeriods: {
-            select: { id: true, status: true, milestonePercent: true },
+            select: {
+              id: true,
+              status: true,
+              milestonePercent: true,
+              taxInvoiceDoneAt: true,
+            },
           },
           client: { select: { name: true, shortCode: true } },
           company: { select: COMPANY_BANK_SELECT },
@@ -1831,40 +1818,18 @@ export async function markInvoicePeriodPaid(formData: FormData) {
     await deleteLocalUpload(previousProof);
   }
 
-  const periodAmount =
-    decimalToNumber(period.revisedInvoiceAmount) ??
-    decimalToNumber(period.amount);
-  const contractPrice = decimalToNumber(period.project.contractPrice);
-  const invoiceAmount = periodAmount ?? contractPrice;
-  const companyBank = resolveCompanyBankDetails(period.project.company);
-
-  const verification = await verifyPaymentProof({
-    paymentProof: proof,
-    invoiceAmount,
-    invoiceIssuedDate: utcCalendarDateString(period.submittedAt),
-    companyBank,
-    invoiceNumber,
-    clientName: period.project.client?.name ?? null,
+  const reason = parseManualVerifyReason(formData.get("manualReason"));
+  return applyInvoicePeriodPaid(period, {
+    verifiedById: session.user.id,
+    paymentManualReason: reason,
   });
-
-  if (!verification.ok) {
-    const lines = verification.failures.map((code) =>
-      paymentVerifyFailureMessage(locale, code, verification.details)
-    );
-    const header = translate(locale, "pages.billing.paymentVerifyRejected");
-    throw new Error([header, ...lines.map((line) => `• ${line}`)].join("\n"));
-  }
-
-  return applyInvoicePeriodPaid(period);
 }
 
 /**
- * Client portal: upload proof of payment and submit for admin verification.
- * Same AI strictness as HO mark-received (amount + bank checks) before
- * PENDING_VERIFICATION. Upload is kept on failure for audit.
+ * Client portal: upload proof of payment and submit for Head Office review.
+ * Files stay on this server. No cloud reader is required.
  */
 export async function submitInvoicePaymentForVerification(formData: FormData) {
-  const locale = await getServerLocale();
   const periodId = String(formData.get("periodId") ?? "").trim();
   if (!periodId) throw new Error("Invoice period is required.");
 
@@ -1927,30 +1892,6 @@ export async function submitInvoicePaymentForVerification(formData: FormData) {
     await deleteLocalUpload(previousProof);
   }
 
-  const periodAmount =
-    decimalToNumber(period.revisedInvoiceAmount) ??
-    decimalToNumber(period.amount);
-  const contractPrice = decimalToNumber(period.project.contractPrice);
-  const invoiceAmount = periodAmount ?? contractPrice;
-  const companyBank = resolveCompanyBankDetails(period.project.company);
-
-  const verification = await verifyPaymentProof({
-    paymentProof: proof,
-    invoiceAmount,
-    invoiceIssuedDate: utcCalendarDateString(period.submittedAt),
-    companyBank,
-    invoiceNumber,
-    clientName: period.project.client?.name ?? null,
-  });
-
-  if (!verification.ok) {
-    const lines = verification.failures.map((code) =>
-      paymentVerifyFailureMessage(locale, code, verification.details)
-    );
-    const header = translate(locale, "pages.billing.paymentVerifyRejected");
-    throw new Error([header, ...lines.map((line) => `• ${line}`)].join("\n"));
-  }
-
   await prisma.projectInvoicePeriod.update({
     where: { id: periodId },
     data: { status: "PENDING_VERIFICATION" },
@@ -1966,11 +1907,13 @@ export async function submitInvoicePaymentForVerification(formData: FormData) {
 
 /**
  * Admin / ops: confirm client payment proof → PAID.
- * Re-runs the same AI amount/bank checks as HO mark-received.
+ * Head Office confirms in-house with a required reason. Cloud reader is optional.
  */
-export async function verifyInvoicePeriodPayment(periodId: string) {
+export async function verifyInvoicePeriodPayment(formData: FormData) {
   const session = await requireInvoiceManageAccess();
-  const locale = await getServerLocale();
+  const periodId = String(formData.get("periodId") ?? "").trim();
+  if (!periodId) throw new Error("Invoice period is required.");
+  const reason = parseManualVerifyReason(formData.get("manualReason"));
 
   const period = await prisma.projectInvoicePeriod.findUnique({
     where: { id: periodId },
@@ -1981,10 +1924,20 @@ export async function verifyInvoicePeriodPayment(periodId: string) {
           clientId: true,
           status: true,
           billingMode: true,
+          billingPeriodBasis: true,
+          billingCycleStartDay: true,
+          billingCycleEndDay: true,
+          subCategory: true,
           startDate: true,
+          endDate: true,
           contractPrice: true,
           invoicePeriods: {
-            select: { id: true, status: true, milestonePercent: true },
+            select: {
+              id: true,
+              status: true,
+              milestonePercent: true,
+              taxInvoiceDoneAt: true,
+            },
           },
           client: { select: { name: true } },
           company: { select: COMPANY_BANK_SELECT },
@@ -2000,36 +1953,10 @@ export async function verifyInvoicePeriodPayment(periodId: string) {
     throw new Error("This invoice has no payment proof to review.");
   }
 
-  const proof = await fileFromPublicUpload(
-    period.paymentProofPath,
-    "payment-proof.bin"
-  );
-  const periodAmount =
-    decimalToNumber(period.revisedInvoiceAmount) ??
-    decimalToNumber(period.amount);
-  const contractPrice = decimalToNumber(period.project.contractPrice);
-  const invoiceAmount = periodAmount ?? contractPrice;
-  const invoiceNumber = commercialInvoiceNumber(period);
-  const companyBank = resolveCompanyBankDetails(period.project.company);
-
-  const verification = await verifyPaymentProof({
-    paymentProof: proof,
-    invoiceAmount,
-    invoiceIssuedDate: utcCalendarDateString(period.submittedAt),
-    companyBank,
-    invoiceNumber,
-    clientName: period.project.client?.name ?? null,
+  return applyInvoicePeriodPaid(period, {
+    verifiedById: session.user.id,
+    paymentManualReason: reason,
   });
-
-  if (!verification.ok) {
-    const lines = verification.failures.map((code) =>
-      paymentVerifyFailureMessage(locale, code, verification.details)
-    );
-    const header = translate(locale, "pages.billing.paymentVerifyRejected");
-    throw new Error([header, ...lines.map((line) => `• ${line}`)].join("\n"));
-  }
-
-  return applyInvoicePeriodPaid(period, { verifiedById: session.user.id });
 }
 
 /**
@@ -2073,12 +2000,12 @@ export async function rejectInvoicePaymentVerification(periodId: string) {
 }
 
 /**
- * Upload tax invoice (faktur) document, AI-verify it, then mark tax invoice sent.
+ * Upload tax invoice (faktur) document and mark sent after Head Office confirm.
  * Independent of payment received — can happen before or after PAID.
  */
 export async function markTaxInvoiceDone(formData: FormData) {
   const session = await requireInvoiceManageAccess();
-  const locale = await getServerLocale();
+  const reason = parseManualVerifyReason(formData.get("manualReason"));
 
   const periodId = String(formData.get("periodId") ?? "").trim();
   if (!periodId) throw new Error("Invoice period is required.");
@@ -2109,9 +2036,6 @@ export async function markTaxInvoiceDone(formData: FormData) {
     },
   });
   if (!period) throw new Error("Invoice period not found.");
-  if (!period.taxInvoiceRequired) {
-    throw new Error("This invoice does not require a Tax Invoice.");
-  }
   if (period.taxInvoiceDoneAt) {
     throw new Error("Tax Invoice already marked sent.");
   }
@@ -2152,53 +2076,71 @@ export async function markTaxInvoiceDone(formData: FormData) {
     await deleteLocalUpload(previousTaxDoc);
   }
 
-  const periodAmount =
-    decimalToNumber(period.revisedInvoiceAmount) ??
-    decimalToNumber(period.amount);
-  const contractPrice = decimalToNumber(period.project.contractPrice);
-  const invoiceAmount = periodAmount ?? contractPrice;
-
-  const verification = await verifyTaxInvoiceDocument({
-    taxInvoiceDocument: taxInvoiceFile,
-    invoiceAmount,
-    clientNpwp: period.project.client?.npwp ?? null,
-    clientName: period.project.client?.name ?? null,
-    companyName: period.project.company?.name ?? null,
-    direction: "keluaran",
-    excludeId: periodId,
-    findTaxInvoiceConflict,
-  });
-
-  if (!verification.ok) {
-    const lines = verification.failures.map((code) =>
-      paymentVerifyFailureMessage(locale, code, verification.details)
-    );
-    const header = translate(locale, "pages.billing.taxInvoiceVerifyRejected");
-    throw new Error([header, ...lines.map((line) => `• ${line}`)].join("\n"));
-  }
-
-  const tax = verification.tax;
   await prisma.projectInvoicePeriod.update({
     where: { id: periodId },
     data: {
+      taxInvoiceRequired: true,
       taxInvoiceDoneAt: uploadedAt,
       taxInvoiceDoneById: session.user.id,
+      taxInvoiceManualReason: reason,
       ppnRatePercent,
-      ...(tax
-        ? {
-            taxInvoiceSerial: tax.serial,
-            taxInvoiceDocumentHash: tax.documentHash,
-            taxInvoiceIssuedAt: tax.issuedDate
-              ? taxInvoiceDateToUtcDate(tax.issuedDate)
-              : null,
-          }
-        : {}),
     },
   });
 
   revalidateBillingPaths({
     projectId: period.projectId,
     clientId: period.project.clientId,
+  });
+
+  await tryCompleteSettledProject(period.projectId);
+}
+
+async function tryCompleteSettledProject(projectId: string) {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: {
+      id: true,
+      status: true,
+      billingMode: true,
+      subCategory: true,
+      endDate: true,
+      invoicePeriods: {
+        select: {
+          status: true,
+          periodEnd: true,
+          taxInvoiceDoneAt: true,
+          milestonePercent: true,
+        },
+      },
+    },
+  });
+  if (!project || project.status === "CANCELLED" || project.status === "COMPLETED") {
+    return;
+  }
+  const lastPaid = project.invoicePeriods
+    .filter((row) => row.status === "PAID")
+    .sort((a, b) => b.periodEnd.getTime() - a.periodEnd.getTime())[0];
+  if (!lastPaid) return;
+  if (
+    !shouldCompleteProjectAfterSettlement({
+      billingMode: project.billingMode,
+      subCategory: project.subCategory,
+      projectStatus: project.status,
+      endDate: project.endDate,
+      lastPaidPeriodEnd: lastPaid.periodEnd,
+      periods: project.invoicePeriods,
+    })
+  ) {
+    return;
+  }
+  await prisma.$transaction(async (tx) => {
+    await tx.project.update({
+      where: { id: project.id },
+      data: { status: "COMPLETED" },
+    });
+    await tx.projectInvoicePeriod.deleteMany({
+      where: { projectId: project.id, status: "ONGOING" },
+    });
   });
 }
 
@@ -2239,8 +2181,8 @@ export async function reconcileInvoicePeriod(formData: FormData) {
   if (period.project.billingMode !== "MONTHLY") {
     throw new Error("Reconcile is only for monthly Regular Cleaning cycles.");
   }
-  if (!isContractSubCategory(period.project.subCategory)) {
-    throw new Error("Reconcile is only for Regular Cleaning contracts.");
+  if (!isContractCycleSubCategory(period.project.subCategory)) {
+    throw new Error("Reconcile is only for Regular Cleaning and Security contracts.");
   }
   if (
     period.project.status === "CANCELLED" ||
@@ -2272,6 +2214,7 @@ export async function reconcileInvoicePeriod(formData: FormData) {
       username: session.user.username,
       permissionUser: toPermissionUser(session),
       projectServiceArea: period.project.serviceArea,
+      projectId: period.project.id,
     });
     amountUpdate = { amount: adjusted };
   } else if (decimalToNumber(period.amount) == null) {
@@ -2336,6 +2279,8 @@ export async function reconcileDueInvoiceForProject(projectId: string): Promise<
       clientId: true,
       billingMode: true,
       billingPeriodBasis: true,
+      billingCycleStartDay: true,
+      billingCycleEndDay: true,
       subCategory: true,
       status: true,
       startDate: true,
@@ -2343,8 +2288,8 @@ export async function reconcileDueInvoiceForProject(projectId: string): Promise<
   });
 
   if (!project) throw new Error("Project not found.");
-  if (!isContractSubCategory(project.subCategory)) {
-    throw new Error("Reconcile is only for Regular Cleaning contracts.");
+  if (!isContractCycleSubCategory(project.subCategory)) {
+    throw new Error("Reconcile is only for Regular Cleaning and Security contracts.");
   }
   if (project.billingMode !== "MONTHLY") {
     throw new Error("This project is not on monthly billing.");
@@ -2422,6 +2367,9 @@ export async function issueInvoiceForCurrentMonth(projectId: string): Promise<{
       name: true,
       clientId: true,
       billingMode: true,
+      billingPeriodBasis: true,
+      billingCycleStartDay: true,
+      billingCycleEndDay: true,
       subCategory: true,
       status: true,
       startDate: true,
@@ -2429,9 +2377,9 @@ export async function issueInvoiceForCurrentMonth(projectId: string): Promise<{
   });
 
   if (!project) throw new Error("Project not found.");
-  if (!isContractSubCategory(project.subCategory)) {
+  if (!isContractCycleSubCategory(project.subCategory)) {
     throw new Error(
-      "Invoice this month is only for Regular Cleaning contracts."
+      "Invoice this month is only for Regular Cleaning and Security contracts."
     );
   }
   if (project.billingMode !== "MONTHLY") {
@@ -2545,6 +2493,9 @@ export async function issueInvoicesForFinishedProject(projectId: string): Promis
       name: true,
       clientId: true,
       billingMode: true,
+      billingPeriodBasis: true,
+      billingCycleStartDay: true,
+      billingCycleEndDay: true,
       startDate: true,
       contractPrice: true,
       subCategory: true,
@@ -2579,6 +2530,9 @@ export async function issueInvoicesForFinishedProject(projectId: string): Promis
           id: project.id,
           startDate: project.startDate,
           billingMode: project.billingMode,
+          billingPeriodBasis: project.billingPeriodBasis,
+          billingCycleStartDay: project.billingCycleStartDay,
+          billingCycleEndDay: project.billingCycleEndDay,
           subCategory: project.subCategory,
           // Force ensure even though finish may have set COMPLETED already.
           status: "IN_PROGRESS",
@@ -2713,6 +2667,8 @@ export async function issueInvoicesForFinishedProject(projectId: string): Promis
         }
       }
     }
+  } else if (project.billingMode === "MULTI_VISIT") {
+    // Each visit is invoiced only after that visit is approved.
   } else if (project.billingMode === "MILESTONE") {
     const priorMax = maxMilestonePercent(
       project.invoicePeriods.map((p) => ({
@@ -2789,6 +2745,8 @@ async function runAnniversaryMonthlyInvoicingForCompany(companyId: string) {
       startDate: true,
       billingMode: true,
       billingPeriodBasis: true,
+      billingCycleStartDay: true,
+      billingCycleEndDay: true,
       status: true,
       subCategory: true,
     },
@@ -2834,27 +2792,6 @@ async function runAnniversaryMonthlyInvoicingForCompany(companyId: string) {
     dueReminders,
     errors,
   };
-}
-
-/**
- * Company-wide sync of due Regular Cleaning anniversary periods (no auto-issue).
- * Also used from billing / projects page load.
- */
-export async function runMonthlyInvoicing() {
-  const session = await requireInvoiceManageAccess();
-  const result = await runAnniversaryMonthlyInvoicingForCompany(
-    session.user.companyId
-  );
-
-  revalidatePath("/billing");
-  revalidatePath("/dashboard");
-  revalidatePath("/projects");
-  revalidatePath("/invoicing");
-  revalidatePath(PROJECT_LIST_VIEW_PATHS.inProgress);
-  revalidatePath(PROJECT_LIST_VIEW_PATHS.pendingApproval);
-  revalidatePath(PROJECT_LIST_VIEW_PATHS.paymentDue);
-
-  return result;
 }
 
 /**

@@ -29,7 +29,7 @@ import {
 import { useT } from "@/lib/i18n/use-t";
 import {
   PROJECT_FILTER_ALL,
-  COMMERCIAL_PROJECT_SUB_CATEGORIES,
+  CLIENT_PROJECT_SUB_CATEGORIES,
   isProjectSubCategory,
 } from "@/lib/project-subcategory";
 import { formatContractPrice } from "@/lib/project-billing";
@@ -39,11 +39,13 @@ import { cn } from "@/lib/utils";
 type Props = {
   clientId: string;
   projects: FinancialReportProjectRow[];
+  queryString: string;
 };
 
 export default function FinancialReportProjectDirectory({
   clientId,
   projects,
+  queryString,
 }: Props) {
   const { t, locale } = useT();
   const router = useRouter();
@@ -121,6 +123,22 @@ export default function FinancialReportProjectDirectory({
             : "—",
       },
       {
+        key: "moneyIn",
+        title: t("pages.financialReport.columns.moneyIn"),
+        width: "8.5rem",
+        align: "right",
+        className: "min-w-[8.5rem] tabular-nums",
+        render: (project) => formatContractPrice(project.moneyIn),
+      },
+      {
+        key: "receivable",
+        title: t("pages.financialReport.columns.receivable"),
+        width: "8.5rem",
+        align: "right",
+        className: "min-w-[8.5rem] tabular-nums",
+        render: (project) => formatContractPrice(project.clientsOwe.unpaid),
+      },
+      {
         key: "spending",
         title: t("pages.financialReport.columns.spending"),
         width: "8.5rem",
@@ -149,6 +167,7 @@ export default function FinancialReportProjectDirectory({
         render: (project) => {
           const englishLabel = getProjectWorkflowStatusLabel({
             status: project.status,
+            awaitingPayment: project.awaitingPayment,
           });
           const statusLabel = localizeProjectStatus(project.status, locale);
           const statusLines = localizeWorkflowChipLines(englishLabel, locale);
@@ -234,7 +253,7 @@ export default function FinancialReportProjectDirectory({
               <SelectItem value={PROJECT_FILTER_ALL}>
                 {t("common.actions.all")}
               </SelectItem>
-              {COMMERCIAL_PROJECT_SUB_CATEGORIES.map((value) => (
+              {CLIENT_PROJECT_SUB_CATEGORIES.map((value) => (
                 <SelectItem key={value} value={value}>
                   {localizeSubCategory(value, locale)}
                 </SelectItem>
@@ -267,7 +286,11 @@ export default function FinancialReportProjectDirectory({
           data={filtered}
           getRowKey={(project) => project.id}
           onRowClick={(project) =>
-            router.push(`/billing/financial-report/${clientId}/${project.id}`)
+            router.push(
+              `/billing/financial-report/${clientId}/${project.id}${
+                queryString ? `?${queryString}` : ""
+              }`
+            )
           }
           emptyMessage={t("pages.projects.emptyShow")}
         />

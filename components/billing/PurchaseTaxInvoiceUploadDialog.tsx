@@ -26,18 +26,20 @@ export default function PurchaseTaxInvoiceUploadDialog({
   const { t } = useT();
   const router = useRouter();
   const [taxFile, setTaxFile] = useState<File | null>(null);
+  const [reason, setReason] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) {
       setTaxFile(null);
+      setReason("");
       setPending(false);
       setError(null);
     }
   }, [open]);
 
-  const canSubmit = Boolean(taxFile && taxFile.size > 0);
+  const canSubmit = Boolean(taxFile && taxFile.size > 0 && reason.trim());
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -51,6 +53,7 @@ export default function PurchaseTaxInvoiceUploadDialog({
     const formData = new FormData();
     formData.set("purchaseInvoiceId", purchaseInvoiceId);
     formData.set("taxInvoiceDocument", taxFile);
+    formData.set("manualReason", reason);
 
     setPending(true);
     try {
@@ -81,6 +84,9 @@ export default function PurchaseTaxInvoiceUploadDialog({
       fileLabel={t("pages.billing.purchaseTaxInvoice")}
       fileName={taxFile?.name ?? null}
       onFilePick={setTaxFile}
+      requireReason
+      reasonValue={reason}
+      onReasonChange={setReason}
       callout={t("pages.billing.purchaseTaxInvoiceVerifyHint")}
       calloutIcon={FileText}
       error={error}

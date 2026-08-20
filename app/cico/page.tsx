@@ -16,12 +16,14 @@ import {
   parseDateInput,
   toUtcDateOnly,
 } from "@/lib/invoice-period";
-import { getCicoWorkAttendance } from "@/lib/cico-attendance";
+import { getCicoDaySessions, getCicoWorkAttendance } from "@/lib/cico-attendance";
 import { formatAppDateInput } from "@/lib/progress-report-compliance";
-import { PROGRESS_ELIGIBLE_PROJECT_SUB_CATEGORIES } from "@/lib/project-subcategory";
+import { FIELD_CICO_ELIGIBLE_PROJECT_SUB_CATEGORIES } from "@/lib/project-subcategory";
+import { PROJECT_SITE_WORK_STATUSES } from "@/lib/project-status";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
 import { refreshLeaveEmploymentForUser } from "@/lib/leave-employment-status";
+import { releaseExpiredBackupCrew } from "@/lib/workforce-crew";
 import {
   canViewCicoAdminPreview,
   canUseCicoAdminFieldPreview,
@@ -30,6 +32,7 @@ import {
   isCicoOperationalEligible,
   requiresCicoProgressReport,
 } from "@/lib/cico-access";
+import { isBackupAssignmentActiveOnJakartaDay } from "@/lib/petty-cash";
 import { internalHomeSiteToProjectName } from "@/lib/office-cico";
 import type { AttendanceCheckInRow } from "@/components/attendance/AttendanceCheckInTable";
 
@@ -60,20 +63,23 @@ export default async function CicoPage() {
   }
 
   await refreshLeaveEmploymentForUser(session.user.id);
+  if (session.user.companyId) {
+    await releaseExpiredBackupCrew(prisma as never, session.user.companyId);
+  }
   const employee = await getEmployeeForUser(session.user.id);
 
   if (canViewCicoAdminPreview(permissionUser, employee)) {
     const companyId = session.user.companyId;
     const todayInput = formatDateInput(toUtcDateOnly(new Date()));
     const reportDate = parseDateInput(todayInput);
-    const cleaningSubs: ProjectSubCategory[] = [
-      ...PROGRESS_ELIGIBLE_PROJECT_SUB_CATEGORIES,
+    const fieldCicoSubs: ProjectSubCategory[] = [
+      ...FIELD_CICO_ELIGIBLE_PROJECT_SUB_CATEGORIES,
     ];
     const adminFieldMode = canUseCicoAdminFieldPreview(permissionUser);
 
     const inProgressWithLocation = {
       companyId,
-      status: "IN_PROGRESS" as const,
+      status: { in: [...PROJECT_SITE_WORK_STATUSES] },
       latitude: { not: null },
       longitude: { not: null },
     };
@@ -119,7 +125,7 @@ export default async function CicoPage() {
               where: {
                 project: {
                   ...inProgressWithLocation,
-                  subCategory: { in: cleaningSubs },
+                  subCategory: { in: fieldCicoSubs },
                 },
               },
               include: {
@@ -138,7 +144,7 @@ export default async function CicoPage() {
           ? prisma.project.findMany({
               where: {
                 ...inProgressWithLocation,
-                subCategory: { in: cleaningSubs },
+                subCategory: { in: fieldCicoSubs },
               },
               select: {
                 id: true,
@@ -174,8 +180,15 @@ export default async function CicoPage() {
       adminFieldMode && employee
         ? getCicoWorkAttendance(employee.id)
         : Promise.resolve(null);
+    const adminTodaySessionsPromise =
+      adminFieldMode && employee
+        ? getCicoDaySessions(employee.id)
+        : Promise.resolve([]);
 
-    const adminTodayRecord = await adminTodayRecordPromise;
+    const [adminTodayRecord, adminTodaySessions] = await Promise.all([
+      adminTodayRecordPromise,
+      adminTodaySessionsPromise,
+    ]);
 
     const adminWorkDate = adminTodayRecord?.date
       ? formatDateInput(toUtcDateOnly(adminTodayRecord.date))
@@ -280,6 +293,7 @@ export default async function CicoPage() {
           adminFieldMode={adminFieldMode}
           selectableProjects={selectableProjects}
           todayRecord={adminTodayRecord}
+          todaySessions={adminTodaySessions}
           hasProgressReport={hasProgressReport}
           requiresProgress={adminRequiresProgress}
           hasEmployeeProfile={!!employee}
@@ -335,8 +349,8 @@ export default async function CicoPage() {
     );
   }
 
-  const cleaningSubs: ProjectSubCategory[] = [
-    ...PROGRESS_ELIGIBLE_PROJECT_SUB_CATEGORIES,
+  const fieldCicoSubs: ProjectSubCategory[] = [
+    ...FIELD_CICO_ELIGIBLE_PROJECT_SUB_CATEGORIES,
   ];
   const officeMode =
     canUseOfficeCico(employee) && !isCicoFieldEligible(employee);
@@ -344,14 +358,15 @@ export default async function CicoPage() {
     ? internalHomeSiteToProjectName(employee.internalHomeSite)
     : null;
 
-  const [todayRecord, assignments, officeProjects, history] = await Promise.all([
+  const [todayRecord, todaySessions, assignments, officeProjects, history] = await Promise.all([
     getCicoWorkAttendance(employee.id),
+    getCicoDaySessions(employee.id),
     prisma.projectAssignment.findMany({
       where: {
         employeeId: employee.id,
         project: {
-          status: "IN_PROGRESS",
-          subCategory: { in: cleaningSubs },
+          status: { in: [...PROJECT_SITE_WORK_STATUSES] },
+          subCategory: { in: fieldCicoSubs },
           latitude: { not: null },
           longitude: { not: null },
         },
@@ -373,7 +388,7 @@ export default async function CicoPage() {
       ? prisma.project.findMany({
           where: {
             companyId: session.user.companyId,
-            status: "IN_PROGRESS",
+            status: { in: [...PROJECT_SITE_WORK_STATUSES] },
             name: homeSiteName,
             latitude: { not: null },
             longitude: { not: null },
@@ -397,8 +412,8 @@ export default async function CicoPage() {
           },
         },
       },
-      orderBy: { date: "desc" },
-      take: 30,
+      orderBy: [{ date: "desc" }, { checkIn: "desc" }],
+      take: 60,
     }),
   ]);
 
@@ -426,7 +441,11 @@ export default async function CicoPage() {
 
   const assignedProjects =
     assignments.length > 0
-      ? assignments.map((assignment) => ({
+      ? assignments
+          .filter((assignment) =>
+            isBackupAssignmentActiveOnJakartaDay(assignment)
+          )
+          .map((assignment) => ({
           id: assignment.project.id,
           name: assignment.project.name,
           location: assignment.project.location,
@@ -459,44 +478,56 @@ export default async function CicoPage() {
           </h3>
           <CicoActions
             todayRecord={todayRecord}
+            todaySessions={todaySessions}
             assignedProjects={assignedProjects}
             hasProgressReport={hasProgressReport}
             workDate={workDate}
             requiresProgress={requiresProgress}
           />
-          {todayRecord && (
-            <div className="mt-6 flex flex-wrap gap-x-8 gap-y-3 border-t border-border pt-5 text-sm text-subtle">
-              <span>
-                {t("pages.cico.columns.checkIn")}:{" "}
-                <span className="font-medium text-text">
-                  {todayRecord.checkIn
-                    ? formatDisplayTime(todayRecord.checkIn)
-                    : "-"}
-                </span>
-              </span>
-              <span>
-                {t("pages.cico.columns.checkOut")}:{" "}
-                <span className="font-medium text-text">
-                  {todayRecord.checkOut
-                    ? formatDisplayTime(todayRecord.checkOut)
-                    : "-"}
-                </span>
-              </span>
-              {assignedProjects[0] && (
-                <span>
-                  {t("pages.cico.shiftLabel")}:{" "}
+          {todaySessions.length > 0 && (
+            <div className="mt-6 space-y-2 border-t border-border pt-5 text-sm text-subtle">
+              {todaySessions.map((session) => (
+                <div
+                  key={session.id}
+                  className="flex flex-wrap gap-x-8 gap-y-2"
+                >
                   <span className="font-medium text-text">
-                    {formatTimeRange(
-                      assignedProjects.find(
-                        (p) => p.id === todayRecord.projectId
-                      )?.shiftStart,
-                      assignedProjects.find(
-                        (p) => p.id === todayRecord.projectId
-                      )?.shiftEnd
-                    )}
+                    {session.project?.name ?? t("pages.cico.projectSite")}
                   </span>
-                </span>
-              )}
+                  <span>
+                    {t("pages.cico.columns.checkIn")}:{" "}
+                    <span className="font-medium text-text">
+                      {session.checkIn
+                        ? formatDisplayTime(session.checkIn)
+                        : "-"}
+                    </span>
+                  </span>
+                  <span>
+                    {t("pages.cico.columns.checkOut")}:{" "}
+                    <span className="font-medium text-text">
+                      {session.checkOut
+                        ? formatDisplayTime(session.checkOut)
+                        : "-"}
+                    </span>
+                  </span>
+                  {assignedProjects.find((p) => p.id === session.projectId)
+                    ?.shiftStart && (
+                    <span>
+                      {t("pages.cico.shiftLabel")}:{" "}
+                      <span className="font-medium text-text">
+                        {formatTimeRange(
+                          assignedProjects.find(
+                            (p) => p.id === session.projectId
+                          )?.shiftStart,
+                          assignedProjects.find(
+                            (p) => p.id === session.projectId
+                          )?.shiftEnd
+                        )}
+                      </span>
+                    </span>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </SectionCard>

@@ -34,6 +34,7 @@ export default function TaxInvoiceSentDialog({
 }: Props) {
   const { t } = useT();
   const [taxFile, setTaxFile] = useState<File | null>(null);
+  const [reason, setReason] = useState("");
   const [ppnRatePercent, setPpnRatePercent] = useState(
     String(defaultPpnRatePercent ?? DEFAULT_PRODUCT_PPN_RATE_PERCENT)
   );
@@ -43,6 +44,7 @@ export default function TaxInvoiceSentDialog({
   useEffect(() => {
     if (!open) {
       setTaxFile(null);
+      setReason("");
       setPpnRatePercent(
         String(defaultPpnRatePercent ?? DEFAULT_PRODUCT_PPN_RATE_PERCENT)
       );
@@ -52,7 +54,9 @@ export default function TaxInvoiceSentDialog({
   }, [open, defaultPpnRatePercent]);
 
   const parsedRate = parsePpnRatePercent(ppnRatePercent);
-  const canSubmit = Boolean(taxFile && taxFile.size > 0 && parsedRate != null);
+  const canSubmit = Boolean(
+    taxFile && taxFile.size > 0 && parsedRate != null && reason.trim()
+  );
 
   const displayLabel =
     periodLabel &&
@@ -80,6 +84,7 @@ export default function TaxInvoiceSentDialog({
       formData.set("periodId", periodId);
       formData.set("taxInvoiceDocument", taxFile);
       formData.set("ppnRatePercent", String(parsedRate));
+      formData.set("manualReason", reason);
       await markTaxInvoiceDone(formData);
       onOpenChange(false);
       onSuccess();
@@ -107,6 +112,9 @@ export default function TaxInvoiceSentDialog({
       fileLabel={t("pages.billing.taxInvoiceDocument")}
       fileName={taxFile?.name ?? null}
       onFilePick={setTaxFile}
+      requireReason
+      reasonValue={reason}
+      onReasonChange={setReason}
       callout={t("pages.billing.taxInvoiceVerifyHint")}
       error={error}
       pending={pending}

@@ -6,16 +6,17 @@ import type { BillingMode, ProjectSubCategory } from "@prisma/client";
 
 import ReconcilePeriodDialog from "@/components/billing/ReconcilePeriodDialog";
 import DirectoryCardActions from "@/components/ui/DirectoryCardActions";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { ACTIONS_SINGLE_CHIP_COLUMN_WIDTH } from "@/components/ui/trash-action-buttons";
 import { useT } from "@/lib/i18n/use-t";
-import { isContractSubCategory } from "@/lib/project-contract";
+import { isContractCycleSubCategory } from "@/lib/project-contract";
 import { useProjectLifecycleActions } from "@/components/projects/ProjectFinishButton";
 import ProjectStartButton, {
   ProjectReturnToPlanningBlockedChip,
   ProjectReturnToPlanningButton,
 } from "@/components/projects/ProjectStartButton";
 import type { ProjectStaffEmployee } from "@/components/projects/ProjectStaffPicker";
+import type { ProjectTeamOption } from "@/components/projects/ProjectTeamPicker";
 import ProjectMarkPaidButton from "@/components/projects/ProjectMarkPaidButton";
 import ProjectSubmitForApprovalButton from "@/components/projects/ProjectSubmitForApprovalButton";
 
@@ -51,6 +52,7 @@ type ProjectForActions = {
   billingMode?: BillingMode;
   clientId: string | null;
   assignments: { employeeId: string }[];
+  operationsTeamLinks?: { teamId: string }[];
   client?: { name: string } | null;
   invoicePeriods: InvoicePeriodForActions[];
   _count: { progressReports: number };
@@ -96,6 +98,7 @@ type Props = {
   reconcileTarget?: DirectoryReconcileTarget | null;
   /** Active staff for Move to In Progress assignment picker. */
   employees?: ProjectStaffEmployee[];
+  teams?: ProjectTeamOption[];
 };
 
 /** Stack dual workflow chips vertically — equal chip boxes, no overlap. */
@@ -146,11 +149,12 @@ export default function ProjectDirectoryActions({
   regularBillingAction = null,
   reconcileTarget = null,
   employees = [],
+  teams = [],
 }: Props) {
   const { t } = useT();
   const confirmName = displayName ?? project.name;
-  const isRegularContract = isContractSubCategory(project.subCategory);
-  const { pending, endOrFinish } = useProjectLifecycleActions({
+  const isRegularContract = isContractCycleSubCategory(project.subCategory);
+  const { pending } = useProjectLifecycleActions({
     projectId: project.id,
     projectName: confirmName,
     isRegularContract,
@@ -189,17 +193,24 @@ export default function ProjectDirectoryActions({
         startDate={project.startDate}
         endDate={project.endDate}
         employees={employees}
+        teams={teams}
         assignedEmployeeIds={project.assignments.map(
           (assignment) => assignment.employeeId
+        )}
+        assignedTeamIds={(project.operationsTeamLinks ?? []).map(
+          (link) => link.teamId
         )}
         size="badge"
       />
     );
-  } else if (canFinish && isRegularContract) {
+  } else if (canFinish) {
     // End Contract lives on the project detail page only.
+    // Regular / Security: no generic Finish chip — HO cannot skip approve.
     // After reconcile, invoice waits on client Approve (Finance → Reconciliation).
     const billingChip =
-      regularBillingAction === "reconcile" && reconcileTarget ? (
+      isRegularContract &&
+      regularBillingAction === "reconcile" &&
+      reconcileTarget ? (
         <ReconcilePeriodDialog
           periodId={reconcileTarget.periodId}
           periodLabel={reconcileTarget.periodLabel}
@@ -216,20 +227,6 @@ export default function ProjectDirectoryActions({
         </span>
       );
     }
-  } else if (canFinish) {
-    workflowPrimary = (
-      <span className={workflowChipStackClassName}>
-        {planningChip}
-        <Button
-          variant="successBadge"
-          size="badge"
-          disabled={pending}
-          onClick={endOrFinish}
-        >
-          {pending ? "Finishing…" : "Finish"}
-        </Button>
-      </span>
-    );
   } else if (canSubmitForApproval) {
     workflowPrimary = (
       <span className={workflowChipStackClassName}>

@@ -1,8 +1,4 @@
-import type {
-  ClientReviewKind,
-  ClientReviewStatus,
-  InvoicePeriodStatus,
-} from "@prisma/client";
+import type { ClientReviewKind, ClientReviewStatus } from "@prisma/client";
 
 /** Periods waiting on the client portal (Approve / Revise). */
 export const CLIENT_PENDING_REVIEW_STATUSES: ClientReviewStatus[] = [
@@ -13,6 +9,12 @@ export const CLIENT_PENDING_REVIEW_STATUSES: ClientReviewStatus[] = [
 /** Revised by client — HO Finance → Reconciliation (Revised tab). */
 export const HO_REVISED_QUEUE_STATUSES: ClientReviewStatus[] = [
   "CLIENT_REVISED",
+];
+
+/** Pending Approval tab: waiting on the client or Head Office revise loop. */
+export const PENDING_APPROVAL_REVIEW_STATUSES: ClientReviewStatus[] = [
+  ...CLIENT_PENDING_REVIEW_STATUSES,
+  ...HO_REVISED_QUEUE_STATUSES,
 ];
 
 /** Client already approved (or HO accepted a revision) — ready / done for invoice. */
@@ -74,12 +76,6 @@ export function canIssueCommercialInvoiceForProject(
     return false;
   }
   return canIssueInvoiceAfterReview(period.clientReviewStatus);
-}
-
-export function isClientReviewPeriodStatus(
-  status: InvoicePeriodStatus | string | null | undefined
-): boolean {
-  return status === "AWAITING_CLIENT_REVIEW";
 }
 
 export function reviewKindLabel(

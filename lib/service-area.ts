@@ -26,14 +26,6 @@ const LABELS: Record<ServiceArea, string> = {
   PAYROLL_MANAGEMENT: "Payroll Management",
 };
 
-/** Display order for project Service Area labels. */
-export const SERVICE_AREA_ORDER: ServiceArea[] = [
-  "CLEANING",
-  "PARKING",
-  "SECURITY",
-  "PAYROLL_MANAGEMENT",
-];
-
 /** Display order for OM Approval Areas checkboxes. */
 export const OM_APPROVAL_AREA_ORDER: ServiceArea[] = [
   "CLEANING",
@@ -64,10 +56,6 @@ export function asProjectServiceArea(
   fallback: ProjectServiceAreaValue = "CLEANING"
 ): ProjectServiceAreaValue {
   return isProjectServiceArea(area) ? area : fallback;
-}
-
-export function isOmApprovalArea(value: string): value is ServiceArea {
-  return (OM_APPROVAL_AREAS as readonly string[]).includes(value);
 }
 
 /** Operations Manager (Cleaning And Parking) style label. */

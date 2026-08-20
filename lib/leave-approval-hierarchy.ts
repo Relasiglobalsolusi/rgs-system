@@ -10,6 +10,7 @@ import {
   type PermissionUser,
 } from "@/lib/permissions";
 import {
+  isAreaManagerPosition,
   isCrewPickerPosition,
   isDirectorPosition,
   isOperationsManagerPosition,
@@ -20,6 +21,7 @@ import {
 export type LeaveRequesterTier =
   | "DIRECTOR"
   | "OPERATIONS_MANAGER"
+  | "AREA_MANAGER"
   | "HO_STAFF"
   | "FIELD_CREW";
 
@@ -30,6 +32,7 @@ export type LeaveRequesterProfile = {
   placement?: Placement | null;
   jobPosition?: { slug?: string | null; name?: string | null } | null;
   projectServiceAreas?: ServiceArea[];
+  projectIds?: string[];
 };
 
 export type LeaveReviewerProfile = {
@@ -39,6 +42,7 @@ export type LeaveReviewerProfile = {
   employeeId?: string | null;
   jobPosition?: { slug?: string | null; name?: string | null } | null;
   omApprovalAreas?: ServiceArea[] | null;
+  managedProjectIds?: string[];
 };
 
 export const leaveRequestEmployeeSelect = {
@@ -49,7 +53,12 @@ export const leaveRequestEmployeeSelect = {
   jobPosition: { select: { slug: true, name: true } },
   projectAssignments: {
     select: {
-      project: { select: { serviceArea: true, status: true } },
+      project: { select: { id: true, serviceArea: true, status: true } },
+    },
+  },
+  areaManagedProjects: {
+    select: {
+      project: { select: { id: true, serviceArea: true, status: true } },
     },
   },
 } as const;
@@ -63,7 +72,10 @@ export type LeaveRequestWithEmployee = {
     placement: Placement;
     jobPosition: { slug: string; name: string } | null;
     projectAssignments: Array<{
-      project: { serviceArea: ServiceArea; status: string };
+      project: { id: string; serviceArea: ServiceArea; status: string };
+    }>;
+    areaManagedProjects: Array<{
+      project: { id: string; serviceArea: ServiceArea; status: string };
     }>;
   };
 };
@@ -86,6 +98,9 @@ export function getLeaveRequesterTier(
   if (position && isDirectorPosition(position)) return "DIRECTOR";
   if (position && isOperationsManagerPosition(position)) {
     return "OPERATIONS_MANAGER";
+  }
+  if (position && isAreaManagerPosition(position)) {
+    return "AREA_MANAGER";
   }
   if (isHeadOfficeEmployeeProfile(requester)) return "HO_STAFF";
   return "FIELD_CREW";
@@ -117,6 +132,22 @@ function activeProjectServiceAreas(
   return [...new Set(areas)];
 }
 
+function activeProjectIds(
+  assignments: LeaveRequestWithEmployee["employee"]["projectAssignments"]
+): string[] {
+  return [
+    ...new Set(
+      assignments
+        .filter((row) =>
+          OPEN_PROJECT_ASSIGNMENT_STATUSES.includes(
+            row.project.status as (typeof OPEN_PROJECT_ASSIGNMENT_STATUSES)[number]
+          )
+        )
+        .map((row) => row.project.id)
+    ),
+  ];
+}
+
 /**
  * Service areas that determine which OM approval checkboxes apply to this requester.
  * HO staff → Head Office. Field crew → active project area(s) or position default.
@@ -127,6 +158,12 @@ export function getLeaveRequesterServiceAreas(
   const tier = getLeaveRequesterTier(requester);
 
   if (tier === "HO_STAFF") return ["HEAD_OFFICE"];
+
+  if (tier === "AREA_MANAGER") {
+    const fromManaged = requester.projectServiceAreas ?? [];
+    if (fromManaged.length > 0) return fromManaged;
+    return [serviceAreaFromPosition(requester.jobPosition)];
+  }
 
   if (tier === "FIELD_CREW") {
     const fromProjects = requester.projectServiceAreas ?? [];
@@ -148,7 +185,16 @@ export function leaveRequesterFromEmployee(
     employeeType: employee.employeeType,
     placement: employee.placement,
     jobPosition: employee.jobPosition,
-    projectServiceAreas: activeProjectServiceAreas(employee.projectAssignments),
+    projectServiceAreas: isAreaManagerPosition(employee.jobPosition ?? {})
+      ? activeProjectServiceAreas(
+          employee.areaManagedProjects.map((row) => ({ project: row.project }))
+        )
+      : activeProjectServiceAreas(employee.projectAssignments),
+    projectIds: isAreaManagerPosition(employee.jobPosition ?? {})
+      ? activeProjectIds(
+          employee.areaManagedProjects.map((row) => ({ project: row.project }))
+        )
+      : activeProjectIds(employee.projectAssignments),
   };
 }
 
@@ -162,6 +208,12 @@ function isReviewerOperationsManager(reviewer: LeaveReviewerProfile): boolean {
   return (
     reviewer.jobPosition != null &&
     isOperationsManagerPosition(reviewer.jobPosition)
+  );
+}
+
+function isReviewerAreaManager(reviewer: LeaveReviewerProfile): boolean {
+  return (
+    reviewer.jobPosition != null && isAreaManagerPosition(reviewer.jobPosition)
   );
 }
 
@@ -181,15 +233,27 @@ function omCanApproveRequesterAreas(
   );
 }
 
+function amCanApproveRequesterProjects(
+  reviewer: LeaveReviewerProfile,
+  requesterProjectIds: string[]
+): boolean {
+  if (!isReviewerAreaManager(reviewer) || requesterProjectIds.length === 0) {
+    return false;
+  }
+  const managed = reviewer.managedProjectIds ?? [];
+  return requesterProjectIds.some((id) => managed.includes(id));
+}
+
 /**
  * Whether `reviewer` may approve a leave request from `requester`.
  *
- * | Requester tier   | Main HO admin | Director | OM (matching area) |
- * |------------------|---------------|----------|----------------------|
- * | Field crew       | yes           | yes      | yes                  |
- * | HO staff         | yes           | yes      | Head Office only     |
- * | Operations Mgr   | yes           | yes      | no                   |
- * | Director         | yes           | no       | no                   |
+ * | Requester tier   | Main HO admin | Director | OM (matching area) | Area Manager |
+ * |------------------|---------------|----------|----------------------|--------------|
+ * | Field crew       | yes           | yes      | yes                  | their projects |
+ * | HO staff         | yes           | yes      | Head Office only     | no |
+ * | Area Manager     | yes           | yes      | yes                  | no |
+ * | Operations Mgr   | yes           | yes      | no                   | no |
+ * | Director         | yes           | no       | no                   | no |
  */
 export function canApproveLeaveRequest(
   requester: LeaveRequesterProfile,
@@ -213,6 +277,8 @@ export function canApproveLeaveRequest(
     case "DIRECTOR":
       return false;
     case "OPERATIONS_MANAGER":
+      return isDirector;
+    case "AREA_MANAGER":
     case "HO_STAFF":
       return (
         isDirector ||
@@ -227,7 +293,8 @@ export function canApproveLeaveRequest(
         omCanApproveRequesterAreas(
           reviewer,
           getLeaveRequesterServiceAreas(requester)
-        )
+        ) ||
+        amCanApproveRequesterProjects(reviewer, requester.projectIds ?? [])
       );
     default:
       return false;
@@ -247,6 +314,7 @@ export async function resolveLeaveReviewerProfile(options: {
       id: true,
       omApprovalAreas: true,
       jobPosition: { select: { slug: true, name: true } },
+      areaManagedProjects: { select: { projectId: true } },
     },
   });
 
@@ -260,6 +328,8 @@ export async function resolveLeaveReviewerProfile(options: {
     employeeId: employee?.id ?? null,
     jobPosition: employee?.jobPosition ?? null,
     omApprovalAreas: employee?.omApprovalAreas ?? [],
+    managedProjectIds:
+      employee?.areaManagedProjects.map((row) => row.projectId) ?? [],
   };
 }
 

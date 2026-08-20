@@ -7,13 +7,14 @@ import { UserCog } from "lucide-react";
 import { releaseEmployeeFromProject, updateEmployee, previewEmployeeNumber } from "@/app/employees/actions";
 import EmployeeAssignDialog from "@/components/employees/EmployeeAssignDialog";
 import EmployeeDeleteDialog from "@/components/employees/EmployeeDeleteDialog";
+import EmployeeResignDialog from "@/components/employees/EmployeeResignDialog";
 import EmployeeFormFields, { type EmployeeFormDefaults, type EmployeeCategoryOption, type PositionOption, type ProjectOption } from "@/components/employees/EmployeeFormFields";
 import { buildEmployeeFormBaseline, EmployeeDialogShell, EmployeePrimaryButton, EmployeeUnsavedExitDialog, handleEmployeeDialogOpenChange, useEmployeeFormDirty } from "@/components/employees/employee-dialog-ui";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { useDirectoryDialogOpen, type DirectoryDialogControlProps } from "@/components/ui/use-directory-dialog-open";
 import { useT } from "@/lib/i18n/use-t";
-import type { EmploymentType, Placement } from "@prisma/client";
+import type { EmploymentType, Placement, ServiceArea } from "@prisma/client";
 
 type RosterEditableStatus = "ACTIVE" | "ON_LEAVE" | "LEAVE_PENDING";
 
@@ -21,8 +22,19 @@ type Employee = {
   id: string; employeeNo: string; firstName: string; lastName: string; email: string | null; phone: string | null;
   employmentType: EmploymentType; placement: Placement; portalAccessRequested: boolean; categoryId: string | null;
   category: { name: string; slug?: string } | null; positionId: string | null; position: string | null;
-  idDocumentUrl: string | null; hiredAt: Date | string | null;
-  status: "ACTIVE" | "INACTIVE" | "TERMINATED" | "ON_LEAVE" | "LEAVE_PENDING";
+  idDocumentUrl: string | null;   hiredAt: Date | string | null;
+  omApprovalAreas?: ServiceArea[];
+  areaManagedProjects?: { projectId: string }[];
+  status: "ACTIVE" | "INACTIVE" | "TERMINATED" | "ON_LEAVE" | "LEAVE_PENDING" | "RESIGNED";
+  depositHeldAmount?: number | null;
+  depositStatus?: "NONE" | "HELD" | "RETURNED" | "KEPT_BY_COMPANY";
+  securityDepositRequired?: boolean;
+  cicoExempt?: boolean;
+  bankName?: string | null;
+  bankAccountNumber?: string | null;
+  bankAccountName?: string | null;
+  lastWorkingDay?: Date | string | null;
+  resignAccordingToProcedure?: boolean | null;
   basePay: number | null;
   bpjsKesehatanEnabled: boolean;
   bpjsKetenagakerjaanEnabled: boolean;
@@ -34,7 +46,7 @@ type Employee = {
   projectAssignments: { project: { id: string; name: string } }[];
   user: { username: string } | null;
 };
-type Props = { employee: Employee; categories: EmployeeCategoryOption[]; positions: PositionOption[]; projects: ProjectOption[]; showDelete?: boolean } & DirectoryDialogControlProps;
+type Props = { employee: Employee; categories: EmployeeCategoryOption[]; positions: PositionOption[]; projects: ProjectOption[]; showDelete?: boolean; canResign?: boolean } & DirectoryDialogControlProps;
 const EDIT_FORM_ID = "edit-employee-form";
 
 function toRosterEditableStatus(status: Employee["status"]): RosterEditableStatus {
@@ -43,12 +55,13 @@ function toRosterEditableStatus(status: Employee["status"]): RosterEditableStatu
   return "ACTIVE";
 }
 
-export default function EmployeeEditDialog({ employee, categories, positions, projects, showDelete = false, open: controlledOpen, onOpenChange, showTrigger = true }: Props) {
+export default function EmployeeEditDialog({ employee, categories, positions, projects, showDelete = false, canResign = false, open: controlledOpen, onOpenChange, showTrigger = true }: Props) {
   const { t } = useT();
   const router = useRouter();
   const { open, setOpen } = useDirectoryDialogOpen(controlledOpen, onOpenChange);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [resignOpen, setResignOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [categoryId, setCategoryId] = useState(employee.categoryId ?? "");
   const [positionId, setPositionId] = useState(employee.positionId ?? "");
@@ -81,6 +94,9 @@ export default function EmployeeEditDialog({ employee, categories, positions, pr
     portalAccessRequested: employee.portalAccessRequested,
     idDocumentUrl: employee.idDocumentUrl,
     hiredAt: employee.hiredAt,
+    omApprovalAreas: employee.omApprovalAreas,
+    managedProjectIds:
+      employee.areaManagedProjects?.map((row) => row.projectId) ?? [],
     status: toRosterEditableStatus(employee.status),
     basePay: employee.basePay,
     bpjsKesehatanEnabled: employee.bpjsKesehatanEnabled,
@@ -90,6 +106,13 @@ export default function EmployeeEditDialog({ employee, categories, positions, pr
     jkkEnabled: employee.jkkEnabled,
     jkmEnabled: employee.jkmEnabled,
     jkkPercent: employee.jkkPercent,
+    depositStatus: employee.depositStatus,
+    depositHeldAmount: employee.depositHeldAmount,
+    securityDepositRequired: employee.securityDepositRequired ?? false,
+    cicoExempt: employee.cicoExempt ?? false,
+    bankName: employee.bankName ?? null,
+    bankAccountNumber: employee.bankAccountNumber ?? null,
+    bankAccountName: employee.bankAccountName ?? null,
   };
 
   function resetFormState() {
@@ -158,6 +181,11 @@ export default function EmployeeEditDialog({ employee, categories, positions, pr
               {t("pages.employees.form.assignToHeadOffice")}
             </EmployeePrimaryButton>
           )}
+          {canResign && employee.status !== "RESIGNED" && employee.resignAccordingToProcedure == null ? (
+            <EmployeePrimaryButton type="button" variant="danger" disabled={pending} onClick={() => setResignOpen(true)}>
+              {t("pages.employees.resign")}
+            </EmployeePrimaryButton>
+          ) : null}
           {showDelete ? <EmployeePrimaryButton type="button" variant="danger" disabled={pending} onClick={() => setDeleteOpen(true)}>{t("common.actions.delete")}</EmployeePrimaryButton> : null}
           <EmployeePrimaryButton form={EDIT_FORM_ID} disabled={pending}>{pending ? t("common.actions.saving") : t("common.actions.saveChanges")}</EmployeePrimaryButton>
         </div>
@@ -176,6 +204,7 @@ export default function EmployeeEditDialog({ employee, categories, positions, pr
             status={rosterStatus}
             previewEmployeeNo={previewEmployeeNo}
             defaults={defaults}
+            projects={projects}
             onFormValuesChange={handleFormInput}
           />
         </form>
@@ -183,6 +212,17 @@ export default function EmployeeEditDialog({ employee, categories, positions, pr
     </Dialog>
     <EmployeeUnsavedExitDialog open={exitConfirmOpen} onConfirm={() => { setExitConfirmOpen(false); closeDialog(); }} onCancel={() => setExitConfirmOpen(false)} />
     {showDelete ? <EmployeeDeleteDialog employee={employee} open={deleteOpen} onOpenChange={setDeleteOpen} showTrigger={false} onDeleted={closeDialog} /> : null}
+    {canResign ? (
+      <EmployeeResignDialog
+        employee={employee}
+        open={resignOpen}
+        onOpenChange={setResignOpen}
+        onResigned={() => {
+          closeDialog();
+          router.refresh();
+        }}
+      />
+    ) : null}
     <EmployeeAssignDialog open={assignOpen} onOpenChange={setAssignOpen} employeeId={employee.id} />
   </>;
 }

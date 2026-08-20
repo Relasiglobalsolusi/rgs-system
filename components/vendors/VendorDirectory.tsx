@@ -1,14 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FileSpreadsheet, Trash2, Truck } from "lucide-react";
+import { ListPlus, Trash2, Truck } from "lucide-react";
 
-import {
-  confirmBulkImportVendors,
-  previewBulkImportVendors,
-} from "@/app/vendors/import-actions";
-import BulkImportDialog from "@/components/bulk-import/BulkImportDialog";
 import VendorBulkActionDialog from "@/components/vendors/VendorBulkActionDialog";
+import VendorBulkCreateDialog from "@/components/vendors/VendorBulkCreateDialog";
 import VendorBulkReactivateDialog from "@/components/vendors/VendorBulkReactivateDialog";
 import VendorDialog from "@/components/vendors/VendorDialog";
 import VendorTable, { type VendorRow } from "@/components/vendors/VendorTable";
@@ -224,7 +220,7 @@ export default function VendorDirectory({
             <DirectoryAddButton
               label={t("common.actions.addBulk")}
               variant="infoBadge"
-              icon={<FileSpreadsheet className="h-3.5 w-3.5 shrink-0" />}
+              icon={<ListPlus className="h-3.5 w-3.5 shrink-0" />}
               onClick={() => setBulkImportOpen(true)}
             />
           </div>
@@ -287,13 +283,9 @@ export default function VendorDirectory({
       ) : null}
 
       {showAdd ? (
-        <BulkImportDialog
+        <VendorBulkCreateDialog
           open={bulkImportOpen}
           onOpenChange={setBulkImportOpen}
-          entityLabel="vendor"
-          templateUrl="/api/vendors/bulk-template"
-          onPreview={previewBulkImportVendors}
-          onConfirm={confirmBulkImportVendors}
         />
       ) : null}
 

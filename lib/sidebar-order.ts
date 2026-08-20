@@ -381,20 +381,6 @@ export function applySidebarOrder(
   return reorderSections(withOrderedItems, order.sectionOrder);
 }
 
-export async function fetchUserSidebarOrder(
-  userId: string
-): Promise<SidebarOrder | null> {
-  if (!userId) return null;
-
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { sidebarOrder: true },
-  });
-
-  if (!user) return null;
-  return parseSidebarOrder(user.sidebarOrder);
-}
-
 /** Single DB round-trip for JWT refresh (moduleOverrides + sidebarOrder). */
 export async function fetchUserNavPreferences(userId: string): Promise<{
   moduleOverrides: Record<string, boolean> | null;

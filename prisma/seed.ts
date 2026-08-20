@@ -68,12 +68,15 @@ async function main() {
 
   const company = await prisma.company.upsert({
     where: { id: "rgs-company" },
-    update: {},
+    update: {
+      email: "contact@rgs.co.id",
+      phone: "+62 21 2295 2228",
+    },
     create: {
       id: "rgs-company",
       name: "Relasi Global Solusi",
-      email: "vicko@rgs.co.id",
-      phone: "+62 21 0000000",
+      email: "contact@rgs.co.id",
+      phone: "+62 21 2295 2228",
       address: "Jakarta, Indonesia",
     },
   });
@@ -1214,8 +1217,7 @@ async function main() {
   // Sample vendors (idempotent by name). Also: `npx tsx prisma/seed-vendors.ts`
   const seededVendors = await seedSampleVendors(prisma, company.id);
 
-  // Sample purchase invoices (idempotent by invoiceRef). Placeholder files via
-  // prisma/seed-purchase-invoices.ts — run that script after seed for filePath assets.
+  // Sample purchase invoices (idempotent by invoiceRef).
   const purchaseSamples = [
     {
       supplierName: "PT Sumber Alat Kebersihan",
@@ -1297,7 +1299,6 @@ async function main() {
           invoiceRef: sample.invoiceRef,
           invoiceDate: sample.invoiceDate,
           amount: new Prisma.Decimal(sample.amount),
-          // Placeholder PDFs: `npx tsx prisma/seed-purchase-invoices.ts`
           filePath: `/uploads/purchase-invoices/${base}.pdf`,
           notes: sample.notes,
           includesPpn: sample.includesPpn,

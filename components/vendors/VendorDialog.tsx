@@ -117,10 +117,16 @@ export default function VendorDialog({
 
   async function submit(formData: FormData) {
     const npwpRaw = String(formData.get("npwp") ?? "").trim();
+    const isIndividual =
+      String(formData.get("vendorType") ?? "").toUpperCase() === "INDIVIDUAL";
     if (!npwpRaw || !isValidNpwp(npwpRaw)) {
       const npwpMessage = !npwpRaw
-        ? t("validation.npwpRequired")
-        : t("validation.npwpInvalid");
+        ? isIndividual
+          ? t("validation.npwpOrNikRequired")
+          : t("validation.npwpRequired")
+        : isIndividual
+          ? t("validation.npwpOrNikInvalid")
+          : t("validation.npwpInvalid");
       const form = document.getElementById(CREATE_FORM_ID);
       const input =
         form instanceof HTMLFormElement

@@ -24,6 +24,7 @@ import {
   formatContractPrice,
 } from "@/lib/project-billing";
 import { requireFinanceChild, toPermissionUser } from "@/lib/session";
+import { processScheduledPettyCashPays } from "@/lib/petty-cash";
 import { jakartaYearMonth, utcRangeForJakartaMonth } from "@/lib/vat";
 
 /** AP list view filters for HO Finance. */
@@ -46,6 +47,7 @@ export default async function PurchaseInvoicesPage({
   searchParams?: SearchParams;
 }) {
   const session = await requireFinanceChild("purchaseInvoices");
+  await processScheduledPettyCashPays(prisma, session.user.companyId);
   const locale = await getServerLocale();
   const t = createTranslator(locale);
 
@@ -75,15 +77,18 @@ export default async function PurchaseInvoicesPage({
 
   const user = toPermissionUser(session);
   const canManage =
-    canAccess(user, "invoicing") || canAccess(user, "projects");
+    canAccess(user, "purchaseInvoices") || canAccess(user, "projects");
   const canUpload = canManage && purchaseView !== "payments";
 
-  const [invoices, vendors, catalogItemsRaw] = await Promise.all([
+  const [invoices, vendors, catalogItemsRaw, projectsRaw] = await Promise.all([
     prisma.purchaseInvoice.findMany({
       where: {
         companyId: session.user.companyId,
         // Filter by supplier invoice date (not createdAt).
         invoiceDate: { gte: start, lt: endExclusive },
+        ...(purchaseView
+          ? { purpose: { not: "PETTY_CASH" } }
+          : {}),
       },
       include: {
         createdBy: { select: { name: true } },
@@ -104,6 +109,19 @@ export default async function PurchaseInvoicesPage({
         sku: true,
         unit: true,
         lastUnitCost: true,
+      },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
+    prisma.project.findMany({
+      where: {
+        companyId: session.user.companyId,
+        status: { in: ["PLANNED", "IN_PROGRESS", "WAITING_FOR_APPROVAL"] },
+        client: { active: true },
+      },
+      select: {
+        id: true,
+        name: true,
+        client: { select: { name: true } },
       },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
@@ -222,6 +240,11 @@ export default async function PurchaseInvoicesPage({
             <PurchaseInvoiceUploadDialog
               vendors={vendors}
               catalogItems={catalogItems}
+              projects={projectsRaw.map((project) => ({
+                id: project.id,
+                name: project.name,
+                clientName: project.client?.name ?? null,
+              }))}
             />
           ) : null}
         </div>

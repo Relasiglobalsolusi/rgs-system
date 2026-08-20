@@ -2,13 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { nextSortOrderFromMax, sortOrdersForIds } from "@/lib/reorder";
-import {
-  getEmployeeForUser,
-  requireModule,
-  toPermissionUser,
-} from "@/lib/session";
-import { canManageProjects } from "@/lib/project-access";
+import { nextSortOrderFromMax } from "@/lib/reorder";
+import { getEmployeeForUser, requireModule } from "@/lib/session";
 import {
   ensureLeaveEmploymentSyncedForUser,
   getOperationsBlockedErrorKey,
@@ -17,11 +12,12 @@ import {
 } from "@/lib/leave-employment-status";
 import { deleteLocalUpload, saveUpload } from "@/lib/upload";
 import {
-  contractCyclePeriodBounds,
+  customDayCyclePeriodBounds,
   formatDateInput,
   monthPeriodBounds,
   parseDateInput,
-  resolveContractCycleIndex,
+  resolveBillingCycleDays,
+  resolveCustomDayCycleIndex,
   toUtcDateOnly,
 } from "@/lib/invoice-period";
 import {
@@ -30,6 +26,11 @@ import {
 } from "@/lib/cico-attendance";
 import { canSubmitFieldProgressReport } from "@/lib/cico-access";
 import { usesInvoicePeriods } from "@/lib/project-billing";
+import { isProjectOpenForSiteWork } from "@/lib/project-status";
+import {
+  isBackupAssignmentActiveOnJakartaDay,
+  tryPostPartTimePayForCompletedDay,
+} from "@/lib/petty-cash";
 import {
   isProgressEligibleProjectSubCategory,
   isInternalProjectSubCategory,
@@ -153,6 +154,8 @@ async function ensureOngoingPeriod(projectId: string, reportDate: Date) {
       startDate: true,
       subCategory: true,
       billingPeriodBasis: true,
+      billingCycleStartDay: true,
+      billingCycleEndDay: true,
     },
   });
 
@@ -167,12 +170,24 @@ async function ensureOngoingPeriod(projectId: string, reportDate: Date) {
 
   const contractStart = toUtcDateOnly(project.startDate);
   const basis = project.billingPeriodBasis ?? "CONTRACT_CYCLE";
+  const days = resolveBillingCycleDays(
+    contractStart,
+    project.billingCycleStartDay,
+    project.billingCycleEndDay
+  );
   const { periodStart, periodEnd, label } =
     basis === "CALENDAR_MONTH"
       ? monthPeriodBounds(reportDate)
-      : contractCyclePeriodBounds(
-          contractStart,
-          resolveContractCycleIndex(contractStart, reportDate)
+      : customDayCyclePeriodBounds(
+          days.fromDay,
+          days.toDay,
+          resolveCustomDayCycleIndex(
+            days.fromDay,
+            days.toDay,
+            contractStart,
+            reportDate
+          ),
+          contractStart
         );
 
   const existing = await prisma.projectInvoicePeriod.findUnique({
@@ -256,6 +271,12 @@ export async function createProgressReport(formData: FormData) {
   if (!assignment) {
     throw await progressError("notAssigned");
   }
+  if (
+    assignment.isBackup &&
+    !isBackupAssignmentActiveOnJakartaDay(assignment, reportDate)
+  ) {
+    throw await progressError("backupWindow");
+  }
 
   if (assignment.project.companyId !== session.user.companyId) {
     throw await progressError("notAssigned");
@@ -273,7 +294,7 @@ export async function createProgressReport(formData: FormData) {
     throw await progressError("cleaningOnly");
   }
 
-  if (assignment.project.status !== "IN_PROGRESS") {
+  if (!isProjectOpenForSiteWork(assignment.project.status)) {
     throw await progressError("inProgressOnly");
   }
 
@@ -326,7 +347,14 @@ export async function createProgressReport(formData: FormData) {
     data: { status: "IN_PROGRESS" },
   });
 
+  await tryPostPartTimePayForCompletedDay({
+    employeeId: employee.id,
+    projectId,
+    workDay: reportDate,
+  });
+
   revalidateProgressPaths(projectId);
+  revalidatePath("/billing/petty-cash");
 
   return { id: report.id, date: formatDateInput(reportDate) };
 }
@@ -448,49 +476,4 @@ export async function updateProgressReport(formData: FormData) {
   revalidateProgressPaths(existing.projectId);
 
   return { id: reportId, date: formatDateInput(lockedReportDate) };
-}
-
-export async function reorderProgressReports(ids: string[]) {
-  const session = await requireModule("progress");
-  const permissionUser = toPermissionUser(session);
-  // Match UI: only project managers may reorder (not every progress viewer).
-  if (!canManageProjects(permissionUser)) {
-    throw await progressError("reorderDenied");
-  }
-
-  const companyId = session.user.companyId;
-  if (!companyId) throw await progressError("companyNotFound");
-
-  const uniqueIds = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
-  if (uniqueIds.length === 0) {
-    throw await progressError("nothingToReorder");
-  }
-  if (uniqueIds.length !== ids.length) {
-    throw await progressError("duplicateReorderIds");
-  }
-
-  const existing = await prisma.progressReport.findMany({
-    where: {
-      id: { in: uniqueIds },
-      project: { companyId },
-    },
-    select: { id: true },
-  });
-
-  if (existing.length !== uniqueIds.length) {
-    throw await progressError("invalidReorderIds");
-  }
-
-  const updates = sortOrdersForIds(uniqueIds);
-  await prisma.$transaction(async (tx) => {
-    for (const { id, sortOrder } of updates) {
-      await tx.progressReport.update({
-        where: { id },
-        data: { sortOrder },
-      });
-    }
-  });
-
-  revalidatePath("/progress");
-  revalidatePath("/dashboard");
 }

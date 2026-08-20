@@ -25,7 +25,12 @@ export type PositionRow = {
   description: string | null;
   active: boolean;
   sortOrder: number;
-  category: { name: string; prefix: string; slug?: string | null };
+  category: {
+    name: string;
+    prefix: string;
+    slug?: string | null;
+    sortOrder?: number;
+  };
   _count: { employees: number };
 };
 

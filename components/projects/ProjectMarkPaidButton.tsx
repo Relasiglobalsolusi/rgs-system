@@ -1,12 +1,9 @@
 "use client";
 
-import {
-  showRejectionFromError,
-} from "@/components/ui/rejection-notice";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 
-import { verifyInvoicePeriodPayment } from "@/app/projects/invoice-actions";
+import InHouseVerifyPaymentDialog from "@/components/billing/InHouseVerifyPaymentDialog";
 import PaymentReceivedDialog from "@/components/billing/PaymentReceivedDialog";
 import { Button } from "@/components/ui/button";
 import { StackedChipLabel } from "@/components/ui/StatusBadge";
@@ -33,31 +30,14 @@ export default function ProjectMarkPaidButton({
 }: Props) {
   const { t } = useT();
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
   const [dialogOpen, setDialogOpen] = useState(false);
   const isVerify = mode === "verify";
 
-  function handleVerify() {
-    const confirmed = window.confirm(
-      movesToHistoryWhenFullyPaid
-        ? t("pages.projects.verifyPaymentHistory", { name: projectName })
-        : t("pages.projects.verifyPaymentActive", { name: projectName })
-    );
-    if (!confirmed) return;
-
-    startTransition(async () => {
-      try {
-        const result = await verifyInvoicePeriodPayment(periodId);
-        if (result.movedToHistory) {
-          router.push("/projects?view=completed");
-          router.refresh();
-          return;
-        }
-        router.refresh();
-      } catch (error) {
-        showRejectionFromError(error, t("pages.projects.verifyPaymentFailed"));
-      }
-    });
+  function handleVerifySuccess(result: { movedToHistory: boolean }) {
+    if (result.movedToHistory) {
+      router.push("/projects?view=completed");
+    }
+    router.refresh();
   }
 
   function handleReceiveSuccess(result: { movedToHistory: boolean }) {
@@ -72,23 +52,12 @@ export default function ProjectMarkPaidButton({
       <Button
         variant="successBadge"
         size="badge"
-        disabled={pending}
-        onClick={() => {
-          if (isVerify) {
-            handleVerify();
-            return;
-          }
-          setDialogOpen(true);
-        }}
+        onClick={() => setDialogOpen(true)}
         className={cn(flexibleBadgeChipClassName, "whitespace-normal")}
       >
-        {pending
-          ? isVerify
-            ? t("pages.projects.verifying")
-            : t("common.actions.saving")
-          : isVerify
-            ? t("pages.projects.verifyPayment")
-            : (
+        {isVerify
+          ? t("pages.projects.verifyPayment")
+          : (
                 <StackedChipLabel
                   lines={[
                     t("pages.billing.paymentReceived1"),
@@ -98,7 +67,15 @@ export default function ProjectMarkPaidButton({
               )}
       </Button>
 
-      {!isVerify ? (
+      {isVerify ? (
+        <InHouseVerifyPaymentDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          periodId={periodId}
+          projectName={projectName}
+          onSuccess={handleVerifySuccess}
+        />
+      ) : (
         <PaymentReceivedDialog
           open={dialogOpen}
           onOpenChange={setDialogOpen}
@@ -107,7 +84,7 @@ export default function ProjectMarkPaidButton({
           movesToHistoryWhenFullyPaid={movesToHistoryWhenFullyPaid}
           onSuccess={handleReceiveSuccess}
         />
-      ) : null}
+      )}
     </>
   );
 }

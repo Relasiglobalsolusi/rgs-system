@@ -14,9 +14,12 @@ import { getOpenCicoProgressLock } from "@/lib/cico-attendance";
 import {
   PROGRESS_ELIGIBLE_PROJECT_SUB_CATEGORIES,
 } from "@/lib/project-subcategory";
+import { PROJECT_SITE_WORK_STATUSES } from "@/lib/project-status";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
 import { refreshLeaveEmploymentForUser } from "@/lib/leave-employment-status";
+import { occupyingProjectAssignmentWhere } from "@/lib/petty-cash";
+import { releaseExpiredBackupCrew } from "@/lib/workforce-crew";
 
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/ui/EmptyState";
@@ -39,6 +42,9 @@ export default async function ProgressPage({
 }) {
   const session = await requireModule("progress");
   await refreshLeaveEmploymentForUser(session.user.id);
+  if (session.user.companyId) {
+    await releaseExpiredBackupCrew(prisma as never, session.user.companyId);
+  }
   const t = createTranslator(await getServerLocale());
   const { projectId, employeeId: employeeIdRaw } = await searchParams;
   const employeeIdFilter = employeeIdRaw?.trim() || undefined;
@@ -51,9 +57,11 @@ export default async function ProgressPage({
   const projectWhere = await getProjectWhereForUser({
     companyId: session.user.companyId,
     clientId: session.user.clientId,
+    userId: session.user.id,
+    username: session.user.username,
   });
 
-  const activeStatuses: ProjectStatus[] = ["IN_PROGRESS"];
+  const activeStatuses: ProjectStatus[] = [...PROJECT_SITE_WORK_STATUSES];
   const progressSubs: ProjectSubCategory[] = [
     ...PROGRESS_ELIGIBLE_PROJECT_SUB_CATEGORIES,
   ];
@@ -226,7 +234,14 @@ export default async function ProgressPage({
     where: {
       ...cleaningProjectFilter,
       ...(staffScope
-        ? { assignments: { some: { employeeId: employee!.id } } }
+        ? {
+            assignments: {
+              some: {
+                employeeId: employee!.id,
+                AND: [occupyingProjectAssignmentWhere()],
+              },
+            },
+          }
         : {}),
     },
     select: {

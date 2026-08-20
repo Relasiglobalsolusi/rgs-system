@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { BriefcaseBusiness } from "lucide-react";
 import { createPosition } from "@/app/positions/actions";
 import type { EmployeeCategoryOption } from "@/components/employees/EmployeeFormFields";
+import PositionModuleAccessFields from "@/components/positions/PositionModuleAccessFields";
 import {
   EmployeeDialogShell,
   EmployeePrimaryButton,
@@ -25,6 +26,7 @@ import {
 import { showRejectionFromError } from "@/components/ui/rejection-notice";
 import { localizeDepartmentLabel } from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
+import { getEmployeeModuleOverrides, type ModuleKey } from "@/lib/permissions";
 import { titleCaseWords } from "@/lib/text-case";
 
 export default function PositionDialog({
@@ -37,6 +39,9 @@ export default function PositionDialog({
   const { t, locale } = useT();
   const [open, setOpen] = useState(false);
   const [categoryId, setCategoryId] = useState("");
+  const [moduleAccess, setModuleAccess] = useState<Record<ModuleKey, boolean>>(
+    () => getEmployeeModuleOverrides()
+  );
   const [pending, startTransition] = useTransition();
 
   const selectableCategories = useMemo(
@@ -66,6 +71,7 @@ export default function PositionDialog({
         await createPosition(formData);
         setOpen(false);
         setCategoryId("");
+        setModuleAccess(getEmployeeModuleOverrides());
         onCreated?.();
       } catch (error) {
         showRejectionFromError(
@@ -77,7 +83,17 @@ export default function PositionDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen} disablePointerDismissal>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (nextOpen) {
+          setCategoryId("");
+          setModuleAccess(getEmployeeModuleOverrides());
+        }
+      }}
+      disablePointerDismissal
+    >
       <DialogTrigger asChild>
         <Button variant="successBadge" size="badge">
           {t("pages.employees.addPosition")}
@@ -148,6 +164,11 @@ export default function PositionDialog({
               </label>
               <Input name="description" className={employeeInputClass} />
             </div>
+            <PositionModuleAccessFields
+              value={moduleAccess}
+              onChange={setModuleAccess}
+              disabled={pending}
+            />
           </div>
         </form>
       </EmployeeDialogShell>

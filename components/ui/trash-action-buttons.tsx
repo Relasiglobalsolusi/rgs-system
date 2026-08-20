@@ -52,15 +52,15 @@ export const ACTIONS_SINGLE_CHIP_COLUMN_WIDTH = "12.5rem";
 
 /**
  * Two chips side-by-side (Assign+Delete, Permissions+Delete) + gap-2 + edge pad.
- * 7.5 + 7.5 + 0.5 + 1 + 2.5 = 19rem; 20rem leaves breathing room.
+ * 7.5 + 7.5 + 0.5 + 1 + 2.5 = 19rem; 24rem keeps them off the previous column.
  */
-export const ACTIONS_DUAL_CHIP_COLUMN_WIDTH = "20rem";
+export const ACTIONS_DUAL_CHIP_COLUMN_WIDTH = "24rem";
 
 /**
  * Three chips side-by-side (Permissions+Revoke Access+Delete) + gaps + edge pad.
- * 7.5×3 + 0.5×2 + 1 + 2.5 = 27.5rem → 28rem.
+ * 7.5×3 + 0.5×2 + 1 + 2.5 = 27rem; 34rem parks Actions further right.
  */
-export const ACTIONS_TRIPLE_CHIP_COLUMN_WIDTH = "28rem";
+export const ACTIONS_TRIPLE_CHIP_COLUMN_WIDTH = "34rem";
 
 /**
  * Actions column: Restore + Permanently Delete + gap-2 + edge pad.
@@ -71,7 +71,7 @@ export const TRASH_ACTIONS_COLUMN_WIDTH = "22rem";
 /**
  * Users trash: Permissions + Restore + Permanently Delete + edge pad.
  */
-export const TRASH_ACTIONS_WITH_PERMISSIONS_COLUMN_WIDTH = "30rem";
+export const TRASH_ACTIONS_WITH_PERMISSIONS_COLUMN_WIDTH = "36rem";
 
 type ChipButtonProps = Omit<
   ComponentProps<typeof Button>,
@@ -139,49 +139,6 @@ export function TrashPermanentDeleteChip({
       <span className={permanentDeleteLabelClassName}>
         <span>{t("common.actions.permanentlyDelete1")}</span>
         <span>{t("common.actions.permanentlyDelete2")}</span>
-      </span>
-    </Button>
-  );
-}
-
-/**
- * Full-width edit-dialog "Cannot / delete" — same danger tint as Delete,
- * non-interactive (no disabled opacity washout).
- */
-export const cannotDeleteFullWidthClassName =
-  "pointer-events-none flex h-11 w-full items-center justify-center rounded-xl border border-danger/40 bg-card-tint-red text-danger";
-
-/**
- * Non-deletable affordance — stacked "Cannot / Delete" (EN) or
- * "Tidak bisa / dihapus" (ID), same fixed outer box as Hapus / Delete.
- * Non-interactive via aria-disabled + pointer-events-none (not disabled).
- */
-export function CannotDeleteChip({
-  className,
-  title,
-  ...props
-}: ChipButtonProps) {
-  const { t } = useT();
-  const resolvedTitle = title ?? t("common.actions.cannotDeleteTitle");
-
-  return (
-    <Button
-      type="button"
-      size="badge"
-      variant="destructiveBadge"
-      title={resolvedTitle}
-      aria-disabled="true"
-      tabIndex={-1}
-      className={cn(
-        trashActionChipClassName,
-        "pointer-events-none whitespace-normal",
-        className
-      )}
-      {...props}
-    >
-      <span className={permanentDeleteLabelClassName}>
-        <span>{t("common.actions.cannotDelete1")}</span>
-        <span>{t("common.actions.cannotDelete2")}</span>
       </span>
     </Button>
   );

@@ -38,11 +38,6 @@ export function appMinutesOfDay(
   return ((hour % 24) * 60 + minute) % (24 * 60);
 }
 
-/** Alias for appMinutesOfDay (Asia/Jakarta). */
-export function minutesOfDay(date: Date): number {
-  return appMinutesOfDay(date);
-}
-
 export function formatTimeRange(
   start: string | null | undefined,
   end: string | null | undefined
@@ -80,30 +75,25 @@ export function isLateCheckIn(
   return appMinutesOfDay(checkIn) >= expected;
 }
 
-export type ProjectShiftInput = {
-  projectId: string;
-  shiftStart: string | null;
-  shiftEnd: string | null;
-};
-
-/** Parse per-project `shiftStart_<id>` / `shiftEnd_<id>` fields from employee forms. */
-export function parseProjectShiftsFromForm(
-  formData: FormData,
-  projectIds: string[]
-): ProjectShiftInput[] {
-  return projectIds.map((projectId) => {
-    const start =
-      String(formData.get(`shiftStart_${projectId}`) ?? "").trim() || null;
-    const end =
-      String(formData.get(`shiftEnd_${projectId}`) ?? "").trim() || null;
-
-    if ((start && !end) || (!start && end)) {
-      throw new Error("Each assigned site needs both shift start and end times.");
-    }
-    if (start && (!isValidTimeHHmm(start) || !isValidTimeHHmm(end!))) {
-      throw new Error("Shift times must use HH:mm format (e.g. 05:30).");
-    }
-
-    return { projectId, shiftStart: start, shiftEnd: end };
-  });
+/**
+ * True when check-out is before shift end (overnight-aware).
+ * No grace — matches office early leave (before 17:00).
+ * Returns null when no shift end is configured.
+ */
+export function isEarlyCheckOut(
+  checkOut: Date,
+  shiftStartHHmm: string | null | undefined,
+  shiftEndHHmm: string | null | undefined
+): boolean | null {
+  const end = parseTimeToMinutes(shiftEndHHmm);
+  if (end == null) return null;
+  const start = parseTimeToMinutes(shiftStartHHmm);
+  const minutes = appMinutesOfDay(checkOut);
+  const overnight = start != null && end <= start;
+  if (!overnight) {
+    return minutes < end;
+  }
+  // Overnight: evening hours after start are still on shift; morning before end is early.
+  if (minutes >= start) return false;
+  return minutes < end;
 }

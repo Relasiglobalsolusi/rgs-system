@@ -66,6 +66,8 @@ export async function GET(request: NextRequest) {
     const projectWhere = await getProjectWhereForUser({
       companyId: session.user.companyId,
       clientId: session.user.clientId,
+      userId: session.user.id,
+      username: session.user.username,
     });
 
     const project = await prisma.project.findFirst({

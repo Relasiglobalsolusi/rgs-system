@@ -1,0 +1,319 @@
+"use client";
+
+import { useState, useTransition, type FormEvent } from "react";
+import { Receipt } from "lucide-react";
+import { useRouter } from "next/navigation";
+
+import {
+  extractPettyCashReceipt,
+  recordPettyCashSpend,
+} from "@/app/billing/petty-cash/actions";
+import { BillingDocumentFilePick } from "@/components/billing/BillingDocumentVerifyDialog";
+import {
+  EmployeeDialogShell,
+  EmployeePrimaryButton,
+  EmployeeSecondaryButton,
+  employeeDialogFieldClass,
+  employeeDialogFormClass,
+  employeeDialogGridClass,
+  employeeDialogHintClass,
+  employeeDialogLabelClass,
+  employeeInputClass,
+  employeeSelectTriggerClass,
+} from "@/components/employees/employee-dialog-ui";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { useT } from "@/lib/i18n/use-t";
+import { formatContractPrice } from "@/lib/project-billing";
+import { todayDateInput } from "@/lib/project-contract";
+import { cn } from "@/lib/utils";
+
+type ProjectOption = {
+  id: string;
+  name: string;
+  clientName: string | null;
+};
+
+export default function PettyCashSpendDialog({
+  projects,
+}: {
+  projects: ProjectOption[];
+}) {
+  const { t } = useT();
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [extracting, startExtract] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [extractedAmount, setExtractedAmount] = useState<number | null>(null);
+  const [amount, setAmount] = useState("");
+  const [entryDate, setEntryDate] = useState(todayDateInput());
+  const [description, setDescription] = useState("");
+  const [projectId, setProjectId] = useState("");
+
+  const typedAmount = Number(amount.replace(/[^\d]/g, ""));
+  const amountsMatch =
+    extractedAmount != null &&
+    Number.isFinite(typedAmount) &&
+    typedAmount > 0 &&
+    Math.round(typedAmount) === Math.round(extractedAmount);
+
+  function reset() {
+    setError(null);
+    setDocumentFile(null);
+    setExtractedAmount(null);
+    setAmount("");
+    setEntryDate(todayDateInput());
+    setDescription("");
+    setProjectId("");
+  }
+
+  function handlePick(file: File | null) {
+    setDocumentFile(file);
+    setExtractedAmount(null);
+    setError(null);
+    if (!file || file.size <= 0) return;
+    const formData = new FormData();
+    formData.set("document", file);
+    startExtract(async () => {
+      const result = await extractPettyCashReceipt(formData);
+      if (!result.ok) {
+        setExtractedAmount(null);
+        setError(
+          result.code === "not_configured"
+            ? t("pages.pettyCash.extractNotConfigured")
+            : t("pages.pettyCash.extractFailed")
+        );
+        return;
+      }
+      setExtractedAmount(result.amount);
+      if (result.receiptDate) setEntryDate(result.receiptDate);
+      if (result.merchantName && !description.trim()) {
+        setDescription(result.merchantName);
+      }
+    });
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    if (!documentFile) {
+      setError(t("pages.pettyCash.proofRequired"));
+      return;
+    }
+    if (extractedAmount == null) {
+      setError(t("pages.pettyCash.extractRequired"));
+      return;
+    }
+    if (!amountsMatch) {
+      setError(t("pages.pettyCash.amountMismatch"));
+      return;
+    }
+
+    const formData = new FormData(event.currentTarget);
+    formData.set("document", documentFile);
+    formData.set("amount", String(Math.round(typedAmount)));
+    formData.set("entryDate", entryDate);
+    formData.set("description", description.trim());
+    formData.set("projectId", projectId);
+
+    setPending(true);
+    try {
+      await recordPettyCashSpend(formData);
+      reset();
+      setOpen(false);
+      router.refresh();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : t("pages.pettyCash.spendFailed")
+      );
+    } finally {
+      setPending(false);
+    }
+  }
+
+  const busy = pending || extracting;
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) reset();
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button type="button" variant="permissionsBadge" size="badgeFlex">
+          <Receipt className="h-3.5 w-3.5" aria-hidden />
+          {t("pages.pettyCash.recordSpend")}
+        </Button>
+      </DialogTrigger>
+      <EmployeeDialogShell
+        icon={Receipt}
+        title={t("pages.pettyCash.spendTitle")}
+        description={t("pages.pettyCash.spendDesc")}
+        maxWidth="md"
+        footer={
+          <div className="flex w-full flex-col gap-3">
+            <EmployeePrimaryButton
+              type="submit"
+              form="petty-cash-spend-form"
+              disabled={busy || !amountsMatch}
+            >
+              {pending
+                ? t("pages.pettyCash.spending")
+                : t("pages.pettyCash.spendConfirm")}
+            </EmployeePrimaryButton>
+            <EmployeeSecondaryButton
+              disabled={busy}
+              onClick={() => setOpen(false)}
+            >
+              {t("common.actions.cancel")}
+            </EmployeeSecondaryButton>
+          </div>
+        }
+      >
+        <form
+          id="petty-cash-spend-form"
+          onSubmit={handleSubmit}
+          className={employeeDialogFormClass}
+        >
+          <div className={employeeDialogGridClass}>
+            <div className="sm:col-span-2 space-y-2">
+              <BillingDocumentFilePick
+                id="petty-cash-proof"
+                label={t("pages.pettyCash.proof")}
+                required
+                fileName={documentFile?.name ?? null}
+                onPick={handlePick}
+                disabled={busy}
+              />
+              {extracting ? (
+                <p className={employeeDialogHintClass} aria-live="polite">
+                  {t("pages.pettyCash.readingBill")}
+                </p>
+              ) : extractedAmount != null ? (
+                <p className={employeeDialogHintClass}>
+                  {t("pages.pettyCash.extractedAmount", {
+                    amount: formatContractPrice(extractedAmount),
+                  })}
+                </p>
+              ) : (
+                <p className={employeeDialogHintClass}>
+                  {t("pages.pettyCash.proofHint")}
+                </p>
+              )}
+            </div>
+
+            <div className={employeeDialogFieldClass}>
+              <label
+                htmlFor="petty-cash-amount"
+                className={employeeDialogLabelClass}
+              >
+                {t("pages.pettyCash.enteredAmount")}
+                <span className="text-red-400"> *</span>
+              </label>
+              <Input
+                id="petty-cash-amount"
+                name="amount"
+                required
+                disabled={busy}
+                inputMode="numeric"
+                value={amount}
+                onChange={(event) => setAmount(event.target.value)}
+                placeholder={t("pages.pettyCash.amountPlaceholder")}
+                className={employeeInputClass}
+              />
+            </div>
+
+            <div className={employeeDialogFieldClass}>
+              <label
+                htmlFor="petty-cash-date"
+                className={employeeDialogLabelClass}
+              >
+                {t("pages.pettyCash.date")}
+                <span className="text-red-400"> *</span>
+              </label>
+              <Input
+                id="petty-cash-date"
+                name="entryDate"
+                type="date"
+                required
+                disabled={busy}
+                value={entryDate}
+                onChange={(event) => setEntryDate(event.target.value)}
+                className={employeeInputClass}
+              />
+            </div>
+
+            <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+              <label
+                htmlFor="petty-cash-description"
+                className={employeeDialogLabelClass}
+              >
+                {t("pages.pettyCash.descriptionLabel")}
+                <span className="text-red-400"> *</span>
+              </label>
+              <Textarea
+                id="petty-cash-description"
+                name="description"
+                required
+                disabled={busy}
+                rows={2}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                placeholder={t("pages.pettyCash.descriptionPlaceholder")}
+                className="min-h-[4.5rem] rounded-xl border border-border bg-elevated px-4 py-3 text-sm text-text shadow-none placeholder:text-subtle focus-visible:border-primary/45 focus-visible:ring-2 focus-visible:ring-primary/10"
+              />
+            </div>
+
+            {projects.length > 0 ? (
+              <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+                <label className={employeeDialogLabelClass}>
+                  {t("pages.pettyCash.project")}
+                </label>
+                <Select
+                  value={projectId || undefined}
+                  onValueChange={(value) => setProjectId(value ?? "")}
+                  disabled={busy}
+                >
+                  <SelectTrigger className={employeeSelectTriggerClass}>
+                    <SelectValue
+                      placeholder={t("pages.pettyCash.projectPlaceholder")}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {projects.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.clientName
+                          ? `${project.name} · ${project.clientName}`
+                          : project.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className={employeeDialogHintClass}>
+                  {t("pages.pettyCash.projectHint")}
+                </p>
+              </div>
+            ) : null}
+
+            {error ? (
+              <p className="sm:col-span-2 text-sm text-danger">{error}</p>
+            ) : null}
+          </div>
+        </form>
+      </EmployeeDialogShell>
+    </Dialog>
+  );
+}

@@ -51,7 +51,8 @@ export default function LeaveRequestTable({ data, showEmployee }: Props) {
         key: "type",
         title: t("pages.leaves.columns.type"),
         width: "10rem",
-        className: "min-w-[10rem] overflow-visible whitespace-nowrap text-center",
+        align: "center",
+        className: "min-w-[10rem] overflow-visible whitespace-nowrap",
         render: (row) => (
           <StatusBadge status={row.type === "SICK" ? "warning" : "active"}>
             <LeaveTypeLabel type={row.type} />
@@ -81,7 +82,8 @@ export default function LeaveRequestTable({ data, showEmployee }: Props) {
         key: "status",
         title: t("pages.leaves.columns.status"),
         width: "10rem",
-        className: "min-w-[10rem] overflow-visible whitespace-nowrap text-center",
+        align: "center",
+        className: "min-w-[10rem] overflow-visible whitespace-nowrap",
         render: (row) => (
           <StatusBadge
             status={

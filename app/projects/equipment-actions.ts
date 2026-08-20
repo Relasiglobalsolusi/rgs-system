@@ -2,10 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import {
-  allocateAssetCodes,
-  assertEquipmentInventoryInvariants,
-} from "@/lib/equipment-asset";
+import { assertEquipmentInventoryInvariants } from "@/lib/equipment-asset";
 import {
   inventoryQtyFromDecimal,
   movementTotalCost,
@@ -23,14 +20,7 @@ import { translate } from "@/lib/i18n/translate";
 import { requireModule, toPermissionUser } from "@/lib/session";
 import { canManageInventory } from "@/lib/project-access";
 import { decimalToNumber } from "@/lib/project-billing";
-import { capitalizeProper } from "@/lib/text-case";
 import type { AppLocale } from "@/lib/i18n/locale";
-
-const EQUIPMENT_ITEM_TYPE = "Equipment";
-
-function isEquipmentItemType(itemType: string): boolean {
-  return itemType.trim().toLowerCase() === EQUIPMENT_ITEM_TYPE.toLowerCase();
-}
 
 async function assertCanAssignEquipment(locale: AppLocale) {
   const session = await requireModule("inventory");
@@ -58,17 +48,6 @@ async function requireCompany(locale: AppLocale) {
 function revalidateProjectEquipment(projectId: string) {
   revalidatePath(`/projects/${projectId}`);
   revalidatePath("/inventory");
-}
-
-/**
- * @deprecated Equipment is issued only from Inventory → Project Issues.
- * Kept so existing clients get a clear error instead of a silent dual path.
- */
-export async function assignEquipmentAssetToProject(_formData: FormData) {
-  const locale = await getServerLocale();
-  throw new Error(
-    translate(locale, "pages.projects.equipmentPicker.assignDisabledUseInventory")
-  );
 }
 
 /**
@@ -203,79 +182,5 @@ export async function releaseEquipmentAssetFromProject(formData: FormData) {
     revalidateProjectEquipment(projectId);
   } catch (error) {
     throw toActionError(error, translate(locale, "pages.projects.equipmentPicker.releaseFailed"));
-  }
-}
-
-/**
- * Manually register a new EquipmentAsset unit for a catalog item.
- * Used by admins for existing physical units not yet in the system.
- * Does NOT create a purchase movement — stock count is not changed
- * (the item was presumably already purchased / stocked separately).
- *
- * FormData fields: itemId, serialNo (optional), notes (optional)
- */
-export async function registerEquipmentAsset(formData: FormData) {
-  const locale = await getServerLocale();
-  try {
-    const session = await assertCanAssignEquipment(locale);
-    const company = await requireCompany(locale);
-
-    const itemId = String(formData.get("itemId") ?? "").trim();
-    const serialNo = String(formData.get("serialNo") ?? "").trim() || null;
-    const notes = capitalizeProper(String(formData.get("notes") ?? "").trim()) || null;
-
-    if (!itemId) {
-      throw new Error(translate(locale, "pages.inventory.itemRequired"));
-    }
-
-    const item = await prisma.inventoryItem.findFirst({
-      where: {
-        id: itemId,
-        companyId: company.id,
-        active: true,
-        deletedAt: null,
-      },
-      select: { id: true, sku: true, itemType: true },
-    });
-    if (!item) {
-      throw new Error(translate(locale, "pages.inventory.itemNotFound"));
-    }
-    if (!isEquipmentItemType(item.itemType)) {
-      throw new Error(translate(locale, "pages.projects.equipmentPicker.assetNotEquipment"));
-    }
-
-    await prisma.$transaction(async (tx) => {
-      const [assetCode] = await allocateAssetCodes(company.id, item.sku, 1, tx);
-      await tx.equipmentAsset.create({
-        data: {
-          companyId: company.id,
-          itemId: item.id,
-          assetCode,
-          status: "AVAILABLE",
-          serialNo,
-          notes,
-        },
-      });
-
-      // On Hand for Equipment = AVAILABLE warehouse count. If this unit was not
-      // already covered by stock (e.g. physical unit newly registered), raise stock.
-      const locked = await lockInventoryItemRow(tx, item.id);
-      if (locked) {
-        const currentStock = inventoryQtyFromDecimal(locked.currentStock);
-        const available = await tx.equipmentAsset.count({
-          where: { itemId: item.id, status: "AVAILABLE" },
-        });
-        if (available > currentStock) {
-          await tx.inventoryItem.update({
-            where: { id: item.id },
-            data: { currentStock: toDecimal(available) },
-          });
-        }
-      }
-    });
-
-    revalidatePath("/inventory");
-  } catch (error) {
-    throw toActionError(error, translate(locale, "pages.projects.equipmentPicker.registerFailed"));
   }
 }

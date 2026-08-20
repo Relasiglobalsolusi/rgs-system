@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { FileSpreadsheet, Package } from "lucide-react";
+import { FileSpreadsheet, ListPlus, Package } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -15,6 +15,7 @@ import {
 } from "@/app/inventory/import-actions";
 import BulkImportDialog from "@/components/bulk-import/BulkImportDialog";
 import InventoryItemDialog from "@/components/inventory/InventoryItemDialog";
+import ItemCatalogBulkCreateDialog from "@/components/item-catalog/ItemCatalogBulkCreateDialog";
 import InventoryItemEditDialog from "@/components/inventory/InventoryItemEditDialog";
 import { partitionItemsByInventoryItemType } from "@/components/inventory/inventory-category";
 import type { InventoryCatalogItem } from "@/components/inventory/inventory-types";
@@ -44,7 +45,8 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
   const { t } = useT();
   const [searchQuery, setSearchQuery] = useState("");
   const [createItemOpen, setCreateItemOpen] = useState(false);
-  const [bulkImportOpen, setBulkImportOpen] = useState(false);
+  const [bulkCreateOpen, setBulkCreateOpen] = useState(false);
+  const [excelImportOpen, setExcelImportOpen] = useState(false);
   const [editItem, setEditItem] = useState<InventoryCatalogItem | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -173,7 +175,7 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
             title: t("pages.itemCatalog.columns.actions"),
             width: ACTIONS_TRIPLE_CHIP_COLUMN_WIDTH,
             align: "center" as const,
-            className: "min-w-[28rem] overflow-visible whitespace-nowrap",
+            className: "min-w-[34rem] overflow-visible whitespace-nowrap",
             render: (row: InventoryCatalogItem) => (
               <div className="flex shrink-0 items-center justify-center gap-2 whitespace-nowrap">
                 <Button
@@ -272,8 +274,14 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
             <DirectoryAddButton
               label={t("common.actions.addBulk")}
               variant="infoBadge"
+              icon={<ListPlus className="h-3.5 w-3.5 shrink-0" />}
+              onClick={() => setBulkCreateOpen(true)}
+            />
+            <DirectoryAddButton
+              label={t("pages.itemCatalog.importExcel")}
+              variant="infoBadge"
               icon={<FileSpreadsheet className="h-3.5 w-3.5 shrink-0" />}
-              onClick={() => setBulkImportOpen(true)}
+              onClick={() => setExcelImportOpen(true)}
             />
           </div>
         ) : null}
@@ -330,10 +338,13 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
             onOpenChange={setCreateItemOpen}
             showTrigger={false}
           />
+          <ItemCatalogBulkCreateDialog
+            open={bulkCreateOpen}
+            onOpenChange={setBulkCreateOpen}
+          />
           <BulkImportDialog
-            open={bulkImportOpen}
-            onOpenChange={setBulkImportOpen}
-            entityLabel="inventoryItem"
+            open={excelImportOpen}
+            onOpenChange={setExcelImportOpen}
             templateUrl="/api/inventory/bulk-template"
             onPreview={previewBulkImportInventoryItems}
             onConfirm={confirmBulkImportInventoryItems}

@@ -36,6 +36,8 @@ type Props = {
   employees: ProjectStaffEmployee[];
   /** When set, those employees start checked (edit mode). */
   defaultCheckedIds?: Set<string> | string[];
+  /** Prefix hidden field names (e.g. `line.0.`) for bulk create. */
+  namePrefix?: string;
 };
 
 type DepartmentOption = {
@@ -102,7 +104,10 @@ function buildDepartments(
 export default function ProjectStaffPicker({
   employees,
   defaultCheckedIds,
+  namePrefix = "",
 }: Props) {
+  const nameOf = (field: string) =>
+    namePrefix ? `${namePrefix}${field}` : field;
   const { t, locale } = useT();
   const departments = useMemo(
     () => buildDepartments(employees, locale),
@@ -208,7 +213,7 @@ export default function ProjectStaffPicker({
     <div className="space-y-4">
       {/* Persist all selections across department switches */}
       {Array.from(selectedIds).map((id) => (
-        <input key={id} type="hidden" name="employeeIds" value={id} />
+        <input key={id} type="hidden" name={nameOf("employeeIds")} value={id} />
       ))}
 
       <div className="flex items-end justify-between gap-3">

@@ -95,6 +95,25 @@ export const DEFAULT_POSITIONS_BY_CATEGORY_SLUG: Record<
       sortOrder: 20,
     },
     {
+      slug: "security-staff",
+      name: "Security Staff",
+      description: "Client Site Security Crew",
+      sortOrder: 25,
+    },
+    {
+      slug: "parking-staff",
+      name: "Parking Staff",
+      description: "Client Site Parking Crew",
+      sortOrder: 26,
+    },
+    {
+      slug: "area-manager",
+      name: "Area Manager",
+      description:
+        "Manages assigned projects under the Operations Manager",
+      sortOrder: 28,
+    },
+    {
       slug: "operations-manager",
       name: "Operations Manager",
       description: "Field Operations Leadership",
@@ -122,6 +141,19 @@ export function isOperationsManagerPosition(position: {
     slug === "operations-manager" ||
     name === "operations manager" ||
     name === "om"
+  );
+}
+
+export function isAreaManagerPosition(position: {
+  slug?: string | null;
+  name?: string | null;
+}): boolean {
+  const slug = (position.slug ?? "").trim().toLowerCase();
+  const name = (position.name ?? "").trim().toLowerCase();
+  return (
+    slug === "area-manager" ||
+    name === "area manager" ||
+    name === "am"
   );
 }
 
@@ -206,7 +238,10 @@ export function isCrewPickerPosition(position: {
   name?: string | null;
 }): boolean {
   const name = (position.name ?? "").trim().toLowerCase();
-  if (isOperationsManagerPosition(position)) {
+  if (
+    isOperationsManagerPosition(position) ||
+    isAreaManagerPosition(position)
+  ) {
     return false;
   }
   return isCleaningStaffPosition(position) || name.includes("gondola");
@@ -218,7 +253,25 @@ export function isSecurityStaffPosition(position: {
 }): boolean {
   const slug = (position.slug ?? "").trim().toLowerCase();
   const name = (position.name ?? "").trim().toLowerCase();
-  return slug.includes("security") || name.includes("security");
+  return (
+    slug === "security-staff" ||
+    slug.includes("security") ||
+    name === "security staff" ||
+    name.includes("security")
+  );
+}
+
+/** Form default for the Security Deposit checkbox (HO can override). */
+export function defaultSecurityDepositRequired(position: {
+  slug?: string | null;
+  name?: string | null;
+} | null | undefined): boolean {
+  if (!position) return false;
+  return (
+    isCleaningStaffPosition(position) ||
+    isSecurityStaffPosition(position) ||
+    isParkingStaffPosition(position)
+  );
 }
 
 export function isParkingStaffPosition(position: {
@@ -227,7 +280,40 @@ export function isParkingStaffPosition(position: {
 }): boolean {
   const slug = (position.slug ?? "").trim().toLowerCase();
   const name = (position.name ?? "").trim().toLowerCase();
-  return slug.includes("parking") || name.includes("parking");
+  return (
+    slug === "parking-staff" ||
+    slug.includes("parking") ||
+    name === "parking staff" ||
+    name.includes("parking")
+  );
+}
+
+/** One-time / page-load: turn on Security Deposit for site roles that default on. */
+export async function backfillSecurityDepositRequiredForSiteRoles(
+  db: Pick<Prisma.TransactionClient, "employee">,
+  companyId: string
+) {
+  const employees = await db.employee.findMany({
+    where: { companyId, securityDepositRequired: false },
+    select: {
+      id: true,
+      position: true,
+      jobPosition: { select: { slug: true, name: true } },
+    },
+  });
+  const ids = employees
+    .filter((employee) =>
+      defaultSecurityDepositRequired({
+        slug: employee.jobPosition?.slug,
+        name: employee.jobPosition?.name ?? employee.position,
+      })
+    )
+    .map((employee) => employee.id);
+  if (ids.length === 0) return;
+  await db.employee.updateMany({
+    where: { id: { in: ids } },
+    data: { securityDepositRequired: true },
+  });
 }
 
 /** Ensure Corporate / Warehouse / Operations exist, then seed default positions. */

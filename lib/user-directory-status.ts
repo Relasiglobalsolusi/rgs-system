@@ -84,6 +84,12 @@ export type UserDirectoryStatusInput = {
 
     archivedFromDirectory?: boolean;
 
+    employmentType?: string | null;
+
+    placement?: string | null;
+
+    jobPosition?: { slug?: string | null; name?: string | null } | null;
+
   } | null;
 
   client?: { active?: boolean } | null;
@@ -214,6 +220,42 @@ export function isRevokedAccessUser(user: UserDirectoryStatusInput): boolean {
 
 /**
 
+ * Restore Access is only for someone who had a login and then lost it.
+
+ * Part Time only get one while On Project.
+
+ */
+
+export function canRestorePortalAccess(user: UserDirectoryStatusInput): boolean {
+
+  if (!isRevokedAccessUser(user)) return false;
+
+
+
+  const employee = user.employee;
+
+  if (
+
+    employee?.employmentType === "PART_TIME" &&
+
+    employee.placement !== "ON_PROJECT"
+
+  ) {
+
+    return false;
+
+  }
+
+
+
+  return true;
+
+}
+
+
+
+/**
+
  * True soft-deleted login — parent soft-deleted (or unlinked admin deactivated).
 
  * Never includes revoked-only (parent still on roster) or forever-deleted archives.
@@ -231,46 +273,6 @@ export function isSoftDeletedUser(user: UserDirectoryStatusInput): boolean {
   // Unlinked admin / orphan deactivated — Deleted total, not Client/Employee cards.
 
   return !isRevokedAccessUser(user);
-
-}
-
-
-
-export function getUserStatusPresentation(user: UserDirectoryStatusInput): {
-
-  badgeStatus: "active" | "danger";
-
-  label: string;
-
-} {
-
-  if (isPermanentlyRemovedLinkedUser(user)) {
-
-    return { badgeStatus: "danger", label: "Removed" };
-
-  }
-
-
-
-  if (user.active) {
-
-    return { badgeStatus: "active", label: "Active" };
-
-  }
-
-
-
-  if (isRevokedAccessUser(user)) {
-
-    // Same danger/red family as Deleted — disabled access, not a muted slate state.
-
-    return { badgeStatus: "danger", label: "Revoked Access" };
-
-  }
-
-
-
-  return { badgeStatus: "danger", label: "Deleted" };
 
 }
 

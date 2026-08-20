@@ -12,6 +12,7 @@ import ProjectDirectoryActions, {
   type DirectoryReconcileTarget,
 } from "@/components/projects/ProjectDirectoryActions";
 import type { ProjectStaffEmployee } from "@/components/projects/ProjectStaffPicker";
+import type { ProjectTeamOption } from "@/components/projects/ProjectTeamPicker";
 import DataTable, {
   type DataTableColumn,
 } from "@/components/ui/DataTable";
@@ -26,6 +27,7 @@ import {
 } from "@/lib/i18n/labels";
 import type { AppLocale } from "@/lib/i18n/locale";
 import { useT } from "@/lib/i18n/use-t";
+import { isGcFacadeAwaitingPayment } from "@/lib/project-awaiting-payment";
 import { isInternalProjectSubCategory } from "@/lib/project-subcategory";
 import {
   getProjectWorkflowStatusLabel,
@@ -85,6 +87,7 @@ export type ProjectTableProject = {
   requiresTaxInvoice?: boolean;
   clientId: string | null;
   assignments: { employeeId: string }[];
+  operationsTeamLinks?: { teamId: string }[];
   client?: { name: string } | null;
   invoicePeriods: ProjectTablePeriod[];
   _count: { assignments: number; progressReports: number };
@@ -126,6 +129,7 @@ type Props = {
   emptyMessage?: string;
   /** Active staff for Move to In Progress assignment picker. */
   employees?: ProjectStaffEmployee[];
+  teams?: ProjectTeamOption[];
 };
 
 function isPaymentDueRow(
@@ -284,6 +288,7 @@ export default function ProjectTable({
   canOpenBilling = false,
   emptyMessage,
   employees = [],
+  teams = [],
 }: Props) {
   const { t, locale } = useT();
   const resolvedEmptyMessage = emptyMessage ?? t("pages.projects.emptyShow");
@@ -434,13 +439,20 @@ export default function ProjectTable({
           ? `${internalEqual.className} overflow-visible whitespace-nowrap`
           : "min-w-[10rem] overflow-visible whitespace-nowrap",
         render: (row) => {
+          const awaitingPayment = isGcFacadeAwaitingPayment({
+            subCategory: row.project.subCategory,
+            status: row.project.status,
+            billingMode: row.project.billingMode,
+            invoicePeriods: row.project.invoicePeriods,
+          });
           const paymentDue = isPaymentDueRow(row, filterView);
           const englishLabel = getProjectWorkflowStatusLabel({
             status: row.project.status,
             paymentDue,
+            awaitingPayment,
           });
           const label = localizeWorkflowStatus(
-            { status: row.project.status, paymentDue },
+            { status: row.project.status, paymentDue, awaitingPayment },
             locale
           );
           const lines = localizeWorkflowChipLines(englishLabel, locale);
@@ -575,6 +587,7 @@ export default function ProjectTable({
               regularBillingAction={row.regularBillingAction ?? null}
               reconcileTarget={row.reconcileTarget ?? null}
               employees={employees}
+              teams={teams}
             />
           </div>
         ),

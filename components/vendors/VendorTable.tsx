@@ -27,6 +27,7 @@ export type VendorRow = {
   id: string;
   name: string;
   shortCode: string;
+  vendorType?: "COMPANY" | "INDIVIDUAL";
   email: string | null;
   phone: string | null;
   address: string | null;
@@ -258,12 +259,48 @@ export default function VendorTable({
         share: 1.25,
         className: "min-w-[14rem]",
         render: (vendor) => {
+          const isIndividual = vendor.vendorType === "INDIVIDUAL";
+          const primaryContact = getPrimaryContact(vendor);
+
+          if (isIndividual) {
+            const contactName = formatContactPersonName(
+              vendor.contactPersonFirstName,
+              vendor.contactPersonLastName
+            );
+            const vendorName = vendor.name.trim();
+            const showContactName =
+              contactName != null &&
+              contactName.toLowerCase() !== vendorName.toLowerCase();
+
+            if (!showContactName && !primaryContact) {
+              return <span className="text-subtle">—</span>;
+            }
+
+            return (
+              <div className="min-w-0">
+                {showContactName ? (
+                  <p className="text-text">{contactName}</p>
+                ) : null}
+                {primaryContact ? (
+                  <p
+                    className={
+                      showContactName
+                        ? "mt-0.5 text-sm text-subtle"
+                        : "text-text"
+                    }
+                  >
+                    {primaryContact}
+                  </p>
+                ) : null}
+              </div>
+            );
+          }
+
           const contactPersonLabel = formatContactPersonLabel(
             vendor.contactPersonFirstName,
             vendor.contactPersonLastName,
             vendor.contactPersonPosition
           );
-          const primaryContact = getPrimaryContact(vendor);
 
           if (!contactPersonLabel && !primaryContact) {
             return <span className="text-subtle">—</span>;

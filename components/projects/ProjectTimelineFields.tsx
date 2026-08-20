@@ -23,6 +23,8 @@ type ContractProps = {
   onDurationMonthsChange: (value: number) => void;
   /** Planning: estimated contract start; In Progress: real contract start. */
   planning?: boolean;
+  /** Prefix for nested bulk-create field names. */
+  namePrefix?: string;
 };
 
 type StandardProps = {
@@ -33,6 +35,8 @@ type StandardProps = {
   onDurationDaysChange: (value: number) => void;
   /** Planning: estimated job start; In Progress: real job start. */
   planning?: boolean;
+  /** Prefix for nested bulk-create field names. */
+  namePrefix?: string;
 };
 
 type Props = ContractProps | StandardProps;
@@ -43,8 +47,11 @@ function ContractTimelineFields({
   onStartDateChange,
   onDurationMonthsChange,
   planning,
+  namePrefix = "",
 }: Omit<ContractProps, "mode">) {
   const { t } = useT();
+  const nameOf = (field: string) =>
+    namePrefix ? `${namePrefix}${field}` : field;
   const endDate = addMonthsToDateInput(startDate, durationMonths);
   const startLabel = t("pages.projects.timelineFields.contractStart");
   const endLabel = t("pages.projects.timelineFields.contractEnd");
@@ -75,7 +82,7 @@ function ContractTimelineFields({
             </p>
           ) : null}
           <Input
-            name={planning ? "estimatedStartDate" : "startDate"}
+            name={nameOf(planning ? "estimatedStartDate" : "startDate")}
             type="date"
             required
             value={startDate}
@@ -151,7 +158,7 @@ function ContractTimelineFields({
             className={cn(employeeInputClass, "cursor-not-allowed opacity-80")}
           />
           {/* Planned/real end for server — duration-derived. */}
-          <input type="hidden" name="endDate" value={endDate} />
+          <input type="hidden" name={nameOf("endDate")} value={endDate} />
         </div>
       </div>
     </div>
@@ -164,8 +171,11 @@ function StandardTimelineFields({
   onStartDateChange,
   onDurationDaysChange,
   planning,
+  namePrefix = "",
 }: Omit<StandardProps, "mode">) {
   const { t } = useT();
+  const nameOf = (field: string) =>
+    namePrefix ? `${namePrefix}${field}` : field;
   const safeDays = clampProjectDurationDays(durationDays);
   const endDate = addDaysToDateInput(startDate, safeDays);
   const startLabel = planning
@@ -183,7 +193,7 @@ function StandardTimelineFields({
           </p>
         ) : null}
         <Input
-          name={planning ? "estimatedStartDate" : "startDate"}
+          name={nameOf(planning ? "estimatedStartDate" : "startDate")}
           type="date"
           required
           value={startDate}
@@ -228,7 +238,7 @@ function StandardTimelineFields({
             {t("pages.projects.timelineFields.daysUnit")}
           </span>
         </div>
-        <input type="hidden" name="durationDays" value={safeDays} />
+        <input type="hidden" name={nameOf("durationDays")} value={safeDays} />
       </div>
 
       <div className={employeeDialogFieldClass}>
@@ -245,7 +255,7 @@ function StandardTimelineFields({
           tabIndex={-1}
           className={cn(employeeInputClass, "cursor-not-allowed opacity-80")}
         />
-        <input type="hidden" name="endDate" value={endDate} />
+        <input type="hidden" name={nameOf("endDate")} value={endDate} />
       </div>
     </div>
   );
@@ -260,6 +270,7 @@ export default function ProjectTimelineFields(props: Props) {
         onStartDateChange={props.onStartDateChange}
         onDurationMonthsChange={props.onDurationMonthsChange}
         planning={props.planning}
+        namePrefix={props.namePrefix}
       />
     );
   }
@@ -271,6 +282,7 @@ export default function ProjectTimelineFields(props: Props) {
       onStartDateChange={props.onStartDateChange}
       onDurationDaysChange={props.onDurationDaysChange}
       planning={props.planning}
+      namePrefix={props.namePrefix}
     />
   );
 }

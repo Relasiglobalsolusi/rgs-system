@@ -1,15 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { FileSpreadsheet } from "lucide-react";
+import { ListPlus } from "lucide-react";
 
-import {
-  confirmBulkImportProjects,
-  previewBulkImportProjects,
-} from "@/app/projects/import-actions";
-import BulkImportDialog from "@/components/bulk-import/BulkImportDialog";
+import ProjectBulkCreateDialog from "@/components/projects/ProjectBulkCreateDialog";
 import ProjectDialog from "@/components/projects/ProjectDialog";
 import type { ProjectStaffEmployee } from "@/components/projects/ProjectStaffPicker";
+import type { ProjectTeamOption } from "@/components/projects/ProjectTeamPicker";
 import DirectoryAddButton from "@/components/ui/DirectoryAddButton";
 import { useT } from "@/lib/i18n/use-t";
 
@@ -22,19 +19,22 @@ type ClientOption = {
 
 type Props = {
   employees: ProjectStaffEmployee[];
+  teams?: ProjectTeamOption[];
   clients: ClientOption[];
 };
 
-const PROJECT_TEMPLATE_URL = "/api/projects/bulk-template";
-
 /**
  * Top-right Add Project / Add Bulk chips + dialogs
- * (Clients/Employees directory pattern).
+ * (Clients/Vendors directory pattern).
  */
-export default function ProjectAddControl({ employees, clients }: Props) {
+export default function ProjectAddControl({
+  employees,
+  teams = [],
+  clients,
+}: Props) {
   const { t } = useT();
   const [createOpen, setCreateOpen] = useState(false);
-  const [bulkImportOpen, setBulkImportOpen] = useState(false);
+  const [bulkCreateOpen, setBulkCreateOpen] = useState(false);
 
   return (
     <>
@@ -46,26 +46,26 @@ export default function ProjectAddControl({ employees, clients }: Props) {
         <DirectoryAddButton
           label={t("common.actions.addBulk")}
           variant="infoBadge"
-          icon={<FileSpreadsheet className="h-3.5 w-3.5 shrink-0" />}
-          onClick={() => setBulkImportOpen(true)}
+          icon={<ListPlus className="h-3.5 w-3.5 shrink-0" />}
+          onClick={() => setBulkCreateOpen(true)}
         />
       </div>
 
       <ProjectDialog
         employees={employees}
+        teams={teams}
         clients={clients}
         open={createOpen}
         onOpenChange={setCreateOpen}
         showTrigger={false}
       />
 
-      <BulkImportDialog
-        open={bulkImportOpen}
-        onOpenChange={setBulkImportOpen}
-        entityLabel="project"
-        templateUrl={PROJECT_TEMPLATE_URL}
-        onPreview={previewBulkImportProjects}
-        onConfirm={confirmBulkImportProjects}
+      <ProjectBulkCreateDialog
+        open={bulkCreateOpen}
+        onOpenChange={setBulkCreateOpen}
+        employees={employees}
+        teams={teams}
+        clients={clients}
       />
     </>
   );

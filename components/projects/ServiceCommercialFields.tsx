@@ -17,11 +17,19 @@ type Props = {
     setupCost?: number | null;
     profitSharePercent?: number | null;
     monthlyClientFee?: number | null;
+    memberParkingUnitFee?: number | null;
+    memberParkingUnitCount?: number | null;
+    parkingTaxPercent?: number | null;
     serviceFeePercent?: number | null;
     paymentTermsDays?: number | null;
+    payrollCutoffStartDay?: number | null;
+    payrollCutoffEndDay?: number | null;
+    payrollTaxPercent?: number | null;
   };
   /** Default payment terms when creating payroll (from selected client). */
   clientPaymentTermsDays?: number | null;
+  /** Prefix field names (e.g. `line.0.`) for bulk create. */
+  namePrefix?: string;
 };
 
 function moneyDefault(value: number | null | undefined): string {
@@ -38,8 +46,11 @@ export default function ServiceCommercialFields({
   subCategory,
   defaults,
   clientPaymentTermsDays,
+  namePrefix = "",
 }: Props) {
   const { t } = useT();
+  const nameOf = (field: string) =>
+    namePrefix ? `${namePrefix}${field}` : field;
 
   if (subCategory === "SECURITY") {
     return (
@@ -48,7 +59,7 @@ export default function ServiceCommercialFields({
           {t("pages.projects.serviceCommercial.monthlyFee")}
         </label>
         <Input
-          name="contractPrice"
+          name={nameOf("contractPrice")}
           type="number"
           min={0}
           step="1"
@@ -72,7 +83,7 @@ export default function ServiceCommercialFields({
             {t("pages.projects.serviceCommercial.setupCost")}
           </label>
           <Input
-            name="setupCost"
+            name={nameOf("setupCost")}
             type="number"
             min={0}
             step="1"
@@ -89,7 +100,7 @@ export default function ServiceCommercialFields({
             {t("pages.projects.serviceCommercial.profitSharePercent")}
           </label>
           <Input
-            name="profitSharePercent"
+            name={nameOf("profitSharePercent")}
             type="number"
             min={0}
             max={100}
@@ -107,7 +118,7 @@ export default function ServiceCommercialFields({
             {t("pages.projects.serviceCommercial.monthlyClientFee")}
           </label>
           <Input
-            name="monthlyClientFee"
+            name={nameOf("monthlyClientFee")}
             type="number"
             min={0}
             step="1"
@@ -117,6 +128,61 @@ export default function ServiceCommercialFields({
           />
           <p className={employeeDialogHintClass}>
             {t("pages.projects.serviceCommercial.monthlyClientFeeHint")}
+          </p>
+        </div>
+        <div className={employeeDialogFieldClass}>
+          <label className="text-sm font-medium text-text">
+            {t("pages.projects.serviceCommercial.memberParkingUnitFee")}
+          </label>
+          <Input
+            name={nameOf("memberParkingUnitFee")}
+            type="number"
+            min={0}
+            step="1"
+            defaultValue={moneyDefault(defaults?.memberParkingUnitFee)}
+            placeholder="10000"
+            className={employeeInputClass}
+          />
+          <p className={employeeDialogHintClass}>
+            {t("pages.projects.serviceCommercial.memberParkingUnitFeeHint")}
+          </p>
+        </div>
+        <div className={employeeDialogFieldClass}>
+          <label className="text-sm font-medium text-text">
+            {t("pages.projects.serviceCommercial.memberParkingUnitCount")}
+          </label>
+          <Input
+            name={nameOf("memberParkingUnitCount")}
+            type="number"
+            min={0}
+            step="1"
+            defaultValue={
+              defaults?.memberParkingUnitCount != null
+                ? String(defaults.memberParkingUnitCount)
+                : ""
+            }
+            placeholder="0"
+            className={employeeInputClass}
+          />
+          <p className={employeeDialogHintClass}>
+            {t("pages.projects.serviceCommercial.memberParkingUnitCountHint")}
+          </p>
+        </div>
+        <div className={employeeDialogFieldClass}>
+          <label className="text-sm font-medium text-text">
+            {t("pages.projects.serviceCommercial.parkingTaxPercent")}
+          </label>
+          <Input
+            name={nameOf("parkingTaxPercent")}
+            type="number"
+            min={0}
+            max={100}
+            step="0.01"
+            defaultValue={percentDefault(defaults?.parkingTaxPercent ?? 10)}
+            className={employeeInputClass}
+          />
+          <p className={employeeDialogHintClass}>
+            {t("pages.projects.serviceCommercial.parkingTaxPercentHint")}
           </p>
         </div>
       </div>
@@ -147,14 +213,14 @@ export default function ServiceCommercialFields({
             {t("pages.projects.serviceCommercial.serviceFeePercent")}
           </label>
           <Input
-            name="serviceFeePercent"
+            name={nameOf("serviceFeePercent")}
             type="number"
             min={0}
             max={100}
             step="0.01"
             required
             defaultValue={percentDefault(defaults?.serviceFeePercent)}
-            placeholder="6"
+            placeholder=""
             className={employeeInputClass}
           />
           <p className={employeeDialogHintClass}>
@@ -163,10 +229,27 @@ export default function ServiceCommercialFields({
         </div>
         <div className={employeeDialogFieldClass}>
           <label className="text-sm font-medium text-text">
+            {t("pages.projects.serviceCommercial.payrollTaxPercent")}
+          </label>
+          <Input
+            name={nameOf("payrollTaxPercent")}
+            type="number"
+            min={0}
+            max={100}
+            step="0.01"
+            defaultValue={percentDefault(defaults?.payrollTaxPercent ?? 11)}
+            className={employeeInputClass}
+          />
+          <p className={employeeDialogHintClass}>
+            {t("pages.projects.serviceCommercial.payrollTaxPercentHint")}
+          </p>
+        </div>
+        <div className={employeeDialogFieldClass}>
+          <label className="text-sm font-medium text-text">
             {t("pages.projects.serviceCommercial.paymentTermsDays")}
           </label>
           <select
-            name="paymentTermsDays"
+            name={nameOf("paymentTermsDays")}
             defaultValue={String(termsDefault)}
             className={employeeInputClass}
           >
@@ -182,6 +265,27 @@ export default function ServiceCommercialFields({
             {t("pages.projects.serviceCommercial.paymentTermsDaysHint")}
           </p>
         </div>
+        <div className={employeeDialogFieldClass}>
+          <label className="text-sm font-medium text-text">
+            {t("pages.projects.serviceCommercial.payrollCutoffEndDay")}
+          </label>
+          <Input
+            name={nameOf("payrollCutoffEndDay")}
+            type="number"
+            min={1}
+            max={31}
+            required
+            defaultValue={
+              defaults?.payrollCutoffEndDay != null
+                ? String(defaults.payrollCutoffEndDay)
+                : ""
+            }
+            className={employeeInputClass}
+          />
+        </div>
+        <p className={employeeDialogHintClass}>
+          {t("pages.projects.serviceCommercial.payrollCutoffHint")}
+        </p>
       </div>
     );
   }

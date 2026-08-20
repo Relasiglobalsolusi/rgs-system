@@ -1,13 +1,13 @@
 import { notFound } from "next/navigation";
 
 import { prisma } from "@/lib/prisma";
+import { getProjectWhereForUser } from "@/lib/project-access";
 import { requireModule, toPermissionUser } from "@/lib/session";
 import { canAccess } from "@/lib/permissions";
 import { isPlanningProjectStatus } from "@/lib/project-status";
 import { getMostUrgentUnpaidPeriod } from "@/lib/billing";
 import {
   decimalToNumber,
-  formatContractPrice,
   formatProjectTitle,
   usesInvoicePeriods,
 } from "@/lib/project-billing";
@@ -18,17 +18,24 @@ import {
   syncDueMonthlyInvoicesOnLoad,
   syncProjectMonthlyPeriods,
 } from "@/app/projects/invoice-actions";
+import { computeParkingMonthEconomics } from "@/lib/parking-economics";
+import { getPayrollManagementWorkspace } from "@/app/billing/payroll-management-actions";
+import { jakartaYearMonth } from "@/lib/vat";
 
 import AppShell from "@/components/layout/AppShell";
 import BillingBreadcrumbs from "@/components/billing/BillingBreadcrumbs";
+import ParkingWorkspace from "@/components/billing/ParkingWorkspace";
+import PayrollManagementWorkspace from "@/components/billing/PayrollManagementWorkspace";
 import ProjectBillingPanel from "@/components/billing/ProjectBillingPanel";
 import BackLink from "@/components/ui/BackLink";
 import SectionCard from "@/components/ui/SectionCard";
 
 export default async function BillingProjectPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ clientId: string; projectId: string }>;
+  searchParams?: Promise<{ year?: string; month?: string }>;
 }) {
   const session = await requireModule("invoicing");
   const locale = await getServerLocale();
@@ -42,10 +49,17 @@ export default async function BillingProjectPage({
     notFound();
   }
 
+  const projectWhere = await getProjectWhereForUser({
+    companyId: session.user.companyId,
+    clientId: session.user.clientId,
+    userId: session.user.id,
+    username: session.user.username,
+  });
+
   const project = await prisma.project.findFirst({
     where: {
       id: projectId,
-      companyId: session.user.companyId,
+      ...projectWhere,
       clientId: session.user.clientId ?? clientId,
     },
     include: {
@@ -60,6 +74,8 @@ export default async function BillingProjectPage({
   });
 
   if (!project || !project.client) notFound();
+  const billingClient = project.client;
+  const billingClientId = billingClient.id;
 
   const inPlanning = isPlanningProjectStatus(project.status);
   const pageTitle = formatProjectTitle(project.name, null, locale);
@@ -102,21 +118,13 @@ export default async function BillingProjectPage({
     );
   }
 
-  // Parking / Payroll Management: commercial terms only — never sync periods.
   // Security uses Regular-like monthly periods (`opensPeriods` / usesInvoicePeriods).
-  //
-  // Parking deferred: manual monthly revenue entry + net profit =
-  //   revenue − ALL project outflows (owner profit-share, lease, setup, purchases,
-  //   wages, etc. — no special exclusions). Hook: this stub when subCategory === PARKING.
-  //
-  // Payroll Management deferred pay-then-bill: client wages → RGS fronts (cost) →
-  // bill wage bill + management fee % (`serviceFeePercent`, RGS profit only).
+  // Parking and Payroll Management have dedicated workspaces (no invoice-period loop).
   if (!opensPeriods) {
-    const monthlyFee = decimalToNumber(project.contractPrice);
-    const setupCost = decimalToNumber(project.setupCost);
-    const profitShare = decimalToNumber(project.profitSharePercent);
-    const monthlyClientFee = decimalToNumber(project.monthlyClientFee);
-    const serviceFee = decimalToNumber(project.serviceFeePercent);
+    const paramsYm = searchParams ? await searchParams : {};
+    const nowYm = jakartaYearMonth();
+    const year = Math.max(2000, Math.min(2100, Number(paramsYm.year) || nowYm.year));
+    const month = Math.max(1, Math.min(12, Number(paramsYm.month) || nowYm.month));
 
     return (
       <AppShell
@@ -133,92 +141,137 @@ export default async function BillingProjectPage({
 
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-subtle">
-            {t("pages.projects.detail.serviceBillingNote")}
+            {project.subCategory === "PARKING"
+              ? t("pages.billing.parking.workspaceHint")
+              : t("pages.billing.payrollMgmt.workspaceHint")}
           </p>
           <BackLink href={`/projects/${project.id}`} direction="forward">
             {t("pages.billing.projectDetails")}
           </BackLink>
         </div>
 
-        <SectionCard>
-          <h3 className="mb-4 text-lg font-semibold text-text">
-            {t("pages.billing.serviceCommercialTitle")}
-          </h3>
-          <dl
-            className={
-              project.subCategory === "PARKING"
-                ? "grid gap-4 text-sm sm:grid-cols-3"
-                : project.subCategory === "PAYROLL_MANAGEMENT"
-                  ? "grid gap-4 text-sm sm:grid-cols-2"
-                  : "grid gap-4 text-sm"
+        {project.subCategory === "PARKING" ? (
+          await (async () => {
+            const economics = await computeParkingMonthEconomics({
+              companyId: session.user.companyId,
+              projectId: project.id,
+              year,
+              month,
+            });
+            if (!economics) {
+              return (
+                <SectionCard>
+                  <p className="text-sm text-muted">
+                    {t("pages.billing.parking.unavailable")}
+                  </p>
+                </SectionCard>
+              );
             }
-          >
-            {project.subCategory === "SECURITY" ? (
-              <div>
-                <dt className="text-subtle">
-                  {t("pages.projects.serviceCommercial.monthlyFee")}
-                </dt>
-                <dd className="mt-1 font-medium text-text">
-                  {formatContractPrice(monthlyFee)}
-                </dd>
+            return (
+              <ParkingWorkspace
+                projectId={project.id}
+                clientId={billingClientId}
+                year={year}
+                month={month}
+                canManage={canManage}
+                economics={economics}
+              />
+            );
+          })()
+        ) : (
+          await (async () => {
+            const workspace = await getPayrollManagementWorkspace(
+              project.id,
+              year,
+              month
+            );
+            if (!workspace) {
+              return (
+                <SectionCard>
+                  <p className="text-sm text-muted">
+                    {t("pages.billing.payrollMgmt.unavailable")}
+                  </p>
+                </SectionCard>
+              );
+            }
+            return (
+              <div className="space-y-6">
+                <PayrollManagementWorkspace
+                  projectId={project.id}
+                  clientId={billingClientId}
+                  year={year}
+                  month={month}
+                  canManage={canManage}
+                  canUnlock={workspace.canUnlock}
+                  serviceFeePercent={workspace.serviceFeePercent}
+                  taxPercent={workspace.taxPercent}
+                  paymentTermsDays={workspace.paymentTermsDays}
+                  cutoffStartDay={workspace.cutoffStartDay}
+                  cutoffEndDay={workspace.cutoffEndDay}
+                  cutoffLabel={workspace.cutoffLabel}
+                  review={workspace.review}
+                  lock={workspace.lock}
+                  period={workspace.period}
+                />
+                {project.invoicePeriods.length > 0 ? (
+                  <SectionCard>
+                    <ProjectBillingPanel
+                      projectId={project.id}
+                      projectName={project.name}
+                      billingMode={project.billingMode}
+                      billingPeriodBasis={project.billingPeriodBasis}
+                      billingCycleStartDay={project.billingCycleStartDay}
+                      billingCycleEndDay={project.billingCycleEndDay}
+                      contractPrice={decimalToNumber(project.contractPrice)}
+                      invoicingDay={project.invoicingDay}
+                      startDate={project.startDate?.toISOString() ?? null}
+                      paymentTermsDays={billingClient.paymentTermsDays}
+                      canManage={canManage}
+                      isClientPortal={Boolean(session.user.clientId)}
+                      subCategory={project.subCategory}
+                      contractExtensions={project.contractExtensions.map(
+                        (row) => ({
+                          id: row.id,
+                          extendedOn: row.extendedOn.toISOString(),
+                          previousEndDate: row.previousEndDate.toISOString(),
+                          newEndDate: row.newEndDate.toISOString(),
+                          proofUrl: row.proofUrl,
+                          notes: row.notes,
+                        })
+                      )}
+                      periods={project.invoicePeriods.map((p) => ({
+                        id: p.id,
+                        label: p.label,
+                        periodStart: p.periodStart.toISOString(),
+                        periodEnd: p.periodEnd.toISOString(),
+                        status: p.status,
+                        invoicePdfPath: p.invoicePdfPath,
+                        reportCount: p.reportCount,
+                        submittedAt: p.submittedAt?.toISOString() ?? null,
+                        dueAt: p.dueAt?.toISOString() ?? null,
+                        paidAt: p.paidAt?.toISOString() ?? null,
+                        amount: decimalToNumber(p.amount),
+                        milestonePercent: p.milestonePercent,
+                        compileNote: p.compileNote,
+                        taxInvoiceRequired: p.taxInvoiceRequired,
+                        taxInvoiceDoneAt: p.taxInvoiceDoneAt?.toISOString() ?? null,
+                        taxInvoiceDocumentPath: p.taxInvoiceDocumentPath,
+                        paymentProofPath: p.paymentProofPath,
+                        paymentProofUploadedAt:
+                          p.paymentProofUploadedAt?.toISOString() ?? null,
+                        reconciledAt: p.reconciledAt?.toISOString() ?? null,
+                        clientReviewStatus: p.clientReviewStatus,
+                        reviewReportPdfPath: p.reviewReportPdfPath,
+                        hoReviewNote: p.hoReviewNote,
+                        hoReviewProofPath: p.hoReviewProofPath,
+                      }))}
+                    />
+                  </SectionCard>
+                ) : null}
               </div>
-            ) : null}
-            {project.subCategory === "PARKING" ? (
-              <>
-                <div>
-                  <dt className="text-subtle">
-                    {t("pages.projects.serviceCommercial.setupCost")}
-                  </dt>
-                  <dd className="mt-1 font-medium text-text">
-                    {formatContractPrice(setupCost)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-subtle">
-                    {t("pages.projects.serviceCommercial.profitSharePercent")}
-                  </dt>
-                  <dd className="mt-1 font-medium text-text">
-                    {profitShare != null ? `${profitShare}%` : "—"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-subtle">
-                    {t("pages.projects.serviceCommercial.monthlyClientFee")}
-                  </dt>
-                  <dd className="mt-1 font-medium text-text">
-                    {formatContractPrice(monthlyClientFee)}
-                  </dd>
-                </div>
-              </>
-            ) : null}
-            {project.subCategory === "PAYROLL_MANAGEMENT" ? (
-              <>
-                <div>
-                  <dt className="text-subtle">
-                    {t("pages.projects.serviceCommercial.serviceFeePercent")}
-                  </dt>
-                  <dd className="mt-1 font-medium text-text">
-                    {serviceFee != null ? `${serviceFee}%` : "—"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-subtle">
-                    {t("pages.projects.serviceCommercial.paymentTermsDays")}
-                  </dt>
-                  <dd className="mt-1 font-medium text-text">
-                    {project.paymentTermsDays === 0
-                      ? t("common.paymentTerms.cashShort")
-                      : project.paymentTermsDays != null
-                        ? t("common.paymentTerms.netShort", {
-                            days: project.paymentTermsDays,
-                          })
-                        : "—"}
-                  </dd>
-                </div>
-              </>
-            ) : null}
-          </dl>
-        </SectionCard>
+            );
+          })()
+        )}
       </AppShell>
     );
   }
@@ -284,7 +337,16 @@ export default async function BillingProjectPage({
           projectId={project.id}
           projectName={project.name}
           billingMode={project.billingMode}
-          billingPeriodBasis={project.billingPeriodBasis}
+          billingPeriodBasis={
+            refreshedProject?.billingPeriodBasis ?? project.billingPeriodBasis
+          }
+          billingCycleStartDay={
+            refreshedProject?.billingCycleStartDay ??
+            project.billingCycleStartDay
+          }
+          billingCycleEndDay={
+            refreshedProject?.billingCycleEndDay ?? project.billingCycleEndDay
+          }
           contractPrice={contractPriceNum}
           invoicingDay={invoicingDay}
           startDate={startDateIso}

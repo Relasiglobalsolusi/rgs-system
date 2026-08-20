@@ -54,24 +54,6 @@ function formatRowRejectionReasons(
   );
 }
 
-type BulkImportEntityLabel =
-  | "client"
-  | "vendor"
-  | "employee"
-  | "project"
-  | "inventoryItem";
-
-type Props = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  entityLabel: BulkImportEntityLabel;
-  templateUrl: string;
-  onPreview: (formData: FormData) => Promise<BulkImportPreview>;
-  onConfirm: (formData: FormData) => Promise<BulkImportResult>;
-  /** Extra fields appended to preview/confirm FormData (e.g. forceEmploymentType). */
-  extraFormFields?: Record<string, string>;
-};
-
 function statusLabel(
   status: BulkImportPreviewStatus,
   t: (key: string) => string
@@ -101,48 +83,12 @@ function statusClass(status: BulkImportPreviewStatus) {
   }
 }
 
-function primaryField(entityLabel: BulkImportEntityLabel, row: BulkImportPreviewRow) {
-  if (entityLabel === "client") {
-    return row.fields["Client Name"] ?? "—";
-  }
-  if (entityLabel === "vendor") {
-    return row.fields["Vendor Name"] ?? "—";
-  }
-  if (entityLabel === "project") {
-    return row.fields["Project Name"] ?? "—";
-  }
-  if (entityLabel === "inventoryItem") {
-    return row.fields["Item Name"] ?? "—";
-  }
-  return row.fields.Name ?? "—";
+function primaryField(row: BulkImportPreviewRow) {
+  return row.fields["Item Name"] ?? "—";
 }
 
-function secondaryField(entityLabel: BulkImportEntityLabel, row: BulkImportPreviewRow) {
-  if (entityLabel === "client" || entityLabel === "vendor") {
-    return [
-      row.fields["Contact person"],
-      row.fields["Contact Person Email"] ?? row.fields["Contact email"],
-      row.fields["Company Phone"] ?? row.fields["Company phone"],
-    ]
-      .filter((value) => value && value !== "—")
-      .join(" · ");
-  }
-  if (entityLabel === "project") {
-    return [
-      row.fields.Client,
-      row.fields.Subcategory,
-      row.fields.Stage,
-      row.fields["Tax Invoice"],
-    ]
-      .filter((value) => value && value !== "—")
-      .join(" · ");
-  }
-  if (entityLabel === "inventoryItem") {
-    return [row.fields["Item Type"], row.fields.Description]
-      .filter((value) => value && value !== "—")
-      .join(" · ");
-  }
-  return [row.fields.Department, row.fields.Scope, row.fields.Position]
+function secondaryField(row: BulkImportPreviewRow) {
+  return [row.fields["Item Type"], row.fields.Description]
     .filter((value) => value && value !== "—")
     .join(" · ");
 }
@@ -175,126 +121,73 @@ function IssueList({
   );
 }
 
-function isImportablePreviewRow(row: BulkImportPreviewRow) {
-  return row.status === "ready" || row.status === "warning";
-}
-
-function isIndividualClientPreviewRow(row: BulkImportPreviewRow) {
-  const clientType = (row.fields["Client Type"] ?? "").trim().toLowerCase();
-  return (
-    clientType === "individual" ||
-    clientType === "perorangan" ||
-    clientType === "person"
-  );
-}
-
 function PreviewList({
-  entityLabel,
   preview,
   t,
-  taxIdDocuments,
-  onTaxIdDocumentChange,
-  pending,
 }: {
-  entityLabel: BulkImportEntityLabel;
   preview: BulkImportPreview;
   t: (key: string, params?: Record<string, string | number>) => string;
-  taxIdDocuments?: Record<number, File>;
-  onTaxIdDocumentChange?: (rowNumber: number, file: File | null) => void;
-  pending?: boolean;
 }) {
-  const requireTaxIdDocuments =
-    (entityLabel === "client" || entityLabel === "vendor") &&
-    Boolean(onTaxIdDocumentChange);
-
   return (
     <div className="flex max-h-[22rem] flex-col gap-2 overflow-y-auto pr-1">
-      {preview.rows.map((row) => {
-        const needsDocument =
-          requireTaxIdDocuments && isImportablePreviewRow(row);
-        const selectedFile = taxIdDocuments?.[row.rowNumber];
-        const individual = isIndividualClientPreviewRow(row);
-        const uploadLabel = individual
-          ? t("bulkImport.uploadTaxIdDocumentIndividual")
-          : t("bulkImport.uploadTaxIdDocumentCompany");
-
-        return (
-          <div
-            key={`${row.rowNumber}-${row.status}-${primaryField(entityLabel, row)}`}
-            className="rounded-xl border border-border bg-elevated px-3.5 py-3"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 space-y-1">
-                <p className="truncate text-sm font-medium text-text">
-                  {t("bulkImport.rowLabel", {
-                    row: row.rowNumber,
-                    name: primaryField(entityLabel, row),
-                  })}
+      {preview.rows.map((row) => (
+        <div
+          key={`${row.rowNumber}-${row.status}-${primaryField(row)}`}
+          className="rounded-xl border border-border bg-elevated px-3.5 py-3"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 space-y-1">
+              <p className="truncate text-sm font-medium text-text">
+                {t("bulkImport.rowLabel", {
+                  row: row.rowNumber,
+                  name: primaryField(row),
+                })}
+              </p>
+              <p className="truncate text-xs leading-5 text-muted">
+                {secondaryField(row) || t("bulkImport.noExtraDetails")}
+              </p>
+              {row.message ? (
+                <p
+                  className={cn(
+                    "text-xs leading-5",
+                    row.status === "warning"
+                      ? "text-amber-200/90"
+                      : "text-muted"
+                  )}
+                >
+                  {row.message}
                 </p>
-                <p className="truncate text-xs leading-5 text-muted">
-                  {secondaryField(entityLabel, row) ||
-                    t("bulkImport.noExtraDetails")}
-                </p>
-                {row.message ? (
-                  <p
-                    className={cn(
-                      "text-xs leading-5",
-                      row.status === "warning"
-                        ? "text-amber-200/90"
-                        : "text-muted"
-                    )}
-                  >
-                    {row.message}
-                  </p>
-                ) : null}
-              </div>
-              <span
-                className={cn(
-                  "shrink-0 rounded-md px-2 py-1 text-[11px] font-medium ring-1 ring-inset",
-                  statusClass(row.status)
-                )}
-              >
-                {statusLabel(row.status, t)}
-              </span>
+              ) : null}
             </div>
-
-            {needsDocument ? (
-              <div className="mt-3 border-t border-border pt-3">
-                <label className="block text-xs font-medium text-text">
-                  {uploadLabel}
-                </label>
-                <input
-                  type="file"
-                  accept="image/*,.pdf"
-                  disabled={pending}
-                  className="mt-1.5 block w-full text-xs text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-primary/15 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-primary"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0] ?? null;
-                    onTaxIdDocumentChange?.(row.rowNumber, file);
-                  }}
-                />
-                <p className="mt-1 text-xs leading-5 text-muted">
-                  {selectedFile
-                    ? selectedFile.name
-                    : t("bulkImport.taxIdDocumentRequiredHint")}
-                </p>
-              </div>
-            ) : null}
+            <span
+              className={cn(
+                "shrink-0 rounded-md px-2 py-1 text-[11px] font-medium ring-1 ring-inset",
+                statusClass(row.status)
+              )}
+            >
+              {statusLabel(row.status, t)}
+            </span>
           </div>
-        );
-      })}
+        </div>
+      ))}
     </div>
   );
 }
 
+type Props = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  templateUrl: string;
+  onPreview: (formData: FormData) => Promise<BulkImportPreview>;
+  onConfirm: (formData: FormData) => Promise<BulkImportResult>;
+};
+
 export default function BulkImportDialog({
   open,
   onOpenChange,
-  entityLabel,
   templateUrl,
   onPreview,
   onConfirm,
-  extraFormFields,
 }: Props) {
   const { t } = useT();
   const locale = useLocale();
@@ -305,21 +198,14 @@ export default function BulkImportDialog({
   const [preview, setPreview] = useState<BulkImportPreview | null>(null);
   const [lastResult, setLastResult] = useState<BulkImportResult | null>(null);
   const [busyAction, setBusyAction] = useState<BulkImportBusyAction>(null);
-  const [taxIdDocuments, setTaxIdDocuments] = useState<Record<number, File>>(
-    {}
-  );
 
   const pending = busyAction !== null;
-  const requiresTaxIdDocuments =
-    entityLabel === "client" || entityLabel === "vendor";
-  const importableTaxIdRows =
-    requiresTaxIdDocuments && preview
-      ? preview.rows.filter(isImportablePreviewRow)
-      : [];
-  const allTaxIdDocumentsReady =
-    !requiresTaxIdDocuments ||
-    importableTaxIdRows.length === 0 ||
-    importableTaxIdRows.every((row) => Boolean(taxIdDocuments[row.rowNumber]));
+  const plural = t("pages.itemCatalog.title").toLowerCase();
+  const step: "upload" | "preview" | "done" = lastResult
+    ? "done"
+    : preview
+      ? "preview"
+      : "upload";
 
   function clearFileInput() {
     if (inputRef.current) {
@@ -327,39 +213,12 @@ export default function BulkImportDialog({
     }
   }
 
-  const plural =
-    entityLabel === "client"
-      ? t("pages.clients.title").toLowerCase()
-      : entityLabel === "vendor"
-        ? t("pages.vendors.title").toLowerCase()
-        : entityLabel === "project"
-          ? t("pages.projects.title").toLowerCase()
-          : entityLabel === "inventoryItem"
-            ? t("pages.itemCatalog.title").toLowerCase()
-            : t("pages.employees.title").toLowerCase();
-  const title =
-    entityLabel === "client"
-      ? t("bulkImport.clientsTitle")
-      : entityLabel === "vendor"
-        ? t("bulkImport.vendorsTitle")
-        : entityLabel === "project"
-          ? t("bulkImport.projectsTitle")
-          : entityLabel === "inventoryItem"
-            ? t("bulkImport.inventoryItemsTitle")
-            : t("bulkImport.employeesTitle");
-  const step: "upload" | "preview" | "done" = lastResult
-    ? "done"
-    : preview
-      ? "preview"
-      : "upload";
-
   function resetState() {
     setFile(null);
     setDragActive(false);
     setPreview(null);
     setLastResult(null);
     setBusyAction(null);
-    setTaxIdDocuments({});
     setFileInputKey((key) => key + 1);
     clearFileInput();
   }
@@ -368,19 +227,8 @@ export default function BulkImportDialog({
     setPreview(null);
     setLastResult(null);
     setBusyAction(null);
-    setTaxIdDocuments({});
     setFileInputKey((key) => key + 1);
     clearFileInput();
-  }
-
-  function handleTaxIdDocumentChange(rowNumber: number, next: File | null) {
-    setTaxIdDocuments((current) => {
-      if (!next) {
-        const { [rowNumber]: _removed, ...rest } = current;
-        return rest;
-      }
-      return { ...current, [rowNumber]: next };
-    });
   }
 
   useEffect(() => {
@@ -411,7 +259,6 @@ export default function BulkImportDialog({
     setPreview(null);
     setLastResult(null);
     setBusyAction(null);
-    setTaxIdDocuments({});
     clearFileInput();
   }
 
@@ -456,16 +303,7 @@ export default function BulkImportDialog({
         const disposition = response.headers.get("Content-Disposition") ?? "";
         const matched = /filename="([^"]+)"/i.exec(disposition);
         const filename =
-          matched?.[1] ??
-          (entityLabel === "client"
-            ? "rgs-clients-import-template.xlsx"
-            : entityLabel === "vendor"
-              ? "rgs-vendors-import-template.xlsx"
-              : entityLabel === "project"
-                ? "rgs-projects-import-template.xlsx"
-                : entityLabel === "inventoryItem"
-                  ? "rgs-inventory-items-import-template.xlsx"
-                  : "rgs-employees-import-template.xlsx");
+          matched?.[1] ?? "rgs-inventory-items-import-template.xlsx";
 
         const objectUrl = URL.createObjectURL(blob);
         const link = document.createElement("a");
@@ -487,13 +325,6 @@ export default function BulkImportDialog({
     })();
   }
 
-  function appendExtraFormFields(formData: FormData) {
-    if (!extraFormFields) return;
-    for (const [key, value] of Object.entries(extraFormFields)) {
-      if (value) formData.set(key, value);
-    }
-  }
-
   function handleReview() {
     if (pending) return;
     if (!file) {
@@ -510,7 +341,6 @@ export default function BulkImportDialog({
       try {
         const formData = new FormData();
         formData.set("file", file);
-        appendExtraFormFields(formData);
         const nextPreview = await onPreview(formData);
 
         if (!isBulkImportPreview(nextPreview)) {
@@ -527,7 +357,6 @@ export default function BulkImportDialog({
 
         setPreview(nextPreview);
         setLastResult(null);
-        setTaxIdDocuments({});
 
         if (nextPreview.rows.length === 0) {
           showRejection({
@@ -555,7 +384,7 @@ export default function BulkImportDialog({
           showRejection({
             title: t("ui.rejectionNotice.importTitle"),
             description: t("ui.rejectionNotice.importDescription"),
-            reasons: formatBulkImportPreviewSummary(entityLabel, nextPreview),
+            reasons: formatBulkImportPreviewSummary(nextPreview),
           });
         }
       } catch (error) {
@@ -584,32 +413,15 @@ export default function BulkImportDialog({
       return;
     }
 
-    if (requiresTaxIdDocuments && !allTaxIdDocumentsReady) {
-      showRejection({
-        title: t("ui.rejectionNotice.validationTitle"),
-        description: t("ui.rejectionNotice.validationDescription"),
-        reasons: t("bulkImport.taxIdDocumentsRequired"),
-      });
-      return;
-    }
-
     void (async () => {
       setBusyAction("confirm");
       try {
         const formData = new FormData();
         formData.set("file", file);
-        appendExtraFormFields(formData);
-        if (requiresTaxIdDocuments) {
-          for (const [rowNumber, documentFile] of Object.entries(
-            taxIdDocuments
-          )) {
-            formData.set(`taxIdDocument_${rowNumber}`, documentFile);
-          }
-        }
         const result = await onConfirm(formData);
         setLastResult(result);
 
-        const summary = formatBulkImportSummary(entityLabel, result);
+        const summary = formatBulkImportSummary(result);
 
         if (result.failedCount === 0 && result.skippedCount === 0) {
           toast.success(summary);
@@ -657,12 +469,10 @@ export default function BulkImportDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <EmployeeDialogShell
         icon={FileSpreadsheet}
-        title={title}
+        title={t("bulkImport.inventoryItemsTitle")}
         description={
           step === "preview"
-            ? entityLabel === "client"
-              ? t("bulkImport.previewDescriptionClients")
-              : t("bulkImport.previewDescription")
+            ? t("bulkImport.previewDescription")
             : t("bulkImport.uploadDescription", { plural })
         }
         maxWidth="md"
@@ -684,12 +494,7 @@ export default function BulkImportDialog({
               <>
                 <EmployeePrimaryButton
                   type="button"
-                  disabled={
-                    pending ||
-                    !preview ||
-                    preview.readyCount === 0 ||
-                    !allTaxIdDocumentsReady
-                  }
+                  disabled={pending || !preview || preview.readyCount === 0}
                   onClick={handleConfirm}
                 >
                   {busyAction === "confirm"
@@ -801,16 +606,6 @@ export default function BulkImportDialog({
                   ? t("bulkImport.preparingTemplate")
                   : t("bulkImport.downloadExcelTemplate")}
               </a>
-
-              {entityLabel === "client" || entityLabel === "vendor" ? (
-                <p className="text-xs leading-5 text-muted">
-                  {t("bulkImport.redownloadTemplateNote")}
-                </p>
-              ) : entityLabel === "project" ? (
-                <p className="text-xs leading-5 text-muted">
-                  {t("bulkImport.projectsRedownloadTemplateNote")}
-                </p>
-              ) : null}
             </>
           ) : null}
 
@@ -818,26 +613,13 @@ export default function BulkImportDialog({
             <div className="flex flex-col gap-3">
               <div className="rounded-xl border border-border bg-elevated px-4 py-3">
                 <p className="text-sm font-medium text-text">
-                  {formatBulkImportPreviewSummary(entityLabel, preview)}
+                  {formatBulkImportPreviewSummary(preview)}
                 </p>
                 <p className="mt-1 text-sm text-muted">
-                  {entityLabel === "client" || entityLabel === "vendor"
-                    ? t("bulkImport.duplicatesSkipped")
-                    : t("bulkImport.invalidSkipped")}
+                  {t("bulkImport.invalidSkipped")}
                 </p>
               </div>
-              <PreviewList
-                entityLabel={entityLabel}
-                preview={preview}
-                t={t}
-                taxIdDocuments={taxIdDocuments}
-                onTaxIdDocumentChange={
-                  requiresTaxIdDocuments
-                    ? handleTaxIdDocumentChange
-                    : undefined
-                }
-                pending={pending}
-              />
+              <PreviewList preview={preview} t={t} />
             </div>
           ) : null}
 
@@ -845,29 +627,11 @@ export default function BulkImportDialog({
             <div className="flex flex-col gap-3">
               <div className="rounded-xl border border-border bg-elevated px-4 py-3">
                 <p className="text-sm font-medium text-text">
-                  {formatBulkImportSummary(entityLabel, lastResult)}
+                  {formatBulkImportSummary(lastResult)}
                 </p>
-                {entityLabel === "project" ? (
-                  <p className="mt-1 text-sm text-muted">
-                    {t("bulkImport.createdProjectsNote")}
-                  </p>
-                ) : entityLabel === "vendor" ? (
-                  <p className="mt-1 text-sm text-muted">
-                    {t("bulkImport.createdVendorsNote")}
-                  </p>
-                ) : entityLabel === "employee" ? (
-                  <p className="mt-1 text-sm text-muted">
-                    {t("bulkImport.createdEmployeesNote")}
-                  </p>
-                ) : entityLabel === "inventoryItem" ? (
-                  <p className="mt-1 text-sm text-muted">
-                    {t("bulkImport.createdInventoryItemsNote")}
-                  </p>
-                ) : (
-                  <p className="mt-1 text-sm text-muted">
-                    {t("bulkImport.createdWithLogin")}
-                  </p>
-                )}
+                <p className="mt-1 text-sm text-muted">
+                  {t("bulkImport.createdInventoryItemsNote")}
+                </p>
               </div>
               <IssueList
                 title={t("bulkImport.skipped")}

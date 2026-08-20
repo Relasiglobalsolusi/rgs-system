@@ -3,7 +3,7 @@ import MaterialRequestDetailCard from "@/components/material-requests/MaterialRe
 import MaterialRequestForm from "@/components/material-requests/MaterialRequestForm";
 import {
   CancelMaterialRequestButton,
-  ReceiveTransferOrderButton,
+  SiteTransferReceiveActions,
 } from "@/components/material-requests/MaterialRequestActions";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
@@ -169,7 +169,7 @@ export default async function MaterialRequestsPage() {
                         <CancelMaterialRequestButton id={request.id} />
                       ) : null}
                       {request.transferOrder?.status === "SENT" ? (
-                        <ReceiveTransferOrderButton
+                        <SiteTransferReceiveActions
                           id={request.transferOrder.id}
                         />
                       ) : null}

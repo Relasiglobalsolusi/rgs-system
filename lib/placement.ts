@@ -1,60 +1,9 @@
 import type { EmployeeType, EmploymentType, Placement } from "@prisma/client";
 
-export const PLACEMENTS = [
-  "AVAILABLE",
-  "ON_PROJECT",
-  "HEAD_OFFICE",
-  "FIELD",
-  "ON_LEAVE",
-] as const satisfies readonly Placement[];
-
-export type PlacementCode = Placement;
-
-/** Legacy Assignment Scope codes → Placement (for import aliases / docs). */
-export const LEGACY_SCOPE_TO_PLACEMENT: Record<string, Placement> = {
-  UNASSIGNED: "AVAILABLE",
-  SITE_BASED: "ON_PROJECT",
-  CORPORATE: "HEAD_OFFICE",
-  FIELD_OPERATIONS: "FIELD",
-  "SITE ASSIGNMENT": "ON_PROJECT",
-  "HEAD OFFICE": "HEAD_OFFICE",
-  "FIELD OPERATIONS": "FIELD",
-  AVAILABLE: "AVAILABLE",
-  "ON PROJECT": "ON_PROJECT",
-  "ON_PROJECT": "ON_PROJECT",
-  FIELD: "FIELD",
-  ON_LEAVE: "ON_LEAVE",
-  "ON LEAVE": "ON_LEAVE",
-};
-
-export function isAvailablePlacement(
-  placement: Placement | null | undefined
-): boolean {
-  return placement === "AVAILABLE";
-}
-
-export function isOnProjectPlacement(
-  placement: Placement | null | undefined
-): boolean {
-  return placement === "ON_PROJECT";
-}
-
 export function isHeadOfficePlacement(
   placement: Placement | null | undefined
 ): boolean {
   return placement === "HEAD_OFFICE";
-}
-
-export function isFieldPlacement(
-  placement: Placement | null | undefined
-): boolean {
-  return placement === "FIELD";
-}
-
-export function isOnLeavePlacement(
-  placement: Placement | null | undefined
-): boolean {
-  return placement === "ON_LEAVE";
 }
 
 /** Corporate / HO placement → HEAD_OFFICE employee type; else PROJECT_SITE. */
@@ -105,24 +54,6 @@ export function initialPlacementForDepartment(options: {
   return placementOnSoftRestore(options);
 }
 
-export function parsePlacementImportValue(raw: string): Placement | null {
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-
-  const upper = trimmed.toUpperCase().replace(/[\s-]+/g, "_");
-  const spaced = trimmed.toUpperCase().replace(/\s+/g, " ");
-
-  if ((PLACEMENTS as readonly string[]).includes(upper)) {
-    return upper as Placement;
-  }
-
-  return (
-    LEGACY_SCOPE_TO_PLACEMENT[upper] ??
-    LEGACY_SCOPE_TO_PLACEMENT[spaced] ??
-    null
-  );
-}
-
 export function formatPlacementLabel(
   placement: Placement | null | undefined,
   locale: "en" | "id" = "en"
@@ -169,30 +100,4 @@ export function formatEmploymentTypeLabel(
     return type === "FULL_TIME" ? "Penuh Waktu" : "Paruh Waktu";
   }
   return type === "FULL_TIME" ? "Full Time" : "Part Time";
-}
-
-export function parseEmploymentTypeImportValue(
-  raw: string
-): EmploymentType | null {
-  const value = raw.trim().toLowerCase().replace(/[\s-]+/g, "_");
-  if (!value) return null;
-  if (
-    value === "full_time" ||
-    value === "fulltime" ||
-    value === "ft" ||
-    value === "penuh_waktu" ||
-    value === "penuhwaktu"
-  ) {
-    return "FULL_TIME";
-  }
-  if (
-    value === "part_time" ||
-    value === "parttime" ||
-    value === "pt" ||
-    value === "paruh_waktu" ||
-    value === "paruhwaktu"
-  ) {
-    return "PART_TIME";
-  }
-  return null;
 }

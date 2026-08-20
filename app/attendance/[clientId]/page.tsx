@@ -1,22 +1,38 @@
 import { notFound } from "next/navigation";
 
-import { getAttendanceProjectsForClient } from "@/app/attendance/actions";
+import {
+  getAttendanceProjectsForClient,
+  getEarlyCheckOutCount,
+  getEarlyCheckOutReport,
+} from "@/app/attendance/actions";
 import { requireModule } from "@/lib/session";
 
 import AppShell from "@/components/layout/AppShell";
 import AttendanceBreadcrumbs from "@/components/attendance/AttendanceBreadcrumbs";
+import AttendanceEarlyCheckoutSection, {
+  AttendanceEarlyCheckoutCard,
+} from "@/components/attendance/AttendanceEarlyCheckoutSection";
 import AttendanceProjectDirectory from "@/components/attendance/AttendanceProjectDirectory";
 
 type Props = {
   params: Promise<{ clientId: string }>;
+  searchParams: Promise<{ view?: string }>;
 };
 
-export default async function AttendanceClientPage({ params }: Props) {
+export default async function AttendanceClientPage({
+  params,
+  searchParams,
+}: Props) {
   await requireModule("attendance");
   const { clientId } = await params;
+  const { view } = await searchParams;
+  const showEarly = view === "checked-out-before-shift-end";
   const result = await getAttendanceProjectsForClient(clientId);
 
   if (!result) notFound();
+
+  const earlyCount = await getEarlyCheckOutCount();
+  const earlyReport = showEarly ? await getEarlyCheckOutReport() : null;
 
   return (
     <AppShell
@@ -29,10 +45,22 @@ export default async function AttendanceClientPage({ params }: Props) {
           { label: result.clientName },
         ]}
       />
-      <AttendanceProjectDirectory
-        clientId={clientId}
-        projects={result.projects}
-      />
+      <div className="mb-5 max-w-sm">
+        <AttendanceEarlyCheckoutCard
+          count={earlyCount}
+          selected={showEarly}
+          href={`/attendance/${clientId}?view=checked-out-before-shift-end`}
+          selectedHref={`/attendance/${clientId}`}
+        />
+      </div>
+      {earlyReport ? (
+        <AttendanceEarlyCheckoutSection rows={earlyReport.rows} />
+      ) : (
+        <AttendanceProjectDirectory
+          clientId={clientId}
+          projects={result.projects}
+        />
+      )}
     </AppShell>
   );
 }

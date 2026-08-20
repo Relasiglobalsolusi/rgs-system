@@ -6,52 +6,10 @@ export const OPEN_PROJECT_ASSIGNMENT_STATUSES: ProjectStatus[] = [
   "IN_PROGRESS",
 ];
 
-/**
- * Release specific employees from one project only.
- * Callers that need AVAILABLE + portal sync should use
- * `releaseEmployeesFromProject` from `lib/workforce-crew.ts`.
- */
-export async function clearEmployeesFromProject(
-  db: DbClient,
-  projectId: string,
-  employeeIds: string[]
-) {
-  const uniqueIds = [...new Set(employeeIds.filter(Boolean))];
-  if (uniqueIds.length === 0) return;
-  await db.projectAssignment.deleteMany({
-    where: { projectId, employeeId: { in: uniqueIds } },
-  });
-}
-
 type DbClient = {
   project: Prisma.ProjectDelegate;
   projectAssignment: Prisma.ProjectAssignmentDelegate;
 };
-
-/**
- * Project links are required when placing ON_PROJECT; optional for FIELD;
- * cleared for AVAILABLE / HEAD_OFFICE.
- */
-export async function resolveProjectIdsForPlacement(
-  db: DbClient,
-  placement: Placement,
-  rawValue: FormDataEntryValue | null,
-  companyId: string
-): Promise<string[]> {
-  if (placement === "AVAILABLE" || placement === "HEAD_OFFICE") {
-    return [];
-  }
-
-  const projectIds = await parseProjectIds(db, rawValue, companyId);
-
-  if (placement === "ON_PROJECT" && projectIds.length === 0) {
-    throw new Error(
-      "Select at least one site or project for On project placement."
-    );
-  }
-
-  return projectIds;
-}
 
 export async function parseProjectIds(
   db: DbClient,
@@ -104,6 +62,8 @@ export async function syncProjectAssignments(
   projectIds: string[],
   shifts?: AssignmentShiftInput[]
 ) {
+  const { voidScheduledPartTimePays } = await import("@/lib/petty-cash");
+  await voidScheduledPartTimePays(db as never, { employeeIds: [employeeId] });
   await db.projectAssignment.deleteMany({
     where: { employeeId },
   });

@@ -7,15 +7,16 @@ import {
 import { useRouter } from "next/navigation";
 import { Fragment, useState, useTransition, useEffect, useMemo } from "react";
 import {
+  compileInvoicePeriod,
   deleteInvoicePeriod,
   rejectInvoicePaymentVerification,
   sendAdHocMilestoneForClientReview,
   submitInvoicePaymentForVerification,
   updateProjectContractPrice,
-  verifyInvoicePeriodPayment,
 } from "@/app/projects/invoice-actions";
 import { sendProgressForClientReview } from "@/app/billing/reconciliation/actions";
 import ClientBillingReviewActions from "@/components/billing/ClientBillingReviewActions";
+import InHouseVerifyPaymentDialog from "@/components/billing/InHouseVerifyPaymentDialog";
 import PaymentReceivedDialog from "@/components/billing/PaymentReceivedDialog";
 import ReconcilePeriodDialog from "@/components/billing/ReconcilePeriodDialog";
 import TaxInvoiceDoneButton from "@/components/billing/TaxInvoiceDoneButton";
@@ -23,7 +24,7 @@ import ContractExtensionsHistory, {
   type ContractExtensionRow,
 } from "@/components/projects/ContractExtensionsHistory";
 import { findPriorOpenPeriodWarning } from "@/lib/billing";
-import { isContractSubCategory } from "@/lib/project-contract";
+import { isContractCycleSubCategory } from "@/lib/project-contract";
 import StatusBadge, { StackedChipLabel } from "@/components/ui/StatusBadge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -89,6 +90,8 @@ type Props = {
   projectName: string;
   billingMode: BillingMode | string;
   billingPeriodBasis?: BillingPeriodBasis | string | null;
+  billingCycleStartDay?: number | null;
+  billingCycleEndDay?: number | null;
   contractPrice: number | null;
   invoicingDay: number;
   /** Real contract start (ISO) — drives Regular Cleaning anniversary cycles. */
@@ -120,6 +123,8 @@ export default function ProjectBillingPanel({
   projectName,
   billingMode,
   billingPeriodBasis = null,
+  billingCycleStartDay = null,
+  billingCycleEndDay = null,
   contractPrice,
   invoicingDay,
   startDate,
@@ -131,9 +136,12 @@ export default function ProjectBillingPanel({
   contractExtensions = [],
 }: Props) {
   const { t, locale } = useT();
-  const showExtensions = isContractSubCategory(subCategory);
-  const showPeriodBasisUi = isContractSubCategory(subCategory);
+  const showExtensions = isContractCycleSubCategory(subCategory);
+  const showPeriodBasisUi = isContractCycleSubCategory(subCategory);
   const [paymentDialogPeriodId, setPaymentDialogPeriodId] = useState<
+    string | null
+  >(null);
+  const [verifyDialogPeriodId, setVerifyDialogPeriodId] = useState<
     string | null
   >(null);
   const router = useRouter();
@@ -276,16 +284,7 @@ export default function ProjectBillingPanel({
   }
 
   function verifyPayment(periodId: string) {
-    if (!window.confirm(t("pages.billing.verifyPaymentConfirm"))) {
-      return;
-    }
-    run(async () => {
-      const result = await verifyInvoicePeriodPayment(periodId);
-      if (result.movedToHistory) {
-        router.push("/projects?view=completed");
-      }
-      router.refresh();
-    }, t("pages.billing.verifyPaymentFailed"));
+    setVerifyDialogPeriodId(periodId);
   }
 
   function rejectPayment(periodId: string) {
@@ -350,11 +349,16 @@ export default function ProjectBillingPanel({
                 : t("pages.billing.anniversaryInvoiceDay", {
                     day: invoicingDay,
                   })}
-              {startDate
-                ? t("pages.billing.cycleFrom", {
-                    date: formatDisplayDate(startDate),
+              {billingCycleStartDay != null && billingCycleEndDay != null
+                ? t("pages.billing.customPeriodCycle", {
+                    from: String(billingCycleStartDay),
+                    to: String(billingCycleEndDay),
                   })
-                : ""}
+                : startDate
+                  ? t("pages.billing.cycleFrom", {
+                      date: formatDisplayDate(startDate),
+                    })
+                  : ""}
             </p>
           ) : null}
         </div>
@@ -547,25 +551,25 @@ export default function ProjectBillingPanel({
           <table className="w-full min-w-[960px] text-left text-sm">
             <thead className="bg-elevated">
               <tr className="border-b border-border text-[11px] uppercase tracking-[0.14em] text-subtle">
-                <th className="h-11 px-4 py-3 font-semibold">
+                <th className="h-11 px-4 py-3 text-left font-semibold">
                   {t("pages.billing.columns.period")}
                 </th>
-                <th className="h-11 px-4 py-3 font-semibold">
+                <th className="h-11 px-4 py-3 text-left font-semibold">
                   {t("pages.billing.issued")}
                 </th>
-                <th className="h-11 px-4 py-3 font-semibold">
+                <th className="h-11 px-4 py-3 text-left font-semibold">
                   {t("pages.billing.columns.due")}
                 </th>
-                <th className="h-11 px-4 py-3 font-semibold">
+                <th className="h-11 px-4 py-3 text-left font-semibold">
                   {t("pages.billing.columns.amount")}
                 </th>
-                <th className="h-11 px-4 py-3 text-center font-semibold">
+                <th className="h-11 px-4 py-3 text-left font-semibold">
                   {t("pages.billing.columns.status")}
                 </th>
-                <th className="h-11 px-4 py-3 font-semibold">
+                <th className="h-11 px-4 py-3 text-left font-semibold">
                   {t("common.labels.time")}
                 </th>
-                <th className="h-11 px-4 py-3 pr-10 text-center font-semibold">
+                <th className="h-11 px-4 py-3 pr-10 text-left font-semibold">
                   {t("common.labels.actions")}
                 </th>
               </tr>
@@ -719,7 +723,11 @@ export default function ProjectBillingPanel({
                               : localizeBillingStatus(display.key, locale)}
                           </StatusBadge>
                         )}
-                        {period.taxInvoiceRequired &&
+                        {(period.taxInvoiceRequired ||
+                          period.status === "AWAITING_PAYMENT" ||
+                          period.status === "OVERDUE" ||
+                          period.status === "PENDING_VERIFICATION" ||
+                          period.status === "PAID") &&
                         !period.taxInvoiceDoneAt ? (
                           <StatusBadge
                             status="pending"
@@ -877,6 +885,29 @@ export default function ProjectBillingPanel({
                               {t("pages.reconciliation.sendForClientReview")}
                             </Button>
                           )}
+                          {canManage &&
+                            period.status === "AWAITING_CLIENT_REVIEW" &&
+                            period.clientReviewStatus === "CLIENT_APPROVED" && (
+                              <Button
+                                size="badge"
+                                variant="successBadge"
+                                className={flexibleBadgeChipClassName}
+                                disabled={pending}
+                                onClick={() =>
+                                  run(
+                                    () => compileInvoicePeriod(period.id),
+                                    t("pages.billing.compileInvoiceFailed")
+                                  )
+                                }
+                              >
+                                <StackedChipLabel
+                                  lines={[
+                                    t("pages.billing.retryCompile1"),
+                                    t("pages.billing.retryCompile2"),
+                                  ]}
+                                />
+                              </Button>
+                            )}
                           {canManage && monthlyAwaitingReconcile && (
                             <ReconcilePeriodDialog
                               periodId={period.id}
@@ -961,8 +992,11 @@ export default function ProjectBillingPanel({
                               </>
                             )}
                           {canManage &&
-                            period.taxInvoiceRequired &&
-                            !period.taxInvoiceDoneAt && (
+                            !period.taxInvoiceDoneAt &&
+                            (period.status === "AWAITING_PAYMENT" ||
+                              period.status === "OVERDUE" ||
+                              period.status === "PENDING_VERIFICATION" ||
+                              period.status === "PAID") && (
                               <TaxInvoiceDoneButton
                                 periodId={period.id}
                                 projectName={
@@ -1056,6 +1090,24 @@ export default function ProjectBillingPanel({
           movesToHistoryWhenFullyPaid={false}
           onSuccess={(result) => {
             setPaymentDialogPeriodId(null);
+            if (result.movedToHistory) {
+              router.push("/projects?view=completed");
+            }
+            router.refresh();
+          }}
+        />
+      ) : null}
+
+      {verifyDialogPeriodId ? (
+        <InHouseVerifyPaymentDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setVerifyDialogPeriodId(null);
+          }}
+          periodId={verifyDialogPeriodId}
+          projectName={projectName}
+          onSuccess={(result) => {
+            setVerifyDialogPeriodId(null);
             if (result.movedToHistory) {
               router.push("/projects?view=completed");
             }

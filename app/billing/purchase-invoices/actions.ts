@@ -6,14 +6,7 @@ import { Prisma } from "@prisma/client";
 
 import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
-import {
-  resolveCompanyNpwpFromEnv,
-  taxInvoiceDateToUtcDate,
-  verifyPurchaseTaxInvoice,
-  type TaxInvoiceConflictKind,
-  type TaxInvoiceExtractStored,
-} from "@/lib/payment-document-verify";
-import { paymentVerifyFailureMessage } from "@/lib/payment-verify-messages";
+import { taxInvoiceDateToUtcDate } from "@/lib/payment-document-verify";
 import { canAccess } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/project-billing";
@@ -22,7 +15,14 @@ import { lockInventoryItemRow } from "@/lib/inventory-access";
 import { nextWeightedAvgUnitCost, toDecimal, inventoryQtyFromDecimal, isWholeInventoryQty, normalizeInventoryQty } from "@/lib/inventory";
 import { extractPurchaseInvoiceFields } from "@/lib/purchase-invoice-extract";
 import type { ExtractPurchaseInvoiceResult } from "@/lib/purchase-invoice-extract-client";
+import { parseManualVerifyReason } from "@/lib/in-house-document-verify";
+import {
+  assertPurchasePurposeProject,
+  parsePurchasePurpose,
+  purchaseCreatesStock,
+} from "@/lib/purchase-purpose";
 import { requireSession, toPermissionUser } from "@/lib/session";
+import { nextPettyCashTopUpRef } from "@/lib/petty-cash";
 import {
   exclusiveUnitCostFromInclusive,
   parsePpnRatePercent,
@@ -86,7 +86,7 @@ async function requirePurchaseManageAccess() {
     redirect("/dashboard");
   }
   const user = toPermissionUser(session);
-  if (!canAccess(user, "projects") && !canAccess(user, "invoicing")) {
+  if (!canAccess(user, "projects") && !canAccess(user, "purchaseInvoices")) {
     redirect("/dashboard");
   }
   return session;
@@ -172,92 +172,6 @@ async function savePurchaseTaxInvoiceFile(
   });
 }
 
-function taxInvoicePersistFields(tax: TaxInvoiceExtractStored | undefined) {
-  if (!tax) return {};
-  return {
-    taxInvoiceSerial: tax.serial,
-    taxInvoiceDocumentHash: tax.documentHash,
-    taxInvoiceIssuedAt: tax.issuedDate
-      ? taxInvoiceDateToUtcDate(tax.issuedDate)
-      : null,
-  };
-}
-
-/**
- * Uniqueness across purchases (+ keluaran periods for serial/hash).
- */
-async function findPurchaseTaxInvoiceConflict(query: {
-  serial: string | null;
-  documentHash: string;
-  issuedDate: string | null;
-  invoiceAmount: number;
-  excludeId: string;
-}): Promise<TaxInvoiceConflictKind | null> {
-  const excludePurchase =
-    query.excludeId.length > 0 ? { id: { not: query.excludeId } } : {};
-
-  if (query.serial) {
-    const byPurchaseSerial = await prisma.purchaseInvoice.findFirst({
-      where: {
-        ...excludePurchase,
-        taxInvoiceSerial: query.serial,
-      },
-      select: { id: true },
-    });
-    if (byPurchaseSerial) return "serial";
-
-    const byPeriodSerial = await prisma.projectInvoicePeriod.findFirst({
-      where: { taxInvoiceSerial: query.serial },
-      select: { id: true },
-    });
-    if (byPeriodSerial) return "serial";
-  }
-
-  const byPurchaseHash = await prisma.purchaseInvoice.findFirst({
-    where: {
-      ...excludePurchase,
-      taxInvoiceDocumentHash: query.documentHash,
-    },
-    select: { id: true },
-  });
-  if (byPurchaseHash) return "document_hash";
-
-  const byPeriodHash = await prisma.projectInvoicePeriod.findFirst({
-    where: { taxInvoiceDocumentHash: query.documentHash },
-    select: { id: true },
-  });
-  if (byPeriodHash) return "document_hash";
-
-  if (query.issuedDate) {
-    const byPurchaseDateAmount = await prisma.purchaseInvoice.findFirst({
-      where: {
-        ...excludePurchase,
-        taxInvoiceIssuedAt: taxInvoiceDateToUtcDate(query.issuedDate),
-        amount: query.invoiceAmount,
-        taxInvoiceFilePath: { not: null },
-      },
-      select: { id: true },
-    });
-    if (byPurchaseDateAmount) return "date_amount";
-  }
-
-  return null;
-}
-
-async function rejectPurchaseTaxVerify(
-  verification: Awaited<ReturnType<typeof verifyPurchaseTaxInvoice>>
-): Promise<never> {
-  const locale = await getServerLocale();
-  if (verification.ok) {
-    throw new Error("Tax invoice verification failed unexpectedly.");
-  }
-  const lines = verification.failures.map((code) =>
-    paymentVerifyFailureMessage(locale, code, verification.details)
-  );
-  const header = translate(locale, "pages.billing.purchaseTaxInvoiceVerifyRejected");
-  throw new Error([header, ...lines.map((line) => `• ${line}`)].join("\n"));
-}
-
 /**
  * Soft-fill commercial purchase invoice fields from an uploaded bill.
  * Never blocks save — failures return `{ ok: false }` for client toast/manual entry.
@@ -296,6 +210,79 @@ export async function extractPurchaseInvoiceFromUpload(
 export async function createPurchaseInvoice(formData: FormData) {
   const session = await requirePurchaseManageAccess();
 
+  const purchaseCategoryRawEarly = String(formData.get("purchaseCategory") ?? "")
+    .trim()
+    .toUpperCase();
+  if (purchaseCategoryRawEarly === "PETTY_CASH") {
+    if (session.user.vendorId) {
+      throw new Error("Petty Cash top-ups are recorded by Head Office only.");
+    }
+    const amount = parseAmount(String(formData.get("amount") ?? "").trim());
+    const invoiceAmount = decimalToNumber(amount);
+    if (invoiceAmount == null || invoiceAmount <= 0) {
+      throw new Error("Enter a valid amount.");
+    }
+    const invoiceDateRaw = String(formData.get("invoiceDate") ?? "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(invoiceDateRaw)) {
+      throw new Error("Date is required.");
+    }
+    const notesRaw = String(formData.get("notes") ?? "").trim();
+    const invoiceDate = taxInvoiceDateToUtcDate(invoiceDateRaw);
+    const invoiceRef = nextPettyCashTopUpRef();
+    const file = optionalImageOrPdfUpload(formData.get("document"), {
+      sizeMessage: "File must be 10 MB or smaller.",
+      typeMessage: "Upload an image or PDF.",
+    });
+    const filePath = file
+      ? await saveUpload(file, "uploads/purchase-invoices", {
+          fileBaseName: buildBillingDocumentFileBase({
+            prefix: "Petty-Cash-Top-Up",
+            clientName: "Petty Cash",
+            invoiceNumber: invoiceRef,
+          }),
+        })
+      : "";
+
+    await prisma.$transaction(async (tx) => {
+      const invoice = await tx.purchaseInvoice.create({
+        data: {
+          companyId: session.user.companyId,
+          supplierName: "Petty Cash",
+          vendorId: null,
+          invoiceRef,
+          invoiceDate,
+          amount,
+          filePath,
+          notes: notesRaw || "Petty Cash top-up",
+          includesPpn: false,
+          purchaseCategory: "PETTY_CASH",
+          purpose: "PETTY_CASH",
+          paidAt: new Date(),
+          createdById: session.user.id,
+        },
+      });
+      await tx.pettyCashEntry.create({
+        data: {
+          companyId: session.user.companyId,
+          kind: "TOP_UP",
+          status: "POSTED",
+          amount,
+          entryDate: invoiceDate,
+          description: notesRaw || `Petty Cash top-up ${invoiceRef}`,
+          purchaseInvoiceId: invoice.id,
+          createdById: session.user.id,
+          postedAt: new Date(),
+          proofPath: filePath || null,
+        },
+      });
+    });
+
+    revalidatePath("/billing/purchase-invoices");
+    revalidatePath("/billing/petty-cash");
+    revalidatePath("/billing/financial-report");
+    return;
+  }
+
   let supplierName = String(formData.get("supplierName") ?? "").trim();
   const vendorIdRaw = String(formData.get("vendorId") ?? "").trim();
   const invoiceRef = String(formData.get("invoiceRef") ?? "").trim();
@@ -311,6 +298,8 @@ export async function createPurchaseInvoice(formData: FormData) {
     .toUpperCase();
   const purchaseCategory =
     purchaseCategoryRaw === "SERVICE" ? "SERVICE" : "PRODUCT";
+  const purpose = parsePurchasePurpose(formData.get("purchasePurpose"));
+  const projectIdRaw = String(formData.get("projectId") ?? "").trim();
   const ppnRateRaw = String(formData.get("ppnRatePercent") ?? "").trim();
 
   const portalVendorId = session.user.vendorId ?? null;
@@ -361,6 +350,26 @@ export async function createPurchaseInvoice(formData: FormData) {
   if (!invoiceRef) {
     throw new Error("Invoice Number / Ref is required.");
   }
+
+  let projectId: string | null = null;
+  if (purpose === "PROJECT") {
+    if (!projectIdRaw) {
+      throw new Error("Select the project this purchase is for.");
+    }
+    const taggedProject = await prisma.project.findFirst({
+      where: {
+        id: projectIdRaw,
+        companyId: session.user.companyId,
+        status: { not: "CANCELLED" },
+      },
+      select: { id: true },
+    });
+    if (!taggedProject) {
+      throw new Error("Select a valid project.");
+    }
+    projectId = taggedProject.id;
+  }
+  assertPurchasePurposeProject({ purpose, projectId });
   if (!/^\d{4}-\d{2}-\d{2}$/.test(invoiceDateRaw)) {
     throw new Error("Invoice Date is required.");
   }
@@ -422,26 +431,9 @@ export async function createPurchaseInvoice(formData: FormData) {
     }
   }
 
-  const company = await prisma.company.findUnique({
-    where: { id: session.user.companyId },
-    select: { name: true },
-  });
-
-  let verifiedTax: TaxInvoiceExtractStored | undefined;
-  if (taxFile) {
-    const verification = await verifyPurchaseTaxInvoice({
-      taxInvoiceDocument: taxFile,
-      invoiceAmount,
-      supplierName,
-      companyName: company?.name ?? null,
-      companyNpwp: resolveCompanyNpwpFromEnv(),
-      findTaxInvoiceConflict: findPurchaseTaxInvoiceConflict,
-    });
-    if (!verification.ok) {
-      await rejectPurchaseTaxVerify(verification);
-    }
-    verifiedTax = verification.tax;
-  }
+  const taxInvoiceManualReason = taxFile
+    ? parseManualVerifyReason(formData.get("manualReason"))
+    : null;
 
   const filePath = await saveUpload(file, "uploads/purchase-invoices", {
     fileBaseName: buildBillingDocumentFileBase({
@@ -478,11 +470,13 @@ export async function createPurchaseInvoice(formData: FormData) {
           filePath,
           taxInvoiceFilePath,
           taxInvoiceUploadedAt: taxInvoiceFilePath ? new Date() : null,
-          ...taxInvoicePersistFields(verifiedTax),
+          taxInvoiceManualReason,
           notes: notesRaw || null,
           includesPpn,
           purchaseCategory,
           ppnRatePercent,
+          purpose,
+          projectId,
           createdById: session.user.id,
         },
       });
@@ -526,7 +520,7 @@ export async function createPurchaseInvoice(formData: FormData) {
           },
         });
 
-        if (!item.tracksStock) continue;
+        if (!item.tracksStock || !purchaseCreatesStock(purpose)) continue;
 
         const locked = await lockInventoryItemRow(tx, item.id);
         if (!locked || !locked.active) {
@@ -641,24 +635,7 @@ export async function uploadPurchaseTaxInvoice(formData: FormData) {
     typeMessage: "Upload an image or PDF.",
   });
 
-  const invoiceAmount = decimalToNumber(invoice.amount);
-  if (invoiceAmount == null) {
-    throw new Error("This purchase has no amount on file.");
-  }
-
-  const verification = await verifyPurchaseTaxInvoice({
-    taxInvoiceDocument: taxFile,
-    invoiceAmount,
-    supplierName: invoice.supplierName,
-    companyName: invoice.company?.name ?? null,
-    companyNpwp: resolveCompanyNpwpFromEnv(),
-    excludePurchaseInvoiceId: invoice.id,
-    findTaxInvoiceConflict: findPurchaseTaxInvoiceConflict,
-  });
-
-  if (!verification.ok) {
-    await rejectPurchaseTaxVerify(verification);
-  }
+  const reason = parseManualVerifyReason(formData.get("manualReason"));
 
   const taxInvoiceFilePath = await savePurchaseTaxInvoiceFile(
     taxFile,
@@ -672,7 +649,7 @@ export async function uploadPurchaseTaxInvoice(formData: FormData) {
       data: {
         taxInvoiceFilePath,
         taxInvoiceUploadedAt: new Date(),
-        ...taxInvoicePersistFields(verification.tax),
+        taxInvoiceManualReason: reason,
       },
     });
   } catch (error) {
@@ -760,6 +737,9 @@ export async function markPurchaseInvoicePaid(formData: FormData) {
         paidAt,
         paymentProofPath,
         paidById: session.user.id,
+        paymentManualReason: parseManualVerifyReason(
+          formData.get("manualReason")
+        ),
       },
     });
   } catch (error) {

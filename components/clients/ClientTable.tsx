@@ -64,11 +64,6 @@ export function getClientPortalLoginStatus(
   return "revoked";
 }
 
-/** True when the client has at least one active linked portal user. */
-export function clientHasPortalLogin(client: Pick<ClientRow, "users">) {
-  return getClientPortalLoginStatus(client) === "yes";
-}
-
 function formatContactPersonLabel(
   firstName: string | null,
   lastName: string | null,
@@ -402,8 +397,9 @@ export default function ClientTable({
         key: "portalLogin",
         title: t("pages.clients.columns.portalLogin"),
         width: STATUS_COLUMN_WIDTH,
+        align: "center",
         className:
-          "min-w-[10rem] overflow-visible whitespace-nowrap text-center max-xl:min-w-[9rem] max-xl:px-2",
+          "min-w-[10rem] overflow-visible whitespace-nowrap max-xl:min-w-[9rem] max-xl:px-2",
         render: (client) => {
           const portalStatus = getClientPortalLoginStatus(client);
           const badgeStatus =

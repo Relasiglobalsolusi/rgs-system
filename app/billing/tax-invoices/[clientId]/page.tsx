@@ -59,7 +59,7 @@ export default async function TaxInvoiceClientPage({
 
   const user = toPermissionUser(session);
   const canManage =
-    canAccess(user, "invoicing") || canAccess(user, "projects");
+    canAccess(user, "taxInvoices") || canAccess(user, "projects");
 
   const isNoClient = clientId === NO_CLIENT_ID;
   let clientName = t("pages.billing.noClient");

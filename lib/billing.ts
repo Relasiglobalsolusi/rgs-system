@@ -5,6 +5,9 @@ import type {
 } from "@prisma/client";
 import { PROJECT_SUB_CATEGORIES } from "@/lib/project-subcategory";
 import {
+  PENDING_APPROVAL_REVIEW_STATUSES,
+} from "@/lib/client-billing-review";
+import {
   getInvoicePaymentDisplay,
   resolveInvoiceDueAt,
 } from "@/lib/invoice-period";
@@ -70,6 +73,31 @@ function projectFullyPaidInvoiceWhere(): Prisma.ProjectWhereInput {
  * Planning (PLANNED) projects are not invoiced; they only appear here if an
  * unpaid issued invoice already exists (legacy / edge cases).
  */
+/** Projects that have at least one billing period in the client / HO review loop. */
+export function pendingApprovalWhere(): Prisma.ProjectWhereInput {
+  return {
+    status: { notIn: ["CANCELLED", "COMPLETED"] as ProjectStatus[] },
+    invoicePeriods: {
+      some: {
+        status: "AWAITING_CLIENT_REVIEW",
+        clientReviewStatus: { in: [...PENDING_APPROVAL_REVIEW_STATUSES] },
+      },
+    },
+  };
+}
+
+export function isPendingApprovalPeriod(period: {
+  status?: string | null;
+  clientReviewStatus?: string | null;
+}): boolean {
+  return (
+    period.status === "AWAITING_CLIENT_REVIEW" &&
+    PENDING_APPROVAL_REVIEW_STATUSES.includes(
+      period.clientReviewStatus as (typeof PENDING_APPROVAL_REVIEW_STATUSES)[number]
+    )
+  );
+}
+
 export function paymentDueWhere(): Prisma.ProjectWhereInput {
   return {
     // Exclude cancelled + legacy ON_HOLD from the product Payment Due surface.
@@ -86,29 +114,6 @@ export function paymentDueWhere(): Prisma.ProjectWhereInput {
       },
     ],
   };
-}
-
-/**
- * In-memory mirror of {@link paymentDueWhere} for a loaded project row.
- * True when there is an unpaid issued invoice, or finished work still needs
- * collection / issuing.
- */
-export function isProjectInPaymentDue(input: {
-  status: ProjectStatus | string;
-  invoicePeriods: { status: string }[];
-}): boolean {
-  if (input.status === "CANCELLED" || input.status === "ON_HOLD") return false;
-  if (
-    input.invoicePeriods.some((p) =>
-      (UNPAID_INVOICE_STATUSES as readonly string[]).includes(p.status)
-    )
-  ) {
-    return true;
-  }
-  if (input.status === "COMPLETED") {
-    return !isProjectFullyPaid(input.invoicePeriods);
-  }
-  return false;
 }
 
 /**
@@ -257,14 +262,6 @@ export function countOpenInvoices(
   }
 
   return { open, late, paid, verifying };
-}
-
-export function periodHasDueDate(period: {
-  dueAt?: Date | null;
-  submittedAt?: Date | null;
-  paymentTermsDays?: number | null;
-}): boolean {
-  return resolveInvoiceDueAt(period) != null;
 }
 
 export function isUnpaidInvoiceStatus(status: string): boolean {

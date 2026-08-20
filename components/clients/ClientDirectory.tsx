@@ -1,14 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Building2, FileSpreadsheet, Trash2 } from "lucide-react";
+import { Building2, ListPlus, Trash2 } from "lucide-react";
 
-import {
-  confirmBulkImportClients,
-  previewBulkImportClients,
-} from "@/app/clients/import-actions";
-import BulkImportDialog from "@/components/bulk-import/BulkImportDialog";
 import ClientBulkActionDialog from "@/components/clients/ClientBulkActionDialog";
+import ClientBulkCreateDialog from "@/components/clients/ClientBulkCreateDialog";
 import ClientBulkReactivateDialog from "@/components/clients/ClientBulkReactivateDialog";
 import ClientDialog from "@/components/clients/ClientDialog";
 import ClientTable, { type ClientRow } from "@/components/clients/ClientTable";
@@ -224,7 +220,7 @@ export default function ClientDirectory({
             <DirectoryAddButton
               label={t("common.actions.addBulk")}
               variant="infoBadge"
-              icon={<FileSpreadsheet className="h-3.5 w-3.5 shrink-0" />}
+              icon={<ListPlus className="h-3.5 w-3.5 shrink-0" />}
               onClick={() => setBulkImportOpen(true)}
             />
           </div>
@@ -287,13 +283,9 @@ export default function ClientDirectory({
       ) : null}
 
       {showAdd ? (
-        <BulkImportDialog
+        <ClientBulkCreateDialog
           open={bulkImportOpen}
           onOpenChange={setBulkImportOpen}
-          entityLabel="client"
-          templateUrl="/api/clients/bulk-template"
-          onPreview={previewBulkImportClients}
-          onConfirm={confirmBulkImportClients}
         />
       ) : null}
 

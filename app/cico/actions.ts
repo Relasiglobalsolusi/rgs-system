@@ -18,6 +18,7 @@ import {
   resolveGeofenceRadiusMeters,
 } from "@/lib/geo";
 import {
+  isEarlyCheckOut,
   isLateCheckIn,
   resolveExpectedShiftStart,
 } from "@/lib/operating-hours";
@@ -25,12 +26,19 @@ import { toUtcDateOnly } from "@/lib/invoice-period";
 import { resolveCicoWorkDay } from "@/lib/cico-work-day";
 import { findOpenCicoAttendance } from "@/lib/cico-attendance";
 import {
-  isProgressEligibleProjectSubCategory,
+  isFieldCicoEligibleProjectSubCategory,
   isInternalProjectSubCategory,
 } from "@/lib/project-subcategory";
+import { isProjectOpenForSiteWork } from "@/lib/project-status";
+import {
+  isBackupAssignmentActiveOnJakartaDay,
+  tryPostPartTimePayForCompletedDay,
+} from "@/lib/petty-cash";
 import { saveUpload } from "@/lib/upload";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
+import { applyResignIfLastDayReached } from "@/lib/employee-resign";
+import { releaseExpiredBackupCrew } from "@/lib/workforce-crew";
 import {
   ensureLeaveEmploymentSyncedForUser,
   getOperationsBlockedErrorKey,
@@ -113,7 +121,7 @@ async function getProjectForCicoCheckIn(
       throw await cicoError("selectProject");
     }
 
-    if (project.status !== "IN_PROGRESS") {
+    if (!isProjectOpenForSiteWork(project.status)) {
       throw await cicoError("inProgressOnly");
     }
 
@@ -124,6 +132,12 @@ async function getProjectForCicoCheckIn(
     const assignment = await prisma.projectAssignment.findFirst({
       where: { employeeId: employee.id, projectId },
     });
+    if (
+      assignment &&
+      !isBackupAssignmentActiveOnJakartaDay(assignment)
+    ) {
+      throw await cicoError("backupWindow");
+    }
 
     return {
       project,
@@ -165,14 +179,20 @@ async function getAssignedProjectForEmployee(
   if (!assignment) {
     throw await cicoError("notAssigned");
   }
+  if (!isBackupAssignmentActiveOnJakartaDay(assignment)) {
+    throw await cicoError("backupWindow");
+  }
 
   const project = assignment.project;
 
-  if (!isProgressEligibleProjectSubCategory(project.subCategory)) {
+  if (!isFieldCicoEligibleProjectSubCategory(project.subCategory)) {
     throw await cicoError("cleaningOnly");
   }
 
-  if (project.status !== "IN_PROGRESS") {
+  if (
+    !isProjectOpenForSiteWork(project.status) ||
+    project.pendingEarlyEndReconcile
+  ) {
     throw await cicoError("inProgressOnly");
   }
 
@@ -201,7 +221,7 @@ async function getOfficeHomeProjectForEmployee(
     where: {
       id: projectId,
       companyId: employee.companyId,
-      status: "IN_PROGRESS",
+      status: { in: ["IN_PROGRESS", "WAITING_FOR_APPROVAL"] },
       OR: [{ subCategory: "INTERNAL" }, { name: expectedName }],
     },
   });
@@ -261,6 +281,9 @@ async function requireCicoSessionEmployee(formData?: FormData) {
 
   // Sync leave status first, then reload with jobPosition (office CICO exemption).
   await ensureLeaveEmploymentSyncedForUser(session.user.id);
+  if (session.user.companyId) {
+    await releaseExpiredBackupCrew(prisma as never, session.user.companyId);
+  }
   const employee = await getEmployeeForUser(session.user.id);
   if (!employee) throw await cicoError("employeeProfileNotFound");
 
@@ -364,16 +387,30 @@ export async function checkIn(formData: FormData) {
     now
   );
 
-  const existing = await prisma.attendance.findUnique({
+  const openSession = await prisma.attendance.findFirst({
     where: {
-      employeeId_date: {
-        employeeId: employee.id,
-        date: workDay,
-      },
+      employeeId: employee.id,
+      checkIn: { not: null },
+      checkOut: null,
+    },
+    include: { project: { select: { name: true } } },
+    orderBy: { checkIn: "desc" },
+  });
+  if (openSession) {
+    throw await cicoError("mustCheckOutBeforeNextSite", {
+      site: openSession.project?.name ?? "site 1",
+    });
+  }
+
+  const existingForSite = await prisma.attendance.findFirst({
+    where: {
+      employeeId: employee.id,
+      date: workDay,
+      projectId: project.id,
     },
   });
 
-  if (existing?.checkIn) {
+  if (existingForSite?.checkIn) {
     throw await cicoError("alreadyCheckedIn");
   }
 
@@ -398,38 +435,41 @@ export async function checkIn(formData: FormData) {
         )
       : null;
 
-  await prisma.attendance.upsert({
-    where: {
-      employeeId_date: {
+  if (existingForSite) {
+    await prisma.attendance.update({
+      where: { id: existingForSite.id },
+      data: {
+        checkIn: checkInAt,
+        projectId: project.id,
+        checkInLat: latitude,
+        checkInLng: longitude,
+        checkInDistanceMeters: distance,
+        checkInPhotoUrl,
+        lateCheckIn: late === true,
+        ...(lateNote ? { note: lateNote } : {}),
+      },
+    });
+  } else {
+    await prisma.attendance.create({
+      data: {
         employeeId: employee.id,
         date: workDay,
+        checkIn: checkInAt,
+        projectId: project.id,
+        checkInLat: latitude,
+        checkInLng: longitude,
+        checkInDistanceMeters: distance,
+        checkInPhotoUrl,
+        lateCheckIn: late === true,
+        note: lateNote,
       },
-    },
-    update: {
-      checkIn: checkInAt,
-      projectId: project.id,
-      checkInLat: latitude,
-      checkInLng: longitude,
-      checkInDistanceMeters: distance,
-      checkInPhotoUrl,
-      ...(lateNote ? { note: lateNote } : {}),
-    },
-    create: {
-      employeeId: employee.id,
-      date: workDay,
-      checkIn: checkInAt,
-      projectId: project.id,
-      checkInLat: latitude,
-      checkInLng: longitude,
-      checkInDistanceMeters: distance,
-      checkInPhotoUrl,
-      note: lateNote,
-    },
-  });
+    });
+  }
 
   revalidatePath("/cico");
   revalidatePath("/attendance");
   revalidatePath("/dashboard");
+  revalidatePath("/billing/petty-cash");
 }
 
 export async function checkOut(formData: FormData) {
@@ -453,8 +493,11 @@ export async function checkOut(formData: FormData) {
     throw await cicoError("mustCheckInFirst");
   }
 
-  // Progress required only for cleaning staff positions.
-  if (requiresCicoProgressReport(employee)) {
+  // Progress required for cleaning positions — not on Payroll Management jobs.
+  if (
+    requiresCicoProgressReport(employee) &&
+    existing.project?.subCategory !== "PAYROLL_MANAGEMENT"
+  ) {
     const hasProgress = await hasProgressReportForWorkDay(
       employee.id,
       existing.projectId,
@@ -517,10 +560,20 @@ export async function checkOut(formData: FormData) {
     });
   }
 
-  const earlyNote =
-    officeDeskCheckout && isOfficeClockEarlyLeave(now)
-      ? translate(await getServerLocale(), "pages.cico.errors.earlyCheckOutNote")
-      : null;
+  const assignment = existing.projectId
+    ? await prisma.projectAssignment.findFirst({
+        where: { employeeId: employee.id, projectId: existing.projectId },
+        select: { shiftStart: true, shiftEnd: true },
+      })
+    : null;
+  const fieldEarly =
+    !officeDeskCheckout &&
+    isEarlyCheckOut(now, assignment?.shiftStart, assignment?.shiftEnd) === true;
+  const officeEarly = officeDeskCheckout && isOfficeClockEarlyLeave(now);
+  const early = fieldEarly || officeEarly;
+  const earlyNote = early
+    ? translate(await getServerLocale(), "pages.cico.errors.earlyCheckOutNote")
+    : null;
 
   await prisma.attendance.update({
     where: { id: existing.id },
@@ -530,6 +583,7 @@ export async function checkOut(formData: FormData) {
       checkOutLng: longitude,
       checkOutDistanceMeters: distance,
       checkOutPhotoUrl,
+      earlyCheckOut: early,
       ...(earlyNote
         ? {
             note: existing.note
@@ -542,10 +596,20 @@ export async function checkOut(formData: FormData) {
 
   // Leave takes effect only after check-out — sync may flip ACTIVE → ON_LEAVE.
   await syncEmployeeLeaveEmploymentStatus(prisma, employee.id, now);
+  await applyResignIfLastDayReached(prisma, employee.id, now);
+
+  if (existing.projectId) {
+    await tryPostPartTimePayForCompletedDay({
+      employeeId: employee.id,
+      projectId: existing.projectId,
+      workDay: existing.date,
+    });
+  }
 
   revalidatePath("/cico");
   revalidatePath("/attendance");
   revalidatePath("/dashboard");
   revalidatePath("/employees");
   revalidatePath("/progress");
+  revalidatePath("/billing/petty-cash");
 }

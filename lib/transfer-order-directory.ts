@@ -3,10 +3,11 @@ import type { ProjectSubCategory, TransferOrderStatus } from "@prisma/client";
 import { ATTENDANCE_INTERNAL_ROUTE_CLIENT_ID } from "@/lib/attendance-internal-sites";
 import type { EnsuredInternalSiteRow } from "@/lib/ensure-internal-attendance-sites";
 
-/** Open warehouse queue statuses (actionable or in transit). */
+/** Open warehouse queue statuses (actionable, in transit, or item return). */
 export const TRANSFER_ORDER_OPEN_STATUSES = [
   "PENDING_SEND",
   "SENT",
+  "NOT_RECEIVED",
 ] as const satisfies readonly TransferOrderStatus[];
 
 export type TransferOrderClientRow = {

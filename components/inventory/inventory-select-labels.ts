@@ -1,7 +1,4 @@
-import type {
-  InventoryCatalogItem,
-  InventoryVendorOption,
-} from "@/components/inventory/inventory-types";
+import type { InventoryCatalogItem } from "@/components/inventory/inventory-types";
 
 import { formatInventoryQtyWithUnit } from "@/lib/inventory";
 
@@ -13,8 +10,4 @@ export function formatCatalogItemLabel(item: InventoryCatalogItem): string {
 /** Issue / write-off list rows include available stock. */
 export function formatCatalogItemStockLabel(item: InventoryCatalogItem): string {
   return `${item.sku} — ${item.name} — ${formatInventoryQtyWithUnit(item.currentStock, item.unit)}`;
-}
-
-export function formatVendorLabel(vendor: InventoryVendorOption): string {
-  return `${vendor.name} (${vendor.shortCode})`;
 }

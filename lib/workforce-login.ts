@@ -19,9 +19,6 @@ type Tx = Prisma.TransactionClient;
 export const LOGIN_REVOKED_PT_OFF_PROJECT =
   "Part Time portal access is only available while you are assigned to a project (On Project). Contact operations if you believe this is a mistake.";
 
-export const LOGIN_REVOKED_PT_OFF_PROJECT_ID =
-  "Akses portal Paruh Waktu hanya tersedia saat Anda ditugaskan ke proyek (Di Proyek). Hubungi operasional jika ini keliru.";
-
 /**
  * Whether this employee should currently have an active portal login.
  * - FT: yes only when portalAccessRequested (Portal No must revoke even if linked)
@@ -35,8 +32,10 @@ export function shouldHaveActivePortalLogin(options: {
   /** Retained for call sites; must not keep Full Time login active when portal is No. */
   hasLinkedUser: boolean;
   status: string;
+  jobPosition?: { slug?: string | null; name?: string | null } | null;
 }): boolean {
   void options.hasLinkedUser;
+  void options.jobPosition;
 
   if (
     options.status !== "ACTIVE" &&
@@ -110,6 +109,7 @@ export async function syncEmployeePortalLogin(
     portalAccessRequested: options.portalAccessRequested,
     hasLinkedUser: Boolean(options.userId),
     status: options.status,
+    jobPosition: options.jobPosition,
   });
 
   if (shouldActive) {

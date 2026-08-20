@@ -75,7 +75,12 @@ export default async function UsersPage({ searchParams }: Props) {
               status: true,
               archivedFromDirectory: true,
               jobPosition: {
-                select: { id: true, name: true, slug: true },
+                select: {
+                  id: true,
+                  name: true,
+                  slug: true,
+                  defaultModuleAccess: true,
+                },
               },
               category: {
                 select: { name: true, prefix: true },
@@ -141,7 +146,14 @@ export default async function UsersPage({ searchParams }: Props) {
           employeeType: true,
           employmentType: true,
           placement: true,
-          jobPosition: { select: { id: true, name: true } },
+          jobPosition: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              defaultModuleAccess: true,
+            },
+          },
           status: true,
           category: { select: { name: true } },
           user: { select: { username: true, active: true } },

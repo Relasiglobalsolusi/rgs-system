@@ -51,12 +51,30 @@ export const CLEANING_PROJECT_SUB_CATEGORIES = [
  * Cleaning (+ Internal) and Security. No forced interval / SOP scheduler —
  * staff may report whenever; managers set expectations offline.
  *
- * Parking / Payroll Management: not progress-eligible.
+ * Parking / Payroll Management: CICO yes, progress no.
  */
 export const PROGRESS_ELIGIBLE_PROJECT_SUB_CATEGORIES = [
   ...CLEANING_PROJECT_SUB_CATEGORIES,
   "SECURITY",
 ] as const satisfies readonly ProjectSubCategory[];
+
+/** Assigned staff may check in here (includes jobs that do not use progress). */
+export const FIELD_CICO_ELIGIBLE_PROJECT_SUB_CATEGORIES = [
+  ...PROGRESS_ELIGIBLE_PROJECT_SUB_CATEGORIES,
+  "PARKING",
+  "PAYROLL_MANAGEMENT",
+] as const satisfies readonly ProjectSubCategory[];
+
+export function isFieldCicoEligibleProjectSubCategory(
+  value: ProjectSubCategory | string | null | undefined
+): boolean {
+  return (
+    typeof value === "string" &&
+    (FIELD_CICO_ELIGIBLE_PROJECT_SUB_CATEGORIES as readonly string[]).includes(
+      value
+    )
+  );
+}
 
 export const PROJECT_SUB_CATEGORY_LABELS: Record<ProjectSubCategory, string> = {
   REGULAR_CLEANING: "Regular Cleaning",
@@ -160,78 +178,5 @@ export function getProjectSubCategoryLabel(
   return PROJECT_SUB_CATEGORY_LABELS[value];
 }
 
-/** Short filter/table label — Regular / General / Facade / Internal / Security / … */
-export function getProjectSubCategoryShortLabel(
-  value: ProjectSubCategory | string | null | undefined
-): string {
-  if (isInternalProjectSubCategory(value)) return "Internal";
-  if (value === "PAYROLL_MANAGEMENT") return "Payroll";
-  if (value === "SECURITY" || value === "PARKING") {
-    return getProjectSubCategoryLabel(value);
-  }
-  const full = getProjectSubCategoryLabel(value);
-  if (full === "-") return full;
-  return full.replace(" Cleaning", "").replace(" Project", "");
-}
-
-/**
- * Two-line StatusBadge label
- * (REGULAR / CLEANING) or (INTERNAL / PROJECT) / (SECURITY / SERVICE) inside the fixed chip.
- */
-export function getProjectSubCategoryChipLines(
-  value: ProjectSubCategory | string | null | undefined
-): readonly [string, string] | null {
-  if (!value || !isProjectSubCategory(value)) return null;
-  if (isInternalProjectSubCategory(value)) {
-    return ["Internal", "Project"] as const;
-  }
-  if (isServiceProjectSubCategory(value)) {
-    if (value === "PAYROLL_MANAGEMENT") {
-      return ["Payroll", "Mgmt"] as const;
-    }
-    return [getProjectSubCategoryShortLabel(value), "Service"] as const;
-  }
-  const short = getProjectSubCategoryShortLabel(value);
-  return [short, "Cleaning"] as const;
-}
-
 /** Select value for "All Projects" in project/subcategory filter dropdowns. */
 export const PROJECT_FILTER_ALL = "all";
-
-/** Prefix for subcategory filter values, e.g. `sub:REGULAR_CLEANING`. */
-export const PROJECT_FILTER_SUB_PREFIX = "sub:";
-
-export function toProjectSubCategoryFilterValue(
-  subCategory: ProjectSubCategory
-): string {
-  return `${PROJECT_FILTER_SUB_PREFIX}${subCategory}`;
-}
-
-export function getProjectFilterSelectValue(opts: {
-  projectId?: string;
-  subCategory?: ProjectSubCategory;
-}): string {
-  if (opts.projectId) return opts.projectId;
-  if (opts.subCategory) {
-    return toProjectSubCategoryFilterValue(opts.subCategory);
-  }
-  return PROJECT_FILTER_ALL;
-}
-
-export type ProjectFilterSelection =
-  | { kind: "all" }
-  | { kind: "subCategory"; subCategory: ProjectSubCategory }
-  | { kind: "project"; projectId: string };
-
-export function parseProjectFilterSelectValue(
-  value: string | null | undefined
-): ProjectFilterSelection {
-  if (!value || value === PROJECT_FILTER_ALL) return { kind: "all" };
-  if (value.startsWith(PROJECT_FILTER_SUB_PREFIX)) {
-    const sub = value.slice(PROJECT_FILTER_SUB_PREFIX.length);
-    if (isProjectSubCategory(sub)) {
-      return { kind: "subCategory", subCategory: sub };
-    }
-  }
-  return { kind: "project", projectId: value };
-}

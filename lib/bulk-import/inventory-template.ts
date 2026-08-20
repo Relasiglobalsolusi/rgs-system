@@ -48,7 +48,7 @@ export const INVENTORY_IMPORT_COLUMNS: ColumnDef[] = applyLocalizedHeaders(
   INVENTORY_HEADER_LABELS
 );
 
-export function getInventoryImportColumns(locale: AppLocale): ColumnDef[] {
+function getInventoryImportColumns(locale: AppLocale): ColumnDef[] {
   return applyLocalizedHeaders(
     BASE_INVENTORY_IMPORT_COLUMNS,
     locale,

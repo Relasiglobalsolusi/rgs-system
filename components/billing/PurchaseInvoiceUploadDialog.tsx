@@ -58,7 +58,7 @@ import {
 } from "@/lib/vat";
 import { outlineChipTones } from "@/components/ui/StatusBadge";
 
-type PurchaseCategoryChoice = "PRODUCT" | "SERVICE";
+type PurchaseCategoryChoice = "PRODUCT" | "SERVICE" | "PETTY_CASH";
 
 export type PurchaseInvoiceVendorOption = {
   id: string;
@@ -72,6 +72,12 @@ export type PurchaseCatalogItemOption = {
   sku: string;
   unit: string;
   lastUnitCost: number | null;
+};
+
+export type PurchaseProjectOption = {
+  id: string;
+  name: string;
+  clientName: string | null;
 };
 
 type PurchaseLineDraft = {
@@ -94,6 +100,7 @@ type PurchaseInvoiceUploadDialogProps = {
   vendors: PurchaseInvoiceVendorOption[];
   /** Active catalog items for line selection (HO). Empty = vendor portal header-only. */
   catalogItems?: PurchaseCatalogItemOption[];
+  projects?: PurchaseProjectOption[];
   /** Vendor portal: lock supplier to the signed-in vendor. */
   lockToVendor?: boolean;
 };
@@ -101,6 +108,7 @@ type PurchaseInvoiceUploadDialogProps = {
 export default function PurchaseInvoiceUploadDialog({
   vendors,
   catalogItems = [],
+  projects = [],
   lockToVendor = false,
 }: PurchaseInvoiceUploadDialogProps) {
   const { t } = useT();
@@ -113,7 +121,12 @@ export default function PurchaseInvoiceUploadDialog({
   const [error, setError] = useState<string | null>(null);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [taxFile, setTaxFile] = useState<File | null>(null);
+  const [taxReason, setTaxReason] = useState("");
   const [includesPpn, setIncludesPpn] = useState<YesNoChoice>("No");
+  const [purchasePurpose, setPurchasePurpose] = useState<
+    "STOCK" | "PROJECT" | "INTERNAL"
+  >("STOCK");
+  const [projectId, setProjectId] = useState("");
   const [purchaseCategory, setPurchaseCategory] =
     useState<PurchaseCategoryChoice>("PRODUCT");
   const [ppnRatePercent, setPpnRatePercent] = useState(
@@ -126,7 +139,8 @@ export default function PurchaseInvoiceUploadDialog({
   const [vendorChoice, setVendorChoice] = useState(lockedVendorId ?? "");
   const [extractFilled, setExtractFilled] = useState(false);
 
-  const requireItemLines = !lockToVendor;
+  const isPettyCash = purchaseCategory === "PETTY_CASH";
+  const requireItemLines = !lockToVendor && !isPettyCash;
   const selectedVendor =
     vendors.find((vendor) => vendor.id === vendorChoice) ?? null;
   const withPpn = includesPpn === "Yes";
@@ -175,7 +189,10 @@ export default function PurchaseInvoiceUploadDialog({
       setError(null);
       setDocumentFile(null);
       setTaxFile(null);
+      setTaxReason("");
       setIncludesPpn("No");
+      setPurchasePurpose("STOCK");
+      setProjectId("");
       setPurchaseCategory("PRODUCT");
       setPpnRatePercent(String(DEFAULT_PRODUCT_PPN_RATE_PERCENT));
       setInvoiceDate(todayDateInput());
@@ -244,7 +261,7 @@ export default function PurchaseInvoiceUploadDialog({
   function handleDocumentPick(file: File | null) {
     setDocumentFile(file);
     setExtractFilled(false);
-    if (file && file.size > 0) {
+    if (file && file.size > 0 && purchaseCategory !== "PETTY_CASH") {
       runInvoiceExtract(file);
     }
   }
@@ -256,9 +273,38 @@ export default function PurchaseInvoiceUploadDialog({
     const form = event.currentTarget;
     const formData = new FormData(form);
     formData.set("includesPpn", withPpn ? "true" : "false");
+    formData.set("purchasePurpose", purchasePurpose);
+    formData.set("projectId", purchasePurpose === "PROJECT" ? projectId : "");
     formData.set("purchaseCategory", purchaseCategory);
     formData.set("invoiceRef", invoiceRef.trim());
     formData.set("invoiceDate", invoiceDate);
+
+    if (isPettyCash) {
+      formData.set("amount", amount.trim());
+      if (documentFile && documentFile.size > 0) {
+        formData.set("document", documentFile);
+      }
+      setPending(true);
+      try {
+        await createPurchaseInvoice(formData);
+        setOpen(false);
+        router.refresh();
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : t("pages.billing.purchaseUploadFailed")
+        );
+      } finally {
+        setPending(false);
+      }
+      return;
+    }
+
+    if (purchasePurpose === "PROJECT" && !projectId) {
+      setError(t("pages.billing.purchaseProjectRequired"));
+      return;
+    }
 
     const vendorId = lockedVendorId ?? vendorChoice;
     const vendor = vendors.find((item) => item.id === vendorId);
@@ -333,9 +379,15 @@ export default function PurchaseInvoiceUploadDialog({
     formData.set("document", documentFile);
 
     if (withPpn && taxFile && taxFile.size > 0) {
+      if (!taxReason.trim()) {
+        setError(t("pages.billing.inHouseReasonRequired"));
+        return;
+      }
       formData.set("taxInvoiceDocument", taxFile);
+      formData.set("manualReason", taxReason);
     } else {
       formData.delete("taxInvoiceDocument");
+      formData.delete("manualReason");
     }
 
     setPending(true);
@@ -374,9 +426,12 @@ export default function PurchaseInvoiceUploadDialog({
               form="purchase-invoice-upload-form"
               disabled={
                 busy ||
-                !documentFile ||
-                (!lockedVendorId && (vendors.length === 0 || !vendorChoice)) ||
-                (requireItemLines && catalogItems.length === 0)
+                (isPettyCash
+                  ? !amount.trim()
+                  : !documentFile ||
+                    (!lockedVendorId &&
+                      (vendors.length === 0 || !vendorChoice)) ||
+                    (requireItemLines && catalogItems.length === 0))
               }
             >
               {pending
@@ -398,11 +453,74 @@ export default function PurchaseInvoiceUploadDialog({
           className={employeeDialogFormClass}
         >
           <div className={employeeDialogGridClass}>
+            <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+              <label
+                id="purchase-category-label"
+                className={employeeDialogLabelClass}
+              >
+                {t("pages.billing.purchaseCategory")}
+                <span className="text-red-400"> *</span>
+              </label>
+              <div
+                id="purchase-category"
+                role="radiogroup"
+                aria-labelledby="purchase-category-label"
+                className={cn("grid gap-2", lockToVendor ? "grid-cols-2" : "grid-cols-3")}
+              >
+                {(
+                  [
+                    ["PRODUCT", t("pages.billing.purchaseCategoryProduct")],
+                    ["SERVICE", t("pages.billing.purchaseCategoryService")],
+                    ...(lockToVendor
+                      ? []
+                      : [
+                          [
+                            "PETTY_CASH",
+                            t("pages.billing.purchaseCategoryPettyCash"),
+                          ] as [PurchaseCategoryChoice, string],
+                        ]),
+                  ] as Array<[PurchaseCategoryChoice, string]>
+                ).map(([value, label]) => {
+                  const active = purchaseCategory === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      disabled={busy}
+                      onClick={() => {
+                        setPurchaseCategory(value);
+                        if (value === "PETTY_CASH") {
+                          setPurchasePurpose("STOCK");
+                          setProjectId("");
+                          setIncludesPpn("No");
+                          setTaxFile(null);
+                        }
+                      }}
+                      className={cn(
+                        "inline-flex min-h-8 w-full items-center justify-center rounded-xl px-3 py-1.5 text-xs font-semibold tracking-wide transition",
+                        active && outlineChipTones.emeraldInteractive,
+                        !active &&
+                          "border border-border bg-elevated text-muted hover:border-border-strong hover:bg-card-hover hover:text-text"
+                      )}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className={employeeDialogHintClass}>
+                {t("pages.billing.purchaseCategoryHint")}
+              </p>
+            </div>
+
+            {isPettyCash ? null : (
             <div className="sm:col-span-2 space-y-2">
               <BillingDocumentFilePick
                 id="purchase-document"
                 label={t("pages.billing.purchaseDocument")}
-                required
+                required={!isPettyCash}
                 fileName={documentFile?.name ?? null}
                 onPick={handleDocumentPick}
                 disabled={busy}
@@ -434,7 +552,9 @@ export default function PurchaseInvoiceUploadDialog({
                 </div>
               ) : null}
             </div>
+            )}
 
+            {isPettyCash ? null : (
             <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
               <label
                 htmlFor="purchase-vendor"
@@ -505,7 +625,9 @@ export default function PurchaseInvoiceUploadDialog({
                 </p>
               ) : null}
             </div>
+            )}
 
+            {isPettyCash ? null : (
             <div className={employeeDialogFieldClass}>
               <label htmlFor="purchase-ref" className={employeeDialogLabelClass}>
                 {t("pages.billing.purchaseInvoiceRef")}
@@ -522,13 +644,21 @@ export default function PurchaseInvoiceUploadDialog({
                 className={employeeInputClass}
               />
             </div>
+            )}
 
-            <div className={employeeDialogFieldClass}>
+            <div
+              className={cn(
+                employeeDialogFieldClass,
+                isPettyCash && "sm:col-span-2"
+              )}
+            >
               <label
                 htmlFor="purchase-date"
                 className={employeeDialogLabelClass}
               >
-                {t("pages.billing.purchaseInvoiceDate")}
+                {isPettyCash
+                  ? t("pages.billing.purchaseDate")
+                  : t("pages.billing.purchaseInvoiceDate")}
                 <span className="text-red-400"> *</span>
               </label>
               <Input
@@ -768,36 +898,28 @@ export default function PurchaseInvoiceUploadDialog({
               />
             </div>
 
-            <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
-              <label
-                id="purchase-category-label"
-                className={employeeDialogLabelClass}
-              >
-                {t("pages.billing.purchaseCategory")}
+            <div className={cn(employeeDialogFieldClass, "sm:col-span-2", isPettyCash && "hidden")}>
+              <label className={employeeDialogLabelClass}>
+                {t("pages.billing.purchasePurpose")}
                 <span className="text-red-400"> *</span>
               </label>
-              <div
-                id="purchase-category"
-                role="radiogroup"
-                aria-labelledby="purchase-category-label"
-                className="grid grid-cols-2 gap-2"
-              >
+              <div className="grid grid-cols-3 gap-2">
                 {(
                   [
-                    ["PRODUCT", t("pages.billing.purchaseCategoryProduct")],
-                    ["SERVICE", t("pages.billing.purchaseCategoryService")],
+                    ["STOCK", t("pages.billing.purchasePurposeStock")],
+                    ["PROJECT", t("pages.billing.purchasePurposeProject")],
+                    ["INTERNAL", t("pages.billing.purchasePurposeInternal")],
                   ] as const
                 ).map(([value, label]) => {
-                  const active = purchaseCategory === value;
+                  const active = purchasePurpose === value;
                   return (
                     <button
                       key={value}
                       type="button"
-                      role="radio"
-                      aria-checked={active}
                       disabled={busy}
                       onClick={() => {
-                        setPurchaseCategory(value);
+                        setPurchasePurpose(value);
+                        if (value !== "PROJECT") setProjectId("");
                       }}
                       className={cn(
                         "inline-flex min-h-8 w-full items-center justify-center rounded-xl px-3 py-1.5 text-xs font-semibold tracking-wide transition",
@@ -812,11 +934,40 @@ export default function PurchaseInvoiceUploadDialog({
                 })}
               </div>
               <p className={employeeDialogHintClass}>
-                {t("pages.billing.purchaseCategoryHint")}
+                {t("pages.billing.purchasePurposeHint")}
               </p>
             </div>
 
-            <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+            {purchasePurpose === "PROJECT" && !isPettyCash ? (
+              <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+                <label className={employeeDialogLabelClass}>
+                  {t("pages.billing.purchaseProject")}
+                  <span className="text-red-400"> *</span>
+                </label>
+                <Select
+                  value={projectId}
+                  onValueChange={(value) => setProjectId(value ?? "")}
+                  disabled={busy}
+                >
+                  <SelectTrigger className={employeeSelectTriggerClass}>
+                    <SelectValue
+                      placeholder={t("pages.billing.purchaseProjectPlaceholder")}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {projects.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.clientName
+                          ? `${project.name} · ${project.clientName}`
+                          : project.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+
+            <div className={cn(employeeDialogFieldClass, "sm:col-span-2", isPettyCash && "hidden")}>
               <label
                 id="purchase-includes-ppn-label"
                 htmlFor="purchase-includes-ppn"
@@ -845,7 +996,7 @@ export default function PurchaseInvoiceUploadDialog({
               </p>
             </div>
 
-            {withPpn ? (
+            {withPpn && !isPettyCash ? (
               <>
                 <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
                   <label
@@ -890,6 +1041,22 @@ export default function PurchaseInvoiceUploadDialog({
                   <p className={employeeDialogHintClass}>
                     {t("pages.billing.purchaseTaxInvoiceHint")}
                   </p>
+                  {taxFile ? (
+                    <div className="space-y-2">
+                      <label className={employeeDialogLabelClass}>
+                        {t("pages.billing.inHouseVerifyReason")}
+                        <span className="text-red-400"> *</span>
+                      </label>
+                      <Textarea
+                        value={taxReason}
+                        onChange={(event) => setTaxReason(event.target.value)}
+                        disabled={busy}
+                        placeholder={t(
+                          "pages.billing.inHouseVerifyReasonPlaceholder"
+                        )}
+                      />
+                    </div>
+                  ) : null}
                 </div>
               </>
             ) : null}

@@ -21,8 +21,6 @@ export async function getServerLocale(): Promise<AppLocale> {
   }
 }
 
-export const APP_LOCALES: readonly AppLocale[] = ["en", "id"] as const;
-
 export function isAppLocale(value: unknown): value is AppLocale {
   return value === "en" || value === "id";
 }

@@ -2,7 +2,10 @@ import { notFound } from "next/navigation";
 
 import { getTransferOrderQueueForProject } from "@/app/transfer-orders/actions";
 import AppShell from "@/components/layout/AppShell";
-import { SendTransferOrderButton } from "@/components/transfer-orders/TransferOrderActions";
+import {
+  SendTransferOrderButton,
+  WarehouseItemReturnActions,
+} from "@/components/transfer-orders/TransferOrderActions";
 import TransferOrderBreadcrumbs from "@/components/transfer-orders/TransferOrderBreadcrumbs";
 import TransferOrderCountBadges from "@/components/transfer-orders/TransferOrderCountBadges";
 import TransferOrderDetailCard from "@/components/transfer-orders/TransferOrderDetailCard";
@@ -99,6 +102,8 @@ export default async function TransferOrdersProjectQueuePage({
               actions={
                 order.status === "PENDING_SEND" ? (
                   <SendTransferOrderButton id={order.id} />
+                ) : order.status === "NOT_RECEIVED" ? (
+                  <WarehouseItemReturnActions id={order.id} />
                 ) : null
               }
             />

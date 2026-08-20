@@ -115,6 +115,8 @@ export async function syncEmployeeLeaveEmploymentStatus(
 
   // Remove project assignments when leave first applies (not on repeated calls).
   if (targetStatus === "ON_LEAVE" && employee.status !== "ON_LEAVE") {
+    const { voidScheduledPartTimePays } = await import("@/lib/petty-cash");
+    await voidScheduledPartTimePays(db as never, { employeeIds: [employeeId] });
     await db.projectAssignment.deleteMany({
       where: { employeeId },
     });

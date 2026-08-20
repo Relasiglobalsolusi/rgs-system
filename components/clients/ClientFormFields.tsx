@@ -62,6 +62,12 @@ type Props = {
   /** Next Client ID preview for create mode (assigned on save). */
   previewShortCode?: string;
   onFormValuesChange?: () => void;
+  /** Prefix form field names (e.g. `line.0.`) for bulk create. */
+  namePrefix?: string;
+  /** Prefix element ids so multiple forms can sit on one page. */
+  idPrefix?: string;
+  hideShortCode?: boolean;
+  hideLoginId?: boolean;
 };
 
 function SectionHeading({
@@ -107,8 +113,15 @@ export default function ClientFormFields({
   defaults,
   previewShortCode,
   onFormValuesChange,
+  namePrefix = "",
+  idPrefix = "",
+  hideShortCode = false,
+  hideLoginId = false,
 }: Props) {
   const { t } = useT();
+  const nameOf = (field: string) =>
+    namePrefix ? `${namePrefix}${field}` : field;
+  const idOf = (id: string) => (idPrefix ? `${idPrefix}${id}` : id);
   const initialParts = initialPersonNameParts(defaults);
   const [clientName, setClientName] = useState(defaults?.name ?? "");
   const [firstName, setFirstName] = useState(initialParts.firstName);
@@ -213,22 +226,22 @@ export default function ClientFormFields({
               }
               columns={2}
             />
-            <input type="hidden" name="clientType" value={clientType} />
+            <input type="hidden" name={nameOf("clientType")} value={clientType} />
           </div>
 
           {isIndividual ? (
             <>
-              <input type="hidden" name="name" value={individualDisplayName} />
+              <input type="hidden" name={nameOf("name")} value={individualDisplayName} />
               <div className={employeeDialogFieldClass}>
                 <label
-                  htmlFor="client-first-name"
+                  htmlFor={idOf("client-first-name")}
                   className={employeeDialogLabelClass}
                 >
                   {t("pages.clients.form.firstName")}
                 </label>
                 <Input
-                  id="client-first-name"
-                  name="contactPersonFirstName"
+                  id={idOf("client-first-name")}
+                  name={nameOf("contactPersonFirstName")}
                   placeholder="e.g. Budi"
                   value={firstName}
                   onChange={(event) => {
@@ -241,14 +254,14 @@ export default function ClientFormFields({
               </div>
               <div className={employeeDialogFieldClass}>
                 <label
-                  htmlFor="client-last-name"
+                  htmlFor={idOf("client-last-name")}
                   className={employeeDialogLabelClass}
                 >
                   {t("pages.clients.form.lastName")}
                 </label>
                 <Input
-                  id="client-last-name"
-                  name="contactPersonLastName"
+                  id={idOf("client-last-name")}
+                  name={nameOf("contactPersonLastName")}
                   placeholder="e.g. Santoso"
                   value={lastName}
                   onChange={(event) => {
@@ -261,12 +274,12 @@ export default function ClientFormFields({
             </>
           ) : (
             <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
-              <label htmlFor="client-name" className={employeeDialogLabelClass}>
+              <label htmlFor={idOf("client-name")} className={employeeDialogLabelClass}>
                 {t("pages.clients.form.clientName")}
               </label>
               <Input
-                id="client-name"
-                name="name"
+                id={idOf("client-name")}
+                name={nameOf("name")}
                 placeholder="e.g. PT Gedung Sejahtera"
                 value={clientName}
                 onChange={(event) => {
@@ -279,15 +292,16 @@ export default function ClientFormFields({
             </div>
           )}
 
+          {hideShortCode ? null : (
           <div className={employeeDialogFieldClass}>
             <label
-              htmlFor="client-short-code"
+              htmlFor={idOf("client-short-code")}
               className={employeeDialogLabelClass}
             >
               {t("pages.clients.form.shortCode")}
             </label>
             <Input
-              id="client-short-code"
+              id={idOf("client-short-code")}
               value={shortCodeValue}
               readOnly
               placeholder={
@@ -303,16 +317,17 @@ export default function ClientFormFields({
                 : t("pages.clients.form.shortCodeHint")}
             </p>
           </div>
+          )}
 
           <div className={employeeDialogFieldClass}>
-            <label htmlFor="client-email" className={employeeDialogLabelClass}>
+            <label htmlFor={idOf("client-email")} className={employeeDialogLabelClass}>
               {isIndividual
                 ? t("pages.clients.form.email")
                 : t("pages.clients.form.companyEmail")}
             </label>
             <Input
-              id="client-email"
-              name="email"
+              id={idOf("client-email")}
+              name={nameOf("email")}
               type="email"
               placeholder={
                 isIndividual ? "e.g. budi@email.com" : "info@company.co.id"
@@ -323,13 +338,13 @@ export default function ClientFormFields({
           </div>
 
           <div className={employeeDialogFieldClass}>
-            <label htmlFor="client-phone" className={employeeDialogLabelClass}>
+            <label htmlFor={idOf("client-phone")} className={employeeDialogLabelClass}>
               {isIndividual
                 ? t("pages.clients.form.phone")
                 : t("pages.clients.form.companyPhone")}
             </label>
             <PhoneInput
-              name="phone"
+              name={nameOf("phone")}
               formatVariant="landline"
               defaultValue={defaults?.phone ?? ""}
               onValueChange={() => onFormValuesChange?.()}
@@ -340,14 +355,14 @@ export default function ClientFormFields({
 
           <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
             <label
-              htmlFor="client-address"
+              htmlFor={idOf("client-address")}
               className={employeeDialogLabelClass}
             >
               {t("pages.clients.form.address")}
             </label>
             <Textarea
-              id="client-address"
-              name="address"
+              id={idOf("client-address")}
+              name={nameOf("address")}
               placeholder="Street, city, region"
               rows={3}
               defaultValue={defaults?.address ?? ""}
@@ -359,14 +374,14 @@ export default function ClientFormFields({
           </div>
 
           <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
-            <label htmlFor="client-npwp" className={employeeDialogLabelClass}>
+            <label htmlFor={idOf("client-npwp")} className={employeeDialogLabelClass}>
               {isIndividual
                 ? t("pages.clients.form.clientNpwpOrNik")
                 : t("pages.clients.form.companyNpwp")}
             </label>
             <Input
-              id="client-npwp"
-              name="npwp"
+              id={idOf("client-npwp")}
+              name={nameOf("npwp")}
               placeholder="e.g. 10.20.0.1-012.000"
               defaultValue={defaults?.npwp ?? ""}
               autoComplete="off"
@@ -404,7 +419,7 @@ export default function ClientFormFields({
 
           <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
             <label
-              htmlFor="client-tax-id-document"
+              htmlFor={idOf("client-tax-id-document")}
               className={employeeDialogLabelClass}
             >
               {isIndividual
@@ -442,8 +457,8 @@ export default function ClientFormFields({
             </button>
             <input
               ref={taxIdFileInputRef}
-              id="client-tax-id-document"
-              name="taxIdDocument"
+              id={idOf("client-tax-id-document")}
+              name={nameOf("taxIdDocument")}
               type="file"
               accept="image/*,.pdf"
               required={taxIdDocumentRequired}
@@ -465,14 +480,14 @@ export default function ClientFormFields({
 
           <div className={employeeDialogFieldClass}>
             <label
-              htmlFor="client-since"
+              htmlFor={idOf("client-since")}
               className={employeeDialogLabelClass}
             >
               {t("pages.clients.form.clientSince")}
             </label>
             <Input
-              id="client-since"
-              name="clientSince"
+              id={idOf("client-since")}
+              name={nameOf("clientSince")}
               type="date"
               defaultValue={
                 formatDateForInput(defaults?.clientSince) ||
@@ -489,14 +504,14 @@ export default function ClientFormFields({
 
           <div className={employeeDialogFieldClass}>
             <label
-              htmlFor="client-payment-terms"
+              htmlFor={idOf("client-payment-terms")}
               className={employeeDialogLabelClass}
             >
               {t("pages.clients.form.paymentTerms")}
             </label>
             <select
-              id="client-payment-terms"
-              name="paymentTermsDays"
+              id={idOf("client-payment-terms")}
+              name={nameOf("paymentTermsDays")}
               defaultValue={String(
                 defaults?.paymentTermsDays != null &&
                   PAYMENT_TERMS_OPTIONS.includes(
@@ -537,14 +552,14 @@ export default function ClientFormFields({
           <div className={employeeDialogGridClass}>
             <div className={employeeDialogFieldClass}>
               <label
-                htmlFor="client-contact-first-name"
+                htmlFor={idOf("client-contact-first-name")}
                 className={employeeDialogLabelClass}
               >
                 {t("pages.clients.form.contactFirstName")}
               </label>
               <Input
-                id="client-contact-first-name"
-                name="contactPersonFirstName"
+                id={idOf("client-contact-first-name")}
+                name={nameOf("contactPersonFirstName")}
                 placeholder="e.g. Budi"
                 value={firstName}
                 onChange={(event) => {
@@ -558,14 +573,14 @@ export default function ClientFormFields({
 
             <div className={employeeDialogFieldClass}>
               <label
-                htmlFor="client-contact-last-name"
+                htmlFor={idOf("client-contact-last-name")}
                 className={employeeDialogLabelClass}
               >
                 {t("pages.clients.form.contactLastName")}
               </label>
               <Input
-                id="client-contact-last-name"
-                name="contactPersonLastName"
+                id={idOf("client-contact-last-name")}
+                name={nameOf("contactPersonLastName")}
                 placeholder="e.g. Santoso"
                 value={lastName}
                 onChange={(event) => {
@@ -578,14 +593,14 @@ export default function ClientFormFields({
 
             <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
               <label
-                htmlFor="client-contact-position"
+                htmlFor={idOf("client-contact-position")}
                 className={employeeDialogLabelClass}
               >
                 {t("pages.clients.form.contactPosition")}
               </label>
               <Input
-                id="client-contact-position"
-                name="contactPersonPosition"
+                id={idOf("client-contact-position")}
+                name={nameOf("contactPersonPosition")}
                 placeholder="e.g. Operations Manager"
                 defaultValue={defaults?.contactPersonPosition ?? ""}
                 className={employeeInputClass}
@@ -594,14 +609,14 @@ export default function ClientFormFields({
 
             <div className={employeeDialogFieldClass}>
               <label
-                htmlFor="client-contact-email"
+                htmlFor={idOf("client-contact-email")}
                 className={employeeDialogLabelClass}
               >
                 {t("pages.clients.form.contactEmail")}
               </label>
               <Input
-                id="client-contact-email"
-                name="contactPersonEmail"
+                id={idOf("client-contact-email")}
+                name={nameOf("contactPersonEmail")}
                 type="email"
                 placeholder="e.g. budi@company.co.id"
                 defaultValue={defaults?.contactPersonEmail ?? ""}
@@ -611,13 +626,13 @@ export default function ClientFormFields({
 
             <div className={employeeDialogFieldClass}>
               <label
-                htmlFor="client-contact-phone"
+                htmlFor={idOf("client-contact-phone")}
                 className={employeeDialogLabelClass}
               >
                 {t("pages.clients.form.contactPhone")}
               </label>
               <PhoneInput
-                name="contactPersonPhone"
+                name={nameOf("contactPersonPhone")}
                 defaultValue={defaults?.contactPersonPhone ?? ""}
                 onValueChange={() => onFormValuesChange?.()}
                 inputClassName={employeeInputClass}
@@ -640,17 +655,18 @@ export default function ClientFormFields({
           />
 
           <div className={employeeDialogGridClass}>
+            {hideLoginId ? null : (
             <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
               <label
-                htmlFor="client-login-id"
+                htmlFor={idOf("client-login-id")}
                 className={employeeDialogLabelClass}
               >
                 {t("pages.clients.form.loginId")}
               </label>
               <div className="flex flex-wrap gap-2">
                 <Input
-                  id="client-login-id"
-                  name="loginId"
+                  id={idOf("client-login-id")}
+                  name={nameOf("loginId")}
                   value={loginId}
                   onChange={(event) => {
                     const next = event.target.value
@@ -716,18 +732,19 @@ export default function ClientFormFields({
                 </p>
               ) : null}
             </div>
+            )}
 
             <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
               <label
-                id="client-multi-project-label"
-                htmlFor="client-multi-project"
+                id={idOf("client-multi-project-label")}
+                htmlFor={idOf("client-multi-project")}
                 className={employeeDialogLabelClass}
               >
                 {t("pages.clients.form.multiProjectAccess")}
               </label>
               <YesNoChoiceCards
-                id="client-multi-project"
-                labelledBy="client-multi-project-label"
+                id={idOf("client-multi-project")}
+                labelledBy={idOf("client-multi-project-label")}
                 value={multiProjectAccess}
                 onChange={(value) => {
                   setMultiProjectAccess(value);
@@ -736,7 +753,7 @@ export default function ClientFormFields({
               />
               <input
                 type="hidden"
-                name="multiProjectAccess"
+                name={nameOf("multiProjectAccess")}
                 value={multiProjectAccess === "Yes" ? "yes" : "no"}
               />
               <p className={employeeDialogHintClass}>

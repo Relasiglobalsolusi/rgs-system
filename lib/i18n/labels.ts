@@ -9,10 +9,6 @@ import type {
 import { getLocale, type AppLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
 import {
-  getLeaveTypeLabel,
-  type LeaveRequestType,
-} from "@/lib/i18n/leave-type";
-import {
   getProjectWorkflowStatusLabel,
   isProjectStatus,
 } from "@/lib/project-status";
@@ -32,7 +28,11 @@ export function localizeProjectStatus(
  * Logic still uses English keys from `getProjectWorkflowStatusLabel`.
  */
 export function localizeWorkflowStatus(
-  opts: { status: ProjectStatus | string | null | undefined; paymentDue?: boolean },
+  opts: {
+    status: ProjectStatus | string | null | undefined;
+    paymentDue?: boolean;
+    awaitingPayment?: boolean;
+  },
   locale: AppLocale = getLocale()
 ): string {
   const english = getProjectWorkflowStatusLabel(opts);
@@ -66,6 +66,12 @@ export function localizeWorkflowChipLines(
     return [
       translate(locale, "status.workflowChip.waitingForApproval1"),
       translate(locale, "status.workflowChip.waitingForApproval2"),
+    ];
+  }
+  if (englishWorkflowLabel === "Awaiting payment") {
+    return [
+      translate(locale, "status.workflowChip.awaitingPayment1"),
+      translate(locale, "status.workflowChip.awaitingPayment2"),
     ];
   }
   return null;
@@ -115,13 +121,6 @@ export function localizeLeaveStatus(
   const key = `status.leave.${status}`;
   const translated = translate(locale, key);
   return translated === key ? status : translated;
-}
-
-export function localizeLeaveType(
-  type: string,
-  locale: AppLocale = getLocale()
-): string {
-  return getLeaveTypeLabel(type as LeaveRequestType, locale);
 }
 
 export function localizeSubCategory(
@@ -199,15 +198,6 @@ export function localizeNavLabel(
   return englishLabel;
 }
 
-export function localizeModuleLabel(
-  moduleKey: string,
-  locale: AppLocale = getLocale()
-): string {
-  const key = `modules.${moduleKey}`;
-  const translated = translate(locale, key);
-  return translated === key ? moduleKey : translated;
-}
-
 /** Seed/system department slugs → dictionary keys under `status.department`. */
 const SYSTEM_DEPARTMENT_SLUG_KEYS: Record<string, string> = {
   corporate: "corporate",
@@ -273,6 +263,7 @@ const KNOWN_JOB_TITLE_KEYS: Record<string, string> = {
   "chief executive officer": "ceo",
   "director of operations": "directorOfOperations",
   "operations manager": "operationsManager",
+  "area manager": "areaManager",
   "cleaning staff": "cleaningStaff",
   "general cleaning staff": "generalCleaningStaff",
   "gondola staff": "gondolaStaff",

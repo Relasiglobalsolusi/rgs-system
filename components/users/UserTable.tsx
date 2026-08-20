@@ -27,7 +27,10 @@ import {
   getAccountTypeBadgeStatus,
   getVisibleModules,
 } from "@/lib/permissions";
-import { isRevokedAccessUser } from "@/lib/user-directory-status";
+import {
+  canRestorePortalAccess,
+  isRevokedAccessUser,
+} from "@/lib/user-directory-status";
 import AdminPasswordDisplay from "@/components/users/AdminPasswordDisplay";
 import UserPermissionsDialog from "@/components/users/UserPermissionsDialog";
 import UserDeleteDialog from "@/components/users/UserDeleteDialog";
@@ -64,7 +67,12 @@ type UserRow = {
     employeeType: EmployeeType;
     employmentType: EmploymentType;
     placement: Placement;
-    jobPosition?: { id: string; name: string; slug?: string | null } | null;
+    jobPosition?: {
+      id: string;
+      name: string;
+      slug?: string | null;
+      defaultModuleAccess?: unknown;
+    } | null;
     firstName: string;
     lastName: string;
     status: string;
@@ -210,7 +218,7 @@ function UserRowActions({
     row.active &&
     Boolean(row.employee || row.client || row.vendor);
   const showRestoreAccess =
-    directoryView === "revoked" && isRevokedAccessUser(row);
+    directoryView === "revoked" && canRestorePortalAccess(row);
   const showTrashActions = directoryView === "trash";
 
   return (
@@ -466,7 +474,8 @@ export default function UserTable({
         key: "type",
         title: t("pages.users.columns.type"),
         width: STATUS_COLUMN_WIDTH,
-        className: "min-w-[10rem] overflow-visible whitespace-nowrap text-center",
+        align: "center",
+        className: "min-w-[10rem] overflow-visible whitespace-nowrap",
         render: (row) => {
           const accountType = getAccountType(row);
           return (
@@ -522,6 +531,8 @@ export default function UserTable({
       cols.push({
         key: "password",
         title: t("pages.users.columns.password"),
+        width: "12rem",
+        className: "min-w-[12rem] whitespace-nowrap",
         render: (row) => (
           <AdminPasswordDisplay
             password={row.passwordDisplay}
@@ -547,12 +558,12 @@ export default function UserTable({
             ? ACTIONS_TRIPLE_CHIP_COLUMN_WIDTH
             : ACTIONS_DUAL_CHIP_COLUMN_WIDTH,
         align: "center",
-        share: 1.35,
+        share: 0,
         className: trashHasTripleChip
-          ? "min-w-[30rem] overflow-visible whitespace-nowrap"
+          ? "min-w-[36rem] overflow-visible whitespace-nowrap"
           : activeHasTripleChip
-            ? "min-w-[28rem] overflow-visible whitespace-nowrap"
-            : "min-w-[20rem] overflow-visible whitespace-nowrap",
+            ? "min-w-[34rem] overflow-visible whitespace-nowrap"
+            : "min-w-[24rem] overflow-visible whitespace-nowrap",
         render: (row) => (
           <UserRowActions
             row={row}

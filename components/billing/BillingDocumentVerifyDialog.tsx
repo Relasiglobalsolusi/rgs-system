@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 
@@ -119,10 +120,14 @@ type Props = {
   description: string;
   contextLabel: string;
   contextValue: string;
-  fileInputId: string;
-  fileLabel: string;
-  fileName: string | null;
-  onFilePick: (file: File | null) => void;
+  fileInputId?: string;
+  fileLabel?: string;
+  fileName?: string | null;
+  onFilePick?: (file: File | null) => void;
+  showFilePick?: boolean;
+  requireReason?: boolean;
+  reasonValue?: string;
+  onReasonChange?: (value: string) => void;
   /** Optional compact note under the dropzone (AI verify hint, PPN note, etc.). */
   callout?: string;
   calloutIcon?: LucideIcon;
@@ -153,6 +158,10 @@ export default function BillingDocumentVerifyDialog({
   fileLabel,
   fileName,
   onFilePick,
+  showFilePick = true,
+  requireReason = false,
+  reasonValue = "",
+  onReasonChange,
   callout,
   calloutIcon,
   children,
@@ -207,16 +216,38 @@ export default function BillingDocumentVerifyDialog({
               <p className="mt-1 text-sm font-medium text-text">{contextValue}</p>
             </div>
 
-            <BillingDocumentFilePick
-              id={fileInputId}
-              label={fileLabel}
-              required
-              fileName={fileName}
-              onPick={onFilePick}
-              disabled={pending}
-            />
+            {showFilePick && fileInputId && fileLabel && onFilePick ? (
+              <BillingDocumentFilePick
+                id={fileInputId}
+                label={fileLabel}
+                required
+                fileName={fileName ?? null}
+                onPick={onFilePick}
+                disabled={pending}
+              />
+            ) : null}
 
             {children}
+
+            {requireReason ? (
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-text">
+                  {t("pages.billing.inHouseVerifyReason")}
+                  <span className="text-red-400"> *</span>
+                </label>
+                <Textarea
+                  value={reasonValue}
+                  onChange={(event) => onReasonChange?.(event.target.value)}
+                  disabled={pending}
+                  required
+                  placeholder={t("pages.billing.inHouseVerifyReasonPlaceholder")}
+                />
+              </div>
+            ) : null}
+
+            <DocumentCallout>
+              {t("pages.billing.inHouseVerifyBanner")}
+            </DocumentCallout>
 
             {callout ? (
               <DocumentCallout icon={calloutIcon}>{callout}</DocumentCallout>

@@ -78,7 +78,8 @@ export function buildBillingDocumentFileBase(input: {
     | "Tax-Invoice"
     | "Proof-of-Payment"
     | "Purchase-Invoice"
-    | "Purchase-Tax-Invoice";
+    | "Purchase-Tax-Invoice"
+    | "Petty-Cash-Top-Up";
   /** Prefer shortCode (e.g. C001). Falls back to clientName only if code missing. */
   clientShortCode?: string | null;
   clientName?: string | null;
@@ -158,41 +159,6 @@ export async function saveUpload(
   await writeFile(filepath, buffer);
 
   return `/${safeFolder}/${filename}`;
-}
-
-/**
- * Load a previously saved public upload (`/uploads/...`) as a `File` for
- * server-side AI verification (e.g. HO confirm of client payment proof).
- */
-export async function fileFromPublicUpload(
-  publicPath: string,
-  fallbackName = "upload.bin"
-): Promise<File> {
-  const { readFile } = await import("fs/promises");
-  const cleaned = publicPath.split("?")[0].trim();
-  if (!cleaned.startsWith("/uploads/")) {
-    throw new Error("Invalid upload path.");
-  }
-  const relative = cleaned.replace(/^\/+/, "").replace(/\//g, path.sep);
-  const publicRoot = path.resolve(process.cwd(), "public");
-  const full = path.resolve(publicRoot, relative);
-  if (!full.startsWith(publicRoot + path.sep) && full !== publicRoot) {
-    throw new Error("Invalid upload path.");
-  }
-  const buffer = await readFile(full);
-  const name = path.basename(full) || fallbackName;
-  const ext = path.extname(name).toLowerCase();
-  const type =
-    ext === ".pdf"
-      ? "application/pdf"
-      : ext === ".png"
-        ? "image/png"
-        : ext === ".webp"
-          ? "image/webp"
-          : ext === ".gif"
-            ? "image/gif"
-            : "image/jpeg";
-  return new File([Uint8Array.from(buffer)], name, { type });
 }
 
 /**

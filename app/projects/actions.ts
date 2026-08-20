@@ -19,6 +19,8 @@ import {
   clampProjectDurationDays,
   daysBetweenDates,
   isContractSubCategory,
+  isExtendableContractSubCategory,
+  isRedoJobSubCategory,
   MAX_PROJECT_DURATION_DAYS,
   MIN_PROJECT_DURATION_DAYS,
   todayDateInput,
@@ -33,18 +35,30 @@ import {
   isMilestoneSubCategory,
   parseContractPrice,
   parseMilestoneInstallmentsFromFormData,
+  splitEvenlyPercents,
   usesInvoicePeriods,
+  decimalToNumber,
 } from "@/lib/project-billing";
+import {
+  parseShiftCount,
+  parseShiftWindowsFromForm,
+  syncProjectShifts,
+} from "@/lib/project-shifts";
 import {
   clampInvoicingDay,
   firstMonthlyPeriodBounds,
   invoicingDayFromContractStart,
+  invoicingDayFromCycleToDay,
   isMonthlyPeriodAwaitingReconcile,
   parseBillingPeriodBasis,
+  parseCustomBillingCycleDays,
   PAYMENT_TERMS_DAYS_OPTIONS,
+  addUtcDays,
+  parseDateInput,
   toUtcDateOnly,
   type PaymentTermsDaysOption,
 } from "@/lib/invoice-period";
+import { snapDateToCutoffDay } from "@/lib/payroll-management";
 import { taxInvoiceDefaultsFromClient } from "@/lib/npwp";
 import { toActionError } from "@/lib/prisma-errors";
 import { parseServiceArea } from "@/lib/service-area";
@@ -55,6 +69,7 @@ import {
   issueInvoicesForFinishedProject,
   reconcileDueInvoiceForProject,
 } from "@/app/projects/invoice-actions";
+import { assertCanApproveProjectServiceArea } from "@/lib/om-approval";
 import {
   canDeleteActiveStageProjects,
   canManageProjects,
@@ -64,6 +79,7 @@ import {
 } from "@/lib/project-access";
 import {
   isPlanningProjectStatus,
+  isProjectOpenForSiteWork,
   PROJECT_LIST_VIEW_PATHS,
   PROJECT_PLANNING_STATUS,
 } from "@/lib/project-status";
@@ -71,14 +87,35 @@ import type { BillingMode, ProjectStatus } from "@prisma/client";
 import {
   assertEmployeesNotOnOtherProject,
   assertProjectCrewEligible,
+  crewOptionsForSubCategory,
   markEmployeesOnProject,
+  partTimeRosterWhere,
+  stampEmployeeDepositSourceProject,
   releaseAllProjectCrew,
   releaseEmployeesFromProject,
 } from "@/lib/workforce-crew";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
+import {
+  lineFormDataFromPrefix,
+  parseBulkLineCount,
+} from "@/lib/bulk-create";
 import { DEFAULT_LOCATION_RADIUS_METERS } from "@/lib/geo";
 import { resolveProjectSiteCoordinates } from "@/lib/project-site-location";
+import {
+  applyOperationsTeamAssignments,
+  parseTeamIdsFromForm,
+} from "@/lib/operations-teams";
+import {
+  mergeBackupEmployeeIds,
+  parsePettyCashAmount,
+  schedulePartTimePays,
+  voidScheduledPartTimePays,
+} from "@/lib/petty-cash";
+import { parseProjectVisitsFromForm } from "@/lib/project-visits";
+import {
+  finalizePendingEarlyEndIfDue,
+} from "@/lib/project-early-end";
 
 const projectDeleteSelect = {
   id: true,
@@ -95,6 +132,35 @@ const projectDeleteSelect = {
   },
   progressReports: { select: { photos: { select: { url: true } } } },
 } as const;
+
+async function nextCrewIdsWithTeams(
+  db: Prisma.TransactionClient,
+  opts: {
+    companyId: string;
+    projectId: string;
+    subCategory: string;
+    formData: FormData;
+    extraEmployeeIds: string[];
+  }
+) {
+  return applyOperationsTeamAssignments(db, {
+    companyId: opts.companyId,
+    projectId: opts.projectId,
+    subCategory: opts.subCategory,
+    teamIds: parseTeamIdsFromForm(opts.formData),
+    extraEmployeeIds: opts.extraEmployeeIds,
+  });
+}
+
+function staffAssignableOptions(subCategory: string | null | undefined) {
+  const options = crewOptionsForSubCategory(subCategory);
+  return {
+    includeCleaningStaff: options.includeCleaningStaff,
+    allowInHouseCleaning: options.includeInHouseCleaning,
+    allowSecurityStaff: options.includeSecurityStaff,
+    allowParkingStaff: options.includeParkingStaff,
+  };
+}
 
 async function projectStaffConflictMessages() {
   const locale = await getServerLocale();
@@ -122,6 +188,9 @@ async function assertProjectStaffAssignable(
     allowInHouseCleaning?: boolean;
     /** Security projects may assign Security staff. */
     allowSecurityStaff?: boolean;
+    /** Parking projects may assign Parking staff. */
+    allowParkingStaff?: boolean;
+    includeCleaningStaff?: boolean;
   }
 ) {
   const conflictMessages = await projectStaffConflictMessages();
@@ -133,6 +202,8 @@ async function assertProjectStaffAssignable(
     {
       allowInHouseCleaning: options?.allowInHouseCleaning,
       allowSecurityStaff: options?.allowSecurityStaff,
+      allowParkingStaff: options?.allowParkingStaff,
+      includeCleaningStaff: options?.includeCleaningStaff,
     }
   );
   await assertEmployeesNotOnOtherProject(db, companyId, employeeIds, {
@@ -379,6 +450,19 @@ function resolveSubCategoryAndServiceArea(formData: FormData) {
   };
 }
 
+function parseOptionalIntField(
+  formData: FormData,
+  key: string
+): number | null {
+  const raw = String(formData.get(key) ?? "").trim();
+  if (!raw) return null;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`Enter a valid number for ${key}.`);
+  }
+  return Math.round(value);
+}
+
 function parseOptionalMoneyField(
   formData: FormData,
   key: string
@@ -436,13 +520,27 @@ function parseProjectPaymentTermsDays(
   return days as PaymentTermsDaysOption;
 }
 
+function parseCutoffDay(formData: FormData, name: string): number | null {
+  const raw = Number(String(formData.get(name) ?? "").trim());
+  if (!Number.isFinite(raw)) return null;
+  const day = Math.round(raw);
+  if (day < 1 || day > 31) return null;
+  return day;
+}
+
 type ServiceCommercialFields = {
   contractPrice: number | null;
   setupCost: number | null;
   profitSharePercent: number | null;
   monthlyClientFee: number | null;
+  memberParkingUnitFee: number | null;
+  memberParkingUnitCount: number | null;
+  parkingTaxPercent: number | null;
   serviceFeePercent: number | null;
   paymentTermsDays: number | null;
+  payrollCutoffStartDay: number | null;
+  payrollCutoffEndDay: number | null;
+  payrollTaxPercent: number | null;
 };
 
 function parseServiceCommercialFields(
@@ -455,8 +553,14 @@ function parseServiceCommercialFields(
     setupCost: null,
     profitSharePercent: null,
     monthlyClientFee: null,
+    memberParkingUnitFee: null,
+    memberParkingUnitCount: null,
+    parkingTaxPercent: null,
     serviceFeePercent: null,
     paymentTermsDays: null,
+    payrollCutoffStartDay: null,
+    payrollCutoffEndDay: null,
+    payrollTaxPercent: null,
   };
 
   if (subCategory === "SECURITY") {
@@ -479,14 +583,27 @@ function parseServiceCommercialFields(
         label: "Client profit share %",
       }),
       monthlyClientFee: parseOptionalMoneyField(formData, "monthlyClientFee"),
+      memberParkingUnitFee: parseOptionalMoneyField(
+        formData,
+        "memberParkingUnitFee"
+      ),
+      memberParkingUnitCount: parseOptionalIntField(
+        formData,
+        "memberParkingUnitCount"
+      ),
+      parkingTaxPercent: parsePercentField(formData, "parkingTaxPercent", {
+        required: false,
+        label: "Parking tax %",
+      }) ?? 10,
     };
   }
 
   if (subCategory === "PAYROLL_MANAGEMENT") {
-    // Economics (full pay-then-bill workflow deferred):
-    // - Client sets monthly wage bill; RGS fronts it → project cost
-    // - serviceFeePercent = management fee % (RGS profit / income only)
-    // - Client reimburses wage bill + fee per paymentTermsDays
+    const cutoffEndDay = parseCutoffDay(formData, "payrollCutoffEndDay");
+    if (cutoffEndDay == null) {
+      throw new Error("Enter this client’s cutoff day.");
+    }
+    const cutoffStartDay = cutoffEndDay === 31 ? 1 : cutoffEndDay + 1;
     return {
       ...empty,
       serviceFeePercent: parsePercentField(formData, "serviceFeePercent", {
@@ -497,6 +614,13 @@ function parseServiceCommercialFields(
         formData,
         clientPaymentTermsDays
       ),
+      payrollCutoffStartDay: cutoffStartDay,
+      payrollCutoffEndDay: cutoffEndDay,
+      payrollTaxPercent:
+        parsePercentField(formData, "payrollTaxPercent", {
+          required: false,
+          label: "Payroll tax %",
+        }) ?? 11,
     };
   }
 
@@ -598,8 +722,13 @@ export async function createProject(formData: FormData) {
       resolveSubCategoryAndServiceArea(formData);
     const { location, latitude, longitude, locationRadiusMeters } =
       await parseLocationFields(formData);
+    const shiftCount = parseShiftCount(formData.get("shiftCount"));
+    const shiftWindows = parseShiftWindowsFromForm(formData, shiftCount);
     const billingMode = resolveBillingMode(formData, subCategory);
-    const { invoicingDay } = billingDefaults(subCategory, billingMode);
+    const { invoicingDay: defaultInvoicingDay } = billingDefaults(
+      subCategory,
+      billingMode
+    );
     const isContract = isContractSubCategory(subCategory);
     const isService = isServiceProjectSubCategory(subCategory);
     const isMonthTimeline = usesMonthDurationTimeline(subCategory);
@@ -610,6 +739,15 @@ export async function createProject(formData: FormData) {
       ? parseBillingPeriodBasis(formData.get("billingPeriodBasis")) ??
         "CONTRACT_CYCLE"
       : null;
+    const { billingCycleStartDay, billingCycleEndDay } =
+      parseCustomBillingCycleDays(formData, billingPeriodBasis);
+    const invoicingDay = usesMonthlyContractPeriods
+      ? billingPeriodBasis === "CALENDAR_MONTH"
+        ? 1
+        : billingCycleEndDay
+          ? invoicingDayFromCycleToDay(billingCycleEndDay)
+          : defaultInvoicingDay
+      : defaultInvoicingDay;
 
     const milestoneInstallments =
       billingMode === "MILESTONE"
@@ -632,11 +770,12 @@ export async function createProject(formData: FormData) {
     let endDate: Date | null = null;
     let estimatedDurationDays: number | null = null;
 
-    // Month-timeline services (Security/Parking) and Regular use contract-style dates.
-    // Payroll: start required; end optional. GC/Facade: day duration required.
+    // Month-timeline services and Regular use contract-style dates.
+    // Payroll Management ends on a cutoff day. GC/Facade: day duration required.
     const requiresEndDate =
       (!isContract && !isService && !isMonthTimeline) ||
       subCategory === "SECURITY" ||
+      subCategory === "PAYROLL_MANAGEMENT" ||
       isContract;
 
     if (isPlanning) {
@@ -654,7 +793,9 @@ export async function createProject(formData: FormData) {
       endDate = formEndDate;
       if (requiresEndDate && !endDate) {
         throw new Error(
-          isContract || subCategory === "SECURITY"
+          isContract ||
+            subCategory === "SECURITY" ||
+            subCategory === "PAYROLL_MANAGEMENT"
             ? "Contract end date is required."
             : "Estimated project completion date is required."
         );
@@ -681,7 +822,9 @@ export async function createProject(formData: FormData) {
       }
       if (requiresEndDate && !endDate) {
         throw new Error(
-          isContract || subCategory === "SECURITY"
+          isContract ||
+            subCategory === "SECURITY" ||
+            subCategory === "PAYROLL_MANAGEMENT"
             ? "Contract end date is required."
             : "Estimated project completion date is required."
         );
@@ -714,6 +857,21 @@ export async function createProject(formData: FormData) {
         "Client not found or is deleted. Choose an active client."
       );
     }
+    let contractDocumentUrl: string | null = null;
+    if (status === "IN_PROGRESS") {
+      const contractProof = formData.get("contractProof");
+      if (!(contractProof instanceof File) || contractProof.size === 0) {
+        throw new Error(
+          "Signed contract proof is required before starting In Progress."
+        );
+      }
+      contractDocumentUrl = await saveUpload(
+        contractProof,
+        "contract-proofs",
+        { fileBaseName: "contract_new" }
+      );
+    }
+
     const { requiresTaxInvoice } = taxInvoiceDefaultsFromClient(client);
     const serviceFields = isService
       ? parseServiceCommercialFields(
@@ -722,6 +880,12 @@ export async function createProject(formData: FormData) {
           client.paymentTermsDays
         )
       : null;
+    if (subCategory === "PAYROLL_MANAGEMENT" && endDate) {
+      const cutoff = serviceFields?.payrollCutoffEndDay;
+      if (cutoff != null) {
+        endDate = snapDateToCutoffDay(endDate, cutoff);
+      }
+    }
 
     await prisma.$transaction(async (tx) => {
       const created = await tx.project.create({
@@ -740,22 +904,34 @@ export async function createProject(formData: FormData) {
           invoicingDay,
           billingMode,
           billingPeriodBasis,
+          billingCycleStartDay,
+          billingCycleEndDay,
           // Cleaning contract price is set later in Invoice and Billing.
           // Security / Parking / Payroll store commercial terms at create.
           contractPrice: serviceFields?.contractPrice ?? null,
           setupCost: serviceFields?.setupCost ?? null,
           profitSharePercent: serviceFields?.profitSharePercent ?? null,
           monthlyClientFee: serviceFields?.monthlyClientFee ?? null,
+          memberParkingUnitFee: serviceFields?.memberParkingUnitFee ?? null,
+          memberParkingUnitCount: serviceFields?.memberParkingUnitCount ?? null,
+          parkingTaxPercent: serviceFields?.parkingTaxPercent ?? null,
           serviceFeePercent: serviceFields?.serviceFeePercent ?? null,
           paymentTermsDays: serviceFields?.paymentTermsDays ?? null,
+          payrollCutoffStartDay: serviceFields?.payrollCutoffStartDay ?? null,
+          payrollCutoffEndDay: serviceFields?.payrollCutoffEndDay ?? null,
+          payrollTaxPercent: serviceFields?.payrollTaxPercent ?? null,
           subCategory,
           serviceArea,
           requiresTaxInvoice,
           companyId: company.id,
           clientId,
           sortOrder,
+          contractDocumentUrl,
+          shiftCount,
         },
       });
+
+      await syncProjectShifts(tx, created.id, shiftCount, shiftWindows);
 
       if (milestoneInstallments) {
         await createMilestoneSchedulePeriods(tx, {
@@ -765,6 +941,29 @@ export async function createProject(formData: FormData) {
           installmentPercents: milestoneInstallments,
           contractPrice: null,
         });
+      }
+
+      if (billingMode === "MULTI_VISIT") {
+        const visits = parseProjectVisitsFromForm(
+          formData,
+          serviceFields?.contractPrice ?? null
+        );
+        await tx.projectVisit.createMany({
+          data: visits.map((visit) => ({
+            projectId: created.id,
+            visitIndex: visit.visitIndex,
+            startDate: visit.startDate,
+            endDate: visit.endDate,
+            amount: visit.amount,
+          })),
+        });
+        const lastVisitEnd = visits[visits.length - 1]?.endDate;
+        if (lastVisitEnd && !endDate) {
+          await tx.project.update({
+            where: { id: created.id },
+            data: { endDate: lastVisitEnd },
+          });
+        }
       }
 
       // Regular + Security In Progress create: open the first billing period.
@@ -777,7 +976,8 @@ export async function createProject(formData: FormData) {
       ) {
         const first = firstMonthlyPeriodBounds(
           billingPeriodBasis,
-          toUtcDateOnly(startDate)
+          toUtcDateOnly(startDate),
+          { fromDay: billingCycleStartDay, toDay: billingCycleEndDay }
         );
         await tx.projectInvoicePeriod.upsert({
           where: {
@@ -799,19 +999,32 @@ export async function createProject(formData: FormData) {
       }
 
       // Planning: assign staff only when moving to In Progress (not at create).
-      if (!isPlanning && employeeIds.length > 0) {
-        await assertProjectStaffAssignable(tx, company.id, employeeIds, {
-          excludeProjectId: created.id,
-          allowSecurityStaff: subCategory === "SECURITY",
+      if (!isPlanning) {
+        const nextIds = await nextCrewIdsWithTeams(tx, {
+          companyId: company.id,
+          projectId: created.id,
+          subCategory,
+          formData,
+          extraEmployeeIds: employeeIds,
         });
-        await tx.projectAssignment.createMany({
-          data: employeeIds.map((employeeId) => ({
-            projectId: created.id,
-            employeeId,
-          })),
-          skipDuplicates: true,
-        });
-        await markEmployeesOnProject(tx, employeeIds, company.id);
+        if (nextIds.length > 0) {
+          await assertProjectStaffAssignable(tx, company.id, nextIds, {
+            excludeProjectId: created.id,
+            ...staffAssignableOptions(subCategory),
+          });
+          await tx.projectAssignment.createMany({
+            data: nextIds.map((employeeId) => ({
+              projectId: created.id,
+              employeeId,
+            })),
+            skipDuplicates: true,
+          });
+          await markEmployeesOnProject(tx, nextIds, company.id);
+          await stampEmployeeDepositSourceProject(tx, nextIds, {
+            id: created.id,
+            subCategory,
+          });
+        }
       }
 
       return created;
@@ -826,6 +1039,63 @@ export async function createProject(formData: FormData) {
     revalidatePath("/shifts");
   } catch (error) {
     throw toActionError(error, "Failed to create project.");
+  }
+}
+
+export async function createProjectsInBulk(formData: FormData) {
+  const locale = await getServerLocale();
+  try {
+    const session = await requireModule("projects");
+    if (session.user.clientId) {
+      throw new Error("Client portal users cannot create projects.");
+    }
+
+    const lineCount = parseBulkLineCount(formData);
+    const rows: FormData[] = [];
+
+    for (let index = 0; index < lineCount; index += 1) {
+      const row = lineFormDataFromPrefix(formData, index);
+      const name = String(row.get("name") ?? "").trim();
+      const clientId = String(row.get("clientId") ?? "").trim();
+      try {
+        if (!name) throw new Error("Project name is required.");
+        if (!clientId) throw new Error("Client is required.");
+      } catch (error) {
+        throw new Error(
+          translate(locale, "bulkCreate.lineError", {
+            n: String(index + 1),
+            message:
+              error instanceof Error ? error.message : "Invalid project line.",
+          })
+        );
+      }
+      rows.push(row);
+    }
+
+    if (rows.length === 0) {
+      throw new Error(translate(locale, "bulkCreate.emptyLines"));
+    }
+
+    for (let index = 0; index < rows.length; index += 1) {
+      try {
+        await createProject(rows[index]);
+      } catch (error) {
+        throw new Error(
+          translate(locale, "bulkCreate.lineError", {
+            n: String(index + 1),
+            message:
+              error instanceof Error
+                ? error.message
+                : translate(locale, "pages.projects.finish.createFailed"),
+          })
+        );
+      }
+    }
+  } catch (error) {
+    throw toActionError(
+      error,
+      translate(locale, "pages.projects.finish.createFailed")
+    );
   }
 }
 
@@ -889,6 +1159,9 @@ export async function updateProject(id: string, formData: FormData) {
         monthlyClientFee: true,
         serviceFeePercent: true,
         paymentTermsDays: true,
+        payrollCutoffStartDay: true,
+        payrollCutoffEndDay: true,
+        shiftCount: true,
       },
     });
     if (!existing) {
@@ -917,7 +1190,11 @@ export async function updateProject(id: string, formData: FormData) {
       });
 
       if (!isPlanningProjectStatus(existing.status)) {
-        const nextIds = [...new Set(employeeIds.filter(Boolean))];
+        const nextIds = await mergeBackupEmployeeIds(
+          prisma,
+          id,
+          [...new Set(employeeIds.filter(Boolean))]
+        );
         const previous = await prisma.projectAssignment.findMany({
           where: { projectId: id },
           select: { employeeId: true },
@@ -935,8 +1212,7 @@ export async function updateProject(id: string, formData: FormData) {
             if (addedIds.length > 0) {
               await assertProjectStaffAssignable(tx, existing.companyId, addedIds, {
                 excludeProjectId: id,
-                allowInHouseCleaning: true,
-                allowSecurityStaff: existing.subCategory === "SECURITY",
+                ...staffAssignableOptions(existing.subCategory),
               });
               await tx.projectAssignment.createMany({
                 data: addedIds.map((employeeId) => ({
@@ -946,6 +1222,10 @@ export async function updateProject(id: string, formData: FormData) {
                 skipDuplicates: true,
               });
               await markEmployeesOnProject(tx, addedIds, existing.companyId);
+              await stampEmployeeDepositSourceProject(tx, addedIds, {
+                id,
+                subCategory: existing.subCategory,
+              });
             }
           });
         }
@@ -968,7 +1248,10 @@ export async function updateProject(id: string, formData: FormData) {
       subCategory,
       existing.billingMode
     );
-    const { invoicingDay } = billingDefaults(subCategory, billingMode);
+    const { invoicingDay: defaultInvoicingDay } = billingDefaults(
+      subCategory,
+      billingMode
+    );
     const isPlanning = isPlanningProjectStatus(existing.status);
     const isContract = isContractSubCategory(subCategory);
     const isService = isServiceProjectSubCategory(subCategory);
@@ -979,13 +1262,23 @@ export async function updateProject(id: string, formData: FormData) {
       ? parseBillingPeriodBasis(formData.get("billingPeriodBasis")) ??
         "CONTRACT_CYCLE"
       : null;
+    const { billingCycleStartDay, billingCycleEndDay } =
+      parseCustomBillingCycleDays(formData, billingPeriodBasis);
+    const invoicingDay = usesMonthlyContractPeriods
+      ? billingPeriodBasis === "CALENDAR_MONTH"
+        ? 1
+        : billingCycleEndDay
+          ? invoicingDayFromCycleToDay(billingCycleEndDay)
+          : defaultInvoicingDay
+      : defaultInvoicingDay;
     const requiresEndDate =
       (!isContract && !isService && !isMonthTimeline) ||
       subCategory === "SECURITY" ||
+      subCategory === "PAYROLL_MANAGEMENT" ||
       isContract;
 
     let startDate = formStartDate;
-    const endDate = formEndDate;
+    let endDate = formEndDate;
     let estimatedStartDate = existing.estimatedStartDate;
     let estimatedDurationDays: number | null | undefined =
       existing.estimatedDurationDays;
@@ -1003,7 +1296,9 @@ export async function updateProject(id: string, formData: FormData) {
       startDate = null;
       if (requiresEndDate && !endDate) {
         throw new Error(
-          isContract || subCategory === "SECURITY"
+          isContract ||
+            subCategory === "SECURITY" ||
+            subCategory === "PAYROLL_MANAGEMENT"
             ? "Contract end date is required."
             : "Estimated project completion date is required."
         );
@@ -1028,7 +1323,9 @@ export async function updateProject(id: string, formData: FormData) {
       }
       if (requiresEndDate && !endDate) {
         throw new Error(
-          isContract || subCategory === "SECURITY"
+          isContract ||
+            subCategory === "SECURITY" ||
+            subCategory === "PAYROLL_MANAGEMENT"
             ? "Contract end date is required."
             : "Estimated project completion date is required."
         );
@@ -1047,8 +1344,7 @@ export async function updateProject(id: string, formData: FormData) {
       }
     }
 
-    // Ignore form tax fields — derive With/Without tax from the client NPWP.
-    let requiresTaxInvoice = false;
+    // Tax is always required. NPWP / NIK comes from the client record.
     let clientPaymentTermsDays = 14;
     if (clientId) {
       const client = await prisma.client.findFirst({
@@ -1060,7 +1356,6 @@ export async function updateProject(id: string, formData: FormData) {
           "Client not found or is deleted. Choose an active client."
         );
       }
-      requiresTaxInvoice = taxInvoiceDefaultsFromClient(client).requiresTaxInvoice;
       clientPaymentTermsDays = client.paymentTermsDays;
     }
 
@@ -1071,9 +1366,20 @@ export async function updateProject(id: string, formData: FormData) {
           existing.paymentTermsDays ?? clientPaymentTermsDays
         )
       : null;
+    if (subCategory === "PAYROLL_MANAGEMENT" && endDate) {
+      const cutoff = serviceFields?.payrollCutoffEndDay;
+      if (cutoff != null) {
+        endDate = snapDateToCutoffDay(endDate, cutoff);
+      }
+    }
 
     const leavingMilestone =
       existing.billingMode === "MILESTONE" && billingMode !== "MILESTONE";
+    const shiftCount = parseShiftCount(
+      formData.get("shiftCount"),
+      existing.shiftCount
+    );
+    const shiftWindows = parseShiftWindowsFromForm(formData, shiftCount);
 
     await prisma.$transaction(async (tx) => {
       await tx.project.update({
@@ -1095,7 +1401,9 @@ export async function updateProject(id: string, formData: FormData) {
           invoicingDay,
           billingMode,
           billingPeriodBasis,
-          requiresTaxInvoice,
+          billingCycleStartDay,
+          billingCycleEndDay,
+          requiresTaxInvoice: true,
           // Milestone: preserve price set in billing. Service: persist form terms.
           // Cleaning non-milestone: clear contract price.
           ...(isService
@@ -1104,28 +1412,52 @@ export async function updateProject(id: string, formData: FormData) {
                 setupCost: serviceFields?.setupCost ?? null,
                 profitSharePercent: serviceFields?.profitSharePercent ?? null,
                 monthlyClientFee: serviceFields?.monthlyClientFee ?? null,
+                memberParkingUnitFee:
+                  serviceFields?.memberParkingUnitFee ?? null,
+                memberParkingUnitCount:
+                  serviceFields?.memberParkingUnitCount ?? null,
+                parkingTaxPercent: serviceFields?.parkingTaxPercent ?? null,
                 serviceFeePercent: serviceFields?.serviceFeePercent ?? null,
                 paymentTermsDays: serviceFields?.paymentTermsDays ?? null,
+                payrollCutoffStartDay:
+                  serviceFields?.payrollCutoffStartDay ?? null,
+                payrollCutoffEndDay: serviceFields?.payrollCutoffEndDay ?? null,
+                payrollTaxPercent: serviceFields?.payrollTaxPercent ?? null,
               }
             : isMilestoneSubCategory(subCategory)
               ? {
                   setupCost: null,
                   profitSharePercent: null,
                   monthlyClientFee: null,
+                  memberParkingUnitFee: null,
+                  memberParkingUnitCount: null,
+                  parkingTaxPercent: null,
                   serviceFeePercent: null,
                   paymentTermsDays: null,
+                  payrollCutoffStartDay: null,
+                  payrollCutoffEndDay: null,
+                  payrollTaxPercent: null,
                 }
               : {
                   contractPrice: null,
                   setupCost: null,
                   profitSharePercent: null,
                   monthlyClientFee: null,
+                  memberParkingUnitFee: null,
+                  memberParkingUnitCount: null,
+                  parkingTaxPercent: null,
                   serviceFeePercent: null,
                   paymentTermsDays: null,
+                  payrollCutoffStartDay: null,
+                  payrollCutoffEndDay: null,
+                  payrollTaxPercent: null,
                 }),
           clientId: clientId || null,
+          shiftCount,
         },
       });
+
+      await syncProjectShifts(tx, id, shiftCount, shiftWindows);
 
       // Drop unissued schedule rows when leaving milestone billing (safe; issued stay).
       if (leavingMilestone) {
@@ -1141,7 +1473,19 @@ export async function updateProject(id: string, formData: FormData) {
 
     // Planning: staff is assigned at Move to In Progress — do not clear/rewrite here.
     if (!isPlanningProjectStatus(existing.status)) {
-      const nextIds = [...new Set(employeeIds.filter(Boolean))];
+      const nextIds = await prisma.$transaction(async (tx) =>
+        mergeBackupEmployeeIds(
+          tx,
+          id,
+          await nextCrewIdsWithTeams(tx, {
+            companyId: existing.companyId,
+            projectId: id,
+            subCategory,
+            formData,
+            extraEmployeeIds: employeeIds,
+          })
+        )
+      );
       const previous = await prisma.projectAssignment.findMany({
         where: { projectId: id },
         select: { employeeId: true },
@@ -1163,7 +1507,7 @@ export async function updateProject(id: string, formData: FormData) {
           if (addedIds.length > 0) {
             await assertProjectStaffAssignable(tx, existing.companyId, addedIds, {
               excludeProjectId: id,
-              allowSecurityStaff: subCategory === "SECURITY",
+              ...staffAssignableOptions(subCategory),
             });
             await tx.projectAssignment.createMany({
               data: addedIds.map((employeeId) => ({
@@ -1173,6 +1517,10 @@ export async function updateProject(id: string, formData: FormData) {
               skipDuplicates: true,
             });
             await markEmployeesOnProject(tx, addedIds, existing.companyId);
+            await stampEmployeeDepositSourceProject(tx, addedIds, {
+              id,
+              subCategory,
+            });
           }
         });
       }
@@ -1195,6 +1543,98 @@ export async function updateProject(id: string, formData: FormData) {
     revalidatePath("/attendance");
   } catch (error) {
     throw toActionError(error, "Failed to update project.");
+  }
+}
+
+export async function assignProjectStaff(formData: FormData) {
+  try {
+    const session = await requireModule("projects");
+    if (session.user.clientId) {
+      throw new Error("Client portal users cannot assign staff.");
+    }
+    const permissionUser = toPermissionUser(session);
+    if (!canManageProjects(permissionUser)) {
+      throw new Error("Permission denied.");
+    }
+    const companyId = session.user.companyId;
+    if (!companyId) throw new Error("Company not found.");
+
+    const id = String(formData.get("projectId") ?? "").trim();
+    if (!id) throw new Error("Select a project.");
+    const employeeIds = formData.getAll("employeeIds").map(String);
+
+    const existing = await prisma.project.findFirst({
+      where: { id, companyId },
+      select: {
+        status: true,
+        companyId: true,
+        subCategory: true,
+      },
+    });
+    if (!existing) throw new Error("Project not found.");
+    if (isPlanningProjectStatus(existing.status)) {
+      throw new Error("Assign staff after the project is In Progress.");
+    }
+
+    const nextIds = await prisma.$transaction(async (tx) =>
+      mergeBackupEmployeeIds(
+        tx,
+        id,
+        await nextCrewIdsWithTeams(tx, {
+          companyId: existing.companyId,
+          projectId: id,
+          subCategory: existing.subCategory,
+          formData,
+          extraEmployeeIds: employeeIds,
+        })
+      )
+    );
+    const previous = await prisma.projectAssignment.findMany({
+      where: { projectId: id },
+      select: { employeeId: true },
+    });
+    const previousIds = previous.map((row) => row.employeeId);
+    const previousSet = new Set(previousIds);
+    const nextSet = new Set(nextIds);
+    const addedIds = nextIds.filter((employeeId) => !previousSet.has(employeeId));
+    const removedIds = previousIds.filter(
+      (employeeId) => !nextSet.has(employeeId)
+    );
+
+    if (addedIds.length > 0 || removedIds.length > 0) {
+      await prisma.$transaction(async (tx) => {
+        if (removedIds.length > 0) {
+          await releaseEmployeesFromProject(tx, id, removedIds);
+        }
+        if (addedIds.length > 0) {
+          await assertProjectStaffAssignable(tx, existing.companyId, addedIds, {
+            excludeProjectId: id,
+            ...staffAssignableOptions(existing.subCategory),
+          });
+          await tx.projectAssignment.createMany({
+            data: addedIds.map((employeeId) => ({
+              projectId: id,
+              employeeId,
+            })),
+            skipDuplicates: true,
+          });
+          await markEmployeesOnProject(tx, addedIds, existing.companyId);
+          await stampEmployeeDepositSourceProject(tx, addedIds, {
+            id,
+            subCategory: existing.subCategory,
+          });
+        }
+      });
+    }
+
+    revalidatePath(`/projects/${id}`);
+    revalidatePath("/projects");
+    revalidatePath("/employees");
+    revalidatePath("/shifts");
+    revalidatePath("/cico");
+    revalidatePath("/attendance");
+  } catch (error) {
+    throw toActionError(error, "Failed to assign staff.");
   }
 }
 
@@ -1247,34 +1687,6 @@ export async function deleteProject(id: string) {
         "Only administrators can delete Planning or In Progress projects."
       );
     }
-  }
-
-  return permanentlyDeleteProject(project);
-}
-
-/**
- * Permanently deletes a Completed Projects entry (COMPLETED + all invoices PAID).
- * Prefer deleteProject for active / Payment Due lists.
- */
-export async function deleteProjectHistory(id: string) {
-  const session = await requireModule("projects");
-  if (session.user.clientId) {
-    throw new Error("Client portal users cannot delete completed projects.");
-  }
-
-  const project = await prisma.project.findFirst({
-    where: {
-      id,
-      companyId: session.user.companyId,
-      ...projectHistoryWhere(),
-    },
-    select: projectDeleteSelect,
-  });
-
-  if (!project) {
-    throw new Error(
-      "Project not found in history, or it is still active / awaiting payment."
-    );
   }
 
   return permanentlyDeleteProject(project);
@@ -1574,6 +1986,9 @@ export async function startProject(
       estimatedDurationDays: true,
       billingMode: true,
       billingPeriodBasis: true,
+      billingCycleStartDay: true,
+      billingCycleEndDay: true,
+      payrollCutoffEndDay: true,
     },
   });
   if (!project) {
@@ -1619,10 +2034,19 @@ export async function startProject(
     // Keep planned contract end from Planning when the dialog does not send one.
     endDate = formEndDate ?? project.endDate;
     if (
-      (isContract || project.subCategory === "SECURITY") &&
+      (isContract ||
+        project.subCategory === "SECURITY" ||
+        project.subCategory === "PAYROLL_MANAGEMENT") &&
       !endDate
     ) {
       throw new Error("Contract end date is required.");
+    }
+    if (
+      project.subCategory === "PAYROLL_MANAGEMENT" &&
+      endDate &&
+      project.payrollCutoffEndDay != null
+    ) {
+      endDate = snapDateToCutoffDay(endDate, project.payrollCutoffEndDay);
     }
   } else if (!endDate) {
     throw new Error("Estimated project completion date is required.");
@@ -1640,12 +2064,23 @@ export async function startProject(
           preserveExisting: true,
         });
 
-  if (!assignStaffLater && employeeIds.length > 0) {
-    const companyId = session.user.companyId;
-    if (!companyId) throw new Error("Company not found.");
-    await assertProjectStaffAssignable(prisma, companyId, employeeIds, {
+  const companyId = session.user.companyId;
+  if (!companyId) throw new Error("Company not found.");
+  const startCrewIds = !assignStaffLater
+    ? await prisma.$transaction((tx) =>
+        nextCrewIdsWithTeams(tx, {
+          companyId,
+          projectId: id,
+          subCategory: project.subCategory,
+          formData,
+          extraEmployeeIds: employeeIds,
+        })
+      )
+    : [];
+  if (!assignStaffLater && startCrewIds.length > 0) {
+    await assertProjectStaffAssignable(prisma, companyId, startCrewIds, {
       excludeProjectId: id,
-      allowSecurityStaff: project.subCategory === "SECURITY",
+      ...staffAssignableOptions(project.subCategory),
     });
   }
 
@@ -1658,7 +2093,9 @@ export async function startProject(
   const invoicingDay = usesMonthlyContractPeriods
     ? billingPeriodBasis === "CALENDAR_MONTH"
       ? 1
-      : invoicingDayFromContractStart(contractStart)
+      : project.billingCycleEndDay
+        ? invoicingDayFromCycleToDay(project.billingCycleEndDay)
+        : invoicingDayFromContractStart(contractStart)
     : undefined;
 
   await prisma.$transaction(async (tx) => {
@@ -1687,7 +2124,11 @@ export async function startProject(
     ) {
       const first = firstMonthlyPeriodBounds(
         billingPeriodBasis,
-        contractStart
+        contractStart,
+        {
+          fromDay: project.billingCycleStartDay,
+          toDay: project.billingCycleEndDay,
+        }
       );
       await tx.projectInvoicePeriod.upsert({
         where: {
@@ -1709,28 +2150,30 @@ export async function startProject(
     }
 
     // Assign staff when provided; "Assign staff later" leaves existing assignments.
-    if (!assignStaffLater && employeeIds.length > 0) {
+    if (!assignStaffLater && startCrewIds.length > 0) {
+      const keptCrewIds = await mergeBackupEmployeeIds(tx, id, startCrewIds);
       const previous = await tx.projectAssignment.findMany({
         where: { projectId: id },
         select: { employeeId: true },
       });
       const previousIds = previous.map((row) => row.employeeId);
-      const nextSet = new Set(employeeIds);
+      const nextSet = new Set(keptCrewIds);
       const removedIds = previousIds.filter((employeeId) => !nextSet.has(employeeId));
       if (removedIds.length > 0) {
         await releaseEmployeesFromProject(tx, id, removedIds);
       }
       await tx.projectAssignment.createMany({
-        data: employeeIds.map((employeeId) => ({
+        data: startCrewIds.map((employeeId) => ({
           projectId: id,
           employeeId,
         })),
         skipDuplicates: true,
       });
-      const companyId = session.user.companyId;
-      if (companyId) {
-        await markEmployeesOnProject(tx, employeeIds, companyId);
-      }
+      await markEmployeesOnProject(tx, startCrewIds, companyId);
+      await stampEmployeeDepositSourceProject(tx, startCrewIds, {
+        id,
+        subCategory: project.subCategory,
+      });
     }
   });
 
@@ -1814,7 +2257,10 @@ export async function moveProjectToPlanning(id: string): Promise<void> {
  * Cleaning (End Contract) — hard Delete is blocked while In Progress.
  * Also used for General / Facade Finish. Planning must start (work order) first.
  */
-export async function finishProject(id: string): Promise<FinishProjectResult> {
+export async function finishProject(
+  id: string,
+  formData?: FormData
+): Promise<FinishProjectResult> {
   const session = await requireModule("projects");
   if (session.user.clientId) {
     throw new Error("Client portal users cannot finish projects.");
@@ -1831,12 +2277,15 @@ export async function finishProject(id: string): Promise<FinishProjectResult> {
       clientId: true,
       subCategory: true,
       startDate: true,
+      endDate: true,
       billingMode: true,
+      contractPrice: true,
       requiresTaxInvoice: true,
       invoicePeriods: {
         select: {
           id: true,
           status: true,
+          periodStart: true,
           periodEnd: true,
           reconciledAt: true,
           taxInvoiceRequired: true,
@@ -1859,12 +2308,21 @@ export async function finishProject(id: string): Promise<FinishProjectResult> {
       "Receive the work order to start this project before finishing."
     );
   }
+  if (isMilestoneSubCategory(project.subCategory)) {
+    throw new Error(
+      "General Cleaning and Facade projects complete after the client approves the last part and the last invoice is marked paid. Use Submit for Approval — do not finish the project manually."
+    );
+  }
 
   const hasUnpaidIssued = project.invoicePeriods.some((period) =>
     (UNPAID_INVOICE_STATUSES as readonly string[]).includes(period.status)
   );
   if (hasUnpaidIssued) {
     throw new Error("SETTLE_UNPAID_BEFORE_CLOSE");
+  }
+
+  if (isExtendableContractSubCategory(project.subCategory)) {
+    return endContractCycleEarly(session.user.id, project, formData);
   }
 
   const hasOpenClientReview = project.invoicePeriods.some(
@@ -1891,19 +2349,16 @@ export async function finishProject(id: string): Promise<FinishProjectResult> {
     }
   }
 
-  const hasOpenTaxInvoice =
-    project.requiresTaxInvoice &&
-    project.invoicePeriods.some(
-      (period) =>
-        period.taxInvoiceRequired &&
-        period.taxInvoiceDoneAt == null &&
-        [
-          "AWAITING_PAYMENT",
-          "OVERDUE",
-          "PENDING_VERIFICATION",
-          "PAID",
-        ].includes(period.status)
-    );
+  const hasOpenTaxInvoice = project.invoicePeriods.some(
+    (period) =>
+      period.taxInvoiceDoneAt == null &&
+      [
+        "AWAITING_PAYMENT",
+        "OVERDUE",
+        "PENDING_VERIFICATION",
+        "PAID",
+      ].includes(period.status)
+  );
   if (hasOpenTaxInvoice) {
     throw new Error(
       "Upload and verify all required tax invoices before ending the contract or completing the project."
@@ -1972,10 +2427,12 @@ export async function finishProject(id: string): Promise<FinishProjectResult> {
  *
  * The client-approve / revise / HO-review cycle is handled by the existing
  * billing/reconciliation actions (clientApproveBillingReview, etc.).
- * On client approve, clientApproveBillingReview will:
- *   - release crew + equipment
+ * On client approve of the final GC/Facade part, clientApproveBillingReview will:
+ *   - release crew + equipment (they return to the company)
  *   - auto-issue the invoice (period → AWAITING_PAYMENT)
- *   - project stays non-COMPLETED until fully paid (Payment Due workflow)
+ *   - keep the project In Progress until the last invoice is Mark Paid
+ * Intermediate milestone approve keeps crew assigned. Regular/Security stay
+ * assigned until contract end.
  */
 export async function submitProjectForApproval(projectId: string) {
   const locale = await getServerLocale();
@@ -2047,7 +2504,41 @@ export async function submitProjectForApproval(projectId: string) {
     // Find or create the invoice period to attach this review to.
     let periodId: string;
 
-    if (project.billingMode === "MILESTONE") {
+    if (project.billingMode === "MULTI_VISIT") {
+      const nextVisit = await prisma.projectVisit.findFirst({
+        where: { projectId: project.id, invoicePeriodId: null },
+        orderBy: { visitIndex: "asc" },
+      });
+      if (!nextVisit) {
+        throw new Error("Every visit already has a billing pack.");
+      }
+      const created = await prisma.projectInvoicePeriod.upsert({
+        where: {
+          projectId_periodStart_periodEnd: {
+            projectId: project.id,
+            periodStart: nextVisit.startDate,
+            periodEnd: nextVisit.endDate,
+          },
+        },
+        update: {
+          label: `Visit ${nextVisit.visitIndex}`,
+          amount: nextVisit.amount,
+        },
+        create: {
+          projectId: project.id,
+          periodStart: nextVisit.startDate,
+          periodEnd: nextVisit.endDate,
+          label: `Visit ${nextVisit.visitIndex}`,
+          amount: nextVisit.amount,
+          status: "ONGOING",
+        },
+      });
+      await prisma.projectVisit.update({
+        where: { id: nextVisit.id },
+        data: { invoicePeriodId: created.id },
+      });
+      periodId = created.id;
+    } else if (project.billingMode === "MILESTONE") {
       // Milestone: use the first ongoing milestone period.
       const ongoingMilestone = project.invoicePeriods.find(
         (p) => p.status === "ONGOING"
@@ -2106,11 +2597,7 @@ export async function submitProjectForApproval(projectId: string) {
       }
     }
 
-    // Transition project to Waiting for Approval.
-    await prisma.project.update({
-      where: { id: projectId },
-      data: { status: "WAITING_FOR_APPROVAL" },
-    });
+    // Milestone review stays on this period. Project list stays In Progress.
 
     // Compile PRs into PDF + send to client for review (reuse existing billing action).
     const { sendPeriodForClientReview } = await import(
@@ -2151,8 +2638,10 @@ export async function extendProjectContract(id: string, formData: FormData) {
       },
     });
     if (!project) throw new Error("Project not found.");
-    if (!isContractSubCategory(project.subCategory)) {
-      throw new Error("Only Regular Cleaning contracts can be extended.");
+    if (!isExtendableContractSubCategory(project.subCategory)) {
+      throw new Error(
+        "Only Regular Cleaning, Security, Parking, and Payroll Management contracts can be extended."
+      );
     }
     if (project.status !== "IN_PROGRESS") {
       throw new Error("Only In Progress contracts can be extended.");
@@ -2203,4 +2692,774 @@ export async function extendProjectContract(id: string, formData: FormData) {
   } catch (error) {
     throw toActionError(error, "Failed to extend contract.");
   }
+}
+
+async function prepareLastContractPeriod(options: {
+  projectId: string;
+  startDate: Date;
+  lastDay: Date;
+}): Promise<string> {
+  const periods = await prisma.projectInvoicePeriod.findMany({
+    where: { projectId: options.projectId },
+    select: {
+      id: true,
+      status: true,
+      periodStart: true,
+      periodEnd: true,
+    },
+    orderBy: { periodStart: "asc" },
+  });
+
+  const futureOngoingIds = periods
+    .filter(
+      (period) =>
+        period.status === "ONGOING" &&
+        period.periodStart.getTime() > options.lastDay.getTime()
+    )
+    .map((period) => period.id);
+  if (futureOngoingIds.length > 0) {
+    await prisma.projectInvoicePeriod.deleteMany({
+      where: { id: { in: futureOngoingIds } },
+    });
+  }
+
+  const remaining = periods.filter(
+    (period) => !futureOngoingIds.includes(period.id)
+  );
+  const overlapping = remaining.find(
+    (period) =>
+      period.periodStart.getTime() <= options.lastDay.getTime() &&
+      period.periodEnd.getTime() >= options.lastDay.getTime()
+  );
+  if (overlapping) {
+    if (
+      overlapping.status === "ONGOING" ||
+      overlapping.status === "COMPILING" ||
+      overlapping.status === "AWAITING_CLIENT_REVIEW"
+    ) {
+      await prisma.projectInvoicePeriod.update({
+        where: { id: overlapping.id },
+        data: {
+          periodEnd: options.lastDay,
+          label: "Final period",
+        },
+      });
+    }
+    return overlapping.id;
+  }
+
+  const previous = [...remaining]
+    .filter((period) => period.periodEnd.getTime() < options.lastDay.getTime())
+    .sort((a, b) => b.periodEnd.getTime() - a.periodEnd.getTime())[0];
+  const periodStart = previous
+    ? addUtcDays(previous.periodEnd, 1)
+    : options.startDate;
+  if (periodStart.getTime() > options.lastDay.getTime()) {
+    throw new Error("Last day is before the current billing period.");
+  }
+
+  const created = await prisma.projectInvoicePeriod.upsert({
+    where: {
+      projectId_periodStart_periodEnd: {
+        projectId: options.projectId,
+        periodStart,
+        periodEnd: options.lastDay,
+      },
+    },
+    update: { label: "Final period", status: "ONGOING" },
+    create: {
+      projectId: options.projectId,
+      periodStart,
+      periodEnd: options.lastDay,
+      label: "Final period",
+      status: "ONGOING",
+    },
+  });
+  return created.id;
+}
+
+async function endContractCycleEarly(
+  userId: string,
+  project: {
+    id: string;
+    clientId: string | null;
+    startDate: Date | null;
+    endDate: Date | null;
+    contractPrice: Parameters<typeof decimalToNumber>[0];
+  },
+  formData?: FormData
+): Promise<FinishProjectResult> {
+  const lastDay = parseOptionalDateInput(
+    String(formData?.get("lastDay") ?? ""),
+    "last day"
+  );
+  if (!lastDay) {
+    throw new Error("Enter the real last day on site.");
+  }
+  if (!project.startDate) {
+    throw new Error("Set the contract start date before ending the contract.");
+  }
+
+  const start = toUtcDateOnly(project.startDate);
+  const plannedEnd = project.endDate ? toUtcDateOnly(project.endDate) : null;
+  const last = toUtcDateOnly(lastDay);
+  if (last.getTime() < start.getTime()) {
+    throw new Error("Last day cannot be before the contract start.");
+  }
+  if (plannedEnd && last.getTime() > plannedEnd.getTime()) {
+    throw new Error(
+      "Last day cannot be after the planned contract end. Use Extend Contract."
+    );
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.project.update({
+      where: { id: project.id },
+      data: { endDate: last, pendingEarlyEndReconcile: true },
+    });
+    await releaseAllProjectCrew(tx, project.id);
+  });
+
+  await prepareLastContractPeriod({
+    projectId: project.id,
+    startDate: start,
+    lastDay: last,
+  });
+
+  const billingPath = project.clientId
+    ? `/billing/${project.clientId}/${project.id}`
+    : "/billing";
+  const finalized = await finalizePendingEarlyEndIfDue({
+    projectId: project.id,
+    userId,
+    lastDay: last,
+    clientId: project.clientId,
+    contractPrice: project.contractPrice,
+  });
+  const invoiceError = finalized.error;
+
+  revalidateAfterProjectLifecycle({
+    projectId: project.id,
+    clientId: project.clientId,
+  });
+
+  return {
+    invoice: {
+      compiled: 0,
+      error: invoiceError,
+      billingPath,
+    },
+  };
+}
+
+/**
+ * After a Regular / Security job is Completed: same client and site, new dates,
+ * new signed agreement. Old invoices stay. New periods open. Crew is re-assigned
+ * separately.
+ */
+export async function renewProjectContract(id: string, formData: FormData) {
+  const session = await requireModule("projects");
+  if (session.user.clientId) {
+    throw new Error("Client portal users cannot renew contracts.");
+  }
+
+  const project = await prisma.project.findFirst({
+    where: { id, companyId: session.user.companyId },
+    select: {
+      id: true,
+      status: true,
+      clientId: true,
+      subCategory: true,
+      billingPeriodBasis: true,
+      billingCycleStartDay: true,
+      billingCycleEndDay: true,
+    },
+  });
+  if (!project) throw new Error("Project not found.");
+  if (!isExtendableContractSubCategory(project.subCategory)) {
+    throw new Error(
+      "Only Regular Cleaning, Security, Parking, and Payroll Management contracts can be renewed this way."
+    );
+  }
+  if (project.status !== "COMPLETED") {
+    throw new Error("Contract Renewed is only for a completed job.");
+  }
+
+  const { startDate, endDate } = parseProjectDateRange(formData);
+  if (!startDate || !endDate) {
+    throw new Error("New start date and end date are required.");
+  }
+  const nextStart = toUtcDateOnly(startDate);
+  const nextEnd = toUtcDateOnly(endDate);
+  if (nextEnd.getTime() <= nextStart.getTime()) {
+    throw new Error("New end date must be after the new start date.");
+  }
+
+  const proof = formData.get("agreement");
+  if (!(proof instanceof File) || proof.size === 0) {
+    throw new Error("Upload the new signed agreement.");
+  }
+  const contractDocumentUrl = await saveUpload(proof, "contract-documents", {
+    fileBaseName: `renew_${id.slice(0, 8)}`,
+  });
+
+  await prisma.project.update({
+    where: { id },
+    data: {
+      status: "IN_PROGRESS",
+      startDate: nextStart,
+      endDate: nextEnd,
+      contractDocumentUrl,
+    },
+  });
+
+  const first = firstMonthlyPeriodBounds(
+    project.billingPeriodBasis,
+    nextStart,
+    {
+      fromDay: project.billingCycleStartDay,
+      toDay: project.billingCycleEndDay,
+    }
+  );
+  await prisma.projectInvoicePeriod.upsert({
+    where: {
+      projectId_periodStart_periodEnd: {
+        projectId: id,
+        periodStart: first.periodStart,
+        periodEnd: first.periodEnd,
+      },
+    },
+    update: { label: first.label, status: "ONGOING" },
+    create: {
+      projectId: id,
+      periodStart: first.periodStart,
+      periodEnd: first.periodEnd,
+      label: first.label,
+      status: "ONGOING",
+    },
+  });
+
+  revalidateAfterProjectLifecycle({
+    projectId: id,
+    clientId: project.clientId,
+  });
+}
+
+/**
+ * After a General / Facade job is Completed: same client and site, new start,
+ * new signed paper, reassigned crew. Old invoices stay. Not Contract Renew.
+ */
+export async function redoProjectJob(id: string, formData: FormData) {
+  const session = await requireModule("projects");
+  if (session.user.clientId) {
+    throw new Error("Client portal users cannot re-do jobs.");
+  }
+
+  const project = await prisma.project.findFirst({
+    where: { id, companyId: session.user.companyId },
+    select: {
+      id: true,
+      status: true,
+      clientId: true,
+      subCategory: true,
+      billingMode: true,
+      companyId: true,
+      invoicePeriods: {
+        select: { milestonePercent: true },
+      },
+    },
+  });
+  if (!project) throw new Error("Project not found.");
+  if (!isRedoJobSubCategory(project.subCategory)) {
+    throw new Error("Re-do Job is only for General Cleaning and Facade Cleaning.");
+  }
+  if (project.status !== "COMPLETED") {
+    throw new Error("Re-do Job is only for a completed job.");
+  }
+
+  const startDate = parseOptionalDateInput(
+    String(formData.get("startDate") ?? ""),
+    "start date"
+  );
+  if (!startDate) throw new Error("New start date is required.");
+  const nextStart = toUtcDateOnly(startDate);
+  const durationDays = clampProjectDurationDays(
+    Number(String(formData.get("durationDays") ?? ""))
+  );
+  const nextEnd = addUtcDays(nextStart, durationDays);
+
+  const proof = formData.get("agreement");
+  if (!(proof instanceof File) || proof.size === 0) {
+    throw new Error("Upload the new signed paper.");
+  }
+  const contractDocumentUrl = await saveUpload(proof, "contract-documents", {
+    fileBaseName: `redo_${id.slice(0, 8)}`,
+  });
+
+  const extras = [
+    ...new Set(formData.getAll("employeeIds").map(String).filter(Boolean)),
+  ];
+
+  await prisma.$transaction(async (tx) => {
+    await tx.project.update({
+      where: { id },
+      data: {
+        status: "IN_PROGRESS",
+        startDate: nextStart,
+        endDate: nextEnd,
+        estimatedStartDate: nextStart,
+        estimatedDurationDays: durationDays,
+        contractDocumentUrl,
+      },
+    });
+
+    if (project.billingMode === "MILESTONE") {
+      const percentCount = [
+        ...new Set(
+          project.invoicePeriods
+            .map((period) => period.milestonePercent)
+            .filter((value): value is number => value != null)
+        ),
+      ].length;
+      await createMilestoneSchedulePeriods(tx, {
+        projectId: id,
+        startDate: nextStart,
+        installmentPercents: splitEvenlyPercents(
+          percentCount >= 2 ? percentCount : 2
+        ),
+        contractPrice: null,
+      });
+    }
+
+    if (project.billingMode === "MULTI_VISIT") {
+      await tx.projectVisit.deleteMany({
+        where: { projectId: id, invoicePeriodId: null },
+      });
+      const hasVisitFields = formData.getAll("visitStart").some((value) =>
+        String(value ?? "").trim()
+      );
+      if (hasVisitFields) {
+        const visits = parseProjectVisitsFromForm(formData, null);
+        await tx.projectVisit.createMany({
+          data: visits.map((visit) => ({
+            projectId: id,
+            visitIndex: visit.visitIndex,
+            startDate: visit.startDate,
+            endDate: visit.endDate,
+            amount: visit.amount,
+          })),
+        });
+      }
+    }
+
+    await releaseAllProjectCrew(tx, id);
+
+    const nextIds = await nextCrewIdsWithTeams(tx, {
+      companyId: project.companyId,
+      projectId: id,
+      subCategory: project.subCategory,
+      formData,
+      extraEmployeeIds: extras,
+    });
+    if (nextIds.length > 0) {
+      await assertProjectStaffAssignable(tx, project.companyId, nextIds, {
+        excludeProjectId: id,
+        ...staffAssignableOptions(project.subCategory),
+      });
+      await tx.projectAssignment.createMany({
+        data: nextIds.map((employeeId) => ({
+          projectId: id,
+          employeeId,
+        })),
+      });
+      await markEmployeesOnProject(tx, nextIds, project.companyId);
+      await stampEmployeeDepositSourceProject(tx, nextIds, {
+        id,
+        subCategory: project.subCategory,
+      });
+    }
+  });
+
+  revalidateAfterProjectLifecycle({
+    projectId: id,
+    clientId: project.clientId,
+  });
+}
+
+async function requireSiteCoverAccess(projectId: string) {
+  const session = await requireModule("projects");
+  if (session.user.clientId || session.user.vendorId) {
+    throw new Error("Permission denied.");
+  }
+  const permissionUser = toPermissionUser(session);
+  if (!canManageProjects(permissionUser)) {
+    throw new Error("Permission denied.");
+  }
+  if (!projectId) throw new Error("Select a project.");
+
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, companyId: session.user.companyId },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      companyId: true,
+      serviceArea: true,
+    },
+  });
+  if (!project) throw new Error("Project not found.");
+
+  await assertCanApproveProjectServiceArea({
+    userId: session.user.id,
+    username: session.user.username,
+    permissionUser,
+    projectServiceArea: project.serviceArea,
+    projectId: project.id,
+  });
+
+  return { session, project };
+}
+
+function revalidateSiteCoverPaths(projectId: string) {
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/projects");
+  revalidatePath("/billing/petty-cash");
+  revalidatePath("/billing/payroll");
+  revalidatePath("/billing/financial-report");
+  revalidatePath("/cico");
+  revalidatePath("/shifts");
+}
+
+export async function assignBackupEmployee(formData: FormData) {
+  const projectId = String(formData.get("projectId") ?? "").trim();
+  const { session, project } = await requireSiteCoverAccess(projectId);
+  const employeeId = String(formData.get("employeeId") ?? "").trim();
+  const coveringShiftId = String(formData.get("coveringShiftId") ?? "").trim();
+  const coveredEmployeeId = String(formData.get("coveredEmployeeId") ?? "").trim();
+  const startRaw = String(formData.get("backupStartDate") ?? "").trim();
+  const endRaw = String(formData.get("backupEndDate") ?? "").trim();
+  const dailyRate = parsePettyCashAmount(String(formData.get("dailyRate") ?? ""));
+
+  if (!employeeId) throw new Error("Select a part-time employee.");
+  if (!coveringShiftId || !coveredEmployeeId) {
+    throw new Error("Select which shift this backup will cover.");
+  }
+  if (coveredEmployeeId === employeeId) {
+    throw new Error("The backup cannot cover their own shift.");
+  }
+
+  const start = parseDateInput(startRaw);
+  const end = parseDateInput(endRaw);
+  if (start.getTime() > end.getTime()) {
+    throw new Error("Backup end date must be on or after the start date.");
+  }
+
+  if (!isProjectOpenForSiteWork(project.status)) {
+    throw new Error("Assign a backup only while the project is open for site work.");
+  }
+
+  const coveringShift = await prisma.projectShift.findFirst({
+    where: { id: coveringShiftId, projectId },
+    select: { id: true, startTime: true, endTime: true },
+  });
+  if (!coveringShift) {
+    throw new Error("Select a shift on this project.");
+  }
+
+  const coveredAssignment = await prisma.projectAssignment.findFirst({
+    where: {
+      projectId,
+      employeeId: coveredEmployeeId,
+      isBackup: false,
+      shiftId: coveringShift.id,
+      employee: {
+        companyId: session.user.companyId,
+        employmentType: "FULL_TIME",
+      },
+    },
+    select: { id: true },
+  });
+  if (!coveredAssignment) {
+    throw new Error(
+      "That shift belongs to a regular employee on this site. Assign staff to shifts under Human Resources → Shifts first."
+    );
+  }
+
+  const overlappingDoubleShift = await prisma.doubleShiftAssignment.findFirst({
+    where: {
+      projectId,
+      coveringShiftId: coveringShift.id,
+      date: { gte: start, lte: end },
+    },
+    select: { id: true },
+  });
+  if (overlappingDoubleShift) {
+    throw new Error(
+      "A regular employee already has a double shift covering this shift in these dates. Remove that double shift first, or keep it instead of a backup."
+    );
+  }
+
+  const overlappingBackup = await prisma.projectAssignment.findFirst({
+    where: {
+      projectId,
+      isBackup: true,
+      OR: [
+        { shiftId: coveringShift.id },
+        { coveredEmployeeId },
+      ],
+      backupStartDate: { lte: end },
+      backupEndDate: { gte: start },
+    },
+    select: { id: true },
+  });
+  if (overlappingBackup) {
+    throw new Error(
+      "A part-time backup already covers this shift in these dates. Remove that backup first."
+    );
+  }
+
+  const employee = await prisma.employee.findFirst({
+    where: {
+      id: employeeId,
+      ...partTimeRosterWhere(session.user.companyId),
+    },
+    select: { id: true, firstName: true, lastName: true },
+  });
+  if (!employee) {
+    throw new Error("Select an available part-time employee.");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await assertEmployeesNotOnOtherProject(tx, session.user.companyId, [employeeId], {
+      excludeProjectId: projectId,
+      message: "This employee is already assigned to another project.",
+    });
+
+    const existing = await tx.projectAssignment.findUnique({
+      where: { projectId_employeeId: { projectId, employeeId } },
+    });
+    if (existing) {
+      throw new Error("This employee is already assigned to this project.");
+    }
+
+    const assignment = await tx.projectAssignment.create({
+      data: {
+        projectId,
+        employeeId,
+        isBackup: true,
+        shiftId: coveringShift.id,
+        shiftStart: coveringShift.startTime,
+        shiftEnd: coveringShift.endTime,
+        coveredEmployeeId,
+        backupStartDate: start,
+        backupEndDate: end,
+        dailyRate,
+      },
+    });
+
+    await schedulePartTimePays({
+      db: tx,
+      companyId: session.user.companyId,
+      projectId,
+      employeeId,
+      assignmentId: assignment.id,
+      createdById: session.user.id,
+      projectName: project.name,
+      employeeFirstName: employee.firstName,
+      employeeLastName: employee.lastName,
+      dailyRate,
+      start,
+      end,
+    });
+
+    await markEmployeesOnProject(tx, [employeeId], session.user.companyId);
+  });
+
+  revalidateSiteCoverPaths(projectId);
+}
+
+export async function unassignBackupEmployee(formData: FormData) {
+  const projectId = String(formData.get("projectId") ?? "").trim();
+  const { session } = await requireSiteCoverAccess(projectId);
+  const employeeId = String(formData.get("employeeId") ?? "").trim();
+  if (!employeeId) {
+    throw new Error("Select the backup assignment to remove.");
+  }
+
+  const assignment = await prisma.projectAssignment.findFirst({
+    where: {
+      projectId,
+      employeeId,
+      isBackup: true,
+      project: { companyId: session.user.companyId },
+    },
+    select: { id: true },
+  });
+  if (!assignment) {
+    throw new Error("Backup assignment not found.");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await voidScheduledPartTimePays(tx, {
+      projectId,
+      employeeIds: [employeeId],
+    });
+    await releaseEmployeesFromProject(tx, projectId, [employeeId]);
+  });
+
+  revalidateSiteCoverPaths(projectId);
+}
+
+export async function assignDoubleShift(formData: FormData) {
+  const projectId = String(formData.get("projectId") ?? "").trim();
+  const { session, project } = await requireSiteCoverAccess(projectId);
+  const employeeId = String(formData.get("employeeId") ?? "").trim();
+  const dateRaw = String(formData.get("date") ?? "").trim();
+
+  if (!employeeId) throw new Error("Select a regular employee.");
+  if (!dateRaw) throw new Error("Select the double shift date.");
+
+  if (!isProjectOpenForSiteWork(project.status)) {
+    throw new Error(
+      "Assign a double shift only while the project is open for site work."
+    );
+  }
+
+  const date = parseDateInput(dateRaw);
+
+  const assignment = await prisma.projectAssignment.findFirst({
+    where: {
+      projectId,
+      employeeId,
+      isBackup: false,
+      employee: {
+        companyId: session.user.companyId,
+        employmentType: "FULL_TIME",
+        status: "ACTIVE",
+      },
+    },
+    select: { id: true, shiftId: true },
+  });
+  if (!assignment) {
+    throw new Error("Select a regular employee already assigned to this site.");
+  }
+
+  const coveringShiftId = String(formData.get("coveringShiftId") ?? "").trim();
+  const coveredEmployeeId = String(formData.get("coveredEmployeeId") ?? "").trim();
+  if (!coveringShiftId || !coveredEmployeeId) {
+    throw new Error("Select which shift this employee will take over.");
+  }
+  if (coveredEmployeeId === employeeId) {
+    throw new Error("The covering employee cannot take over their own shift.");
+  }
+
+  const coveringShift = await prisma.projectShift.findFirst({
+    where: { id: coveringShiftId, projectId },
+    select: { id: true, number: true },
+  });
+  if (!coveringShift) {
+    throw new Error("Select a shift on this project.");
+  }
+  if (assignment.shiftId && assignment.shiftId === coveringShift.id) {
+    throw new Error("Choose a different shift from the one they already work.");
+  }
+
+  const coveredAssignment = await prisma.projectAssignment.findFirst({
+    where: {
+      projectId,
+      employeeId: coveredEmployeeId,
+      isBackup: false,
+      shiftId: coveringShift.id,
+      employee: {
+        companyId: session.user.companyId,
+        employmentType: "FULL_TIME",
+      },
+    },
+    select: { id: true },
+  });
+  if (!coveredAssignment) {
+    throw new Error(
+      "That shift belongs to another regular employee on this site. Assign staff to shifts under Human Resources → Shifts first."
+    );
+  }
+
+  const onLeave = await prisma.leaveRequest.findFirst({
+    where: {
+      employeeId,
+      status: "APPROVED",
+      startDate: { lte: date },
+      endDate: { gte: date },
+    },
+    select: { id: true },
+  });
+  if (onLeave) {
+    throw new Error("This employee is on approved leave that day.");
+  }
+
+  const existing = await prisma.doubleShiftAssignment.findFirst({
+    where: { employeeId, date },
+    select: { id: true, projectId: true },
+  });
+  if (existing) {
+    throw new Error("This employee already has a double shift on that date.");
+  }
+
+  const existingCover = await prisma.doubleShiftAssignment.findFirst({
+    where: { projectId, coveringShiftId: coveringShift.id, date },
+    select: { id: true },
+  });
+  if (existingCover) {
+    throw new Error("Someone already covers that shift on this date.");
+  }
+
+  const backupCovering = await prisma.projectAssignment.findFirst({
+    where: {
+      projectId,
+      isBackup: true,
+      OR: [
+        { shiftId: coveringShift.id },
+        { coveredEmployeeId },
+      ],
+      backupStartDate: { lte: date },
+      backupEndDate: { gte: date },
+    },
+    select: { id: true },
+  });
+  if (backupCovering) {
+    throw new Error(
+      "A part-time backup already covers this shift on that date. Remove the backup first, or keep the backup instead of a double shift."
+    );
+  }
+
+  await prisma.doubleShiftAssignment.create({
+    data: {
+      projectId,
+      employeeId,
+      date,
+      coveringShiftId: coveringShift.id,
+      coveredEmployeeId,
+      assignedById: session.user.id,
+    },
+  });
+
+  revalidateSiteCoverPaths(projectId);
+}
+
+export async function unassignDoubleShift(formData: FormData) {
+  const assignmentId = String(formData.get("assignmentId") ?? "").trim();
+  if (!assignmentId) {
+    throw new Error("Select the double shift to remove.");
+  }
+
+  const existing = await prisma.doubleShiftAssignment.findFirst({
+    where: { id: assignmentId },
+    select: { id: true, projectId: true },
+  });
+  if (!existing) {
+    throw new Error("Double shift assignment not found.");
+  }
+
+  await requireSiteCoverAccess(existing.projectId);
+  await prisma.doubleShiftAssignment.delete({ where: { id: existing.id } });
+  revalidateSiteCoverPaths(existing.projectId);
 }

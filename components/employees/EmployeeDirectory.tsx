@@ -2,18 +2,14 @@
 
 import { useMemo, useState } from "react";
 import {
-  FileSpreadsheet,
+  ListPlus,
   Trash2,
   UserRound,
   Users,
   UserX,
 } from "lucide-react";
-import {
-  confirmBulkImportEmployees,
-  previewBulkImportEmployees,
-} from "@/app/employees/import-actions";
-import BulkImportDialog from "@/components/bulk-import/BulkImportDialog";
 import EmployeeBulkActionDialog from "@/components/employees/EmployeeBulkActionDialog";
+import EmployeeBulkCreateDialog from "@/components/employees/EmployeeBulkCreateDialog";
 import EmployeeBulkReactivateDialog from "@/components/employees/EmployeeBulkReactivateDialog";
 import EmployeeDialog from "@/components/employees/EmployeeDialog";
 import EmployeeTable, {
@@ -40,7 +36,7 @@ import SectionCard from "@/components/ui/SectionCard";
 import type { EmployeeCreateActorTier } from "@/lib/employee-create-hierarchy";
 import { useT } from "@/lib/i18n/use-t";
 import { isRosterActiveEmployeeStatus } from "@/lib/user-directory-status";
-import type { EmploymentType, Placement } from "@prisma/client";
+import type { EmploymentType, Placement, ServiceArea } from "@prisma/client";
 
 type Employee = {
   id: string;
@@ -58,9 +54,21 @@ type Employee = {
   categoryId: string | null;
   category: { id: string; name: string; prefix: string; slug?: string } | null;
   idDocumentUrl: string | null;
-  status: "ACTIVE" | "INACTIVE" | "TERMINATED" | "ON_LEAVE" | "LEAVE_PENDING";
+  status:
+    | "ACTIVE"
+    | "INACTIVE"
+    | "TERMINATED"
+    | "ON_LEAVE"
+    | "LEAVE_PENDING"
+    | "RESIGNED";
+  depositHeldAmount?: number | null;
+  depositStatus?: "NONE" | "HELD" | "RETURNED" | "KEPT_BY_COMPANY";
+  lastWorkingDay?: Date | string | null;
+  resignAccordingToProcedure?: boolean | null;
   hasPendingLeaveRequest?: boolean;
   hiredAt: Date | string | null;
+  omApprovalAreas?: ServiceArea[];
+  areaManagedProjects?: { projectId: string }[];
   basePay: number | null;
   bpjsKesehatanEnabled: boolean;
   bpjsKetenagakerjaanEnabled: boolean;
@@ -72,6 +80,9 @@ type Employee = {
   projectAssignments: {
     project: { id: string; name: string; location: string | null };
   }[];
+  operationsTeamMembership?: {
+    team: { name: string };
+  } | null;
   user: { username: string; active: boolean } | null;
 };
 
@@ -88,6 +99,7 @@ type Props = {
   managePositions?: PositionRow[];
   projects: ProjectOption[];
   canManage?: boolean;
+  canResign?: boolean;
   canArchive?: boolean;
   createActorTier?: EmployeeCreateActorTier;
 };
@@ -100,6 +112,7 @@ export default function EmployeeDirectory({
   managePositions,
   projects,
   canManage = false,
+  canResign = false,
   canArchive = false,
   createActorTier = "OTHER",
 }: Props) {
@@ -166,7 +179,9 @@ export default function EmployeeDirectory({
     () =>
       employees.filter(
         (employee) =>
-          employee.status === "INACTIVE" || employee.status === "TERMINATED"
+          employee.status === "INACTIVE" ||
+          employee.status === "TERMINATED" ||
+          employee.status === "RESIGNED"
       ),
     [employees]
   );
@@ -218,7 +233,8 @@ export default function EmployeeDirectory({
           employee.category?.name,
           employee.email,
           employee.phone,
-          employee.user?.username
+          employee.user?.username,
+          employee.operationsTeamMembership?.team.name
         )
       ),
     [statusFiltered, query]
@@ -309,15 +325,10 @@ export default function EmployeeDirectory({
     clearSelection();
   }
 
-  function openBulkImport(scope: BulkEmploymentScope) {
+  function openBulkCreate(scope: BulkEmploymentScope) {
     setBulkEmploymentScope(scope);
     setBulkImportOpen(true);
   }
-
-  const bulkTemplateUrl =
-    bulkEmploymentScope === "PART_TIME"
-      ? "/api/employees/bulk-template?employmentType=PART_TIME"
-      : "/api/employees/bulk-template";
 
   const showBulkImportFt =
     canManage &&
@@ -491,16 +502,16 @@ export default function EmployeeDirectory({
               <DirectoryAddButton
                 label={t("pages.employees.addBulkFullTime")}
                 variant="infoBadge"
-                icon={<FileSpreadsheet className="h-3.5 w-3.5" />}
-                onClick={() => openBulkImport("FULL_TIME")}
+                icon={<ListPlus className="h-3.5 w-3.5" />}
+                onClick={() => openBulkCreate("FULL_TIME")}
               />
             ) : null}
             {showBulkImportPt ? (
               <DirectoryAddButton
                 label={t("pages.employees.addBulkPartTime")}
                 variant="infoBadge"
-                icon={<FileSpreadsheet className="h-3.5 w-3.5" />}
-                onClick={() => openBulkImport("PART_TIME")}
+                icon={<ListPlus className="h-3.5 w-3.5" />}
+                onClick={() => openBulkCreate("PART_TIME")}
               />
             ) : null}
             {manageCategories ? (
@@ -555,6 +566,7 @@ export default function EmployeeDirectory({
           positions={positions}
           projects={projects}
           canManage={canManage}
+          canResign={canResign}
           canArchive={canArchive}
           createActorTier={createActorTier}
           directoryView={tab}
@@ -578,18 +590,13 @@ export default function EmployeeDirectory({
         />
       ) : null}
       {canManage ? (
-        <BulkImportDialog
+        <EmployeeBulkCreateDialog
           open={bulkImportOpen}
           onOpenChange={setBulkImportOpen}
-          entityLabel="employee"
-          templateUrl={bulkTemplateUrl}
-          onPreview={previewBulkImportEmployees}
-          onConfirm={confirmBulkImportEmployees}
-          extraFormFields={
-            bulkEmploymentScope === "PART_TIME"
-              ? { forceEmploymentType: "PART_TIME" }
-              : undefined
-          }
+          employmentType={bulkEmploymentScope}
+          categories={categories}
+          positions={positions}
+          projects={projects}
         />
       ) : null}
 

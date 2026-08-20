@@ -50,7 +50,7 @@ export default function ContractExtensionsHistory({
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead>
               <tr className="border-b border-border text-xs uppercase tracking-[0.12em] text-subtle">
-                <th className="px-3 py-3 font-semibold">
+                <th className="px-3 py-3 text-left font-semibold">
                   {t("pages.projects.extendHistoryExtendedOn")}
                 </th>
                 <th className="px-3 py-3 font-semibold">

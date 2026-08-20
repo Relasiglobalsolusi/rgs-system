@@ -9,13 +9,8 @@ export const BILLING_MODES = [
   "MONTHLY",
   "ON_COMPLETION",
   "MILESTONE",
+  "MULTI_VISIT",
 ] as const satisfies readonly BillingMode[];
-
-export const BILLING_MODE_LABELS: Record<BillingMode, string> = {
-  MONTHLY: "Monthly",
-  ON_COMPLETION: "On completion",
-  MILESTONE: "Milestone",
-};
 
 /** Canonical stored/display label for on-completion invoices (one per project). */
 export const COMPLETION_INVOICE_LABEL = "Completion invoice";
@@ -24,6 +19,7 @@ export const COMPLETION_INVOICE_LABEL = "Completion invoice";
 export const MILESTONE_ELIGIBLE_BILLING_MODES = [
   "MILESTONE",
   "ON_COMPLETION",
+  "MULTI_VISIT",
 ] as const satisfies readonly BillingMode[];
 
 export const MIN_MILESTONE_PAYMENTS = 2;
@@ -47,16 +43,8 @@ export function isMilestoneSubCategory(
 /**
  * True when create/start opens ProjectInvoicePeriod rows.
  * Regular Cleaning + Security (monthly contract cycle) and GC/Facade (milestones).
- * Parking / Payroll Management stay commercial-terms only (no periods here).
- *
- * Parking revenue engine (manual monthly revenue log → profit = revenue − ALL
- * project outflows: owner profit-share, lease, setup, purchases, wages, etc. —
- * no special exclusions) is deferred — hook: billing page when PARKING.
- *
- * Payroll Management economics (workflow deferred; do not contradict):
- * client sets wages → RGS fronts wage bill (cost) → bills wage bill +
- * configurable management fee % (`serviceFeePercent`, RGS profit only) →
- * client reimburses per project payment terms.
+ * Parking / Payroll Management stay off invoice-period loops — they use
+ * dedicated billing workspaces (monthly revenue log / client pay list).
  */
 export function usesInvoicePeriods(
   value: ProjectSubCategory | string | null | undefined
@@ -68,8 +56,7 @@ export function usesInvoicePeriods(
 
 /**
  * Payroll Management: RGS profit = management fee only (`serviceFeePercent`).
- * Fronted client wage bill is project cost (not profit). Full monthly
- * pay-then-bill workflow is deferred — keep labels/helpers aligned.
+ * Fronted client wage bill is project cost (not profit).
  */
 export function payrollManagementFeePercent(
   serviceFeePercent: number | null | undefined
@@ -308,26 +295,6 @@ export function parseContractPrice(raw: string): number | null {
   const num = Number(cleaned);
   if (!Number.isFinite(num) || num < 0) return null;
   return num;
-}
-
-/** Sum of amounts already invoiced (awaiting + paid + compiling). */
-export function sumInvoicedAmount(
-  periods: { amount: number | string | null; status: string }[]
-): number {
-  return periods.reduce((sum, p) => {
-    if (
-      !["AWAITING_PAYMENT", "PENDING_VERIFICATION", "PAID", "OVERDUE", "COMPILING"].includes(p.status)
-    ) {
-      return sum;
-    }
-    const n =
-      p.amount == null
-        ? 0
-        : typeof p.amount === "string"
-          ? Number(p.amount)
-          : p.amount;
-    return sum + (Number.isFinite(n) ? n : 0);
-  }, 0);
 }
 
 /** Statuses whose stored amounts are redistributed when contract price changes. */

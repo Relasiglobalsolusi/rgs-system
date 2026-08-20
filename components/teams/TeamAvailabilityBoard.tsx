@@ -1,0 +1,160 @@
+"use client";
+
+import Link from "next/link";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+
+import { buttonVariants } from "@/components/ui/button";
+import EmptyState from "@/components/ui/EmptyState";
+import SectionCard from "@/components/ui/SectionCard";
+import StatusBadge from "@/components/ui/StatusBadge";
+import { useT } from "@/lib/i18n/use-t";
+import { cn } from "@/lib/utils";
+import {
+  daysInMonth,
+  jakartaTodayKey,
+  shiftYearMonth,
+  yearMonthKey,
+} from "@/lib/operations-team-calendar";
+import type { OperationsTeamKindValue } from "@/lib/operations-teams";
+
+export type TeamAvailabilityRow = {
+  id: string;
+  name: string;
+  kind: OperationsTeamKindValue;
+  occupiedProjectName: string | null;
+  occupiedDayKeys: string[];
+};
+
+type Props = {
+  year: number;
+  month: number;
+  monthLabel: string;
+  teams: TeamAvailabilityRow[];
+};
+
+export default function TeamAvailabilityBoard({
+  year,
+  month,
+  monthLabel,
+  teams,
+}: Props) {
+  const { t } = useT();
+  const days = daysInMonth(year, month);
+  const todayKey = jakartaTodayKey();
+  const prev = shiftYearMonth(year, month, -1);
+  const next = shiftYearMonth(year, month, 1);
+
+  if (teams.length === 0) {
+    return (
+      <SectionCard>
+        <EmptyState
+          title={t("pages.teams.noAvailability")}
+          description={t("pages.teams.noAvailabilityDesc")}
+        />
+        <div className="mt-4 flex justify-center">
+          <Link
+            href="/teams"
+            className={cn(
+              buttonVariants({ variant: "successBadge", size: "badgeFlex" })
+            )}
+          >
+            {t("pages.teams.openAssignment")}
+          </Link>
+        </div>
+      </SectionCard>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/teams/availability?month=${yearMonthKey(prev.year, prev.month)}`}
+            className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }))}
+            aria-label={t("pages.teams.previousMonth")}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Link>
+          <p className="min-w-[10rem] text-center text-base font-semibold text-text">
+            {monthLabel}
+          </p>
+          <Link
+            href={`/teams/availability?month=${yearMonthKey(next.year, next.month)}`}
+            className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }))}
+            aria-label={t("pages.teams.nextMonth")}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Link>
+        </div>
+        <div className="flex items-center gap-3 text-xs text-muted">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-warning/70" />
+            {t("pages.teams.occupiedLegend")}
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-elevated ring-1 ring-border" />
+            {t("pages.teams.availableLegend")}
+          </span>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        {teams.map((team) => {
+          const occupied = new Set(team.occupiedDayKeys);
+          return (
+            <SectionCard key={team.id}>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="font-semibold text-text">{team.name}</p>
+                  <p className="text-sm text-muted">
+                    {team.kind === "FACADE_CLEANING"
+                      ? t("pages.teams.kindFacade")
+                      : t("pages.teams.kindGeneral")}
+                  </p>
+                </div>
+                {team.occupiedProjectName ? (
+                  <StatusBadge status="warning" compact>
+                    {t("pages.teams.onSiteAt", {
+                      project: team.occupiedProjectName,
+                    })}
+                  </StatusBadge>
+                ) : (
+                  <StatusBadge status="active" compact>
+                    {t("pages.teams.statusAvailable")}
+                  </StatusBadge>
+                )}
+              </div>
+              <div
+                className="grid gap-1"
+                style={{
+                  gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))`,
+                }}
+              >
+                {days.map((day) => {
+                  const isOccupied = occupied.has(day.key);
+                  const isToday = day.key === todayKey;
+                  return (
+                    <div
+                      key={day.key}
+                      title={`${day.day}`}
+                      className={cn(
+                        "flex h-8 items-center justify-center rounded-md text-[10px] tabular-nums",
+                        isOccupied
+                          ? "bg-warning/25 text-text"
+                          : "bg-elevated text-muted",
+                        isToday && "ring-1 ring-primary"
+                      )}
+                    >
+                      {day.day}
+                    </div>
+                  );
+                })}
+              </div>
+            </SectionCard>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

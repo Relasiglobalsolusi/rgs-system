@@ -29,16 +29,6 @@ export function isCashPaymentTerms(
   return days === CASH_PAYMENT_TERMS_DAYS;
 }
 
-export const INVOICE_PERIOD_STATUS_LABELS: Record<InvoicePeriodStatus, string> = {
-  ONGOING: "Ongoing",
-  COMPILING: "Compiling",
-  AWAITING_CLIENT_REVIEW: "Awaiting Client Review",
-  AWAITING_PAYMENT: "Awaiting Payment",
-  PENDING_VERIFICATION: "Verifying Payment",
-  PAID: "Paid",
-  OVERDUE: "Overdue",
-};
-
 export type InvoicePaymentDisplay = {
   /** UI status including computed Late. */
   key:
@@ -90,29 +80,6 @@ export function normalizePaymentTermsDays(
   const n = Math.floor(days);
   if (n < 0) return DEFAULT_INVOICE_DUE_DAYS;
   return Math.min(n, 365);
-}
-
-export function invoicePeriodStatusTone(
-  status: InvoicePeriodStatus
-): "active" | "pending" | "success" | "warning" | "danger" | "inactive" {
-  switch (status) {
-    case "ONGOING":
-      return "active";
-    case "COMPILING":
-      return "pending";
-    case "AWAITING_CLIENT_REVIEW":
-      return "pending";
-    case "AWAITING_PAYMENT":
-      return "warning";
-    case "PENDING_VERIFICATION":
-      return "pending";
-    case "PAID":
-      return "active";
-    case "OVERDUE":
-      return "danger";
-    default:
-      return "inactive";
-  }
 }
 
 /**
@@ -447,24 +414,145 @@ export function parseBillingPeriodBasis(
   return null;
 }
 
+export type BillingCycleDays = {
+  fromDay?: number | null;
+  toDay?: number | null;
+};
+
+export function clampBillingCycleDay(
+  day: number | null | undefined
+): number {
+  if (day == null || !Number.isFinite(day)) return 1;
+  return Math.min(31, Math.max(1, Math.round(day)));
+}
+
+/** Day-of-month in UTC, clamping 31 in short months to the last day. */
+export function utcDateForCycleDay(
+  year: number,
+  monthIndex: number,
+  day: number
+): Date {
+  const lastDay = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
+  return new Date(
+    Date.UTC(year, monthIndex, Math.min(clampBillingCycleDay(day), lastDay))
+  );
+}
+
+/** Stored Custom Period days, or the contract start day for both (legacy). */
+export function resolveBillingCycleDays(
+  contractStart: Date,
+  fromDay?: number | null,
+  toDay?: number | null
+): { fromDay: number; toDay: number } {
+  const fallback = clampBillingCycleDay(
+    toUtcDateOnly(contractStart).getUTCDate()
+  );
+  return {
+    fromDay: fromDay != null ? clampBillingCycleDay(fromDay) : fallback,
+    toDay: toDay != null ? clampBillingCycleDay(toDay) : fallback,
+  };
+}
+
+export function parseBillingCycleDayInput(
+  raw: FormDataEntryValue | string | null | undefined
+): number | null {
+  const value = String(raw ?? "").trim();
+  if (!value) return null;
+  const day = Number(value);
+  if (!Number.isFinite(day)) return null;
+  const rounded = Math.round(day);
+  if (rounded < 1 || rounded > 31) return null;
+  return rounded;
+}
+
+/**
+ * Custom Period from/to days (1–31). Calendar Month clears stored days.
+ */
+export function parseCustomBillingCycleDays(
+  formData: FormData,
+  basis: BillingPeriodBasis | null
+): { billingCycleStartDay: number | null; billingCycleEndDay: number | null } {
+  if (basis !== "CONTRACT_CYCLE") {
+    return { billingCycleStartDay: null, billingCycleEndDay: null };
+  }
+  const billingCycleStartDay = parseBillingCycleDayInput(
+    formData.get("billingCycleStartDay")
+  );
+  const billingCycleEndDay = parseBillingCycleDayInput(
+    formData.get("billingCycleEndDay")
+  );
+  if (billingCycleStartDay == null || billingCycleEndDay == null) {
+    throw new Error("From day and to day are required for Custom Period.");
+  }
+  return { billingCycleStartDay, billingCycleEndDay };
+}
+
+/** True when To Day is on or before From Day — the window ends next month. */
+export function customDayCycleCrossesMonth(
+  fromDay: number,
+  toDay: number
+): boolean {
+  return (
+    clampBillingCycleDay(toDay) <= clampBillingCycleDay(fromDay)
+  );
+}
+
+export function customDayCyclePeriodStartingInMonth(
+  year: number,
+  monthIndex: number,
+  fromDay: number,
+  toDay: number
+): { periodStart: Date; periodEnd: Date; label: string } {
+  const from = clampBillingCycleDay(fromDay);
+  const to = clampBillingCycleDay(toDay);
+  const periodStart = utcDateForCycleDay(year, monthIndex, from);
+  const periodEnd = customDayCycleCrossesMonth(from, to)
+    ? utcDateForCycleDay(year, monthIndex + 1, to)
+    : utcDateForCycleDay(year, monthIndex, to);
+  return {
+    periodStart,
+    periodEnd,
+    label: formatInvoicePeriodDateRange(periodStart, periodEnd),
+  };
+}
+
+/** The recurring from/to window that contains `ref`. */
+export function customDayCycleContaining(
+  fromDay: number,
+  toDay: number,
+  ref: Date
+): { periodStart: Date; periodEnd: Date; label: string } {
+  const day = toUtcDateOnly(ref);
+  const y = day.getUTCFullYear();
+  const m = day.getUTCMonth();
+  const current = customDayCyclePeriodStartingInMonth(y, m, fromDay, toDay);
+  if (
+    day.getTime() >= current.periodStart.getTime() &&
+    day.getTime() <= current.periodEnd.getTime()
+  ) {
+    return current;
+  }
+  if (day.getTime() < current.periodStart.getTime()) {
+    return customDayCyclePeriodStartingInMonth(y, m - 1, fromDay, toDay);
+  }
+  return customDayCyclePeriodStartingInMonth(y, m + 1, fromDay, toDay);
+}
+
 /**
  * First open monthly period for a Regular contract after Move to In Progress.
- * Calendar Month → month containing real start; Contract Cycle → anniversary #1.
+ * Calendar Month → month containing real start; Custom Period → window containing start.
  */
 export function firstMonthlyPeriodBounds(
   basis: BillingPeriodBasis | null | undefined,
-  contractStart: Date
+  contractStart: Date,
+  cycle?: BillingCycleDays | null
 ): { periodStart: Date; periodEnd: Date; label: string } {
   const start = toUtcDateOnly(contractStart);
   if (basis === "CALENDAR_MONTH") {
     return monthPeriodBounds(start);
   }
-  const cycle = contractCyclePeriodBounds(start, 1);
-  return {
-    periodStart: cycle.periodStart,
-    periodEnd: cycle.periodEnd,
-    label: cycle.label,
-  };
+  const days = resolveBillingCycleDays(start, cycle?.fromDay, cycle?.toDay);
+  return customDayCycleContaining(days.fromDay, days.toDay, start);
 }
 
 /** Previous calendar month relative to `ref`. */
@@ -519,79 +607,89 @@ export type ContractCyclePeriodBounds = {
 };
 
 /**
- * Regular Cleaning anniversary cycle (1-based).
- * Start 15 May 2026:
- *   1 → 15 May – 15 Jun (invoice due 16 Jun)
- *   2 → 16 Jun – 15 Jul (invoice due 16 Jul)
- *   3 → 16 Jul – 15 Aug …
+ * Custom Period cycle (1-based) from From Day / To Day.
+ * From 15, To 14 (cross-month): 15 Mar – 14 Apr, 15 Apr – 14 May …
+ * From 5, To 20 (same month): 5 Mar – 20 Mar, 5 Apr – 20 Apr …
+ * Short months clamp 31 to the last day.
+ */
+export function customDayCyclePeriodBounds(
+  fromDay: number,
+  toDay: number,
+  cycleIndex: number,
+  anchor: Date
+): ContractCyclePeriodBounds {
+  if (!Number.isInteger(cycleIndex) || cycleIndex < 1) {
+    throw new Error("cycleIndex must be an integer >= 1.");
+  }
+  const first = customDayCycleContaining(fromDay, toDay, toUtcDateOnly(anchor));
+  const startMonth =
+    first.periodStart.getUTCMonth() + (cycleIndex - 1);
+  const bounds = customDayCyclePeriodStartingInMonth(
+    first.periodStart.getUTCFullYear(),
+    startMonth,
+    fromDay,
+    toDay
+  );
+  return {
+    cycleIndex,
+    periodStart: bounds.periodStart,
+    periodEnd: bounds.periodEnd,
+    label: bounds.label,
+    invoiceDueOn: addUtcDays(bounds.periodEnd, 1),
+  };
+}
+
+/**
+ * Regular Cleaning anniversary cycle (1-based) inferred from contract start day.
+ * Start 15 May 2026 (from 15 → to 15, cross-month):
+ *   1 → 15 May – 15 Jun
+ *   2 → 15 Jun – 15 Jul
  */
 export function contractCyclePeriodBounds(
   contractStart: Date,
   cycleIndex: number
 ): ContractCyclePeriodBounds {
-  if (!Number.isInteger(cycleIndex) || cycleIndex < 1) {
-    throw new Error("cycleIndex must be an integer >= 1.");
-  }
   const start = toUtcDateOnly(contractStart);
-  const periodEnd = addUtcMonthsClamped(start, cycleIndex);
-  const periodStart =
-    cycleIndex === 1
-      ? start
-      : addUtcDays(addUtcMonthsClamped(start, cycleIndex - 1), 1);
-  return {
-    cycleIndex,
-    periodStart,
-    periodEnd,
-    label: formatInvoicePeriodDateRange(periodStart, periodEnd),
-    invoiceDueOn: addUtcDays(periodEnd, 1),
-  };
+  const day = start.getUTCDate();
+  return customDayCyclePeriodBounds(day, day, cycleIndex, start);
 }
 
-/**
- * Cycle index whose date range contains `ref` (or period 1 when before start).
- */
-export function resolveContractCycleIndex(
-  contractStart: Date,
+export function resolveCustomDayCycleIndex(
+  fromDay: number,
+  toDay: number,
+  anchor: Date,
   ref: Date
 ): number {
-  const start = toUtcDateOnly(contractStart);
-  const day = toUtcDateOnly(ref);
-  if (day.getTime() < start.getTime()) return 1;
-
-  let index = 1;
-  while (index < 2400) {
-    const { periodEnd } = contractCyclePeriodBounds(start, index);
-    if (day.getTime() <= periodEnd.getTime()) return index;
-    index += 1;
-  }
-  return index;
+  const first = customDayCycleContaining(fromDay, toDay, toUtcDateOnly(anchor));
+  const current = customDayCycleContaining(fromDay, toDay, toUtcDateOnly(ref));
+  if (current.periodStart.getTime() < first.periodStart.getTime()) return 1;
+  const months =
+    (current.periodStart.getUTCFullYear() - first.periodStart.getUTCFullYear()) *
+      12 +
+    (current.periodStart.getUTCMonth() - first.periodStart.getUTCMonth());
+  return months + 1;
 }
 
-/** True when `bounds` matches this project's contract-start cycle. */
-export function matchingContractCycleIndex(
-  contractStart: Date,
+/** True when `bounds` matches this project's From Day / To Day cycle. */
+export function matchingCustomDayCycleIndex(
+  fromDay: number,
+  toDay: number,
+  anchor: Date,
   periodStart: Date,
   periodEnd: Date
 ): number | null {
-  const start = toUtcDateOnly(contractStart);
-  const ps = toUtcDateOnly(periodStart);
-  const pe = toUtcDateOnly(periodEnd);
-  const approxMonths =
-    (pe.getUTCFullYear() - start.getUTCFullYear()) * 12 +
-    (pe.getUTCMonth() - start.getUTCMonth());
-
-  for (const idx of [
-    approxMonths,
-    approxMonths - 1,
-    approxMonths + 1,
-    approxMonths + 2,
-    1,
-  ]) {
+  const index = resolveCustomDayCycleIndex(
+    fromDay,
+    toDay,
+    anchor,
+    toUtcDateOnly(periodStart)
+  );
+  for (const idx of [index, index - 1, index + 1, 1]) {
     if (idx < 1) continue;
-    const bounds = contractCyclePeriodBounds(start, idx);
+    const bounds = customDayCyclePeriodBounds(fromDay, toDay, idx, anchor);
     if (
-      bounds.periodStart.getTime() === ps.getTime() &&
-      bounds.periodEnd.getTime() === pe.getTime()
+      bounds.periodStart.getTime() === toUtcDateOnly(periodStart).getTime() &&
+      bounds.periodEnd.getTime() === toUtcDateOnly(periodEnd).getTime()
     ) {
       return idx;
     }
@@ -599,16 +697,26 @@ export function matchingContractCycleIndex(
   return null;
 }
 
+/** Preferred auto-invoice day: the calendar day after To Day (clamped 1–28). */
+export function invoicingDayFromCycleToDay(toDay: number): number {
+  const day = clampBillingCycleDay(toDay);
+  return clampInvoicingDay(day >= 31 ? 1 : day + 1);
+}
+
+/**
+ * Preferred day-of-month for auto-invoice (day after the first period ends).
+ * Clamped to 1–28 for storage.
+ */
+export function invoicingDayFromCycleEnd(cycleEnd: Date): number {
+  return invoicingDayFromCycleToDay(toUtcDateOnly(cycleEnd).getUTCDate());
+}
+
 /**
  * Preferred day-of-month for auto-invoice, derived from real contract start
  * (day after the first period ends). Clamped to 1–28 for storage.
  */
 export function invoicingDayFromContractStart(contractStart: Date): number {
-  const firstDue = contractCyclePeriodBounds(
-    toUtcDateOnly(contractStart),
-    1
-  ).invoiceDueOn;
-  return clampInvoicingDay(firstDue.getUTCDate());
+  return invoicingDayFromCycleEnd(addUtcMonthsClamped(toUtcDateOnly(contractStart), 1));
 }
 
 /**
@@ -657,19 +765,4 @@ export function isMonthlyPeriodReadyToSubmitInvoice(
 ): boolean {
   if (!isMonthlyPeriodReadyToInvoice(period, today)) return false;
   return Boolean(period.reconciledAt);
-}
-
-/**
- * Legacy helper: calendar-month invoicing day check.
- * Prefer {@link isAnniversaryPeriodDue} for Regular Cleaning.
- */
-export function isInvoicingDue(
-  today: Date,
-  invoicingDay: number,
-  periodEnd: Date
-): boolean {
-  // Anniversary billing: due the day after the period ends (invoicingDay is
-  // retained on the project for display / schedule hints only).
-  void invoicingDay;
-  return isAnniversaryPeriodDue(today, periodEnd);
 }

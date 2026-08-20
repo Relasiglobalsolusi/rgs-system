@@ -87,19 +87,13 @@ export function recordImportFailed(
   }
 }
 
-function bulkImportNoun(entityLabel: string, count: number): string {
-  if (entityLabel === "inventoryItem") {
-    return count === 1 ? "inventory item" : "inventory items";
-  }
-  return `${entityLabel}${count === 1 ? "" : "s"}`;
+function inventoryItemNoun(count: number): string {
+  return count === 1 ? "inventory item" : "inventory items";
 }
 
-export function formatBulkImportSummary(
-  entityLabel: string,
-  result: BulkImportResult
-): string {
+export function formatBulkImportSummary(result: BulkImportResult): string {
   const parts = [
-    `${result.createdCount} ${bulkImportNoun(entityLabel, result.createdCount)} created`,
+    `${result.createdCount} ${inventoryItemNoun(result.createdCount)} created`,
   ];
 
   if (result.skippedCount > 0) {
@@ -113,25 +107,11 @@ export function formatBulkImportSummary(
   return parts.join(" · ");
 }
 
-function bulkImportPlural(entityLabel: string): string {
-  if (entityLabel === "client") return "clients";
-  if (entityLabel === "vendor") return "vendors";
-  if (entityLabel === "project") return "projects";
-  if (entityLabel === "inventoryItem") return "inventory items";
-  return "employees";
-}
-
-function bulkImportSingular(entityLabel: string): string {
-  if (entityLabel === "inventoryItem") return "inventory item";
-  return entityLabel;
-}
-
 export function formatBulkImportPreviewSummary(
-  entityLabel: string,
   preview: BulkImportPreview
 ): string {
-  const plural = bulkImportPlural(entityLabel);
-  const singular = bulkImportSingular(entityLabel);
+  const plural = "inventory items";
+  const singular = "inventory item";
   const parts = [
     `${preview.readyCount} ${preview.readyCount === 1 ? singular : plural} ready to add`,
   ];
