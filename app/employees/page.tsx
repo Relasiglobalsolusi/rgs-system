@@ -39,7 +39,8 @@ export default async function EmployeesPage() {
   const company = await prisma.company.findFirst();
 
   if (company) {
-    // Keep Corporate / Warehouse (WRH) / Operations + default positions present.
+    // Create missing Corporate / Warehouse / Operations desks and default
+    // roles. Existing operator edits (name, description, availability) stay.
     await ensureWorkforceDepartments(prisma, company.id);
     await backfillSecurityDepositRequiredForSiteRoles(prisma, company.id);
   }

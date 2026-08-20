@@ -329,10 +329,8 @@ export async function ensureWorkforceDepartments(
           slug: item.slug,
         },
       },
+      // Keep the desk present. Do not rewrite operator-edited name / prefix / order.
       update: {
-        name: item.name,
-        prefix: item.prefix,
-        sortOrder: item.sortOrder,
         active: true,
       },
       create: {
@@ -370,12 +368,10 @@ export async function ensureDefaultPositions(
             slug: item.slug,
           },
         },
-        update: {
-          name: item.name,
-          description: item.description,
-          sortOrder: item.sortOrder,
-          active: true,
-        },
+        // Create missing system roles only. Overwriting here made Edit Position
+        // look broken: save wrote the DB, then the Employees page refresh reset
+        // name, description, and Available For New Employees back to seed text.
+        update: {},
         create: {
           companyId,
           categoryId: category.id,
