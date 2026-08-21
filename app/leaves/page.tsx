@@ -3,10 +3,7 @@ import { requireModule, getEmployeeForUser } from "@/lib/session";
 import { refreshLeaveEmploymentForUser } from "@/lib/leave-employment-status";
 
 import AppShell from "@/components/layout/AppShell";
-import SectionCard from "@/components/ui/SectionCard";
-import EmptyState from "@/components/ui/EmptyState";
-import LeaveDialog from "@/components/leaves/LeaveDialog";
-import LeaveRequestTable from "@/components/leaves/LeaveRequestTable";
+import LeaveDirectory from "@/components/leaves/LeaveDirectory";
 
 export default async function LeavesPage() {
   const session = await requireModule("leaves");
@@ -31,33 +28,27 @@ export default async function LeavesPage() {
       titleKey="pages.leaves.title"
       descriptionKey={
         hasEmployeeProfile
-          ? "pages.leaves.descriptionEmployeeShort"
-          : "pages.leaves.descriptionManagerShort"
+          ? "pages.leaves.descriptionEmployee"
+          : "pages.leaves.descriptionManager"
       }
     >
-      {hasEmployeeProfile && (
-        <div className="mb-6 flex justify-end">
-          <LeaveDialog />
-        </div>
-      )}
-
-      <SectionCard>
-        {leaves.length === 0 ? (
-          <EmptyState
-            titleKey="pages.leaves.emptyTitle"
-            descriptionKey={
-              hasEmployeeProfile
-                ? "pages.leaves.emptyDescriptionEmployeeShort"
-                : "pages.leaves.emptyDescriptionManagerShort"
-            }
-          />
-        ) : (
-          <LeaveRequestTable
-            data={leaves}
-            showEmployee={!hasEmployeeProfile}
-          />
-        )}
-      </SectionCard>
+      <LeaveDirectory
+        data={leaves.map((leave) => ({
+          id: leave.id,
+          type: leave.type,
+          startDate: leave.startDate,
+          endDate: leave.endDate,
+          reason: leave.reason,
+          status: leave.status,
+          proofUrl: leave.proofUrl,
+          employee: {
+            firstName: leave.employee.firstName,
+            lastName: leave.employee.lastName,
+          },
+        }))}
+        showEmployee={!hasEmployeeProfile}
+        canSubmit={hasEmployeeProfile}
+      />
     </AppShell>
   );
 }

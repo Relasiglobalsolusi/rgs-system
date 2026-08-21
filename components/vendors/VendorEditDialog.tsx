@@ -28,12 +28,16 @@ import {
 } from "@/components/ui/use-directory-dialog-open";
 import { useT } from "@/lib/i18n/use-t";
 import { isValidNpwp } from "@/lib/npwp";
+import {
+  type VendorTypeValue,
+  vendorRequiresIndonesianTaxId,
+} from "@/lib/vendor-type";
 
 type Vendor = {
   id: string;
   name: string;
   shortCode: string;
-  vendorType?: "COMPANY" | "INDIVIDUAL";
+  vendorType?: VendorTypeValue;
   email: string | null;
   phone: string | null;
   address: string | null;
@@ -45,7 +49,6 @@ type Vendor = {
   contactPersonEmail: string | null;
   contactPersonPhone: string | null;
   vendorSince: Date | string;
-  paymentTermsDays?: number | null;
   active: boolean;
 };
 
@@ -120,10 +123,14 @@ export default function VendorEditDialog({
   }, [open, formId, vendor.id]);
 
   async function submit(formData: FormData) {
+    const vendorType = String(formData.get("vendorType") ?? "");
     const npwpRaw = String(formData.get("npwp") ?? "").trim();
     const isIndividual =
       String(formData.get("vendorType") ?? "").toUpperCase() === "INDIVIDUAL";
-    if (!npwpRaw || !isValidNpwp(npwpRaw)) {
+    if (
+      vendorRequiresIndonesianTaxId(vendorType) &&
+      (!npwpRaw || !isValidNpwp(npwpRaw))
+    ) {
       const npwpMessage = !npwpRaw
         ? isIndividual
           ? t("validation.npwpOrNikRequired")
@@ -220,7 +227,6 @@ export default function VendorEditDialog({
                 npwp: vendor.npwp ?? "",
                 taxIdDocumentUrl: vendor.taxIdDocumentUrl ?? null,
                 vendorSince: vendor.vendorSince,
-                paymentTermsDays: vendor.paymentTermsDays,
                 contactPersonFirstName: vendor.contactPersonFirstName ?? "",
                 contactPersonLastName: vendor.contactPersonLastName ?? "",
                 contactPersonPosition: vendor.contactPersonPosition ?? "",

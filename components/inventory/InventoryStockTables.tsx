@@ -3,7 +3,11 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 
-import { matchInventoryItemType } from "@/components/inventory/inventory-category";
+import {
+  INVENTORY_CATEGORY_DISPLAY_ORDER,
+  INVENTORY_CATEGORY_TITLE_KEY,
+  partitionItemsByInventoryItemType,
+} from "@/components/inventory/inventory-category";
 import InventoryStockItemDetailDialog from "@/components/inventory/InventoryStockItemDetailDialog";
 import type { InventoryCatalogItem } from "@/components/inventory/inventory-types";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
@@ -29,27 +33,8 @@ export default function InventoryStockTables({ items, searchQuery }: Props) {
     null
   );
 
-  const chemicalItems = useMemo(
-    () =>
-      items.filter((item) => matchInventoryItemType(item.itemType, "chemical")),
-    [items]
-  );
-  const consumableItems = useMemo(
-    () =>
-      items.filter((item) =>
-        matchInventoryItemType(item.itemType, "consumable")
-      ),
-    [items]
-  );
-  /** Other + any custom item types that are not Chemical / Equipment / Consumable. */
-  const otherItems = useMemo(
-    () =>
-      items.filter(
-        (item) =>
-          !matchInventoryItemType(item.itemType, "chemical") &&
-          !matchInventoryItemType(item.itemType, "equipment") &&
-          !matchInventoryItemType(item.itemType, "consumable")
-      ),
+  const categorized = useMemo(
+    () => partitionItemsByInventoryItemType(items),
     [items]
   );
 
@@ -144,10 +129,9 @@ export default function InventoryStockTables({ items, searchQuery }: Props) {
     );
   }
 
-  const allEmpty =
-    chemicalItems.length === 0 &&
-    consumableItems.length === 0 &&
-    otherItems.length === 0;
+  const allEmpty = INVENTORY_CATEGORY_DISPLAY_ORDER.every(
+    (key) => categorized[key].length === 0
+  );
 
   if (allEmpty) {
     return (
@@ -174,26 +158,14 @@ export default function InventoryStockTables({ items, searchQuery }: Props) {
         {t("pages.inventory.stock.itemClickHint")}
       </p>
       <div className="space-y-8">
-        {chemicalItems.length > 0
-          ? renderCategoryTable(
-              t("pages.inventory.overview.categoryChemicals"),
-              chemicalItems
-            )
-          : null}
-
-        {consumableItems.length > 0
-          ? renderCategoryTable(
-              t("pages.inventory.overview.categoryConsumables"),
-              consumableItems
-            )
-          : null}
-
-        {otherItems.length > 0
-          ? renderCategoryTable(
-              t("pages.inventory.overview.categoryOthers"),
-              otherItems
-            )
-          : null}
+        {INVENTORY_CATEGORY_DISPLAY_ORDER.map((key) =>
+          categorized[key].length > 0
+            ? renderCategoryTable(
+                t(INVENTORY_CATEGORY_TITLE_KEY[key]),
+                categorized[key]
+              )
+            : null
+        )}
       </div>
 
       <InventoryStockItemDetailDialog

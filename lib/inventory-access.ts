@@ -1,16 +1,14 @@
 import type { Prisma } from "@prisma/client";
 
 import {
-  hasFullModuleAccess,
+  isOwnerAccount,
   type AccountTypeUser,
   type PermissionUser,
 } from "@/lib/permissions";
-import {
-  canManageInventory,
-  isAdminAccount,
-} from "@/lib/project-access";
+import { canManageInventory } from "@/lib/project-access";
 import { prisma } from "@/lib/prisma";
 import {
+  isAreaManagerPosition,
   isDirectorPosition,
   isOperationsManagerPosition,
 } from "@/lib/positions";
@@ -23,8 +21,7 @@ type InventoryActor = PermissionUser &
   };
 
 /**
- * Assign stock to a project / void project issues: Operations Manager+,
- * Director, HO admin, or unrestricted full-module HO access.
+ * Assign stock to a project: Area Manager+, Director, or owner.
  * Still requires inventory manage (HO + inventory module; never portal).
  */
 export async function canAssignInventoryToProject(
@@ -32,15 +29,7 @@ export async function canAssignInventoryToProject(
   user: InventoryActor
 ): Promise<boolean> {
   if (!canManageInventory(user)) return false;
-  if (isAdminAccount(user)) return true;
-  if (
-    hasFullModuleAccess({
-      ...user,
-      username: user.username ?? undefined,
-    })
-  ) {
-    return true;
-  }
+  if (isOwnerAccount({ username: user.username })) return true;
 
   const employee = await prisma.employee.findUnique({
     where: { userId },
@@ -51,8 +40,29 @@ export async function canAssignInventoryToProject(
   const position = employee?.jobPosition;
   if (!position) return false;
   return (
-    isDirectorPosition(position) || isOperationsManagerPosition(position)
+    isDirectorPosition(position) ||
+    isOperationsManagerPosition(position) ||
+    isAreaManagerPosition(position)
   );
+}
+
+/** Return To Vendor: Director and above, or owner `vicko`. Not OM / AM. */
+export async function canReturnEquipmentToFactory(
+  userId: string,
+  user: InventoryActor
+): Promise<boolean> {
+  if (!canManageInventory(user)) return false;
+  if (isOwnerAccount({ username: user.username })) return true;
+
+  const employee = await prisma.employee.findUnique({
+    where: { userId },
+    select: {
+      jobPosition: { select: { slug: true, name: true } },
+    },
+  });
+  const position = employee?.jobPosition;
+  if (!position) return false;
+  return isDirectorPosition(position);
 }
 
 /** Row lock for concurrent stock mutations (PostgreSQL). */

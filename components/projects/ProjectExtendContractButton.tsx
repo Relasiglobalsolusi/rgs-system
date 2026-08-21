@@ -16,6 +16,7 @@ import {
 import { detailActionBarButtonClassName } from "@/components/projects/detail-action-bar";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { FileDropField } from "@/components/ui/FileDropField";
 import { Input } from "@/components/ui/input";
 import {
   showRejection,
@@ -134,18 +135,13 @@ export default function ProjectExtendContractButton({
                 className={employeeInputClass}
               />
             </div>
-            <div className={employeeDialogFieldClass}>
-              <label className="text-sm font-medium text-text">
-                {t("pages.projects.extendProof")}
-              </label>
-              <Input
-                type="file"
-                name="extensionProof"
-                accept="image/*,.pdf,application/pdf"
-                required
-                className={employeeInputClass}
-              />
-            </div>
+            <FileDropField
+              id="project-extend-proof"
+              name="extensionProof"
+              label={t("pages.projects.extendProof")}
+              required
+              accept="image/*,.pdf,application/pdf"
+            />
           </form>
         </EmployeeDialogShell>
       </Dialog>

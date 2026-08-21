@@ -17,7 +17,7 @@ export default function SectionCard({
     <section
       id={id}
       className={cn(
-        "rounded-2xl border border-border bg-card transition duration-300",
+        "min-w-0 max-w-full rounded-2xl border border-border bg-card transition duration-300",
         "p-6 shadow-[0_14px_32px_-26px_rgba(0,0,0,0.55)] sm:p-7",
         className
       )}

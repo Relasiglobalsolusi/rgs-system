@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { addUtcDays, formatDateInput } from "@/lib/invoice-period";
+import { addUtcDays, formatDateInput, parseDateInput } from "@/lib/invoice-period";
 import { isMilestoneSubCategory } from "@/lib/project-billing";
 
 export type FeedProgressReport = {
@@ -63,7 +63,8 @@ function dateKeyFromDbDate(date: Date): string {
 export async function buildProjectMonthlyDayFeed(
   projectId: string,
   year: number,
-  month: number
+  month: number,
+  options?: { dateKey?: string }
 ): Promise<ProjectMonthlyDayFeed | null> {
   const project = await prisma.project.findUnique({
     where: { id: projectId },
@@ -82,7 +83,11 @@ export async function buildProjectMonthlyDayFeed(
   // full calendar view so the client can see every shift day.
   const isJobProject = isMilestoneSubCategory(project.subCategory);
 
-  const { start, end } = monthDateRange(year, month);
+  const dateKey = options?.dateKey?.trim() ?? "";
+  const singleDay = /^\d{4}-\d{2}-\d{2}$/.test(dateKey);
+  const { start, end } = singleDay
+    ? { start: parseDateInput(dateKey), end: parseDateInput(dateKey) }
+    : monthDateRange(year, month);
 
   const [progressReports, attendances] = await Promise.all([
     prisma.progressReport.findMany({
@@ -110,7 +115,7 @@ export async function buildProjectMonthlyDayFeed(
     (row) => row.projectId === projectId
   );
 
-  const dayKeys = calendarDaysInMonth(year, month);
+  const dayKeys = singleDay ? [dateKey] : calendarDaysInMonth(year, month);
 
   type EmployeeBucket = {
     employee: {

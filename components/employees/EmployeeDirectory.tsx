@@ -68,6 +68,7 @@ type Employee = {
   hasPendingLeaveRequest?: boolean;
   hiredAt: Date | string | null;
   omApprovalAreas?: ServiceArea[];
+  manageAllProjects?: boolean;
   areaManagedProjects?: { projectId: string }[];
   basePay: number | null;
   bpjsKesehatanEnabled: boolean;

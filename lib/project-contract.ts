@@ -1,6 +1,6 @@
 import { formatAppDateInput } from "@/lib/progress-report-compliance";
 
-/** Regular Cleaning projects are treated as ongoing site contracts with invoice periods. */
+/** Regular Cleaning / Regular Landscaping — ongoing site contracts with invoice periods. */
 export const CONTRACT_SUBCATEGORY = "REGULAR_CLEANING" as const;
 
 export const DEFAULT_CONTRACT_DURATION_MONTHS = 12;
@@ -27,27 +27,34 @@ export function clampProjectDurationDays(value: number): number {
 }
 
 /**
- * Regular Cleaning only — helper for Regular-specific UI (e.g. some copy).
- * Security also opens monthly ProjectInvoicePeriod rows via `usesInvoicePeriods`.
+ * Regular / multi-visit contract — monthly contract UI and billing
+ * (Regular Cleaning, contract General, contract Facade, Regular Landscaping).
+ * Security contract also opens monthly ProjectInvoicePeriod rows via `usesInvoicePeriods`.
  */
 export function isContractSubCategory(
   value: string | null | undefined
 ): boolean {
-  return value === CONTRACT_SUBCATEGORY;
+  return (
+    value === CONTRACT_SUBCATEGORY ||
+    value === "REGULAR_LANDSCAPING" ||
+    value === "CONTRACT_GENERAL_CLEANING" ||
+    value === "CONTRACT_FACADE_CLEANING"
+  );
 }
 
 /**
- * Regular Cleaning + Security: crew/equipment release follows End Contract
- * (not monthly billing agree / period approve). Mid-contract assign/release stays manual.
- * Both also use monthly invoice periods (`usesInvoicePeriods`).
+ * Regular Cleaning, Regular Landscaping, Security: crew/equipment release
+ * follows End Contract (not monthly billing agree / period approve).
+ * Mid-contract assign/release stays manual.
+ * These also use monthly invoice periods (`usesInvoicePeriods`).
  */
 export function isContractCycleSubCategory(
   value: string | null | undefined
 ): boolean {
-  return value === CONTRACT_SUBCATEGORY || value === "SECURITY";
+  return isContractSubCategory(value) || value === "SECURITY";
 }
 
-/** Regular, Security, Parking, Payroll Management — Extend / Renew. */
+/** Regular, Regular Landscaping, Security, Parking, Payroll Management — Extend / Renew. */
 export function isExtendableContractSubCategory(
   value: string | null | undefined
 ): boolean {
@@ -58,22 +65,28 @@ export function isExtendableContractSubCategory(
   );
 }
 
-/** General / Facade — Re-do Job after Completed. */
+/** One-shot General / Facade / Landscaping / Security — Re-do Job after Completed. */
 export function isRedoJobSubCategory(
   value: string | null | undefined
 ): boolean {
-  return value === "GENERAL_CLEANING" || value === "FACADE_CLEANING";
+  return (
+    value === "GENERAL_CLEANING" ||
+    value === "FACADE_CLEANING" ||
+    value === "ONE_TIME_LANDSCAPING" ||
+    value === "ONE_TIME_SECURITY"
+  );
 }
 
 /**
  * Month-based contract timeline UI (start + duration months).
- * Includes Regular Cleaning and Security; Parking is optional via the create form.
+ * Includes Regular Cleaning, Regular Landscaping, and Security;
+ * Parking is optional via the create form.
  */
 export function usesMonthDurationTimeline(
   value: string | null | undefined
 ): boolean {
   return (
-    value === CONTRACT_SUBCATEGORY ||
+    isContractSubCategory(value) ||
     value === "SECURITY" ||
     value === "PARKING" ||
     value === "PAYROLL_MANAGEMENT"

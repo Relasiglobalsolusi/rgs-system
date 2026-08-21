@@ -39,9 +39,12 @@ const UNPAID_STATUSES = UNPAID_INVOICE_STATUSES;
  * Projects.
  */
 export function isProjectFullyPaid(
-  periods: { status: string }[]
+  periods: { status: string }[],
+  subCategory?: string | null
 ): boolean {
-  if (periods.length === 0) return false;
+  if (periods.length === 0) {
+    return subCategory === "PARKING" || subCategory === "PAYROLL_MANAGEMENT";
+  }
   const hasPaid = periods.some((p) => p.status === "PAID");
   if (!hasPaid) return false;
   return !periods.some((p) =>
@@ -98,6 +101,50 @@ export function isPendingApprovalPeriod(period: {
   );
 }
 
+function periodStartMs(value: Date | string | null | undefined): number {
+  if (value == null) return 0;
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function periodDueMs(value: Date | string | null | undefined): number {
+  if (value == null) return Number.POSITIVE_INFINITY;
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time;
+}
+
+/** Real billing periods in the client / HO review loop, oldest first. */
+export function listPendingApprovalPeriods<
+  T extends {
+    status?: string | null;
+    clientReviewStatus?: string | null;
+    periodStart?: Date | string | null;
+  },
+>(periods: T[]): T[] {
+  return [...periods]
+    .filter((period) => isPendingApprovalPeriod(period))
+    .sort((a, b) => periodStartMs(a.periodStart) - periodStartMs(b.periodStart));
+}
+
+/** Real issued periods still collecting payment, earliest due first. */
+export function listPaymentDuePeriods<
+  T extends {
+    status: string;
+    dueAt?: Date | string | null;
+    periodStart?: Date | string | null;
+  },
+>(periods: T[]): T[] {
+  return [...periods]
+    .filter((period) =>
+      (UNPAID_INVOICE_STATUSES as readonly string[]).includes(period.status)
+    )
+    .sort((a, b) => {
+      const dueDiff = periodDueMs(a.dueAt) - periodDueMs(b.dueAt);
+      if (dueDiff !== 0) return dueDiff;
+      return periodStartMs(a.periodStart) - periodStartMs(b.periodStart);
+    });
+}
+
 export function paymentDueWhere(): Prisma.ProjectWhereInput {
   return {
     // Exclude cancelled + legacy ON_HOLD from the product Payment Due surface.
@@ -124,7 +171,15 @@ export function paymentDueWhere(): Prisma.ProjectWhereInput {
 export function projectHistoryWhere(): Prisma.ProjectWhereInput {
   return {
     status: "COMPLETED",
-    ...projectFullyPaidInvoiceWhere(),
+    OR: [
+      projectFullyPaidInvoiceWhere(),
+      {
+        subCategory: { in: ["PARKING", "PAYROLL_MANAGEMENT"] },
+        invoicePeriods: {
+          none: { status: { in: [...OPEN_COLLECTION_STATUSES] } },
+        },
+      },
+    ],
   };
 }
 
@@ -212,13 +267,14 @@ export function taxInvoiceCompletedWhere(): Prisma.ProjectInvoicePeriodWhereInpu
 export function isBillingActiveProject(input: {
   status: ProjectStatus | string;
   invoicePeriods: { status: string }[];
+  subCategory?: string | null;
 }): boolean {
   if (input.status === "IN_PROGRESS" || input.status === "WAITING_FOR_APPROVAL") {
     return true;
   }
   if (input.status === "COMPLETED") {
     // Finished work still needs invoicing or collection.
-    return !isProjectFullyPaid(input.invoicePeriods);
+    return !isProjectFullyPaid(input.invoicePeriods, input.subCategory);
   }
   return false;
 }

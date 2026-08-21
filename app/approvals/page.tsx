@@ -114,8 +114,8 @@ export default async function ApprovalsPage() {
       titleKey="pages.approvals.title"
       descriptionKey="pages.approvals.description"
     >
-      <div className="space-y-6">
-        <SectionCard className="p-5 sm:p-6">
+      <div className="min-w-0 max-w-full space-y-6">
+        <SectionCard className="min-w-0 max-w-full p-5 sm:p-6">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
             <div>
               <h2 className="text-base font-semibold text-text">

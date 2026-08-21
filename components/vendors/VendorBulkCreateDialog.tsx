@@ -24,6 +24,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { bulkLineField, createBulkLineKey } from "@/lib/bulk-create";
 import { useT } from "@/lib/i18n/use-t";
 import { isValidNpwp } from "@/lib/npwp";
+import { vendorRequiresIndonesianTaxId } from "@/lib/vendor-type";
 
 const FORM_ID = "bulk-create-vendor-form";
 
@@ -88,10 +89,13 @@ export default function VendorBulkCreateDialog({
 
   function submit(formData: FormData) {
     for (let index = 0; index < lineKeys.length; index += 1) {
-      const isIndividual =
-        String(formData.get(bulkLineField(index, "vendorType")) ?? "")
-          .trim()
-          .toUpperCase() === "INDIVIDUAL";
+      const vendorType = String(
+        formData.get(bulkLineField(index, "vendorType")) ?? ""
+      )
+        .trim()
+        .toUpperCase();
+      if (!vendorRequiresIndonesianTaxId(vendorType)) continue;
+      const isIndividual = vendorType === "INDIVIDUAL";
       const npwpInvalidMessage = isIndividual
         ? t("validation.npwpOrNikInvalid")
         : t("validation.npwpInvalid");

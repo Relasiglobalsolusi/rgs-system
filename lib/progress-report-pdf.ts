@@ -3,12 +3,12 @@ import { mkdir, readFile } from "fs/promises";
 import path from "path";
 import PDFDocument from "pdfkit";
 import { resolveCompanyBankDetails } from "@/lib/company-bank";
+import { ensureCompanyForPdf } from "@/lib/company-for-pdf";
 import { formatDisplayDate } from "@/lib/format-date";
 import { formatProjectTitle } from "@/lib/project-billing";
 import {
   BOTTOM_SAFE,
   CONTENT_WIDTH,
-  LEGAL_COMPANY_NAME,
   PAGE_MARGIN,
   PDF_BRAND as BRAND,
   drawBrandAccentBar,
@@ -443,7 +443,12 @@ function drawChargesTable(doc: PdfDoc, input: CompilePdfInput) {
   doc.y = ty + panelH + 18;
 }
 
-function drawPaymentAndNotes(doc: PdfDoc, input: CompilePdfInput, reportCount: number) {
+function drawPaymentAndNotes(
+  doc: PdfDoc,
+  input: CompilePdfInput,
+  reportCount: number,
+  letterhead: LetterheadInfo
+) {
   ensureSpace(doc, 140);
 
   const bank = resolveCompanyBankDetails(input.company);
@@ -482,7 +487,9 @@ function drawPaymentAndNotes(doc: PdfDoc, input: CompilePdfInput, reportCount: n
       ]
         .filter(Boolean)
         .join(" · ")
-    : `Please use your agreed payment method with ${LEGAL_COMPANY_NAME}.`;
+    : letterhead.name
+      ? `Please use your agreed payment method with ${letterhead.name}.`
+      : "Please use your agreed payment method.";
 
   doc
     .font("Helvetica")
@@ -514,7 +521,11 @@ function drawPaymentAndNotes(doc: PdfDoc, input: CompilePdfInput, reportCount: n
     .font("Helvetica")
     .fontSize(8)
     .fillColor(BRAND.muted)
-    .text(`${LEGAL_COMPANY_NAME}  ·  Thank you for your business.`, {
+    .text(
+      letterhead.name
+        ? `${letterhead.name}  ·  Thank you for your business.`
+        : "Thank you for your business.",
+      {
       width: CONTENT_WIDTH,
       align: "center",
     });
@@ -538,7 +549,9 @@ export async function generateInvoicePeriodPdf(
   const filepath = path.join(uploadDir, filename);
   const publicPath = `/${folder}/${filename}`;
 
-  const letterhead = letterheadFromCompany(input.company);
+  const letterhead = letterheadFromCompany(
+    await ensureCompanyForPdf(input.company)
+  );
   const logoBuffer = await loadBrandLogoBuffer();
 
   // Preload photo buffers so the PDF stream stays synchronous aside from I/O we already await.
@@ -570,7 +583,7 @@ export async function generateInvoicePeriodPdf(
     drawMetaBlock(doc, input);
     drawServiceBlock(doc, input);
     drawChargesTable(doc, input);
-    drawPaymentAndNotes(doc, input, input.reports.length);
+    drawPaymentAndNotes(doc, input, input.reports.length, letterhead);
 
     // ── Supporting progress-report proof ───────────────────────────
     doc.addPage();

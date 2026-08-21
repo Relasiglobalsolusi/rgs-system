@@ -3,14 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 
-import { extractPettyCashReceiptAmount } from "@/lib/petty-cash-extract";
 import {
   parseDateInput,
   parsePettyCashAmount,
-  pettyCashAmountsMatch,
   processScheduledPettyCashPays,
 } from "@/lib/petty-cash";
 import { prisma } from "@/lib/prisma";
+import { isAreaManagerOrAbovePosition } from "@/lib/positions";
 import { requirePettyCashAccess } from "@/lib/session";
 import { saveUpload } from "@/lib/upload";
 
@@ -37,12 +36,6 @@ function requireProofFile(value: FormDataEntryValue | null): File {
   return value;
 }
 
-export async function extractPettyCashReceipt(formData: FormData) {
-  await requirePettyCashAccess();
-  const file = requireProofFile(formData.get("document"));
-  return extractPettyCashReceiptAmount(file);
-}
-
 export async function syncPettyCashOnPageLoad() {
   const session = await requirePettyCashAccess();
   await processScheduledPettyCashPays(prisma, session.user.companyId);
@@ -54,6 +47,7 @@ export async function recordPettyCashSpend(formData: FormData) {
   const dateRaw = String(formData.get("entryDate") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   const projectIdRaw = String(formData.get("projectId") ?? "").trim();
+  const employeeIdRaw = String(formData.get("employeeId") ?? "").trim();
   const file = requireProofFile(formData.get("document"));
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateRaw)) {
@@ -62,22 +56,27 @@ export async function recordPettyCashSpend(formData: FormData) {
   if (!description) {
     throw new Error("Describe what this Petty Cash was spent on.");
   }
-
-  const extracted = await extractPettyCashReceiptAmount(file);
-  if (!extracted.ok) {
-    if (extracted.code === "not_configured") {
-      throw new Error(
-        "Document reading is not configured. Ask Head Office to enable it before recording a spend."
-      );
-    }
-    throw new Error(
-      "Could not read the paid amount from this bill. Upload a clearer photo and try again."
-    );
+  if (!employeeIdRaw) {
+    throw new Error("Select which Area Manager or above this bill is for.");
   }
-  if (!pettyCashAmountsMatch(amount, extracted.amount)) {
-    throw new Error(
-      `Entered amount must match the bill amount (${extracted.amount}).`
-    );
+
+  const attributed = await prisma.employee.findFirst({
+    where: {
+      id: employeeIdRaw,
+      companyId: session.user.companyId,
+      archivedFromDirectory: false,
+      status: { in: ["ACTIVE", "ON_LEAVE"] },
+    },
+    select: {
+      id: true,
+      jobPosition: { select: { slug: true, name: true } },
+    },
+  });
+  if (
+    !attributed?.jobPosition ||
+    !isAreaManagerOrAbovePosition(attributed.jobPosition)
+  ) {
+    throw new Error("This bill must be for an Area Manager, Operations Manager, or Director.");
   }
 
   let projectId: string | null = null;
@@ -109,8 +108,8 @@ export async function recordPettyCashSpend(formData: FormData) {
       entryDate: parseDateInput(dateRaw),
       description,
       projectId,
+      employeeId: attributed.id,
       proofPath,
-      extractedAmount: new Prisma.Decimal(extracted.amount),
       createdById: session.user.id,
       postedAt: new Date(),
     },

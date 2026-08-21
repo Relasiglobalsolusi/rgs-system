@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 
 import MaterialRequestLinesTable, {
   type MaterialFlowLineView,
@@ -8,6 +8,7 @@ import MaterialRequestLinesTable, {
 import StatusBadge from "@/components/ui/StatusBadge";
 import { formatDisplayDate, formatDisplayDateTime } from "@/lib/format-date";
 import { useT } from "@/lib/i18n/use-t";
+import { transferOrderAnchorId } from "@/lib/transfer-order-directory";
 import {
   transferOrderStatusKey,
   transferOrderStatusTone,
@@ -62,11 +63,22 @@ export default function TransferOrderDetailCard({
   className,
 }: Props) {
   const { t } = useT();
+  const anchorId = transferOrderAnchorId(order.id);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.location.hash !== `#${anchorId}`) return;
+    document.getElementById(anchorId)?.scrollIntoView({
+      block: "start",
+      behavior: "smooth",
+    });
+  }, [anchorId]);
 
   return (
     <article
+      id={anchorId}
       className={cn(
-        "rounded-2xl border border-border-strong/65 bg-elevated p-4 shadow-[0_12px_28px_-20px_rgba(0,0,0,0.72)] sm:p-5",
+        "scroll-mt-24 rounded-2xl border border-border-strong/65 bg-elevated p-4 shadow-[0_12px_28px_-20px_rgba(0,0,0,0.72)] sm:p-5",
         className
       )}
     >

@@ -113,6 +113,8 @@ export type InventorySoldOffRow = {
   buyerRegistration: string | null;
   buyerIdentityDocUrl: string | null;
   invoiceUrl: string | null;
+  paymentProofUrl: string | null;
+  paidAt: string | null;
   clientId: string | null;
   clientName: string | null;
   notes: string | null;
@@ -142,15 +144,46 @@ export type InventorySaleClientOption = {
 export type InventoryOverviewAssetRow = {
   id: string;
   assetCode: string;
-  status: "AVAILABLE" | "ON_PROJECT" | "RETIRED";
+  status: "AVAILABLE" | "ON_PROJECT" | "IN_TRANSIT" | "AT_FACTORY" | "RETIRED";
   unitCost: number | null;
   serialNo: string | null;
   notes: string | null;
   assignedAt: string | null;
   writeOffMovementId: string | null;
   soldOffMovementId: string | null;
+  soldBuyer: string | null;
+  soldAt: string | null;
   item: { id: string; sku: string; name: string; itemType: string } | null;
   project: { id: string; name: string } | null;
+};
+
+export type InventoryFactoryReturnRow = {
+  id: string;
+  sentAt: string;
+  originalIntent: "REFUND" | "REPAIR" | "REPLACE";
+  status: "WAITING" | "REPAIRED" | "REPLACED" | "REFUNDED";
+  reason: string;
+  quantity: number;
+  refundAmount: number | null;
+  refundedAt: string | null;
+  receivedAt: string | null;
+  vendorName: string | null;
+  assetCode: string | null;
+  item: { id: string; sku: string; name: string };
+  createdBy: InventoryAuditUser | null;
+};
+
+export type InventoryVendorOption = {
+  id: string;
+  name: string;
+  shortCode: string;
+};
+
+export type InventoryUncodedSaleRow = {
+  id: string;
+  soldAt: string;
+  quantity: number;
+  buyer: string | null;
 };
 
 export type InventoryTab =
@@ -159,4 +192,4 @@ export type InventoryTab =
   | "purchases"
   | "issues"
   | "writeOffs"
-  | "soldOff";
+  | "factoryReturns";

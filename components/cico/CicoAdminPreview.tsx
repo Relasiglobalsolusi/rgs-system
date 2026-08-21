@@ -133,7 +133,7 @@ export default function CicoAdminPreview({
 
       <div className="flex flex-wrap gap-3">
         <Link
-          href="/attendance"
+          href="/progress"
           className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-transparent px-3 text-sm font-medium text-text transition hover:bg-elevated"
         >
           {t("pages.cico.adminPreview.viewAttendanceReport")}

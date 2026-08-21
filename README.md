@@ -217,7 +217,6 @@ Use `scripts/deploy-rumahweb.sh` (Node 20, Nginx, PM2, Postgres on the VPS). Or 
 | `NEXTAUTH_SECRET` | `openssl rand -base64 32` |
 | `NEXTAUTH_URL` | `https://one.rgs.co.id` |
 | `WEBSITE_CORS_ORIGIN` | `https://rgs.co.id,https://www.rgs.co.id` |
-| `OPENAI_API_KEY` | required before AI payment/tax verification works |
 | SMTP_* | optional (invoice / reset emails) |
 
 4. `npx prisma db push` or `migrate deploy` → `npm run db:seed` (first time) → `npm run build` → PM2 `rgs-system` on port **3000**

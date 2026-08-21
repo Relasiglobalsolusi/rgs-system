@@ -35,6 +35,7 @@ import {
   isProgressEligibleProjectSubCategory,
   isInternalProjectSubCategory,
 } from "@/lib/project-subcategory";
+import { getProjectWhereForUser } from "@/lib/project-access";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
 
@@ -476,4 +477,93 @@ export async function updateProgressReport(formData: FormData) {
   revalidateProgressPaths(existing.projectId);
 
   return { id: reportId, date: formatDateInput(lockedReportDate) };
+}
+
+export type ProgressEarlyCheckOutRow = {
+  id: string;
+  employeeName: string;
+  employeeNo: string;
+  date: Date;
+  shiftEnd: string | null;
+  checkOut: Date;
+};
+
+export async function getProjectEarlyCheckOuts(
+  projectId: string,
+  selectedDate: string
+): Promise<{
+  day: ProgressEarlyCheckOutRow[];
+  month: ProgressEarlyCheckOutRow[];
+}> {
+  const session = await requireModule("progress");
+  const empty = { day: [], month: [] };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) return empty;
+
+  const projectWhere = await getProjectWhereForUser({
+    companyId: session.user.companyId,
+    clientId: session.user.clientId,
+    userId: session.user.id,
+    username: session.user.username,
+  });
+
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, ...projectWhere },
+    select: { id: true },
+  });
+  if (!project) return empty;
+
+  const [year, month] = selectedDate.split("-").map(Number);
+  const monthStart = new Date(Date.UTC(year, month - 1, 1));
+  const monthEnd = new Date(Date.UTC(year, month, 1));
+  const dayDate = parseDateInput(selectedDate);
+
+  const records = await prisma.attendance.findMany({
+    where: {
+      projectId,
+      earlyCheckOut: true,
+      checkOut: { not: null },
+      date: { gte: monthStart, lt: monthEnd },
+    },
+    include: {
+      employee: {
+        select: { firstName: true, lastName: true, employeeNo: true },
+      },
+    },
+    orderBy: [{ date: "desc" }, { checkOut: "desc" }],
+    take: 200,
+  });
+
+  if (records.length === 0) return empty;
+
+  const assignments = await prisma.projectAssignment.findMany({
+    where: {
+      projectId,
+      employeeId: { in: records.map((row) => row.employeeId) },
+    },
+    select: { employeeId: true, shiftEnd: true },
+  });
+  const shiftEndByEmployee = new Map(
+    assignments.map((row) => [row.employeeId, row.shiftEnd])
+  );
+
+  const mapped: ProgressEarlyCheckOutRow[] = records.flatMap((record) => {
+    if (!record.checkOut) return [];
+    return [
+      {
+        id: record.id,
+        employeeName:
+          `${record.employee.firstName} ${record.employee.lastName}`.trim(),
+        employeeNo: record.employee.employeeNo,
+        date: record.date,
+        shiftEnd: shiftEndByEmployee.get(record.employeeId) ?? null,
+        checkOut: record.checkOut,
+      },
+    ];
+  });
+
+  const dayKey = formatDateInput(dayDate);
+  return {
+    day: mapped.filter((row) => formatDateInput(row.date) === dayKey),
+    month: mapped,
+  };
 }

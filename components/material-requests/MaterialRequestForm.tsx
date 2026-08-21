@@ -4,22 +4,19 @@ import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { createMaterialRequest } from "@/app/material-requests/actions";
+import MaterialRequestItemPicker, {
+  isMaterialRequestItemAvailable,
+  type MaterialRequestCatalogItem,
+} from "@/components/material-requests/MaterialRequestItemPicker";
 import {
   showRejection,
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
 import { Button } from "@/components/ui/button";
-import { formatInventoryQtyWithUnit } from "@/lib/inventory";
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 
-export type MaterialRequestCatalogItem = {
-  id: string;
-  sku: string;
-  name: string;
-  unit: string;
-  currentStock: number;
-};
+export type { MaterialRequestCatalogItem };
 
 type LineDraft = {
   key: string;
@@ -42,17 +39,19 @@ export default function MaterialRequestForm({
     { key: crypto.randomUUID(), itemId: "", quantity: "1" },
   ]);
   const [notes, setNotes] = useState("");
+  const [pickerLineKey, setPickerLineKey] = useState<string | null>(null);
 
   const itemsById = useMemo(() => {
     const map = new Map(items.map((item) => [item.id, item]));
     return map;
   }, [items]);
 
+  const pickerLine = lines.find((line) => line.key === pickerLineKey);
+
   function addLine() {
-    setLines((prev) => [
-      ...prev,
-      { key: crypto.randomUUID(), itemId: "", quantity: "1" },
-    ]);
+    const key = crypto.randomUUID();
+    setLines((prev) => [...prev, { key, itemId: "", quantity: "1" }]);
+    setPickerLineKey(key);
   }
 
   function submit() {
@@ -115,8 +114,11 @@ export default function MaterialRequestForm({
         <p className="mb-2 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-subtle">
           {t("pages.materialRequests.columns.requestedItems")}
         </p>
+        <p className="mb-3 text-xs text-subtle">
+          {t("pages.materialRequests.itemTypeHint")}
+        </p>
         <div className="overflow-x-auto rounded-xl border border-border">
-          <table className="w-full min-w-[36rem] text-sm">
+          <table className="w-full min-w-[28rem] text-sm">
             <thead className="bg-elevated/60 text-left text-[0.6875rem] uppercase tracking-[0.12em] text-subtle">
               <tr>
                 <th className="px-3 py-2.5 text-left font-semibold">
@@ -124,9 +126,6 @@ export default function MaterialRequestForm({
                 </th>
                 <th className="px-3 py-2.5 font-semibold text-right">
                   {t("pages.materialRequests.columns.qty")}
-                </th>
-                <th className="px-3 py-2.5 font-semibold text-right">
-                  {t("pages.materialRequests.columns.onHand")}
                 </th>
                 <th className="px-3 py-2.5 font-semibold text-right">
                   {t("common.labels.actions")}
@@ -139,28 +138,24 @@ export default function MaterialRequestForm({
                 return (
                   <tr key={line.key} className="border-t border-border">
                     <td className="px-3 py-2.5">
-                      <select
-                        className="w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-text"
-                        value={line.itemId}
-                        onChange={(event) =>
-                          setLines((prev) =>
-                            prev.map((row, i) =>
-                              i === index
-                                ? { ...row, itemId: event.target.value }
-                                : row
-                            )
-                          )
-                        }
+                      <button
+                        type="button"
+                        className="w-full rounded-xl border border-border bg-card px-3 py-2 text-left text-sm text-text"
+                        onClick={() => setPickerLineKey(line.key)}
                       >
-                        <option value="">
-                          {t("pages.materialRequests.selectItem")}
-                        </option>
-                        {items.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.name} ({item.sku})
-                          </option>
-                        ))}
-                      </select>
+                        {selected ? (
+                          <span className="font-medium">
+                            {selected.name}{" "}
+                            <span className="font-normal text-subtle">
+                              ({selected.sku})
+                            </span>
+                          </span>
+                        ) : (
+                          <span className="text-subtle">
+                            {t("pages.materialRequests.selectItem")}
+                          </span>
+                        )}
+                      </button>
                       {selected ? (
                         <p className="mt-1 text-xs text-subtle">
                           {selected.sku} · {selected.unit}
@@ -184,14 +179,6 @@ export default function MaterialRequestForm({
                           )
                         }
                       />
-                    </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-muted">
-                      {selected
-                        ? formatInventoryQtyWithUnit(
-                            selected.currentStock,
-                            selected.unit
-                          )
-                        : "—"}
                     </td>
                     <td className="px-3 py-2.5 text-right">
                       <Button
@@ -247,6 +234,25 @@ export default function MaterialRequestForm({
             : t("pages.materialRequests.submit")}
         </Button>
       </div>
+
+      <MaterialRequestItemPicker
+        open={pickerLineKey != null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setPickerLineKey(null);
+        }}
+        items={items}
+        selectedItemId={pickerLine?.itemId}
+        onSelect={(item) => {
+          if (!pickerLineKey) return;
+          if (!isMaterialRequestItemAvailable(item)) return;
+          setLines((prev) =>
+            prev.map((row) =>
+              row.key === pickerLineKey ? { ...row, itemId: item.id } : row
+            )
+          );
+          setPickerLineKey(null);
+        }}
+      />
     </div>
   );
 }

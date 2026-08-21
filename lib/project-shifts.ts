@@ -1,5 +1,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 
+import { parseTimeToMinutes } from "@/lib/operating-hours";
+
 export const MIN_PROJECT_SHIFTS = 1;
 export const MAX_PROJECT_SHIFTS = 4;
 export const DEFAULT_NEW_PROJECT_SHIFTS = 2;
@@ -104,6 +106,67 @@ export function mergeShiftWindows(
   });
 }
 
+export type ProjectShiftClash = {
+  a: ProjectShiftWindow;
+  b: ProjectShiftWindow;
+};
+
+/** Half-open [start, end) segments so 07:00–16:00 and 16:00–01:00 do not clash. */
+function shiftTimeSegments(
+  startTime: string,
+  endTime: string
+): Array<[number, number]> {
+  const start = parseTimeToMinutes(startTime);
+  const end = parseTimeToMinutes(endTime);
+  if (start == null || end == null) return [];
+  if (start === end) return [[0, MINUTES_PER_DAY]];
+  if (end > start) return [[start, end]];
+  return [
+    [start, MINUTES_PER_DAY],
+    [0, end],
+  ];
+}
+
+function segmentsOverlap(
+  left: [number, number],
+  right: [number, number]
+): boolean {
+  return left[0] < right[1] && right[0] < left[1];
+}
+
+export function findProjectShiftClash(
+  windows: ProjectShiftWindow[]
+): ProjectShiftClash | null {
+  for (let i = 0; i < windows.length; i += 1) {
+    const a = windows[i]!;
+    const aSegments = shiftTimeSegments(a.startTime, a.endTime);
+    if (aSegments.length === 0) continue;
+    for (let j = i + 1; j < windows.length; j += 1) {
+      const b = windows[j]!;
+      const bSegments = shiftTimeSegments(b.startTime, b.endTime);
+      if (
+        bSegments.some((right) =>
+          aSegments.some((left) => segmentsOverlap(left, right))
+        )
+      ) {
+        return { a, b };
+      }
+    }
+  }
+  return null;
+}
+
+export function formatProjectShiftClashMessage(clash: ProjectShiftClash): string {
+  return `Shift ${clash.a.number} (${clash.a.startTime}–${clash.a.endTime}) clashes with Shift ${clash.b.number} (${clash.b.startTime}–${clash.b.endTime}). Shifts cannot overlap. Change the hours so one ends before the next starts.`;
+}
+
+export function assertProjectShiftsDoNotClash(windows: ProjectShiftWindow[]) {
+  const clash = findProjectShiftClash(windows);
+  if (clash) {
+    throw new Error(formatProjectShiftClashMessage(clash));
+  }
+}
+
 export function formatProjectShiftLabel(options: {
   number: number;
   startTime?: string | null;
@@ -155,6 +218,9 @@ export async function syncProjectShifts(
     existing.filter((row) => row.number <= count).map((row) => row.number)
   );
   const templates = mergeShiftWindows(count, windows);
+  if (windows) {
+    assertProjectShiftsDoNotClash(templates);
+  }
   const missing = templates.filter(
     (window) => !remainingNumbers.has(window.number)
   );
@@ -296,14 +362,16 @@ export async function addNamedProjectShift(
   if (!nextDefault) {
     throw new Error("This project already has 4 shifts.");
   }
-  await syncProjectShifts(db, projectId, nextCount, [
+  const nextWindows = [
     ...kept,
     {
       number: nextCount,
       startTime: times?.startTime ?? nextDefault.startTime,
       endTime: times?.endTime ?? nextDefault.endTime,
     },
-  ]);
+  ];
+  assertProjectShiftsDoNotClash(nextWindows);
+  await syncProjectShifts(db, projectId, nextCount, nextWindows);
 }
 
 export async function applyAssignmentToShift(
@@ -345,6 +413,33 @@ export async function saveProjectShiftTimes(
     endTime: string;
   }
 ) {
+  const current = await db.projectShift.findUnique({
+    where: { id: options.shiftId },
+    select: { id: true, projectId: true, number: true },
+  });
+  if (!current) throw new Error("Shift not found.");
+
+  const siblings = await db.projectShift.findMany({
+    where: { projectId: current.projectId },
+    select: { id: true, number: true, startTime: true, endTime: true },
+    orderBy: { number: "asc" },
+  });
+  assertProjectShiftsDoNotClash(
+    siblings.map((row) =>
+      row.id === current.id
+        ? {
+            number: row.number,
+            startTime: options.startTime,
+            endTime: options.endTime,
+          }
+        : {
+            number: row.number,
+            startTime: row.startTime,
+            endTime: row.endTime,
+          }
+    )
+  );
+
   await db.projectShift.update({
     where: { id: options.shiftId },
     data: {

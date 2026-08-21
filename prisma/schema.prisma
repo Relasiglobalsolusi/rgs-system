@@ -88,6 +88,10 @@ enum InventoryMovementType {
   SOLD_OFF
   /// Warehouse send on a transfer order — stock left the warehouse, not yet booked to the project.
   IN_TRANSIT
+  /// Equipment sent to the factory (stock leaves warehouse / stays off-hand).
+  RETURN_TO_FACTORY
+  /// Factory repair of the same unit, or a replacement box arriving as new stock.
+  RECEIVE_FROM_FACTORY
 }
 
 /// Lifecycle status of a discrete Equipment asset (physical unit).
@@ -96,7 +100,22 @@ enum EquipmentAssetStatus {
   ON_PROJECT
   /// Sent from warehouse, not yet received on the project.
   IN_TRANSIT
+  /// Sent to the factory. Hanging until refund, same-unit repair, or replacement.
+  AT_FACTORY
   RETIRED
+}
+
+enum FactoryReturnIntent {
+  REFUND
+  REPAIR
+  REPLACE
+}
+
+enum FactoryReturnStatus {
+  WAITING
+  REPAIRED
+  REPLACED
+  REFUNDED
 }
 
 /// Staff material request → OM approve → warehouse transfer → site receive.
@@ -137,22 +156,35 @@ enum ProjectStatus {
 
 enum ProjectSubCategory {
   REGULAR_CLEANING
+  /// One-shot General Cleaning (Cleaning → One Time → General Cleaning).
   GENERAL_CLEANING
+  /// One-shot Facade Cleaning (Cleaning → One Time → Facade Cleaning).
   FACADE_CLEANING
+  /// Cleaning → General Cleaning (multi-visit / contract). Regular Cleaning billing.
+  CONTRACT_GENERAL_CLEANING
+  /// Cleaning → Facade Cleaning (multi-visit / contract). Regular Cleaning billing.
+  CONTRACT_FACADE_CLEANING
+  /// Ongoing monthly landscaping — same contract / reconcile flow as Regular Cleaning.
+  REGULAR_LANDSCAPING
+  /// One-time landscaping job — same billing / approval flow as General Cleaning.
+  ONE_TIME_LANDSCAPING
   /// Company Head Office / Warehouse — no client billing; dual CICO (office + cleaning).
   INTERNAL
-  /// Monthly security service for a client site (no cleaning invoice periods).
+  /// Monthly security service for a client site (contract). One-time uses ONE_TIME_SECURITY.
   SECURITY
+  /// Security → One Time — same billing / approval flow as General Cleaning.
+  ONE_TIME_SECURITY
   /// Parking management — RGS revenue + optional client share/fees (no invoice periods).
   PARKING
   /// Client payroll management — RGS pays staff first; client reimburses + service fee.
   PAYROLL_MANAGEMENT
 }
 
-/// Permanent General / Facade crew roster. Assigned to jobs as a unit.
+/// Permanent General / Facade / Landscaping crew roster. Assigned to jobs as a unit.
 enum OperationsTeamKind {
   GENERAL_CLEANING
   FACADE_CLEANING
+  LANDSCAPING
 }
 
 /// Desk home site for office CICO (HO Operations vs Warehouse). Cleaning staff use project assignment instead.
@@ -165,17 +197,27 @@ enum InternalHomeSite {
 /// Project work lane — matched to OM Approval Areas for approve/dashboard scope.
 enum ServiceArea {
   CLEANING
+  LANDSCAPING
   PARKING
   SECURITY
   HEAD_OFFICE
   /// Client payroll management service projects.
   PAYROLL_MANAGEMENT
+  /// User-created project service area (catalog). Not an OM Approval Area.
+  OTHER
 }
 
 /// Client organization type (tax identity + Multi-Project defaults).
 enum ClientType {
   COMPANY
   INDIVIDUAL
+}
+
+/// Company / Individual keep Indonesian tax ID rules. Overseas does not.
+enum VendorType {
+  COMPANY
+  INDIVIDUAL
+  OVERSEAS
 }
 
 /// When Multi-Project Access is on: group codes, or master + group codes.
@@ -238,6 +280,12 @@ enum ClientReviewStatus {
   HO_REJECTED_REVISION
 }
 
+/// Contract (Regular path) vs one-shot (General Cleaning path) for catalog subcategories.
+enum ProjectCatalogBillingKind {
+  CONTRACT
+  ONE_TIME
+}
+
 /// How a project is billed.
 /// MONTHLY — Regular Cleaning contracts (calendar-month periods).
 /// ON_COMPLETION — short General/Facade: full invoice when work is done.
@@ -255,6 +303,85 @@ enum PurchaseCategory {
   SERVICE
   /// Company cash entrusted to field / operations (float top-up).
   PETTY_CASH
+  /// Tax or other government bill paid with a DJP Billing ID.
+  GOVERNMENT
+}
+
+/// What a government expense is settling (DJP / other state bills).
+enum GovernmentTaxKind {
+  /// Monthly Value Added Tax payment (PPN Kurang Bayar).
+  PPN
+  /// Monthly corporate income-tax installment (PPh Pasal 25 Badan).
+  PPH_25
+  /// Annual corporate income-tax settlement (PPh Pasal 29 Badan).
+  PPH_29
+  /// Employee withholding remittance (PPh Pasal 21).
+  PPH_21
+  /// Service withholding remittance (PPh Pasal 23).
+  PPH_23
+  /// Final income tax (PPh Pasal 4 ayat 2).
+  PPH_4_2
+  /// Income Tax Article 22 (import / certain purchases).
+  PPH_22
+  /// Stamp duty (Bea Meterai).
+  STAMP_DUTY
+  /// Land and Building Tax (PBB).
+  PBB
+  OTHER
+}
+
+/// Tax on a local supplier bill or on what we charge a client.
+enum CommercialTaxKind {
+  /// Value Added Tax (PPN) — tax invoice / input or output VAT.
+  PPN
+  /// Income Tax Article 23 (PPh 23) — withholding, not a company tax credit.
+  PPH_23
+  /// Value Added Tax and Income Tax Article 23 together.
+  PPN_AND_PPH_23
+  /// Final Income Tax Article 4-2 — operating expense.
+  PPH_4_2
+  /// Value Added Tax and Final Income Tax Article 4-2 together.
+  PPN_AND_PPH_4_2
+  /// Employee Income Tax Article 21.
+  PPH_21
+  /// Income Tax Article 22.
+  PPH_22
+  /// Income Tax Article 26 (non-resident withholding).
+  PPH_26
+  /// Stamp duty (Bea Meterai).
+  STAMP_DUTY
+  /// Land and Building Tax (PBB).
+  PBB
+  OTHER
+}
+
+/// Bought locally vs imported from overseas.
+enum PurchaseOrigin {
+  LOCAL
+  IMPORT
+}
+
+/// How an overseas import is handled after the vendor invoice.
+enum ImportFulfillment {
+  INTERNAL
+  OUTSOURCED
+}
+
+/// Which import money is being recorded now (the rest can be marked paid later).
+enum ImportPaidItems {
+  INVOICE
+  DUTIES
+  BOTH
+}
+
+/// PPh Pasal 22 rate basis on an overseas import.
+enum ImportPph22Basis {
+  /// 2.5% — importer holds an Importer Identification Number (API).
+  API
+  /// 7.5% — no Importer Identification Number.
+  WITHOUT_API
+  /// Special commodity / manual rate.
+  CUSTOM
 }
 
 /// What a Finance purchase is for — routes cost to stock, a project, or HO overhead.
@@ -298,12 +425,18 @@ model Company {
   email     String?
   phone     String?
   address   String?
+  /// Public company website (letterhead / footer).
+  website   String?
+  /// Company NPWP / tax ID (printed when present).
+  npwp      String?
 
-  /// Recipient bank for client transfers (shown on invoice + proof verification).
+  /// Legacy single recipient bank. Kept in sync with the first CompanyBankAccount.
   bankName          String?
   bankAccountNumber String?
   /// Account holder name as printed on bank transfer proofs (optional).
   bankAccountName   String?
+
+  bankAccounts CompanyBankAccount[]
 
   /// HO-typed opening cash. Displayed cash = opening + money in after − money out after.
   cashAtBankOpening     Decimal?  @db.Decimal(14, 2)
@@ -329,15 +462,38 @@ model Company {
   internalPayrollLocks InternalPayrollLock[]
   internalPayrollDayDecisions InternalPayrollDayDecision[]
   equipmentAssets     EquipmentAsset[]
+  equipmentFactoryReturns EquipmentFactoryReturn[]
   materialRequests    MaterialRequest[]
   transferOrders      TransferOrder[]
   auditLogs           AuditLog[]
   websiteContent      WebsiteContent?
   operationsTeams     OperationsTeam[]
   pettyCashEntries    PettyCashEntry[]
+  projectServiceAreas ProjectServiceAreaCatalog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+/// Company recipient accounts printed on invoices and used to group receipts.
+model CompanyBankAccount {
+  id            String  @id @default(cuid())
+  companyId     String
+  company       Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  bankName      String
+  accountNumber String
+  accountHolder String
+  label         String?
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  projects       Project[]
+  invoicePeriods ProjectInvoicePeriod[]
+  inventorySales InventorySale[]
+  purchaseInvoices PurchaseInvoice[]
+
+  @@index([companyId, sortOrder])
 }
 
 model WebsiteContent {
@@ -453,7 +609,9 @@ model Employee {
 
   /// OM only: which Service Areas this manager may approve and see.
   omApprovalAreas     ServiceArea[]    @default([])
-  /// Area Manager: projects this person may approve and manage under the OM.
+  /// OM and Area Manager: cover every project in their scope (OM still uses approval areas).
+  manageAllProjects   Boolean          @default(false)
+  /// Selected projects when manageAllProjects is off. Used by Area Manager and restricted OM.
   areaManagedProjects AreaManagerProject[]
 
   employeeType        EmployeeType     @default(PROJECT_SITE)
@@ -478,6 +636,8 @@ model Employee {
   securityDepositRequired Boolean @default(false)
   /// When true, Internal Payroll pays full monthly salary (no CICO day count).
   cicoExempt Boolean @default(false)
+  /// When true, Progress Report is not required or submitted. CICO still applies unless cicoExempt.
+  progressExempt Boolean @default(false)
   /// Free-text bank for Internal Payroll PDF transfer instructions.
   bankName String?
   bankAccountNumber String?
@@ -522,6 +682,7 @@ model Employee {
   receivedTransfers  TransferOrder[]   @relation("TransferOrderReceiver")
   payrollDeductions  PayrollDeduction[]
   internalPayrollDayDecisions InternalPayrollDayDecision[]
+  payrollManagementDayDecisions PayrollManagementDayDecision[]
   projectExpenses    ProjectExpense[]
   pettyCashEntries   PettyCashEntry[]
 
@@ -574,6 +735,8 @@ model User {
   hoReviewedInvoicePeriods ProjectInvoicePeriod[] @relation("InvoicePeriodHoReviewer")
   createdPurchaseInvoices PurchaseInvoice[] @relation("PurchaseInvoiceCreator")
   paidPurchaseInvoices    PurchaseInvoice[] @relation("PurchaseInvoicePaidBy")
+  reversedPurchaseInvoices PurchaseInvoice[] @relation("PurchaseInvoiceReversedBy")
+  importDutiesPaidPurchases PurchaseInvoice[] @relation("PurchaseImportDutiesPaidBy")
   parkingMonthlyLogs      ParkingMonthlyLog[] @relation("ParkingLogCreator")
   payrollManagementPeriods PayrollManagementPeriod[] @relation("PayrollPeriodCreator")
   payrollWagesPaidPeriods  PayrollManagementPeriod[] @relation("PayrollPeriodWagesPaidBy")
@@ -589,6 +752,7 @@ model User {
   lockedInternalPayrolls    InternalPayrollLock[] @relation("InternalPayrollLocker")
   unlockedInternalPayrolls  InternalPayrollLock[] @relation("InternalPayrollUnlocker")
   internalPayrollDayDecisions InternalPayrollDayDecision[] @relation("InternalPayrollDayDecider")
+  payrollManagementDayDecisions PayrollManagementDayDecision[] @relation("PayrollManagementDayDecider")
   reviewedMaterialRequests  MaterialRequest[]   @relation("MaterialRequestReviewer")
   sentTransferOrders        TransferOrder[]     @relation("TransferOrderSender")
   progressWarningAcks   ProgressWarningAck[]
@@ -596,6 +760,8 @@ model User {
   billingClientReviewEvents BillingClientReviewEvent[]
   createdPettyCashEntries   PettyCashEntry[] @relation("PettyCashEntryCreator")
   assignedDoubleShifts      DoubleShiftAssignment[] @relation("DoubleShiftAssignedBy")
+  createdFactoryReturns     EquipmentFactoryReturn[] @relation("FactoryReturnCreator")
+  closedFactoryReturns      EquipmentFactoryReturn[] @relation("FactoryReturnCloser")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -635,7 +801,7 @@ model Client {
   contactPersonPhone     String?
   /// When the organization became an RGS client (tenure tracking).
   clientSince            DateTime @default(now())
-  /// Payment terms in days after invoice submit (0 = Cash; e.g. 14, 30). Used for dueAt.
+  /// Legacy directory default. Product UI uses Project.paymentTermsDays only.
   paymentTermsDays       Int      @default(14)
   /// Manual directory order (lower = higher in lists).
   sortOrder              Int      @default(0)
@@ -708,12 +874,12 @@ model Vendor {
   name                   String
   /// Short uniform code for filenames / refs (e.g. V001). Auto-assigned; not editable.
   shortCode              String
-  /// Company vs Individual — drives tax ID rules (same as clients).
-  vendorType             ClientType @default(COMPANY)
+  /// Company / Individual require Indonesian Tax ID. Overseas does not.
+  vendorType             VendorType @default(COMPANY)
   email                  String?
   phone                  String?
   address                String?
-  /// Company tax ID (NPWP) or individual NPWP/NIK — required on create/edit.
+  /// Company tax ID (NPWP) or individual NPWP/NIK. Not used for Overseas vendors.
   npwp                   String?
   /// Uploaded NPWP (company) or NPWP/NIK (individual) document under /uploads/vendors.
   taxIdDocumentUrl       String?
@@ -739,7 +905,9 @@ model Vendor {
   updatedAt DateTime @updatedAt
 
   purchaseInvoices     PurchaseInvoice[]
+  handlingPurchaseInvoices PurchaseInvoice[] @relation("PurchaseHandlingVendor")
   inventoryPurchases   InventoryPurchase[]
+  factoryReturns       EquipmentFactoryReturn[]
 
   @@unique([companyId, shortCode])
 }
@@ -771,6 +939,12 @@ model Project {
   subCategory ProjectSubCategory @default(REGULAR_CLEANING)
   /// Work lane for OM Approval Areas / dashboard scope.
   serviceArea ServiceArea @default(CLEANING)
+  /// Catalog row for Add Project / directory (system or user-created area).
+  areaCatalogId String?
+  areaCatalog   ProjectServiceAreaCatalog? @relation("ProjectAreaCatalog", fields: [areaCatalogId], references: [id], onDelete: SetNull)
+  /// Catalog row for custom (or system) subcategory display / filters.
+  subcategoryCatalogId String?
+  subcategoryCatalog   ProjectSubcategoryCatalog? @relation("ProjectSubcategoryCatalog", fields: [subcategoryCatalogId], references: [id], onDelete: SetNull)
   /// Regular: Calendar Month vs Custom Period (stored as CONTRACT_CYCLE).
   billingPeriodBasis BillingPeriodBasis?
   /// Custom Period from day of month (1–31). Null = infer from contract start day (legacy).
@@ -783,6 +957,12 @@ model Project {
   pendingEarlyEndReconcile Boolean @default(false)
   /// When true, each issued commercial invoice is queued for a tax invoice (faktur).
   requiresTaxInvoice Boolean @default(false)
+  /// What tax we charge the client. Drives requiresTaxInvoice (VAT kinds only).
+  chargedTaxKind CommercialTaxKind?
+  /// Article 23 / 4-2 / other non-VAT rate when chargedTaxKind needs a percent.
+  pphRatePercent Decimal? @db.Decimal(5, 2)
+  /// Required when chargedTaxKind = OTHER.
+  otherTaxName String?
   /// Parking: one-time initial setup cost (IDR).
   setupCost Decimal? @db.Decimal(14, 2)
   /// Parking: % of profit shared with the client (0 = none; all remainder for RGS after setup/monthly client fees).
@@ -791,7 +971,7 @@ model Project {
   monthlyClientFee Decimal? @db.Decimal(14, 2)
   /// Payroll Management: RGS service fee % on reimbursed payroll (income).
   serviceFeePercent Decimal? @db.Decimal(5, 2)
-  /// Payroll Management: days until client reimburses (0 = Cash). Defaults from Client.paymentTermsDays.
+  /// Days until the client pays this project’s invoice (0 = Cash). Same client, different project, different terms.
   paymentTermsDays Int?
   /// Payroll Management: client cutoff start day of month (1–31).
   payrollCutoffStartDay Int?
@@ -810,6 +990,10 @@ model Project {
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  /// Default company bank printed on new invoices for this project.
+  bankAccountId String?
+  bankAccount   CompanyBankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
 
   clientId String?
   client   Client? @relation(fields: [clientId], references: [id])
@@ -849,6 +1033,56 @@ model Project {
 
   @@index([serviceArea])
   @@index([groupId])
+  @@index([areaCatalogId])
+  @@index([subcategoryCatalogId])
+  @@index([bankAccountId])
+}
+
+/// Company-owned service areas for Add Project (system seed + user-created).
+model ProjectServiceAreaCatalog {
+  id            String      @id @default(cuid())
+  companyId     String
+  company       Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  slug          String
+  nameEn        String
+  nameId        String
+  sortOrder     Int         @default(0)
+  isSystem      Boolean     @default(false)
+  /// Built-in area, or OTHER for user-created areas.
+  systemArea    ServiceArea
+  /// Cleaning / Security / Landscaping seed true; Parking / Payroll false.
+  /// Custom areas follow the Add Service Area Enable One Time question.
+  allowsOneTime Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  subcategories   ProjectSubcategoryCatalog[]
+  projects        Project[]                   @relation("ProjectAreaCatalog")
+  operationsTeams OperationsTeam[]            @relation("TeamServiceAreaCatalog")
+
+  @@unique([companyId, slug])
+  @@index([companyId, sortOrder])
+}
+
+/// Subcategories under a project service area (system seed + user-created).
+model ProjectSubcategoryCatalog {
+  id                String                    @id @default(cuid())
+  areaId            String
+  area              ProjectServiceAreaCatalog @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  slug              String
+  nameEn            String
+  nameId            String
+  sortOrder         Int                       @default(0)
+  isSystem          Boolean                   @default(false)
+  systemSubCategory ProjectSubCategory?
+  billingKind       ProjectCatalogBillingKind @default(CONTRACT)
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  projects Project[] @relation("ProjectSubcategoryCatalog")
+
+  @@unique([areaId, slug])
+  @@index([areaId, sortOrder])
 }
 
 /// Area Manager coverage — same approval authority as OM, limited to these projects.
@@ -913,8 +1147,10 @@ model PurchaseInvoice {
   /// Optional link to the company vendor directory.
   vendorId String?
   vendor   Vendor? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
-  /// Vendor invoice number or reference.
+  /// Vendor invoice number, or DJP Billing ID for government payments.
   invoiceRef   String
+  /// Set when purchaseCategory = GOVERNMENT.
+  governmentTaxKind GovernmentTaxKind?
   invoiceDate  DateTime @db.Date
   amount       Decimal  @db.Decimal(14, 2)
   /// Stored under /uploads/purchase-invoices.
@@ -929,8 +1165,33 @@ model PurchaseInvoice {
   /// SHA-256 of the uploaded tax invoice file (reuse detection).
   taxInvoiceDocumentHash String?
   notes        String?
+  /// Warranty / complimentary goods — amount is 0 and there is no payable.
+  freeOfCharge Boolean @default(false)
+  /// Required when freeOfCharge (e.g. under warranty, replacement part).
+  freeOfChargeReason String?
+  /// FOC vendors often send no invoice. False hides invoice number / date / upload.
+  hasInvoice Boolean @default(true)
+  /// Extra cash for FOC goods (courier / freight) or FOC service related costs.
+  shippingCurrency String?
+  shippingForeignAmount Decimal? @db.Decimal(14, 4)
+  /// Bank Rate when shipping / related cost is not Rupiah. Unused for IDR.
+  shippingRateToIdr Decimal? @db.Decimal(18, 6)
+  shippingIdr Decimal? @db.Decimal(14, 2)
+  /// Duties or fees paid to release FOC goods. Proof is the Billing ID document.
+  hasCustomsFees Boolean @default(false)
+  /// Vendor / PIB declared value for Bea Cukai. Duty base when goods are free of charge.
+  declaredValue Decimal? @db.Decimal(14, 4)
+  declaredCurrency String?
+  /// NDPBM for declared FX. Unused when declaredCurrency is IDR.
+  declaredCustomsRate Decimal? @db.Decimal(18, 6)
   /// Whether the document includes PPN (input VAT) — for later PPN Masukan workflows.
   includesPpn  Boolean  @default(false)
+  /// Local product/service: which tax is on the bill when Tax Included = Yes.
+  includedTaxKind CommercialTaxKind?
+  /// Article 23 / 4-2 / other non-VAT rate when includedTaxKind needs a percent.
+  pphRatePercent Decimal? @db.Decimal(5, 2)
+  /// Required when includedTaxKind = OTHER.
+  otherTaxName String?
   /// Product goods vs service fee — VAT % often differs for services.
   purchaseCategory PurchaseCategory @default(PRODUCT)
   /// PPN rate percent when includesPpn (e.g. 11 or 12). Null when no VAT.
@@ -941,6 +1202,100 @@ model PurchaseInvoice {
   projectId String?
   project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
+  /// Cash (0) or Net days for this supplier invoice. Import duties have no terms and are paid now.
+  paymentTermsDays Int?
+
+  /// Bought in Indonesia vs imported from overseas. Product expenses only.
+  origin PurchaseOrigin @default(LOCAL)
+  invoiceCurrency      String?
+  invoiceForeignAmount Decimal? @db.Decimal(14, 4)
+  /// Bank Rate — the rate the bank used to transfer the invoice payment.
+  exchangeRateToIdr    Decimal? @db.Decimal(18, 6)
+  /// Customs Rate — the rate customs used when the goods arrived (CIF / duties).
+  customsRateToIdr     Decimal? @db.Decimal(18, 6)
+  /// Per-currency Customs Rates for CIF, e.g. { "USD": 16200, "RMB": 2250 }. No IDR key.
+  customsRatesToIdr    Json?
+  invoiceAmountIdr     Decimal? @db.Decimal(14, 2)
+  freightCurrency      String?
+  freightForeignAmount Decimal? @db.Decimal(14, 4)
+  freightIdr           Decimal? @db.Decimal(14, 2)
+  /// True when freight is remitted with the factory invoice (factory currency × Bank Rate).
+  freightIncludedInInvoice Boolean @default(true)
+  /// Own remittance rate when freight is not included. Unused when the line is Rupiah.
+  freightRateToIdr     Decimal? @db.Decimal(18, 6)
+  /// NDPBM for not-included FX freight. Unused when the line is Rupiah.
+  freightCustomsRateToIdr Decimal? @db.Decimal(18, 6)
+  insuranceCurrency    String?
+  insuranceForeignAmount Decimal? @db.Decimal(14, 4)
+  insuranceIdr         Decimal? @db.Decimal(14, 2)
+  insuranceIncludedInInvoice Boolean @default(true)
+  insuranceRateToIdr   Decimal? @db.Decimal(18, 6)
+  /// NDPBM for not-included FX insurance. Unused when the line is Rupiah.
+  insuranceCustomsRateToIdr Decimal? @db.Decimal(18, 6)
+  bankFeeCurrency      String?
+  bankFeeForeignAmount Decimal? @db.Decimal(14, 4)
+  /// Bank Charge in Rupiah (SWIFT / cable). Not the sum of all bank fees.
+  bankFeeIdr           Decimal? @db.Decimal(14, 2)
+  fullAmountFeeCurrency String?
+  fullAmountFeeForeignAmount Decimal? @db.Decimal(14, 4)
+  /// Extra bank fee so the vendor receives the full transfer amount.
+  fullAmountFeeIdr     Decimal? @db.Decimal(14, 2)
+  /// Local bank telex fee, billed in Rupiah on the same transfer.
+  localBankFeeIdr      Decimal? @db.Decimal(14, 2)
+  clearanceCostIdr     Decimal? @db.Decimal(14, 2)
+  formEApplied         Boolean  @default(false)
+  beaMasukApplied      Boolean  @default(false)
+  beaMasukRatePercent  Decimal? @db.Decimal(5, 2)
+  beaMasukAmountIdr    Decimal? @db.Decimal(14, 2)
+  ppnbmApplied         Boolean  @default(false)
+  ppnbmRatePercent     Decimal? @db.Decimal(5, 2)
+  ppnbmAmountIdr       Decimal? @db.Decimal(14, 2)
+  importPpnAmountIdr   Decimal? @db.Decimal(14, 2)
+  pph22Applied         Boolean  @default(false)
+  pph22Basis           ImportPph22Basis?
+  pph22RatePercent     Decimal? @db.Decimal(5, 2)
+  pph22AmountIdr       Decimal? @db.Decimal(14, 2)
+  customsValueIdr      Decimal? @db.Decimal(14, 2)
+  importValueIdr       Decimal? @db.Decimal(14, 2)
+  stockLandedCostIdr   Decimal? @db.Decimal(14, 2)
+
+  importFulfillment ImportFulfillment?
+  importPaidItems   ImportPaidItems?
+  importDutiesBillingId String?
+  importDutiesFilePath  String?
+  importDutiesPaidAt    DateTime?
+  importDutiesPaidById  String?
+  importDutiesPaidBy    User?   @relation("PurchaseImportDutiesPaidBy", fields: [importDutiesPaidById], references: [id], onDelete: SetNull)
+  importPpnBillingId    String?
+  importPph22BillingId  String?
+  handlingVendorId String?
+  handlingVendor   Vendor? @relation("PurchaseHandlingVendor", fields: [handlingVendorId], references: [id], onDelete: SetNull)
+  handlingFeeIdr Decimal? @db.Decimal(14, 2)
+  handlingFeeIncludesPpn Boolean @default(false)
+  handlingFeePpnRatePercent Decimal? @db.Decimal(5, 2)
+  handlingFeeAmountPaidIdr Decimal? @db.Decimal(14, 2)
+  handlingFeeTaxInvoicePath String?
+
+  /// Indonesian finance lease for a company vehicle (DP, tenor, interest, bank fees).
+  isVehicleLease Boolean @default(false)
+  leaseOtrAmount Decimal? @db.Decimal(14, 2)
+  leaseDownPayment Decimal? @db.Decimal(14, 2)
+  leaseTenorMonths Int?
+  leaseInterestPercentYear Decimal? @db.Decimal(6, 3)
+  leaseAdminFee Decimal? @db.Decimal(14, 2)
+  leaseInsuranceAmount Decimal? @db.Decimal(14, 2)
+  leaseFiduciaryFee Decimal? @db.Decimal(14, 2)
+  leaseProvisionFee Decimal? @db.Decimal(14, 2)
+  leaseOtherFee Decimal? @db.Decimal(14, 2)
+  leaseMonthlyInstallment Decimal? @db.Decimal(14, 2)
+
+  /// Number plate when this expense is a vehicle. Also used as the vehicle asset code.
+  vehiclePlate String?
+
+  /// Company bank this purchase is paid from, or will be paid from.
+  bankAccountId String?
+  bankAccount   CompanyBankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+
   createdById String?
   createdBy   User?   @relation("PurchaseInvoiceCreator", fields: [createdById], references: [id])
 
@@ -950,13 +1305,17 @@ model PurchaseInvoice {
   paymentProofPath String?
   paidById String?
   paidBy   User?   @relation("PurchaseInvoicePaidBy", fields: [paidById], references: [id], onDelete: SetNull)
-  /// HO in-house confirm reason when recording payment (no cloud reader required).
+  /// Head Office confirmation reason when recording payment.
   paymentManualReason String?
   /// HO in-house confirm reason when accepting a tax invoice document.
   taxInvoiceManualReason String?
 
   lines PurchaseInvoiceLine[]
   pettyCashEntry PettyCashEntry?
+
+  reversedAt DateTime?
+  reversedById String?
+  reversedBy User? @relation("PurchaseInvoiceReversedBy", fields: [reversedById], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -966,6 +1325,7 @@ model PurchaseInvoice {
   @@index([companyId, paidAt])
   @@index([vendorId])
   @@index([taxInvoiceSerial])
+  @@index([bankAccountId])
   @@index([taxInvoiceDocumentHash])
   @@index([taxInvoiceIssuedAt, amount])
   @@index([projectId])
@@ -979,8 +1339,14 @@ model PurchaseInvoiceLine {
   purchaseInvoiceId String
   purchaseInvoice   PurchaseInvoice @relation(fields: [purchaseInvoiceId], references: [id], onDelete: Cascade)
 
-  itemId String
-  item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  itemId String?
+  item   InventoryItem? @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  /// Free-text service description when there is no catalog item.
+  description String?
+  /// Purchase unit of measure (piece, box, kilogram, liter, …).
+  unit String?
+  /// When buying a pack (box / drum / …), how many stock units are inside each pack.
+  packContents Decimal? @db.Decimal(14, 3)
 
   quantity   Decimal @db.Decimal(14, 3)
   unitPrice  Decimal @db.Decimal(14, 2)
@@ -1130,8 +1496,6 @@ model PettyCashEntry {
 
   /// Bill / receipt photo for spends. Required before a spend can post.
   proofPath String?
-  /// Amount the document reader extracted from the proof. Must match `amount`.
-  extractedAmount Decimal? @db.Decimal(14, 2)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1142,13 +1506,16 @@ model PettyCashEntry {
   @@index([projectId])
 }
 
-/// Permanent General Cleaning or Facade Cleaning team.
+/// Permanent operations team for one project service area (catalog type).
 model OperationsTeam {
-  id        String             @id @default(cuid())
+  id        String              @id @default(cuid())
   companyId String
-  company   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company   Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   name      String
-  kind      OperationsTeamKind
+  /// Legacy GC / Facade / Landscaping type. New teams use serviceAreaCatalogId.
+  kind      OperationsTeamKind?
+  serviceAreaCatalogId String?
+  serviceAreaCatalog   ProjectServiceAreaCatalog? @relation("TeamServiceAreaCatalog", fields: [serviceAreaCatalogId], references: [id], onDelete: SetNull)
 
   members      OperationsTeamMember[]
   projectLinks OperationsTeamProject[]
@@ -1158,6 +1525,7 @@ model OperationsTeam {
   updatedAt DateTime @updatedAt
 
   @@index([companyId, kind])
+  @@index([companyId, serviceAreaCatalogId])
 }
 
 model OperationsTeamMember {
@@ -1296,6 +1664,9 @@ model ProjectInvoicePeriod {
 
   /// Invoice amount for this period (IDR). Null for legacy monthly compiles without a price.
   amount           Decimal? @db.Decimal(14, 2)
+  /// Company bank account printed on this invoice and used for receipt grouping.
+  bankAccountId    String?
+  bankAccount      CompanyBankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
   /// Cumulative project progress % this milestone represents (e.g. 30, 60, 100).
   milestonePercent Float?
 
@@ -1341,7 +1712,7 @@ model ProjectInvoicePeriod {
   paymentVerifiedAt      DateTime?
   paymentVerifiedById    String?
   paymentVerifiedBy      User?     @relation("InvoicePaymentVerifier", fields: [paymentVerifiedById], references: [id])
-  /// HO in-house confirm reason (required when accepting proof without cloud reader).
+  /// Head Office confirmation reason when accepting proof of payment.
   paymentManualReason String?
   /// HO in-house confirm reason when marking a tax invoice sent.
   taxInvoiceManualReason String?
@@ -1380,6 +1751,7 @@ model ProjectInvoicePeriod {
   @@index([taxInvoiceSerial])
   @@index([taxInvoiceDocumentHash])
   @@index([taxInvoiceIssuedAt, amount])
+  @@index([bankAccountId])
 }
 
 /// Audit trail for client ↔ HO reconcile / progress approval rounds.
@@ -1481,7 +1853,7 @@ model InventoryItem {
   /// High-level type (e.g. Consumable, Equipment, Chemical). Also drives SKU prefix.
   itemType String
   description String?
-  /// Display unit for stock qty (default pcs). Not part of catalog create form.
+  /// Display unit for stock qty (pcs, kg, l, box, …).
   unit String @default("pcs")
   /// Low-stock warning threshold (stock ops, not catalog create).
   minStock Decimal @default(0) @db.Decimal(14, 3)
@@ -1507,6 +1879,7 @@ model InventoryItem {
   movements InventoryMovement[]
   purchaseInvoiceLines PurchaseInvoiceLine[]
   equipmentAssets EquipmentAsset[]
+  factoryReturns EquipmentFactoryReturn[]
   materialRequestLines MaterialRequestLine[]
   transferOrderLines   TransferOrderLine[]
   payrollDeductions    PayrollDeduction[]
@@ -1592,12 +1965,20 @@ model InventorySale {
   buyerPhone String?
   /// Tax invoice (Faktur Pajak) issued by us to the buyer. Required on new sold-offs for COMPANY buyers only — individuals cannot be issued a tax invoice.
   buyerIdentityDocUrl String?
-  /// Sale invoice / receipt file URL (required on new sold-offs).
+  /// Generated sale invoice PDF URL (written automatically on record).
   invoiceUrl String?
+  /// Customer payment proof (transfer receipt / bank slip). Optional at record time.
+  paymentProofUrl String?
+  /// Date the customer payment was received. Defaults to soldAt when proof is uploaded at record time.
+  paidAt DateTime? @db.Date
   notes    String?
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  /// Company bank account the buyer pays to (sale invoice / Financial Report).
+  bankAccountId String?
+  bankAccount   CompanyBankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
 
   itemId String
   item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
@@ -1619,6 +2000,7 @@ model InventorySale {
   @@index([companyId, soldAt])
   @@index([itemId])
   @@index([clientId])
+  @@index([bankAccountId])
 }
 
 /// Stock ledger: purchases (+), project issues (−), adjustments (±), write-offs / sold-offs (−).
@@ -1662,6 +2044,8 @@ model InventoryMovement {
   equipmentAssetsFromWriteOff EquipmentAsset[] @relation("EquipmentWriteOff")
   /// Equipment assets retired by a sold-off (qty N, one movement).
   equipmentAssetsFromSoldOff EquipmentAsset[] @relation("EquipmentSoldOff")
+  factoryReturnsSent         EquipmentFactoryReturn[] @relation("FactoryReturnSend")
+  factoryReturnReceive       EquipmentFactoryReturn? @relation("FactoryReturnReceive")
   payrollDeduction           PayrollDeduction?
 
   createdAt DateTime @default(now())
@@ -1675,7 +2059,7 @@ model InventoryMovement {
 
 /// Discrete physical unit of an Equipment catalog item.
 /// Asset code format: {ITEM_SKU}-A{n}, e.g. EQP-001-A1.
-/// Created automatically when an Equipment purchase is recorded (qty N → N assets).
+/// Codes are minted when warehouse sends a unit, not when it is purchased.
 /// One open project assignment per asset at a time (mirrors ProjectAssignment for employees).
 model EquipmentAsset {
   id        String               @id @default(cuid())
@@ -1724,6 +2108,8 @@ model EquipmentAsset {
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
+  factoryReturns EquipmentFactoryReturn[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1731,6 +2117,55 @@ model EquipmentAsset {
   @@index([companyId, status])
   @@index([itemId, status])
   @@index([projectId])
+}
+
+/// Equipment sent back to the factory for refund, repair, or replacement.
+/// Uncoded new warehouse units have no assetId. Coded units keep their code.
+model EquipmentFactoryReturn {
+  id String @id @default(cuid())
+
+  quantity Decimal @default(1) @db.Decimal(14, 3)
+  sentAt   DateTime
+  originalIntent FactoryReturnIntent
+  status   FactoryReturnStatus @default(WAITING)
+  reason   String
+
+  /// Factory refund recorded on send or later while hanging.
+  refundAmount Decimal? @db.Decimal(14, 2)
+  refundedAt   DateTime?
+  receivedAt   DateTime?
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  itemId String
+  item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  /// Null when sending never-issued (uncoded) warehouse stock.
+  assetId String?
+  asset   EquipmentAsset? @relation(fields: [assetId], references: [id], onDelete: SetNull)
+
+  vendorId String?
+  vendor   Vendor? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+
+  sendMovementId String?
+  sendMovement   InventoryMovement? @relation("FactoryReturnSend", fields: [sendMovementId], references: [id], onDelete: SetNull)
+
+  receiveMovementId String? @unique
+  receiveMovement   InventoryMovement? @relation("FactoryReturnReceive", fields: [receiveMovementId], references: [id], onDelete: SetNull)
+
+  createdById String?
+  createdBy   User? @relation("FactoryReturnCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  closedById String?
+  closedBy   User? @relation("FactoryReturnCloser", fields: [closedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId, status])
+  @@index([itemId, status])
+  @@index([assetId])
 }
 
 /// Manual Internal Payroll deduction or payable line for one employee-month.
@@ -1900,6 +2335,8 @@ model AuditLog {
 
   ipAddress String?
   userAgent String?
+  oldValue Json?
+  newValue Json?
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -2049,6 +2486,7 @@ model PayrollManagementPeriod {
   wagesPaidAt     DateTime?
   wagesPaidById   String?
   wagesPaidBy     User?     @relation("PayrollPeriodWagesPaidBy", fields: [wagesPaidById], references: [id], onDelete: SetNull)
+  wagesPaidProofPath String?
 
   invoicedAt      DateTime?
   invoicedById    String?
@@ -2080,6 +2518,7 @@ model PayrollManagementPeriod {
   createdBy   User?   @relation("PayrollPeriodCreator", fields: [createdById], references: [id])
 
   lines PayrollManagementLine[]
+  dayDecisions PayrollManagementDayDecision[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2104,4 +2543,32 @@ model PayrollManagementLine {
   updatedAt DateTime @updatedAt
 
   @@index([periodId])
+}
+
+/// Full pay / custom amount for a Payroll Management day under 9 or 18 hours.
+model PayrollManagementDayDecision {
+  id String @id @default(cuid())
+
+  periodId String
+  period   PayrollManagementPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  workDate DateTime @db.Date
+  isDoubleShift Boolean
+  requiredHours Int
+  hoursWorked   Decimal @db.Decimal(6, 2)
+  status        InternalPayrollDayDecisionStatus
+  paidAmount    Decimal @db.Decimal(14, 2)
+
+  decidedById String?
+  decidedBy   User?     @relation("PayrollManagementDayDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([periodId, employeeId, workDate])
+  @@index([employeeId, workDate])
 }

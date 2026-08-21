@@ -3,14 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 
-import {
-  assignProjectsToGroup,
-  createClientProjectGroup,
-  deleteClientProjectGroup,
-  generateClientSecurityCode,
-  getClientMultiProjectAdminState,
-  updateMultiProjectSettings,
-} from "@/app/clients/multi-project-actions";
+import type { MultiProjectAdminState } from "@/lib/client-multi-project-types";
 import {
   employeeDialogFieldClass,
   employeeDialogHintClass,
@@ -30,11 +23,45 @@ import { showRejectionFromError } from "@/components/ui/rejection-notice";
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 
-type AdminState = Awaited<ReturnType<typeof getClientMultiProjectAdminState>>;
+type AdminState = MultiProjectAdminState;
+type SecurityCodeRow = {
+  codeHint?: string | null;
+};
+
+type MultiProjectResponse = AdminState & {
+  error?: string;
+  code?: string;
+  id?: string;
+};
+
+async function multiProjectRequest(
+  clientId: string,
+  init?: RequestInit
+): Promise<MultiProjectResponse> {
+  const res = await fetch(`/api/clients/${clientId}/multi-project`, {
+    cache: "no-store",
+    ...init,
+    headers: {
+      ...(init?.body ? { "Content-Type": "application/json" } : {}),
+      ...init?.headers,
+    },
+  });
+  const data = (await res.json().catch(() => ({}))) as MultiProjectResponse;
+  if (!res.ok) {
+    throw new Error(
+      typeof data.error === "string" && data.error.trim()
+        ? data.error
+        : "Request failed"
+    );
+  }
+  return data;
+}
 
 type Props = {
   clientId: string;
   open: boolean;
+  /** Edit Client form id — Save Changes also persists group membership. */
+  formId?: string;
 };
 
 function loadErrorMessage(error: unknown, fallback: string): string {
@@ -47,7 +74,16 @@ function loadErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-export default function ClientMultiProjectPanel({ clientId, open }: Props) {
+function storedSecurityCode(row: SecurityCodeRow | null | undefined): string {
+  const hint = row?.codeHint?.trim() ?? "";
+  return hint.length > 2 ? hint : "";
+}
+
+export default function ClientMultiProjectPanel({
+  clientId,
+  open,
+  formId,
+}: Props) {
   const { t } = useT();
   const [pending, startTransition] = useTransition();
   const [state, setState] = useState<AdminState | null>(null);
@@ -58,7 +94,6 @@ export default function ClientMultiProjectPanel({ clientId, open }: Props) {
     "MASTER_AND_GROUP"
   );
   const [newGroupName, setNewGroupName] = useState("");
-  const [plaintextCode, setPlaintextCode] = useState<string | null>(null);
   const [selectedUngrouped, setSelectedUngrouped] = useState<string[]>([]);
   const [assignGroupId, setAssignGroupId] = useState("");
 
@@ -69,10 +104,113 @@ export default function ClientMultiProjectPanel({ clientId, open }: Props) {
     setMode(next.multiProjectSecurityMode ?? "MASTER_AND_GROUP");
   }
 
-  function reload() {
-    return getClientMultiProjectAdminState(clientId).then((next) => {
-      applyLoadedState(next);
-      setAssignGroupId((current) => current || next.projectGroups[0]?.id || "");
+  function rememberAssignGroup(next: AdminState, preferredId?: string) {
+    setAssignGroupId((current) => {
+      const wanted = preferredId || current;
+      if (wanted && next.projectGroups.some((group) => group.id === wanted)) {
+        return wanted;
+      }
+      return next.projectGroups[0]?.id || "";
+    });
+  }
+
+  function copyCode(code: string) {
+    void navigator.clipboard.writeText(code).then(
+      () => toast.success(t("pages.clients.multiProject.codeCopied")),
+      () => toast.error(t("pages.clients.multiProject.copyFailed"))
+    );
+  }
+
+  function runGenerateCode(options: {
+    kind: "MASTER" | "GROUP";
+    groupId?: string;
+    replaceExisting: boolean;
+  }) {
+    if (
+      options.replaceExisting &&
+      !window.confirm(t("pages.clients.multiProject.regenerateCodeConfirm"))
+    ) {
+      return;
+    }
+    startTransition(async () => {
+      try {
+        const result = await multiProjectRequest(clientId, {
+          method: "POST",
+          body: JSON.stringify({
+            op: "generateCode",
+            kind: options.kind,
+            groupId: options.groupId ?? null,
+          }),
+        });
+        applyLoadedState(result);
+        rememberAssignGroup(result);
+      } catch (error) {
+        showRejectionFromError(
+          error,
+          t("pages.clients.multiProject.generateCodeFailed")
+        );
+      }
+    });
+  }
+
+  function addGroup() {
+    const name = newGroupName.trim();
+    if (!name) return;
+    startTransition(async () => {
+      try {
+        const created = await multiProjectRequest(clientId, {
+          method: "POST",
+          body: JSON.stringify({
+            op: "addGroup",
+            name,
+          }),
+        });
+        setNewGroupName("");
+        applyLoadedState(created);
+        rememberAssignGroup(created, created.id);
+      } catch (error) {
+        showRejectionFromError(
+          error,
+          t("pages.clients.multiProject.addGroupFailed")
+        );
+      }
+    });
+  }
+
+  function assignSelected() {
+    if (!assignGroupId) {
+      showRejectionFromError(
+        t("pages.clients.multiProject.groupRequiredToAssign"),
+        t("pages.clients.multiProject.assignFailed")
+      );
+      return;
+    }
+    if (selectedUngrouped.length === 0) {
+      showRejectionFromError(
+        t("pages.clients.multiProject.projectsRequiredToAssign"),
+        t("pages.clients.multiProject.assignFailed")
+      );
+      return;
+    }
+    startTransition(async () => {
+      try {
+        const next = await multiProjectRequest(clientId, {
+          method: "POST",
+          body: JSON.stringify({
+            op: "assign",
+            groupId: assignGroupId,
+            projectIds: selectedUngrouped,
+          }),
+        });
+        setSelectedUngrouped([]);
+        applyLoadedState(next);
+        rememberAssignGroup(next, assignGroupId);
+      } catch (error) {
+        showRejectionFromError(
+          error,
+          t("pages.clients.multiProject.assignFailed")
+        );
+      }
     });
   }
 
@@ -82,7 +220,7 @@ export default function ClientMultiProjectPanel({ clientId, open }: Props) {
     const fallback = t("pages.clients.multiProject.loadFailed");
     setLoadError(null);
     setState(null);
-    getClientMultiProjectAdminState(clientId)
+    multiProjectRequest(clientId)
       .then((next) => {
         if (cancelled) return;
         applyLoadedState(next);
@@ -97,7 +235,9 @@ export default function ClientMultiProjectPanel({ clientId, open }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [open, clientId, reloadKey, t]);
+    // `t` is omitted so language-switcher identity changes do not refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, clientId, reloadKey]);
 
   if (loadError) {
     return (
@@ -130,8 +270,83 @@ export default function ClientMultiProjectPanel({ clientId, open }: Props) {
     );
   }
 
+  function renderCodeActions(options: {
+    kind: "MASTER" | "GROUP";
+    groupId?: string;
+    row: SecurityCodeRow | null | undefined;
+  }) {
+    const fullCode = storedSecurityCode(options.row);
+    const hint = options.row?.codeHint?.trim() ?? "";
+    const hasCode = Boolean(fullCode || hint);
+
+    return (
+      <div className="mt-2">
+        {fullCode ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-mono text-base tracking-wider text-text">
+              {fullCode}
+            </p>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => copyCode(fullCode)}
+            >
+              {t("common.actions.copy")}
+            </Button>
+          </div>
+        ) : hint ? (
+          <p className="text-xs text-muted">
+            {t("pages.clients.multiProject.codeHint", { hint })}{" "}
+            {t("pages.clients.multiProject.codeMissingFull")}
+          </p>
+        ) : (
+          <p className="text-xs text-muted">
+            {t("pages.clients.multiProject.noCodeYet")}
+          </p>
+        )}
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className="mt-2"
+          disabled={pending}
+          onClick={() =>
+            runGenerateCode({
+              kind: options.kind,
+              groupId: options.groupId,
+              replaceExisting: hasCode,
+            })
+          }
+        >
+          {hasCode
+            ? t("pages.clients.multiProject.regenerateCode")
+            : t("pages.clients.multiProject.generateCode")}
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className={employeeDialogSectionClass}>
+      {formId
+        ? state.projects.map((project) => {
+            const pendingGroupId =
+              selectedUngrouped.includes(project.id) && assignGroupId
+                ? assignGroupId
+                : (project.groupId ?? "");
+            return (
+              <input
+                key={project.id}
+                type="hidden"
+                form={formId}
+                name={`mpProjectGroup.${project.id}`}
+                value={pendingGroupId}
+              />
+            );
+          })
+        : null}
+
       <div className={employeeDialogSectionHeadingClass}>
         <h3 className="text-sm font-semibold text-text">
           {t("pages.clients.multiProject.title")}
@@ -180,7 +395,28 @@ export default function ClientMultiProjectPanel({ clientId, open }: Props) {
           id={`mp-enabled-cards-${clientId}`}
           labelledBy={`mp-enabled-${clientId}`}
           value={enabled}
-          onChange={setEnabled}
+          onChange={(value) => {
+            setEnabled(value);
+            startTransition(async () => {
+              try {
+                const result = await multiProjectRequest(clientId, {
+                  method: "POST",
+                  body: JSON.stringify({
+                    op: "saveSettings",
+                    enabled: value === "Yes",
+                    mode,
+                  }),
+                });
+                applyLoadedState(result);
+                rememberAssignGroup(result);
+              } catch (error) {
+                showRejectionFromError(
+                  error,
+                  t("pages.clients.multiProject.saveFailed")
+                );
+              }
+            });
+          }}
         />
       </div>
 
@@ -199,9 +435,29 @@ export default function ClientMultiProjectPanel({ clientId, open }: Props) {
                 label: t("pages.clients.multiProject.modeMasterAndGroup"),
               },
             ]}
-            onChange={(value) =>
-              setMode(value as "GROUP_ONLY" | "MASTER_AND_GROUP")
-            }
+            onChange={(value) => {
+              const nextMode = value as "GROUP_ONLY" | "MASTER_AND_GROUP";
+              setMode(nextMode);
+              startTransition(async () => {
+                try {
+                  const result = await multiProjectRequest(clientId, {
+                    method: "POST",
+                    body: JSON.stringify({
+                      op: "saveSettings",
+                      enabled: true,
+                      mode: nextMode,
+                    }),
+                  });
+                  applyLoadedState(result);
+                  rememberAssignGroup(result);
+                } catch (error) {
+                  showRejectionFromError(
+                    error,
+                    t("pages.clients.multiProject.saveFailed")
+                  );
+                }
+              });
+            }}
             columns={2}
           />
         </div>
@@ -214,11 +470,16 @@ export default function ClientMultiProjectPanel({ clientId, open }: Props) {
         onClick={() => {
           startTransition(async () => {
             try {
-              const fd = new FormData();
-              fd.set("multiProjectAccess", enabled === "Yes" ? "yes" : "no");
-              fd.set("multiProjectSecurityMode", mode);
-              const result = await updateMultiProjectSettings(clientId, fd);
-              await reload();
+              const result = await multiProjectRequest(clientId, {
+                method: "POST",
+                body: JSON.stringify({
+                  op: "saveSettings",
+                  enabled: enabled === "Yes",
+                  mode,
+                }),
+              });
+              applyLoadedState(result);
+              rememberAssignGroup(result);
               if (result.readyPrompt) {
                 toast.message(t("pages.clients.multiProject.readyTitle"));
               } else {
@@ -243,38 +504,10 @@ export default function ClientMultiProjectPanel({ clientId, open }: Props) {
               <p className="text-sm font-medium text-text">
                 {t("pages.clients.multiProject.masterCode")}
               </p>
-              <p className="mt-1 text-xs text-muted">
-                {state.masterCode?.codeHint
-                  ? t("pages.clients.multiProject.codeHint", {
-                      hint: state.masterCode.codeHint,
-                    })
-                  : t("pages.clients.multiProject.noCodeYet")}
-              </p>
-              <Button
-                type="button"
-                variant="secondary"
-                className="mt-3"
-                disabled={pending}
-                onClick={() => {
-                  startTransition(async () => {
-                    try {
-                      const result = await generateClientSecurityCode({
-                        clientId,
-                        kind: "MASTER",
-                      });
-                      setPlaintextCode(result.code);
-                      await reload();
-                    } catch (error) {
-                      showRejectionFromError(
-                        error,
-                        t("pages.clients.multiProject.generateCodeFailed")
-                      );
-                    }
-                  });
-                }}
-              >
-                {t("pages.clients.multiProject.generateCode")}
-              </Button>
+              {renderCodeActions({
+                kind: "MASTER",
+                row: state.masterCode,
+              })}
             </div>
           ) : null}
 
@@ -282,33 +515,27 @@ export default function ClientMultiProjectPanel({ clientId, open }: Props) {
             <p className="text-sm font-semibold text-text">
               {t("pages.clients.multiProject.groups")}
             </p>
+            <p className="mt-1 text-xs text-muted">
+              {t("pages.clients.multiProject.addGroupHint")}
+            </p>
             <div className="mt-2 flex flex-wrap gap-2">
               <Input
                 value={newGroupName}
                 onChange={(event) => setNewGroupName(event.target.value)}
                 placeholder={t("pages.clients.multiProject.groupName")}
                 className={cn(employeeInputClass, "max-w-xs")}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    addGroup();
+                  }
+                }}
               />
               <Button
                 type="button"
                 variant="secondary"
                 disabled={pending || !newGroupName.trim()}
-                onClick={() => {
-                  startTransition(async () => {
-                    try {
-                      const fd = new FormData();
-                      fd.set("name", newGroupName);
-                      await createClientProjectGroup(clientId, fd);
-                      setNewGroupName("");
-                      await reload();
-                    } catch (error) {
-                      showRejectionFromError(
-                        error,
-                        t("pages.clients.multiProject.addGroupFailed")
-                      );
-                    }
-                  });
-                }}
+                onClick={addGroup}
               >
                 {t("pages.clients.multiProject.addGroup")}
               </Button>
@@ -330,8 +557,15 @@ export default function ClientMultiProjectPanel({ clientId, open }: Props) {
                       onClick={() => {
                         startTransition(async () => {
                           try {
-                            await deleteClientProjectGroup(group.id);
-                            await reload();
+                            const next = await multiProjectRequest(clientId, {
+                              method: "POST",
+                              body: JSON.stringify({
+                                op: "deleteGroup",
+                                groupId: group.id,
+                              }),
+                            });
+                            applyLoadedState(next);
+                            rememberAssignGroup(next);
                           } catch (error) {
                             showRejectionFromError(
                               error,
@@ -353,40 +587,14 @@ export default function ClientMultiProjectPanel({ clientId, open }: Props) {
                       ))
                     )}
                   </ul>
-                  <p className="mt-2 text-xs text-muted">
-                    {group.securityCodes[0]?.codeHint
-                      ? t("pages.clients.multiProject.codeHint", {
-                          hint: group.securityCodes[0].codeHint,
-                        })
-                      : t("pages.clients.multiProject.noCodeYet")}
-                  </p>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    className="mt-2"
-                    disabled={pending}
-                    onClick={() => {
-                      startTransition(async () => {
-                        try {
-                          const result = await generateClientSecurityCode({
-                            clientId,
-                            kind: "GROUP",
-                            groupId: group.id,
-                          });
-                          setPlaintextCode(result.code);
-                          await reload();
-                        } catch (error) {
-                          showRejectionFromError(
-                            error,
-                            t("pages.clients.multiProject.generateCodeFailed")
-                          );
-                        }
-                      });
-                    }}
-                  >
+                  <p className="mt-2 text-xs font-medium text-text">
                     {t("pages.clients.multiProject.groupCode")}
-                  </Button>
+                  </p>
+                  {renderCodeActions({
+                    kind: "GROUP",
+                    groupId: group.id,
+                    row: group.securityCodes[0],
+                  })}
                 </div>
               ))}
             </div>
@@ -426,8 +634,11 @@ export default function ClientMultiProjectPanel({ clientId, open }: Props) {
                 })
               )}
             </ul>
-            {state.projectGroups.length > 0 && state.ungrouped.length > 0 ? (
+            {state.ungrouped.length > 0 && state.projectGroups.length > 0 ? (
               <div className="mt-3 flex flex-wrap items-center gap-2">
+                <label className="text-xs font-medium text-text">
+                  {t("pages.clients.multiProject.assignTo")}
+                </label>
                 <select
                   className={employeeInputClass}
                   value={assignGroupId}
@@ -443,24 +654,7 @@ export default function ClientMultiProjectPanel({ clientId, open }: Props) {
                   type="button"
                   variant="secondary"
                   disabled={pending || selectedUngrouped.length === 0}
-                  onClick={() => {
-                    startTransition(async () => {
-                      try {
-                        await assignProjectsToGroup(
-                          clientId,
-                          assignGroupId || null,
-                          selectedUngrouped
-                        );
-                        setSelectedUngrouped([]);
-                        await reload();
-                      } catch (error) {
-                        showRejectionFromError(
-                          error,
-                          t("pages.clients.multiProject.assignFailed")
-                        );
-                      }
-                    });
-                  }}
+                  onClick={assignSelected}
                 >
                   {t("pages.clients.multiProject.assign")}
                 </Button>
@@ -470,32 +664,6 @@ export default function ClientMultiProjectPanel({ clientId, open }: Props) {
         </>
       ) : null}
 
-      {plaintextCode ? (
-        <div className="mt-4 rounded-xl border border-accent/40 bg-accent/10 px-4 py-3">
-          <p className="text-xs text-muted">
-            {t("pages.clients.multiProject.codeGenerated")}
-          </p>
-          <p className="mt-2 font-mono text-lg tracking-wider text-text">
-            {plaintextCode}
-          </p>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            className="mt-3"
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(plaintextCode);
-                toast.success(t("pages.clients.multiProject.codeCopied"));
-              } catch {
-                toast.error(t("pages.clients.multiProject.copyFailed"));
-              }
-            }}
-          >
-            {t("common.actions.copy")}
-          </Button>
-        </div>
-      ) : null}
     </div>
   );
 }

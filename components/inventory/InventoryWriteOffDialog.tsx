@@ -69,6 +69,7 @@ export default function InventoryWriteOffDialog({
   const { t } = useT();
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [itemId, setItemId] = useState("");
+  const [writeOffSource, setWriteOffSource] = useState<"new" | "issued" | "">("");
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
   const [pending, startTransition] = useTransition();
   const [baseline, setBaseline] = useState<HtmlFormDirtyBaseline | null>(null);
@@ -81,6 +82,10 @@ export default function InventoryWriteOffDialog({
   const availableAssets = equipmentAssets.filter(
     (asset) => asset.item?.id === itemId && asset.status === "AVAILABLE"
   );
+  const uncodedNew =
+    selected && isEquipmentSelected
+      ? Math.max(0, selected.currentStock - availableAssets.length)
+      : 0;
 
   const { isDirty, handleFormInput, resetDirtyTracking } = useHtmlFormDirty(
     FORM_ID,
@@ -95,6 +100,7 @@ export default function InventoryWriteOffDialog({
     resetDirtyTracking();
     setBaseline(null);
     setItemId("");
+    setWriteOffSource("");
     setSelectedAssetIds([]);
   }
 
@@ -108,6 +114,7 @@ export default function InventoryWriteOffDialog({
         onOpenChange(true);
         resetDirtyTracking();
         setItemId("");
+        setWriteOffSource("");
         setSelectedAssetIds([]);
       },
       onClose: closeDialog,
@@ -146,15 +153,22 @@ export default function InventoryWriteOffDialog({
       return;
     }
     if (isEquipmentSelected) {
-      if (selectedAssetIds.length === 0) {
-        showRejection({ reasons: t("pages.inventory.writeOffAssetsRequired") });
+      if (writeOffSource !== "new" && writeOffSource !== "issued") {
+        showRejection({ reasons: t("pages.inventory.saleSource.required") });
         return;
       }
-      formData.set("quantity", String(selectedAssetIds.length));
-      formData.delete("assetIds");
-      for (const assetId of selectedAssetIds) {
-        formData.append("assetIds", assetId);
+      if (writeOffSource === "issued") {
+        if (selectedAssetIds.length === 0) {
+          showRejection({ reasons: t("pages.inventory.writeOffAssetsRequired") });
+          return;
+        }
+        formData.set("quantity", String(selectedAssetIds.length));
+        formData.delete("assetIds");
+        for (const assetId of selectedAssetIds) {
+          formData.append("assetIds", assetId);
+        }
       }
+      formData.set("writeOffSource", writeOffSource);
     }
     const qty = Number(
       String(formData.get("quantity") ?? "").replace(/,/g, "").trim()
@@ -224,7 +238,9 @@ export default function InventoryWriteOffDialog({
                 disabled={
                   pending ||
                   stockedItems.length === 0 ||
-                  (isEquipmentSelected && selectedAssetIds.length === 0)
+                  (isEquipmentSelected &&
+                    writeOffSource === "issued" &&
+                    selectedAssetIds.length === 0)
                 }
               >
                 {pending
@@ -248,6 +264,7 @@ export default function InventoryWriteOffDialog({
                 value={itemId || undefined}
                 onValueChange={(value) => {
                   setItemId(value ?? "");
+                  setWriteOffSource("");
                   setSelectedAssetIds([]);
                 }}
                 items={stockedItems.map((item) => ({
@@ -295,6 +312,54 @@ export default function InventoryWriteOffDialog({
             {isEquipmentSelected ? (
               <div className={employeeDialogFieldClass}>
                 <label className={employeeDialogLabelClass}>
+                  {t("pages.inventory.saleSource.label")}
+                </label>
+                <Select
+                  value={writeOffSource || undefined}
+                  onValueChange={(value) => {
+                    setWriteOffSource((value as "new" | "issued") ?? "");
+                    setSelectedAssetIds([]);
+                  }}
+                  items={[
+                    {
+                      value: "new",
+                      label: t("pages.inventory.saleSource.newInWarehouse"),
+                    },
+                    {
+                      value: "issued",
+                      label: t("pages.inventory.saleSource.issuedAsset"),
+                    },
+                  ]}
+                >
+                  <SelectTrigger className={employeeSelectTriggerClass}>
+                    <SelectValue
+                      placeholder={t("pages.inventory.saleSource.placeholder")}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem
+                      value="new"
+                      label={t("pages.inventory.saleSource.newInWarehouse")}
+                    />
+                    <SelectItem
+                      value="issued"
+                      label={t("pages.inventory.saleSource.issuedAsset")}
+                    />
+                  </SelectContent>
+                </Select>
+                <p className={employeeDialogHintClass}>
+                  {writeOffSource === "new"
+                    ? t("pages.inventory.saleSource.newHint", {
+                        available: formatInventoryQty(uncodedNew),
+                      })
+                    : t("pages.inventory.form.writeOffAssetsHint")}
+                </p>
+              </div>
+            ) : null}
+
+            {isEquipmentSelected && writeOffSource === "issued" ? (
+              <div className={employeeDialogFieldClass}>
+                <label className={employeeDialogLabelClass}>
                   {t("pages.inventory.form.writeOffAssets")}
                 </label>
                 {availableAssets.length === 0 ? (
@@ -339,7 +404,7 @@ export default function InventoryWriteOffDialog({
                 <label className={employeeDialogLabelClass} htmlFor="writeoff-qty">
                   {t("pages.inventory.form.quantity")}
                 </label>
-                {isEquipmentSelected ? (
+                {isEquipmentSelected && writeOffSource === "issued" ? (
                   <>
                     <input
                       type="hidden"

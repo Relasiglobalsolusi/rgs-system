@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { ProjectSubCategory, TransferOrderStatus } from "@prisma/client";
+import type { Prisma, ProjectSubCategory, TransferOrderStatus } from "@prisma/client";
 
 import { findOpenCicoAttendance } from "@/lib/cico-attendance";
 import {
@@ -50,7 +50,10 @@ import {
   type TransferOrderClientRow,
   type TransferOrderDirectory,
   type TransferOrderInternalSiteRow,
+  type TransferOrderPendingRow,
   type TransferOrderProjectRow,
+  transferOrderPendingRank,
+  transferOrderQueueHref,
   transferOrderRouteClientId,
 } from "@/lib/transfer-order-directory";
 
@@ -99,6 +102,49 @@ function emptyOpenCounts(): OpenOrderCounts {
   return { pendingSend: 0, inTransit: 0 };
 }
 
+function mapPendingTransferOrder(order: {
+  id: string;
+  status: TransferOrderStatus;
+  createdAt: Date;
+  project: {
+    id: string;
+    name: string;
+    clientId: string | null;
+    subCategory: ProjectSubCategory;
+    serviceArea: string;
+    client: { id: string; name: string } | null;
+  };
+  lines: Array<{
+    quantity: Prisma.Decimal;
+    item: { name: string; unit: string };
+  }>;
+  _count: { lines: number };
+}): TransferOrderPendingRow {
+  const isInternal =
+    isAttendanceInternalProject(order.project) || !order.project.clientId;
+  const routeClientId = transferOrderRouteClientId(order.project);
+  const first = order.lines[0];
+  return {
+    id: order.id,
+    status: order.status,
+    createdAt: order.createdAt,
+    href: transferOrderQueueHref({
+      clientId: routeClientId,
+      projectId: order.project.id,
+      orderId: order.id,
+    }),
+    isInternal,
+    clientName: isInternal
+      ? ATTENDANCE_INTERNAL_CLIENT_NAME
+      : order.project.client?.name ?? "",
+    projectName: order.project.name,
+    firstItemName: first?.item.name ?? null,
+    firstItemQty: first ? inventoryQtyFromDecimal(first.quantity) : 0,
+    firstItemUnit: first?.item.unit ?? "",
+    itemCount: order._count.lines,
+  };
+}
+
 function accumulateOpenOrderCounts(
   rows: Array<{ status: TransferOrderStatus; projectId: string }>
 ): {
@@ -129,6 +175,7 @@ export async function getTransferOrderDirectory(): Promise<TransferOrderDirector
     return {
       clients: [],
       internalSites: [],
+      pendingOrders: [],
       totals: { pendingSend: 0, inTransit: 0 },
     };
   }
@@ -190,7 +237,32 @@ export async function getTransferOrderDirectory(): Promise<TransferOrderDirector
         status: { in: [...TRANSFER_ORDER_OPEN_STATUSES] },
         project: projectWhere,
       },
-      select: { status: true, projectId: true },
+      select: {
+        id: true,
+        status: true,
+        createdAt: true,
+        projectId: true,
+        project: {
+          select: {
+            id: true,
+            name: true,
+            clientId: true,
+            subCategory: true,
+            serviceArea: true,
+            client: { select: { id: true, name: true } },
+          },
+        },
+        _count: { select: { lines: true } },
+        lines: {
+          take: 1,
+          orderBy: { id: "asc" },
+          select: {
+            quantity: true,
+            item: { select: { name: true, unit: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: "asc" },
     }),
   ]);
 
@@ -244,9 +316,18 @@ export async function getTransferOrderDirectory(): Promise<TransferOrderDirector
         a.name.localeCompare(b.name)
     );
 
+  const pendingOrders = openOrders
+    .map(mapPendingTransferOrder)
+    .sort(
+      (a, b) =>
+        transferOrderPendingRank(a.status) - transferOrderPendingRank(b.status) ||
+        a.createdAt.getTime() - b.createdAt.getTime()
+    );
+
   return {
     clients,
     internalSites,
+    pendingOrders,
     totals: {
       pendingSend: totals.pendingSend,
       inTransit: totals.inTransit,

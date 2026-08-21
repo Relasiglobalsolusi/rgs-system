@@ -20,10 +20,11 @@ import {
   formatContractPrice,
   formatMilestoneScheduleLabel,
   isMilestoneSubCategory,
-  maxMilestonePercent,
   parseContractPrice,
 } from "@/lib/project-billing";
+import { addUtcDays } from "@/lib/invoice-period";
 import { isContractCycleSubCategory } from "@/lib/project-contract";
+import { COMPANY_IDENTITY_SELECT } from "@/lib/company-for-pdf";
 import { generateProgressReviewPdf } from "@/lib/progress-review-pdf";
 import { generateReconciliationReportPdf } from "@/lib/reconciliation-report-pdf";
 import {
@@ -31,15 +32,7 @@ import {
   toPermissionUser,
 } from "@/lib/session";
 import { saveUpload } from "@/lib/upload";
-const COMPANY_BANK_SELECT = {
-  name: true,
-  email: true,
-  phone: true,
-  address: true,
-  bankName: true,
-  bankAccountNumber: true,
-  bankAccountName: true,
-} as const;
+const COMPANY_BANK_SELECT = COMPANY_IDENTITY_SELECT;
 
 function revalidateReviewPaths(opts: {
   projectId: string;
@@ -248,7 +241,9 @@ export async function sendPeriodForClientReview(
     reviewReportPdfPath = `/${folder}/${filename}`;
   } else {
     if (!isMilestoneSubCategory(project.subCategory) && project.billingMode === "MONTHLY") {
-      throw new Error("Progress review is for General / Facade projects.");
+      throw new Error(
+        "Progress review is for General Cleaning, Facade Cleaning, and One-Time Landscaping."
+      );
     }
 
     const reports =
@@ -403,6 +398,7 @@ export async function clientApproveBillingReview(periodId: string) {
           billingMode: true,
           subCategory: true,
           endDate: true,
+          paymentTermsDays: true,
         },
       },
     },
@@ -440,8 +436,6 @@ export async function clientApproveBillingReview(periodId: string) {
       where: { invoicePeriodId: periodId },
       data: {
         status: "CLIENT_APPROVED",
-        wagesPaidAt: new Date(),
-        wagesPaidById: session.user.id,
       },
     });
   }
@@ -473,6 +467,21 @@ export async function clientApproveBillingReview(periodId: string) {
 
   // Issue invoice (skips HO manage gate via internal flag path).
   await issueInvoiceAfterClientApproval(periodId, session.user.id);
+
+  if (period.project.subCategory === "PAYROLL_MANAGEMENT") {
+    const terms = period.project.paymentTermsDays ?? 14;
+    const invoicedAt = new Date();
+    const invoiceDueAt =
+      terms <= 0 ? invoicedAt : addUtcDays(invoicedAt, terms);
+    await prisma.payrollManagementPeriod.updateMany({
+      where: { invoicePeriodId: periodId, invoicedAt: null },
+      data: {
+        status: "INVOICED",
+        invoicedAt,
+        invoiceDueAt,
+      },
+    });
+  }
 
   revalidateReviewPaths({
     projectId: period.projectId,

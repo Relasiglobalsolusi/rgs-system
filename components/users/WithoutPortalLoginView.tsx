@@ -19,6 +19,10 @@ import { flexibleBadgeChipClassName } from "@/components/ui/trash-action-buttons
 import { formatContactPersonName } from "@/lib/contact-person";
 import { formatPhoneForDisplay } from "@/lib/phone";
 import { isRosterActiveEmployeeStatus } from "@/lib/user-directory-status";
+import {
+  localizeDepartmentLabel,
+  localizeJobTitle,
+} from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 import type { EmployeeType, EmploymentType, Placement } from "@prisma/client";
@@ -98,7 +102,7 @@ export default function WithoutPortalLoginView({
   canManageClients = false,
   canManageEmployees = false,
 }: Props) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedClientIds, setSelectedClientIds] = useState<Set<string>>(
     () => new Set()
@@ -370,7 +374,7 @@ export default function WithoutPortalLoginView({
         key: "actions",
         title: t("pages.clients.columns.actions"),
         width: GENERATE_ACTIONS_COLUMN_WIDTH,
-        align: "center",
+        cellAlign: "center",
         className: "min-w-[14rem] overflow-visible whitespace-nowrap",
         render: (client) => {
           const canGenerate = isGenerateEligibleClient(client);
@@ -459,15 +463,20 @@ export default function WithoutPortalLoginView({
         width: "12rem",
         className: "min-w-[12rem]",
         render: (employee) => {
-          const position = employee.jobPosition?.name.trim() || null;
-          const department = employee.category?.name ?? null;
-          if (!position && !department) {
+          const position =
+            localizeJobTitle(employee.jobPosition?.name, locale) || null;
+          const department = localizeDepartmentLabel(
+            null,
+            employee.category?.name,
+            locale
+          );
+          if (!position && department === "—") {
             return <span className="text-subtle">—</span>;
           }
           return (
             <div className="min-w-0">
               {position ? <p className="text-text">{position}</p> : null}
-              {department ? (
+              {department !== "—" ? (
                 <p className="mt-0.5 text-sm text-subtle">{department}</p>
               ) : null}
             </div>
@@ -481,7 +490,7 @@ export default function WithoutPortalLoginView({
         key: "actions",
         title: t("pages.employees.columns.actions"),
         width: GENERATE_ACTIONS_COLUMN_WIDTH,
-        align: "center",
+        cellAlign: "center",
         className: "min-w-[14rem] overflow-visible whitespace-nowrap",
         render: (employee) => {
           const canGenerate = isGenerateEligibleEmployee(employee);
@@ -519,6 +528,7 @@ export default function WithoutPortalLoginView({
     selectedEmployeeIds,
     employeeSelectableIds,
     t,
+    locale,
   ]);
 
   const trimmedSearch = searchQuery.trim();

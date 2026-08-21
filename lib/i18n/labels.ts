@@ -13,6 +13,7 @@ import {
   isProjectStatus,
 } from "@/lib/project-status";
 import { isProjectSubCategory } from "@/lib/project-subcategory";
+import type { OperationsTeamKindValue } from "@/lib/operations-team-kind";
 
 /** Localized DB project status label. */
 export function localizeProjectStatus(
@@ -31,6 +32,7 @@ export function localizeWorkflowStatus(
   opts: {
     status: ProjectStatus | string | null | undefined;
     paymentDue?: boolean;
+    pendingApproval?: boolean;
     awaitingPayment?: boolean;
   },
   locale: AppLocale = getLocale()
@@ -77,6 +79,24 @@ export function localizeWorkflowChipLines(
   return null;
 }
 
+function translateKnown(
+  locale: AppLocale,
+  key: string,
+  fallback: string
+): string {
+  const translated = translate(locale, key);
+  return translated === key ? fallback : translated;
+}
+
+/** Never returns a dotted i18n key path — missing keys become `fallback`. */
+export function localizeKnownKey(
+  key: string,
+  locale: AppLocale = getLocale(),
+  fallback = "—"
+): string {
+  return translateKnown(locale, key, fallback);
+}
+
 export function localizeBillingStatus(
   key:
     | InvoicePeriodStatus
@@ -90,7 +110,34 @@ export function localizeBillingStatus(
     | "OVERDUE",
   locale: AppLocale = getLocale()
 ): string {
-  return translate(locale, `status.billing.${key}`);
+  return translateKnown(locale, `status.billing.${key}`, "—");
+}
+
+export function localizeClientReviewStatus(
+  status: string | null | undefined,
+  locale: AppLocale = getLocale()
+): string {
+  if (!status || status === "NONE") return "—";
+  return translateKnown(locale, `status.clientReview.${status}`, "—");
+}
+
+export function localizeClientReviewKind(
+  kind: string | null | undefined,
+  locale: AppLocale = getLocale()
+): string {
+  if (!kind) return "—";
+  return translateKnown(locale, `status.reviewKind.${kind}`, "—");
+}
+
+export function localizeClientReviewChipLines(
+  status: string | null | undefined,
+  locale: AppLocale = getLocale()
+): readonly [string, string] | null {
+  if (!status || status === "NONE") return null;
+  const first = translate(locale, `status.clientReviewChip.${status}1`);
+  const second = translate(locale, `status.clientReviewChip.${status}2`);
+  if (first === `status.clientReviewChip.${status}1`) return null;
+  return [first, second];
 }
 
 export function localizeBillingChipLines(
@@ -151,10 +198,15 @@ export function localizeSubCategoryChipLines(
   }
   if (
     value === "SECURITY" ||
+    value === "ONE_TIME_SECURITY" ||
     value === "PARKING" ||
     value === "PAYROLL_MANAGEMENT"
   ) {
     const suffix = translate(locale, "status.subcategory.serviceSuffix");
+    return locale === "id" ? [suffix, short] : [short, suffix];
+  }
+  if (value === "REGULAR_LANDSCAPING" || value === "ONE_TIME_LANDSCAPING") {
+    const suffix = translate(locale, "status.subcategory.landscapingSuffix");
     return locale === "id" ? [suffix, short] : [short, suffix];
   }
   const suffix = translate(locale, "status.subcategory.cleaningSuffix");
@@ -267,7 +319,24 @@ const KNOWN_JOB_TITLE_KEYS: Record<string, string> = {
   "cleaning staff": "cleaningStaff",
   "general cleaning staff": "generalCleaningStaff",
   "gondola staff": "gondolaStaff",
+  technician: "technician",
 };
+
+export function localizeOperationsTeamKind(
+  kind: OperationsTeamKindValue | string | null | undefined,
+  locale: AppLocale = getLocale()
+): string {
+  if (kind === "FACADE_CLEANING") {
+    return translate(locale, "pages.teams.kindFacade");
+  }
+  if (kind === "LANDSCAPING") {
+    return translate(locale, "pages.teams.kindLandscaping");
+  }
+  if (kind === "GENERAL_CLEANING") {
+    return translate(locale, "pages.teams.kindGeneral");
+  }
+  return translate(locale, "pages.teams.kind");
+}
 
 /** Localized known seed job titles; arbitrary custom titles stay as stored. */
 export function localizeJobTitle(
@@ -279,4 +348,46 @@ export function localizeJobTitle(
   const key = KNOWN_JOB_TITLE_KEYS[trimmed.toLowerCase()];
   if (!key) return trimmed;
   return translate(locale, `status.jobTitle.${key}`);
+}
+
+/** Inventory catalog type labels live under `pages.inventory.itemTypes`. */
+const INVENTORY_ITEM_TYPE_LABEL_KEYS: Record<string, string> = {
+  consumable: "Consumable",
+  equipment: "Equipment",
+  "spare part": "Spare Part",
+  sparepart: "Spare Part",
+  chemical: "Chemical",
+  vehicle: "Vehicle",
+  other: "Other",
+};
+
+const INVENTORY_ITEM_TYPE_CODE_KEYS: Record<string, string> = {
+  CNS: "Consumable",
+  CONS: "Consumable",
+  EQP: "Equipment",
+  VEH: "Vehicle",
+  SPR: "Spare Part",
+  CHM: "Chemical",
+  CHEM: "Chemical",
+  OTH: "Other",
+};
+
+/**
+ * Human inventory item-type label.
+ * Accepts stored Title Case, lowercase, or SKU codes (CNS / EQP / SPR).
+ * Custom types stay as stored — never the i18n key path.
+ */
+export function localizeInventoryItemType(
+  value: string | null | undefined,
+  locale: AppLocale = getLocale()
+): string {
+  const trimmed = value?.trim();
+  if (!trimmed) return "—";
+  const preset =
+    INVENTORY_ITEM_TYPE_CODE_KEYS[trimmed.toUpperCase()] ??
+    INVENTORY_ITEM_TYPE_LABEL_KEYS[trimmed.toLowerCase()];
+  if (!preset) return trimmed;
+  const key = `pages.inventory.itemTypes.${preset}`;
+  const translated = translate(locale, key);
+  return translated === key ? trimmed : translated;
 }

@@ -198,10 +198,17 @@ async function saveIdDocument(
   return saveUpload(file, "uploads/employees");
 }
 
+function parseManageAllProjects(formData: FormData): boolean {
+  const raw = String(formData.get("manageAllProjects") ?? "")
+    .trim()
+    .toLowerCase();
+  return raw === "1" || raw === "on" || raw === "yes" || raw === "true";
+}
+
 async function resolveAreaManagedProjectIds(
   formData: FormData,
   companyId: string,
-  isAm: boolean
+  required: boolean
 ): Promise<string[]> {
   const ids = [
     ...new Set(
@@ -211,9 +218,9 @@ async function resolveAreaManagedProjectIds(
         .filter(Boolean)
     ),
   ];
-  if (!isAm) return [];
+  if (!required) return [];
   if (ids.length === 0) {
-    throw new Error("Select at least one project for Area Manager.");
+    throw new Error("Select at least one project, or turn on Access to All Projects.");
   }
 
   const projects = await prisma.project.findMany({
@@ -226,7 +233,7 @@ async function resolveAreaManagedProjectIds(
   });
   if (projects.length !== ids.length) {
     throw new Error(
-      "One or more selected projects are invalid for Area Manager coverage."
+      "One or more selected projects are invalid for this manager."
     );
   }
   return ids;
@@ -349,10 +356,12 @@ export async function createEmployee(formData: FormData) {
   if (isOm && omApprovalAreas.length === 0) {
     throw new Error("Select at least one Approval Area for Operations Manager.");
   }
+  const manageAllProjects =
+    (isOm || isAm) && parseManageAllProjects(formData);
   const areaManagedProjectIds = await resolveAreaManagedProjectIds(
     formData,
     company.id,
-    isAm
+    (isOm || isAm) && !manageAllProjects
   );
   const displayPosition = isOm
     ? formatOperationsManagerLabel(omApprovalAreas)
@@ -370,7 +379,7 @@ export async function createEmployee(formData: FormData) {
   if (!firstName) throw new Error("First name is required.");
   if (!lastName) throw new Error("Last name is required.");
 
-  const finance = parseEmployeeFinanceFromForm(formData);
+  const finance = parseEmployeeFinanceFromForm(formData, employmentType);
   const idDocumentUrl = await saveIdDocument(formData);
   const sortOrder = await nextCompanyScopedSortOrder("employee", company.id);
 
@@ -400,7 +409,8 @@ export async function createEmployee(formData: FormData) {
         positionId,
         position: displayPosition,
         omApprovalAreas,
-        ...(isAm
+        manageAllProjects,
+        ...(areaManagedProjectIds.length > 0
           ? {
               areaManagedProjects: {
                 create: areaManagedProjectIds.map((projectId) => ({
@@ -424,6 +434,7 @@ export async function createEmployee(formData: FormData) {
         jkkPercent: finance.jkkPercent,
         securityDepositRequired: finance.securityDepositRequired,
         cicoExempt: finance.cicoExempt,
+        progressExempt: finance.progressExempt,
         bankName: finance.bankName,
         bankAccountNumber: finance.bankAccountNumber,
         bankAccountName: finance.bankAccountName,
@@ -477,6 +488,7 @@ export async function createEmployeesInBulk(formData: FormData) {
       hiredAt: Date | null;
       portalAccessRequested: boolean;
       omApprovalAreas: ReturnType<typeof parseOmApprovalAreas>;
+      manageAllProjects: boolean;
       areaManagedProjectIds: string[];
       displayPosition: string | null;
       internalHomeSite: InternalHomeSite;
@@ -547,10 +559,12 @@ export async function createEmployeesInBulk(formData: FormData) {
             "Select at least one Approval Area for Operations Manager."
           );
         }
+        const manageAllProjects =
+          (isOm || isAm) && parseManageAllProjects(row);
         const areaManagedProjectIds = await resolveAreaManagedProjectIds(
           row,
           company.id,
-          isAm
+          (isOm || isAm) && !manageAllProjects
         );
         const displayPosition = isOm
           ? formatOperationsManagerLabel(omApprovalAreas)
@@ -564,7 +578,7 @@ export async function createEmployeesInBulk(formData: FormData) {
                 categoryPrefix: category.prefix,
                 jobPosition: { slug: positionSlug, name: positionName },
               });
-        const finance = parseEmployeeFinanceFromForm(row);
+        const finance = parseEmployeeFinanceFromForm(row, employmentType);
         const idDocumentUrl = (await saveIdDocument(row)) ?? null;
         if (idDocumentUrl) uploaded.push(idDocumentUrl);
 
@@ -585,6 +599,7 @@ export async function createEmployeesInBulk(formData: FormData) {
           hiredAt,
           portalAccessRequested,
           omApprovalAreas,
+          manageAllProjects,
           areaManagedProjectIds,
           displayPosition,
           internalHomeSite,
@@ -638,6 +653,7 @@ export async function createEmployeesInBulk(formData: FormData) {
             positionId: person.positionId,
             position: person.displayPosition,
             omApprovalAreas: person.omApprovalAreas,
+            manageAllProjects: person.manageAllProjects,
             ...(person.areaManagedProjectIds.length > 0
               ? {
                   areaManagedProjects: {
@@ -662,6 +678,7 @@ export async function createEmployeesInBulk(formData: FormData) {
             jkkPercent: person.finance.jkkPercent,
             securityDepositRequired: person.finance.securityDepositRequired,
             cicoExempt: person.finance.cicoExempt,
+            progressExempt: person.finance.progressExempt,
             bankName: person.finance.bankName,
             bankAccountNumber: person.finance.bankAccountNumber,
             bankAccountName: person.finance.bankAccountName,
@@ -729,7 +746,8 @@ export async function updateEmployee(id: string, formData: FormData) {
   if (!firstName) throw new Error("First name is required.");
   if (!lastName) throw new Error("Last name is required.");
 
-  const finance = parseEmployeeFinanceFromForm(formData);
+  const employmentType = parseEmploymentType(formData.get("employmentType"));
+  const finance = parseEmployeeFinanceFromForm(formData, employmentType);
 
   const employee = await prisma.employee.findUnique({
     where: { id },
@@ -801,7 +819,6 @@ export async function updateEmployee(id: string, formData: FormData) {
     slug: positionSlug,
     name: positionName,
   });
-  const employmentType = parseEmploymentType(formData.get("employmentType"));
   // Placement is system-driven — Assign/Release change ON_PROJECT.
   // Department moves between Corporate/Warehouse ↔ Operations reset the desk/field default.
   const categoryChanged = categoryId !== employee.categoryId;
@@ -833,10 +850,12 @@ export async function updateEmployee(id: string, formData: FormData) {
   if (isOm && omApprovalAreas.length === 0) {
     throw new Error("Select at least one Approval Area for Operations Manager.");
   }
+  const manageAllProjects =
+    (isOm || isAm) && parseManageAllProjects(formData);
   const areaManagedProjectIds = await resolveAreaManagedProjectIds(
     formData,
     employee.companyId,
-    isAm
+    (isOm || isAm) && !manageAllProjects
   );
   const displayPosition = isOm
     ? formatOperationsManagerLabel(omApprovalAreas)
@@ -876,9 +895,10 @@ export async function updateEmployee(id: string, formData: FormData) {
         positionId,
         position: displayPosition,
         omApprovalAreas,
+        manageAllProjects,
         areaManagedProjects: {
           deleteMany: {},
-          ...(isAm
+          ...(areaManagedProjectIds.length > 0
             ? {
                 create: areaManagedProjectIds.map((projectId) => ({
                   projectId,
@@ -897,6 +917,7 @@ export async function updateEmployee(id: string, formData: FormData) {
         jkkPercent: finance.jkkPercent,
         securityDepositRequired: finance.securityDepositRequired,
         cicoExempt: finance.cicoExempt,
+        progressExempt: finance.progressExempt,
         bankName: finance.bankName,
         bankAccountNumber: finance.bankAccountNumber,
         bankAccountName: finance.bankAccountName,
@@ -990,7 +1011,7 @@ export async function assignEmployeeToHeadOffice(id: string) {
   revalidatePath("/employees");
   revalidatePath("/users");
   revalidatePath("/projects");
-  revalidatePath("/shifts");
+  revalidatePath("/shifts", "layout");
   revalidatePath("/cico");
   revalidatePath("/attendance");
 }
@@ -1047,7 +1068,7 @@ export async function releaseEmployeeFromProject(id: string) {
   revalidatePath("/employees");
   revalidatePath("/users");
   revalidatePath("/projects");
-  revalidatePath("/shifts");
+  revalidatePath("/shifts", "layout");
   revalidatePath("/cico");
   revalidatePath("/attendance");
 }

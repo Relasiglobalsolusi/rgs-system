@@ -24,7 +24,9 @@ import {
   type HtmlFormDirtyBaseline,
 } from "@/components/employees/employee-dialog-ui";
 import { Dialog } from "@/components/ui/dialog";
-import { INVENTORY_ITEM_TYPE_PRESETS } from "@/lib/inventory-sku";
+import InventoryUnitSelect from "@/components/inventory/InventoryUnitSelect";
+import { localizeInventoryItemType } from "@/lib/i18n/labels";
+import { normalizeInventoryUnit } from "@/lib/inventory-units";
 import { useT } from "@/lib/i18n/use-t";
 
 const EDIT_FORM_ID = "edit-inventory-item-form";
@@ -40,10 +42,11 @@ export default function InventoryItemEditDialog({
   open,
   onOpenChange,
 }: Props) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [baseline, setBaseline] = useState<HtmlFormDirtyBaseline | null>(null);
+  const [unit, setUnit] = useState("pcs");
 
   const { isDirty, handleFormInput, resetDirtyTracking } = useHtmlFormDirty(
     EDIT_FORM_ID,
@@ -76,6 +79,7 @@ export default function InventoryItemEditDialog({
       setBaseline(null);
       return;
     }
+    setUnit(normalizeInventoryUnit(item.unit));
     const frame = requestAnimationFrame(() => {
       setBaseline(captureHtmlFormBaseline(EDIT_FORM_ID, item.id));
     });
@@ -99,11 +103,7 @@ export default function InventoryItemEditDialog({
     });
   }
 
-  const itemTypeLabel = INVENTORY_ITEM_TYPE_PRESETS.includes(
-    item.itemType as (typeof INVENTORY_ITEM_TYPE_PRESETS)[number]
-  )
-    ? t(`pages.inventory.itemTypes.${item.itemType}`)
-    : item.itemType;
+  const itemTypeLabel = localizeInventoryItemType(item.itemType, locale);
 
   return (
     <>
@@ -201,11 +201,12 @@ export default function InventoryItemEditDialog({
                 <label className={employeeDialogLabelClass} htmlFor="edit-item-unit">
                   {t("pages.inventory.form.unit")}
                 </label>
-                <input
+                <input type="hidden" name="unit" value={unit} />
+                <InventoryUnitSelect
                   id="edit-item-unit"
-                  name="unit"
-                  defaultValue={item.unit}
-                  className={employeeInputClass}
+                  value={unit}
+                  extraCodes={[item.unit]}
+                  onChange={setUnit}
                 />
                 <p className={employeeDialogHintClass}>
                   {t("pages.inventory.form.unitHint")}

@@ -5,7 +5,7 @@ import {
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
 import Image from "next/image";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   createProgressReport,
@@ -18,22 +18,17 @@ import {
   employeeDialogFieldClass,
   employeeDialogFormClass,
   employeeInputClass,
-  employeeSelectTriggerClass,
 } from "@/components/employees/employee-dialog-ui";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { FileDropField } from "@/components/ui/FileDropField";
 import { Input } from "@/components/ui/input";
+import SearchableProjectSelect from "@/components/ui/SearchableProjectSelect";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Camera, Plus, X } from "lucide-react";
 import { useT } from "@/lib/i18n/use-t";
 import { todayDateInput } from "@/lib/project-contract";
+import { sortProjectSelectOptions } from "@/lib/project-select";
 import { cn } from "@/lib/utils";
 
 type Project = {
@@ -62,8 +57,6 @@ type Props = {
   defaultDate?: string;
   defaultProjectId?: string;
   triggerLabel?: string;
-  /** @deprecated No longer changes trigger styling; kept for call-site compat. */
-  compact?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   hideTrigger?: boolean;
@@ -142,10 +135,13 @@ export default function ProgressDialog({
   const dateLocked = Boolean(lockedDate);
   const effectiveDate = lockedDate ?? dateDefault;
 
-  const createProjects =
-    !isEdit && openCicoLock
-      ? projects.filter((p) => p.id === openCicoLock.projectId)
-      : projects;
+  const createProjects = useMemo(() => {
+    const list =
+      !isEdit && openCicoLock
+        ? projects.filter((p) => p.id === openCicoLock.projectId)
+        : projects;
+    return sortProjectSelectOptions(list);
+  }, [isEdit, openCicoLock, projects]);
 
   const editProjects =
     isEdit && editReport
@@ -160,11 +156,6 @@ export default function ProgressDialog({
     Boolean((lockedCreateProjectId ?? projectId).trim()) &&
     Boolean(stageLabel.trim()) &&
     Boolean(notes.trim());
-
-  const projectSelectItems = editProjects.map((project) => ({
-    value: project.id,
-    label: project.name,
-  }));
 
   function syncFromEdit(report: EditableProgressReport | null | undefined) {
     setProjectId(report?.projectId ?? defaultProjectId ?? "");
@@ -379,29 +370,13 @@ export default function ProgressDialog({
                 />
               </>
             ) : (
-              <Select
+              <SearchableProjectSelect
                 value={projectId}
-                onValueChange={(value) => setProjectId(value ?? "")}
-                items={projectSelectItems}
+                onValueChange={setProjectId}
+                projects={editProjects}
+                placeholder={t("pages.progress.selectProject")}
                 required
-              >
-                <SelectTrigger className={employeeSelectTriggerClass}>
-                  <SelectValue placeholder={t("pages.progress.selectProject")}>
-                    {(value) => {
-                      if (!value) return null;
-                      const project = editProjects.find((p) => p.id === value);
-                      return project?.name ?? String(value);
-                    }}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {editProjects.map((project) => (
-                    <SelectItem key={project.id} value={project.id}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             )}
           </div>
 
@@ -538,18 +513,14 @@ export default function ProgressDialog({
                 </span>
               ) : null}
             </label>
-            <Input
-              type="file"
+            <FileDropField
+              id="progress-photos"
               accept="image/jpeg,image/png,image/webp,image/gif"
               multiple
               capture="environment"
-              onChange={(event) => {
-                const picked = Array.from(event.target.files ?? []).filter(
-                  (file) => file.size > 0
-                );
-                if (picked.length === 0) return;
-                // Append — each file-picker open replaces `event.target.files`,
-                // so we must merge into local state instead of overwriting.
+              emptyLabel={t("common.labels.dropFilesOrBrowse")}
+              invalidMessage={t("common.labels.fileMustBeImage")}
+              onPickMany={(picked) => {
                 setSelectedFiles((prev) => {
                   const seen = new Set(
                     prev.map(
@@ -566,13 +537,7 @@ export default function ProgressDialog({
                   }
                   return next;
                 });
-                // Allow picking the same file again after remove / re-open.
-                event.target.value = "";
               }}
-              className={cn(
-                employeeInputClass,
-                "cursor-pointer file:mr-3 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-text"
-              )}
             />
             {selectedFiles.length > 0 ? (
               <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">

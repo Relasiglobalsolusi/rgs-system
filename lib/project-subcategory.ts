@@ -7,23 +7,52 @@ export const PROJECT_SUB_CATEGORIES = [
   "REGULAR_CLEANING",
   "GENERAL_CLEANING",
   "FACADE_CLEANING",
+  "CONTRACT_GENERAL_CLEANING",
+  "CONTRACT_FACADE_CLEANING",
+  "REGULAR_LANDSCAPING",
+  "ONE_TIME_LANDSCAPING",
   "INTERNAL",
   "SECURITY",
+  "ONE_TIME_SECURITY",
   "PARKING",
   "PAYROLL_MANAGEMENT",
 ] as const satisfies readonly ProjectSubCategory[];
 
-/** Client-facing cleaning types (directory filters / create dialog pills). */
-export const COMMERCIAL_PROJECT_SUB_CATEGORIES = [
+/** Cleaning → Regular / General / Facade (contract, not One Time). */
+export const CLEANING_CONTRACT_SUB_CATEGORIES = [
   "REGULAR_CLEANING",
+  "CONTRACT_GENERAL_CLEANING",
+  "CONTRACT_FACADE_CLEANING",
+] as const satisfies readonly ProjectSubCategory[];
+
+/** Cleaning → One Time → General Cleaning | Facade Cleaning. */
+export const CLEANING_ONE_TIME_SUB_CATEGORIES = [
   "GENERAL_CLEANING",
   "FACADE_CLEANING",
+] as const satisfies readonly ProjectSubCategory[];
+
+/** Client-facing cleaning types (directory / commercial guards). */
+export const CLEANING_COMMERCIAL_SUB_CATEGORIES = [
+  ...CLEANING_CONTRACT_SUB_CATEGORIES,
+  ...CLEANING_ONE_TIME_SUB_CATEGORIES,
+] as const satisfies readonly ProjectSubCategory[];
+
+/** Client-facing landscaping types. */
+export const LANDSCAPING_COMMERCIAL_SUB_CATEGORIES = [
+  "REGULAR_LANDSCAPING",
+  "ONE_TIME_LANDSCAPING",
+] as const satisfies readonly ProjectSubCategory[];
+
+/** Client-facing cleaning + landscaping types (directory filters / commercial guards). */
+export const COMMERCIAL_PROJECT_SUB_CATEGORIES = [
+  ...CLEANING_COMMERCIAL_SUB_CATEGORIES,
+  ...LANDSCAPING_COMMERCIAL_SUB_CATEGORIES,
 ] as const satisfies readonly ProjectSubCategory[];
 
 /**
  * Non-cleaning client service projects (Security / Parking / Payroll Management).
  * Parking + Payroll Management stay commercial-terms stubs (no invoice periods).
- * Security uses Regular-like monthly periods — see `usesInvoicePeriods`.
+ * Security contract uses Regular-like monthly periods — see `usesInvoicePeriods`.
  */
 export const SERVICE_PROJECT_SUB_CATEGORIES = [
   "SECURITY",
@@ -31,10 +60,11 @@ export const SERVICE_PROJECT_SUB_CATEGORIES = [
   "PAYROLL_MANAGEMENT",
 ] as const satisfies readonly ProjectSubCategory[];
 
-/** All client-facing project types (cleaning commercial + service). */
+/** All client-facing project types (cleaning + landscaping + service + one-time security). */
 export const CLIENT_PROJECT_SUB_CATEGORIES = [
   ...COMMERCIAL_PROJECT_SUB_CATEGORIES,
   ...SERVICE_PROJECT_SUB_CATEGORIES,
+  "ONE_TIME_SECURITY",
 ] as const satisfies readonly ProjectSubCategory[];
 
 /**
@@ -42,20 +72,26 @@ export const CLIENT_PROJECT_SUB_CATEGORIES = [
  * Includes Internal (HO/Warehouse cleaning crew).
  */
 export const CLEANING_PROJECT_SUB_CATEGORIES = [
-  ...COMMERCIAL_PROJECT_SUB_CATEGORIES,
+  ...CLEANING_COMMERCIAL_SUB_CATEGORIES,
   "INTERNAL",
+] as const satisfies readonly ProjectSubCategory[];
+
+export const LANDSCAPING_PROJECT_SUB_CATEGORIES = [
+  ...LANDSCAPING_COMMERCIAL_SUB_CATEGORIES,
 ] as const satisfies readonly ProjectSubCategory[];
 
 /**
  * Projects where assigned field staff may submit progress photos.
- * Cleaning (+ Internal) and Security. No forced interval / SOP scheduler —
+ * Cleaning (+ Internal), Landscaping, and Security. No forced interval / SOP scheduler —
  * staff may report whenever; managers set expectations offline.
  *
  * Parking / Payroll Management: CICO yes, progress no.
  */
 export const PROGRESS_ELIGIBLE_PROJECT_SUB_CATEGORIES = [
   ...CLEANING_PROJECT_SUB_CATEGORIES,
+  ...LANDSCAPING_PROJECT_SUB_CATEGORIES,
   "SECURITY",
+  "ONE_TIME_SECURITY",
 ] as const satisfies readonly ProjectSubCategory[];
 
 /** Assigned staff may check in here (includes jobs that do not use progress). */
@@ -76,16 +112,6 @@ export function isFieldCicoEligibleProjectSubCategory(
   );
 }
 
-export const PROJECT_SUB_CATEGORY_LABELS: Record<ProjectSubCategory, string> = {
-  REGULAR_CLEANING: "Regular Cleaning",
-  GENERAL_CLEANING: "General Cleaning",
-  FACADE_CLEANING: "Facade Cleaning",
-  INTERNAL: "Internal Project",
-  SECURITY: "Security",
-  PARKING: "Parking",
-  PAYROLL_MANAGEMENT: "Payroll Management",
-};
-
 export function isProjectSubCategory(
   value: string
 ): value is ProjectSubCategory {
@@ -98,12 +124,12 @@ export function isInternalProjectSubCategory(
   return value === "INTERNAL";
 }
 
-export function isCommercialProjectSubCategory(
+export function isClientProjectSubCategory(
   value: ProjectSubCategory | string | null | undefined
 ): value is ProjectSubCategory {
   return (
     typeof value === "string" &&
-    (COMMERCIAL_PROJECT_SUB_CATEGORIES as readonly string[]).includes(value)
+    (CLIENT_PROJECT_SUB_CATEGORIES as readonly string[]).includes(value)
   );
 }
 
@@ -116,12 +142,12 @@ export function isServiceProjectSubCategory(
   );
 }
 
-export function isCleaningProjectSubCategory(
+export function isLandscapingProjectSubCategory(
   value: ProjectSubCategory | string | null | undefined
 ): value is ProjectSubCategory {
   return (
     typeof value === "string" &&
-    (CLEANING_PROJECT_SUB_CATEGORIES as readonly string[]).includes(value)
+    (LANDSCAPING_PROJECT_SUB_CATEGORIES as readonly string[]).includes(value)
   );
 }
 
@@ -137,13 +163,14 @@ export function isProgressEligibleProjectSubCategory(
   );
 }
 
-/** Subcategory locked to a non-cleaning service area (1:1). */
+/**
+ * Subcategory locked to a 1:1 service area.
+ * Security is no longer locked — it has Regular (contract) and One Time.
+ */
 export function subCategoryForServiceArea(
   area: ServiceArea | string | null | undefined
 ): ProjectSubCategory | null {
   switch (area) {
-    case "SECURITY":
-      return "SECURITY";
     case "PARKING":
       return "PARKING";
     case "PAYROLL_MANAGEMENT":
@@ -153,12 +180,32 @@ export function subCategoryForServiceArea(
   }
 }
 
+export function allowedSubCategoriesForServiceArea(
+  area: ServiceArea | string | null | undefined
+): readonly ProjectSubCategory[] {
+  switch (area) {
+    case "CLEANING":
+      return CLEANING_COMMERCIAL_SUB_CATEGORIES;
+    case "LANDSCAPING":
+      return LANDSCAPING_COMMERCIAL_SUB_CATEGORIES;
+    case "SECURITY":
+      return ["SECURITY", "ONE_TIME_SECURITY"];
+    case "PARKING":
+      return ["PARKING"];
+    case "PAYROLL_MANAGEMENT":
+      return ["PAYROLL_MANAGEMENT"];
+    default:
+      return [];
+  }
+}
+
 /** Canonical service area for a subcategory (Internal → Head Office). */
 export function serviceAreaForSubCategory(
   subCategory: ProjectSubCategory | string | null | undefined
 ): ServiceArea {
   switch (subCategory) {
     case "SECURITY":
+    case "ONE_TIME_SECURITY":
       return "SECURITY";
     case "PARKING":
       return "PARKING";
@@ -166,16 +213,12 @@ export function serviceAreaForSubCategory(
       return "PAYROLL_MANAGEMENT";
     case "INTERNAL":
       return "HEAD_OFFICE";
+    case "REGULAR_LANDSCAPING":
+    case "ONE_TIME_LANDSCAPING":
+      return "LANDSCAPING";
     default:
       return "CLEANING";
   }
-}
-
-export function getProjectSubCategoryLabel(
-  value: ProjectSubCategory | string | null | undefined
-): string {
-  if (!value || !isProjectSubCategory(value)) return "-";
-  return PROJECT_SUB_CATEGORY_LABELS[value];
 }
 
 /** Select value for "All Projects" in project/subcategory filter dropdowns. */

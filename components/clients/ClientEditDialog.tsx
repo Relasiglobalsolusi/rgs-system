@@ -225,7 +225,6 @@ export default function ClientEditDialog({
                 npwp: client.npwp ?? "",
                 taxIdDocumentUrl: client.taxIdDocumentUrl ?? null,
                 clientSince: client.clientSince,
-                paymentTermsDays: client.paymentTermsDays,
                 contactPersonFirstName: client.contactPersonFirstName ?? "",
                 contactPersonLastName: client.contactPersonLastName ?? "",
                 contactPersonPosition: client.contactPersonPosition ?? "",
@@ -238,7 +237,11 @@ export default function ClientEditDialog({
           </form>
 
           <div className="mt-8 border-t border-border pt-6">
-            <ClientMultiProjectPanel clientId={client.id} open={open} />
+            <ClientMultiProjectPanel
+              clientId={client.id}
+              open={open}
+              formId={formId}
+            />
           </div>
         </EmployeeDialogShell>
       </Dialog>

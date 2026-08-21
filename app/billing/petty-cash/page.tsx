@@ -1,4 +1,3 @@
-import { Coins } from "lucide-react";
 import { redirect } from "next/navigation";
 
 import {
@@ -10,11 +9,15 @@ import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { formatDisplayDate } from "@/lib/format-date";
+import { localizeKnownKey } from "@/lib/i18n/labels";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
 import { getPettyCashTotals, processScheduledPettyCashPays } from "@/lib/petty-cash";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber, formatContractPrice } from "@/lib/project-billing";
+import { formatEmployeeName } from "@/lib/employee-user-link";
+import { getOmServiceAreaListFilter } from "@/lib/om-approval";
+import { isAreaManagerOrAbovePosition } from "@/lib/positions";
 import { requirePettyCashAccess } from "@/lib/session";
 import { jakartaYearMonth, utcRangeForJakartaMonth } from "@/lib/vat";
 import { cn } from "@/lib/utils";
@@ -39,7 +42,13 @@ export default async function PettyCashPage() {
   const now = jakartaYearMonth();
   const { start, endExclusive } = utcRangeForJakartaMonth(now.year, now.month);
 
-  const [totals, entries, projects] = await Promise.all([
+  const projectScope = await getOmServiceAreaListFilter({
+    userId: session.user.id,
+    username: session.user.username,
+    clientId: session.user.clientId,
+  });
+
+  const [totals, entries, projects, attributionEmployees] = await Promise.all([
     getPettyCashTotals(prisma, session.user.companyId, start, endExclusive),
     prisma.pettyCashEntry.findMany({
       where: { companyId: session.user.companyId },
@@ -54,6 +63,10 @@ export default async function PettyCashPage() {
       where: {
         companyId: session.user.companyId,
         status: { in: ["PLANNED", "IN_PROGRESS", "WAITING_FOR_APPROVAL"] },
+        OR: [
+          projectScope ?? {},
+          { subCategory: "INTERNAL", serviceArea: "HEAD_OFFICE" },
+        ],
       },
       select: {
         id: true,
@@ -62,7 +75,32 @@ export default async function PettyCashPage() {
       },
       orderBy: { name: "asc" },
     }),
+    prisma.employee.findMany({
+      where: {
+        companyId: session.user.companyId,
+        archivedFromDirectory: false,
+        status: { in: ["ACTIVE", "ON_LEAVE"] },
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        jobPosition: { select: { slug: true, name: true } },
+      },
+      orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+    }),
   ]);
+
+  const billForEmployees = attributionEmployees
+    .filter(
+      (employee) =>
+        employee.jobPosition != null &&
+        isAreaManagerOrAbovePosition(employee.jobPosition)
+    )
+    .map((employee) => ({
+      id: employee.id,
+      name: formatEmployeeName(employee),
+    }));
 
   const cards = [
     {
@@ -98,28 +136,14 @@ export default async function PettyCashPage() {
       titleKey="pages.pettyCash.title"
       descriptionKey="pages.pettyCash.description"
     >
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/30 bg-card-tint-emerald text-primary-dark">
-              <Coins className="h-4 w-4" aria-hidden />
-            </div>
-            <div className="min-w-0">
-              <h2 className="text-base font-semibold tracking-tight text-text">
-                {t("pages.pettyCash.directoryTitle")}
-              </h2>
-              <p className="mt-0.5 text-sm text-subtle">
-                {t("pages.pettyCash.directoryDesc")}
-              </p>
-            </div>
-          </div>
-        </div>
+      <div className="mb-5 flex flex-wrap items-end justify-end gap-3">
         <PettyCashSpendDialog
           projects={projects.map((project) => ({
             id: project.id,
             name: project.name,
             clientName: project.client?.name ?? null,
           }))}
+          billForEmployees={billForEmployees}
         />
       </div>
 
@@ -194,11 +218,20 @@ export default async function PettyCashPage() {
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={kindTone(entry.kind)}>
-                      {t(`pages.pettyCash.kind.${entry.kind}`)}
+                      {localizeKnownKey(
+                        `pages.pettyCash.kind.${entry.kind}`,
+                        locale
+                      )}
                     </StatusBadge>
                   </td>
                   <td className="px-4 py-3 text-text">
                     <p>{entry.description}</p>
+                    {entry.employee ? (
+                      <p className="mt-0.5 text-xs text-muted">
+                        {t("pages.pettyCash.billIsFor")}:{" "}
+                        {formatEmployeeName(entry.employee)}
+                      </p>
+                    ) : null}
                     {entry.project ? (
                       <p className="mt-0.5 text-xs text-muted">
                         {entry.project.name}
@@ -206,7 +239,10 @@ export default async function PettyCashPage() {
                     ) : null}
                   </td>
                   <td className="px-4 py-3 text-muted">
-                    {t(`pages.pettyCash.status.${entry.status}`)}
+                    {localizeKnownKey(
+                      `pages.pettyCash.status.${entry.status}`,
+                      locale
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right font-medium tabular-nums text-text">
                     {entry.kind === "TOP_UP" ? "+" : "−"}

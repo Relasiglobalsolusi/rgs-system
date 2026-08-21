@@ -22,6 +22,7 @@ import ProjectTeamPicker, {
 } from "@/components/projects/ProjectTeamPicker";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { FileDropField } from "@/components/ui/FileDropField";
 import { Input } from "@/components/ui/input";
 import {
   showRejection,
@@ -29,11 +30,15 @@ import {
 } from "@/components/ui/rejection-notice";
 import { StackedChipLabel } from "@/components/ui/StatusBadge";
 import { useT } from "@/lib/i18n/use-t";
+import { teamsForProjectServiceArea } from "@/lib/operations-team-kind";
 import { DEFAULT_PROJECT_DURATION_DAYS, todayDateInput } from "@/lib/project-contract";
 import { cn } from "@/lib/utils";
 
 type Props = {
   projectId: string;
+  subCategory: string;
+  areaCatalogId?: string | null;
+  serviceArea?: string | null;
   employees: ProjectStaffEmployee[];
   teams?: ProjectTeamOption[];
   size?: "default" | "lg" | "bar";
@@ -41,6 +46,9 @@ type Props = {
 
 export default function ProjectRedoJobButton({
   projectId,
+  subCategory,
+  areaCatalogId,
+  serviceArea,
   employees,
   teams = [],
   size = "lg",
@@ -141,19 +149,20 @@ export default function ProjectRedoJobButton({
                 className={employeeInputClass}
               />
             </div>
-            <div className={employeeDialogFieldClass}>
-              <label className="text-sm font-medium text-text">
-                {t("pages.projects.redoAgreement")}
-              </label>
-              <Input
-                type="file"
-                name="agreement"
-                accept="image/*,.pdf,application/pdf"
-                required
-                className={employeeInputClass}
-              />
-            </div>
-            <ProjectTeamPicker teams={teams} />
+            <FileDropField
+              id="project-redo-agreement"
+              name="agreement"
+              label={t("pages.projects.redoAgreement")}
+              required
+              accept="image/*,.pdf,application/pdf"
+            />
+            <ProjectTeamPicker
+              teams={teamsForProjectServiceArea(teams, {
+                areaCatalogId,
+                serviceArea,
+                subCategory,
+              })}
+            />
             <ProjectStaffPicker employees={employees} />
           </form>
         </EmployeeDialogShell>

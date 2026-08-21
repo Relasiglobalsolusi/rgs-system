@@ -2,7 +2,6 @@
 
 import { redirect } from "next/navigation";
 import type { ProjectStatus, ProjectSubCategory } from "@prisma/client";
-import { revalidatePath } from "next/cache";
 
 import {
   getPayrollManagementTotalsByProjectIds,
@@ -17,14 +16,21 @@ import {
   type ProjectWageEmployeeRow,
 } from "@/lib/financial-report";
 import {
+  bankAccountWhere,
+  FINANCIAL_REPORT_ALL_BANKS,
   financialReportCalendarRange,
   financialReportWageRange,
   type FinancialReportSelection,
 } from "@/lib/financial-report-query";
 import {
+  listCompanyBankAccountOptions,
+  type CompanyBankAccountOption,
+} from "@/lib/company-bank-accounts";
+import {
   FINANCIAL_REPORT_JOB_STATUSES,
   getClientsOwed,
   getClientsOwedByClientIds,
+  getFinancialReportDetailOverview,
   getFinancialReportOverviewData,
   getVendorsOwed,
   type FinancialReportOverview,
@@ -56,6 +62,13 @@ export type FinancialReportScopeClient = {
   id: string;
   name: string;
 };
+
+export async function listFinancialReportBankAccounts(): Promise<
+  CompanyBankAccountOption[]
+> {
+  const session = await requireFinancialReportAccess();
+  return listCompanyBankAccountOptions(session.user.companyId);
+}
 
 export type FinancialReportClientRow = {
   id: string;
@@ -300,6 +313,7 @@ export async function getFinancialReportClients(
             where: {
               status: "PAID",
               paidAt: { gte: calendar.from, lt: calendar.toExclusive },
+              ...bankAccountWhere(selection.bank ?? FINANCIAL_REPORT_ALL_BANKS),
             },
             select: {
               amount: true,
@@ -357,7 +371,8 @@ export async function getFinancialReportClients(
       companyId,
       clientIds,
       calendar.from,
-      calendar.toExclusive
+      calendar.toExclusive,
+      selection.bank ?? FINANCIAL_REPORT_ALL_BANKS
     ),
     getProjectPnlAdjustments(companyId, projectIds, {
       year: selection.year,
@@ -432,6 +447,18 @@ export async function getFinancialReportCompanyTotals(
 ): Promise<FinancialReportCompanyTotals> {
   const session = await requireFinancialReportAccess();
   return getFinancialReportOverviewData(session.user.companyId, selection);
+}
+
+export async function getFinancialReportDetailTotals(
+  selection: FinancialReportSelection,
+  metric: string
+): Promise<FinancialReportCompanyTotals> {
+  const session = await requireFinancialReportAccess();
+  return getFinancialReportDetailOverview(
+    session.user.companyId,
+    selection,
+    metric
+  );
 }
 
 export async function getFinancialReportClientProjects(

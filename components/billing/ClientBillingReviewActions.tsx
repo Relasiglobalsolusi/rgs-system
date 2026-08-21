@@ -13,7 +13,7 @@ import {
 } from "@/app/billing/reconciliation/actions";
 import ProofLightbox from "@/components/ui/ProofLightbox";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { FileDropField } from "@/components/ui/FileDropField";
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 
@@ -111,7 +111,7 @@ export default function ClientBillingReviewActions({
             href={reviewReportPdfPath}
             target="_blank"
             rel="noreferrer"
-            className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            className={cn(buttonVariants({ variant: "info", size: "sm" }))}
           >
             <FileText className="mr-1.5 h-3.5 w-3.5" />
             {t("pages.reconciliation.viewReport")}
@@ -155,16 +155,13 @@ export default function ClientBillingReviewActions({
               placeholder={t("pages.reconciliation.reviseNotePlaceholder")}
             />
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted">
-              {t("pages.reconciliation.reviseProofLabel")}
-            </label>
-            <Input
-              type="file"
-              accept="image/*,application/pdf"
-              onChange={(e) => setProof(e.target.files?.[0] ?? null)}
-            />
-          </div>
+          <FileDropField
+            id="client-revise-proof"
+            label={t("pages.reconciliation.reviseProofLabel")}
+            fileName={proof?.name ?? null}
+            onPick={setProof}
+            accept="image/*,application/pdf"
+          />
           <Button type="submit" size="sm" disabled={pending || !note.trim()}>
             {pending
               ? t("pages.reconciliation.submittingRevise")

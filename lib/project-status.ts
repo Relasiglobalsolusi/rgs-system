@@ -22,8 +22,8 @@ export const PROJECT_PLANNING_LIST_STATUSES = [
 
 /**
  * Site work stays open while a billing period is with the client.
- * Pending Approval is a period status on the project page — not a list stage.
- * WAITING_FOR_APPROVAL is kept for leftover rows and treated as In Progress.
+ * Pending Approval / Payment Due directory queues are period rows; the live
+ * contract stays In Progress. WAITING_FOR_APPROVAL leftover rows map to In Progress.
  */
 export const PROJECT_SITE_WORK_STATUSES = [
   "IN_PROGRESS",
@@ -119,11 +119,14 @@ export type ProjectWorkflowStatusLabel =
 export function getProjectWorkflowStatusLabel(opts: {
   status: ProjectStatus | string | null | undefined;
   paymentDue?: boolean;
+  /** Directory period row in the client / HO review loop. */
+  pendingApproval?: boolean;
   /** Last GC/Facade part invoiced, unpaid — show Awaiting payment, not In Progress. */
   awaitingPayment?: boolean;
 }): ProjectWorkflowStatusLabel | string {
-  if (opts.awaitingPayment) return "Awaiting payment";
+  if (opts.pendingApproval) return "Pending Approval";
   if (opts.paymentDue) return "Payment Due";
+  if (opts.awaitingPayment) return "Awaiting payment";
 
   switch (opts.status) {
     case "PLANNED":

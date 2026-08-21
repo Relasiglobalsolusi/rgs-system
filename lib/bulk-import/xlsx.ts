@@ -994,15 +994,14 @@ async function buildExcelJsImportTemplate(
   return Buffer.from(output);
 }
 
-/** @deprecated Prefer buildProfessionalImportTemplate — kept for simple fallbacks. */
-export function buildTemplateWorkbookBuffer(options: {
+/** SheetJS fallback when ExcelJS cannot write the branded template. */
+function buildTemplateWorkbookBuffer(options: {
   columns: ColumnDef[];
   sheetName?: string;
   instructionsSheetName?: string;
   includeInstructionsSheet?: boolean;
   exampleRow?: Record<string, string>;
   instructions?: string[][];
-  filenameHint?: string;
 }): Buffer {
   const workbook = XLSX.utils.book_new();
   const sheetName = options.sheetName ?? "Data";

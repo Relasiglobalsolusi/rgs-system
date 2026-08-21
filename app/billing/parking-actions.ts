@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { canAccess } from "@/lib/permissions";
+import { parseContractPrice } from "@/lib/project-billing";
 import { requireModule, toPermissionUser } from "@/lib/session";
 
 async function requireParkingManage() {
@@ -34,8 +35,8 @@ export async function saveParkingMonthlyRevenue(formData: FormData) {
     throw new Error("Select a valid month.");
   }
 
-  const revenue = Number(revenueRaw.replace(/[^\d.-]/g, ""));
-  if (!Number.isFinite(revenue) || revenue < 0) {
+  const revenue = parseContractPrice(revenueRaw);
+  if (revenue == null || revenue < 0) {
     throw new Error("Enter the actual monthly revenue.");
   }
 

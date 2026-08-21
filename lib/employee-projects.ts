@@ -11,45 +11,6 @@ type DbClient = {
   projectAssignment: Prisma.ProjectAssignmentDelegate;
 };
 
-export async function parseProjectIds(
-  db: DbClient,
-  rawValue: FormDataEntryValue | null,
-  companyId: string
-): Promise<string[]> {
-  const raw = String(rawValue ?? "").trim();
-  if (!raw) {
-    return [];
-  }
-
-  const projectIds = [
-    ...new Set(
-      raw
-        .split(",")
-        .map((id) => id.trim())
-        .filter(Boolean)
-    ),
-  ];
-
-  if (projectIds.length === 0) {
-    return [];
-  }
-
-  const projects = await db.project.findMany({
-    where: {
-      id: { in: projectIds },
-      companyId,
-      status: { in: OPEN_PROJECT_ASSIGNMENT_STATUSES },
-    },
-    select: { id: true },
-  });
-
-  if (projects.length !== projectIds.length) {
-    throw new Error("One or more selected sites are invalid or inactive.");
-  }
-
-  return projectIds;
-}
-
 export type AssignmentShiftInput = {
   projectId: string;
   shiftStart?: string | null;

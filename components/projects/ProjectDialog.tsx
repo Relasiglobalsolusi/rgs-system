@@ -10,6 +10,8 @@ import ProjectFormFields, {
   type ProjectFormClient,
   type ProjectFormFieldsState,
 } from "@/components/projects/ProjectFormFields";
+import type { CompanyBankAccountOption } from "@/lib/company-bank-accounts";
+import type { ProjectCatalogAreaDTO } from "@/lib/project-service-catalog";
 import type { ProjectTeamOption } from "@/components/projects/ProjectTeamPicker";
 import type { ProjectStaffEmployee } from "@/components/projects/ProjectStaffPicker";
 import {
@@ -30,21 +32,31 @@ import {
   type DirectoryDialogControlProps,
 } from "@/components/ui/use-directory-dialog-open";
 import { FolderKanban } from "lucide-react";
+import {
+  commercialTaxRequiresRatePercent,
+  isCommercialTaxKind,
+} from "@/lib/commercial-tax";
 import { useT } from "@/lib/i18n/use-t";
 
 type Props = DirectoryDialogControlProps & {
   employees: ProjectStaffEmployee[];
   teams?: ProjectTeamOption[];
   clients: ProjectFormClient[];
+  catalog?: ProjectCatalogAreaDTO[];
+  bankAccounts?: CompanyBankAccountOption[];
 };
 
 const FORM_ID = "create-project-form";
 
 const INITIAL_FIELDS_STATE: ProjectFormFieldsState = {
   clientId: "",
+  chargedTaxKind: "",
+  otherTaxName: "",
+  pphRatePercent: "",
   planSumOk: true,
   isService: false,
   isContract: true,
+  isLandscaping: false,
   showPaymentPlan: false,
   initialStatus: "PLANNED",
   controlledSignature: "",
@@ -54,6 +66,8 @@ export default function ProjectDialog({
   employees,
   teams = [],
   clients,
+  catalog = [],
+  bankAccounts = [],
   open: controlledOpen,
   onOpenChange,
   showTrigger = true,
@@ -70,9 +84,13 @@ export default function ProjectDialog({
 
   const {
     clientId,
+    chargedTaxKind,
+    otherTaxName,
+    pphRatePercent,
     planSumOk,
     isService,
     isContract,
+    isLandscaping,
     showPaymentPlan,
     initialStatus,
     controlledSignature,
@@ -142,6 +160,24 @@ export default function ProjectDialog({
       }
     }
 
+    if (!isCommercialTaxKind(chargedTaxKind)) {
+      showRejection({ reasons: t("pages.projects.chargedTaxKindRequired") });
+      return;
+    }
+    if (chargedTaxKind === "OTHER" && !otherTaxName.trim()) {
+      showRejection({ reasons: t("pages.billing.otherTaxNameRequired") });
+      return;
+    }
+    if (commercialTaxRequiresRatePercent(chargedTaxKind) && !pphRatePercent.trim()) {
+      showRejection({
+        reasons:
+          chargedTaxKind === "OTHER"
+            ? t("pages.billing.otherTaxRateRequired")
+            : t("pages.projects.pphRatePercentRequired"),
+      });
+      return;
+    }
+
     formData.delete("requiresTaxInvoice");
     formData.delete("npwp");
 
@@ -184,11 +220,15 @@ export default function ProjectDialog({
           description={
             isService
               ? t("pages.projects.createDescriptionService")
-              : isContract
-                ? t("pages.projects.createDescriptionContract")
-                : showPaymentPlan
-                  ? t("pages.projects.createDescriptionMilestone")
-                  : t("pages.projects.createDescription")
+              : isLandscaping && isContract
+                ? t("pages.projects.createDescriptionLandscapingContract")
+                : isLandscaping
+                  ? t("pages.projects.createDescriptionLandscapingOneTime")
+                  : isContract
+                    ? t("pages.projects.createDescriptionContract")
+                    : showPaymentPlan
+                      ? t("pages.projects.createDescriptionMilestone")
+                      : t("pages.projects.createDescription")
           }
           maxWidth="lg"
           footer={
@@ -214,6 +254,8 @@ export default function ProjectDialog({
                 employees={employees}
                 teams={teams}
                 clients={clients}
+                catalog={catalog}
+                bankAccounts={bankAccounts}
                 onFormValuesChange={handleFormInput}
                 onStateChange={setFieldsState}
               />

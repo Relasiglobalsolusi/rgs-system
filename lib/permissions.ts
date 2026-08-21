@@ -2,15 +2,11 @@ import type { LucideIcon } from "lucide-react";
 
 import {
 
-  CalendarDays,
-
   CheckSquare,
 
   ClipboardCheck,
 
   Clock,
-
-  FileSpreadsheet,
 
   FileText,
 
@@ -38,6 +34,8 @@ import {
 
   Briefcase,
 
+  Building2,
+
   Wallet,
 
   HandCoins,
@@ -47,6 +45,8 @@ import {
   PieChart,
 
   Coins,
+
+  CircleDollarSign,
 
 } from "lucide-react";
 
@@ -61,6 +61,7 @@ import {
   isOperationsManagerPosition,
   isWarehouseStaffPosition,
   isWarehouseSupervisorPosition,
+  isTechnicianPosition,
 } from "@/lib/positions";
 
 
@@ -114,6 +115,8 @@ export const MODULES = [
 
   "purchaseInvoices",
 
+  "sales",
+
   "taxInvoices",
 
   "vendorPayments",
@@ -148,7 +151,13 @@ export type ModuleKey = (typeof MODULES)[number];
 
 /** Legacy modules removed from navigation; kept for existing permission overrides. */
 
-export const HIDDEN_MODULES: ModuleKey[] = ["departments", "settings", "website"];
+export const HIDDEN_MODULES: ModuleKey[] = [
+  "departments",
+  "settings",
+  "website",
+  "attendance",
+  "reports",
+];
 
 
 
@@ -230,6 +239,7 @@ export const FINANCE_MODULE_KEYS = [
   "invoicing",
   "reconciliation",
   "purchaseInvoices",
+  "sales",
   "taxInvoices",
   "vendorPayments",
   "thr",
@@ -274,8 +284,9 @@ const ALL_MODULES = fillModuleFlags(true);
 
 /**
  * Module overrides applied when creating a client portal login.
- * ON: Dashboard, Projects, Progress Reports, Attendance Report, Client Reports, Invoice and Billing.
+ * ON: Dashboard, Projects, Progress Report, Invoice and Billing.
  * OFF: CICO (employees only) and all admin/directory modules.
+ * Client Report and Attendance Report are merged into Progress Report.
  * Existing client users keep stored overrides until Permissions is re-saved / reset.
  */
 export function getClientModuleOverrides(): Record<ModuleKey, boolean> {
@@ -283,8 +294,6 @@ export function getClientModuleOverrides(): Record<ModuleKey, boolean> {
     dashboard: true,
     projects: true,
     progress: true,
-    attendance: true,
-    reports: true,
     invoicing: true,
     reconciliation: true,
     vendorPayments: true,
@@ -350,8 +359,15 @@ export const FINANCE_MENU_ITEMS: MenuItem[] = [
     navKey: "purchaseInvoices",
   },
   {
+    icon: CircleDollarSign,
+    label: "Sales",
+    href: "/billing/sales",
+    module: "sales",
+    navKey: "sales",
+  },
+  {
     icon: Receipt,
-    label: "Tax Invoice",
+    label: "Tax",
     href: "/billing/tax-invoices",
     module: "taxInvoices",
     navKey: "taxInvoices",
@@ -421,6 +437,10 @@ export function resolveModuleOverride(
   module: ModuleKey
 ): boolean | null {
   if (!overrides) return null;
+  // New Finance page: inherit Expenses until Sales is saved on the user.
+  if (module === "sales" && !("sales" in overrides) && "purchaseInvoices" in overrides) {
+    return overrides.purchaseInvoices!;
+  }
   if (module in overrides) return overrides[module]!;
   if (module !== "invoicing" && isFinanceModuleKey(module)) {
     const legacyChild = overrides[financeChildOverrideKey(module)];
@@ -480,7 +500,7 @@ type EmployeeModulePresetOptions = {
   } | null;
 };
 
-export function normalizeModuleAccessMap(
+function normalizeModuleAccessMap(
   raw: unknown
 ): Record<ModuleKey, boolean> | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
@@ -491,30 +511,6 @@ export function normalizeModuleAccessMap(
     false,
     Object.fromEntries(
       MODULES.map((key) => [key, record[key] === true])
-    ) as Partial<Record<ModuleKey, boolean>>
-  );
-}
-
-export function parseModuleAccessFromForm(
-  formData: FormData
-): Record<ModuleKey, boolean> {
-  const raw = String(formData.get("defaultModuleAccess") ?? "").trim();
-  if (raw) {
-    try {
-      const parsed = normalizeModuleAccessMap(JSON.parse(raw));
-      if (parsed) return parsed;
-    } catch {
-      // Fall through to checkbox names.
-    }
-  }
-  return fillModuleFlags(
-    false,
-    Object.fromEntries(
-      getVisibleModules().map((key) => [
-        key,
-        formData.get(`module.${key}`) === "on" ||
-          formData.get(`module.${key}`) === "true",
-      ])
     ) as Partial<Record<ModuleKey, boolean>>
   );
 }
@@ -553,9 +549,10 @@ export const activeFieldStaffWhere = {
 /**
  * Module overrides applied when creating an employee login.
  * Field / site staff: Dashboard, Progress, CICO, Leave & Sick only.
- * HO / corporate: Dashboard, Projects, Progress, Attendance Report, Leave & Sick.
+ * HO / corporate: Dashboard, Projects, Progress Report, Leave & Sick.
  * Warehouse Supervisor: Transfer Orders + Inventory + CICO.
  * In-House Cleaning Staff: Progress + CICO + Material Requests.
+ * Technician: Dashboard, CICO, Leave & Sick only (no Progress Report).
  * Warehouse Staff: no portal by default; Head Office can generate a login in Users.
  * Operations Managers, Area Managers, and Directors also receive Approvals by default.
  * Existing users keep stored overrides until Permissions is re-saved.
@@ -563,10 +560,19 @@ export const activeFieldStaffWhere = {
 export function getEmployeeModuleOverrides(
   options?: EmployeeModulePresetOptions
 ): Record<ModuleKey, boolean> {
-  const stored = normalizeModuleAccessMap(
-    options?.jobPosition?.defaultModuleAccess
-  );
-  if (stored) return stored;
+  const rawAccess = options?.jobPosition?.defaultModuleAccess;
+  const stored = normalizeModuleAccessMap(rawAccess);
+  if (stored) {
+    if (
+      rawAccess &&
+      typeof rawAccess === "object" &&
+      !Array.isArray(rawAccess) &&
+      !("sales" in rawAccess)
+    ) {
+      stored.sales = stored.purchaseInvoices === true;
+    }
+    return stored;
+  }
 
   const isHo = isHeadOfficeEmployeePreset(options);
   const isApprover = isApproverPosition(options);
@@ -574,6 +580,7 @@ export function getEmployeeModuleOverrides(
   const inHouseCleaning = isInHouseCleaningStaffPosition(job ?? {});
   const warehouseSupervisor = isWarehouseSupervisorPosition(job ?? {});
   const warehouseStaff = isWarehouseStaffPosition(job ?? {});
+  const technician = isTechnicianPosition(job ?? {});
 
   const denied = fillModuleFlags(false, {
     dashboard: true,
@@ -582,6 +589,13 @@ export function getEmployeeModuleOverrides(
 
   if (warehouseStaff) {
     return denied;
+  }
+
+  if (technician) {
+    return {
+      ...denied,
+      cico: true,
+    };
   }
 
   if (inHouseCleaning) {
@@ -597,6 +611,7 @@ export function getEmployeeModuleOverrides(
     return {
       ...denied,
       projects: true,
+      progress: true,
       cico: true,
       pettyCash: true,
       attendance: true,
@@ -686,8 +701,6 @@ export function buildOverridesFromToggle(
   return next;
 }
 
-
-
 export function getAccessibleModules(
   user: PermissionUser & {
     username?: string;
@@ -719,9 +732,13 @@ export function getAccessibleModules(
 
   const accountUser = user as AccountTypeUser;
 
-  return MODULES.filter((module) => {
+  const accessible = MODULES.filter((module) => {
     // Website CMS retired from ERP — no account may access it, even via stored overrides.
     if (module === "website") {
+      return false;
+    }
+    // Company Details is owner-only (username vicko). Overrides cannot grant it.
+    if (module === "settings") {
       return false;
     }
     // Portal accounts never get HO directory / float modules, even via overrides.
@@ -741,6 +758,15 @@ export function getAccessibleModules(
     }
     return baseline[module];
   });
+
+  if (
+    !accessible.includes("progress") &&
+    (accessible.includes("reports") || accessible.includes("attendance"))
+  ) {
+    accessible.push("progress");
+  }
+
+  return accessible;
 }
 
 
@@ -799,6 +825,8 @@ export const ADMIN_SCOPE_MODULES: ModuleKey[] = [
 
   "itemCatalog",
 
+  "settings",
+
 ];
 
 /** Client / vendor portals cannot receive these, even via permission overrides. */
@@ -806,6 +834,7 @@ export const PORTAL_BLOCKED_MODULES: ModuleKey[] = [
   ...ADMIN_SCOPE_MODULES,
   "pettyCash",
   "purchaseInvoices",
+  "sales",
   "taxInvoices",
   "thr",
   "payroll",
@@ -814,21 +843,12 @@ export const PORTAL_BLOCKED_MODULES: ModuleKey[] = [
 
 
 
-export function hasFullModuleAccess(
-  user: PermissionUser & AccountTypeUser
-): boolean {
-  if (isHoAdminAccount(user)) return true;
-  return ADMIN_SCOPE_MODULES.every((module) => canAccess(user, module));
-}
-
-
-
 /**
  * Head-office company admin login — not client/vendor portal, not employee portal.
  * Primary owner login (`vicko`) stays admin even when linked to an HO employee record.
  */
 export function isHoAdminAccount(user: AccountTypeUser): boolean {
-  return getAccountType(user) === "Admin";
+  return isOwnerAccount(user);
 }
 
 /**
@@ -856,7 +876,7 @@ export function getAccountType(user: AccountTypeUser): AccountType {
     return "Employee";
   }
 
-  return "Admin";
+  return "Employee";
 }
 
 /**
@@ -1015,7 +1035,7 @@ export const ROUTE_MODULE_MAP: Record<string, ModuleKey> = {
 
   "/cico": "cico",
 
-  "/attendance": "attendance",
+  "/attendance": "progress",
 
   "/shifts": "shifts",
 
@@ -1027,17 +1047,21 @@ export const ROUTE_MODULE_MAP: Record<string, ModuleKey> = {
 
   "/transfer-orders": "transferOrders",
 
-  "/reports": "reports",
+  "/reports": "progress",
 
   "/inventory": "inventory",
 
   "/item-catalog": "itemCatalog",
+
+  "/company-details": "settings",
 
   "/billing/petty-cash": "pettyCash",
 
   "/billing/reconciliation": "reconciliation",
 
   "/billing/purchase-invoices": "purchaseInvoices",
+
+  "/billing/sales": "sales",
 
   "/billing/tax-invoices": "taxInvoices",
 
@@ -1144,6 +1168,18 @@ export const menu: MenuSection[] = [
     title: "Administration",
 
     items: [
+
+      {
+
+        icon: Building2,
+
+        label: "Company Details",
+
+        href: "/company-details",
+
+        module: "settings",
+
+      },
 
       {
 
@@ -1331,7 +1367,7 @@ export const menu: MenuSection[] = [
 
         icon: CheckSquare,
 
-        label: "Progress Reports",
+        label: "Progress Report",
         href: "/progress",
 
         module: "progress",
@@ -1363,19 +1399,6 @@ export const menu: MenuSection[] = [
         navKey: "pettyCash",
 
       },
-
-      {
-
-        icon: FileSpreadsheet,
-
-        label: "Client Reports",
-
-        href: "/reports",
-
-        module: "reports",
-
-      },
-
 
       {
 
@@ -1434,18 +1457,6 @@ export const menu: MenuSection[] = [
     title: "Human Resources",
 
     items: [
-
-      {
-
-        icon: CalendarDays,
-
-        label: "Attendance Report",
-
-        href: "/attendance",
-
-        module: "attendance",
-
-      },
 
       {
 

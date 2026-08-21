@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useTransition,
   type ReactNode,
@@ -44,6 +45,7 @@ export function LocaleProvider({
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [locale, setLocaleState] = useState<AppLocale>(initialLocale);
+  const promotedStorageLocale = useRef(false);
 
   useServerInsertedHTML(() => (
     <script
@@ -62,6 +64,8 @@ export function LocaleProvider({
       setLocaleState(storageLocale);
       persistLocale(storageLocale);
       applyDocumentLocale(storageLocale);
+      if (promotedStorageLocale.current) return;
+      promotedStorageLocale.current = true;
       startTransition(() => {
         router.refresh();
       });
@@ -91,15 +95,20 @@ export function LocaleProvider({
     [router, startTransition]
   );
 
+  const t = useCallback(
+    (key: MessageKey | string, params?: TranslateParams) =>
+      translate(locale, key, params),
+    [locale]
+  );
+
   const value = useMemo<LocaleContextValue>(
     () => ({
       locale,
       bcp47: localeToBcp47(locale),
       setLocale,
-      t: (key: MessageKey | string, params?: TranslateParams) =>
-        translate(locale, key, params),
+      t,
     }),
-    [locale, setLocale]
+    [locale, setLocale, t]
   );
 
   return (

@@ -49,6 +49,8 @@ type ProjectForActions = {
   progress: number;
   status: string;
   subCategory: ProjectSubCategory;
+  areaCatalogId?: string | null;
+  serviceArea?: string | null;
   billingMode?: BillingMode;
   clientId: string | null;
   assignments: { employeeId: string }[];
@@ -188,6 +190,8 @@ export default function ProjectDirectoryActions({
         projectId={project.id}
         projectName={confirmName}
         subCategory={project.subCategory}
+        areaCatalogId={project.areaCatalogId}
+        serviceArea={project.serviceArea}
         estimatedStartDate={project.estimatedStartDate}
         estimatedDurationDays={project.estimatedDurationDays}
         startDate={project.startDate}

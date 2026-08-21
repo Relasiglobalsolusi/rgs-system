@@ -1,4 +1,4 @@
-import type { ClientReviewKind, ClientReviewStatus } from "@prisma/client";
+import type { ClientReviewStatus } from "@prisma/client";
 
 /** Periods waiting on the client portal (Approve / Revise). */
 export const CLIENT_PENDING_REVIEW_STATUSES: ClientReviewStatus[] = [
@@ -76,14 +76,6 @@ export function canIssueCommercialInvoiceForProject(
     return false;
   }
   return canIssueInvoiceAfterReview(period.clientReviewStatus);
-}
-
-export function reviewKindLabel(
-  kind: ClientReviewKind | string | null | undefined
-): string {
-  if (kind === "PROGRESS") return "Progress";
-  if (kind === "RECONCILIATION") return "Reconciliation";
-  return "Review";
 }
 
 /** Proof / note uploads for client↔HO review rounds. */

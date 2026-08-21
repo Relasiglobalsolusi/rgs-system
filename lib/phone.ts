@@ -79,24 +79,6 @@ const DIAL_CODES_LONGEST_FIRST: string[] = (() => {
   );
 })();
 
-/**
- * Excel Lists / import dropdown label: "+62 Indonesia".
- * PhoneInput renders dial code + name in a fixed-width flex row instead.
- */
-export function formatPhoneCountryDropdownLabel(
-  entry: PhoneCountryEntry
-): string {
-  return `${entry.code} ${entry.label}`;
-}
-
-/**
- * Country Code list values for Excel Lists sheet and import dropdowns.
- * Order: Indonesia first, then alphabetical by country name.
- */
-export function phoneCountryCodeDropdownValues(): string[] {
-  return PHONE_COUNTRY_CODES.map(formatPhoneCountryDropdownLabel);
-}
-
 export function getPhoneCountryEntryById(
   id: string | null | undefined
 ): PhoneCountryEntry | undefined {
@@ -336,27 +318,6 @@ export function normalizeAndValidatePhone(
   if (isValidPhoneNumber(trimmed)) {
     const again = parsePhoneNumberFromString(trimmed);
     if (again?.isValid()) return again.format("E.164");
-  }
-
-  throw new Error(invalidMessage ?? `${fieldLabel} is invalid.`);
-}
-
-/**
- * Same as {@link normalizeAndValidatePhone} with explicit country (Excel / PhoneInput).
- */
-export function normalizeAndValidatePhoneForCountry(
-  countryCode: string,
-  localOrFull: string,
-  countryId?: string | null,
-  fieldLabel = "Phone",
-  invalidMessage?: string
-): string {
-  const trimmed = localOrFull.trim();
-  if (!trimmed) return "";
-
-  const parsed = parsePhoneWithCountry(trimmed, countryCode, countryId);
-  if (parsed?.isValid()) {
-    return parsed.format("E.164");
   }
 
   throw new Error(invalidMessage ?? `${fieldLabel} is invalid.`);

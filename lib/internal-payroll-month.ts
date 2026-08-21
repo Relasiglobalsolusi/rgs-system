@@ -208,7 +208,25 @@ export type InternalPayrollMonthRow = {
   bankAccountName: string | null;
   deductions: PayrollDeductionRow[];
   days: PayrollDayRow[];
+  cicoExempt?: boolean;
 };
+
+async function attachCicoExemptFlags(
+  rows: InternalPayrollMonthRow[]
+): Promise<InternalPayrollMonthRow[]> {
+  if (rows.length === 0 || rows.every((row) => typeof row.cicoExempt === "boolean")) {
+    return rows;
+  }
+  const employees = await prisma.employee.findMany({
+    where: { id: { in: rows.map((row) => row.employeeId) } },
+    select: { id: true, cicoExempt: true },
+  });
+  const flags = new Map(employees.map((employee) => [employee.id, employee.cicoExempt]));
+  return rows.map((row) => ({
+    ...row,
+    cicoExempt: row.cicoExempt ?? flags.get(row.employeeId) ?? false,
+  }));
+}
 
 function deductionTypeLabel(type: PayrollDeductionRow["type"], locale: AppLocale) {
   switch (type) {
@@ -317,7 +335,7 @@ export async function loadInternalPayrollMonth(options: {
       lock?.snapshot
     );
     if (lock?.locked && snapshot) {
-      return snapshot;
+      return attachCicoExemptFlags(snapshot);
     }
   }
 
@@ -689,6 +707,7 @@ export async function loadInternalPayrollMonth(options: {
           securityDepositRequired: emp.securityDepositRequired,
           deductions,
           days,
+          cicoExempt: emp.cicoExempt,
         },
       ];
     });
@@ -798,6 +817,104 @@ export async function getSecurityDepositSnapshot(
     ),
     returned: decimalToNumber(returnedAgg._sum.amount) ?? 0,
   };
+}
+
+export type SecurityDepositEmployeeRow = {
+  id: string;
+  employeeName: string;
+  employeeNo: string;
+  amount: number;
+  date: Date | null;
+  projectName: string | null;
+};
+
+export type SecurityDepositReturnRow = {
+  id: string;
+  employeeName: string;
+  employeeNo: string;
+  amount: number;
+  year: number;
+  month: number;
+  projectName: string | null;
+};
+
+const DEPOSIT_EMPLOYEE_SELECT = {
+  id: true,
+  firstName: true,
+  lastName: true,
+  employeeNo: true,
+  depositHeldAmount: true,
+  lastWorkingDay: true,
+  resignedAt: true,
+  depositSourceProject: { select: { name: true } },
+} as const;
+
+function toDepositEmployeeRow(row: {
+  id: string;
+  firstName: string;
+  lastName: string;
+  employeeNo: string;
+  depositHeldAmount: { toString(): string } | number | null;
+  lastWorkingDay: Date | null;
+  resignedAt: Date | null;
+  depositSourceProject: { name: string } | null;
+}): SecurityDepositEmployeeRow {
+  return {
+    id: row.id,
+    employeeName: formatEmployeeName(row),
+    employeeNo: row.employeeNo,
+    amount: decimalToNumber(row.depositHeldAmount) ?? 0,
+    date: row.lastWorkingDay ?? row.resignedAt,
+    projectName: row.depositSourceProject?.name ?? null,
+  };
+}
+
+export async function listHeldSecurityDeposits(
+  companyId: string
+): Promise<SecurityDepositEmployeeRow[]> {
+  const rows = await prisma.employee.findMany({
+    where: { companyId, depositStatus: "HELD" },
+    select: DEPOSIT_EMPLOYEE_SELECT,
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+  });
+  return rows.map(toDepositEmployeeRow);
+}
+
+export async function listKeptSecurityDeposits(
+  companyId: string
+): Promise<SecurityDepositEmployeeRow[]> {
+  const rows = await prisma.employee.findMany({
+    where: { companyId, depositStatus: "KEPT_BY_COMPANY" },
+    select: DEPOSIT_EMPLOYEE_SELECT,
+    orderBy: [{ lastWorkingDay: "desc" }, { resignedAt: "desc" }],
+  });
+  return rows.map(toDepositEmployeeRow);
+}
+
+export async function listReturnedSecurityDeposits(
+  companyId: string
+): Promise<SecurityDepositReturnRow[]> {
+  const rows = await prisma.payrollDeduction.findMany({
+    where: { companyId, type: "RETURN_OF_SECURITY_DEPOSIT" },
+    select: {
+      id: true,
+      amount: true,
+      year: true,
+      month: true,
+      employee: { select: { firstName: true, lastName: true, employeeNo: true } },
+      project: { select: { name: true } },
+    },
+    orderBy: [{ year: "desc" }, { month: "desc" }, { createdAt: "desc" }],
+  });
+  return rows.map((row) => ({
+    id: row.id,
+    employeeName: formatEmployeeName(row.employee),
+    employeeNo: row.employee.employeeNo,
+    amount: decimalToNumber(row.amount) ?? 0,
+    year: row.year,
+    month: row.month,
+    projectName: row.project?.name ?? null,
+  }));
 }
 
 /** Head Office income when a deposit is kept (not according to procedure). */

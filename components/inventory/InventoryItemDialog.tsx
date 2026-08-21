@@ -20,6 +20,7 @@ import {
   EmployeeUnsavedExitDialog,
   employeeDialogFieldClass,
   employeeDialogFormClass,
+  employeeDialogGridClass,
   employeeDialogHintClass,
   employeeDialogLabelClass,
   employeeInputClass,
@@ -41,7 +42,13 @@ import {
   useDirectoryDialogOpen,
   type DirectoryDialogControlProps,
 } from "@/components/ui/use-directory-dialog-open";
-import { INVENTORY_ITEM_TYPE_PRESETS } from "@/lib/inventory-sku";
+import InventoryUnitSelect from "@/components/inventory/InventoryUnitSelect";
+import {
+  INVENTORY_ITEM_TYPE_PRESETS,
+  isVehicleItemType,
+} from "@/lib/inventory-sku";
+import { defaultUnitForItemType } from "@/lib/inventory-units";
+import { localizeInventoryItemType } from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
 
 const CREATE_FORM_ID = "create-inventory-item-form";
@@ -53,11 +60,13 @@ export default function InventoryItemDialog({
   onOpenChange,
   showTrigger = true,
 }: Props) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const { open, setOpen } = useDirectoryDialogOpen(controlledOpen, onOpenChange);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [previewSku, setPreviewSku] = useState("");
   const [itemType, setItemType] = useState("");
+  const [vehiclePlate, setVehiclePlate] = useState("");
+  const [unit, setUnit] = useState<string>(defaultUnitForItemType("Consumable"));
   const [pending, startTransition] = useTransition();
   const [baseline, setBaseline] = useState<HtmlFormDirtyBaseline | null>(null);
 
@@ -75,6 +84,8 @@ export default function InventoryItemDialog({
     setBaseline(null);
     setPreviewSku("");
     setItemType("");
+    setVehiclePlate("");
+    setUnit(defaultUnitForItemType("Consumable"));
   }
 
   function handleOpenChange(
@@ -88,6 +99,8 @@ export default function InventoryItemDialog({
         resetDirtyTracking();
         setPreviewSku("");
         setItemType("");
+        setVehiclePlate("");
+        setUnit(defaultUnitForItemType("Consumable"));
       },
       onClose: closeDialog,
       onRequestExitConfirm: () => setExitConfirmOpen(true),
@@ -189,7 +202,11 @@ export default function InventoryItemDialog({
               </label>
               <Select
                 value={itemType || undefined}
-                onValueChange={(value) => setItemType(value ?? "")}
+                onValueChange={(value) => {
+                  const next = value ?? "";
+                  setItemType(next);
+                  if (next) setUnit(defaultUnitForItemType(next));
+                }}
               >
                 <SelectTrigger
                   id="inv-item-type"
@@ -200,18 +217,14 @@ export default function InventoryItemDialog({
                   >
                     {(value) => {
                       if (!value) return null;
-                      return INVENTORY_ITEM_TYPE_PRESETS.includes(
-                        value as (typeof INVENTORY_ITEM_TYPE_PRESETS)[number]
-                      )
-                        ? t(`pages.inventory.itemTypes.${value}`)
-                        : value;
+                      return localizeInventoryItemType(value, locale);
                     }}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {INVENTORY_ITEM_TYPE_PRESETS.map((preset) => (
                     <SelectItem key={preset} value={preset}>
-                      {t(`pages.inventory.itemTypes.${preset}`)}
+                      {localizeInventoryItemType(preset, locale)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -232,6 +245,68 @@ export default function InventoryItemDialog({
                 className={employeeInputClass}
                 placeholder={t("pages.inventory.form.itemNamePlaceholder")}
               />
+            </div>
+
+            {isVehicleItemType(itemType) ? (
+              <div className={employeeDialogFieldClass}>
+                <label
+                  className={employeeDialogLabelClass}
+                  htmlFor="inv-item-plate"
+                >
+                  {t("pages.inventory.form.vehiclePlate")}
+                </label>
+                <input
+                  id="inv-item-plate"
+                  name="vehiclePlate"
+                  value={vehiclePlate}
+                  onChange={(event) => setVehiclePlate(event.target.value)}
+                  className={employeeInputClass}
+                  placeholder={t("pages.inventory.form.vehiclePlatePlaceholder")}
+                  autoComplete="off"
+                />
+                <p className={employeeDialogHintClass}>
+                  {t("pages.inventory.form.vehiclePlateHint")}
+                </p>
+              </div>
+            ) : null}
+
+            <div className={employeeDialogGridClass}>
+              <div className={employeeDialogFieldClass}>
+                <label className={employeeDialogLabelClass} htmlFor="inv-item-unit">
+                  {t("pages.inventory.form.unit")}
+                </label>
+                <input type="hidden" name="unit" value={unit} />
+                <InventoryUnitSelect
+                  id="inv-item-unit"
+                  value={unit}
+                  onChange={setUnit}
+                />
+                <p className={employeeDialogHintClass}>
+                  {t("pages.inventory.form.unitHint")}
+                </p>
+              </div>
+              {isVehicleItemType(itemType) ? null : (
+                <div className={employeeDialogFieldClass}>
+                  <label
+                    className={employeeDialogLabelClass}
+                    htmlFor="inv-item-min-stock"
+                  >
+                    {t("pages.inventory.form.minStock")}
+                  </label>
+                  <input
+                    id="inv-item-min-stock"
+                    name="minStock"
+                    type="number"
+                    min={0}
+                    step={1}
+                    defaultValue={0}
+                    className={employeeInputClass}
+                  />
+                  <p className={employeeDialogHintClass}>
+                    {t("pages.inventory.form.minStockHint")}
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className={employeeDialogFieldClass}>

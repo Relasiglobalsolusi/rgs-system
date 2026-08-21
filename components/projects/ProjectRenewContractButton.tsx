@@ -16,6 +16,7 @@ import {
 import { detailActionBarButtonClassName } from "@/components/projects/detail-action-bar";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { FileDropField } from "@/components/ui/FileDropField";
 import { Input } from "@/components/ui/input";
 import {
   showRejection,
@@ -137,18 +138,13 @@ export default function ProjectRenewContractButton({
                 className={employeeInputClass}
               />
             </div>
-            <div className={employeeDialogFieldClass}>
-              <label className="text-sm font-medium text-text">
-                {t("pages.projects.renewAgreement")}
-              </label>
-              <Input
-                type="file"
-                name="agreement"
-                accept="image/*,.pdf,application/pdf"
-                required
-                className={employeeInputClass}
-              />
-            </div>
+            <FileDropField
+              id="project-renew-agreement"
+              name="agreement"
+              label={t("pages.projects.renewAgreement")}
+              required
+              accept="image/*,.pdf,application/pdf"
+            />
           </form>
         </EmployeeDialogShell>
       </Dialog>

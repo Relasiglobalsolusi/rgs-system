@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { FileText, ShoppingBag, Wallet } from "lucide-react";
+import { FileText, Landmark, ShoppingBag, Wallet } from "lucide-react";
 
 import SettlementsApMarkPaidButton from "@/components/billing/SettlementsApMarkPaidButton";
 import AppShell from "@/components/layout/AppShell";
+import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -67,8 +68,9 @@ export default async function SettlementsPage() {
             id: true,
             name: true,
             clientId: true,
+            paymentTermsDays: true,
             client: {
-              select: { id: true, name: true, paymentTermsDays: true },
+              select: { id: true, name: true },
             },
           },
         },
@@ -83,9 +85,8 @@ export default async function SettlementsPage() {
           where: {
             companyId: session.user.companyId,
             paidAt: null,
-          },
-          include: {
-            vendor: { select: { paymentTermsDays: true } },
+            reversedAt: null,
+            freeOfCharge: false,
           },
           orderBy: [{ invoiceDate: "desc" }, { createdAt: "desc" }],
           take: 80,
@@ -97,7 +98,7 @@ export default async function SettlementsPage() {
     const display = getInvoicePaymentDisplay(
       {
         ...period,
-        paymentTermsDays: client?.paymentTermsDays,
+        paymentTermsDays: period.project.paymentTermsDays,
       },
       now
     );
@@ -127,7 +128,7 @@ export default async function SettlementsPage() {
 
   const apRows = apInvoices
     .map((invoice) => {
-      const termsDays = invoice.vendor?.paymentTermsDays ?? null;
+      const termsDays = invoice.paymentTermsDays ?? 14;
       const payment = getPurchasePaymentDisplay(
         {
           invoiceDate: invoice.invoiceDate,
@@ -156,12 +157,65 @@ export default async function SettlementsPage() {
     })
     .slice(0, 50);
 
+  const arTotal = arPeriods.reduce((sum, period) => {
+    return (
+      sum +
+      (decimalToNumber(period.revisedInvoiceAmount) ??
+        decimalToNumber(period.amount) ??
+        0)
+    );
+  }, 0);
+  const arOverdue = arRows.filter((row) => row.isLate).length;
+  const apTotal = apInvoices.reduce(
+    (sum, invoice) => sum + (decimalToNumber(invoice.amount) ?? 0),
+    0
+  );
+  const apOverdue = apRows.filter((row) => row.isOverdue).length;
+
   return (
     <AppShell
       titleKey="pages.billing.settlementsTitle"
       descriptionKey="pages.billing.settlementsDesc"
     >
       <div className="space-y-6">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <DirectoryStatCard
+            compact
+            title={t("pages.billing.settlementsCardAr")}
+            value={formatContractPrice(arTotal)}
+            subtitle={t("pages.billing.settlementsArCount", {
+              count: arRows.length,
+            })}
+            icon={<Wallet size={18} />}
+            accent="success"
+          />
+          <DirectoryStatCard
+            compact
+            title={t("pages.billing.settlementsCardArOverdue")}
+            value={arOverdue}
+            subtitle={t("pages.billing.settlementsCardArOverdueHint")}
+            icon={<FileText size={18} />}
+            accent={arOverdue > 0 ? "danger" : "muted"}
+          />
+          <DirectoryStatCard
+            compact
+            title={t("pages.billing.settlementsCardAp")}
+            value={formatContractPrice(apTotal)}
+            subtitle={t("pages.billing.settlementsApCount", {
+              count: apRows.length,
+            })}
+            icon={<Landmark size={18} />}
+            accent="warning"
+          />
+          <DirectoryStatCard
+            compact
+            title={t("pages.billing.settlementsCardApOverdue")}
+            value={apOverdue}
+            subtitle={t("pages.billing.settlementsCardApOverdueHint")}
+            icon={<ShoppingBag size={18} />}
+            accent={apOverdue > 0 ? "danger" : "muted"}
+          />
+        </div>
         <SectionCard>
           <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
             <div className="min-w-0">

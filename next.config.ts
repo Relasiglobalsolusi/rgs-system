@@ -8,7 +8,6 @@ const brandAssetGlobs = [
 ];
 
 const nextConfig: NextConfig = {
-  /* config options here */
   reactCompiler: true,
   async redirects() {
     return [
@@ -22,6 +21,7 @@ const nextConfig: NextConfig = {
   // Logo paths are resolved at runtime via process.cwd(); include them in NFT.
   outputFileTracingIncludes: {
     "/api/reports/project-monthly-export": brandAssetGlobs,
+    "/api/reports/attendance-export": brandAssetGlobs,
     "/api/inventory/bulk-template": brandAssetGlobs,
   },
 };

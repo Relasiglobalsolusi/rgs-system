@@ -101,7 +101,6 @@ export default function EmployeeCategoryTable({ categories }: Props) {
           <p className="font-semibold text-text">
             {localizeDepartmentLabel(category.slug, category.name, locale)}
           </p>
-          <p className="mt-1 text-sm text-subtle">{category.slug}</p>
         </div>
       ),
     },
@@ -127,7 +126,7 @@ export default function EmployeeCategoryTable({ categories }: Props) {
       key: "status",
       title: t("common.labels.status"),
       width: "10rem",
-      align: "center",
+      cellAlign: "center",
       className: "min-w-[10rem] overflow-visible whitespace-nowrap",
       render: (category) => (
         <StatusBadge status={category.active ? "active" : "inactive"}>
@@ -141,7 +140,7 @@ export default function EmployeeCategoryTable({ categories }: Props) {
       key: "actions",
       title: t("common.labels.actions"),
       width: "11rem",
-      align: "center",
+      cellAlign: "center",
       className: "min-w-[11rem] overflow-visible whitespace-nowrap",
       render: (category) => (
         <EmployeeCategoryRowActions

@@ -8,8 +8,9 @@ export const DEFAULT_INVOICE_DUE_DAYS = 14;
 export const CASH_PAYMENT_TERMS_DAYS = 0;
 
 /**
- * Allowed client/vendor payment terms (`paymentTermsDays`).
+ * Allowed project / purchase payment terms (`paymentTermsDays`).
  * `0` = Cash (due on invoice submit / issue date).
+ * Longer nets (90–180) are for strong supplier or client relationships.
  */
 export const PAYMENT_TERMS_DAYS_OPTIONS = [
   CASH_PAYMENT_TERMS_DAYS,
@@ -18,10 +19,25 @@ export const PAYMENT_TERMS_DAYS_OPTIONS = [
   30,
   45,
   60,
+  90,
+  120,
+  150,
+  180,
 ] as const;
 
 export type PaymentTermsDaysOption =
   (typeof PAYMENT_TERMS_DAYS_OPTIONS)[number];
+
+/** Whole months for long Net terms (90 / 120 / 150 / 180). */
+export function paymentTermsMonthCount(
+  days: number | null | undefined
+): number | null {
+  if (typeof days !== "number" || !Number.isFinite(days) || days < 90) {
+    return null;
+  }
+  if (days % 30 !== 0) return null;
+  return days / 30;
+}
 
 export function isCashPaymentTerms(
   days: number | null | undefined
@@ -174,11 +190,16 @@ export function getPurchasePaymentDisplay(
   };
 }
 
-/** AP tax incomplete: PPN enabled but faktur pajak not uploaded yet. */
+/** AP tax incomplete: local PPN enabled but faktur pajak not uploaded yet. */
 export function isPurchaseTaxIncomplete(invoice: {
   includesPpn: boolean;
   taxInvoiceFilePath?: string | null;
+  origin?: string | null;
+  purchaseCategory?: string | null;
 }): boolean {
+  if (invoice.purchaseCategory === "GOVERNMENT") return false;
+  // Import PPN is credited from the customs payment (PIB), not an e-Faktur.
+  if (invoice.origin === "IMPORT") return false;
   return invoice.includesPpn && !invoice.taxInvoiceFilePath;
 }
 

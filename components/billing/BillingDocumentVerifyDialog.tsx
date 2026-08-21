@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, type FormEvent, type ReactNode } from "react";
+import { type FormEvent, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { ShieldCheck, Upload, X } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 
 import {
   EmployeePrimaryButton,
@@ -17,11 +17,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DOCUMENT_FILE_ACCEPT,
+  FileDropField,
+  preventBrowserFileNavigation,
+} from "@/components/ui/FileDropField";
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
-
-const ACCEPT = "image/jpeg,image/png,image/webp,image/gif,application/pdf";
 
 export function BillingDocumentFilePick({
   id,
@@ -38,62 +41,16 @@ export function BillingDocumentFilePick({
   onPick: (file: File | null) => void;
   disabled?: boolean;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const { t } = useT();
-
-  function clearFile() {
-    if (inputRef.current) {
-      inputRef.current.value = "";
-    }
-    onPick(null);
-  }
-
   return (
-    <div className="space-y-2">
-      <label htmlFor={id} className="text-sm font-semibold text-text">
-        {label}
-        {required ? <span className="text-red-400"> *</span> : null}
-      </label>
-      <div className="relative">
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => inputRef.current?.click()}
-          className={cn(
-            "flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-elevated px-4 py-4 text-sm transition",
-            "hover:border-primary/40 hover:bg-card-hover disabled:cursor-not-allowed disabled:opacity-50",
-            fileName ? "pr-11 text-text" : "text-muted"
-          )}
-        >
-          <Upload className="h-4 w-4 shrink-0" />
-          <span className="truncate">
-            {fileName ?? t("pages.billing.paymentReceivedDropOrBrowse")}
-          </span>
-        </button>
-        {fileName ? (
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={clearFile}
-            aria-label={t("common.actions.remove")}
-            className="absolute top-1/2 right-2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-muted transition hover:bg-card-hover hover:text-text disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        ) : null}
-      </div>
-      <input
-        ref={inputRef}
-        id={id}
-        type="file"
-        accept={ACCEPT}
-        className="sr-only"
-        disabled={disabled}
-        onChange={(event) => {
-          onPick(event.target.files?.[0] ?? null);
-        }}
-      />
-    </div>
+    <FileDropField
+      id={id}
+      label={label}
+      required={required}
+      fileName={fileName}
+      onPick={onPick}
+      disabled={disabled}
+      accept={DOCUMENT_FILE_ACCEPT}
+    />
   );
 }
 
@@ -128,7 +85,7 @@ type Props = {
   requireReason?: boolean;
   reasonValue?: string;
   onReasonChange?: (value: string) => void;
-  /** Optional compact note under the dropzone (AI verify hint, PPN note, etc.). */
+  /** Optional compact note under the dropzone (PPN note, payment hint, etc.). */
   callout?: string;
   calloutIcon?: LucideIcon;
   /** Extra fields between file pick and callout (e.g. editable PPN rate). */
@@ -178,6 +135,8 @@ export default function BillingDocumentVerifyDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={!pending}
+        onDragOver={preventBrowserFileNavigation}
+        onDrop={preventBrowserFileNavigation}
         className={cn(
           "flex max-h-[min(94vh,40rem)] w-[calc(100%-1.5rem)] min-w-[min(100%,20rem)] flex-col gap-0 overflow-hidden rounded-2xl border border-border bg-panel p-0 text-text ring-0",
           "sm:w-full sm:min-w-[min(100%,28rem)] sm:max-w-md"

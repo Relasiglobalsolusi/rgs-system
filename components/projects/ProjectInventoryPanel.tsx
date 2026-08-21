@@ -10,6 +10,7 @@ import {
   showRejection,
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
+import { ChipCell } from "@/components/ui/DataTable";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
@@ -181,6 +182,7 @@ export default function ProjectInventoryPanel({
                       </td>
                       {canVoidIssue ? (
                         <td className="px-3 py-2.5 text-center">
+                          <ChipCell>
                           <Button
                             type="button"
                             variant="ghost"
@@ -193,6 +195,7 @@ export default function ProjectInventoryPanel({
                           >
                             {t("pages.projects.detail.voidIssue")}
                           </Button>
+                          </ChipCell>
                         </td>
                       ) : null}
                     </tr>

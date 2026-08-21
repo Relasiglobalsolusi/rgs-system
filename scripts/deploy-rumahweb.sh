@@ -13,7 +13,7 @@
 #   1. Point DNS A record for the ERP subdomain to this VPS
 #   2. Ensure GitHub remotes exist and code is pushed
 #   3. Edit DB password + .env values below (CHANGE_THIS_*)
-#   4. Set OPENAI_API_KEY + company bank for payment/tax AI verification
+#   4. Set company bank and SMTP in .env before go-live
 
 set -e
 
@@ -59,9 +59,6 @@ NEXTAUTH_URL="https://${ERP_DOMAIN}"
 WEBSITE_CORS_ORIGIN="https://${WEB_DOMAIN},https://www.${WEB_DOMAIN}"
 # WEBSITE_CMS_API_KEY="shared-secret-with-website"
 #
-# AI payment / tax verification (server-side only; fail-closed if unset)
-# OPENAI_API_KEY="sk-..."
-# OPENAI_PAYMENT_VERIFY_MODEL="gpt-4o-mini"
 # COMPANY_BANK_ACCOUNT_NUMBER="CHANGE_THIS"
 # COMPANY_BANK_NAME="BCA"
 # COMPANY_BANK_ACCOUNT_NAME="PT Relasi Global Solusi"
@@ -73,7 +70,7 @@ WEBSITE_CORS_ORIGIN="https://${WEB_DOMAIN},https://www.${WEB_DOMAIN}"
 # SMTP_PASS="CHANGE_THIS"
 # SMTP_FROM="Relasi Global Solusi <noreply@rgs.co.id>"
 EOF
-  echo "Created ERP .env — set OPENAI_API_KEY, company bank, SMTP before go-live!"
+  echo "Created ERP .env — set company bank and SMTP before go-live!"
 fi
 
 # Persist uploads across deploys (gitignored locally)

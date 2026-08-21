@@ -22,23 +22,6 @@ export const OFFICE_HOURS_END_HHMM = "17:00";
 /** Check-in after 09:15 is late (15 minutes grace). */
 export const OFFICE_LATE_GRACE_MINUTES = 15;
 
-/** Punctuality snapshot for Attendance now / payroll PDF later. */
-export type OfficeCicoPunctuality = {
-  lateCheckIn: boolean;
-  earlyCheckOut: boolean;
-};
-
-export function getOfficeCicoPunctuality(opts: {
-  checkIn: Date | null | undefined;
-  checkOut: Date | null | undefined;
-}): OfficeCicoPunctuality {
-  return {
-    lateCheckIn: opts.checkIn != null ? isOfficeClockLate(opts.checkIn) : false,
-    earlyCheckOut:
-      opts.checkOut != null ? isOfficeClockEarlyLeave(opts.checkOut) : false,
-  };
-}
-
 export function internalHomeSiteToProjectName(
   homeSite: InternalHomeSite | null | undefined
 ): string | null {

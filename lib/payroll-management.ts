@@ -1,5 +1,3 @@
-import type { PayrollManagementPeriodStatus } from "@prisma/client";
-
 import { DISPLAY_LOCALE, formatEnglishOrdinalDate } from "@/lib/format-date";
 import { addUtcDays, toUtcDateOnly } from "@/lib/invoice-period";
 import { decimalToNumber, payrollManagementFeePercent } from "@/lib/project-billing";
@@ -223,20 +221,4 @@ export function periodMoneyNumbers(period: {
     clientBillAmount: decimalToNumber(period.clientBillAmount) ?? 0,
     serviceFeePercent: decimalToNumber(period.serviceFeePercent) ?? 0,
   };
-}
-
-export function isWagesPaidStatus(
-  status: PayrollManagementPeriodStatus | string
-): boolean {
-  return (
-    status === "WAGES_PAID" ||
-    status === "INVOICED" ||
-    status === "REIMBURSED"
-  );
-}
-
-export function isReimbursedStatus(
-  status: PayrollManagementPeriodStatus | string
-): boolean {
-  return status === "REIMBURSED";
 }

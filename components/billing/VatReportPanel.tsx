@@ -39,18 +39,36 @@ export type VatLedgerRow = {
   href: string;
 };
 
+export type IncomeTaxCreditRow = {
+  id: string;
+  source: string;
+  detail: string;
+  date: string | null;
+  amount: number;
+  href: string;
+};
+
+type TaxReportView = "output" | "input" | "income" | "other";
+
 type Props = {
   year: number;
   month: number;
-  view: "output" | "input";
+  view: TaxReportView;
   outputTotal: number;
   inputTotal: number;
   net: number;
+  vatPaid?: number;
   outputRows: VatLedgerRow[];
   inputRows: VatLedgerRow[];
   outputPending: number;
   inputPending: number;
-  /** Base path used for month-picker navigation and Output/Input tab links. */
+  incomeRows?: IncomeTaxCreditRow[];
+  incomeImportTotal?: number;
+  incomeInstallmentTotal?: number;
+  otherRows?: IncomeTaxCreditRow[];
+  otherRemittanceTotal?: number;
+  otherExpenseTotal?: number;
+  /** Base path used for month-picker navigation and tab links. */
   basePath?: string;
   /** Hide the "Open Tax Invoices" action link on the output section header. */
   hideOutputLink?: boolean;
@@ -67,6 +85,13 @@ export default function VatReportPanel({
   inputRows,
   outputPending,
   inputPending,
+  vatPaid = 0,
+  incomeRows = [],
+  incomeImportTotal = 0,
+  incomeInstallmentTotal = 0,
+  otherRows = [],
+  otherRemittanceTotal = 0,
+  otherExpenseTotal = 0,
   basePath = "/billing/tax-invoices",
   hideOutputLink = false,
 }: Props) {
@@ -75,6 +100,11 @@ export default function VatReportPanel({
   const [pending, startTransition] = useTransition();
   const bcp47 = localeToBcp47(locale);
   const rows = view === "output" ? outputRows : inputRows;
+  const incomeCreditTotal = incomeImportTotal + incomeInstallmentTotal;
+  const vatRemaining = Math.max(0, -net - vatPaid);
+  const isIncome = view === "income";
+  const isOther = view === "other";
+  const usesYearOnly = isIncome;
   const ratePct = Math.round(DEFAULT_INCLUSIVE_PPN_RATE * 100);
   const monthOptions = useMemo(
     () => Array.from({ length: 12 }, (_, index) => index + 1),
@@ -107,12 +137,7 @@ export default function VatReportPanel({
       className: "min-w-[14rem]",
       render: (row) => (
         <div className="min-w-0">
-          <Link
-            href={row.href}
-            className="font-medium text-primary hover:underline"
-          >
-            {row.partyName}
-          </Link>
+          <p className="font-medium text-text">{row.partyName}</p>
           <p className="mt-0.5 truncate text-sm text-subtle">{row.detail}</p>
         </div>
       ),
@@ -155,6 +180,7 @@ export default function VatReportPanel({
       key: "status",
       title: t("pages.vat.columns.faktur"),
       width: "9rem",
+      cellAlign: "center",
       className: "min-w-[9rem]",
       render: (row) => (
         <StatusBadge status={row.fakturReady ? "success" : "pending"}>
@@ -163,6 +189,42 @@ export default function VatReportPanel({
             : t("pages.vat.fakturPending")}
         </StatusBadge>
       ),
+    },
+  ];
+
+  const incomeColumns: DataTableColumn<IncomeTaxCreditRow>[] = [
+    {
+      key: "source",
+      title: t("pages.vat.columns.source"),
+      width: "14rem",
+      share: 2,
+      className: "min-w-[14rem]",
+      render: (row) => (
+        <div className="min-w-0">
+          <p className="font-medium text-text">{row.source}</p>
+          <p className="mt-0.5 truncate text-sm text-subtle">{row.detail}</p>
+        </div>
+      ),
+    },
+    {
+      key: "date",
+      title: t("pages.vat.columns.date"),
+      width: "9rem",
+      className: "min-w-[9rem]",
+      render: (row) =>
+        row.date
+          ? formatDisplayDate(new Date(row.date), { timeZone: "UTC" }, bcp47)
+          : "—",
+    },
+    {
+      key: "credit",
+      title: isOther
+        ? t("pages.vat.columns.amount")
+        : t("pages.vat.columns.credit"),
+      width: "10rem",
+      align: "right",
+      className: "min-w-[10rem] tabular-nums font-medium text-text",
+      render: (row) => formatContractPrice(row.amount),
     },
   ];
 
@@ -179,6 +241,7 @@ export default function VatReportPanel({
             {t("pages.vat.period")}
           </p>
           <div className="flex flex-wrap gap-2">
+            {usesYearOnly ? null : (
             <Select
               value={String(month)}
               onValueChange={(value) => {
@@ -205,6 +268,7 @@ export default function VatReportPanel({
                 ))}
               </SelectContent>
             </Select>
+            )}
             <Select
               value={String(year)}
               onValueChange={(value) => {
@@ -230,11 +294,64 @@ export default function VatReportPanel({
           </div>
         </div>
         <p className="max-w-xl text-sm text-subtle">
-          {t("pages.vat.rateHint", { rate: ratePct })}
+          {isIncome
+            ? t("pages.vat.incomeHint")
+            : isOther
+              ? t("pages.vat.otherDesc")
+              : t("pages.vat.rateHint", { rate: ratePct })}
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      {isOther ? (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <DirectoryStatCard
+            title={t("pages.vat.otherRemittanceTotal")}
+            value={formatContractPrice(otherRemittanceTotal)}
+            subtitle={t("pages.vat.otherRemittanceTotalHint")}
+            icon={<ArrowUpRight size={18} />}
+            accent="warning"
+          />
+          <DirectoryStatCard
+            title={t("pages.vat.otherExpenseTotal")}
+            value={formatContractPrice(otherExpenseTotal)}
+            subtitle={t("pages.vat.otherExpenseTotalHint")}
+            icon={<ArrowDownLeft size={18} />}
+            accent="primary"
+          />
+          <DirectoryStatCard
+            title={t("pages.vat.tabs.other")}
+            value={formatContractPrice(otherRemittanceTotal + otherExpenseTotal)}
+            subtitle={t("pages.vat.otherDesc")}
+            icon={<Scale size={18} />}
+            accent="primary"
+          />
+        </div>
+      ) : isIncome ? (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <DirectoryStatCard
+            title={t("pages.vat.incomeImportTotal")}
+            value={formatContractPrice(incomeImportTotal)}
+            subtitle={t("pages.vat.incomeImportTotalHint")}
+            icon={<ArrowDownLeft size={18} />}
+            accent="success"
+          />
+          <DirectoryStatCard
+            title={t("pages.vat.incomeInstallmentTotal")}
+            value={formatContractPrice(incomeInstallmentTotal)}
+            subtitle={t("pages.vat.incomeInstallmentTotalHint")}
+            icon={<ArrowUpRight size={18} />}
+            accent="warning"
+          />
+          <DirectoryStatCard
+            title={t("pages.vat.incomeCreditTotal")}
+            value={formatContractPrice(incomeCreditTotal)}
+            subtitle={t("pages.vat.incomeCreditTotalHint")}
+            icon={<Scale size={18} />}
+            accent="primary"
+          />
+        </div>
+      ) : (
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <DirectoryStatCard
           title={t("pages.vat.outputTotal")}
           value={formatContractPrice(outputTotal)}
@@ -254,9 +371,21 @@ export default function VatReportPanel({
           value={formatContractPrice(net)}
           subtitle={t("pages.vat.netPayableHint")}
           icon={<Scale size={18} />}
-          accent={net < 0 ? "success" : "primary"}
+          accent={net > 0 ? "success" : net < 0 ? "warning" : "primary"}
+        />
+        <DirectoryStatCard
+          title={vatRemaining > 0 ? t("pages.vat.vatRemaining") : t("pages.vat.vatPaid")}
+          value={formatContractPrice(vatRemaining > 0 ? vatRemaining : vatPaid)}
+          subtitle={
+            vatRemaining > 0
+              ? t("pages.vat.vatRemainingHint")
+              : t("pages.vat.vatPaidHint")
+          }
+          icon={<Scale size={18} />}
+          accent={vatRemaining > 0 ? "warning" : "success"}
         />
       </div>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <DirectoryFilterTab
@@ -279,6 +408,20 @@ export default function VatReportPanel({
             ? ` · ${t("pages.vat.pendingCount", { count: inputPending })}`
             : null}
         </DirectoryFilterTab>
+        <DirectoryFilterTab
+          href={`${basePath}?year=${year}&month=${month}&view=income`}
+          active={view === "income"}
+          count={incomeRows.length}
+        >
+          {t("pages.vat.tabs.income")}
+        </DirectoryFilterTab>
+        <DirectoryFilterTab
+          href={`${basePath}?year=${year}&month=${month}&view=other`}
+          active={view === "other"}
+          count={otherRows.length}
+        >
+          {t("pages.vat.tabs.other")}
+        </DirectoryFilterTab>
       </div>
 
       <SectionCard>
@@ -287,15 +430,23 @@ export default function VatReportPanel({
             <h2 className="text-base font-semibold text-text">
               {view === "output"
                 ? t("pages.vat.outputTitle")
-                : t("pages.vat.inputTitle")}
+                : view === "income"
+                  ? t("pages.vat.incomeTitle")
+                  : view === "other"
+                    ? t("pages.vat.otherTitle")
+                    : t("pages.vat.inputTitle")}
             </h2>
             <p className="mt-1 text-sm text-subtle">
               {view === "output"
                 ? t("pages.vat.outputDesc")
-                : t("pages.vat.inputDesc")}
+                : view === "income"
+                  ? t("pages.vat.incomeDesc")
+                  : view === "other"
+                    ? t("pages.vat.otherDesc")
+                    : t("pages.vat.inputDesc")}
             </p>
           </div>
-          {(!hideOutputLink || view === "input") && (
+          {!isIncome && !isOther && (!hideOutputLink || view === "input") ? (
             <Link
               href={
                 view === "output"
@@ -308,10 +459,30 @@ export default function VatReportPanel({
                 ? t("pages.vat.openTaxInvoices")
                 : t("pages.vat.openPurchases")}
             </Link>
-          )}
+          ) : null}
         </div>
 
-        {rows.length === 0 ? (
+        {isIncome || isOther ? (
+          (isOther ? otherRows : incomeRows).length === 0 ? (
+            <EmptyState
+              title={
+                isOther ? t("pages.vat.emptyOther") : t("pages.vat.emptyIncome")
+              }
+              description={
+                isOther
+                  ? t("pages.vat.emptyOtherDesc")
+                  : t("pages.vat.emptyIncomeDesc")
+              }
+            />
+          ) : (
+            <DataTable
+              columns={incomeColumns}
+              data={isOther ? otherRows : incomeRows}
+              getRowKey={(row) => row.id}
+              onRowClick={(row) => router.push(row.href)}
+            />
+          )
+        ) : rows.length === 0 ? (
           <EmptyState
             title={
               view === "output"
@@ -329,6 +500,7 @@ export default function VatReportPanel({
             columns={columns}
             data={rows}
             getRowKey={(row) => row.id}
+            onRowClick={(row) => router.push(row.href)}
           />
         )}
       </SectionCard>

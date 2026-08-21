@@ -15,6 +15,7 @@ import {
 } from "@/components/employees/employee-dialog-ui";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import SearchableProjectSelect from "@/components/ui/SearchableProjectSelect";
 import {
   Select,
   SelectContent,
@@ -244,28 +245,19 @@ export default function PayrollDeductionDialog({
               <label className="text-sm font-semibold text-text">
                 {t("pages.payroll.lostStockProject")}
               </label>
-              <Select
-                value={projectId}
-                onValueChange={(value) => {
-                  if (value) setProjectId(value);
+              <SearchableProjectSelect
+                value={
+                  selectedProject &&
+                  selectedProject.id !== HEAD_OFFICE_PAYROLL_PROJECT
+                    ? projectId
+                    : ""
+                }
+                onValueChange={(next) => {
+                  if (next) setProjectId(next);
                 }}
-              >
-                <SelectTrigger className={employeeSelectTriggerClass}>
-                  <SelectValue>
-                    {selectedProject &&
-                    selectedProject.id !== HEAD_OFFICE_PAYROLL_PROJECT
-                      ? selectedProject.name
-                      : t("pages.payroll.selectProject")}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {commercialProjects.map((project) => (
-                    <SelectItem key={project.id} value={project.id}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                projects={commercialProjects}
+                placeholder={t("pages.payroll.selectProject")}
+              />
             </div>
           ) : null}
 
@@ -329,25 +321,14 @@ export default function PayrollDeductionDialog({
                 <label className="text-sm font-semibold text-text">
                   {t("pages.payroll.lostStockProject")}
                 </label>
-                <Select
+                <SearchableProjectSelect
                   value={projectId}
-                  onValueChange={(value) => {
-                    if (value) setProjectId(value);
+                  onValueChange={(next) => {
+                    if (next) setProjectId(next);
                   }}
-                >
-                  <SelectTrigger className={employeeSelectTriggerClass}>
-                    <SelectValue>
-                      {selectedProject?.name ?? t("pages.payroll.selectProject")}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects.map((project) => (
-                      <SelectItem key={project.id} value={project.id}>
-                        {project.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  projects={projects}
+                  placeholder={t("pages.payroll.selectProject")}
+                />
               </div>
               <label className="flex items-start gap-2 text-sm text-text">
                 <input

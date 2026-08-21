@@ -2,7 +2,9 @@
 
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
   type DragEvent,
@@ -25,6 +27,30 @@ import { cn } from "@/lib/utils";
 
 export type DataTableColumnAlign = "left" | "center" | "right";
 
+/**
+ * Centers chip / button / badge content in a table cell.
+ * Use for custom (non-DataTable) tables — center the matching `<th>` too
+ * so the title sits over the chip.
+ */
+export function ChipCell({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex w-full min-w-0 items-center justify-center text-center",
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
 export type DataTableColumn<T> = {
   key: keyof T | string;
   title: ReactNode;
@@ -32,22 +58,28 @@ export type DataTableColumn<T> = {
   className?: string;
   headerClassName?: string;
   /**
-   * Alignment for title and cells. Default is left. Action / button
-   * columns (`actions`) are always centered so Save / Remove sit under
-   * a centered Actions title. Gutters stay centered.
+   * Alignment for both `<th>` and `<td>` so the title sits over the content.
+   * Alias of `cellAlign` — existing columns keep working.
+   * Default is left. Use `center` for chips / buttons / badges.
+   * Use `right` for numbers / money. Action columns (`actions`)
+   * default to centered even without this flag.
    */
   align?: DataTableColumnAlign;
+  /**
+   * Same as `align`. Takes precedence when both are set.
+   * `center` centers the header over chips / buttons / badges.
+   */
+  cellAlign?: DataTableColumnAlign;
   /**
    * Hard column floor (e.g. `"11rem"`). Used for `<col>` min-width and the
    * table `min-width` sum so narrow viewports scroll instead of crushing.
    */
   width?: string;
   /**
-   * Relative share of free table width after gutters and fixed columns.
-   * Primary identity columns (name/address) should use a higher share;
-   * secondary columns default to equal share (`1`). Use `0` to lock a
-   * rem `width` (Actions / chip columns) so they never shrink into a
-   * neighbor.
+   * Relative share of leftover table width after rem floors.
+   * Primary identity columns (name/address) should use a higher share.
+   * Chip / status columns should stay at `1` so they grow enough for
+   * centered chips. Use `0` to lock a rem `width` (tight Actions).
    */
   share?: number;
   /** Marks the row-selection gutter column (excluded from row click). */
@@ -62,11 +94,17 @@ function columnAlignClass(align: DataTableColumnAlign) {
   return "text-left";
 }
 
-/** Titles: left with the data, except gutters and action buttons. */
+/** Header title justification matches the column (title over chip / money). */
 function columnHeaderJustifyClass(align: DataTableColumnAlign) {
   if (align === "right") return "justify-end";
   if (align === "center") return "justify-center";
   return "justify-start";
+}
+
+function resolveBodyAlign<T>(
+  column: DataTableColumn<T>
+): DataTableColumnAlign | undefined {
+  return column.cellAlign ?? column.align;
 }
 
 /**
@@ -81,7 +119,7 @@ function columnTrailingPadClass<T>(
   const key = String(column.key).toLowerCase();
   const needsEdgeGap =
     isLastColumn ||
-    column.align === "right" ||
+    resolveBodyAlign(column) === "right" ||
     key === "actions" ||
     key.endsWith("actions");
   return needsEdgeGap ? "pr-10" : undefined;
@@ -94,6 +132,8 @@ type Props<T> = {
   getRowKey?: (row: T, index: number) => string;
   onRowClick?: (row: T) => void;
   isRowSelected?: (row: T) => boolean;
+  /** When true, the row is not clickable and uses a muted disabled style. */
+  isRowDisabled?: (row: T) => boolean;
   toolbar?: ReactNode;
   /** Optional first body row (e.g. directory Add control). */
   leadingRow?: ReactNode;
@@ -111,10 +151,27 @@ const SELECTION_COLUMN_WIDTH = "3.5rem";
 /** Drag-handle gutter width (matches `<col>`). */
 export const REORDER_COLUMN_WIDTH = "2.75rem";
 /**
- * Floor width for data columns without an explicit `width`.
- * Columns never shrink below this — a small window scrolls sideways.
+ * Floor for left-aligned columns without an explicit rem `width`.
+ * Kept modest so directories with many columns still fit a wide window;
+ * leftover share grows them. A 12rem default on every column forced
+ * horizontal scroll even on desktop.
  */
-const MIN_FLEX_COLUMN_WIDTH = "12rem";
+const MIN_FLEX_COLUMN_WIDTH = "5.5rem";
+/**
+ * Floor for centered chip / badge columns that omit a rem `width`.
+ * Matches a compact status chip plus cell padding.
+ */
+const CHIP_COLUMN_MIN_WIDTH = "8rem";
+/**
+ * Subpixel / border slack so leftover shares never sum past 100%.
+ * Dark overlay scrollbars appear if `overflow-x: auto` is even 1px over.
+ */
+const LEFTOVER_WIDTH_SLACK = "2px";
+/**
+ * Treat this much extra scrollWidth as “fits” so a 1px rounding error
+ * does not paint a desktop slider.
+ */
+const OVERFLOW_SCROLL_TOLERANCE_PX = 1;
 /** Default relative share for non-gutter columns. */
 const DEFAULT_COLUMN_SHARE = 1;
 
@@ -151,14 +208,24 @@ function isGutterColumn<T>(column: DataTableColumn<T>) {
 }
 
 /**
- * Action / button columns and gutters are centered (title + cells).
- * Everything else is left so the title lines up with the data under it.
+ * Header alignment matches the body so the title shares the chip’s
+ * center (or sits over right-aligned money). Gutters stay centered.
  */
-function resolveColumnAlign<T>(
+function resolveHeaderAlign<T>(
+  column: DataTableColumn<T>
+): DataTableColumnAlign {
+  return resolveCellAlign(column);
+}
+
+/**
+ * Body cells: honor `cellAlign` / `align` (right = money). Action
+ * columns and gutters are centered. Everything else stays left.
+ */
+function resolveCellAlign<T>(
   column: DataTableColumn<T>
 ): DataTableColumnAlign {
   if (isGutterColumn(column) || isActionsColumn(column)) return "center";
-  return "left";
+  return resolveBodyAlign(column) ?? "left";
 }
 
 /** True when `width` is a percentage (layout hint), not a rem/px floor. */
@@ -172,6 +239,7 @@ function columnMinWidth<T>(column: DataTableColumn<T>) {
   if (column.reorderColumn) return REORDER_COLUMN_WIDTH;
   // Percentage `width` is a share of free space, not a min-width floor.
   if (column.width && !isPercentageWidth(column.width)) return column.width;
+  if (resolveCellAlign(column) === "center") return CHIP_COLUMN_MIN_WIDTH;
   return MIN_FLEX_COLUMN_WIDTH;
 }
 
@@ -196,20 +264,39 @@ function isFixedWidthColumn<T>(column: DataTableColumn<T>) {
   return isGutterColumn(column) || columnShareWeight(column) === 0;
 }
 
-function fixedWidthSum<T>(columns: DataTableColumn<T>[]) {
-  const parts = columns
-    .filter(isFixedWidthColumn)
-    .map((column) => columnMinWidth(column));
-  return parts.length > 0 ? parts.join(" + ") : "0px";
+function allMinWidthSum<T>(columns: DataTableColumn<T>[]) {
+  return columns.map(columnMinWidth).join(" + ");
+}
+
+function totalShareWeight<T>(columns: DataTableColumn<T>[]) {
+  return columns.reduce((sum, column) => sum + columnShareWeight(column), 0);
 }
 
 /**
- * Columns keep a rem floor. Never size by % of the viewport — a narrow
- * window must scroll sideways instead of cramping the table.
+ * Rem floor plus a share of leftover table width. Chip columns with
+ * share ≥ 1 grow on wide screens so ChipCell centering is visible.
+ * Locked columns (gutters / share 0) stay on their rem floor.
+ *
+ * Leftover is `max(0px, 100% − floors − slack)` so column widths never
+ * exceed the table (negative leftover / subpixel rounding used to make
+ * `overflow-x: auto` show a slider on every desktop width).
  */
-function columnWidthStyle<T>(column: DataTableColumn<T>): CSSProperties {
+function columnWidthStyle<T>(
+  column: DataTableColumn<T>,
+  columns: DataTableColumn<T>[]
+): CSSProperties {
   const minWidth = columnMinWidth(column);
-  return { width: minWidth, minWidth };
+  const share = columnShareWeight(column);
+  const totalShare = totalShareWeight(columns);
+
+  if (share <= 0 || totalShare <= 0 || isFixedWidthColumn(column)) {
+    return { width: minWidth };
+  }
+
+  const leftover = `max(0px, 100% - (${allMinWidthSum(columns)}) - ${LEFTOVER_WIDTH_SLACK})`;
+  return {
+    width: `calc(${minWidth} + (${leftover}) * ${share} / ${totalShare})`,
+  };
 }
 
 function resolveRowKey<T>(
@@ -230,6 +317,7 @@ export default function DataTable<T>({
   getRowKey,
   onRowClick,
   isRowSelected,
+  isRowDisabled,
   toolbar,
   leadingRow,
   className,
@@ -241,6 +329,8 @@ export default function DataTable<T>({
   const [rows, setRows] = useState(data);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [needsHScroll, setNeedsHScroll] = useState(false);
 
   useEffect(() => {
     setRows(data);
@@ -280,8 +370,28 @@ export default function DataTable<T>({
    */
   const tableMinWidth = `calc(${displayColumns.map(columnMinWidth).join(" + ")})`;
 
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    function measure() {
+      const next = el.scrollWidth > el.clientWidth + OVERFLOW_SCROLL_TOLERANCE_PX;
+      setNeedsHScroll((prev) => (prev === next ? prev : next));
+    }
+
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    const table = el.querySelector("table");
+    if (table) observer.observe(table);
+    return () => observer.disconnect();
+  }, [displayColumns, rows, tableMinWidth]);
+
   function handleRowClick(event: MouseEvent<HTMLTableRowElement>, row: T) {
     if (!onRowClick) return;
+    if (isRowDisabled?.(row)) return;
     if (isSelectionCell(event.target)) return;
     if (isReorderCell(event.target)) return;
     if (isInteractiveTarget(event.target, event.currentTarget)) return;
@@ -339,33 +449,50 @@ export default function DataTable<T>({
   }
 
   return (
-    <div className={cn("space-y-3", className)}>
+    <div className={cn("min-w-0 max-w-full space-y-3", className)}>
       {toolbar ? (
         <div className="flex flex-wrap items-center justify-between gap-3">
           {toolbar}
         </div>
       ) : null}
 
-      <div
-        className="overflow-x-auto overscroll-x-contain rounded-xl border border-border bg-card [-webkit-overflow-scrolling:touch]"
-        style={{ WebkitOverflowScrolling: "touch" }}
-      >
-        {/*
-          Rem column floors + min-width. A small window scrolls sideways
-          instead of cramping columns.
-        */}
-        <Table
-          containerClassName="overflow-visible"
-          className="min-w-full text-left"
-          style={{
-            minWidth: tableMinWidth,
-          }}
+      {/*
+        Border lives outside the scrollport so 1px edges are not part of
+        the overflow measurement. Inner min-w-0 lets flex parents shrink
+        the table to the card instead of growing with column floors.
+      */}
+      <div className="min-w-0 max-w-full rounded-xl border border-border bg-card">
+        <div
+          ref={scrollRef}
+          className={cn(
+            "min-w-0 max-w-full overscroll-x-contain [-webkit-overflow-scrolling:touch]",
+            needsHScroll ? "overflow-x-auto" : "overflow-x-hidden"
+          )}
+          style={{ WebkitOverflowScrolling: "touch" }}
         >
+          {/*
+            width / max-width 100% + box-border: fill the card when rem
+            floors fit (no slider). min-width is the floor sum so a
+            narrow window still scrolls. Leftover share lives on <col>
+            only — min-width / overflow-visible on tds used to make
+            scrollWidth exceed clientWidth by a few pixels.
+          */}
+          <Table
+            containerClassName="min-w-0 max-w-full overflow-visible"
+            className="box-border w-full max-w-full min-w-0 table-fixed text-left"
+            style={{
+              width: "100%",
+              maxWidth: "100%",
+              minWidth: tableMinWidth,
+              boxSizing: "border-box",
+              tableLayout: "fixed",
+            }}
+          >
           <colgroup>
             {displayColumns.map((column) => (
               <col
                 key={String(column.key)}
-                style={columnWidthStyle(column)}
+                style={columnWidthStyle(column, displayColumns)}
               />
             ))}
           </colgroup>
@@ -376,7 +503,7 @@ export default function DataTable<T>({
                 const isLastColumn = columnIndex === displayColumns.length - 1;
                 const isGutter =
                   column.selectionColumn || column.reorderColumn;
-                const align = resolveColumnAlign(column);
+                const headerAlign = resolveHeaderAlign(column);
 
                 return (
                   <TableHead
@@ -389,18 +516,20 @@ export default function DataTable<T>({
                     }
                     onClick={isGutter ? stopGutterCellClick : undefined}
                     onPointerDown={isGutter ? stopGutterCellClick : undefined}
-                    style={columnWidthStyle(column)}
                     className={cn(
-                      "h-12 overflow-hidden bg-elevated px-4 py-3 align-middle text-[11px] font-semibold uppercase tracking-[0.14em] text-subtle",
-                      columnAlignClass(align),
+                      "h-12 bg-elevated px-4 py-3 align-middle text-[11px] font-semibold uppercase tracking-[0.14em] text-subtle",
+                      column.headerClassName,
                       columnTrailingPadClass(column, isLastColumn),
-                      column.headerClassName
+                      // Chip / actions: center title over the chip. Money: right.
+                      columnAlignClass(headerAlign),
+                      "overflow-hidden"
                     )}
                   >
                     <span
                       className={cn(
                         "inline-flex min-h-6 w-full items-center",
-                        columnHeaderJustifyClass(align)
+                        columnHeaderJustifyClass(headerAlign),
+                        columnAlignClass(headerAlign)
                       )}
                     >
                       {column.title}
@@ -426,6 +555,7 @@ export default function DataTable<T>({
             ) : (
               rows.map((row, index) => {
                 const selected = isRowSelected?.(row) ?? false;
+                const disabled = isRowDisabled?.(row) ?? false;
                 const isDragging = dragIndex === index;
                 const isDropTarget =
                   dropIndex === index && dragIndex !== null && dragIndex !== index;
@@ -434,9 +564,13 @@ export default function DataTable<T>({
                   <TableRow
                     key={resolveRowKey(row, index, getRowKey)}
                     data-state={selected ? "selected" : undefined}
+                    aria-disabled={disabled || undefined}
                     className={cn(
                       "border-border transition duration-300",
-                      interactive && "cursor-pointer hover:bg-card-hover",
+                      interactive &&
+                        !disabled &&
+                        "cursor-pointer hover:bg-card-hover",
+                      disabled && "cursor-not-allowed opacity-60 hover:bg-transparent",
                       selected
                         ? "bg-card-tint-emerald"
                         : index % 2 === 1
@@ -468,7 +602,10 @@ export default function DataTable<T>({
                         columnIndex === displayColumns.length - 1;
                       const isGutter =
                         column.selectionColumn || column.reorderColumn;
-                      const align = resolveColumnAlign(column);
+                      const cellAlign = resolveCellAlign(column);
+                      const cellContent = column.render
+                        ? column.render(row)
+                        : String(row[column.key as keyof T] ?? "");
 
                       return (
                         <TableCell
@@ -483,12 +620,15 @@ export default function DataTable<T>({
                           onPointerDown={
                             isGutter ? stopGutterCellClick : undefined
                           }
-                          style={columnWidthStyle(column)}
                           className={cn(
                             "align-middle whitespace-normal px-4 py-4",
-                            columnAlignClass(align),
+                            column.className,
                             columnTrailingPadClass(column, isLastColumn),
-                            column.className
+                            // Wins over column.className so chips stay centered.
+                            columnAlignClass(cellAlign),
+                            // Visible overflow of nowrap chips inflates
+                            // the scrollport even when <col> widths fit.
+                            "overflow-hidden"
                           )}
                         >
                           {column.reorderColumn ? (
@@ -501,10 +641,10 @@ export default function DataTable<T>({
                                 onDragEnd={handleDragEnd}
                               />
                             </div>
-                          ) : column.render ? (
-                            column.render(row)
+                          ) : cellAlign === "center" && !isGutter ? (
+                            <ChipCell>{cellContent}</ChipCell>
                           ) : (
-                            String(row[column.key as keyof T] ?? "")
+                            cellContent
                           )}
                         </TableCell>
                       );
@@ -514,7 +654,8 @@ export default function DataTable<T>({
               })
             )}
           </TableBody>
-        </Table>
+          </Table>
+        </div>
       </div>
     </div>
   );

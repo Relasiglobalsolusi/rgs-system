@@ -7,25 +7,31 @@ import {
   markEmployeesOnProject,
   releaseEmployeesFromProject,
 } from "@/lib/workforce-crew";
+import {
+  OPERATIONS_TEAM_KINDS,
+  isOperationsTeamKind,
+  legacyKindForCatalogArea,
+  operationsTeamKindForSubCategory,
+  teamKindMatchesProjectSubCategory,
+  teamMatchesProjectServiceArea,
+  type OperationsTeamKindValue,
+} from "@/lib/operations-team-kind";
 
-export const OPERATIONS_TEAM_KINDS = [
-  "GENERAL_CLEANING",
-  "FACADE_CLEANING",
-] as const;
-
-export type OperationsTeamKindValue = (typeof OPERATIONS_TEAM_KINDS)[number];
+export {
+  OPERATIONS_TEAM_KINDS,
+  isOperationsTeamKind,
+  legacyKindForCatalogArea,
+  operationsTeamKindForSubCategory,
+  teamKindMatchesProjectSubCategory,
+  teamMatchesProjectServiceArea,
+};
+export type { OperationsTeamKindValue };
 
 const OPEN_TEAM_PROJECT_STATUSES = [
   "PLANNED",
   "IN_PROGRESS",
   "WAITING_FOR_APPROVAL",
 ] as const;
-
-export function isOperationsTeamKind(
-  value: string | null | undefined
-): value is OperationsTeamKindValue {
-  return OPERATIONS_TEAM_KINDS.includes(value as OperationsTeamKindValue);
-}
 
 export function eligibleTeamMemberWhere(
   companyId: string
@@ -165,6 +171,30 @@ export async function releaseTeamMemberFromOpenJobs(
   }
 }
 
+export function mapProjectTeamOption(team: {
+  id: string;
+  name: string;
+  kind: string | null;
+  serviceAreaCatalogId?: string | null;
+  serviceAreaCatalog?: { systemArea: string } | null;
+  members: Array<{
+    employeeId: string;
+    employee: { firstName: string; lastName: string };
+  }>;
+}) {
+  return {
+    id: team.id,
+    name: team.name,
+    kind: team.kind ?? "",
+    serviceAreaCatalogId: team.serviceAreaCatalogId ?? null,
+    catalogSystemArea: team.serviceAreaCatalog?.systemArea ?? null,
+    memberIds: team.members.map((member) => member.employeeId),
+    memberNames: team.members.map(
+      (member) => `${member.employee.firstName} ${member.employee.lastName}`
+    ),
+  };
+}
+
 export function parseTeamIdsFromForm(formData: FormData): string[] {
   return [
     ...new Set(formData.getAll("teamIds").map((value) => String(value).trim()).filter(Boolean)),
@@ -177,6 +207,8 @@ export async function applyOperationsTeamAssignments(
     companyId: string;
     projectId: string;
     subCategory: string;
+    areaCatalogId?: string | null;
+    serviceArea?: string | null;
     teamIds: string[];
     extraEmployeeIds: string[];
   }
@@ -186,14 +218,30 @@ export async function applyOperationsTeamAssignments(
     nextTeamIds.length > 0
       ? await db.operationsTeam.findMany({
           where: { id: { in: nextTeamIds }, companyId: opts.companyId },
-          include: { members: { select: { employeeId: true } } },
+          include: {
+            members: { select: { employeeId: true } },
+            serviceAreaCatalog: { select: { id: true, systemArea: true } },
+          },
         })
       : [];
   if (teams.length !== nextTeamIds.length) {
     throw new Error("One or more teams were not found.");
   }
   for (const team of teams) {
-    if (team.kind !== opts.subCategory) {
+    if (
+      !teamMatchesProjectServiceArea(
+        {
+          serviceAreaCatalogId: team.serviceAreaCatalogId,
+          catalogSystemArea: team.serviceAreaCatalog?.systemArea ?? null,
+          kind: team.kind,
+        },
+        {
+          areaCatalogId: opts.areaCatalogId,
+          serviceArea: opts.serviceArea,
+          subCategory: opts.subCategory,
+        }
+      )
+    ) {
       throw new Error("That team cannot be assigned to this job type.");
     }
   }

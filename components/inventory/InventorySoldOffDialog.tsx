@@ -5,7 +5,7 @@ import {
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { CircleDollarSign } from "lucide-react";
+import { AlertTriangle, CircleDollarSign } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -43,7 +43,16 @@ import DirectorySearchInput, {
   matchesDirectorySearch,
 } from "@/components/ui/DirectorySearchInput";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { FileDropField } from "@/components/ui/FileDropField";
+import { MoneyInput } from "@/components/ui/MoneyInput";
 import {
   Select,
   SelectContent,
@@ -52,13 +61,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { outlineChipTones } from "@/components/ui/StatusBadge";
+import CompanyBankAccountField from "@/components/company-details/CompanyBankAccountField";
+import type { CompanyBankAccountOption } from "@/lib/company-bank-accounts";
 import { formatDateForInput } from "@/lib/format-tenure";
-import { formatContractPrice } from "@/lib/project-billing";
+import { formatContractPrice, parseContractPrice } from "@/lib/project-billing";
 import {
   formatInventoryQty,
   isWholeInventoryQty,
 } from "@/lib/inventory";
 import { isValidNpwp } from "@/lib/npwp";
+import { localizeInventoryItemType } from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 import {
@@ -77,6 +89,7 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   items: InventoryCatalogItem[];
   equipmentAssets: InventoryOverviewAssetRow[];
+  bankAccounts?: CompanyBankAccountOption[];
 };
 
 export default function InventorySoldOffDialog({
@@ -84,10 +97,13 @@ export default function InventorySoldOffDialog({
   onOpenChange,
   items,
   equipmentAssets,
+  bankAccounts = [],
 }: Props) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
+  const [itemType, setItemType] = useState("");
   const [itemId, setItemId] = useState("");
+  const [saleSource, setSaleSource] = useState<"new" | "issued" | "">("");
   const [itemSearch, setItemSearch] = useState("");
   const [quantity, setQuantity] = useState("");
   const [unitPrice, setUnitPrice] = useState("");
@@ -107,29 +123,42 @@ export default function InventorySoldOffDialog({
   >([]);
   const [clientsPending, startClientsTransition] = useTransition();
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
+  const [bankAccountId, setBankAccountId] = useState("");
   const [pending, startTransition] = useTransition();
   const [baseline, setBaseline] = useState<HtmlFormDirtyBaseline | null>(null);
+  const [lossConfirmOpen, setLossConfirmOpen] = useState(false);
+  const lossConfirmedRef = useRef(false);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  const saleItemTypes = [
+    "Consumable",
+    "Chemical",
+    "Equipment",
+    "Spare Part",
+    "Other",
+  ] as const;
 
   const stockedItems = useMemo(
-    () => items.filter((item) => item.active && item.currentStock > 0),
-    [items]
+    () =>
+      items.filter((item) => {
+        if (!item.active) return false;
+        if (!itemType || item.itemType.trim() !== itemType) return false;
+        if (!matchInventoryItemType(item.itemType, "equipment")) {
+          return item.currentStock > 0;
+        }
+        const hasIssued = equipmentAssets.some(
+          (asset) =>
+            asset.item?.id === item.id &&
+            (asset.status === "AVAILABLE" || asset.status === "ON_PROJECT")
+        );
+        return item.currentStock > 0 || hasIssued;
+      }),
+    [equipmentAssets, itemType, items]
   );
 
   const filteredItems = useMemo(() => {
-    const typeLabel = (itemType: string) => {
-      switch (itemType.trim().toLowerCase()) {
-        case "equipment":
-          return t("pages.inventory.itemTypes.Equipment");
-        case "chemical":
-          return t("pages.inventory.itemTypes.Chemical");
-        case "consumable":
-          return t("pages.inventory.itemTypes.Consumable");
-        case "other":
-          return t("pages.inventory.itemTypes.Other");
-        default:
-          return itemType;
-      }
-    };
+    const typeLabel = (itemType: string) =>
+      localizeInventoryItemType(itemType, locale);
     return stockedItems.filter((item) =>
       matchesDirectorySearch(
         itemSearch,
@@ -139,24 +168,41 @@ export default function InventorySoldOffDialog({
         typeLabel(item.itemType)
       )
     );
-  }, [stockedItems, itemSearch, t]);
+  }, [stockedItems, itemSearch, locale]);
 
   const selected = stockedItems.find((item) => item.id === itemId);
   const isEquipmentSelected = Boolean(
     selected && matchInventoryItemType(selected.itemType, "equipment")
   );
 
-  const availableAssets = useMemo(
+  const sellableAssets = useMemo(
     () =>
-      equipmentAssets.filter(
-        (asset) =>
-          asset.item?.id === itemId && asset.status === "AVAILABLE"
-      ),
+      equipmentAssets
+        .filter(
+          (asset) =>
+            asset.item?.id === itemId &&
+            (asset.status === "AVAILABLE" || asset.status === "ON_PROJECT")
+        )
+        .slice()
+        .sort((a, b) => {
+          if (a.status !== b.status) {
+            return a.status === "AVAILABLE" ? -1 : 1;
+          }
+          return a.assetCode.localeCompare(b.assetCode);
+        }),
     [equipmentAssets, itemId]
   );
+  const sellableWarehouseCount = sellableAssets.filter(
+    (asset) => asset.status === "AVAILABLE"
+  ).length;
+  const sellableOnSiteCount = sellableAssets.length - sellableWarehouseCount;
+  const uncodedNew =
+    selected && isEquipmentSelected
+      ? Math.max(0, selected.currentStock - sellableWarehouseCount)
+      : 0;
 
   const qtyNumber = Number(String(quantity).replace(/,/g, "").trim());
-  const priceNumber = Number(String(unitPrice).replace(/,/g, "").trim());
+  const priceNumber = parseContractPrice(unitPrice) ?? Number.NaN;
   const parsedTaxRate = parsePpnRatePercent(taxRatePercent);
   const saleSubtotal =
     Number.isFinite(qtyNumber) &&
@@ -179,7 +225,9 @@ export default function InventorySoldOffDialog({
   isDirtyRef.current = isDirty;
 
   function resetFormState() {
+    setItemType("");
     setItemId("");
+    setSaleSource("");
     setItemSearch("");
     setQuantity("");
     setUnitPrice("");
@@ -194,6 +242,29 @@ export default function InventorySoldOffDialog({
     setClientSearch("");
     setClientOptions([]);
     setSelectedAssetIds([]);
+    setBankAccountId("");
+    setLossConfirmOpen(false);
+    lossConfirmedRef.current = false;
+  }
+
+  function estimateSaleCostBasis(qty: number) {
+    const catalogUnit = Math.max(
+      0,
+      selected?.avgUnitCost ?? selected?.lastUnitCost ?? 0
+    );
+    if (isEquipmentSelected && saleSource === "issued") {
+      return selectedAssetIds.reduce((sum, id) => {
+        const asset = sellableAssets.find((row) => row.id === id);
+        return sum + Math.max(0, asset?.unitCost ?? catalogUnit);
+      }, 0);
+    }
+    return catalogUnit * qty;
+  }
+
+  function isSaleAtLoss(qty: number, unitSalePrice: number) {
+    const saleTotal = qty * unitSalePrice;
+    const costBasis = estimateSaleCostBasis(qty);
+    return costBasis > 0 && saleTotal + 0.005 < costBasis;
   }
 
   function closeDialog() {
@@ -233,7 +304,16 @@ export default function InventorySoldOffDialog({
   useEffect(() => {
     setSelectedAssetIds([]);
     setQuantity("");
+    setSaleSource("");
   }, [itemId]);
+
+  useEffect(() => {
+    setItemId("");
+    setSaleSource("");
+    setSelectedAssetIds([]);
+    setQuantity("");
+    setItemSearch("");
+  }, [itemType]);
 
   useEffect(() => {
     if (!open || (buyerType !== "INDIVIDUAL" && buyerType !== "COMPANY")) {
@@ -392,7 +472,30 @@ export default function InventorySoldOffDialog({
       });
       return;
     }
-    if (selected && qty > selected.currentStock) {
+    if (isEquipmentSelected) {
+      if (saleSource !== "new" && saleSource !== "issued") {
+        showRejection({
+          reasons: t("pages.inventory.saleSource.required"),
+        });
+        return;
+      }
+      if (saleSource === "issued") {
+        if (selectedAssetIds.length === 0 || selectedAssetIds.length !== qty) {
+          showRejection({
+            reasons: t("pages.inventory.soldOffSelectAssetsRequired"),
+          });
+          return;
+        }
+      } else if (qty > uncodedNew) {
+        showRejection({
+          reasons: t("pages.inventory.quantityExceedsStock", {
+            available: formatInventoryQty(uncodedNew),
+            unit: selected?.unit ?? "pcs",
+          }),
+        });
+        return;
+      }
+    } else if (selected && qty > selected.currentStock) {
       showRejection({
         reasons: t("pages.inventory.quantityExceedsStock", {
           available: formatInventoryQty(selected.currentStock),
@@ -401,10 +504,8 @@ export default function InventorySoldOffDialog({
       });
       return;
     }
-    const price = Number(
-      String(formData.get("unitPrice") ?? "").replace(/,/g, "").trim()
-    );
-    if (!Number.isFinite(price) || price < 0) {
+    const price = parseContractPrice(String(formData.get("unitPrice") ?? ""));
+    if (price == null || price < 0) {
       showRejection({
         reasons: t("pages.inventory.quantityMustBeNonNegative", {
           field: t("pages.inventory.form.saleUnitPrice"),
@@ -412,21 +513,28 @@ export default function InventorySoldOffDialog({
       });
       return;
     }
-    const invoice = formData.get("invoice");
-    if (!(invoice instanceof File) || invoice.size === 0) {
-      showRejection({ reasons: t("pages.inventory.saleInvoiceRequired") });
+    if (!String(formData.get("bankAccountId") ?? bankAccountId).trim()) {
+      showRejection({
+        reasons: bankAccounts.length === 0
+          ? t("pages.sales.bankAccountEmpty")
+          : t("pages.sales.bankAccountRequired"),
+      });
       return;
     }
-    if (isEquipmentSelected && selectedAssetIds.length > 0) {
-      if (selectedAssetIds.length !== qty) {
-        showRejection({
-          reasons: t("pages.inventory.soldOffAssetQtyMismatch"),
-        });
-        return;
-      }
+    if (
+      isEquipmentSelected &&
+      saleSource === "issued" &&
+      selectedAssetIds.length !== qty
+    ) {
+      showRejection({
+        reasons: t("pages.inventory.soldOffAssetQtyMismatch"),
+      });
+      return;
     }
 
     formData.set("itemId", itemId);
+    formData.set("bankAccountId", bankAccountId);
+    formData.set("saleSource", saleSource);
     formData.set("buyerType", buyerType);
     formData.set("buyer", buyer.trim());
     formData.set(
@@ -442,6 +550,12 @@ export default function InventorySoldOffDialog({
     for (const assetId of selectedAssetIds) {
       formData.append("assetIds", assetId);
     }
+
+    if (isSaleAtLoss(qty, price) && !lossConfirmedRef.current) {
+      setLossConfirmOpen(true);
+      return;
+    }
+    lossConfirmedRef.current = false;
 
     startTransition(async () => {
       try {
@@ -484,88 +598,200 @@ export default function InventorySoldOffDialog({
         >
           <form
             id={FORM_ID}
+            ref={formRef}
             className={employeeDialogFormClass}
             action={submit}
             onInput={handleFormInput}
           >
             <div className={employeeDialogFieldClass}>
               <label className={employeeDialogLabelClass}>
-                {t("pages.inventory.form.catalogItem")}
+                {t("pages.inventory.form.itemType")}
               </label>
-              <DirectorySearchInput
-                value={itemSearch}
-                onChange={setItemSearch}
-                placeholder={t(
-                  "pages.inventory.form.catalogItemSearchPlaceholder"
-                )}
-                className="max-w-none"
-              />
               <Select
-                value={itemId || undefined}
-                onValueChange={(value) => setItemId(value ?? "")}
-                items={filteredItems.map((item) => ({
-                  value: item.id,
-                  label: formatCatalogItemLabel(item),
+                value={itemType || undefined}
+                onValueChange={(value) => setItemType(value ?? "")}
+                items={saleItemTypes.map((type) => ({
+                  value: type,
+                  label: localizeInventoryItemType(type, locale),
                 }))}
               >
                 <SelectTrigger className={employeeSelectTriggerClass}>
                   <SelectValue
-                    placeholder={t("pages.inventory.form.catalogItemPlaceholder")}
-                  >
-                    {(value) => {
-                      if (!value) return null;
-                      const item = stockedItems.find((entry) => entry.id === value);
-                      return item ? formatCatalogItemLabel(item) : null;
-                    }}
-                  </SelectValue>
+                    placeholder={t("pages.inventory.form.itemTypePlaceholder")}
+                  />
                 </SelectTrigger>
                 <SelectContent>
-                  {filteredItems.length === 0 ? (
-                    <div className="px-3 py-4 text-center text-sm text-subtle">
-                      {itemSearch.trim()
-                        ? t("pages.inventory.form.catalogItemNoSearchMatch")
-                        : t("pages.inventory.noStockToIssue")}
-                    </div>
-                  ) : (
-                    filteredItems.map((item) => (
-                      <SelectItem
-                        key={item.id}
-                        value={item.id}
-                        label={formatCatalogItemLabel(item)}
-                      >
-                        {formatCatalogItemStockLabel(item)}
-                      </SelectItem>
-                    ))
-                  )}
+                  {saleItemTypes.map((type) => (
+                    <SelectItem
+                      key={type}
+                      value={type}
+                      label={localizeInventoryItemType(type, locale)}
+                    >
+                      {localizeInventoryItemType(type, locale)}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
-              {selected ? (
-                <p className={employeeDialogHintClass}>
-                  {t("pages.inventory.form.soldOffItemHint", {
-                    available: formatInventoryQty(selected.currentStock),
-                    unit: selected.unit,
-                  })}
-                </p>
-              ) : (
-                <p className={employeeDialogHintClass}>
-                  {t("pages.inventory.form.issueItemHint")}
-                </p>
-              )}
             </div>
+
+            {itemType ? (
+              <div className={employeeDialogFieldClass}>
+                <label className={employeeDialogLabelClass}>
+                  {t("pages.inventory.form.catalogItem")}
+                </label>
+                {stockedItems.length === 0 ? (
+                  <p className={employeeDialogHintClass}>
+                    {t("pages.inventory.form.soldOffNoStockForType")}
+                  </p>
+                ) : (
+                  <>
+                    <DirectorySearchInput
+                      value={itemSearch}
+                      onChange={setItemSearch}
+                      placeholder={t(
+                        "pages.inventory.form.catalogItemSearchPlaceholder"
+                      )}
+                      className="max-w-none"
+                    />
+                    <Select
+                      value={itemId || undefined}
+                      onValueChange={(value) => setItemId(value ?? "")}
+                      items={filteredItems.map((item) => ({
+                        value: item.id,
+                        label: formatCatalogItemLabel(item),
+                      }))}
+                    >
+                      <SelectTrigger className={employeeSelectTriggerClass}>
+                        <SelectValue
+                          placeholder={t(
+                            "pages.inventory.form.catalogItemPlaceholder"
+                          )}
+                        >
+                          {(value) => {
+                            if (!value) return null;
+                            const item = stockedItems.find(
+                              (entry) => entry.id === value
+                            );
+                            return item ? formatCatalogItemLabel(item) : null;
+                          }}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {filteredItems.length === 0 ? (
+                          <div className="px-3 py-4 text-center text-sm text-subtle">
+                            {t("pages.inventory.form.catalogItemNoSearchMatch")}
+                          </div>
+                        ) : (
+                          filteredItems.map((item) => (
+                            <SelectItem
+                              key={item.id}
+                              value={item.id}
+                              label={formatCatalogItemLabel(item)}
+                            >
+                              {formatCatalogItemStockLabel(item)}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {selected ? (
+                      <p className={employeeDialogHintClass}>
+                        {isEquipmentSelected
+                          ? t("pages.inventory.form.soldOffEquipmentHint", {
+                              warehouse: formatInventoryQty(uncodedNew),
+                              onSite: formatInventoryQty(sellableOnSiteCount),
+                            })
+                          : t("pages.inventory.form.soldOffItemHint", {
+                              available: formatInventoryQty(selected.currentStock),
+                              unit: selected.unit,
+                            })}
+                      </p>
+                    ) : (
+                      <p className={employeeDialogHintClass}>
+                        {itemSearch.trim()
+                          ? t("pages.inventory.form.catalogItemNoSearchMatch")
+                          : t("pages.inventory.form.issueItemHint")}
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+            ) : null}
 
             {isEquipmentSelected ? (
               <div className={employeeDialogFieldClass}>
                 <label className={employeeDialogLabelClass}>
+                  {t("pages.inventory.saleSource.label")}
+                </label>
+                <Select
+                  value={saleSource || undefined}
+                  onValueChange={(value) => {
+                    setSaleSource((value as "new" | "issued") ?? "");
+                    setSelectedAssetIds([]);
+                    setQuantity("");
+                  }}
+                  items={[
+                    {
+                      value: "new",
+                      label: t("pages.inventory.saleSource.newInWarehouse"),
+                    },
+                    {
+                      value: "issued",
+                      label: t("pages.inventory.saleSource.issuedAsset"),
+                    },
+                  ]}
+                >
+                  <SelectTrigger className={employeeSelectTriggerClass}>
+                    <SelectValue
+                      placeholder={t("pages.inventory.saleSource.placeholder")}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem
+                      value="new"
+                      label={t("pages.inventory.saleSource.newInWarehouse")}
+                    >
+                      {t("pages.inventory.saleSource.newInWarehouse")}
+                    </SelectItem>
+                    <SelectItem
+                      value="issued"
+                      label={t("pages.inventory.saleSource.issuedAsset")}
+                    >
+                      {t("pages.inventory.saleSource.issuedAsset")}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className={employeeDialogHintClass}>
+                  {saleSource === "new"
+                    ? t("pages.inventory.saleSource.newHint", {
+                        available: formatInventoryQty(uncodedNew),
+                      })
+                    : saleSource === "issued"
+                      ? t("pages.inventory.saleSource.issuedHint")
+                      : t("pages.inventory.saleSource.chooseHint")}
+                </p>
+              </div>
+            ) : null}
+
+            {isEquipmentSelected && saleSource === "issued" ? (
+              <div className={employeeDialogFieldClass}>
+                <label className={employeeDialogLabelClass}>
                   {t("pages.inventory.form.soldOffAssets")}
                 </label>
-                {availableAssets.length === 0 ? (
+                {sellableAssets.length === 0 ? (
                   <p className={employeeDialogHintClass}>
                     {t("pages.inventory.form.soldOffNoAssets")}
                   </p>
                 ) : (
                   <div className="max-h-40 space-y-1 overflow-y-auto rounded-xl border border-border bg-elevated p-2">
-                    {availableAssets.map((asset) => {
+                    {sellableAssets.map((asset) => {
                       const checked = selectedAssetIds.includes(asset.id);
+                      const locationLabel =
+                        asset.status === "ON_PROJECT"
+                          ? t("pages.inventory.form.soldOffOnSite", {
+                              project: asset.project?.name?.trim() || "—",
+                            })
+                          : t("pages.inventory.product.headOffice");
                       return (
                         <label
                           key={asset.id}
@@ -578,12 +804,17 @@ export default function InventorySoldOffDialog({
                             }
                             aria-label={asset.assetCode}
                           />
-                          <span className="font-medium">{asset.assetCode}</span>
-                          {asset.serialNo ? (
-                            <span className="text-xs text-subtle">
-                              {asset.serialNo}
+                          <span className="min-w-0 flex-1">
+                            <span className="font-medium">{asset.assetCode}</span>
+                            {asset.serialNo ? (
+                              <span className="ml-2 text-xs text-subtle">
+                                {asset.serialNo}
+                              </span>
+                            ) : null}
+                            <span className="mt-0.5 block text-xs text-muted">
+                              {locationLabel}
                             </span>
-                          ) : null}
+                          </span>
                         </label>
                       );
                     })}
@@ -609,12 +840,17 @@ export default function InventorySoldOffDialog({
                   required
                   value={quantity}
                   onChange={(event) => {
+                    if (isEquipmentSelected && saleSource === "issued") return;
                     setQuantity(event.target.value);
-                    if (isEquipmentSelected && selectedAssetIds.length > 0) {
-                      setSelectedAssetIds([]);
-                    }
                   }}
-                  max={selected?.currentStock}
+                  readOnly={isEquipmentSelected && saleSource === "issued"}
+                  max={
+                    isEquipmentSelected
+                      ? saleSource === "issued"
+                        ? sellableAssets.length
+                        : uncodedNew
+                      : selected?.currentStock
+                  }
                   className={employeeInputClass}
                 />
               </div>
@@ -645,15 +881,12 @@ export default function InventorySoldOffDialog({
                   {t("pages.inventory.form.saleUnitPrice")}
                   <span className="text-danger"> *</span>
                 </label>
-                <input
+                <MoneyInput
                   id="soldoff-unit-price"
                   name="unitPrice"
-                  type="number"
-                  min={0}
-                  step="0.01"
                   required
                   value={unitPrice}
-                  onChange={(event) => setUnitPrice(event.target.value)}
+                  onValueChange={setUnitPrice}
                   className={employeeInputClass}
                 />
                 <p className={employeeDialogHintClass}>
@@ -725,6 +958,20 @@ export default function InventorySoldOffDialog({
                 ) : null}
               </div>
             </div>
+
+            <CompanyBankAccountField
+              id="soldoff-bank-account"
+              accounts={bankAccounts}
+              value={bankAccountId}
+              onChange={setBankAccountId}
+              required
+              label={t("pages.sales.bankAccount")}
+              hint={
+                bankAccounts.length === 0
+                  ? t("pages.sales.bankAccountEmpty")
+                  : t("pages.sales.invoiceAutoHint")
+              }
+            />
 
             <div className={employeeDialogFieldClass}>
               <label className={employeeDialogLabelClass}>
@@ -839,15 +1086,6 @@ export default function InventorySoldOffDialog({
                       ? t("pages.inventory.form.linkClientHintCompany")
                       : t("pages.inventory.form.linkClientHintIndividual")}
                   </p>
-                  {clientId ? (
-                    <button
-                      type="button"
-                      className="text-xs font-medium text-primary underline-offset-2 hover:underline"
-                      onClick={() => applyClient(null)}
-                    >
-                      {t("pages.inventory.form.clearLinkedClient")}
-                    </button>
-                  ) : null}
                 </div>
 
                 {buyerType === "COMPANY" ? (
@@ -1064,42 +1302,43 @@ export default function InventorySoldOffDialog({
                 ) : null}
 
                 <div className={employeeDialogFieldClass}>
-                  <label
-                    className={employeeDialogLabelClass}
-                    htmlFor="soldoff-invoice"
-                  >
-                    {t("pages.inventory.form.saleInvoice")}
-                    <span className="text-danger"> *</span>
-                  </label>
-                  <input
-                    id="soldoff-invoice"
-                    name="invoice"
-                    type="file"
+                  <FileDropField
+                    id="soldoff-payment-proof"
+                    name="paymentProof"
+                    label={t("pages.sales.form.paymentProof")}
                     accept="image/*,.pdf"
-                    required
-                    className={`${employeeInputClass} py-2 file:mr-3 file:rounded-lg file:border-0 file:bg-elevated file:px-3 file:py-1.5 file:text-sm`}
                   />
                   <p className={employeeDialogHintClass}>
-                    {t("pages.inventory.form.saleInvoiceHint")}
+                    {t("pages.sales.form.paymentProofHint")}
+                  </p>
+                </div>
+
+                <div className={employeeDialogFieldClass}>
+                  <label
+                    className={employeeDialogLabelClass}
+                    htmlFor="soldoff-paid-at"
+                  >
+                    {t("pages.sales.form.paidAt")}
+                  </label>
+                  <input
+                    id="soldoff-paid-at"
+                    name="paidAt"
+                    type="date"
+                    className={employeeInputClass}
+                  />
+                  <p className={employeeDialogHintClass}>
+                    {t("pages.sales.form.paidAtHint")}
                   </p>
                 </div>
 
                 {buyerType === "COMPANY" ? (
                   <div className={employeeDialogFieldClass}>
-                    <label
-                      className={employeeDialogLabelClass}
-                      htmlFor="soldoff-buyer-identity"
-                    >
-                      {t("pages.inventory.form.buyerIdentityDoc")}
-                      <span className="text-danger"> *</span>
-                    </label>
-                    <input
+                    <FileDropField
                       id="soldoff-buyer-identity"
                       name="buyerIdentityDoc"
-                      type="file"
-                      accept="image/*,.pdf"
+                      label={t("pages.inventory.form.buyerIdentityDoc")}
                       required
-                      className={`${employeeInputClass} py-2 file:mr-3 file:rounded-lg file:border-0 file:bg-elevated file:px-3 file:py-1.5 file:text-sm`}
+                      accept="image/*,.pdf"
                     />
                     <p className={employeeDialogHintClass}>
                       {t("pages.inventory.form.buyerIdentityDocHint")}
@@ -1133,6 +1372,59 @@ export default function InventorySoldOffDialog({
         }}
         onCancel={() => setExitConfirmOpen(false)}
       />
+
+      <Dialog
+        open={lossConfirmOpen}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            setLossConfirmOpen(false);
+            lossConfirmedRef.current = false;
+          }
+        }}
+      >
+        <DialogContent
+          showCloseButton={false}
+          className="gap-0 overflow-hidden rounded-2xl border border-border bg-panel p-0 text-text ring-0 sm:max-w-sm"
+        >
+          <div className="px-8 pt-8 pb-7 sm:px-10">
+            <DialogHeader className="items-center gap-4 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-card-tint-amber ring-1 ring-amber-500/25">
+                <AlertTriangle className="h-6 w-6 text-warning" />
+              </div>
+              <div className="space-y-2.5">
+                <DialogTitle className="text-lg font-semibold text-text">
+                  {t("pages.inventory.saleLossConfirmTitle")}
+                </DialogTitle>
+                <DialogDescription className="text-sm leading-6 text-muted">
+                  {t("pages.inventory.saleLossConfirmDescription")}
+                </DialogDescription>
+              </div>
+            </DialogHeader>
+          </div>
+          <DialogFooter className="mx-0 mb-0 mt-0 flex-col gap-3 rounded-none border-t border-border bg-strip px-8 py-6 sm:flex-col sm:justify-stretch sm:px-10">
+            <EmployeePrimaryButton
+              type="button"
+              disabled={pending}
+              onClick={() => {
+                setLossConfirmOpen(false);
+                lossConfirmedRef.current = true;
+                formRef.current?.requestSubmit();
+              }}
+            >
+              {t("common.actions.yes")}
+            </EmployeePrimaryButton>
+            <EmployeeSecondaryButton
+              disabled={pending}
+              onClick={() => {
+                setLossConfirmOpen(false);
+                lossConfirmedRef.current = false;
+              }}
+            >
+              {t("common.actions.no")}
+            </EmployeeSecondaryButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

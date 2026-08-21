@@ -15,7 +15,7 @@ export const BILLING_MODES = [
 /** Canonical stored/display label for on-completion invoices (one per project). */
 export const COMPLETION_INVOICE_LABEL = "Completion invoice";
 
-/** Billing choices for General / Facade Cleaning only. */
+/** Billing choices for General / Facade / One-Time Landscaping. */
 export const MILESTONE_ELIGIBLE_BILLING_MODES = [
   "MILESTONE",
   "ON_COMPLETION",
@@ -31,13 +31,18 @@ export function isBillingMode(value: string): value is BillingMode {
 }
 
 /**
- * Milestone payment schedules only apply to General Cleaning and Facade Cleaning.
- * Regular Cleaning (and any other subcategory) must not use MILESTONE billing.
+ * Milestone payment schedules for one-shot jobs (General / Facade /
+ * One Time Landscaping / One Time Security). Contract types stay monthly.
  */
 export function isMilestoneSubCategory(
   value: ProjectSubCategory | string | null | undefined
 ): boolean {
-  return value === "GENERAL_CLEANING" || value === "FACADE_CLEANING";
+  return (
+    value === "GENERAL_CLEANING" ||
+    value === "FACADE_CLEANING" ||
+    value === "ONE_TIME_LANDSCAPING" ||
+    value === "ONE_TIME_SECURITY"
+  );
 }
 
 /**
@@ -95,7 +100,7 @@ export function assertBillingModeForSubCategory(
   if (!allowed.includes(billingMode)) {
     throw new Error(
       billingMode === "MILESTONE"
-        ? "Milestone payment schedules are only for General Cleaning and Facade Cleaning."
+        ? "Milestone payment schedules are only for General Cleaning, Facade Cleaning, and One-Time Landscaping."
         : `Billing mode ${billingMode} is not allowed for this subcategory.`
     );
   }
@@ -289,10 +294,55 @@ export function formatContractPrice(
   }).format(num);
 }
 
+/** Digits only — used by money inputs that display `32.000.000`. */
+export function idrInputDigits(
+  raw: string | number | null | undefined
+): string {
+  if (raw == null || raw === "") return "";
+  return String(raw).replace(/[^\d]/g, "");
+}
+
+/** Thousand-grouped IDR input text (`32000000` → `32.000.000`). */
+export function formatIdrInput(
+  raw: string | number | null | undefined
+): string {
+  const digits = idrInputDigits(raw);
+  if (!digits) return "";
+  const num = Number(digits);
+  if (!Number.isFinite(num)) return "";
+  return new Intl.NumberFormat("id-ID").format(num);
+}
+
 export function parseContractPrice(raw: string): number | null {
-  const cleaned = raw.replace(/[^\d.,]/g, "").replace(",", ".");
-  if (!cleaned.trim()) return null;
-  const num = Number(cleaned);
+  const cleaned = raw.replace(/[^\d.,]/g, "").trim();
+  if (!cleaned) return null;
+
+  const lastComma = cleaned.lastIndexOf(",");
+  const lastDot = cleaned.lastIndexOf(".");
+  let normalized: string;
+
+  if (lastComma >= 0 && lastDot >= 0) {
+    normalized =
+      lastComma > lastDot
+        ? cleaned.replace(/\./g, "").replace(",", ".")
+        : cleaned.replace(/,/g, "");
+  } else if (lastComma >= 0) {
+    const parts = cleaned.split(",");
+    normalized =
+      parts.length === 2 && parts[1].length > 0 && parts[1].length <= 2
+        ? `${parts[0]}.${parts[1]}`
+        : cleaned.replace(/,/g, "");
+  } else if (lastDot >= 0) {
+    const parts = cleaned.split(".");
+    normalized =
+      parts.length === 2 && parts[1].length > 0 && parts[1].length <= 2
+        ? cleaned
+        : cleaned.replace(/\./g, "");
+  } else {
+    normalized = cleaned;
+  }
+
+  const num = Number(normalized);
   if (!Number.isFinite(num) || num < 0) return null;
   return num;
 }

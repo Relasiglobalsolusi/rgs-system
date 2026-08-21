@@ -1,8 +1,7 @@
 "use client";
 
-import Image from "next/image";
+import type { SyntheticEvent } from "react";
 
-import { useTheme } from "@/components/providers/ThemeProvider";
 import {
   RGS_ONE_LOGO_HEIGHT,
   RGS_ONE_LOGO_ON_LIGHT_SRC,
@@ -19,9 +18,23 @@ type BrandLogoProps = {
   height?: number;
 };
 
+const DARK_FALLBACK = "/brand/rgs-one-logo.png";
+const LIGHT_FALLBACK = "/brand/rgs-one-logo-on-light.png";
+
+function fallbackLogoSrc(
+  event: SyntheticEvent<HTMLImageElement>,
+  fallbackSrc: string
+) {
+  const img = event.currentTarget;
+  if (img.dataset.fallbackApplied === "1") return;
+  img.dataset.fallbackApplied = "1";
+  img.src = fallbackSrc;
+}
+
 /**
- * Theme-aware RGS ONE mark — exactly one Image.
- * Dark theme: white-on-dark asset. Light theme: charcoal-on-light asset.
+ * Theme-aware RGS ONE mark. Visibility follows `html.dark` (the painted theme),
+ * not React theme state — so the mark never goes blank during hydration.
+ * Dark document: white/cyan asset. Light document: charcoal/cyan asset.
  */
 export default function BrandLogo({
   className,
@@ -30,20 +43,32 @@ export default function BrandLogo({
   width = RGS_ONE_LOGO_WIDTH,
   height = RGS_ONE_LOGO_HEIGHT,
 }: BrandLogoProps) {
-  const { theme } = useTheme();
-  const src = theme === "light" ? RGS_ONE_LOGO_ON_LIGHT_SRC : RGS_ONE_LOGO_SRC;
+  const imgClass = cn(
+    "brand-logo-img h-auto w-full object-contain",
+    imageClassName
+  );
 
   return (
     <span className={cn("brand-logo", className)}>
-      <Image
-        key={src}
-        src={src}
+      <img
+        src={RGS_ONE_LOGO_SRC}
         alt="RGS ONE"
         width={width}
         height={height}
-        priority={priority}
-        unoptimized
-        className={cn("h-auto w-full object-contain", imageClassName)}
+        fetchPriority={priority ? "high" : undefined}
+        decoding="async"
+        className={cn(imgClass, "brand-logo-img-on-dark")}
+        onError={(event) => fallbackLogoSrc(event, DARK_FALLBACK)}
+      />
+      <img
+        src={RGS_ONE_LOGO_ON_LIGHT_SRC}
+        alt=""
+        width={width}
+        height={height}
+        decoding="async"
+        className={cn(imgClass, "brand-logo-img-on-light")}
+        aria-hidden
+        onError={(event) => fallbackLogoSrc(event, LIGHT_FALLBACK)}
       />
     </span>
   );

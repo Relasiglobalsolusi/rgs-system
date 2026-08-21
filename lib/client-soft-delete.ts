@@ -38,6 +38,7 @@ export async function getClientSoftDeleteBlockers(
       id: true,
       name: true,
       status: true,
+      subCategory: true,
       invoicePeriods: {
         select: {
           status: true,
@@ -61,7 +62,7 @@ export async function getClientSoftDeleteBlockers(
     );
     const settledCompleted =
       project.status === "COMPLETED" &&
-      isProjectFullyPaid(project.invoicePeriods);
+      isProjectFullyPaid(project.invoicePeriods, project.subCategory);
     const cancelledClear =
       project.status === "CANCELLED" && !hasOpenCollection && !hasUnpaidIssued;
 

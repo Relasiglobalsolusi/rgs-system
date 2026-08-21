@@ -31,9 +31,11 @@ import { titleCaseWords } from "@/lib/text-case";
 
 export default function PositionDialog({
   categories,
+  defaultCategoryId,
   onCreated,
 }: {
   categories: EmployeeCategoryOption[];
+  defaultCategoryId?: string;
   onCreated?: () => void;
 }) {
   const { t, locale } = useT();
@@ -47,10 +49,25 @@ export default function PositionDialog({
   const selectableCategories = useMemo(
     () =>
       categories.filter(
-        (category) => category.active && category.prefix.toUpperCase() !== "UNA"
+        (category) =>
+          category.active &&
+          category.slug?.toLowerCase() !== "una" &&
+          category.slug?.toLowerCase() !== "finance" &&
+          category.prefix.toUpperCase() !== "UNA" &&
+          category.prefix.toUpperCase() !== "FIN"
       ),
     [categories]
   );
+
+  function resolvedDefaultCategoryId() {
+    if (
+      defaultCategoryId &&
+      selectableCategories.some((category) => category.id === defaultCategoryId)
+    ) {
+      return defaultCategoryId;
+    }
+    return "";
+  }
 
   function formatDepartmentLabel(category: EmployeeCategoryOption): string {
     const name = localizeDepartmentLabel(category.slug, category.name, locale);
@@ -70,7 +87,7 @@ export default function PositionDialog({
       try {
         await createPosition(formData);
         setOpen(false);
-        setCategoryId("");
+        setCategoryId(resolvedDefaultCategoryId());
         setModuleAccess(getEmployeeModuleOverrides());
         onCreated?.();
       } catch (error) {
@@ -88,7 +105,7 @@ export default function PositionDialog({
       onOpenChange={(nextOpen) => {
         setOpen(nextOpen);
         if (nextOpen) {
-          setCategoryId("");
+          setCategoryId(resolvedDefaultCategoryId());
           setModuleAccess(getEmployeeModuleOverrides());
         }
       }}

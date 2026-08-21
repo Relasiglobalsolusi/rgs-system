@@ -69,6 +69,7 @@ export type WebsiteContentData = {
     email: string;
     address: string;
     addressLines: string[];
+    website?: string;
   };
   social: {
     instagram: string;

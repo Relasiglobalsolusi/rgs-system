@@ -8,7 +8,7 @@ import type { ParkingMonthEconomics } from "@/lib/parking-economics";
 import { employeeSelectTriggerClass } from "@/components/employees/employee-dialog-ui";
 import SectionCard from "@/components/ui/SectionCard";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/MoneyInput";
 import {
   Select,
   SelectContent,
@@ -202,12 +202,9 @@ export default function ParkingWorkspace({
             <label className="mb-1 block text-sm font-medium text-text">
               {t("pages.billing.parking.casualRevenue")}
             </label>
-            <Input
-              type="number"
-              min={0}
-              step="1"
+            <MoneyInput
               value={revenue}
-              onChange={(event) => setRevenue(event.target.value)}
+              onValueChange={setRevenue}
               disabled={!canManage || pending}
             />
           </div>

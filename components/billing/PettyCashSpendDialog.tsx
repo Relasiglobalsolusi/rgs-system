@@ -1,13 +1,10 @@
 "use client";
 
-import { useState, useTransition, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { Receipt } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-import {
-  extractPettyCashReceipt,
-  recordPettyCashSpend,
-} from "@/app/billing/petty-cash/actions";
+import { recordPettyCashSpend } from "@/app/billing/petty-cash/actions";
 import { BillingDocumentFilePick } from "@/components/billing/BillingDocumentVerifyDialog";
 import {
   EmployeeDialogShell,
@@ -24,6 +21,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/MoneyInput";
+import SearchableProjectSelect from "@/components/ui/SearchableProjectSelect";
 import {
   Select,
   SelectContent,
@@ -33,7 +32,6 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/lib/i18n/use-t";
-import { formatContractPrice } from "@/lib/project-billing";
 import { todayDateInput } from "@/lib/project-contract";
 import { cn } from "@/lib/utils";
 
@@ -43,65 +41,47 @@ type ProjectOption = {
   clientName: string | null;
 };
 
+type BillForEmployee = {
+  id: string;
+  name: string;
+};
+
 export default function PettyCashSpendDialog({
   projects,
+  billForEmployees,
 }: {
   projects: ProjectOption[];
+  billForEmployees: BillForEmployee[];
 }) {
   const { t } = useT();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
-  const [extracting, startExtract] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
-  const [extractedAmount, setExtractedAmount] = useState<number | null>(null);
   const [amount, setAmount] = useState("");
   const [entryDate, setEntryDate] = useState(todayDateInput());
   const [description, setDescription] = useState("");
   const [projectId, setProjectId] = useState("");
+  const [employeeId, setEmployeeId] = useState("");
 
   const typedAmount = Number(amount.replace(/[^\d]/g, ""));
-  const amountsMatch =
-    extractedAmount != null &&
+  const canSubmit =
+    Boolean(documentFile && documentFile.size > 0) &&
     Number.isFinite(typedAmount) &&
     typedAmount > 0 &&
-    Math.round(typedAmount) === Math.round(extractedAmount);
+    Boolean(entryDate) &&
+    Boolean(description.trim()) &&
+    Boolean(employeeId);
 
   function reset() {
     setError(null);
     setDocumentFile(null);
-    setExtractedAmount(null);
     setAmount("");
     setEntryDate(todayDateInput());
     setDescription("");
     setProjectId("");
-  }
-
-  function handlePick(file: File | null) {
-    setDocumentFile(file);
-    setExtractedAmount(null);
-    setError(null);
-    if (!file || file.size <= 0) return;
-    const formData = new FormData();
-    formData.set("document", file);
-    startExtract(async () => {
-      const result = await extractPettyCashReceipt(formData);
-      if (!result.ok) {
-        setExtractedAmount(null);
-        setError(
-          result.code === "not_configured"
-            ? t("pages.pettyCash.extractNotConfigured")
-            : t("pages.pettyCash.extractFailed")
-        );
-        return;
-      }
-      setExtractedAmount(result.amount);
-      if (result.receiptDate) setEntryDate(result.receiptDate);
-      if (result.merchantName && !description.trim()) {
-        setDescription(result.merchantName);
-      }
-    });
+    setEmployeeId("");
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -111,12 +91,8 @@ export default function PettyCashSpendDialog({
       setError(t("pages.pettyCash.proofRequired"));
       return;
     }
-    if (extractedAmount == null) {
-      setError(t("pages.pettyCash.extractRequired"));
-      return;
-    }
-    if (!amountsMatch) {
-      setError(t("pages.pettyCash.amountMismatch"));
+    if (!employeeId) {
+      setError(t("pages.pettyCash.billIsForRequired"));
       return;
     }
 
@@ -126,6 +102,7 @@ export default function PettyCashSpendDialog({
     formData.set("entryDate", entryDate);
     formData.set("description", description.trim());
     formData.set("projectId", projectId);
+    formData.set("employeeId", employeeId);
 
     setPending(true);
     try {
@@ -141,8 +118,6 @@ export default function PettyCashSpendDialog({
       setPending(false);
     }
   }
-
-  const busy = pending || extracting;
 
   return (
     <Dialog
@@ -168,14 +143,14 @@ export default function PettyCashSpendDialog({
             <EmployeePrimaryButton
               type="submit"
               form="petty-cash-spend-form"
-              disabled={busy || !amountsMatch}
+              disabled={pending || !canSubmit}
             >
               {pending
                 ? t("pages.pettyCash.spending")
                 : t("pages.pettyCash.spendConfirm")}
             </EmployeePrimaryButton>
             <EmployeeSecondaryButton
-              disabled={busy}
+              disabled={pending}
               onClick={() => setOpen(false)}
             >
               {t("common.actions.cancel")}
@@ -195,24 +170,15 @@ export default function PettyCashSpendDialog({
                 label={t("pages.pettyCash.proof")}
                 required
                 fileName={documentFile?.name ?? null}
-                onPick={handlePick}
-                disabled={busy}
+                onPick={(file) => {
+                  setDocumentFile(file);
+                  setError(null);
+                }}
+                disabled={pending}
               />
-              {extracting ? (
-                <p className={employeeDialogHintClass} aria-live="polite">
-                  {t("pages.pettyCash.readingBill")}
-                </p>
-              ) : extractedAmount != null ? (
-                <p className={employeeDialogHintClass}>
-                  {t("pages.pettyCash.extractedAmount", {
-                    amount: formatContractPrice(extractedAmount),
-                  })}
-                </p>
-              ) : (
-                <p className={employeeDialogHintClass}>
-                  {t("pages.pettyCash.proofHint")}
-                </p>
-              )}
+              <p className={employeeDialogHintClass}>
+                {t("pages.pettyCash.proofHint")}
+              </p>
             </div>
 
             <div className={employeeDialogFieldClass}>
@@ -223,14 +189,13 @@ export default function PettyCashSpendDialog({
                 {t("pages.pettyCash.enteredAmount")}
                 <span className="text-red-400"> *</span>
               </label>
-              <Input
+              <MoneyInput
                 id="petty-cash-amount"
                 name="amount"
                 required
-                disabled={busy}
-                inputMode="numeric"
+                disabled={pending}
                 value={amount}
-                onChange={(event) => setAmount(event.target.value)}
+                onValueChange={setAmount}
                 placeholder={t("pages.pettyCash.amountPlaceholder")}
                 className={employeeInputClass}
               />
@@ -249,7 +214,7 @@ export default function PettyCashSpendDialog({
                 name="entryDate"
                 type="date"
                 required
-                disabled={busy}
+                disabled={pending}
                 value={entryDate}
                 onChange={(event) => setEntryDate(event.target.value)}
                 className={employeeInputClass}
@@ -268,7 +233,7 @@ export default function PettyCashSpendDialog({
                 id="petty-cash-description"
                 name="description"
                 required
-                disabled={busy}
+                disabled={pending}
                 rows={2}
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
@@ -277,31 +242,46 @@ export default function PettyCashSpendDialog({
               />
             </div>
 
+            <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+              <label className={employeeDialogLabelClass}>
+                {t("pages.pettyCash.billIsFor")}
+                <span className="text-red-400"> *</span>
+              </label>
+              <Select
+                value={employeeId || undefined}
+                onValueChange={(value) => setEmployeeId(value ?? "")}
+                disabled={pending}
+              >
+                <SelectTrigger className={employeeSelectTriggerClass}>
+                  <SelectValue
+                    placeholder={t("pages.pettyCash.billIsForPlaceholder")}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {billForEmployees.map((employee) => (
+                    <SelectItem key={employee.id} value={employee.id}>
+                      {employee.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className={employeeDialogHintClass}>
+                {t("pages.pettyCash.billIsForHint")}
+              </p>
+            </div>
+
             {projects.length > 0 ? (
               <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
                 <label className={employeeDialogLabelClass}>
                   {t("pages.pettyCash.project")}
                 </label>
-                <Select
-                  value={projectId || undefined}
-                  onValueChange={(value) => setProjectId(value ?? "")}
-                  disabled={busy}
-                >
-                  <SelectTrigger className={employeeSelectTriggerClass}>
-                    <SelectValue
-                      placeholder={t("pages.pettyCash.projectPlaceholder")}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects.map((project) => (
-                      <SelectItem key={project.id} value={project.id}>
-                        {project.clientName
-                          ? `${project.name} · ${project.clientName}`
-                          : project.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableProjectSelect
+                  value={projectId}
+                  onValueChange={setProjectId}
+                  projects={projects}
+                  placeholder={t("pages.pettyCash.projectPlaceholder")}
+                  disabled={pending}
+                />
                 <p className={employeeDialogHintClass}>
                   {t("pages.pettyCash.projectHint")}
                 </p>

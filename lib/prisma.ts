@@ -14,13 +14,18 @@ function createPrismaClient() {
   });
 }
 
-function hasPettyCash(client: PrismaClient | undefined): client is PrismaClient {
-  return Boolean(client && client.pettyCashEntry);
+function hasCurrentModels(client: PrismaClient | undefined): client is PrismaClient {
+  return Boolean(
+    client &&
+      client.pettyCashEntry &&
+      client.projectServiceAreaCatalog &&
+      client.projectSubcategoryCatalog
+  );
 }
 
 function getPrisma(): PrismaClient {
   const existing = globalForPrisma.prisma;
-  if (hasPettyCash(existing)) {
+  if (hasCurrentModels(existing)) {
     return existing;
   }
   if (existing && !globalForPrisma.prismaStaleRetried) {

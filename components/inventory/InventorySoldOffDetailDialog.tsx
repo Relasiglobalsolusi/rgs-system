@@ -1,9 +1,16 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useState, useTransition } from "react";
 import { CircleDollarSign, ExternalLink, FileText, Undo2 } from "lucide-react";
+import { toast } from "sonner";
 
+import { attachInventorySaleDocuments } from "@/app/inventory/actions";
 import type { InventorySoldOffRow } from "@/components/inventory/inventory-types";
+import {
+  showRejection,
+  showRejectionFromError,
+} from "@/components/ui/rejection-notice";
 import {
   EmployeeDialogShell,
   EmployeePrimaryButton,
@@ -11,10 +18,11 @@ import {
 } from "@/components/employees/employee-dialog-ui";
 import { buttonVariants } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { FileDropField } from "@/components/ui/FileDropField";
 import SectionCard from "@/components/ui/SectionCard";
 import { formatDisplayDate } from "@/lib/format-date";
 import { formatInventoryQtyWithUnit } from "@/lib/inventory";
-import { INVENTORY_ITEM_TYPE_PRESETS } from "@/lib/inventory-sku";
+import { localizeInventoryItemType } from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
 import { formatContractPrice } from "@/lib/project-billing";
 import { formatUserDisplayLabel } from "@/lib/user-display";
@@ -25,6 +33,7 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   row: InventorySoldOffRow | null;
   canReverse?: boolean;
+  canAttach?: boolean;
   onReverse?: (row: InventorySoldOffRow) => void;
 };
 
@@ -113,9 +122,12 @@ export default function InventorySoldOffDetailDialog({
   onOpenChange,
   row,
   canReverse = false,
+  canAttach = false,
   onReverse,
 }: Props) {
-  const { t } = useT();
+  const { t, locale } = useT();
+  const [pending, startTransition] = useTransition();
+  const [attachOpen, setAttachOpen] = useState(false);
 
   if (!row) {
     return <Dialog open={false} onOpenChange={onOpenChange} />;
@@ -140,7 +152,15 @@ export default function InventorySoldOffDetailDialog({
   const linkedClient =
     row.clientId && row.clientName?.trim() ? row.clientName.trim() : null;
   const invoiceUrl = row.invoiceUrl?.trim() || null;
+  const paymentProofUrl = row.paymentProofUrl?.trim() || null;
   const taxInvoiceUrl = row.buyerIdentityDocUrl?.trim() || null;
+  const paidAt = row.paidAt?.trim() || null;
+  const needsInvoice = !invoiceUrl;
+  const needsPayment = !paymentProofUrl;
+  const needsTax = isCompany && !taxInvoiceUrl;
+  const canAttachMissing =
+    canAttach && (needsInvoice || needsPayment || needsTax);
+  const generateInvoiceOnly = needsInvoice && !needsPayment && !needsTax;
 
   const hasBuyerFacts = Boolean(
     buyerTypeLabel ||
@@ -160,6 +180,13 @@ export default function InventorySoldOffDetailDialog({
       viewLabel: t("pages.inventory.viewSaleInvoice"),
     });
   }
+  if (paymentProofUrl) {
+    docs.push({
+      label: t("pages.sales.form.paymentProof"),
+      url: paymentProofUrl,
+      viewLabel: t("pages.sales.viewPaymentProof"),
+    });
+  }
   if (taxInvoiceUrl && (isCompany || !isIndividual)) {
     docs.push({
       label: t("pages.inventory.saleDetailsTaxInvoice"),
@@ -170,11 +197,7 @@ export default function InventorySoldOffDetailDialog({
 
   const itemTypeRaw = row.item?.itemType?.trim() || "";
   const itemTypeLabel = itemTypeRaw
-    ? INVENTORY_ITEM_TYPE_PRESETS.includes(
-        itemTypeRaw as (typeof INVENTORY_ITEM_TYPE_PRESETS)[number]
-      )
-      ? t(`pages.inventory.itemTypes.${itemTypeRaw}`)
-      : itemTypeRaw
+    ? localizeInventoryItemType(itemTypeRaw, locale)
     : null;
 
   const assetCodes =
@@ -424,6 +447,88 @@ export default function InventorySoldOffDetailDialog({
                   {t("pages.inventory.saleDetailsDocsEmpty")}
                 </p>
               )}
+              {paidAt ? (
+                <p className="text-xs text-muted">
+                  {t("pages.sales.paidOn", {
+                    date: formatDisplayDate(paidAt),
+                  })}
+                </p>
+              ) : null}
+              {canAttachMissing ? (
+                <form
+                  className="space-y-3 border-t border-dashed border-border pt-3"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const formData = new FormData(event.currentTarget);
+                    formData.set("id", row.id);
+                    const paymentProof = formData.get("paymentProof");
+                    const taxDoc = formData.get("buyerIdentityDoc");
+                    const hasFile = [paymentProof, taxDoc].some(
+                      (file) => file instanceof File && file.size > 0
+                    );
+                    if (!hasFile && !needsInvoice) {
+                      showRejection({
+                        reasons: t("pages.sales.attachRequired"),
+                      });
+                      return;
+                    }
+                    startTransition(async () => {
+                      try {
+                        await attachInventorySaleDocuments(formData);
+                        toast.success(t("pages.sales.attachSaved"));
+                        setAttachOpen(false);
+                      } catch (error) {
+                        showRejectionFromError(
+                          error,
+                          t("pages.sales.attachFailed")
+                        );
+                      }
+                    });
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="text-sm font-medium text-primary underline-offset-2 hover:underline"
+                    onClick={() => setAttachOpen((open) => !open)}
+                  >
+                    {attachOpen
+                      ? t("pages.sales.hideAttach")
+                      : t("pages.sales.attachMissing")}
+                  </button>
+                  {attachOpen ? (
+                    <div className="space-y-3">
+                      {needsInvoice ? (
+                        <p className="text-xs text-muted">
+                          {t("pages.sales.invoiceAutoHint")}
+                        </p>
+                      ) : null}
+                      {needsPayment ? (
+                        <FileDropField
+                          id="sale-attach-payment"
+                          name="paymentProof"
+                          label={t("pages.sales.form.paymentProof")}
+                          accept="image/*,.pdf"
+                        />
+                      ) : null}
+                      {needsTax ? (
+                        <FileDropField
+                          id="sale-attach-tax"
+                          name="buyerIdentityDoc"
+                          label={t("pages.inventory.form.buyerIdentityDoc")}
+                          accept="image/*,.pdf"
+                        />
+                      ) : null}
+                      <EmployeePrimaryButton type="submit" disabled={pending}>
+                        {pending
+                          ? t("common.actions.saving")
+                          : generateInvoiceOnly
+                            ? t("pages.sales.generateInvoice")
+                            : t("pages.sales.saveDocuments")}
+                      </EmployeePrimaryButton>
+                    </div>
+                  ) : null}
+                </form>
+              ) : null}
             </div>
           </SectionCard>
 

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { ChipCell } from "@/components/ui/DataTable";
 import ProofLightbox from "@/components/ui/ProofLightbox";
 import { formatDisplayDate } from "@/lib/format-date";
 import { useT } from "@/lib/i18n/use-t";
@@ -59,7 +60,7 @@ export default function ContractExtensionsHistory({
                 <th className="px-3 py-3 font-semibold">
                   {t("pages.projects.extendHistoryNewEnd")}
                 </th>
-                <th className="px-3 py-3 font-semibold">
+                <th className="px-3 py-3 text-center font-semibold">
                   {t("pages.projects.extendHistoryProof")}
                 </th>
                 <th className="px-3 py-3 font-semibold">
@@ -83,17 +84,19 @@ export default function ContractExtensionsHistory({
                     {formatDisplayDate(row.newEndDate)}
                   </td>
                   <td className="px-3 py-3.5">
-                    {row.proofUrl ? (
-                      <button
-                        type="button"
-                        onClick={() => setProofSrc(row.proofUrl)}
-                        className="text-cyan-400 hover:underline"
-                      >
-                        {t("common.actions.view")}
-                      </button>
-                    ) : (
-                      <span className="text-muted">—</span>
-                    )}
+                    <ChipCell>
+                      {row.proofUrl ? (
+                        <button
+                          type="button"
+                          onClick={() => setProofSrc(row.proofUrl)}
+                          className="text-cyan-400 hover:underline"
+                        >
+                          {t("common.actions.view")}
+                        </button>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </ChipCell>
                   </td>
                   <td className="px-3 py-3.5 text-muted">
                     {row.notes?.trim() ? row.notes : "—"}

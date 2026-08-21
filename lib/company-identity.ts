@@ -1,9 +1,9 @@
 /**
- * Company identity constants shared by PDF letterhead, payment verification,
- * and other server paths that must not pull fs / pdfkit via pdf-letterhead.
+ * Known legal / display aliases for payment-proof matching.
+ * Printed invoices and letterheads read Company Details — not these constants.
  */
 
-/** Exact copy from RGS Letterhead.docx header. */
+/** Historical letterhead copy (verification aliases only). */
 export const LETTERHEAD = {
   legalName: "PT. Relasi Global Solusi",
   displayName: "Relasi Global Solusi",

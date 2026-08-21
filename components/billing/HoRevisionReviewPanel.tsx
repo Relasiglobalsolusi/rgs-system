@@ -12,7 +12,9 @@ import {
 } from "@/app/billing/reconciliation/actions";
 import ProofLightbox from "@/components/ui/ProofLightbox";
 import { Button } from "@/components/ui/button";
+import { FileDropField } from "@/components/ui/FileDropField";
 import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/MoneyInput";
 import { useT } from "@/lib/i18n/use-t";
 
 type Props = {
@@ -124,10 +126,9 @@ export default function HoRevisionReviewPanel({
               <label className="mb-1 block text-xs font-medium text-muted">
                 {t("pages.reconciliation.revisedAmount")}
               </label>
-              <Input
+              <MoneyInput
                 value={revisedAmount}
-                onChange={(e) => setRevisedAmount(e.target.value)}
-                inputMode="numeric"
+                onValueChange={setRevisedAmount}
                 required
               />
             </div>
@@ -164,16 +165,13 @@ export default function HoRevisionReviewPanel({
               className="w-full rounded-lg border border-border bg-panel px-3 py-2 text-sm text-text"
             />
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted">
-              {t("pages.reconciliation.rejectProofLabel")}
-            </label>
-            <Input
-              type="file"
-              accept="image/*,application/pdf"
-              onChange={(e) => setRejectProof(e.target.files?.[0] ?? null)}
-            />
-          </div>
+          <FileDropField
+            id="ho-reject-proof"
+            label={t("pages.reconciliation.rejectProofLabel")}
+            fileName={rejectProof?.name ?? null}
+            onPick={setRejectProof}
+            accept="image/*,application/pdf"
+          />
           <Button type="submit" size="sm" disabled={pending || !rejectNote.trim()}>
             {pending
               ? t("pages.reconciliation.sendingReject")

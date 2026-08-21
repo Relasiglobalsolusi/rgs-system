@@ -10,6 +10,7 @@ import {
   findEmployeesOnOtherOpenProjects,
   releaseExpiredBackupCrew,
 } from "@/lib/workforce-crew";
+import { mapProjectTeamOption } from "@/lib/operations-teams";
 import {
   isBackupAssignmentOccupyingProject,
   processScheduledPettyCashPays,
@@ -66,26 +67,36 @@ import {
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
 import {
+  commercialTaxKindLabelKey,
+  projectChargedTaxKindFromRecord,
+} from "@/lib/commercial-tax";
+import {
   decimalToNumber,
   dedupeOnCompletionPeriods,
   formatContractPrice,
   formatInvoicePeriodLabel,
-  formatProjectTitle,
   isMilestoneSubCategory,
   usesInvoicePeriods,
 } from "@/lib/project-billing";
 import { formatProjectShiftLabel } from "@/lib/project-shifts";
+import { shiftsProjectHref } from "@/lib/shifts-directory";
 import { canAssignSiteCover } from "@/lib/om-approval";
 import { canAccess } from "@/lib/permissions";
 import {
-  getMostUrgentUnpaidPeriod,
+  isPendingApprovalPeriod,
   isProjectFullyPaid,
+  isUnpaidInvoiceStatus,
   OPEN_COLLECTION_STATUSES,
 } from "@/lib/billing";
 import { formatDateInput, getInvoicePaymentDisplay } from "@/lib/invoice-period";
 import { formatDisplayDate } from "@/lib/format-date";
-import { isGcFacadeAwaitingPayment } from "@/lib/project-awaiting-payment";
 import { asProjectServiceArea } from "@/lib/service-area";
+import { ensureProjectServiceCatalog } from "@/app/projects/catalog-actions";
+import {
+  invoicePeriodElementId,
+  projectBillingHref,
+  projectPeriodHref,
+} from "@/lib/project-directory-rows";
 import type { ProjectStatus } from "@prisma/client";
 
 import AppShell from "@/components/layout/AppShell";
@@ -100,12 +111,15 @@ import StatusBadge, {
 import { cn } from "@/lib/utils";
 
 import ContractExtensionsHistory from "@/components/projects/ContractExtensionsHistory";
+import ProjectBankAccountRow from "@/components/projects/ProjectBankAccountRow";
 import ProjectDetailActionBar from "@/components/projects/ProjectDetailActionBar";
+import { listCompanyBankAccountOptions } from "@/lib/company-bank-accounts";
 import ProjectEquipmentPicker, {
   type AssignedEquipmentAsset,
 } from "@/components/projects/ProjectEquipmentPicker";
 import ProjectInventoryPanel from "@/components/projects/ProjectInventoryPanel";
 import ProjectLocationMap from "@/components/projects/ProjectLocationMap";
+import ScrollToInvoicePeriod from "@/components/billing/ScrollToInvoicePeriod";
 
 const metaLabelClassName =
   "w-36 shrink-0 px-4 py-2.5 text-left align-top text-xs font-semibold uppercase tracking-[0.12em] text-subtle sm:w-44 sm:px-5";
@@ -134,11 +148,15 @@ function statusTone(
 
 export default async function ProjectDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ period?: string }>;
 }) {
   const session = await requireSession();
   const { id } = await params;
+  const focusPeriodId =
+    (await searchParams)?.period?.trim() || null;
   const permissionUser = toPermissionUser(session);
   const canManage = canManageProjects(permissionUser);
   const canDeleteActiveStage = canDeleteActiveStageProjects({
@@ -219,7 +237,7 @@ export default async function ProjectDetailPage({
       })
     : false;
 
-  const [employees, clients, inventoryCost, inventoryIssues, operationsTeams] =
+  const [employees, clients, inventoryCost, inventoryIssues, operationsTeams, serviceCatalog, bankAccounts] =
     await Promise.all([
       canManage
         ? prisma.employee.findMany({
@@ -264,13 +282,9 @@ export default async function ProjectDetailPage({
         : Promise.resolve([]),
       canManage
         ? prisma.operationsTeam.findMany({
-            where: {
-              companyId: project.companyId,
-              kind: project.subCategory === "FACADE_CLEANING"
-                ? "FACADE_CLEANING"
-                : "GENERAL_CLEANING",
-            },
+            where: { companyId: project.companyId },
             include: {
+              serviceAreaCatalog: { select: { systemArea: true } },
               members: {
                 include: {
                   employee: {
@@ -282,17 +296,13 @@ export default async function ProjectDetailPage({
             orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
           })
         : Promise.resolve([]),
+      canManage
+        ? ensureProjectServiceCatalog(project.companyId).catch(() => [])
+        : Promise.resolve([]),
+      listCompanyBankAccountOptions(project.companyId),
     ]);
 
-  const teamOptions = operationsTeams.map((team) => ({
-    id: team.id,
-    name: team.name,
-    kind: team.kind,
-    memberIds: team.members.map((member) => member.employeeId),
-    memberNames: team.members.map(
-      (member) => `${member.employee.firstName} ${member.employee.lastName}`
-    ),
-  }));
+  const teamOptions = operationsTeams.map(mapProjectTeamOption);
 
   const staffConflicts =
     canManage && employees.length > 0
@@ -354,9 +364,10 @@ export default async function ProjectDetailPage({
   }));
 
   const isInternal = isInternalProjectSubCategory(project.subCategory);
+  const chargedTaxKind = projectChargedTaxKindFromRecord(project);
   const billingHref =
     !isInternal && project.clientId != null
-      ? `/billing/${project.clientId}/${project.id}`
+      ? projectBillingHref(project.clientId, project.id, focusPeriodId)
       : isInternal
         ? null
         : "/billing";
@@ -364,7 +375,7 @@ export default async function ProjectDetailPage({
   const contractPriceNum = decimalToNumber(project.contractPrice);
   const inProjectHistory =
     project.status === "COMPLETED" &&
-    isProjectFullyPaid(project.invoicePeriods);
+    isProjectFullyPaid(project.invoicePeriods, project.subCategory);
   const inPlanning = isPlanningProjectStatus(project.status);
   const hasOpenCollection = project.invoicePeriods.some((period) =>
     (OPEN_COLLECTION_STATUSES as readonly string[]).includes(period.status)
@@ -416,24 +427,23 @@ export default async function ProjectDetailPage({
   const initialEstimatedDurationDays = showCompletedJobDuration
     ? project.estimatedDurationDays
     : null;
-  const awaitingPayment = isGcFacadeAwaitingPayment({
-    subCategory: project.subCategory,
-    status: project.status,
-    billingMode: project.billingMode,
-    invoicePeriods: project.invoicePeriods,
-  });
-
+  const focusPeriod =
+    focusPeriodId
+      ? (project.invoicePeriods.find((period) => period.id === focusPeriodId) ??
+        null)
+      : null;
   const listBackHref = inProjectHistory
     ? "/projects?view=completed"
     : inPlanning
       ? "/projects?view=planning"
-      : awaitingPayment
-        ? "/projects?view=payment-due"
-        : isProjectOpenForSiteWork(project.status)
-          ? "/projects?view=in-progress"
-          : "/projects";
+      : focusPeriod && isPendingApprovalPeriod(focusPeriod)
+        ? "/projects?view=pending-approval"
+        : focusPeriod && isUnpaidInvoiceStatus(focusPeriod.status)
+          ? "/projects?view=payment-due"
+          : isProjectOpenForSiteWork(project.status)
+            ? "/projects?view=in-progress"
+            : "/projects";
 
-  const unpaidMilestone = getMostUrgentUnpaidPeriod(project.invoicePeriods);
   const invoicePeriodsForDisplay = dedupeOnCompletionPeriods(
     project.invoicePeriods,
     project.billingMode
@@ -444,12 +454,7 @@ export default async function ProjectDetailPage({
   const paymentsTotalCount = invoicePeriodsForDisplay.length;
   const locale = await getServerLocale();
   const t = createTranslator(locale);
-  // History / fully paid: plain project name. Unpaid milestone: installment title.
-  const pageTitle = formatProjectTitle(
-    project.name,
-    inProjectHistory ? null : unpaidMilestone,
-    locale
-  );
+  const pageTitle = project.name;
   const modeLabel = localizeBillingMode(project.billingMode, locale);
   const timeline = inPlanning
     ? project.estimatedStartDate
@@ -466,17 +471,18 @@ export default async function ProjectDetailPage({
     ? t("pages.projects.completedTitle")
     : inPlanning
       ? t("pages.projects.planningTitle")
-      : awaitingPayment
-        ? t("pages.projects.paymentDueTitle")
-        : isProjectOpenForSiteWork(project.status)
-          ? t("pages.projects.inProgressTitle")
-          : t("pages.projects.filterAllProjects");
+      : focusPeriod && isPendingApprovalPeriod(focusPeriod)
+        ? t("pages.projects.pendingApprovalTitle")
+        : focusPeriod && isUnpaidInvoiceStatus(focusPeriod.status)
+          ? t("pages.projects.paymentDueTitle")
+          : isProjectOpenForSiteWork(project.status)
+            ? t("pages.projects.inProgressTitle")
+            : t("pages.projects.filterAllProjects");
   const workflowStatus = getProjectWorkflowStatusLabel({
     status: project.status,
-    awaitingPayment,
   });
   const statusLabel = localizeWorkflowStatus(
-    { status: project.status, awaitingPayment },
+    { status: project.status },
     locale
   );
   const statusLines = localizeWorkflowChipLines(workflowStatus, locale);
@@ -505,6 +511,7 @@ export default async function ProjectDetailPage({
 
   return (
     <AppShell title={pageTitle} description={pageDescription || undefined}>
+      <ScrollToInvoicePeriod periodId={focusPeriodId} />
       <div className="mb-4">
         <BackLink href={listBackHref}>{listBackLabel}</BackLink>
       </div>
@@ -546,12 +553,20 @@ export default async function ProjectDetailPage({
           endDate: project.endDate,
           progress: project.progress,
           subCategory: project.subCategory,
-          serviceArea: asProjectServiceArea(project.serviceArea),
+          serviceArea:
+            project.serviceArea === "OTHER"
+              ? "OTHER"
+              : asProjectServiceArea(project.serviceArea),
+          areaCatalogId: project.areaCatalogId,
+          subcategoryCatalogId: project.subcategoryCatalogId,
           billingMode: project.billingMode,
           billingPeriodBasis: project.billingPeriodBasis,
           billingCycleStartDay: project.billingCycleStartDay,
           billingCycleEndDay: project.billingCycleEndDay,
           requiresTaxInvoice: project.requiresTaxInvoice,
+          chargedTaxKind: project.chargedTaxKind,
+          pphRatePercent: decimalToNumber(project.pphRatePercent),
+          otherTaxName: project.otherTaxName,
           contractPrice: contractPriceNum,
           setupCost: decimalToNumber(project.setupCost),
           profitSharePercent: decimalToNumber(project.profitSharePercent),
@@ -561,6 +576,7 @@ export default async function ProjectDetailPage({
           parkingTaxPercent: decimalToNumber(project.parkingTaxPercent),
           serviceFeePercent: decimalToNumber(project.serviceFeePercent),
           paymentTermsDays: project.paymentTermsDays,
+          bankAccountId: project.bankAccountId,
           payrollCutoffStartDay: project.payrollCutoffStartDay,
           payrollCutoffEndDay: project.payrollCutoffEndDay,
           payrollTaxPercent: decimalToNumber(project.payrollTaxPercent),
@@ -585,6 +601,8 @@ export default async function ProjectDetailPage({
         teams={teamOptions}
         assignedTeamIds={project.operationsTeamLinks.map((link) => link.teamId)}
         clients={clients}
+        catalog={serviceCatalog}
+        bankAccounts={bankAccounts}
       >
         <div className="space-y-5">
           <SectionCard className="overflow-hidden p-0">
@@ -642,6 +660,36 @@ export default async function ProjectDetailPage({
                     </th>
                     <td className={`${metaValueClassName} font-medium`}>
                       {project.client?.name ?? "—"}
+                    </td>
+                  </tr>
+                ) : null}
+                {!isInternal ? (
+                  <tr className="border-b border-border">
+                    <th scope="row" className={`${metaLabelClassName} !align-top`}>
+                      {t("pages.projects.detail.bankAccount")}
+                    </th>
+                    <td className={`${metaValueClassName} font-medium`}>
+                      <ProjectBankAccountRow
+                        projectId={project.id}
+                        bankAccountId={project.bankAccountId}
+                        accounts={bankAccounts}
+                        canEdit={canManage}
+                      />
+                    </td>
+                  </tr>
+                ) : null}
+                {!isInternal && chargedTaxKind ? (
+                  <tr className="border-b border-border">
+                    <th scope="row" className={metaLabelClassName}>
+                      {t("pages.projects.detail.chargedTax")}
+                    </th>
+                    <td className={`${metaValueClassName} font-medium`}>
+                      {chargedTaxKind === "OTHER" && project.otherTaxName
+                        ? project.otherTaxName
+                        : t(commercialTaxKindLabelKey(chargedTaxKind))}
+                      {decimalToNumber(project.pphRatePercent) != null
+                        ? ` · ${decimalToNumber(project.pphRatePercent)}%`
+                        : ""}
                     </td>
                   </tr>
                 ) : null}
@@ -884,23 +932,23 @@ export default async function ProjectDetailPage({
                         {project.payrollCutoffEndDay ?? "—"}
                       </td>
                     </tr>
-                    <tr className="border-b border-border">
-                      <th scope="row" className={metaLabelClassName}>
-                        {t(
-                          "pages.projects.serviceCommercial.paymentTermsDays"
-                        )}
-                      </th>
-                      <td className={`${metaValueClassName} font-medium`}>
-                        {project.paymentTermsDays === 0
-                          ? t("common.paymentTerms.cashShort")
-                          : project.paymentTermsDays != null
-                            ? t("common.paymentTerms.netShort", {
-                                days: project.paymentTermsDays,
-                              })
-                            : "—"}
-                      </td>
-                    </tr>
                   </>
+                ) : null}
+                {!isInternal ? (
+                  <tr className="border-b border-border">
+                    <th scope="row" className={metaLabelClassName}>
+                      {t("pages.projects.serviceCommercial.paymentTermsDays")}
+                    </th>
+                    <td className={`${metaValueClassName} font-medium`}>
+                      {project.paymentTermsDays === 0
+                        ? t("common.paymentTerms.cashShort")
+                        : project.paymentTermsDays != null
+                          ? t("common.paymentTerms.netShort", {
+                              days: project.paymentTermsDays,
+                            })
+                          : "—"}
+                    </td>
+                  </tr>
                 ) : null}
                 {!isInternal && !isService ? (
                   <tr className="border-b border-border">
@@ -1046,7 +1094,7 @@ export default async function ProjectDetailPage({
                           submittedAt: period.submittedAt,
                           dueAt: period.dueAt,
                           paidAt: period.paidAt,
-                          paymentTermsDays: project.client?.paymentTermsDays,
+                          paymentTermsDays: project.paymentTermsDays,
                         });
                         const amount =
                           decimalToNumber(period.amount) ?? contractPriceNum;
@@ -1066,16 +1114,29 @@ export default async function ProjectDetailPage({
                         return (
                           <tr
                             key={period.id}
-                            className="border-b border-border last:border-0"
+                            id={invoicePeriodElementId(period.id)}
+                            className={cn(
+                              "border-b border-border last:border-0 hover:bg-elevated",
+                              focusPeriodId === period.id &&
+                                "bg-card-tint-amber"
+                            )}
                           >
                             <td className="px-3 py-3.5">
-                              <p className="font-medium text-text">
-                                {formatInvoicePeriodLabel(period, {
-                                  projectName: project.name,
-                                  billingMode: project.billingMode,
-                                  locale,
-                                })}
-                              </p>
+                              <Link
+                                href={projectPeriodHref(project.id, period.id)}
+                                className="block"
+                              >
+                                <p className="font-medium text-text hover:text-accent-teal">
+                                  {formatInvoicePeriodLabel(period, {
+                                    projectName: project.name,
+                                    billingMode: project.billingMode,
+                                    locale,
+                                  })}
+                                </p>
+                                <p className="mt-0.5 text-xs font-medium text-accent-teal">
+                                  {t("pages.projects.periodPage.openHint")}
+                                </p>
+                              </Link>
                             </td>
                             <td className="px-3 py-3.5 text-text">
                               {formatContractPrice(amount)}
@@ -1147,7 +1208,13 @@ export default async function ProjectDetailPage({
                 </h3>
                 {canAccess(permissionUser, "shifts") ? (
                   <Link
-                    href={`/shifts?projectId=${project.id}`}
+                    href={shiftsProjectHref({
+                      clientId: project.clientId,
+                      projectId: project.id,
+                      name: project.name,
+                      serviceArea: project.serviceArea,
+                      subCategory: project.subCategory,
+                    })}
                     className={cn(
                       buttonVariants({ variant: "infoBadge", size: "badgeFlex" })
                     )}

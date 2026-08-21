@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import {
   getFinancialReportProjectDetail,
+  listFinancialReportBankAccounts,
   listFinancialReportScopeClients,
 } from "@/app/billing/financial-report/actions";
 import AppShell from "@/components/layout/AppShell";
@@ -18,6 +19,7 @@ import { createTranslator } from "@/lib/i18n/translate";
 type SearchParams = Promise<{
   year?: string;
   month?: string;
+  bank?: string;
 }>;
 
 export default async function FinancialReportProjectPage({
@@ -30,9 +32,10 @@ export default async function FinancialReportProjectPage({
   const { clientId, projectId } = await params;
   const selection = parseFinancialReportSelection(await searchParams);
   const t = createTranslator(await getServerLocale());
-  const [detail, scopeClients] = await Promise.all([
+  const [detail, scopeClients, bankAccounts] = await Promise.all([
     getFinancialReportProjectDetail(clientId, projectId, selection),
     listFinancialReportScopeClients(),
+    listFinancialReportBankAccounts(),
   ]);
 
   if (!detail) notFound();
@@ -65,6 +68,7 @@ export default async function FinancialReportProjectPage({
         clients={scopeClients}
         scopeClientId={clientId}
         projectId={projectId}
+        bankAccounts={bankAccounts}
       />
 
       <FinancialReportProjectPanel detail={detail} />

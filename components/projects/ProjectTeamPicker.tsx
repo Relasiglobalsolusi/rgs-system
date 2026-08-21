@@ -12,6 +12,8 @@ export type ProjectTeamOption = {
   id: string;
   name: string;
   kind: string;
+  serviceAreaCatalogId?: string | null;
+  catalogSystemArea?: string | null;
   memberIds: string[];
   memberNames: string[];
 };

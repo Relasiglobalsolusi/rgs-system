@@ -27,6 +27,8 @@ export const INVENTORY_SKU_SEPARATOR = "-";
 export const INVENTORY_ITEM_TYPE_PRESETS = [
   "Consumable",
   "Equipment",
+  "Vehicle",
+  "Spare Part",
   "Chemical",
   "Other",
 ] as const;
@@ -41,9 +43,15 @@ export const INVENTORY_ITEM_TYPE_CODES: Record<
 > = {
   Consumable: "CNS",
   Equipment: "EQP",
+  Vehicle: "VEH",
+  "Spare Part": "SPR",
   Chemical: "CHM",
   Other: "OTH",
 };
+
+export function isVehicleItemType(itemType: string | null | undefined): boolean {
+  return itemType?.trim().toLowerCase() === "vehicle";
+}
 
 /**
  * Former type codes that may still exist in DB until migrated.

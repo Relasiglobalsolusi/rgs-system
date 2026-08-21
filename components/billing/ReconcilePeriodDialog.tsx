@@ -15,13 +15,13 @@ import {
 } from "@/components/employees/employee-dialog-ui";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/MoneyInput";
 import {
   showRejection,
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
 import { flexibleBadgeChipClassName } from "@/components/ui/trash-action-buttons";
-import { formatContractPrice } from "@/lib/project-billing";
+import { formatContractPrice, parseContractPrice } from "@/lib/project-billing";
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 
@@ -49,7 +49,7 @@ export default function ReconcilePeriodDialog({
 
   function submit() {
     if (mode === "adjust") {
-      const n = Number(adjustedAmount.replace(/[^\d.]/g, ""));
+      const n = parseContractPrice(adjustedAmount);
       if (!Number.isFinite(n) || n <= 0) {
         showRejection({
           reasons: t("pages.billing.adjustAmountInvalid"),
@@ -168,12 +168,9 @@ export default function ReconcilePeriodDialog({
                 <label className="text-sm font-medium text-text">
                   {t("pages.billing.adjustAmountLabel")}
                 </label>
-                <Input
-                  type="number"
-                  min={1}
-                  step="1"
+                <MoneyInput
                   value={adjustedAmount}
-                  onChange={(e) => setAdjustedAmount(e.target.value)}
+                  onValueChange={setAdjustedAmount}
                   className={employeeInputClass}
                   required
                 />

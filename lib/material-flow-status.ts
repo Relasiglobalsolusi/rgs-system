@@ -57,7 +57,7 @@ export function materialRequestStatusKey(status: string): string {
     case "CANCELLED":
       return "pages.materialRequests.status.cancelled";
     default:
-      return "pages.materialRequests.status.requested";
+      return "common.labels.na";
   }
 }
 
@@ -80,6 +80,6 @@ export function transferOrderStatusKey(status: string): string {
     case "CANCELLED":
       return "pages.transferOrders.status.cancelled";
     default:
-      return "pages.transferOrders.status.pendingSend";
+      return "common.labels.na";
   }
 }

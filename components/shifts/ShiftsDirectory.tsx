@@ -29,7 +29,11 @@ import {
 import { useT } from "@/lib/i18n/use-t";
 import { formatDateInput } from "@/lib/invoice-period";
 import { formatContractPrice } from "@/lib/project-billing";
-import { formatProjectShiftLabel, MIN_PROJECT_SHIFTS } from "@/lib/project-shifts";
+import {
+  findProjectShiftClash,
+  formatProjectShiftLabel,
+  MIN_PROJECT_SHIFTS,
+} from "@/lib/project-shifts";
 import { formatEmploymentTypeLabel } from "@/lib/placement";
 import { cn } from "@/lib/utils";
 import type { EmploymentType } from "@prisma/client";
@@ -113,9 +117,11 @@ type Props = {
 
 function ShiftWindowForm({
   row,
+  shifts,
   canRemove,
 }: {
   row: ShiftWindowRow;
+  shifts: ShiftWindowRow[];
   canRemove: boolean;
 }) {
   const { t } = useT();
@@ -125,6 +131,31 @@ function ShiftWindowForm({
   const dirty = start !== row.startTime || end !== row.endTime;
 
   function save() {
+    const clash = findProjectShiftClash(
+      shifts.map((shift) =>
+        shift.id === row.id
+          ? { number: shift.number, startTime: start, endTime: end }
+          : {
+              number: shift.number,
+              startTime: shift.startTime,
+              endTime: shift.endTime,
+            }
+      )
+    );
+    if (clash) {
+      showRejectionFromError(
+        t("pages.shifts.shiftClash", {
+          aNumber: clash.a.number,
+          aStart: clash.a.startTime,
+          aEnd: clash.a.endTime,
+          bNumber: clash.b.number,
+          bStart: clash.b.startTime,
+          bEnd: clash.b.endTime,
+        }),
+        t("pages.shifts.saveFailed")
+      );
+      return;
+    }
     const formData = new FormData();
     formData.set("startTime", start);
     formData.set("endTime", end);
@@ -354,6 +385,7 @@ export default function ShiftsDirectory({
                   <ShiftWindowForm
                     key={row.id}
                     row={row}
+                    shifts={shifts}
                     canRemove={shifts.length > MIN_PROJECT_SHIFTS}
                   />
                 ))}

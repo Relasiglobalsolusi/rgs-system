@@ -5,22 +5,18 @@ import { getProjectWhereForUser } from "@/lib/project-access";
 import { requireModule, toPermissionUser } from "@/lib/session";
 import { canAccess } from "@/lib/permissions";
 import { isPlanningProjectStatus } from "@/lib/project-status";
-import { getMostUrgentUnpaidPeriod } from "@/lib/billing";
 import {
   decimalToNumber,
-  formatProjectTitle,
   usesInvoicePeriods,
 } from "@/lib/project-billing";
 import { localizeSubCategory } from "@/lib/i18n/labels";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
-import {
-  syncDueMonthlyInvoicesOnLoad,
-  syncProjectMonthlyPeriods,
-} from "@/app/projects/invoice-actions";
+import { syncProjectMonthlyPeriods } from "@/app/projects/invoice-actions";
 import { computeParkingMonthEconomics } from "@/lib/parking-economics";
 import { getPayrollManagementWorkspace } from "@/app/billing/payroll-management-actions";
 import { jakartaYearMonth } from "@/lib/vat";
+import { projectDetailHref } from "@/lib/project-directory-rows";
 
 import AppShell from "@/components/layout/AppShell";
 import BillingBreadcrumbs from "@/components/billing/BillingBreadcrumbs";
@@ -35,11 +31,13 @@ export default async function BillingProjectPage({
   searchParams,
 }: {
   params: Promise<{ clientId: string; projectId: string }>;
-  searchParams?: Promise<{ year?: string; month?: string }>;
+  searchParams?: Promise<{ year?: string; month?: string; period?: string }>;
 }) {
   const session = await requireModule("invoicing");
   const locale = await getServerLocale();
   const t = createTranslator(locale);
+  const query = searchParams ? await searchParams : {};
+  const highlightPeriodId = query.period?.trim() || null;
   const canManage =
     canAccess(toPermissionUser(session), "invoicing") &&
     !session.user.clientId;
@@ -63,7 +61,7 @@ export default async function BillingProjectPage({
       clientId: session.user.clientId ?? clientId,
     },
     include: {
-      client: { select: { id: true, name: true, paymentTermsDays: true } },
+      client: { select: { id: true, name: true } },
       invoicePeriods: {
         orderBy: { periodStart: "desc" },
       },
@@ -78,7 +76,7 @@ export default async function BillingProjectPage({
   const billingClientId = billingClient.id;
 
   const inPlanning = isPlanningProjectStatus(project.status);
-  const pageTitle = formatProjectTitle(project.name, null, locale);
+  const pageTitle = project.name;
   const opensPeriods = usesInvoicePeriods(project.subCategory);
 
   if (inPlanning) {
@@ -99,7 +97,7 @@ export default async function BillingProjectPage({
           <p className="text-sm text-subtle">
             {t("pages.billing.planningInvoicingHint")}
           </p>
-          <BackLink href={`/projects/${project.id}`} direction="forward">
+          <BackLink href={projectDetailHref(project.id, highlightPeriodId)} direction="forward">
             {t("pages.billing.projectDetails")}
           </BackLink>
         </div>
@@ -121,10 +119,9 @@ export default async function BillingProjectPage({
   // Security uses Regular-like monthly periods (`opensPeriods` / usesInvoicePeriods).
   // Parking and Payroll Management have dedicated workspaces (no invoice-period loop).
   if (!opensPeriods) {
-    const paramsYm = searchParams ? await searchParams : {};
     const nowYm = jakartaYearMonth();
-    const year = Math.max(2000, Math.min(2100, Number(paramsYm.year) || nowYm.year));
-    const month = Math.max(1, Math.min(12, Number(paramsYm.month) || nowYm.month));
+    const year = Math.max(2000, Math.min(2100, Number(query.year) || nowYm.year));
+    const month = Math.max(1, Math.min(12, Number(query.month) || nowYm.month));
 
     return (
       <AppShell
@@ -145,7 +142,7 @@ export default async function BillingProjectPage({
               ? t("pages.billing.parking.workspaceHint")
               : t("pages.billing.payrollMgmt.workspaceHint")}
           </p>
-          <BackLink href={`/projects/${project.id}`} direction="forward">
+          <BackLink href={projectDetailHref(project.id, highlightPeriodId)} direction="forward">
             {t("pages.billing.projectDetails")}
           </BackLink>
         </div>
@@ -218,6 +215,7 @@ export default async function BillingProjectPage({
                     <ProjectBillingPanel
                       projectId={project.id}
                       projectName={project.name}
+                      highlightPeriodId={highlightPeriodId}
                       billingMode={project.billingMode}
                       billingPeriodBasis={project.billingPeriodBasis}
                       billingCycleStartDay={project.billingCycleStartDay}
@@ -225,7 +223,7 @@ export default async function BillingProjectPage({
                       contractPrice={decimalToNumber(project.contractPrice)}
                       invoicingDay={project.invoicingDay}
                       startDate={project.startDate?.toISOString() ?? null}
-                      paymentTermsDays={billingClient.paymentTermsDays}
+                      paymentTermsDays={project.paymentTermsDays}
                       canManage={canManage}
                       isClientPortal={Boolean(session.user.clientId)}
                       subCategory={project.subCategory}
@@ -285,7 +283,6 @@ export default async function BillingProjectPage({
   ) {
     try {
       await syncProjectMonthlyPeriods(project.id);
-      await syncDueMonthlyInvoicesOnLoad();
     } catch {
       // Page still loads; staff can reconcile / submit manually.
     }
@@ -302,8 +299,7 @@ export default async function BillingProjectPage({
 
   const refreshed = refreshedProject?.invoicePeriods ?? project.invoicePeriods;
   const contractPriceNum = decimalToNumber(project.contractPrice);
-  const unpaidMilestone = getMostUrgentUnpaidPeriod(refreshed);
-  const billingTitle = formatProjectTitle(project.name, unpaidMilestone, locale);
+  const billingTitle = project.name;
   const invoicingDay = refreshedProject?.invoicingDay ?? project.invoicingDay;
   const startDateIso =
     (refreshedProject?.startDate ?? project.startDate)?.toISOString() ?? null;
@@ -327,7 +323,7 @@ export default async function BillingProjectPage({
             ? t("pages.billing.paymentHistoryDesc")
             : t("pages.billing.invoiceDownloadDesc")}
         </p>
-        <BackLink href={`/projects/${project.id}`} direction="forward">
+        <BackLink href={projectDetailHref(project.id, highlightPeriodId)} direction="forward">
           {t("pages.billing.projectDetails")}
         </BackLink>
       </div>
@@ -336,6 +332,7 @@ export default async function BillingProjectPage({
         <ProjectBillingPanel
           projectId={project.id}
           projectName={project.name}
+          highlightPeriodId={highlightPeriodId}
           billingMode={project.billingMode}
           billingPeriodBasis={
             refreshedProject?.billingPeriodBasis ?? project.billingPeriodBasis
@@ -350,7 +347,7 @@ export default async function BillingProjectPage({
           contractPrice={contractPriceNum}
           invoicingDay={invoicingDay}
           startDate={startDateIso}
-          paymentTermsDays={project.client.paymentTermsDays}
+          paymentTermsDays={project.paymentTermsDays}
           canManage={canManage}
           isClientPortal={Boolean(session.user.clientId)}
           subCategory={project.subCategory}

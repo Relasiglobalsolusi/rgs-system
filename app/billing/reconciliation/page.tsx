@@ -14,9 +14,13 @@ import {
   CLIENT_PENDING_REVIEW_STATUSES,
   HO_REVISED_QUEUE_STATUSES,
   isAwaitingClientAction,
-  reviewKindLabel,
 } from "@/lib/client-billing-review";
 import { formatDisplayDate } from "@/lib/format-date";
+import {
+  localizeClientReviewChipLines,
+  localizeClientReviewKind,
+  localizeClientReviewStatus,
+} from "@/lib/i18n/labels";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
 import { prisma } from "@/lib/prisma";
@@ -221,10 +225,15 @@ export default async function ReconciliationPage({
                   return (
                     <li
                       key={period.id}
-                      className="rounded-xl border border-border bg-card p-4"
+                      className={cn(
+                        "rounded-2xl border bg-card p-4 shadow-[0_12px_28px_-20px_rgba(0,0,0,0.72)]",
+                        awaitingClient
+                          ? "border-warning/40 bg-card-tint-amber/30"
+                          : "border-primary/30 bg-card-tint-emerald/25"
+                      )}
                     >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0 flex-1">
                           <p className="font-medium text-text">
                             {period.project.name}
                           </p>
@@ -233,7 +242,11 @@ export default async function ReconciliationPage({
                             {period.label ?? t("pages.billing.columns.period")}
                           </p>
                           <p className="mt-1 text-xs text-subtle">
-                            {reviewKindLabel(period.clientReviewKind)} ·{" "}
+                            {localizeClientReviewKind(
+                              period.clientReviewKind,
+                              locale
+                            )}{" "}
+                            ·{" "}
                             {period.periodStart
                               ? formatDisplayDate(period.periodStart, {
                                   timeZone: "UTC",
@@ -258,7 +271,7 @@ export default async function ReconciliationPage({
                             </p>
                           ) : null}
                         </div>
-                        <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex justify-start sm:justify-center sm:px-3">
                           <StatusBadge
                             status={
                               isRevised
@@ -268,16 +281,28 @@ export default async function ReconciliationPage({
                                   : "active"
                             }
                             compact
+                            lines={
+                              localizeClientReviewChipLines(
+                                period.clientReviewStatus,
+                                locale
+                              ) ?? undefined
+                            }
                           >
-                            {period.clientReviewStatus.replace(/_/g, " ")}
+                            {localizeClientReviewStatus(
+                              period.clientReviewStatus,
+                              locale
+                            )}
                           </StatusBadge>
+                        </div>
+                        <div className="flex min-w-[9.75rem] flex-col items-stretch gap-2 sm:items-end">
                           <Link
                             href={billingHref}
                             className={cn(
                               buttonVariants({
-                                variant: "outline",
+                                variant: "default",
                                 size: "sm",
-                              })
+                              }),
+                              "w-full justify-center sm:w-[9.75rem]"
                             )}
                           >
                             {t("pages.reconciliation.openBilling")}
@@ -289,9 +314,10 @@ export default async function ReconciliationPage({
                               rel="noreferrer"
                               className={cn(
                                 buttonVariants({
-                                  variant: "outline",
+                                  variant: "info",
                                   size: "sm",
-                                })
+                                }),
+                                "w-full justify-center sm:w-[9.75rem]"
                               )}
                             >
                               {t("pages.reconciliation.viewReport")}

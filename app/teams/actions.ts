@@ -5,7 +5,7 @@ import type { OperationsTeamKind } from "@prisma/client";
 
 import {
   eligibleTeamMemberWhere,
-  isOperationsTeamKind,
+  legacyKindForCatalogArea,
   releaseTeamMemberFromOpenJobs,
   syncTeamMemberOntoOpenJobs,
 } from "@/lib/operations-teams";
@@ -36,12 +36,30 @@ function readName(formData: FormData) {
   return String(formData.get("name") ?? "").trim();
 }
 
-function readKind(formData: FormData): OperationsTeamKind {
-  const kind = String(formData.get("kind") ?? "").trim();
-  if (!isOperationsTeamKind(kind)) {
-    throw new Error("Choose General Cleaning or Facade Cleaning.");
+async function readServiceAreaCatalog(
+  formData: FormData,
+  companyId: string
+): Promise<{
+  serviceAreaCatalogId: string;
+  kind: OperationsTeamKind | null;
+}> {
+  const catalogId = String(
+    formData.get("serviceAreaCatalogId") ?? formData.get("kind") ?? ""
+  ).trim();
+  if (!catalogId) {
+    throw new Error("Choose a team type.");
   }
-  return kind;
+  const area = await prisma.projectServiceAreaCatalog.findFirst({
+    where: { id: catalogId, companyId },
+    select: { id: true, slug: true, systemArea: true },
+  });
+  if (!area) {
+    throw new Error("Choose a team type.");
+  }
+  return {
+    serviceAreaCatalogId: area.id,
+    kind: legacyKindForCatalogArea(area),
+  };
 }
 
 export async function createOperationsTeam(formData: FormData) {
@@ -50,7 +68,10 @@ export async function createOperationsTeam(formData: FormData) {
   if (!name) {
     throw new Error("Enter a team name.");
   }
-  const kind = readKind(formData);
+  const { serviceAreaCatalogId, kind } = await readServiceAreaCatalog(
+    formData,
+    companyId
+  );
   const last = await prisma.operationsTeam.findFirst({
     where: { companyId },
     orderBy: { sortOrder: "desc" },
@@ -61,6 +82,7 @@ export async function createOperationsTeam(formData: FormData) {
       companyId,
       name,
       kind,
+      serviceAreaCatalogId,
       sortOrder: (last?.sortOrder ?? 0) + 1,
     },
   });
@@ -74,7 +96,10 @@ export async function updateOperationsTeam(formData: FormData) {
   const name = readName(formData);
   if (!teamId) throw new Error("Team not found.");
   if (!name) throw new Error("Enter a team name.");
-  const kind = readKind(formData);
+  const { serviceAreaCatalogId, kind } = await readServiceAreaCatalog(
+    formData,
+    companyId
+  );
 
   const team = await prisma.operationsTeam.findFirst({
     where: { id: teamId, companyId },
@@ -84,7 +109,7 @@ export async function updateOperationsTeam(formData: FormData) {
 
   await prisma.operationsTeam.update({
     where: { id: teamId },
-    data: { name, kind },
+    data: { name, kind, serviceAreaCatalogId },
   });
   revalidatePath("/teams");
   revalidatePath("/teams/availability");

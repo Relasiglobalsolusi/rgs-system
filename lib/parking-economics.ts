@@ -108,6 +108,7 @@ export async function getProjectPurchaseOutflows(
       companyId,
       projectId,
       purpose: "PROJECT",
+      reversedAt: null,
       paidAt: { gte: start, lt: endExclusive },
     },
     select: {
@@ -140,6 +141,7 @@ export async function getProjectPurchaseOutflowsByProjectIds(
       companyId,
       projectId: { in: projectIds },
       purpose: "PROJECT",
+      reversedAt: null,
       paidAt: {
         not: null,
         ...(from ? { gte: from } : {}),

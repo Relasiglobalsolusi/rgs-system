@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { formatDisplayTime } from "@/lib/format-date";
 import { formatDateInput } from "@/lib/invoice-period";
+import { localizeDepartmentLabel } from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
 import { todayDateInput } from "@/lib/project-contract";
 
@@ -77,7 +78,7 @@ export default function ProgressReportDirectory({
   canManage = false,
   canEdit = true,
 }: Props) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(
     () => new Set(projects.map((p) => p.id))
   );
@@ -255,7 +256,7 @@ export default function ProgressReportDirectory({
                             <p className="mt-0.5 text-xs text-subtle">
                               {employee.employeeNo}
                               {employee.category
-                                ? ` · ${employee.category.name}`
+                                ? ` · ${localizeDepartmentLabel(null, employee.category.name, locale)}`
                                 : ""}
                               {" · "}
                               {t(
@@ -288,39 +289,22 @@ export default function ProgressReportDirectory({
                                   <button
                                     type="button"
                                     onClick={() => setViewReport(report)}
-                                    className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                                    className="min-w-0 flex-1 text-left"
                                   >
-                                    <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-md border border-border bg-inset">
-                                      {report.photos[0] ? (
-                                        <Image
-                                          src={report.photos[0].url}
-                                          alt=""
-                                          fill
-                                          className="object-cover"
-                                          unoptimized
-                                        />
-                                      ) : (
-                                        <div className="flex h-full w-full items-center justify-center">
-                                          <Camera className="h-4 w-4 text-muted" />
-                                        </div>
+                                    <p className="truncate text-sm font-medium text-text">
+                                      {report.stageLabel ||
+                                        t("pages.progress.untitledReport")}
+                                    </p>
+                                    <p className="mt-0.5 text-xs text-subtle">
+                                      {formatDisplayTime(report.createdAt)}
+                                      {" · "}
+                                      {t(
+                                        report.photos.length === 1
+                                          ? "pages.progress.photoCountOne"
+                                          : "pages.progress.photoCountOther",
+                                        { count: report.photos.length }
                                       )}
-                                    </div>
-                                    <div className="min-w-0">
-                                      <p className="truncate text-sm font-medium text-text">
-                                        {report.stageLabel ||
-                                          t("pages.progress.untitledReport")}
-                                      </p>
-                                      <p className="mt-0.5 text-xs text-subtle">
-                                        {formatDisplayTime(report.createdAt)}
-                                        {" · "}
-                                        {t(
-                                          report.photos.length === 1
-                                            ? "pages.progress.photoCountOne"
-                                            : "pages.progress.photoCountOther",
-                                          { count: report.photos.length }
-                                        )}
-                                      </p>
-                                    </div>
+                                    </p>
                                   </button>
                                   <div className="flex shrink-0 items-center gap-2">
                                     <Button

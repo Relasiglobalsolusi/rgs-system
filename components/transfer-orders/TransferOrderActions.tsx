@@ -14,6 +14,7 @@ import {
 } from "@/app/transfer-orders/actions";
 import { showRejectionFromError } from "@/components/ui/rejection-notice";
 import { Button } from "@/components/ui/button";
+import SearchableProjectSelect from "@/components/ui/SearchableProjectSelect";
 import { useT } from "@/lib/i18n/use-t";
 
 export function SendTransferOrderButton({ id }: { id: string }) {
@@ -153,25 +154,18 @@ export function ManagerNeedsAttentionActions({
 
   return (
     <div className="flex w-full min-w-[16rem] flex-col gap-2 sm:max-w-md">
-      <label className="text-sm text-subtle">
+      <div className="text-sm text-subtle">
         <span className="mb-1 block font-medium text-text">
           {t("pages.transferOrders.assignToProject")}
         </span>
-        <select
+        <SearchableProjectSelect
           value={projectId}
-          onChange={(event) => setProjectId(event.target.value)}
+          onValueChange={setProjectId}
+          projects={options}
+          placeholder={t("pages.transferOrders.assignToProject")}
           disabled={pending}
-          className="w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-ring"
-        >
-          {options.map((project) => (
-            <option key={project.id} value={project.id}>
-              {project.clientName
-                ? `${project.clientName} — ${project.name}`
-                : project.name}
-            </option>
-          ))}
-        </select>
-      </label>
+        />
+      </div>
       <div className="flex flex-wrap justify-end gap-2">
         <Button
           type="button"

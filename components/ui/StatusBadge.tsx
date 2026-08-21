@@ -51,14 +51,6 @@ export const compactChipClassName =
 export const largeChipClassName =
   "box-border inline-flex h-[3.5rem] min-h-[3.5rem] w-auto min-w-[9.75rem] max-w-none shrink-0 items-center justify-center overflow-hidden whitespace-nowrap rounded-md px-3.5 py-0 text-sm font-semibold uppercase leading-none tracking-[0.04em]";
 
-/**
- * @deprecated Single-line chips render children directly; kept for imports.
- */
-export const chipLabelClassName = "leading-none";
-
-/** Alias — same size as compactChipClassName (ERP-wide uniform chips). */
-export const chipClassName = compactChipClassName;
-
 const chipSizeClassName: Record<StatusBadgeSize, string> = {
   md: compactChipClassName,
   lg: largeChipClassName,
@@ -104,20 +96,12 @@ export const outlineChipTones = {
     "border border-warning/40 bg-card-tint-amber font-semibold text-warning shadow-none",
   warningInteractive:
     "border border-warning/40 bg-card-tint-amber font-semibold text-warning shadow-none hover:bg-[color-mix(in_srgb,var(--color-card-tint-amber),var(--color-warning)_10%)] focus-visible:border-warning focus-visible:ring-warning/25",
-  /** Slate — inactive. */
-  slate:
-    "border border-accent-slate/40 bg-card-tint-slate font-semibold text-accent-slate shadow-none",
-  slateInteractive:
-    "border border-accent-slate/40 bg-card-tint-slate font-semibold text-accent-slate shadow-none hover:bg-[color-mix(in_srgb,var(--color-card-tint-slate),var(--color-accent-slate)_12%)] focus-visible:border-accent-slate focus-visible:ring-accent-slate/25",
   /** Quiet unselected / Clear. */
   muted:
     "border border-border bg-elevated font-semibold text-muted shadow-none",
   mutedInteractive:
     "border border-border bg-elevated font-semibold text-muted shadow-none hover:border-border-strong hover:bg-card-hover hover:text-text focus-visible:border-border-strong focus-visible:ring-ring/40",
 } as const;
-
-/** @deprecated Use outlineChipTones — kept so older imports keep working. */
-export const solidChipTones = outlineChipTones;
 
 /**
  * Semantic chip tones (dark ERP) — outline / soft tint:

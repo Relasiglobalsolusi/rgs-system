@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight, Download, FileText } from "lucide-react";
 
+import { ChipCell } from "@/components/ui/DataTable";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { buttonVariants } from "@/components/ui/button";
 import { formatDisplayDate } from "@/lib/format-date";
@@ -92,18 +93,20 @@ export default function CompletedProjectPeriods({ periods }: Props) {
                     </td>
                     <td className="px-2 py-1.5">
                       {p.invoicePdfPath ? (
-                        <a
-                          href={p.invoicePdfPath}
-                          target="_blank"
-                          rel="noreferrer"
-                          className={cn(
-                            buttonVariants({ variant: "outline", size: "sm" }),
-                            "h-7 gap-1 px-2 text-[11px]"
-                          )}
-                        >
-                          <Download className="h-3 w-3" />
-                          PDF
-                        </a>
+                        <ChipCell>
+                          <a
+                            href={p.invoicePdfPath}
+                            target="_blank"
+                            rel="noreferrer"
+                            className={cn(
+                              buttonVariants({ variant: "outline", size: "sm" }),
+                              "h-7 gap-1 px-2 text-[11px]"
+                            )}
+                          >
+                            <Download className="h-3 w-3" />
+                            PDF
+                          </a>
+                        </ChipCell>
                       ) : p.submittedAt ? (
                         formatDisplayDate(p.submittedAt)
                       ) : (
@@ -116,18 +119,20 @@ export default function CompletedProjectPeriods({ periods }: Props) {
                           {t("pages.reconciliation.taxNa")}
                         </span>
                       ) : p.taxInvoiceDocumentPath ? (
-                        <a
-                          href={p.taxInvoiceDocumentPath}
-                          target="_blank"
-                          rel="noreferrer"
-                          className={cn(
-                            buttonVariants({ variant: "outline", size: "sm" }),
-                            "h-7 gap-1 px-2 text-[11px]"
-                          )}
-                        >
-                          <FileText className="h-3 w-3" />
-                          PDF
-                        </a>
+                        <ChipCell>
+                          <a
+                            href={p.taxInvoiceDocumentPath}
+                            target="_blank"
+                            rel="noreferrer"
+                            className={cn(
+                              buttonVariants({ variant: "outline", size: "sm" }),
+                              "h-7 gap-1 px-2 text-[11px]"
+                            )}
+                          >
+                            <FileText className="h-3 w-3" />
+                            PDF
+                          </a>
+                        </ChipCell>
                       ) : p.taxInvoiceDoneAt ? (
                         formatDisplayDate(p.taxInvoiceDoneAt)
                       ) : (
@@ -138,12 +143,14 @@ export default function CompletedProjectPeriods({ periods }: Props) {
                       {amount != null ? formatContractPrice(amount) : "—"}
                     </td>
                     <td className="px-2 py-1.5">
-                      <StatusBadge status="success" compact>
-                        {localizeBillingStatus(
-                          p.status as InvoicePeriodStatus,
-                          locale
-                        )}
-                      </StatusBadge>
+                      <ChipCell>
+                        <StatusBadge status="success" compact>
+                          {localizeBillingStatus(
+                            p.status as InvoicePeriodStatus,
+                            locale
+                          )}
+                        </StatusBadge>
+                      </ChipCell>
                     </td>
                   </tr>
                 );

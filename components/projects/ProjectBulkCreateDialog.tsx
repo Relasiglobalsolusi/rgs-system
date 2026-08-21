@@ -25,7 +25,13 @@ import {
 } from "@/components/employees/employee-dialog-ui";
 import { Dialog } from "@/components/ui/dialog";
 import { bulkLineField, createBulkLineKey } from "@/lib/bulk-create";
+import {
+  commercialTaxRequiresRatePercent,
+  isCommercialTaxKind,
+} from "@/lib/commercial-tax";
 import { useT } from "@/lib/i18n/use-t";
+import type { CompanyBankAccountOption } from "@/lib/company-bank-accounts";
+import type { ProjectCatalogAreaDTO } from "@/lib/project-service-catalog";
 
 const FORM_ID = "bulk-create-project-form";
 
@@ -35,6 +41,8 @@ type Props = {
   employees: ProjectStaffEmployee[];
   teams?: ProjectTeamOption[];
   clients: ProjectFormClient[];
+  catalog?: ProjectCatalogAreaDTO[];
+  bankAccounts?: CompanyBankAccountOption[];
 };
 
 export default function ProjectBulkCreateDialog({
@@ -43,6 +51,8 @@ export default function ProjectBulkCreateDialog({
   employees,
   teams = [],
   clients,
+  catalog = [],
+  bankAccounts = [],
 }: Props) {
   const { t } = useT();
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
@@ -121,6 +131,45 @@ export default function ProjectBulkCreateDialog({
         });
         return;
       }
+      const chargedTaxKind = String(
+        formData.get(bulkLineField(index, "chargedTaxKind")) ?? ""
+      ).trim();
+      if (!isCommercialTaxKind(chargedTaxKind)) {
+        showRejection({
+          reasons: t("bulkCreate.lineError", {
+            n: String(index + 1),
+            message: t("pages.projects.chargedTaxKindRequired"),
+          }),
+        });
+        return;
+      }
+      if (
+        chargedTaxKind === "OTHER" &&
+        !String(formData.get(bulkLineField(index, "otherTaxName")) ?? "").trim()
+      ) {
+        showRejection({
+          reasons: t("bulkCreate.lineError", {
+            n: String(index + 1),
+            message: t("pages.billing.otherTaxNameRequired"),
+          }),
+        });
+        return;
+      }
+      if (
+        commercialTaxRequiresRatePercent(chargedTaxKind) &&
+        !String(formData.get(bulkLineField(index, "pphRatePercent")) ?? "").trim()
+      ) {
+        showRejection({
+          reasons: t("bulkCreate.lineError", {
+            n: String(index + 1),
+            message:
+              chargedTaxKind === "OTHER"
+                ? t("pages.billing.otherTaxRateRequired")
+                : t("pages.projects.pphRatePercentRequired"),
+          }),
+        });
+        return;
+      }
       if (initialStatus === "IN_PROGRESS") {
         const proof = formData.get(bulkLineField(index, "contractProof"));
         if (!(proof instanceof File) || proof.size === 0) {
@@ -189,6 +238,8 @@ export default function ProjectBulkCreateDialog({
                   employees={employees}
                   teams={teams}
                   clients={clients}
+                  catalog={catalog}
+                  bankAccounts={bankAccounts}
                   namePrefix={`line.${index}.`}
                   idPrefix={`bulk-project-${index}-`}
                   onFormValuesChange={handleFormInput}

@@ -9,7 +9,9 @@ import {
   requireSession,
   toPermissionUser,
 } from "@/lib/session";
+import { COMPANY_IDENTITY_SELECT } from "@/lib/company-for-pdf";
 import { generateInvoicePeriodPdf } from "@/lib/progress-report-pdf";
+import { overlayInvoiceCompanyBank } from "@/lib/company-bank-accounts";
 import { DEFAULT_PRODUCT_PPN_RATE_PERCENT } from "@/lib/vat";
 import {
   COMPLETION_INVOICE_LABEL,
@@ -23,15 +25,9 @@ import {
   recalculateUnpaidMilestoneAmounts,
   usesInvoicePeriods,
 } from "@/lib/project-billing";
-import {
-  isContractCycleSubCategory,
-  isContractSubCategory,
-} from "@/lib/project-contract";
+import { isContractCycleSubCategory } from "@/lib/project-contract";
 import { shouldCompleteProjectAfterSettlement } from "@/lib/project-settlement";
-import {
-  isProjectFullyPaid,
-  OPEN_COLLECTION_STATUSES,
-} from "@/lib/billing";
+import { OPEN_COLLECTION_STATUSES } from "@/lib/billing";
 import {
   customDayCyclePeriodBounds,
   dueAtFromClientPaymentTerms,
@@ -62,15 +58,7 @@ import {
 } from "@/lib/client-billing-review";
 import { parseManualVerifyReason } from "@/lib/in-house-document-verify";
 
-const COMPANY_BANK_SELECT = {
-  name: true,
-  email: true,
-  phone: true,
-  address: true,
-  bankName: true,
-  bankAccountNumber: true,
-  bankAccountName: true,
-} as const;
+const COMPANY_BANK_SELECT = COMPANY_IDENTITY_SELECT;
 
 /** Reconstruct the commercial invoice number printed on the PDF. */
 function commercialInvoiceNumber(period: {
@@ -260,7 +248,7 @@ async function getOrCreatePeriod(
   periodEnd: Date,
   label: string
 ) {
-  return prisma.projectInvoicePeriod.upsert({
+  const existing = await prisma.projectInvoicePeriod.findUnique({
     where: {
       projectId_periodStart_periodEnd: {
         projectId,
@@ -268,9 +256,16 @@ async function getOrCreatePeriod(
         periodEnd,
       },
     },
-    // Refresh label so monthly rows pick up date-range wording on revisit.
-    update: { label },
-    create: {
+  });
+  if (existing) {
+    if (existing.label === label) return existing;
+    return prisma.projectInvoicePeriod.update({
+      where: { id: existing.id },
+      data: { label },
+    });
+  }
+  return prisma.projectInvoicePeriod.create({
+    data: {
       projectId,
       periodStart,
       periodEnd,
@@ -372,6 +367,7 @@ async function ensureAnniversaryPeriodsForProject(
     billingPeriodBasis?: "CALENDAR_MONTH" | "CONTRACT_CYCLE" | null;
     billingCycleStartDay?: number | null;
     billingCycleEndDay?: number | null;
+    invoicingDay?: number | null;
   },
   ref: Date = new Date(),
   opts?: { includeNextIfDue?: boolean }
@@ -404,10 +400,12 @@ async function ensureAnniversaryPeriodsForProject(
       ? 1
       : invoicingDayFromCycleToDay(days.toDay);
 
-  await prisma.project.update({
-    where: { id: project.id },
-    data: { invoicingDay },
-  });
+  if (project.invoicingDay !== invoicingDay) {
+    await prisma.project.update({
+      where: { id: project.id },
+      data: { invoicingDay },
+    });
+  }
 
   await purgeMismatchedOngoingMonthlyPeriods(project.id, contractStart, basis, {
     fromDay: project.billingCycleStartDay,
@@ -622,7 +620,7 @@ async function compileInvoicePeriodInner(
     period.project.billingMode !== "ON_COMPLETION"
   ) {
     throw new Error(
-      "Use milestone invoicing for General / Facade Cleaning projects."
+      "Use milestone invoicing for General Cleaning, Facade Cleaning, or One-Time Landscaping."
     );
   }
   if (
@@ -669,7 +667,7 @@ async function compileInvoicePeriodInner(
     const issuedAt = invoiceIssueCalendarDate(submittedAt);
     const dueAt = dueAtFromClientPaymentTerms(
       submittedAt,
-      period.project.client?.paymentTermsDays
+      period.project.paymentTermsDays
     );
     // Revised amount (HO after client revise) > period amount > contract price.
     const revisedAmount = decimalToNumber(period.revisedInvoiceAmount);
@@ -684,6 +682,12 @@ async function compileInvoicePeriodInner(
         period.periodStart.getUTCMonth() + 1
       ).padStart(2, "0")}-${periodId.slice(-6).toUpperCase()}`;
 
+    const invoiceBank = await overlayInvoiceCompanyBank({
+      companyId: period.project.companyId,
+      company: period.project.company,
+      periodBankAccountId: period.bankAccountId,
+      projectBankAccountId: period.project.bankAccountId,
+    });
     const invoicePdfPath = await generateInvoicePeriodPdf({
       projectName: period.project.name,
       clientName: period.project.client?.name ?? null,
@@ -705,9 +709,9 @@ async function compileInvoicePeriodInner(
       amountLabel,
       issuedAt,
       dueAt,
-      paymentTermsDays: period.project.client?.paymentTermsDays,
+      paymentTermsDays: period.project.paymentTermsDays,
       invoiceNumber,
-      company: period.project.company,
+      company: invoiceBank.company,
       title:
         period.project.subCategory === "PAYROLL_MANAGEMENT"
           ? "Payroll Management Invoice"
@@ -737,11 +741,12 @@ async function compileInvoicePeriodInner(
           dueAt,
           compiledById: session.user.id,
           compileNote: `Compiled ${reports.length} progress report(s) for this project/location in ${period.label ?? "the period"}. Combined invoice + proof PDF generated.`,
+          bankAccountId: invoiceBank.bankAccountId,
           ...(invoiceAmount != null ? { amount: invoiceAmount } : {}),
-          ...(period.ppnRatePercent == null
+          ...(period.project.requiresTaxInvoice && period.ppnRatePercent == null
             ? { ppnRatePercent: DEFAULT_PRODUCT_PPN_RATE_PERCENT }
             : {}),
-          taxInvoiceRequired: true,
+          taxInvoiceRequired: period.project.requiresTaxInvoice,
         },
       }),
     ]);
@@ -983,7 +988,7 @@ async function issueMilestonePeriodInner(
   }
   if (!isMilestoneSubCategory(project.subCategory)) {
     throw new Error(
-      "Milestone payment schedules are only for General Cleaning and Facade Cleaning."
+      "Milestone payment schedules are only for General Cleaning, Facade Cleaning, and One-Time Landscaping."
     );
   }
 
@@ -1117,13 +1122,19 @@ async function issueMilestonePeriodInner(
     const issuedAt = invoiceIssueCalendarDate(submittedAt);
     const dueAt = dueAtFromClientPaymentTerms(
       submittedAt,
-      project.client?.paymentTermsDays
+      project.paymentTermsDays
     );
     const invoiceNumber =
       period.revisedInvoiceNumber?.trim() ||
       `INV-M${String(milestonePercent).replace(".", "")}-${period.id
         .slice(-6)
         .toUpperCase()}`;
+    const invoiceBank = await overlayInvoiceCompanyBank({
+      companyId: project.companyId,
+      company: project.company,
+      periodBankAccountId: period.bankAccountId,
+      projectBankAccountId: project.bankAccountId,
+    });
     const invoicePdfPath = await generateInvoicePeriodPdf({
       projectName: project.name,
       clientName: project.client?.name ?? null,
@@ -1146,9 +1157,9 @@ async function issueMilestonePeriodInner(
       milestonePercent,
       issuedAt,
       dueAt,
-      paymentTermsDays: project.client?.paymentTermsDays,
+      paymentTermsDays: project.paymentTermsDays,
       invoiceNumber,
-      company: project.company,
+      company: invoiceBank.company,
       title: "Payment Milestone Invoice",
     });
 
@@ -1169,8 +1180,11 @@ async function issueMilestonePeriodInner(
           dueAt,
           compiledById: session.user.id,
           compileNote: `${label} — ${amountLabel}. Compiled ${reports.length} report(s).`,
-          taxInvoiceRequired: true,
-          ppnRatePercent: DEFAULT_PRODUCT_PPN_RATE_PERCENT,
+          bankAccountId: invoiceBank.bankAccountId,
+          taxInvoiceRequired: project.requiresTaxInvoice,
+          ...(project.requiresTaxInvoice
+            ? { ppnRatePercent: DEFAULT_PRODUCT_PPN_RATE_PERCENT }
+            : {}),
         },
       }),
     ]);
@@ -1259,11 +1273,13 @@ async function ensureAdHocMilestonePeriod(
 
   if (!project) throw new Error("Project not found.");
   if (project.billingMode !== "MILESTONE") {
-    throw new Error("Milestone invoicing is only for General / Facade projects.");
+    throw new Error(
+      "Milestone invoicing is only for General Cleaning, Facade Cleaning, and One-Time Landscaping."
+    );
   }
   if (!isMilestoneSubCategory(project.subCategory)) {
     throw new Error(
-      "Milestone payment schedules are only for General Cleaning and Facade Cleaning."
+      "Milestone payment schedules are only for General Cleaning, Facade Cleaning, and One-Time Landscaping."
     );
   }
 
@@ -1403,6 +1419,7 @@ async function ensureAdHocMilestonePeriod(
       status: opts.status,
       amount,
       milestonePercent,
+      bankAccountId: project.bankAccountId,
     },
   });
 
@@ -1440,7 +1457,7 @@ export async function sendAdHocMilestoneForClientReview(formData: FormData) {
  * treated as the invoice slice. We use cumulative progress %:
  * e.g. 30 then 60 invoices 30% then another 30%.
  */
-export async function createMilestoneInvoice(formData: FormData) {
+async function createMilestoneInvoice(formData: FormData) {
   const session = await requireInvoiceManageAccess();
 
   const ready = await ensureAdHocMilestonePeriod(formData, {
@@ -1486,9 +1503,14 @@ export async function createMilestoneInvoice(formData: FormData) {
   const issuedAt = invoiceIssueCalendarDate(submittedAt);
   const dueAt = dueAtFromClientPaymentTerms(
     submittedAt,
-    project.client?.paymentTermsDays
+    project.paymentTermsDays
   );
   const invoiceNumber = `INV-M${String(milestonePercent).replace(".", "")}-${period.id.slice(-6).toUpperCase()}`;
+  const invoiceBank = await overlayInvoiceCompanyBank({
+    companyId: project.companyId,
+    company: project.company,
+    projectBankAccountId: project.bankAccountId,
+  });
   const invoicePdfPath = await generateInvoicePeriodPdf({
     projectName: project.name,
     clientName: project.client?.name ?? null,
@@ -1511,9 +1533,9 @@ export async function createMilestoneInvoice(formData: FormData) {
     milestonePercent,
     issuedAt,
     dueAt,
-    paymentTermsDays: project.client?.paymentTermsDays,
+    paymentTermsDays: project.paymentTermsDays,
     invoiceNumber,
-    company: project.company,
+    company: invoiceBank.company,
     title: "Payment Milestone Invoice",
   });
 
@@ -1534,8 +1556,11 @@ export async function createMilestoneInvoice(formData: FormData) {
         dueAt,
         compiledById: session.user.id,
         compileNote: `${formatMilestoneScheduleLabel(milestonePercent)} — ${amountLabel}. Compiled ${reports.length} report(s).`,
-        taxInvoiceRequired: true,
-        ppnRatePercent: DEFAULT_PRODUCT_PPN_RATE_PERCENT,
+        bankAccountId: invoiceBank.bankAccountId,
+        taxInvoiceRequired: project.requiresTaxInvoice,
+        ...(project.requiresTaxInvoice
+          ? { ppnRatePercent: DEFAULT_PRODUCT_PPN_RATE_PERCENT }
+          : {}),
       },
     }),
   ]);
@@ -1805,7 +1830,7 @@ export async function markInvoicePeriodPaid(formData: FormData) {
     }),
   });
 
-  // Persist upload even when verification fails (audit trail); do not mark PAID.
+  // Keep the uploaded proof on file; do not mark paid here.
   await prisma.projectInvoicePeriod.update({
     where: { id: periodId },
     data: {
@@ -1827,7 +1852,7 @@ export async function markInvoicePeriodPaid(formData: FormData) {
 
 /**
  * Client portal: upload proof of payment and submit for Head Office review.
- * Files stay on this server. No cloud reader is required.
+ * Files stay on this server.
  */
 export async function submitInvoicePaymentForVerification(formData: FormData) {
   const periodId = String(formData.get("periodId") ?? "").trim();
@@ -1877,7 +1902,7 @@ export async function submitInvoicePaymentForVerification(formData: FormData) {
     }),
   });
 
-  // Persist upload even when verification fails (audit trail).
+  // Keep the uploaded proof on file for Head Office review.
   await prisma.projectInvoicePeriod.update({
     where: { id: periodId },
     data: {
@@ -2062,7 +2087,7 @@ export async function markTaxInvoiceDone(formData: FormData) {
     }
   );
 
-  // Persist upload even when verification fails (audit trail); do not mark done.
+  // Keep the uploaded tax invoice on file; do not mark done here.
   await prisma.projectInvoicePeriod.update({
     where: { id: periodId },
     data: {
@@ -2727,7 +2752,36 @@ export async function issueInvoicesForFinishedProject(projectId: string): Promis
  * and counts due cycles awaiting reconcile / invoice submit.
  * Does not auto-compile — staff must Reconcile then Submit invoice.
  */
+const COMPANY_ANNIVERSARY_SYNC_TTL_MS = 2 * 60 * 1000;
+const companyAnniversarySyncedAt = new Map<string, number>();
+const companyAnniversaryInFlight = new Map<
+  string,
+  Promise<{
+    compiled: number;
+    checked: number;
+    dueReminders: number;
+    errors: string[];
+  }>
+>();
+
 async function runAnniversaryMonthlyInvoicingForCompany(companyId: string) {
+  const last = companyAnniversarySyncedAt.get(companyId) ?? 0;
+  if (Date.now() - last < COMPANY_ANNIVERSARY_SYNC_TTL_MS) {
+    return { compiled: 0, checked: 0, dueReminders: 0, errors: [] };
+  }
+  const inFlight = companyAnniversaryInFlight.get(companyId);
+  if (inFlight) return inFlight;
+
+  const work = runAnniversaryMonthlyInvoicingForCompanyNow(companyId).finally(
+    () => {
+      companyAnniversaryInFlight.delete(companyId);
+    }
+  );
+  companyAnniversaryInFlight.set(companyId, work);
+  return work;
+}
+
+async function runAnniversaryMonthlyInvoicingForCompanyNow(companyId: string) {
   const today = toUtcDateOnly(new Date());
 
   const projects = await prisma.project.findMany({
@@ -2747,6 +2801,7 @@ async function runAnniversaryMonthlyInvoicingForCompany(companyId: string) {
       billingPeriodBasis: true,
       billingCycleStartDay: true,
       billingCycleEndDay: true,
+      invoicingDay: true,
       status: true,
       subCategory: true,
     },
@@ -2785,6 +2840,8 @@ async function runAnniversaryMonthlyInvoicingForCompany(companyId: string) {
       dueReminders += 1;
     }
   }
+
+  companyAnniversarySyncedAt.set(companyId, Date.now());
 
   return {
     compiled,

@@ -12,11 +12,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useT } from "@/lib/i18n/use-t";
+import { daysInUtcMonth } from "@/lib/vat";
 import { cn } from "@/lib/utils";
 
 type Props = {
   year: number;
   month: number;
+  day?: number | null;
   /** Preserve AP list view (`tax` / `payments`) when changing period. */
   view?: string | null;
 };
@@ -24,6 +26,7 @@ type Props = {
 export default function PurchaseInvoicePeriodControl({
   year,
   month,
+  day = null,
   view,
 }: Props) {
   const { t } = useT();
@@ -44,11 +47,21 @@ export default function PurchaseInvoicePeriodControl({
     ).sort((a, b) => a - b);
   }, [year]);
 
-  function navigatePeriod(nextYear: number, nextMonth: number) {
+  const dayOptions = useMemo(
+    () => Array.from({ length: daysInUtcMonth(year, month) }, (_, index) => index + 1),
+    [year, month]
+  );
+
+  function navigatePeriod(
+    nextYear: number,
+    nextMonth: number,
+    nextDay: number | null = day
+  ) {
     const params = new URLSearchParams({
       year: String(nextYear),
       month: String(nextMonth),
     });
+    if (nextDay != null) params.set("day", String(nextDay));
     if (view) params.set("view", view);
     startTransition(() => {
       router.push(`/billing/purchase-invoices?${params.toString()}`);
@@ -70,7 +83,15 @@ export default function PurchaseInvoicePeriodControl({
           <Select
             value={String(month)}
             onValueChange={(value) => {
-              if (value != null) navigatePeriod(year, Number(value));
+              if (value != null) {
+                const nextMonth = Number(value);
+                const maxDay = daysInUtcMonth(year, nextMonth);
+                navigatePeriod(
+                  year,
+                  nextMonth,
+                  day != null && day > maxDay ? null : day
+                );
+              }
             }}
           >
             <SelectTrigger
@@ -114,6 +135,42 @@ export default function PurchaseInvoicePeriodControl({
               {yearOptions.map((option) => (
                 <SelectItem key={option} value={String(option)}>
                   {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={day == null ? "all" : String(day)}
+            onValueChange={(value) => {
+              if (value == null) return;
+              navigatePeriod(
+                year,
+                month,
+                value === "all" ? null : Number(value)
+              );
+            }}
+          >
+            <SelectTrigger
+              id="purchase-picker-day"
+              aria-label={t("common.labels.date")}
+              className={cn(employeeSelectTriggerClass, "w-[7.5rem]")}
+            >
+              <SelectValue>
+                {(value) =>
+                  !value || value === "all"
+                    ? t("pages.billing.purchaseAllDays")
+                    : t("pages.billing.purchaseDayOption", { day: String(value) })
+                }
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">
+                {t("pages.billing.purchaseAllDays")}
+              </SelectItem>
+              {dayOptions.map((option) => (
+                <SelectItem key={option} value={String(option)}>
+                  {t("pages.billing.purchaseDayOption", { day: String(option) })}
                 </SelectItem>
               ))}
             </SelectContent>

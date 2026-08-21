@@ -24,6 +24,7 @@ import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import { createSelectionColumn } from "@/components/ui/data-table-selection";
 import StatusBadge from "@/components/ui/StatusBadge";
 import {
+  ACTIONS_DUAL_CHIP_COLUMN_WIDTH,
   ACTIONS_SINGLE_CHIP_COLUMN_WIDTH,
   TrashPermanentDeleteChip,
   TrashRestoreChip,
@@ -34,7 +35,7 @@ import {
   formatEmploymentTypeLabel,
   formatPlacementLabel,
 } from "@/lib/placement";
-import { localizeDepartmentLabel } from "@/lib/i18n/labels";
+import { localizeDepartmentLabel, localizeJobTitle } from "@/lib/i18n/labels";
 import { formatContractPrice } from "@/lib/project-billing";
 import { useT } from "@/lib/i18n/use-t";
 import type { EmploymentType, Placement, ServiceArea } from "@prisma/client";
@@ -69,6 +70,7 @@ type Employee = {
   hasPendingLeaveRequest?: boolean;
   hiredAt: Date | string | null;
   omApprovalAreas?: ServiceArea[];
+  manageAllProjects?: boolean;
   areaManagedProjects?: { projectId: string }[];
   basePay: number | null;
   bpjsKesehatanEnabled: boolean;
@@ -228,7 +230,7 @@ export default function EmployeeTable({
       {
         key: "leaveStatus",
         title: t("pages.employees.columns.status"),
-        align: "center",
+        cellAlign: "center",
         width: "8.5rem",
         className: "min-w-[8.5rem]",
         render: (employee) => {
@@ -296,7 +298,9 @@ export default function EmployeeTable({
         key: "position",
         title: t("pages.employees.columns.position"),
         render: (employee) => (
-          <span className="text-muted">{employee.position ?? "—"}</span>
+          <span className="text-muted">
+            {localizeJobTitle(employee.position, locale) || "—"}
+          </span>
         ),
       },
       {
@@ -311,6 +315,7 @@ export default function EmployeeTable({
       {
         key: "employmentType",
         title: t("pages.employees.columns.employmentType"),
+        cellAlign: "center",
         render: (employee) => (
           <StatusBadge
             status={
@@ -360,6 +365,7 @@ export default function EmployeeTable({
       {
         key: "portal",
         title: t("pages.employees.columns.portalLogin"),
+        cellAlign: "center",
         render: (employee) => {
           const portalStatus = getEmployeePortalLoginStatus(employee);
           const badgeStatus =
@@ -367,7 +373,7 @@ export default function EmployeeTable({
               ? "active"
               : portalStatus === "revoked"
                 ? "revoked"
-                : "inactive";
+                : "danger";
           const label =
             portalStatus === "yes"
               ? t("pages.employees.portalStatus.yes")
@@ -389,11 +395,11 @@ export default function EmployeeTable({
         title: t("pages.employees.columns.actions"),
         width: isTrash
           ? TRASH_ACTIONS_COLUMN_WIDTH
-          : ACTIONS_SINGLE_CHIP_COLUMN_WIDTH,
-        align: "center",
-        className: isTrash
-          ? "min-w-[22rem] overflow-visible whitespace-nowrap max-xl:min-w-[20rem] max-xl:px-2"
-          : "min-w-[18rem] overflow-visible whitespace-nowrap max-xl:min-w-[16rem] max-xl:px-2",
+          : canResign
+            ? ACTIONS_DUAL_CHIP_COLUMN_WIDTH
+            : ACTIONS_SINGLE_CHIP_COLUMN_WIDTH,
+        cellAlign: "center",
+        className: "overflow-visible whitespace-nowrap max-xl:px-2",
         render: (employee) => (
           <div className="flex shrink-0 items-center justify-center gap-2 whitespace-nowrap">
             {isTrash ? (

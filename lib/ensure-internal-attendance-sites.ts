@@ -14,28 +14,44 @@ export type EnsuredInternalSiteRow = {
   kind: "HEAD_OFFICE" | "WAREHOUSE";
 };
 
+type EnsuredSites = {
+  internalClientId: string | null;
+  sites: EnsuredInternalSiteRow[];
+};
+
+const ensuredInternalSites = new Map<string, EnsuredSites>();
+
 /**
  * Ensure Head Office + Warehouse exist as INTERNAL projects (no billed client).
  * Migrates legacy GENERAL_CLEANING / RGS Internal client rows when found.
  */
-export async function ensureInternalAttendanceSites(companyId: string): Promise<{
-  internalClientId: string | null;
-  sites: EnsuredInternalSiteRow[];
-}> {
-  async function findByName(matcher: (name: string) => boolean) {
-    const rows = await prisma.project.findMany({
-      where: { companyId },
-      select: {
-        id: true,
-        name: true,
-        clientId: true,
-        subCategory: true,
-        serviceArea: true,
-        status: true,
-      },
-    });
-    return rows.find((row) => matcher(row.name)) ?? null;
-  }
+export async function ensureInternalAttendanceSites(
+  companyId: string
+): Promise<EnsuredSites> {
+  const cached = ensuredInternalSites.get(companyId);
+  if (cached) return cached;
+
+  const rows = await prisma.project.findMany({
+    where: {
+      companyId,
+      OR: [
+        { serviceArea: "HEAD_OFFICE" },
+        { subCategory: "INTERNAL" },
+        { name: { equals: ATTENDANCE_HEAD_OFFICE_NAME, mode: "insensitive" } },
+        { name: { equals: ATTENDANCE_WAREHOUSE_NAME, mode: "insensitive" } },
+        { name: { equals: "Kantor Pusat", mode: "insensitive" } },
+        { name: { equals: "Gudang", mode: "insensitive" } },
+      ],
+    },
+    select: {
+      id: true,
+      name: true,
+      clientId: true,
+      subCategory: true,
+      serviceArea: true,
+      status: true,
+    },
+  });
 
   async function upsertInternalSite(opts: {
     name: string;
@@ -43,7 +59,7 @@ export async function ensureInternalAttendanceSites(companyId: string): Promise<
     sortOrder: number;
     matcher: (name: string) => boolean;
   }) {
-    const existing = await findByName(opts.matcher);
+    const existing = rows.find((row) => opts.matcher(row.name)) ?? null;
     if (existing) {
       if (
         existing.subCategory !== "INTERNAL" ||
@@ -93,19 +109,23 @@ export async function ensureInternalAttendanceSites(companyId: string): Promise<
     matcher: isAttendanceWarehouseName,
   });
 
-  const sites: EnsuredInternalSiteRow[] = [
-    {
-      clientId: ATTENDANCE_INTERNAL_ROUTE_CLIENT_ID,
-      projectId: headOfficeId,
-      name: ATTENDANCE_HEAD_OFFICE_NAME,
-      kind: "HEAD_OFFICE",
-    },
-    {
-      clientId: ATTENDANCE_INTERNAL_ROUTE_CLIENT_ID,
-      projectId: warehouseId,
-      name: ATTENDANCE_WAREHOUSE_NAME,
-      kind: "WAREHOUSE",
-    },
-  ];
-  return { internalClientId: null, sites };
+  const result: EnsuredSites = {
+    internalClientId: null,
+    sites: [
+      {
+        clientId: ATTENDANCE_INTERNAL_ROUTE_CLIENT_ID,
+        projectId: headOfficeId,
+        name: ATTENDANCE_HEAD_OFFICE_NAME,
+        kind: "HEAD_OFFICE",
+      },
+      {
+        clientId: ATTENDANCE_INTERNAL_ROUTE_CLIENT_ID,
+        projectId: warehouseId,
+        name: ATTENDANCE_WAREHOUSE_NAME,
+        kind: "WAREHOUSE",
+      },
+    ],
+  };
+  ensuredInternalSites.set(companyId, result);
+  return result;
 }

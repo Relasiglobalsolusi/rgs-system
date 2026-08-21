@@ -25,12 +25,6 @@ export function generateSecurityCode(): string {
   return out;
 }
 
-export function securityCodeHint(code: string): string {
-  const trimmed = code.trim();
-  if (trimmed.length < 2) return trimmed;
-  return trimmed.slice(-2);
-}
-
 export async function hashSecurityCode(code: string): Promise<string> {
   return bcrypt.hash(code.trim(), BCRYPT_ROUNDS);
 }

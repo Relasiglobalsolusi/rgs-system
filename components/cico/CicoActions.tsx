@@ -6,16 +6,25 @@ import {
 } from "@/components/ui/rejection-notice";
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   useTransition,
   type ChangeEvent,
+  type DragEvent,
 } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { checkIn, checkOut } from "@/app/cico/actions";
 import ProgressDialog from "@/components/progress/ProgressDialog";
 import { Button } from "@/components/ui/button";
+import {
+  assignFilesToInput,
+  preventBrowserFileNavigation,
+} from "@/components/ui/FileDropField";
+import DirectorySearchInput, {
+  matchesDirectorySearch,
+} from "@/components/ui/DirectorySearchInput";
 import {
   Select,
   SelectContent,
@@ -25,7 +34,9 @@ import {
 } from "@/components/ui/select";
 import { formatDisplayTime } from "@/lib/format-date";
 import { useT } from "@/lib/i18n/use-t";
+import { cn } from "@/lib/utils";
 import { resolveGeofenceRadiusMeters } from "@/lib/geo";
+import { sortProjectSelectOptions } from "@/lib/project-select";
 import { formatTimeRange, isEarlyCheckOut } from "@/lib/operating-hours";
 import {
   Dialog,
@@ -116,20 +127,33 @@ export default function CicoActions({
 }: Props) {
   const { t } = useT();
   const router = useRouter();
-  const [projectId, setProjectId] = useState(assignedProjects[0]?.id ?? "");
+  const orderedProjects = useMemo(
+    () => sortProjectSelectOptions(assignedProjects),
+    [assignedProjects]
+  );
+  const [projectId, setProjectId] = useState(orderedProjects[0]?.id ?? "");
+  const [projectSearch, setProjectSearch] = useState("");
   const [pending, startTransition] = useTransition();
   const [locating, setLocating] = useState(false);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoDragActive, setPhotoDragActive] = useState(false);
   const [progressOpen, setProgressOpen] = useState(false);
   const [earlyConfirmOpen, setEarlyConfirmOpen] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
-  const selected = assignedProjects.find((project) => project.id === projectId);
-  const projectSelectItems = assignedProjects.map((project) => ({
+  const selected = orderedProjects.find((project) => project.id === projectId);
+  const projectSelectItems = orderedProjects.map((project) => ({
     value: project.id,
     label: projectSelectLabel(project),
   }));
+  const visibleProjects = useMemo(
+    () =>
+      orderedProjects.filter((project) =>
+        matchesDirectorySearch(projectSearch, project.name, project.location)
+      ),
+    [orderedProjects, projectSearch]
+  );
 
   const sessions =
     todaySessions && todaySessions.length > 0
@@ -165,18 +189,47 @@ export default function CicoActions({
     }
   }
 
-  function onPhotoChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0] ?? null;
+  function assignPhotoFile(file: File | null) {
     if (!file) {
-      setPhotoFile(null);
+      clearPhoto();
       return;
     }
     if (!file.type.startsWith("image/")) {
       showRejection({ reasons: t("pages.cico.chooseImageFile") });
-      clearPhoto();
       return;
     }
+    if (photoInputRef.current) {
+      assignFilesToInput(photoInputRef.current, [file]);
+    }
     setPhotoFile(file);
+  }
+
+  function onPhotoChange(event: ChangeEvent<HTMLInputElement>) {
+    assignPhotoFile(event.target.files?.[0] ?? null);
+  }
+
+  const photoDropLocked =
+    previewMode ||
+    pending ||
+    locating ||
+    (!checkedIn && assignedProjects.length === 0);
+
+  function handlePhotoDragOver(event: DragEvent<HTMLDivElement>) {
+    preventBrowserFileNavigation(event);
+    if (photoDropLocked) return;
+    setPhotoDragActive(true);
+  }
+
+  function handlePhotoDragLeave(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setPhotoDragActive(false);
+  }
+
+  function handlePhotoDrop(event: DragEvent<HTMLDivElement>) {
+    preventBrowserFileNavigation(event);
+    setPhotoDragActive(false);
+    if (photoDropLocked) return;
+    assignPhotoFile(event.dataTransfer.files?.[0] ?? null);
   }
 
   async function handleCheckIn() {
@@ -323,26 +376,46 @@ export default function CicoActions({
                 onValueChange={(value) => setProjectId(value ?? "")}
                 items={projectSelectItems}
                 disabled={previewMode}
+                onOpenChange={(open) => {
+                  if (!open) setProjectSearch("");
+                }}
               >
                 <SelectTrigger className="h-11 w-full">
                   <SelectValue placeholder={t("pages.cico.selectProject")}>
                     {(value) => {
                       if (!value) return null;
-                      const project = assignedProjects.find(
+                      const project = orderedProjects.find(
                         (p) => p.id === value
                       );
-                      return project
-                        ? projectSelectLabel(project)
-                        : String(value);
+                      return project ? projectSelectLabel(project) : null;
                     }}
                   </SelectValue>
                 </SelectTrigger>
-                <SelectContent>
-                  {assignedProjects.map((project) => (
-                    <SelectItem key={project.id} value={project.id}>
-                      {projectSelectLabel(project)}
-                    </SelectItem>
-                  ))}
+                <SelectContent
+                  toolbar={
+                    <DirectorySearchInput
+                      value={projectSearch}
+                      onChange={setProjectSearch}
+                      placeholder={t("common.labels.searchProjects")}
+                      className="max-w-none"
+                    />
+                  }
+                >
+                  {visibleProjects.length === 0 ? (
+                    <div className="px-3 py-4 text-center text-sm text-subtle">
+                      {t("common.labels.noMatchingProjects")}
+                    </div>
+                  ) : (
+                    visibleProjects.map((project) => (
+                      <SelectItem
+                        key={project.id}
+                        value={project.id}
+                        label={projectSelectLabel(project)}
+                      >
+                        {projectSelectLabel(project)}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             ) : (
@@ -562,7 +635,16 @@ export default function CicoActions({
             )}
           </div>
           {photoPreview ? (
-            <div className="relative mt-1 h-36 w-full max-w-xs overflow-hidden rounded-xl border border-border bg-inset sm:h-40">
+            <div
+              className={cn(
+                "relative mt-1 h-36 w-full max-w-xs overflow-hidden rounded-xl border bg-inset sm:h-40",
+                photoDragActive ? "border-primary/60" : "border-border"
+              )}
+              onDragEnter={handlePhotoDragOver}
+              onDragOver={handlePhotoDragOver}
+              onDragLeave={handlePhotoDragLeave}
+              onDrop={handlePhotoDrop}
+            >
               <Image
                 src={photoPreview}
                 alt={photoLabel}
@@ -572,7 +654,18 @@ export default function CicoActions({
               />
             </div>
           ) : (
-            <div className="flex h-28 max-w-xs items-center justify-center rounded-xl border border-dashed border-border bg-inset px-4 text-center text-xs text-subtle">
+            <div
+              className={cn(
+                "flex h-28 max-w-xs items-center justify-center rounded-xl border border-dashed bg-inset px-4 text-center text-xs transition",
+                photoDragActive
+                  ? "border-primary/60 bg-primary/10 text-text"
+                  : "border-border text-subtle"
+              )}
+              onDragEnter={handlePhotoDragOver}
+              onDragOver={handlePhotoDragOver}
+              onDragLeave={handlePhotoDragLeave}
+              onDrop={handlePhotoDrop}
+            >
               {photoAlertEmpty}
             </div>
           )}

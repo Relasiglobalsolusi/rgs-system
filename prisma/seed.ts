@@ -33,6 +33,7 @@ import {
   invoicingDayFromContractStart,
 } from "../lib/invoice-period";
 import { buildBillingDocumentFileBase } from "../lib/upload";
+import { seedDemoAllModules } from "./seed-demo-all-modules";
 import {
   SAMPLE_VENDORS,
   seedSampleVendors,
@@ -69,15 +70,21 @@ async function main() {
   const company = await prisma.company.upsert({
     where: { id: "rgs-company" },
     update: {
+      name: "Relasi Global Solusi",
       email: "contact@rgs.co.id",
       phone: "+62 21 2295 2228",
+      address:
+        "Jl. Daan Mogot KM 14.5 Ruko Point 8, Blok F6\nRT 002 | RW 014, Jakarta Barat 11750",
+      website: "https://www.rgs.co.id",
     },
     create: {
       id: "rgs-company",
       name: "Relasi Global Solusi",
       email: "contact@rgs.co.id",
       phone: "+62 21 2295 2228",
-      address: "Jakarta, Indonesia",
+      address:
+        "Jl. Daan Mogot KM 14.5 Ruko Point 8, Blok F6\nRT 002 | RW 014, Jakarta Barat 11750",
+      website: "https://www.rgs.co.id",
     },
   });
 
@@ -1326,6 +1333,8 @@ async function main() {
   );
   console.log("");
   console.log("Recovery emails: vicko@rgs.co.id, office@rgs.co.id, etc.");
+
+  await seedDemoAllModules(prisma);
 }
 
 main()

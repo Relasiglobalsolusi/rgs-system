@@ -18,17 +18,37 @@ import {
 import {
   allocateInventorySkus,
   getNextInventorySku,
+  isVehicleItemType,
 } from "@/lib/inventory-sku";
+import { normalizeVehiclePlate } from "@/lib/vehicle-plate";
+import {
+  defaultUnitForItemType,
+  normalizeInventoryUnit,
+} from "@/lib/inventory-units";
 import {
   InsufficientEquipmentAssetsError,
   assertEquipmentInventoryInvariants,
+  countEquipmentAssetsByStatus,
   isEquipmentItemType,
+  mintVehicleAssetByPlate,
   releaseEquipmentAssetsForBulkIssue,
   restoreEquipmentAssetsForSoldOff,
   restoreEquipmentAssetsForWriteOff,
   retireEquipmentAssets,
+  retireEquipmentAssetsForSale,
+  uncodedWarehouseQty,
 } from "@/lib/equipment-asset";
 import { parseFormDateInput } from "@/lib/bulk-import/parse-import-date";
+import {
+  getCompanyBankAccount,
+  overlayCompanyBankForPdf,
+  type CompanyBankAccountRow,
+} from "@/lib/company-bank-accounts";
+import { loadCompanyForPdf } from "@/lib/company-for-pdf";
+import {
+  generateInventorySaleInvoicePdf,
+  saleInvoiceNumber,
+} from "@/lib/sale-invoice-pdf";
 import type { AppLocale } from "@/lib/i18n/locale";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
@@ -45,12 +65,13 @@ import {
   parseBulkLineCount,
 } from "@/lib/bulk-create";
 import { SORT_ORDER_STEP } from "@/lib/reorder";
+import { canAccess } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { toActionError } from "@/lib/prisma-errors";
-import { isOwnerAccount } from "@/lib/permissions";
 import { canManageInventory, canManageItemCatalog } from "@/lib/project-access";
+import { writeRecordChange } from "@/lib/record-change";
 import { decimalToNumber } from "@/lib/project-billing";
-import { requireModule, toPermissionUser } from "@/lib/session";
+import { requireModule, requireSession, toPermissionUser } from "@/lib/session";
 import { capitalizeProper, titleCaseWords } from "@/lib/text-case";
 import { formatUserDisplayLabel } from "@/lib/user-display";
 import { saveUpload } from "@/lib/upload";
@@ -100,15 +121,28 @@ async function assertCanAssignInventory(locale: AppLocale) {
   return session;
 }
 
-/** Reverse a stock sale — primary owner login only. */
-async function assertOwnerCanReverseSale(locale: AppLocale) {
-  const session = await requireModule("inventory");
-  if (!isOwnerAccount({ username: session.user.username })) {
-    throw new Error(
-      translate(locale, "pages.inventory.reverseSalePermissionDenied")
-    );
+/** View or search stock sales — Finance → Sales, or inventory (legacy reads). */
+async function assertCanAccessSales(locale: AppLocale) {
+  const session = await requireSession();
+  const user = toPermissionUser(session);
+  if (canAccess(user, "sales") || canAccess(user, "inventory")) {
+    return session;
+  }
+  throw new Error(translate(locale, "pages.sales.permissionDenied"));
+}
+
+/** Record or reverse a stock sale — Finance → Sales only. */
+async function assertCanRecordSale(locale: AppLocale) {
+  const session = await requireSession();
+  if (!canAccess(toPermissionUser(session), "sales")) {
+    throw new Error(translate(locale, "pages.sales.permissionDenied"));
   }
   return session;
+}
+
+/** Reverse a stock sale — Finance → Sales. */
+async function assertCanReverseSale(locale: AppLocale) {
+  return assertCanRecordSale(locale);
 }
 
 async function requireCompany(locale: AppLocale) {
@@ -190,12 +224,21 @@ async function saveReceipt(
   return saveUpload(file, "uploads/inventory", { fileBaseName });
 }
 
-function revalidateInventory(projectId?: string | null) {
+function revalidateInventory(projectId?: string | null, itemId?: string | null) {
   revalidatePath("/inventory");
   revalidatePath("/item-catalog");
   if (projectId) {
     revalidatePath(`/projects/${projectId}`);
   }
+  if (itemId) {
+    revalidatePath(`/inventory/equipment/${itemId}`);
+  }
+}
+
+function revalidateSales() {
+  revalidateInventory();
+  revalidatePath("/billing/sales");
+  revalidatePath("/billing/financial-report");
 }
 
 /** Preview next auto SKU for an Item Type ({TYPE}-001…). */
@@ -225,7 +268,7 @@ export async function previewInventorySkus(itemType: string, count: number) {
 
 /**
  * Step 1 — catalog only.
- * Fields: item type, name, system SKU (from type), description.
+ * Fields: item type, name, system SKU (from type), unit, min stock, description.
  * No purchase/price/qty here.
  */
 export async function createInventoryItem(formData: FormData) {
@@ -240,6 +283,7 @@ export async function createInventoryItem(formData: FormData) {
     const description = capitalizeProper(
       String(formData.get("description") ?? "").trim()
     );
+    const minStock = parseNonNegWholeQty(formData.get("minStock"), locale);
 
     if (!name) {
       throw new Error(translate(locale, "pages.inventory.itemNameRequired"));
@@ -253,20 +297,34 @@ export async function createInventoryItem(formData: FormData) {
       "inventoryItem",
       company.id
     );
+    const unit = normalizeInventoryUnit(
+      String(formData.get("unit") ?? "").trim() ||
+        defaultUnitForItemType(itemType)
+    );
+
+    const plate = isVehicleItemType(itemType)
+      ? normalizeVehiclePlate(String(formData.get("vehiclePlate") ?? ""))
+      : "";
 
     await prisma.$transaction(async (tx) => {
       const sku = await getNextInventorySku(company.id, itemType, tx);
-      await tx.inventoryItem.create({
+      const item = await tx.inventoryItem.create({
         data: {
           companyId: company.id,
           sku,
           name,
           itemType,
           description: description || null,
+          unit,
+          minStock: toDecimal(isVehicleItemType(itemType) ? 0 : minStock),
           sortOrder,
           active: true,
+          tracksStock: !isVehicleItemType(itemType),
         },
       });
+      if (plate) {
+        await mintVehicleAssetByPlate(tx, company.id, item.id, plate);
+      }
     });
 
     revalidateInventory();
@@ -391,7 +449,6 @@ export async function updateInventoryItem(formData: FormData) {
       String(formData.get("description") ?? "").trim()
     );
     const unitRaw = String(formData.get("unit") ?? "").trim();
-    const unit = unitRaw ? unitRaw.toLowerCase() : "pcs";
     const minStock = parseNonNegWholeQty(
       formData.get("minStock"),
       locale
@@ -408,6 +465,7 @@ export async function updateInventoryItem(formData: FormData) {
     if (!existing) {
       throw new Error(translate(locale, "pages.inventory.itemNotFound"));
     }
+    const unit = normalizeInventoryUnit(unitRaw || existing.unit || "pcs");
 
     // Item type is locked after create (SKU prefix / equipment rules depend on it).
     if (
@@ -583,6 +641,7 @@ export async function searchInventoryPurchases(query: string) {
     const rows = await prisma.inventoryPurchase.findMany({
       where: {
         companyId: company.id,
+        movement: { voidedAt: null },
         OR: [
           { invoiceNo: { contains: q, mode: "insensitive" } },
           { notes: { contains: q, mode: "insensitive" } },
@@ -647,6 +706,13 @@ export type InventoryStockItemDetail = {
     clientName: string | null;
     quantity: number;
   }>;
+  /** Lifetime sales: when it left stock and who bought it. Price lives on Finance → Sales. */
+  sales: Array<{
+    id: string;
+    soldAt: string;
+    buyer: string | null;
+    quantity: number;
+  }>;
 };
 
 /** Stock item detail: lifetime bought / assigned / on-hand + project bulk totals. */
@@ -685,7 +751,7 @@ export async function getInventoryStockItemDetail(itemId: string) {
       voidedAt: null as null,
     };
 
-    const [purchaseAgg, issueAgg, writeOffAgg, soldAgg, issueGroups] =
+    const [purchaseAgg, issueAgg, writeOffAgg, soldAgg, issueGroups, saleRows] =
       await Promise.all([
         prisma.inventoryMovement.aggregate({
           where: { ...movementBase, type: "PURCHASE" },
@@ -711,6 +777,21 @@ export async function getInventoryStockItemDetail(itemId: string) {
             projectId: { not: null },
           },
           _sum: { quantity: true },
+        }),
+        prisma.inventorySale.findMany({
+          where: {
+            companyId: company.id,
+            itemId: id,
+            movement: { voidedAt: null },
+          },
+          select: {
+            id: true,
+            soldAt: true,
+            buyer: true,
+            quantity: true,
+            client: { select: { name: true } },
+          },
+          orderBy: { soldAt: "desc" },
         }),
       ]);
 
@@ -786,6 +867,14 @@ export async function getInventoryStockItemDetail(itemId: string) {
       ),
       totalSold: Math.abs(inventoryQtyFromDecimal(soldAgg._sum.quantity)),
       projectAssignments,
+      sales: saleRows
+        .map((row) => ({
+          id: row.id,
+          soldAt: row.soldAt.toISOString(),
+          buyer: row.buyer?.trim() || row.client?.name?.trim() || null,
+          quantity: Math.abs(inventoryQtyFromDecimal(row.quantity)),
+        }))
+        .filter((row) => row.quantity > 0),
     };
 
     return detail;
@@ -793,43 +882,6 @@ export async function getInventoryStockItemDetail(itemId: string) {
     throw toActionError(
       error,
       translate(locale, "pages.inventory.stockDetailLoadFailed")
-    );
-  }
-}
-
-/** Update serial/notes on an equipment asset from the Asset List panel. */
-export async function updateEquipmentAssetDetails(formData: FormData) {
-  const locale = await getServerLocale();
-  try {
-    await assertCanManageInventory(locale);
-    const company = await requireCompany(locale);
-    const id = String(formData.get("id") ?? "").trim();
-    if (!id) {
-      throw new Error(translate(locale, "pages.inventory.assetNotFound"));
-    }
-
-    const serialNo = String(formData.get("serialNo") ?? "").trim() || null;
-    const notes =
-      capitalizeProper(String(formData.get("notes") ?? "").trim()) || null;
-
-    const asset = await prisma.equipmentAsset.findFirst({
-      where: { id, companyId: company.id },
-      select: { id: true },
-    });
-    if (!asset) {
-      throw new Error(translate(locale, "pages.inventory.assetNotFound"));
-    }
-
-    await prisma.equipmentAsset.update({
-      where: { id },
-      data: { serialNo, notes },
-    });
-
-    revalidateInventory();
-  } catch (error) {
-    throw toActionError(
-      error,
-      translate(locale, "pages.inventory.updateAssetFailed")
     );
   }
 }
@@ -885,7 +937,14 @@ export async function writeOffInventoryStock(formData: FormData) {
       throw new Error(translate(locale, "pages.inventory.itemNotFound"));
     }
 
-    if (isEquipmentItemType(item.itemType)) {
+    const writeOffSource = String(formData.get("writeOffSource") ?? "")
+      .trim()
+      .toLowerCase();
+    const writeOffIssued =
+      isEquipmentItemType(item.itemType) &&
+      (writeOffSource === "issued" || assetIds.length > 0);
+
+    if (writeOffIssued) {
       if (assetIds.length === 0) {
         throw new Error(translate(locale, "pages.inventory.writeOffAssetsRequired"));
       }
@@ -933,19 +992,36 @@ export async function writeOffInventoryStock(formData: FormData) {
           },
         });
 
-        await retireEquipmentAssets(
-          tx,
-          company.id,
-          item.id,
-          quantity,
-          reason,
-          {
-            writeOffMovementId: movement.id,
-            ...(isEquipmentItemType(item.itemType)
-              ? { assetIds }
-              : {}),
+        if (writeOffIssued) {
+          await retireEquipmentAssets(
+            tx,
+            company.id,
+            item.id,
+            quantity,
+            reason,
+            {
+              writeOffMovementId: movement.id,
+              assetIds,
+            }
+          );
+        } else if (isEquipmentItemType(item.itemType)) {
+          const counts = await countEquipmentAssetsByStatus(tx, item.id);
+          const uncoded = uncodedWarehouseQty(currentStock, counts.available);
+          if (quantity > uncoded) {
+            throw new Error(
+              translate(locale, "pages.inventory.factoryReturn.insufficientNew")
+            );
           }
-        );
+        } else {
+          await retireEquipmentAssets(
+            tx,
+            company.id,
+            item.id,
+            quantity,
+            reason,
+            { writeOffMovementId: movement.id }
+          );
+        }
 
         const stockUpdate = await tx.inventoryItem.updateMany({
           where: {
@@ -977,7 +1053,7 @@ export async function writeOffInventoryStock(formData: FormData) {
       }
     });
 
-    revalidateInventory();
+    revalidateInventory(null, item.id);
   } catch (error) {
     throw toActionError(
       error,
@@ -1086,14 +1162,14 @@ export async function reverseInventoryWriteOff(formData: FormData) {
 }
 
 /**
- * Reverse a stock sale — owner login only.
+ * Reverse a stock sale — inventory module access.
  * Soft-voids the SOLD_OFF movement, restores on-hand stock, and reactivates linked equipment assets.
  * Sale income is then excluded from the financial report (voided movements are skipped).
  */
 export async function reverseInventorySoldOff(formData: FormData) {
   const locale = await getServerLocale();
   try {
-    const session = await assertOwnerCanReverseSale(locale);
+    const session = await assertCanReverseSale(locale);
     const company = await requireCompany(locale);
 
     const id = String(formData.get("id") ?? "").trim();
@@ -1147,7 +1223,6 @@ export async function reverseInventorySoldOff(formData: FormData) {
       }
 
       const currentStock = inventoryQtyFromDecimal(locked.currentStock);
-      const newStock = normalizeInventoryQty(currentStock + restoreQty);
 
       const voided = await tx.inventoryMovement.updateMany({
         where: { id: sale.movementId, voidedAt: null, type: "SOLD_OFF" },
@@ -1160,11 +1235,6 @@ export async function reverseInventorySoldOff(formData: FormData) {
         throw new Error(translate(locale, "pages.inventory.saleAlreadyReversed"));
       }
 
-      await tx.inventoryItem.update({
-        where: { id: sale.itemId },
-        data: { currentStock: toDecimal(newStock) },
-      });
-
       if (isEquipmentItemType(sale.item.itemType)) {
         await restoreEquipmentAssetsForSoldOff(
           tx,
@@ -1174,11 +1244,41 @@ export async function reverseInventorySoldOff(formData: FormData) {
           restoreQty,
           sale.notes ?? sale.buyer
         );
+        const available = await tx.equipmentAsset.count({
+          where: { itemId: sale.itemId, status: "AVAILABLE" },
+        });
+        await tx.inventoryItem.update({
+          where: { id: sale.itemId },
+          data: { currentStock: toDecimal(available) },
+        });
+      } else {
+        await tx.inventoryItem.update({
+          where: { id: sale.itemId },
+          data: {
+            currentStock: toDecimal(
+              normalizeInventoryQty(currentStock + restoreQty)
+            ),
+          },
+        });
       }
     });
 
-    revalidateInventory();
-    revalidatePath("/billing/financial-report");
+    await writeRecordChange({
+      companyId: company.id,
+      userId: session.user.id,
+      action: "REVERSE",
+      entity: "InventorySale",
+      entityId: id,
+      description: voidReason,
+      oldValue: {
+        quantity: inventoryQtyFromDecimal(sale.quantity),
+        buyer: sale.buyer,
+        notes: sale.notes,
+      },
+      newValue: { voided: true, voidReason },
+    });
+
+    revalidateSales();
   } catch (error) {
     throw toActionError(
       error,
@@ -1187,19 +1287,66 @@ export async function reverseInventorySoldOff(formData: FormData) {
   }
 }
 
+async function persistGeneratedSaleInvoice(options: {
+  companyId: string;
+  bankAccount: CompanyBankAccountRow | null;
+  invoiceNumber: string;
+  soldAt: Date;
+  buyer: string;
+  buyerType: "INDIVIDUAL" | "COMPANY" | null;
+  buyerPicName: string | null;
+  buyerPhone: string | null;
+  buyerTaxId: string | null;
+  buyerIdNumber: string | null;
+  itemName: string;
+  itemSku: string;
+  itemUnit: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+  taxAmount: number;
+  taxRatePercent: number | null;
+  totalPrice: number;
+  notes: string | null;
+}): Promise<string> {
+  const loaded =
+    (await loadCompanyForPdf(options.companyId)) ?? { name: "" };
+  const company = overlayCompanyBankForPdf(loaded, options.bankAccount);
+  return generateInventorySaleInvoicePdf({
+    invoiceNumber: options.invoiceNumber,
+    soldAt: options.soldAt,
+    buyerName: options.buyer,
+    buyerType: options.buyerType,
+    buyerPicName: options.buyerPicName,
+    buyerPhone: options.buyerPhone,
+    buyerTaxId: options.buyerTaxId,
+    buyerIdNumber: options.buyerIdNumber,
+    itemName: options.itemName,
+    itemSku: options.itemSku,
+    itemUnit: options.itemUnit,
+    quantity: options.quantity,
+    unitPrice: options.unitPrice,
+    subtotal: options.subtotal,
+    taxAmount: options.taxAmount,
+    taxRatePercent: options.taxRatePercent,
+    totalPrice: options.totalPrice,
+    notes: options.notes,
+    company,
+  });
+}
+
 /**
- * Record a stock sold-off — OM+, Director, or HO admin (same gate as write-offs).
- * Requires buyer type, buyer name, tax document issued to the buyer (both types),
- * company NPWP when buyer is a company, exclusive PPN (ex-PPN unit price × rate),
- * and a sale invoice file.
+ * Record a stock sale from Finance → Sales.
+ * Generates the sale invoice PDF (stored on InventorySale.invoiceUrl), requires a
+ * company bank account, exclusive PPN, and a tax invoice (faktur pajak) for COMPANY buyers.
+ * Payment proof is optional at record time.
  * Decrements on-hand stock, retires Equipment assets, and stores sale proceeds on InventorySale.
  * Movement unitCost/totalCost = inventory cost basis leaving stock (not sale price).
- * TODO(FR): aggregate InventorySale.totalPrice into financial-report money-in / income.
  */
 export async function createInventorySoldOff(formData: FormData) {
   const locale = await getServerLocale();
   try {
-    const session = await assertCanAssignInventory(locale);
+    const session = await assertCanRecordSale(locale);
     const company = await requireCompany(locale);
 
     const itemId = String(formData.get("itemId") ?? "").trim();
@@ -1306,6 +1453,19 @@ export async function createInventorySoldOff(formData: FormData) {
       .map((value) => String(value ?? "").trim())
       .filter(Boolean);
 
+    const rawBankAccountId = String(formData.get("bankAccountId") ?? "").trim();
+    if (!rawBankAccountId) {
+      throw new Error(translate(locale, "pages.sales.bankAccountRequired"));
+    }
+    const bankAccount = await getCompanyBankAccount(
+      company.id,
+      rawBankAccountId
+    );
+    if (!bankAccount) {
+      throw new Error(translate(locale, "pages.sales.bankAccountRequired"));
+    }
+    const bankAccountId = bankAccount.id;
+
     const item = await prisma.inventoryItem.findFirst({
       where: {
         id: itemId,
@@ -1313,7 +1473,7 @@ export async function createInventorySoldOff(formData: FormData) {
         active: true,
         deletedAt: null,
       },
-      select: { id: true, sku: true, unit: true, itemType: true },
+      select: { id: true, sku: true, name: true, unit: true, itemType: true },
     });
     if (!item) {
       throw new Error(translate(locale, "pages.inventory.itemNotFound"));
@@ -1334,15 +1494,23 @@ export async function createInventorySoldOff(formData: FormData) {
       }
     }
 
-    if (assetIds.length > 0) {
-      if (!isEquipmentItemType(item.itemType)) {
-        throw new Error(translate(locale, "pages.inventory.itemNotFound"));
-      }
+    const saleSource = String(formData.get("saleSource") ?? "")
+      .trim()
+      .toLowerCase();
+    const sellIssuedEquipment =
+      isEquipmentItemType(item.itemType) &&
+      (saleSource === "issued" || assetIds.length > 0);
+    const sellNewEquipment =
+      isEquipmentItemType(item.itemType) && !sellIssuedEquipment;
+
+    if (sellIssuedEquipment) {
       if (assetIds.length !== quantity) {
         throw new Error(
-          translate(locale, "pages.inventory.soldOffAssetQtyMismatch")
+          translate(locale, "pages.inventory.soldOffSelectAssetsRequired")
         );
       }
+    } else if (assetIds.length > 0) {
+      throw new Error(translate(locale, "pages.inventory.itemNotFound"));
     }
 
     // Tax invoice (Faktur Pajak) is only required — and only collected — for COMPANY buyers.
@@ -1362,14 +1530,19 @@ export async function createInventorySoldOff(formData: FormData) {
       }
     }
 
-    const invoiceUrl = await saveReceipt(formData, {
-      sku: item.sku,
-      fieldName: "invoice",
-      filePrefix: "SALE_INVOICE",
+    const paymentProofUrl =
+      (await saveReceipt(formData, {
+        sku: item.sku,
+        fieldName: "paymentProof",
+        filePrefix: "SALE_PAYMENT",
+      })) ?? null;
+
+    const paidAtInput = parseFormDateInput(formData.get("paidAt"), {
+      fieldLabel: translate(locale, "pages.sales.form.paidAt"),
     });
-    if (!invoiceUrl) {
-      throw new Error(translate(locale, "pages.inventory.saleInvoiceRequired"));
-    }
+    const paidAt = paymentProofUrl
+      ? paidAtInput ?? soldAt
+      : paidAtInput;
 
     const subtotal = quantity * unitPrice;
     const vat = applyExclusiveVat(
@@ -1384,6 +1557,39 @@ export async function createInventorySoldOff(formData: FormData) {
 
     const saleNoteParts = [`Buyer: ${buyer}`, notes].filter(Boolean);
     const movementNotes = saleNoteParts.join(" — ") || null;
+    const soldFromProjectIds: string[] = [];
+    const invoiceNumber = saleInvoiceNumber(
+      soldAt,
+      item.sku,
+      `${item.sku}-${Date.now().toString(36)}`
+    );
+    let invoiceUrl: string;
+    try {
+      invoiceUrl = await persistGeneratedSaleInvoice({
+        companyId: company.id,
+        bankAccount,
+        invoiceNumber,
+        soldAt,
+        buyer,
+        buyerType,
+        buyerPicName,
+        buyerPhone,
+        buyerTaxId,
+        buyerIdNumber,
+        itemName: item.name,
+        itemSku: item.sku,
+        itemUnit: item.unit,
+        quantity,
+        unitPrice,
+        subtotal: vat.dpp,
+        taxAmount,
+        taxRatePercent,
+        totalPrice: totalSalePrice,
+        notes,
+      });
+    } catch {
+      throw new Error(translate(locale, "pages.sales.invoiceGenerateFailed"));
+    }
 
     await prisma.$transaction(async (tx) => {
       const locked = await lockInventoryItemRow(tx, item.id);
@@ -1392,14 +1598,8 @@ export async function createInventorySoldOff(formData: FormData) {
       }
 
       const currentStock = inventoryQtyFromDecimal(locked.currentStock);
-      if (currentStock <= 0 || quantity > currentStock) {
-        throw new Error(
-          translate(locale, "pages.inventory.insufficientStock", {
-            available: formatInventoryQty(currentStock),
-            unit: locked.unit,
-          })
-        );
-      }
+      const isEquipmentSale = isEquipmentItemType(item.itemType);
+      let warehouseQty = quantity;
 
       try {
         const catalogUnitCost =
@@ -1410,34 +1610,59 @@ export async function createInventorySoldOff(formData: FormData) {
         let unitCost = Math.max(0, catalogUnitCost);
         let totalCost = movementTotalCost(quantity, unitCost);
 
-        if (isEquipmentItemType(item.itemType)) {
-          const assetWhere =
-            assetIds.length > 0
-              ? {
-                  id: { in: assetIds },
-                  companyId: company.id,
-                  itemId: item.id,
-                  status: "AVAILABLE" as const,
-                }
-              : {
-                  companyId: company.id,
-                  itemId: item.id,
-                  status: "AVAILABLE" as const,
-                };
+        if (sellIssuedEquipment) {
           const assets = await tx.equipmentAsset.findMany({
-            where: assetWhere,
-            select: { id: true, unitCost: true },
-            orderBy: [{ createdAt: "asc" }, { assetCode: "asc" }],
-            take: quantity,
+            where: {
+              id: { in: assetIds },
+              companyId: company.id,
+              itemId: item.id,
+              status: { in: ["AVAILABLE", "ON_PROJECT"] },
+            },
+            select: { id: true, status: true, unitCost: true },
           });
-          if (assets.length === quantity) {
-            totalCost = assets.reduce((sum, asset) => {
-              const cost =
-                decimalToNumber(asset.unitCost) ?? Math.max(0, catalogUnitCost);
-              return sum + Math.max(0, cost);
-            }, 0);
-            unitCost = quantity > 0 ? totalCost / quantity : 0;
+          if (assets.length !== quantity) {
+            throw new Error(
+              translate(locale, "pages.inventory.soldOffSelectAssetsRequired")
+            );
           }
+          warehouseQty = assets.filter(
+            (asset) => asset.status === "AVAILABLE"
+          ).length;
+          totalCost = assets.reduce((sum, asset) => {
+            const cost =
+              decimalToNumber(asset.unitCost) ?? Math.max(0, catalogUnitCost);
+            return sum + Math.max(0, cost);
+          }, 0);
+          unitCost = quantity > 0 ? totalCost / quantity : 0;
+        } else if (sellNewEquipment) {
+          const counts = await countEquipmentAssetsByStatus(tx, item.id);
+          const uncoded = uncodedWarehouseQty(currentStock, counts.available);
+          if (quantity > uncoded) {
+            throw new Error(
+              translate(locale, "pages.inventory.insufficientUncodedStock", {
+                available: formatInventoryQty(uncoded),
+                unit: locked.unit,
+              })
+            );
+          }
+          warehouseQty = quantity;
+        }
+
+        if (warehouseQty > currentStock) {
+          throw new Error(
+            translate(locale, "pages.inventory.insufficientStock", {
+              available: formatInventoryQty(currentStock),
+              unit: locked.unit,
+            })
+          );
+        }
+        if (!isEquipmentSale && (currentStock <= 0 || quantity > currentStock)) {
+          throw new Error(
+            translate(locale, "pages.inventory.insufficientStock", {
+              available: formatInventoryQty(currentStock),
+              unit: locked.unit,
+            })
+          );
         }
 
         const movement = await tx.inventoryMovement.create({
@@ -1474,44 +1699,52 @@ export async function createInventorySoldOff(formData: FormData) {
             buyerRegistration: null,
             buyerIdentityDocUrl,
             invoiceUrl,
+            paymentProofUrl,
+            paidAt,
             clientId,
             notes,
+            bankAccountId,
             movementId: movement.id,
             createdById: session.user.id,
           },
         });
 
-        await retireEquipmentAssets(
-          tx,
-          company.id,
-          item.id,
-          quantity,
-          notes ?? buyer,
-          {
-            soldOffMovementId: movement.id,
-            assetIds: assetIds.length > 0 ? assetIds : undefined,
-            notePrefix: "Sold off",
-          }
-        );
-
-        const stockUpdate = await tx.inventoryItem.updateMany({
-          where: {
-            id: item.id,
-            currentStock: { gte: toDecimal(quantity) },
-          },
-          data: {
-            currentStock: toDecimal(
-              normalizeInventoryQty(currentStock - quantity)
-            ),
-          },
-        });
-        if (stockUpdate.count !== 1) {
-          throw new Error(
-            translate(locale, "pages.inventory.insufficientStock", {
-              available: formatInventoryQty(currentStock),
-              unit: locked.unit,
-            })
+        if (sellIssuedEquipment) {
+          const retired = await retireEquipmentAssetsForSale(
+            tx,
+            company.id,
+            item.id,
+            quantity,
+            notes ?? buyer,
+            {
+              soldOffMovementId: movement.id,
+              assetIds,
+            }
           );
+          warehouseQty = retired.warehouseQty;
+          soldFromProjectIds.push(...retired.projectIds);
+        }
+
+        if (warehouseQty > 0) {
+          const stockUpdate = await tx.inventoryItem.updateMany({
+            where: {
+              id: item.id,
+              currentStock: { gte: toDecimal(warehouseQty) },
+            },
+            data: {
+              currentStock: toDecimal(
+                normalizeInventoryQty(currentStock - warehouseQty)
+              ),
+            },
+          });
+          if (stockUpdate.count !== 1) {
+            throw new Error(
+              translate(locale, "pages.inventory.insufficientStock", {
+                available: formatInventoryQty(currentStock),
+                unit: locked.unit,
+              })
+            );
+          }
         }
       } catch (error) {
         if (error instanceof InsufficientEquipmentAssetsError) {
@@ -1526,7 +1759,11 @@ export async function createInventorySoldOff(formData: FormData) {
       }
     });
 
-    revalidateInventory();
+    revalidateSales();
+    revalidatePath(`/inventory/equipment/${item.id}`);
+    for (const projectId of [...new Set(soldFromProjectIds)]) {
+      revalidatePath(`/projects/${projectId}`);
+    }
   } catch (error) {
     throw toActionError(
       error,
@@ -1582,6 +1819,8 @@ function mapSoldOffRow(row: {
   buyerRegistration: string | null;
   buyerIdentityDocUrl: string | null;
   invoiceUrl: string | null;
+  paymentProofUrl: string | null;
+  paidAt: Date | null;
   clientId: string | null;
   notes: string | null;
   item: {
@@ -1633,6 +1872,8 @@ function mapSoldOffRow(row: {
     buyerRegistration: row.buyerRegistration,
     buyerIdentityDocUrl: row.buyerIdentityDocUrl,
     invoiceUrl: row.invoiceUrl,
+    paymentProofUrl: row.paymentProofUrl,
+    paidAt: row.paidAt?.toISOString() ?? null,
     clientId: row.clientId,
     clientName: row.client?.name ?? null,
     notes: row.notes,
@@ -1649,7 +1890,7 @@ export async function searchInventorySaleClients(
 ) {
   const locale = await getServerLocale();
   try {
-    await requireModule("inventory");
+    await assertCanAccessSales(locale);
     const company = await requireCompany(locale);
     const q = String(query ?? "").trim();
     const typeFilter =
@@ -1718,7 +1959,7 @@ export async function searchInventorySaleClients(
 export async function searchInventorySoldOffs(query: string) {
   const locale = await getServerLocale();
   try {
-    await requireModule("inventory");
+    await assertCanAccessSales(locale);
     const company = await requireCompany(locale);
     const q = String(query ?? "").trim();
     if (!q) return [];
@@ -1751,6 +1992,172 @@ export async function searchInventorySoldOffs(query: string) {
     throw toActionError(
       error,
       translate(locale, "pages.inventory.searchSoldOffsFailed")
+    );
+  }
+}
+
+/** List active stock sales for Finance → Sales (month window or all recent). */
+export async function listInventorySales(options?: {
+  start?: Date;
+  endExclusive?: Date;
+  take?: number;
+}) {
+  const locale = await getServerLocale();
+  try {
+    await assertCanAccessSales(locale);
+    const company = await requireCompany(locale);
+    const rows = await prisma.inventorySale.findMany({
+      where: {
+        companyId: company.id,
+        movement: { voidedAt: null },
+        ...(options?.start && options?.endExclusive
+          ? { soldAt: { gte: options.start, lt: options.endExclusive } }
+          : {}),
+      },
+      include: soldOffInclude,
+      orderBy: { soldAt: "desc" },
+      take: options?.take ?? 500,
+    });
+    return rows
+      .map(mapSoldOffRow)
+      .filter((row): row is NonNullable<typeof row> => row != null);
+  } catch (error) {
+    throw toActionError(
+      error,
+      translate(locale, "pages.sales.loadFailed")
+    );
+  }
+}
+
+/**
+ * Attach customer payment or tax invoice on an existing sale.
+ * Sale invoices are generated (never uploaded). Missing invoices are generated here.
+ */
+export async function attachInventorySaleDocuments(formData: FormData) {
+  const locale = await getServerLocale();
+  try {
+    await assertCanRecordSale(locale);
+    const company = await requireCompany(locale);
+    const id = String(formData.get("id") ?? "").trim();
+    if (!id) {
+      throw new Error(translate(locale, "pages.inventory.movementNotFound"));
+    }
+
+    const sale = await prisma.inventorySale.findFirst({
+      where: {
+        id,
+        companyId: company.id,
+        movement: { voidedAt: null },
+      },
+      select: {
+        id: true,
+        soldAt: true,
+        quantity: true,
+        unitPrice: true,
+        totalPrice: true,
+        subtotal: true,
+        taxAmount: true,
+        taxRatePercent: true,
+        buyer: true,
+        buyerType: true,
+        buyerPicName: true,
+        buyerPhone: true,
+        buyerTaxId: true,
+        buyerIdNumber: true,
+        notes: true,
+        invoiceUrl: true,
+        paymentProofUrl: true,
+        buyerIdentityDocUrl: true,
+        paidAt: true,
+        bankAccountId: true,
+        item: { select: { sku: true, name: true, unit: true } },
+      },
+    });
+    if (!sale) {
+      throw new Error(translate(locale, "pages.inventory.saleAlreadyReversed"));
+    }
+
+    const sku = sale.item.sku;
+    let nextInvoiceUrl = sale.invoiceUrl;
+    if (!nextInvoiceUrl?.trim()) {
+      const bankAccount = sale.bankAccountId
+        ? await getCompanyBankAccount(company.id, sale.bankAccountId)
+        : null;
+      try {
+        nextInvoiceUrl = await persistGeneratedSaleInvoice({
+          companyId: company.id,
+          bankAccount,
+          invoiceNumber: saleInvoiceNumber(sale.soldAt, sku, sale.id),
+          soldAt: sale.soldAt,
+          buyer: sale.buyer ?? "",
+          buyerType: sale.buyerType,
+          buyerPicName: sale.buyerPicName,
+          buyerPhone: sale.buyerPhone,
+          buyerTaxId: sale.buyerTaxId,
+          buyerIdNumber: sale.buyerIdNumber,
+          itemName: sale.item.name,
+          itemSku: sku,
+          itemUnit: sale.item.unit,
+          quantity: inventoryQtyFromDecimal(sale.quantity),
+          unitPrice: decimalToNumber(sale.unitPrice) ?? 0,
+          subtotal: decimalToNumber(sale.subtotal) ?? 0,
+          taxAmount: decimalToNumber(sale.taxAmount) ?? 0,
+          taxRatePercent: decimalToNumber(sale.taxRatePercent),
+          totalPrice: decimalToNumber(sale.totalPrice) ?? 0,
+          notes: sale.notes,
+        });
+      } catch {
+        throw new Error(translate(locale, "pages.sales.invoiceGenerateFailed"));
+      }
+    }
+    const nextPaymentProofUrl =
+      (await saveReceipt(formData, {
+        sku,
+        fieldName: "paymentProof",
+        filePrefix: "SALE_PAYMENT",
+      })) ?? sale.paymentProofUrl;
+    let nextTaxInvoiceUrl = sale.buyerIdentityDocUrl;
+    if (sale.buyerType === "COMPANY") {
+      nextTaxInvoiceUrl =
+        (await saveReceipt(formData, {
+          sku,
+          fieldName: "buyerIdentityDoc",
+          filePrefix: "SALE_TAX_INVOICE",
+        })) ?? sale.buyerIdentityDocUrl;
+    }
+
+    const paidAtInput = parseFormDateInput(formData.get("paidAt"), {
+      fieldLabel: translate(locale, "pages.sales.form.paidAt"),
+    });
+    const nextPaidAt =
+      paidAtInput ??
+      sale.paidAt ??
+      (nextPaymentProofUrl && !sale.paymentProofUrl ? sale.soldAt : sale.paidAt);
+
+    if (
+      nextInvoiceUrl === sale.invoiceUrl &&
+      nextPaymentProofUrl === sale.paymentProofUrl &&
+      nextTaxInvoiceUrl === sale.buyerIdentityDocUrl &&
+      nextPaidAt?.getTime() === sale.paidAt?.getTime()
+    ) {
+      throw new Error(translate(locale, "pages.sales.attachRequired"));
+    }
+
+    await prisma.inventorySale.update({
+      where: { id: sale.id },
+      data: {
+        invoiceUrl: nextInvoiceUrl,
+        paymentProofUrl: nextPaymentProofUrl,
+        buyerIdentityDocUrl: nextTaxInvoiceUrl,
+        paidAt: nextPaidAt,
+      },
+    });
+
+    revalidateSales();
+  } catch (error) {
+    throw toActionError(
+      error,
+      translate(locale, "pages.sales.attachFailed")
     );
   }
 }

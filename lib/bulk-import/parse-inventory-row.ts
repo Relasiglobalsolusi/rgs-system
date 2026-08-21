@@ -33,6 +33,7 @@ function normalizeItemType(raw: string, locale: AppLocale): string {
     (label) => label.toLowerCase() === value.toLowerCase()
   );
   if (preset) return preset;
+  if (value.toLowerCase() === "spare parts") return "Spare Part";
 
   // Allow custom types (still Title Cased); SKU prefix is derived from the label.
   return titleCaseWords(value) as InventoryItemTypePreset | string;

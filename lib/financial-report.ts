@@ -1,6 +1,10 @@
 import type { EmploymentType } from "@prisma/client";
 
-import { prismaDateFilter } from "@/lib/financial-report-query";
+import {
+  bankAccountWhere,
+  FINANCIAL_REPORT_ALL_BANKS,
+  prismaDateFilter,
+} from "@/lib/financial-report-query";
 import {
   allocateCompanyWages,
   type AllocatedWageEmployee,
@@ -143,6 +147,7 @@ export async function getSoldOffIncome(options: {
   clientId?: string;
   from?: Date;
   toExclusive?: Date;
+  bank?: string;
 }): Promise<number> {
   const soldAt = prismaDateFilter(
     options.from ??
@@ -157,6 +162,7 @@ export async function getSoldOffIncome(options: {
       companyId: options.companyId,
       ...(options.clientId ? { clientId: options.clientId } : {}),
       movement: { voidedAt: null },
+      ...bankAccountWhere(options.bank ?? FINANCIAL_REPORT_ALL_BANKS),
       ...(soldAt ? { soldAt } : {}),
     },
     select: { totalPrice: true },
@@ -171,7 +177,8 @@ export async function getSoldOffIncomeByClientIds(
   companyId: string,
   clientIds: string[],
   from?: Date,
-  toExclusive?: Date
+  toExclusive?: Date,
+  bank = FINANCIAL_REPORT_ALL_BANKS
 ): Promise<Map<string, number>> {
   const totals = new Map<string, number>();
   if (clientIds.length === 0) return totals;
@@ -182,6 +189,7 @@ export async function getSoldOffIncomeByClientIds(
       companyId,
       clientId: { in: clientIds },
       movement: { voidedAt: null },
+      ...bankAccountWhere(bank),
       ...(soldAt ? { soldAt } : {}),
     },
     _sum: { totalPrice: true },
@@ -236,13 +244,8 @@ export async function getPayrollManagementTotalsByProjectIds(
     const fee = decimalToNumber(period.feeAmount) ?? 0;
     const tax = decimalToNumber(period.taxAmount) ?? 0;
     const clientBill = decimalToNumber(period.clientBillAmount) ?? 0;
-    const wageWhen = period.wagesPaidAt ?? period.pdfLockedAt;
-    const wagesRecognized =
-      Boolean(period.wagesPaidAt) ||
-      period.status === "CLIENT_APPROVED" ||
-      period.status === "WAGES_PAID" ||
-      period.status === "INVOICED" ||
-      period.status === "REIMBURSED";
+    const wageWhen = period.wagesPaidAt;
+    const wagesRecognized = Boolean(period.wagesPaidAt);
     if (
       wagesRecognized &&
       (bounded ? inUtcRange(wageWhen, from, toExclusive) : true)

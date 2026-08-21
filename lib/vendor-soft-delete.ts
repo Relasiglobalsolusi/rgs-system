@@ -28,7 +28,7 @@ export async function getVendorSoftDeleteBlockers(
 
   const [payablesAgg, pendingTaxCount] = await Promise.all([
     p.purchaseInvoice.aggregate({
-      where: { vendorId, paidAt: null },
+      where: { vendorId, paidAt: null, freeOfCharge: false },
       _count: { id: true },
       _sum: { amount: true },
     }),

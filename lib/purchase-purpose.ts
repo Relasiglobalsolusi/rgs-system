@@ -18,6 +18,24 @@ export function parsePurchasePurpose(
   return isPurchasePurpose(raw) ? raw : "STOCK";
 }
 
+/**
+ * Product buys always become warehouse stock. Project cost happens later
+ * when Inventory issues the item. Service / government / petty cash are
+ * not stock-in.
+ */
+export function resolvePurchasePurpose(options: {
+  category: string;
+  requested: PurchasePurpose;
+}): PurchasePurpose {
+  if (options.category === "PRODUCT") return "STOCK";
+  if (options.category === "SERVICE") {
+    return options.requested === "PROJECT" ? "PROJECT" : "INTERNAL";
+  }
+  if (options.category === "GOVERNMENT") return "INTERNAL";
+  if (options.category === "PETTY_CASH") return "PETTY_CASH";
+  return options.requested;
+}
+
 export function assertPurchasePurposeProject(options: {
   purpose: PurchasePurpose;
   projectId: string | null;
@@ -36,7 +54,11 @@ export function assertPurchasePurposeProject(options: {
   }
 }
 
-/** STOCK purchases create warehouse stock; PROJECT / INTERNAL are expense-only. */
-export function purchaseCreatesStock(purpose: PurchasePurpose): boolean {
+/** Product / STOCK purchases create warehouse stock. */
+export function purchaseCreatesStock(
+  purpose: PurchasePurpose,
+  category?: string | null
+): boolean {
+  if (category === "PRODUCT") return true;
   return purpose === "STOCK";
 }

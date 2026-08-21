@@ -24,12 +24,14 @@ type Employee = {
   category: { name: string; slug?: string } | null; positionId: string | null; position: string | null;
   idDocumentUrl: string | null;   hiredAt: Date | string | null;
   omApprovalAreas?: ServiceArea[];
+  manageAllProjects?: boolean;
   areaManagedProjects?: { projectId: string }[];
   status: "ACTIVE" | "INACTIVE" | "TERMINATED" | "ON_LEAVE" | "LEAVE_PENDING" | "RESIGNED";
   depositHeldAmount?: number | null;
   depositStatus?: "NONE" | "HELD" | "RETURNED" | "KEPT_BY_COMPANY";
   securityDepositRequired?: boolean;
   cicoExempt?: boolean;
+  progressExempt?: boolean;
   bankName?: string | null;
   bankAccountNumber?: string | null;
   bankAccountName?: string | null;
@@ -95,6 +97,7 @@ export default function EmployeeEditDialog({ employee, categories, positions, pr
     idDocumentUrl: employee.idDocumentUrl,
     hiredAt: employee.hiredAt,
     omApprovalAreas: employee.omApprovalAreas,
+    manageAllProjects: employee.manageAllProjects,
     managedProjectIds:
       employee.areaManagedProjects?.map((row) => row.projectId) ?? [],
     status: toRosterEditableStatus(employee.status),
@@ -110,6 +113,7 @@ export default function EmployeeEditDialog({ employee, categories, positions, pr
     depositHeldAmount: employee.depositHeldAmount,
     securityDepositRequired: employee.securityDepositRequired ?? false,
     cicoExempt: employee.cicoExempt ?? false,
+    progressExempt: employee.progressExempt ?? false,
     bankName: employee.bankName ?? null,
     bankAccountNumber: employee.bankAccountNumber ?? null,
     bankAccountName: employee.bankAccountName ?? null,

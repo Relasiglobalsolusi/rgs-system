@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
 
 import {
+  decidePayrollManagementDay,
   fillPayrollManagementFromCico,
+  markPayrollManagementWagesPaid,
   savePayrollManagementPeriod,
   unlockPayrollManagementPeriod,
 } from "@/app/billing/payroll-management-actions";
@@ -26,7 +28,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { FileDropField } from "@/components/ui/FileDropField";
 import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/MoneyInput";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -35,13 +39,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { localizeKnownKey } from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
 import {
   formatDisplayDateTime,
   formatDisplayTime,
   formatEnglishOrdinalDate,
 } from "@/lib/format-date";
-import { formatContractPrice } from "@/lib/project-billing";
+import { formatContractPrice, parseContractPrice } from "@/lib/project-billing";
+import { formatHoursWorked } from "@/lib/shift-pay";
+import type { PayrollDayRow } from "@/lib/internal-payroll-days";
 import { showRejectionFromError } from "@/components/ui/rejection-notice";
 
 type LineDraft = {
@@ -63,6 +70,7 @@ type PeriodView = {
   clientBillAmount: number;
   serviceFeePercent: number;
   wagesPaidAt: string | null;
+  wagesPaidProofPath?: string | null;
   invoicedAt: string | null;
   invoiceDueAt: string | null;
   reimbursedAt: string | null;
@@ -120,6 +128,15 @@ function statusTone(status: string): "pending" | "info" | "warning" | "success" 
   return "pending";
 }
 
+function canEditDayPay(day: PayrollDayRow) {
+  if (day.absent || day.onLeave) return false;
+  return (
+    day.needsPayDecision === true ||
+    day.payDecision === "FULL_PAY" ||
+    day.payDecision === "CUSTOM"
+  );
+}
+
 function jakartaTime(value: string | null, bcp47: string) {
   if (!value) return "—";
   return formatDisplayTime(
@@ -151,11 +168,13 @@ export default function PayrollManagementWorkspace({
   lock,
   period,
 }: Props) {
-  const { t, bcp47 } = useT();
+  const { t, locale, bcp47 } = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [unlockOpen, setUnlockOpen] = useState(false);
   const [unlockReason, setUnlockReason] = useState("");
+  const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({});
+  const [wagesProof, setWagesProof] = useState<File | null>(null);
   const [lines, setLines] = useState<LineDraft[]>(() =>
     period && period.lines.length > 0
       ? period.lines.map((line) => ({
@@ -192,7 +211,7 @@ export default function PayrollManagementWorkspace({
   const totals = useMemo(() => {
     const parsed = lines
       .map((line) => ({
-        amount: Number(line.amount) || 0,
+        amount: parseContractPrice(line.amount) ?? 0,
       }))
       .filter((line) => line.amount > 0);
     return computePayrollManagementTotals(parsed, serviceFeePercent, taxPercent);
@@ -264,7 +283,7 @@ export default function PayrollManagementWorkspace({
         lines
           .map((line) => ({
             employeeName: line.employeeName.trim(),
-            amount: Number(line.amount) || 0,
+            amount: parseContractPrice(line.amount) ?? 0,
             accountNumber: line.accountNumber.trim() || null,
             notes: line.notes.trim() || null,
           }))
@@ -310,6 +329,46 @@ export default function PayrollManagementWorkspace({
     });
   }
 
+  function decideDay(
+    employeeId: string,
+    dateKey: string,
+    decision: "FULL_PAY" | "CUSTOM",
+    amount?: string
+  ) {
+    const formData = new FormData();
+    formData.set("projectId", projectId);
+    formData.set("year", String(year));
+    formData.set("month", String(month));
+    formData.set("employeeId", employeeId);
+    formData.set("dateKey", dateKey);
+    formData.set("decision", decision);
+    if (decision === "CUSTOM") formData.set("amount", amount ?? "");
+    startTransition(async () => {
+      try {
+        await decidePayrollManagementDay(formData);
+        router.refresh();
+      } catch (error) {
+        showRejectionFromError(error, t("pages.billing.payrollMgmt.actionFailed"));
+      }
+    });
+  }
+
+  function confirmWagesPaid() {
+    if (!period) return;
+    const formData = new FormData();
+    formData.set("periodId", period.id);
+    if (wagesProof) formData.set("wagesPaidProof", wagesProof);
+    startTransition(async () => {
+      try {
+        await markPayrollManagementWagesPaid(formData);
+        setWagesProof(null);
+        router.refresh();
+      } catch (error) {
+        showRejectionFromError(error, t("pages.billing.payrollMgmt.actionFailed"));
+      }
+    });
+  }
+
   function submitUnlock() {
     const formData = new FormData();
     formData.set("projectId", projectId);
@@ -344,7 +403,10 @@ export default function PayrollManagementWorkspace({
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={statusTone(status)}>
-              {t(`pages.billing.payrollMgmt.status.${status}` as Parameters<typeof t>[0])}
+              {localizeKnownKey(
+                `pages.billing.payrollMgmt.status.${status}`,
+                locale
+              )}
             </StatusBadge>
             <Select
               value={`${year}-${month}`}
@@ -476,6 +538,15 @@ export default function PayrollManagementWorkspace({
                             <th className="px-2 py-2 font-medium">
                               {t("pages.payroll.dayCheckOut")}
                             </th>
+                            <th className="px-2 py-2 font-medium">
+                              {t("pages.payroll.dayHours")}
+                            </th>
+                            <th className="px-2 py-2 font-medium text-right">
+                              {t("pages.payroll.dayPay")}
+                            </th>
+                            <th className="px-2 py-2 font-medium text-left">
+                              {t("pages.payroll.fullPay")}
+                            </th>
                           </tr>
                         </thead>
                         <tbody>
@@ -494,7 +565,15 @@ export default function PayrollManagementWorkspace({
                                 {day.siteName ?? "—"}
                               </td>
                               <td className="px-2 py-2 text-muted">
-                                {day.absent && !day.checkInAt ? (
+                                {row.cicoExempt ? (
+                                  <span className="font-medium text-text">
+                                    {t("pages.payroll.exempt")}
+                                  </span>
+                                ) : day.onLeave && !day.checkInAt ? (
+                                  <span className="font-medium text-amber-600">
+                                    {t("pages.payroll.onLeave")}
+                                  </span>
+                                ) : day.absent && !day.checkInAt ? (
                                   <span className="font-medium text-amber-600">
                                     {t("pages.payroll.absent")}
                                   </span>
@@ -510,7 +589,11 @@ export default function PayrollManagementWorkspace({
                                 )}
                               </td>
                               <td className="px-2 py-2 text-muted">
-                                {day.absent && !day.checkOutAt ? (
+                                {row.cicoExempt ? (
+                                  <span className="font-medium text-text">
+                                    {t("pages.payroll.exempt")}
+                                  </span>
+                                ) : day.absent && !day.checkOutAt ? (
                                   day.checkInAt ? (
                                     <div>
                                       <p>—</p>
@@ -533,6 +616,85 @@ export default function PayrollManagementWorkspace({
                                     ) : null}
                                   </div>
                                 )}
+                              </td>
+                              <td className="px-2 py-2 text-muted">
+                                {day.hoursWorked != null
+                                  ? t("pages.payroll.hoursWorkedValue", {
+                                      hours: formatHoursWorked(day.hoursWorked),
+                                    })
+                                  : day.sessionHours != null
+                                    ? t("pages.payroll.hoursWorkedValue", {
+                                        hours: formatHoursWorked(day.sessionHours),
+                                      })
+                                    : "—"}
+                                {day.needsPayDecision ? (
+                                  <p className="mt-0.5 text-xs text-amber-600">
+                                    {t("pages.payroll.underHoursNote", {
+                                      hours: formatHoursWorked(day.hoursWorked ?? 0),
+                                      required: day.requiredHours ?? 9,
+                                    })}
+                                  </p>
+                                ) : null}
+                              </td>
+                              <td className="whitespace-nowrap px-2 py-2 text-right font-medium text-text">
+                                {day.payAmount != null
+                                  ? formatContractPrice(day.payAmount)
+                                  : day.onLeave
+                                    ? t("pages.payroll.onLeave")
+                                    : "—"}
+                              </td>
+                              <td className="whitespace-nowrap px-2 py-2 text-center">
+                                {canEditDayPay(day) && canManage && !locked ? (
+                                  <div className="flex items-center justify-center gap-2">
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      disabled={pending}
+                                      onClick={() =>
+                                        decideDay(row.employeeId, day.dateKey, "FULL_PAY")
+                                      }
+                                    >
+                                      {t("pages.payroll.fullPay")}
+                                    </Button>
+                                    <Input
+                                      inputMode="numeric"
+                                      className="h-7 w-32"
+                                      placeholder={t(
+                                        "pages.payroll.customAmountPlaceholder"
+                                      )}
+                                      value={
+                                        customAmounts[day.sessionKey] ??
+                                        (day.payDecision === "CUSTOM" &&
+                                        day.payAmount != null
+                                          ? String(day.payAmount)
+                                          : "")
+                                      }
+                                      onChange={(event) =>
+                                        setCustomAmounts((current) => ({
+                                          ...current,
+                                          [day.sessionKey]: event.target.value,
+                                        }))
+                                      }
+                                      disabled={pending}
+                                    />
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={pending}
+                                      onClick={() =>
+                                        decideDay(
+                                          row.employeeId,
+                                          day.dateKey,
+                                          "CUSTOM",
+                                          customAmounts[day.sessionKey] ?? ""
+                                        )
+                                      }
+                                    >
+                                      {t("pages.payroll.saveCustomPay")}
+                                    </Button>
+                                  </div>
+                                ) : null}
                               </td>
                             </tr>
                           ))}
@@ -635,15 +797,11 @@ export default function PayrollManagementWorkspace({
                   updateLine(line.key, { employeeName: event.target.value })
                 }
               />
-              <Input
-                type="number"
-                min={0}
+              <MoneyInput
                 placeholder={t("pages.billing.payrollMgmt.amount")}
                 value={line.amount}
                 disabled={!canManage || locked || pending}
-                onChange={(event) =>
-                  updateLine(line.key, { amount: event.target.value })
-                }
+                onValueChange={(amount) => updateLine(line.key, { amount })}
               />
               <Input
                 placeholder={t("pages.billing.payrollMgmt.accountNumber")}
@@ -730,6 +888,63 @@ export default function PayrollManagementWorkspace({
           </div>
         ) : null}
       </SectionCard>
+
+      {period &&
+      canManage &&
+      (period.status === "CLIENT_APPROVED" ||
+        period.status === "INVOICED" ||
+        period.status === "WAGES_PAID" ||
+        period.status === "REIMBURSED") ? (
+        <SectionCard>
+          <h3 className="text-lg font-semibold text-text">
+            {t("pages.billing.payrollMgmt.confirmWagesPaid")}
+          </h3>
+          <p className="mt-1 text-sm text-muted">
+            {t("pages.billing.payrollMgmt.confirmWagesPaidDesc")}
+          </p>
+          {period.wagesPaidAt ? (
+            <p className="mt-3 text-sm text-text">
+              {t("pages.billing.payrollMgmt.wagesPaidOn", {
+                date: formatDisplayDateTime(period.wagesPaidAt, {
+                  timeZone: "Asia/Jakarta",
+                }),
+              })}
+              {period.wagesPaidProofPath ? (
+                <>
+                  {" · "}
+                  <a
+                    href={period.wagesPaidProofPath}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-medium text-primary-dark underline-offset-2 hover:underline"
+                  >
+                    {t("pages.billing.payrollMgmt.viewProof")}
+                  </a>
+                </>
+              ) : null}
+            </p>
+          ) : (
+            <div className="mt-4 flex flex-wrap items-end gap-3">
+              <div className="min-w-[16rem] flex-1">
+                <FileDropField
+                  id="payroll-wages-paid-proof"
+                  label={t("pages.billing.payrollMgmt.wagesPaidProof")}
+                  fileName={wagesProof?.name ?? null}
+                  onPick={setWagesProof}
+                  accept="image/*,application/pdf"
+                />
+              </div>
+              <Button
+                type="button"
+                disabled={pending || !wagesProof}
+                onClick={confirmWagesPaid}
+              >
+                {t("pages.billing.payrollMgmt.confirmWagesPaid")}
+              </Button>
+            </div>
+          )}
+        </SectionCard>
+      ) : null}
 
       <Dialog open={unlockOpen} onOpenChange={setUnlockOpen}>
         <DialogContent>

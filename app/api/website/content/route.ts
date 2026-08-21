@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { applyCompanyIdentityToWebsiteContent } from "@/lib/company-for-pdf";
 import { prisma } from "@/lib/prisma";
 import {
   defaultWebsiteContent,
@@ -41,6 +42,22 @@ function unauthorizedResponse(origin?: string | null) {
   );
 }
 
+async function websiteContentWithCompanyIdentity(
+  content: ReturnType<typeof parseWebsiteContent>
+) {
+  const company = await prisma.company.findFirst({
+    select: {
+      name: true,
+      email: true,
+      phone: true,
+      address: true,
+      website: true,
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  return applyCompanyIdentityToWebsiteContent(content, company);
+}
+
 export async function OPTIONS(request: NextRequest) {
   return new NextResponse(null, {
     status: 204,
@@ -64,12 +81,17 @@ export async function GET(request: NextRequest) {
     orderBy: { updatedAt: "desc" },
   });
 
+  const base = record
+    ? parseWebsiteContent(record.content)
+    : defaultWebsiteContent;
+  const content = await websiteContentWithCompanyIdentity(base);
+
   if (!record) {
     return NextResponse.json(
       {
         published: false,
         updatedAt: null,
-        content: defaultWebsiteContent,
+        content,
       },
       { headers: corsHeaders(origin) }
     );
@@ -79,7 +101,7 @@ export async function GET(request: NextRequest) {
     {
       published: true,
       updatedAt: record.updatedAt.toISOString(),
-      content: parseWebsiteContent(record.content),
+      content,
     },
     { headers: corsHeaders(origin) }
   );

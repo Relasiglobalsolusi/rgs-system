@@ -6,6 +6,7 @@ import LeaveTypeLabel from "@/components/leaves/LeaveTypeLabel";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import ProofLightbox from "@/components/ui/ProofLightbox";
 import StatusBadge from "@/components/ui/StatusBadge";
+import { STATUS_COLUMN_WIDTH } from "@/components/ui/trash-action-buttons";
 import { formatDisplayDate } from "@/lib/format-date";
 import { localizeLeaveStatus } from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
@@ -13,8 +14,8 @@ import { useT } from "@/lib/i18n/use-t";
 export type LeaveRequestRow = {
   id: string;
   type: string;
-  startDate: Date;
-  endDate: Date;
+  startDate: Date | string;
+  endDate: Date | string;
   reason: string;
   status: string;
   proofUrl: string | null;
@@ -24,9 +25,14 @@ export type LeaveRequestRow = {
 type Props = {
   data: LeaveRequestRow[];
   showEmployee: boolean;
+  hideType?: boolean;
 };
 
-export default function LeaveRequestTable({ data, showEmployee }: Props) {
+export default function LeaveRequestTable({
+  data,
+  showEmployee,
+  hideType = false,
+}: Props) {
   const { t, locale } = useT();
   const [proofSrc, setProofSrc] = useState<string | null>(null);
 
@@ -38,34 +44,39 @@ export default function LeaveRequestTable({ data, showEmployee }: Props) {
               key: "employee",
               title: t("common.labels.employee"),
               width: "10rem",
+              share: 1,
               className: "min-w-[10rem]",
               render: (row: LeaveRequestRow) => (
-                <span className="text-text">
+                <span className="font-medium text-text">
                   {row.employee.firstName} {row.employee.lastName}
                 </span>
               ),
             } satisfies DataTableColumn<LeaveRequestRow>,
           ]
         : []),
-      {
-        key: "type",
-        title: t("pages.leaves.columns.type"),
-        width: "10rem",
-        align: "center",
-        className: "min-w-[10rem] overflow-visible whitespace-nowrap",
-        render: (row) => (
-          <StatusBadge status={row.type === "SICK" ? "warning" : "active"}>
-            <LeaveTypeLabel type={row.type} />
-          </StatusBadge>
-        ),
-      },
+      ...(!hideType
+        ? [
+            {
+              key: "type",
+              title: t("pages.leaves.columns.type"),
+              width: STATUS_COLUMN_WIDTH,
+              cellAlign: "center" as const,
+              className: "min-w-[10rem] overflow-visible whitespace-nowrap",
+              render: (row: LeaveRequestRow) => (
+                <StatusBadge status={row.type === "SICK" ? "warning" : "active"}>
+                  <LeaveTypeLabel type={row.type} />
+                </StatusBadge>
+              ),
+            } satisfies DataTableColumn<LeaveRequestRow>,
+          ]
+        : []),
       {
         key: "dates",
         title: t("pages.leaves.period"),
-        width: "12rem",
-        className: "min-w-[12rem] whitespace-nowrap",
+        width: "14rem",
+        className: "min-w-[14rem] whitespace-nowrap",
         render: (row) => (
-          <span className="text-muted">
+          <span className="text-text">
             {formatDisplayDate(row.startDate)} –{" "}
             {formatDisplayDate(row.endDate)}
           </span>
@@ -74,15 +85,16 @@ export default function LeaveRequestTable({ data, showEmployee }: Props) {
       {
         key: "reason",
         title: t("pages.leaves.columns.reason"),
+        share: 2,
         render: (row) => (
-          <span className="max-w-xs truncate text-subtle">{row.reason}</span>
+          <span className="min-w-0 text-sm leading-6 text-text">{row.reason}</span>
         ),
       },
       {
         key: "status",
         title: t("pages.leaves.columns.status"),
-        width: "10rem",
-        align: "center",
+        width: STATUS_COLUMN_WIDTH,
+        cellAlign: "center",
         className: "min-w-[10rem] overflow-visible whitespace-nowrap",
         render: (row) => (
           <StatusBadge
@@ -101,14 +113,15 @@ export default function LeaveRequestTable({ data, showEmployee }: Props) {
       {
         key: "proof",
         title: t("pages.leaves.proof"),
-        width: "5rem",
-        className: "min-w-[5rem] whitespace-nowrap",
+        width: STATUS_COLUMN_WIDTH,
+        cellAlign: "center",
+        className: "min-w-[10rem] whitespace-nowrap",
         render: (row) =>
           row.proofUrl ? (
             <button
               type="button"
               onClick={() => setProofSrc(row.proofUrl)}
-              className="text-cyan-400 hover:underline"
+              className="text-sm font-semibold text-accent-cyan hover:underline"
             >
               {t("common.actions.view")}
             </button>
@@ -118,11 +131,11 @@ export default function LeaveRequestTable({ data, showEmployee }: Props) {
       },
     ];
     return cols;
-  }, [locale, showEmployee, t]);
+  }, [hideType, locale, showEmployee, t]);
 
   return (
     <>
-      <DataTable columns={columns} data={data} />
+      <DataTable columns={columns} data={data} getRowKey={(row) => row.id} />
       <ProofLightbox
         open={proofSrc != null}
         onOpenChange={(open) => {

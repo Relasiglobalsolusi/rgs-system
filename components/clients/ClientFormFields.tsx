@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Upload } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import ProjectOptionPills from "@/components/projects/ProjectOptionPills";
 import { Button } from "@/components/ui/button";
@@ -28,9 +27,9 @@ import {
 import { resolveContactPersonNameParts } from "@/lib/contact-person";
 import { formatDateForInput } from "@/lib/format-tenure";
 import { useT } from "@/lib/i18n/use-t";
-import { PAYMENT_TERMS_DAYS_OPTIONS } from "@/lib/invoice-period";
 import { npwpFieldCustomValidity } from "@/lib/npwp";
 import { todayDateInput } from "@/lib/project-contract";
+import { FileDropField } from "@/components/ui/FileDropField";
 import { cn } from "@/lib/utils";
 
 export type ClientFormDefaults = {
@@ -43,8 +42,6 @@ export type ClientFormDefaults = {
   npwp?: string;
   taxIdDocumentUrl?: string | null;
   clientSince?: Date | string | null;
-  /** Payment terms in days; 0 = Cash (default 14). */
-  paymentTermsDays?: number | null;
   contactPersonFirstName?: string;
   contactPersonLastName?: string;
   contactPersonPosition?: string;
@@ -53,8 +50,6 @@ export type ClientFormDefaults = {
   clientType?: "COMPANY" | "INDIVIDUAL";
   multiProjectAccess?: boolean;
 };
-
-const PAYMENT_TERMS_OPTIONS = PAYMENT_TERMS_DAYS_OPTIONS;
 
 type Props = {
   mode: "create" | "edit";
@@ -134,8 +129,9 @@ export default function ClientFormFields({
   );
   const [loginIdAvoid, setLoginIdAvoid] = useState<string[]>([]);
   const [loginId, setLoginId] = useState("");
-  const taxIdFileInputRef = useRef<HTMLInputElement>(null);
-  const [selectedTaxIdFileName, setSelectedTaxIdFileName] = useState("");
+  const [selectedTaxIdFileName, setSelectedTaxIdFileName] = useState<
+    string | null
+  >(null);
 
   const isIndividual = clientType === "INDIVIDUAL";
   const individualDisplayName = `${firstName} ${lastName}`.trim();
@@ -439,35 +435,23 @@ export default function ClientFormFields({
                 </a>
               </p>
             ) : null}
-            <button
-              type="button"
-              onClick={() => taxIdFileInputRef.current?.click()}
-              className="flex h-11 w-full items-center gap-3 rounded-xl border border-dashed border-border bg-elevated px-4 text-left text-sm text-muted transition hover:border-accent-cyan/40 hover:text-text"
-            >
-              <Upload className="h-4 w-4 shrink-0 text-muted" />
-              <span>
-                {selectedTaxIdFileName
-                  ? selectedTaxIdFileName
-                  : hasExistingTaxIdDocument
-                    ? t("pages.clients.form.taxIdDocumentReplace")
-                    : isIndividual
-                      ? t("pages.clients.form.taxIdDocumentUploadIndividual")
-                      : t("pages.clients.form.taxIdDocumentUploadCompany")}
-              </span>
-            </button>
-            <input
-              ref={taxIdFileInputRef}
+            <FileDropField
               id={idOf("client-tax-id-document")}
               name={nameOf("taxIdDocument")}
-              type="file"
-              accept="image/*,.pdf"
               required={taxIdDocumentRequired}
-              className="sr-only"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                setSelectedTaxIdFileName(file?.name ?? "");
+              fileName={selectedTaxIdFileName}
+              onPick={(file) => {
+                setSelectedTaxIdFileName(file?.name ?? null);
                 onFormValuesChange?.();
               }}
+              accept="image/*,.pdf"
+              emptyLabel={
+                hasExistingTaxIdDocument
+                  ? t("pages.clients.form.taxIdDocumentReplace")
+                  : isIndividual
+                    ? t("pages.clients.form.taxIdDocumentUploadIndividual")
+                    : t("pages.clients.form.taxIdDocumentUploadCompany")
+              }
             />
             <p className={employeeDialogHintClass}>
               {hasExistingTaxIdDocument
@@ -499,40 +483,6 @@ export default function ClientFormFields({
               {isIndividual
                 ? t("pages.clients.form.clientSinceHintIndividual")
                 : t("pages.clients.form.clientSinceHint")}
-            </p>
-          </div>
-
-          <div className={employeeDialogFieldClass}>
-            <label
-              htmlFor={idOf("client-payment-terms")}
-              className={employeeDialogLabelClass}
-            >
-              {t("pages.clients.form.paymentTerms")}
-            </label>
-            <select
-              id={idOf("client-payment-terms")}
-              name={nameOf("paymentTermsDays")}
-              defaultValue={String(
-                defaults?.paymentTermsDays != null &&
-                  PAYMENT_TERMS_OPTIONS.includes(
-                    defaults.paymentTermsDays as (typeof PAYMENT_TERMS_OPTIONS)[number]
-                  )
-                  ? defaults.paymentTermsDays
-                  : 14
-              )}
-              className={employeeInputClass}
-              onChange={() => onFormValuesChange?.()}
-            >
-              {PAYMENT_TERMS_OPTIONS.map((days) => (
-                <option key={days} value={days}>
-                  {days === 0
-                    ? t("common.paymentTerms.cash")
-                    : t("common.paymentTerms.net", { days })}
-                </option>
-              ))}
-            </select>
-            <p className={employeeDialogHintClass}>
-              {t("pages.clients.form.paymentTermsHint")}
             </p>
           </div>
         </div>

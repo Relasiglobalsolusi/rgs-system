@@ -79,7 +79,11 @@ export function buildBillingDocumentFileBase(input: {
     | "Proof-of-Payment"
     | "Purchase-Invoice"
     | "Purchase-Tax-Invoice"
-    | "Petty-Cash-Top-Up";
+    | "Petty-Cash-Top-Up"
+    | "Government-Billing"
+    | "Import-Duties"
+    | "Import-Handling"
+    | "Import-Handling-Tax";
   /** Prefer shortCode (e.g. C001). Falls back to clientName only if code missing. */
   clientShortCode?: string | null;
   clientName?: string | null;

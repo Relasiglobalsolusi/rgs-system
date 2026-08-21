@@ -27,10 +27,11 @@ import ProjectStaffPicker, {
 import ProjectTeamPicker, {
   type ProjectTeamOption,
 } from "@/components/projects/ProjectTeamPicker";
-import { isMilestoneSubCategory } from "@/lib/project-billing";
+import { teamsForProjectServiceArea } from "@/lib/operations-team-kind";
 import ProjectTimelineFields from "@/components/projects/ProjectTimelineFields";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { FileDropField } from "@/components/ui/FileDropField";
 import { Input } from "@/components/ui/input";
 import { StackedChipLabel } from "@/components/ui/StatusBadge";
 import {
@@ -54,6 +55,8 @@ type StartArgs = {
   projectId: string;
   projectName: string;
   subCategory: ProjectSubCategory | string;
+  areaCatalogId?: string | null;
+  serviceArea?: string | null;
   estimatedStartDate?: Date | string | null;
   estimatedDurationDays?: number | null;
   startDate?: Date | string | null;
@@ -88,6 +91,8 @@ export function useProjectStartAction({
   projectId,
   projectName,
   subCategory,
+  areaCatalogId,
+  serviceArea,
   estimatedStartDate,
   estimatedDurationDays,
   startDate,
@@ -278,19 +283,12 @@ export function useProjectStartAction({
           )}
 
           <div className={employeeDialogFieldClass}>
-            <label
-              htmlFor={`contract-proof-${projectId}`}
-              className="text-sm font-medium text-text"
-            >
-              {t("pages.projects.contractProof")}
-            </label>
-            <Input
+            <FileDropField
               id={`contract-proof-${projectId}`}
-              type="file"
               name="contractProof"
-              accept="image/*,.pdf,application/pdf"
+              label={t("pages.projects.contractProof")}
               required
-              className={employeeInputClass}
+              accept="image/*,.pdf,application/pdf"
             />
             <p className="text-xs text-subtle">
               {t("pages.projects.contractProofHint")}
@@ -301,12 +299,14 @@ export function useProjectStartAction({
             <p className="text-xs text-subtle">
               {t("pages.projects.moveDialogStaffHelp")}
             </p>
-            {isMilestoneSubCategory(subCategory) ? (
-              <ProjectTeamPicker
-                teams={teams}
-                defaultCheckedIds={assignedTeamIds}
-              />
-            ) : null}
+            <ProjectTeamPicker
+              teams={teamsForProjectServiceArea(teams, {
+                areaCatalogId,
+                serviceArea,
+                subCategory,
+              })}
+              defaultCheckedIds={assignedTeamIds}
+            />
             <ProjectStaffPicker
               key={pickerKey}
               employees={employees}
@@ -372,6 +372,8 @@ export default function ProjectStartButton({
   projectId,
   projectName,
   subCategory,
+  areaCatalogId,
+  serviceArea,
   estimatedStartDate,
   estimatedDurationDays,
   startDate,
@@ -387,6 +389,8 @@ export default function ProjectStartButton({
     projectId,
     projectName,
     subCategory,
+    areaCatalogId,
+    serviceArea,
     estimatedStartDate,
     estimatedDurationDays,
     startDate,

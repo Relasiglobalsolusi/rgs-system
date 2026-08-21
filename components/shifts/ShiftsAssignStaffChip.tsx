@@ -20,13 +20,15 @@ import ProjectTeamPicker, {
   type ProjectTeamOption,
 } from "@/components/projects/ProjectTeamPicker";
 import { showRejectionFromError } from "@/components/ui/rejection-notice";
-import { isMilestoneSubCategory } from "@/lib/project-billing";
+import { teamsForProjectServiceArea } from "@/lib/operations-team-kind";
 import type { ProjectSubCategory } from "@prisma/client";
 import { useT } from "@/lib/i18n/use-t";
 
 export default function ShiftsAssignStaffChip({
   projectId,
   subCategory,
+  areaCatalogId,
+  serviceArea,
   employees,
   teams,
   assignedEmployeeIds,
@@ -34,6 +36,8 @@ export default function ShiftsAssignStaffChip({
 }: {
   projectId: string;
   subCategory: ProjectSubCategory | string;
+  areaCatalogId?: string | null;
+  serviceArea?: string | null;
   employees: ProjectStaffEmployee[];
   teams: ProjectTeamOption[];
   assignedEmployeeIds: string[];
@@ -98,12 +102,14 @@ export default function ShiftsAssignStaffChip({
           onSubmit={handleSubmit}
           className={employeeDialogFormClass}
         >
-          {isMilestoneSubCategory(subCategory) ? (
-            <ProjectTeamPicker
-              teams={teams.filter((team) => team.kind === subCategory)}
-              defaultCheckedIds={assignedTeamIds}
-            />
-          ) : null}
+          <ProjectTeamPicker
+            teams={teamsForProjectServiceArea(teams, {
+              areaCatalogId,
+              serviceArea,
+              subCategory,
+            })}
+            defaultCheckedIds={assignedTeamIds}
+          />
           <ProjectStaffPicker
             employees={employees}
             defaultCheckedIds={assignedEmployeeIds}

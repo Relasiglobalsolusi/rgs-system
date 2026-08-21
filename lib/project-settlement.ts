@@ -48,7 +48,7 @@ export function shouldCompleteProjectAfterSettlement(opts: {
     (OPEN_COLLECTION_STATUSES as readonly string[]).includes(period.status)
   );
   if (hasOpenCollection) return false;
-  if (!isProjectFullyPaid(opts.periods)) return false;
+  if (!isProjectFullyPaid(opts.periods, opts.subCategory)) return false;
   if (!allIssuedOrPaidPeriodsHaveTaxInvoice(opts.periods)) return false;
 
   const isGcFacade =

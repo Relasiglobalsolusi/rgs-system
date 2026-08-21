@@ -15,12 +15,11 @@ import {
   shiftYearMonth,
   yearMonthKey,
 } from "@/lib/operations-team-calendar";
-import type { OperationsTeamKindValue } from "@/lib/operations-teams";
 
 export type TeamAvailabilityRow = {
   id: string;
   name: string;
-  kind: OperationsTeamKindValue;
+  typeLabel: string;
   occupiedProjectName: string | null;
   occupiedDayKeys: string[];
 };
@@ -107,11 +106,7 @@ export default function TeamAvailabilityBoard({
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="font-semibold text-text">{team.name}</p>
-                  <p className="text-sm text-muted">
-                    {team.kind === "FACADE_CLEANING"
-                      ? t("pages.teams.kindFacade")
-                      : t("pages.teams.kindGeneral")}
-                  </p>
+                  <p className="text-sm text-muted">{team.typeLabel}</p>
                 </div>
                 {team.occupiedProjectName ? (
                   <StatusBadge status="warning" compact>

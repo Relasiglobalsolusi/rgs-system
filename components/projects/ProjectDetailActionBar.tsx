@@ -7,6 +7,7 @@ import type {
   BillingPeriodBasis,
   ProjectStatus,
 } from "@prisma/client";
+import type { CommercialTaxKind } from "@/lib/commercial-tax";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -27,6 +28,8 @@ import ProjectFinishButton from "@/components/projects/ProjectFinishButton";
 import ProjectRedoJobButton from "@/components/projects/ProjectRedoJobButton";
 import ProjectRenewContractButton from "@/components/projects/ProjectRenewContractButton";
 import type { ProjectTeamOption } from "@/components/projects/ProjectTeamPicker";
+import type { CompanyBankAccountOption } from "@/lib/company-bank-accounts";
+import type { ProjectCatalogAreaDTO } from "@/lib/project-service-catalog";
 import {
   isExtendableContractSubCategory,
   isRedoJobSubCategory,
@@ -57,12 +60,17 @@ type EditProject = {
   endDate: Date | null;
   progress: number;
   subCategory: ProjectSubCategory;
-  serviceArea?: ProjectServiceAreaValue;
+  serviceArea?: ProjectServiceAreaValue | "OTHER";
+  areaCatalogId?: string | null;
+  subcategoryCatalogId?: string | null;
   billingMode: BillingMode;
   billingPeriodBasis?: BillingPeriodBasis | null;
   billingCycleStartDay?: number | null;
   billingCycleEndDay?: number | null;
   requiresTaxInvoice: boolean;
+  chargedTaxKind?: CommercialTaxKind | null;
+  pphRatePercent?: number | null;
+  otherTaxName?: string | null;
   contractPrice?: number | null;
   setupCost?: number | null;
   profitSharePercent?: number | null;
@@ -72,6 +80,7 @@ type EditProject = {
   parkingTaxPercent?: number | null;
   serviceFeePercent?: number | null;
   paymentTermsDays?: number | null;
+  bankAccountId?: string | null;
   payrollCutoffStartDay?: number | null;
   payrollCutoffEndDay?: number | null;
   payrollTaxPercent?: number | null;
@@ -118,6 +127,8 @@ type Props = {
   teams?: ProjectTeamOption[];
   assignedTeamIds?: string[];
   clients: ClientOption[];
+  catalog?: ProjectCatalogAreaDTO[];
+  bankAccounts?: CompanyBankAccountOption[];
   /** Page body between the top action bar and bottom Delete / End Contract. */
   children: ReactNode;
 };
@@ -147,6 +158,8 @@ export default function ProjectDetailActionBar({
   teams = [],
   assignedTeamIds = [],
   clients,
+  catalog = [],
+  bankAccounts = [],
   children,
 }: Props) {
   const { t } = useT();
@@ -198,6 +211,8 @@ export default function ProjectDetailActionBar({
                   projectId={projectId}
                   projectName={projectName}
                   subCategory={subCategory}
+                  areaCatalogId={editProject.areaCatalogId}
+                  serviceArea={editProject.serviceArea}
                   estimatedStartDate={estimatedStartDate}
                   estimatedDurationDays={estimatedDurationDays}
                   startDate={startDate}
@@ -336,6 +351,9 @@ export default function ProjectDetailActionBar({
             {showRedoJob ? (
               <ProjectRedoJobButton
                 projectId={projectId}
+                subCategory={subCategory}
+                areaCatalogId={editProject.areaCatalogId}
+                serviceArea={editProject.serviceArea}
                 employees={employees}
                 teams={teams}
                 size="bar"
@@ -346,7 +364,8 @@ export default function ProjectDetailActionBar({
                 projectId={projectId}
                 projectName={projectName}
                 isRegularContract
-                requiresLastDay
+                requiresLastDay={subCategory !== "PARKING"}
+                requiresLastMonth={subCategory === "PARKING"}
                 plannedEndDate={endDate}
                 mode="end-only"
                 size="bar"
@@ -363,6 +382,8 @@ export default function ProjectDetailActionBar({
           teams={teams}
           assignedTeamIds={assignedTeamIds}
           clients={clients}
+          catalog={catalog}
+          bankAccounts={bankAccounts}
           showTrigger={false}
           open={editOpen}
           onOpenChange={setEditOpen}

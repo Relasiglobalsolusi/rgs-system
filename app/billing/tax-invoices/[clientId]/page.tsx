@@ -95,7 +95,8 @@ export default async function TaxInvoiceClientPage({
           location: true,
           clientId: true,
           billingMode: true,
-          client: { select: { id: true, name: true, paymentTermsDays: true } },
+          paymentTermsDays: true,
+          client: { select: { id: true, name: true } },
         },
       },
       taxInvoiceDoneBy: {
@@ -137,7 +138,7 @@ export default async function TaxInvoiceClientPage({
     const paymentDisplay = getInvoicePaymentDisplay(
       {
         ...period,
-        paymentTermsDays: project.client?.paymentTermsDays,
+        paymentTermsDays: project.paymentTermsDays,
       },
       now
     );

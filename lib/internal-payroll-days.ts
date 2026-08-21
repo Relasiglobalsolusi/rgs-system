@@ -34,6 +34,13 @@ export type PayrollDayRow = {
   needsPayDecision?: boolean;
   payDecision?: ShiftPayDecisionStatus | null;
   payAmount?: number | null;
+  /** Approved leave covers this Jakarta work day — unpaid, not Absent. */
+  onLeave?: boolean;
+  /**
+   * Employed that calendar day but not scheduled (desk weekend, unassigned).
+   * Still listed so 16th–15th has no gaps. Unpaid unless they check in.
+   */
+  off?: boolean;
 };
 
 export type PayrollDayAttendance = {
@@ -162,7 +169,7 @@ export function isExpectedPayrollDay(
   day: Date
 ): boolean {
   if (!isEmployedOnDay(employee, dayKey)) return false;
-  if (isOnLeaveOnDay(employee.leaves, dayKey)) return false;
+  if (isOnLeaveOnDay(employee.leaves, dayKey)) return true;
 
   const assignedSite = assignmentSiteOnDay(employee.assignments, dayKey);
   const desk = deskSiteName(employee.internalHomeSite);
@@ -299,18 +306,25 @@ export function buildPayrollEmployeeDays(
     const dateKey = jakartaWorkDateKey(day);
     if (dateKey > todayKey) continue;
 
+    if (!isEmployedOnDay(employee, dateKey)) continue;
+
     const sessions = (byDate.get(dateKey) ?? []).slice().sort((a, b) => {
       const aTime = a.checkIn?.getTime() ?? 0;
       const bTime = b.checkIn?.getTime() ?? 0;
       return aTime - bTime;
     });
     const expected = isExpectedPayrollDay(employee, dateKey, day);
-    if (sessions.length === 0 && !expected) continue;
+    const onLeave = isOnLeaveOnDay(employee.leaves, dateKey);
 
     if (sessions.length === 0) {
+      const off = !expected && !onLeave;
       rows.push({
         dateKey,
-        sessionKey: `${dateKey}:absent`,
+        sessionKey: onLeave
+          ? `${dateKey}:leave`
+          : off
+            ? `${dateKey}:off`
+            : `${dateKey}:absent`,
         siteName:
           assignmentSiteOnDay(employee.assignments, dateKey) ??
           deskSiteName(employee.internalHomeSite),
@@ -318,8 +332,10 @@ export function buildPayrollEmployeeDays(
         checkOutAt: null,
         earlyCheckOut: false,
         lateCheckIn: false,
-        absent: true,
+        absent: expected && !onLeave,
         complete: false,
+        onLeave,
+        off,
         doubleShift: doubleByDate.has(dateKey),
         ...shiftNotesForDay(employee, dateKey),
         sessionHours: null,
@@ -355,6 +371,7 @@ export function buildPayrollEmployeeDays(
         earlyCheckOut: attendance.earlyCheckOut === true,
         lateCheckIn: attendance.lateCheckIn === true,
         absent: false,
+        onLeave,
         complete,
         doubleShift: Boolean(doubleProjectId),
         ...shiftNotesForDay(employee, dateKey),

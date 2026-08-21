@@ -36,7 +36,7 @@ export function availableFullTimeCrewWhere(
     },
     jobPosition: {
       active: true,
-      slug: { in: ["cleaning-staff", "gc-staff"] },
+      slug: { in: ["cleaning-staff", "gc-staff", "technician"] },
     },
   };
 }
@@ -130,7 +130,7 @@ export function availableParkingCrewWhere(
 export function crewOptionsForSubCategory(
   subCategory: string | null | undefined
 ): AssignableCrewWhereOptions {
-  if (subCategory === "SECURITY") {
+  if (subCategory === "SECURITY" || subCategory === "ONE_TIME_SECURITY") {
     return {
       includeCleaningStaff: false,
       includeSecurityStaff: true,

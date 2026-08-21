@@ -27,10 +27,7 @@ import {
   getAccountTypeBadgeStatus,
   getVisibleModules,
 } from "@/lib/permissions";
-import {
-  canRestorePortalAccess,
-  isRevokedAccessUser,
-} from "@/lib/user-directory-status";
+import { canRestorePortalAccess } from "@/lib/user-directory-status";
 import AdminPasswordDisplay from "@/components/users/AdminPasswordDisplay";
 import UserPermissionsDialog from "@/components/users/UserPermissionsDialog";
 import UserDeleteDialog from "@/components/users/UserDeleteDialog";
@@ -474,7 +471,7 @@ export default function UserTable({
         key: "type",
         title: t("pages.users.columns.type"),
         width: STATUS_COLUMN_WIDTH,
-        align: "center",
+        cellAlign: "center",
         className: "min-w-[10rem] overflow-visible whitespace-nowrap",
         render: (row) => {
           const accountType = getAccountType(row);
@@ -557,7 +554,7 @@ export default function UserTable({
           : activeHasTripleChip
             ? ACTIONS_TRIPLE_CHIP_COLUMN_WIDTH
             : ACTIONS_DUAL_CHIP_COLUMN_WIDTH,
-        align: "center",
+        cellAlign: "center",
         share: 0,
         className: trashHasTripleChip
           ? "min-w-[36rem] overflow-visible whitespace-nowrap"
@@ -613,7 +610,6 @@ export default function UserTable({
       {canEditPermissions && editUser ? (
         <UserDialog
           key={editUser.id}
-          mode="edit"
           user={editUser}
           canEditUsername={canEditPermissions}
           showDelete={directoryView === "active" && editUser.active}

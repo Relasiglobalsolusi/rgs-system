@@ -4,10 +4,7 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
-import {
-  nextCompanyScopedSortOrder,
-  persistCompanyScopedReorder,
-} from "@/lib/persist-reorder";
+import { persistCompanyScopedReorder } from "@/lib/persist-reorder";
 import { requireModule } from "@/lib/session";
 import {
   expandLegacyFinanceOverrides,
@@ -20,7 +17,6 @@ import {
   assertRecoveryEmailAvailable,
   assertUsernameAvailable,
   resolveFirstLoginResetCredentials,
-  resolveNewAccountPassword,
 } from "@/lib/user-account";
 import {
   createBulkActionResult,
@@ -44,51 +40,6 @@ async function usersLocaleError(
 ) {
   const resolved = locale ?? (await getServerLocale());
   return new Error(translate(resolved, `pages.users.errors.${key}`, params));
-}
-
-export async function createUser(formData: FormData) {
-  await requireModule("users");
-  const locale = await getServerLocale();
-
-  const name = capitalizeName(String(formData.get("name") ?? "").trim());
-  const username = normalizeUsername(String(formData.get("username") ?? ""));
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  const password = String(formData.get("password") ?? "");
-
-  if (!name) throw await usersLocaleError("displayNameRequired", undefined, locale);
-  if (!username) throw await usersLocaleError("usernameRequired", undefined, locale);
-  if (!isValidUsername(username)) {
-    throw await usersLocaleError("usernameInvalid", undefined, locale);
-  }
-  if (!email) throw await usersLocaleError("recoveryEmailRequired", undefined, locale);
-
-  await assertUsernameAvailable(username);
-  await assertRecoveryEmailAvailable(email);
-
-  const company = await prisma.company.findFirst();
-  if (!company) throw await usersLocaleError("companyNotFound", undefined, locale);
-
-  const { passwordHash, mustSetPassword, passwordDisplay } =
-    await resolveNewAccountPassword(password);
-  const sortOrder = await nextCompanyScopedSortOrder("user", company.id);
-
-  await prisma.user.create({
-    data: {
-      name,
-      username,
-      email,
-      passwordHash,
-      mustSetPassword,
-      ...(passwordDisplay ? { passwordDisplay } : {}),
-      ...(!mustSetPassword ? { passwordSetupCompletedAt: new Date() } : {}),
-      role: "ADMIN",
-      companyId: company.id,
-      active: true,
-      sortOrder,
-    },
-  });
-
-  revalidatePath("/users");
 }
 
 export async function reorderUsers(ids: string[]) {

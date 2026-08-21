@@ -7,6 +7,7 @@ import { createWriteStream, existsSync } from "fs";
 import { mkdir, readFile } from "fs/promises";
 import path from "path";
 import PDFDocument from "pdfkit";
+import { ensureCompanyForPdf } from "@/lib/company-for-pdf";
 import { formatDisplayDate } from "@/lib/format-date";
 import {
   BOTTOM_SAFE,
@@ -90,7 +91,9 @@ export async function generateProgressReviewPdf(
   const filepath = path.join(uploadDir, filename);
   const publicPath = `/${folder}/${filename}`;
 
-  const letterhead = letterheadFromCompany(input.company);
+  const letterhead = letterheadFromCompany(
+    await ensureCompanyForPdf(input.company)
+  );
   const logoBuffer = await loadBrandLogoBuffer();
 
   const photoBuffers = new Map<string, Buffer>();

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { ShoppingBag } from "lucide-react";
+import { ShoppingBag, CircleDollarSign, Wallet, AlertTriangle, Ship } from "lucide-react";
 
 import PurchaseInvoicePeriodControl from "@/components/billing/PurchaseInvoicePeriodControl";
 import PurchaseInvoiceTable, {
@@ -8,15 +8,16 @@ import PurchaseInvoiceTable, {
 import PurchaseInvoiceUploadDialog from "@/components/billing/PurchaseInvoiceUploadDialog";
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/ui/EmptyState";
+import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import SectionCard from "@/components/ui/SectionCard";
 import { formatDisplayDate } from "@/lib/format-date";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
 import {
   getPurchasePaymentDisplay,
-  isCashPaymentTerms,
   isPurchaseTaxIncomplete,
 } from "@/lib/invoice-period";
+import { getPurchaseRecordChips, getPurchaseRecordStatus } from "@/lib/purchase-record-status";
 import { canAccess } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import {
@@ -25,7 +26,8 @@ import {
 } from "@/lib/project-billing";
 import { requireFinanceChild, toPermissionUser } from "@/lib/session";
 import { processScheduledPettyCashPays } from "@/lib/petty-cash";
-import { jakartaYearMonth, utcRangeForJakartaMonth } from "@/lib/vat";
+import { jakartaYearMonth, utcRangeForJakartaDate, utcRangeForJakartaMonth, daysInUtcMonth } from "@/lib/vat";
+import { governmentTaxKindLabelKey } from "@/lib/government-tax";
 
 /** AP list view filters for HO Finance. */
 const PURCHASE_VIEWS = ["tax", "payments"] as const;
@@ -39,6 +41,7 @@ type SearchParams = Promise<{
   view?: string;
   year?: string;
   month?: string;
+  day?: string;
 }>;
 
 export default async function PurchaseInvoicesPage({
@@ -73,7 +76,16 @@ export default async function PurchaseInvoicesPage({
     1,
     Math.min(12, Number(params.month) || nowYm.month)
   );
-  const { start, endExclusive } = utcRangeForJakartaMonth(year, month);
+  const maxDay = daysInUtcMonth(year, month);
+  const parsedDay = Number(params.day);
+  const day =
+    Number.isFinite(parsedDay) && parsedDay >= 1 && parsedDay <= maxDay
+      ? parsedDay
+      : null;
+  const { start, endExclusive } =
+    day != null
+      ? utcRangeForJakartaDate(year, month, day)
+      : utcRangeForJakartaMonth(year, month);
 
   const user = toPermissionUser(session);
   const canManage =
@@ -86,19 +98,20 @@ export default async function PurchaseInvoicesPage({
         companyId: session.user.companyId,
         // Filter by supplier invoice date (not createdAt).
         invoiceDate: { gte: start, lt: endExclusive },
+        reversedAt: null,
         ...(purchaseView
           ? { purpose: { not: "PETTY_CASH" } }
           : {}),
       },
       include: {
         createdBy: { select: { name: true } },
-        vendor: { select: { paymentTermsDays: true } },
+        lines: { select: { quantity: true, unitPrice: true } },
       },
       orderBy: [{ invoiceDate: "desc" }, { createdAt: "desc" }],
     }),
     prisma.vendor.findMany({
       where: { companyId: session.user.companyId, active: true },
-      select: { id: true, name: true, paymentTermsDays: true },
+      select: { id: true, name: true, vendorType: true },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
     prisma.inventoryItem.findMany({
@@ -108,6 +121,7 @@ export default async function PurchaseInvoicesPage({
         name: true,
         sku: true,
         unit: true,
+        itemType: true,
         lastUnitCost: true,
       },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -132,6 +146,7 @@ export default async function PurchaseInvoicesPage({
     name: item.name,
     sku: item.sku,
     unit: item.unit,
+    itemType: item.itemType,
     lastUnitCost: decimalToNumber(item.lastUnitCost),
   }));
 
@@ -140,9 +155,10 @@ export default async function PurchaseInvoicesPage({
   let filtered = invoices;
   if (purchaseView === "tax") {
     filtered = invoices.filter(
-      (invoice) => invoice.includesPpn || Boolean(invoice.taxInvoiceFilePath)
+      (invoice) =>
+        invoice.purchaseCategory !== "GOVERNMENT" &&
+        (invoice.includesPpn || Boolean(invoice.taxInvoiceFilePath))
     );
-    // Surface tax-incomplete (PPN on, faktur missing) first.
     filtered = [...filtered].sort((a, b) => {
       const aPending = isPurchaseTaxIncomplete(a) ? 0 : 1;
       const bPending = isPurchaseTaxIncomplete(b) ? 0 : 1;
@@ -150,10 +166,8 @@ export default async function PurchaseInvoicesPage({
     });
   }
 
-  const showPaymentStatus = purchaseView === "payments";
-
   const rows: PurchaseInvoiceTableRow[] = filtered.map((invoice) => {
-    const termsDays = invoice.vendor?.paymentTermsDays ?? null;
+    const termsDays = invoice.paymentTermsDays ?? 14;
     const payment = getPurchasePaymentDisplay(
       {
         invoiceDate: invoice.invoiceDate,
@@ -162,37 +176,28 @@ export default async function PurchaseInvoicesPage({
       },
       now
     );
-    const taxIncomplete = isPurchaseTaxIncomplete(invoice);
-
     return {
       id: invoice.id,
       supplierName: invoice.supplierName,
       invoiceRef: invoice.invoiceRef,
       invoiceDateLabel: formatDisplayDate(invoice.invoiceDate),
-      paymentTermsLabel:
-        termsDays == null
-          ? null
-          : isCashPaymentTerms(termsDays)
-            ? t("common.paymentTerms.cashShort")
-            : t("common.paymentTerms.netShort", { days: termsDays }),
-      dueDateLabel: payment.dueAt
-        ? formatDisplayDate(payment.dueAt, { timeZone: "UTC" })
-        : null,
       amountLabel: formatContractPrice(decimalToNumber(invoice.amount)),
-      includesPpn: invoice.includesPpn,
-      taxIncomplete,
-      notes: invoice.notes,
-      filePath: invoice.filePath,
-      taxInvoiceFilePath: invoice.taxInvoiceFilePath,
-      uploadedBy: invoice.createdBy?.name ?? null,
-      uploadedAtLabel: formatDisplayDate(invoice.createdAt),
-      paymentStatus:
-        payment.key === "no_due" ? null : payment.key,
-      showPaymentStatus: showPaymentStatus || payment.isPaid,
-      paidAtLabel: invoice.paidAt
-        ? formatDisplayDate(invoice.paidAt)
+      origin: invoice.origin,
+      purchaseCategory: invoice.purchaseCategory,
+      governmentTaxKindLabel: invoice.governmentTaxKind
+        ? t(governmentTaxKindLabelKey(invoice.governmentTaxKind))
         : null,
-      paymentProofPath: invoice.paymentProofPath,
+      freeOfCharge: invoice.freeOfCharge,
+      hasInvoice: invoice.hasInvoice,
+      paymentStatus: invoice.freeOfCharge
+        ? "paid"
+        : payment.key === "no_due"
+          ? null
+          : payment.key,
+      recordStatus: getPurchaseRecordStatus(invoice).key,
+      recordChips: getPurchaseRecordChips(invoice).filter(
+        (chip) => chip !== "complete"
+      ),
     };
   });
 
@@ -209,6 +214,19 @@ export default async function PurchaseInvoicesPage({
       : purchaseView === "payments"
         ? "pages.billing.hoPaymentsDesc"
         : "pages.billing.purchaseDescription";
+
+  const totalAmount = filtered.reduce(
+    (sum, invoice) => sum + (decimalToNumber(invoice.amount) ?? 0),
+    0
+  );
+  const unpaidAmount = filtered.reduce((sum, invoice) => {
+    if (invoice.freeOfCharge || invoice.paidAt) return sum;
+    return sum + (decimalToNumber(invoice.amount) ?? 0);
+  }, 0);
+  const overdueCount = rows.filter((row) => row.paymentStatus === "overdue").length;
+  const incompleteCount = rows.filter(
+    (row) => row.origin === "IMPORT" && (row.recordChips?.length ?? 0) > 0
+  ).length;
 
   return (
     <AppShell titleKey={titleKey} descriptionKey={descriptionKey}>
@@ -234,6 +252,7 @@ export default async function PurchaseInvoicesPage({
           <PurchaseInvoicePeriodControl
             year={year}
             month={month}
+            day={day}
             view={purchaseView}
           />
           {canUpload ? (
@@ -250,6 +269,43 @@ export default async function PurchaseInvoicesPage({
         </div>
       </div>
 
+      {purchaseView ? null : (
+        <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <DirectoryStatCard
+            compact
+            title={t("pages.billing.purchaseCardTotal")}
+            value={formatContractPrice(totalAmount)}
+            subtitle={t("pages.billing.purchaseCount", { count: rows.length })}
+            icon={<CircleDollarSign size={18} />}
+            accent="primary"
+          />
+          <DirectoryStatCard
+            compact
+            title={t("pages.billing.purchaseCardUnpaid")}
+            value={formatContractPrice(unpaidAmount)}
+            subtitle={t("pages.billing.purchaseCardUnpaidHint")}
+            icon={<Wallet size={18} />}
+            accent="warning"
+          />
+          <DirectoryStatCard
+            compact
+            title={t("pages.billing.purchaseCardOverdue")}
+            value={overdueCount}
+            subtitle={t("pages.billing.purchaseCardOverdueHint")}
+            icon={<AlertTriangle size={18} />}
+            accent={overdueCount > 0 ? "danger" : "muted"}
+          />
+          <DirectoryStatCard
+            compact
+            title={t("pages.billing.purchaseCardIncompleteImport")}
+            value={incompleteCount}
+            subtitle={t("pages.billing.purchaseCardIncompleteImportHint")}
+            icon={<Ship size={18} />}
+            accent={incompleteCount > 0 ? "info" : "muted"}
+          />
+        </div>
+      )}
+
       {rows.length === 0 ? (
         <SectionCard className="p-5 sm:p-6">
           <EmptyState
@@ -258,12 +314,7 @@ export default async function PurchaseInvoicesPage({
           />
         </SectionCard>
       ) : (
-        <PurchaseInvoiceTable
-          rows={rows}
-          canManage={canUpload}
-          readOnlyPayment={purchaseView === "payments"}
-          canMarkPaid={canManage}
-        />
+        <PurchaseInvoiceTable rows={rows} />
       )}
     </AppShell>
   );

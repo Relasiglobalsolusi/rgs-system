@@ -23,10 +23,10 @@ export function decimalQty(value: Prisma.Decimal | number | null | undefined) {
   return decimalToNumber(value) ?? 0;
 }
 
-/** Inventory counts are whole units; round away float drift (e.g. 1.999 → 2). */
+/** Match Decimal(14, 3): keep thousandths, drop float drift. */
 export function normalizeInventoryQty(value: number): number {
   if (!Number.isFinite(value)) return 0;
-  return Math.round(value);
+  return Math.round(value * 1000) / 1000;
 }
 
 export function inventoryQtyFromDecimal(
@@ -68,6 +68,25 @@ export function nextWeightedAvgUnitCost(options: {
   const totalQty = currentStock + purchaseQty;
   if (totalQty <= 0) return purchaseUnitPrice;
   return totalValue / totalQty;
+}
+
+/** Weighted-average unit cost after removing a stock-in of `qty` at `unitPrice`. */
+export function reverseWeightedAvgUnitCost(options: {
+  currentStock: number;
+  avgUnitCost: number | null;
+  removeQty: number;
+  removeUnitPrice: number;
+}): number {
+  const { currentStock, avgUnitCost, removeQty, removeUnitPrice } = options;
+  const remaining = normalizeInventoryQty(currentStock - removeQty);
+  if (remaining <= 0) return 0;
+  if (avgUnitCost == null || !Number.isFinite(avgUnitCost)) {
+    return removeUnitPrice;
+  }
+  const remainingValue =
+    currentStock * avgUnitCost - removeQty * removeUnitPrice;
+  if (!Number.isFinite(remainingValue) || remainingValue <= 0) return 0;
+  return remainingValue / remaining;
 }
 
 /** Absolute money amount for a movement (qty × unit cost). */

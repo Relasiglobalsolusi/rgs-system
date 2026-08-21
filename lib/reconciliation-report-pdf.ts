@@ -7,6 +7,7 @@ import { createWriteStream } from "fs";
 import { mkdir } from "fs/promises";
 import path from "path";
 import PDFDocument from "pdfkit";
+import { ensureCompanyForPdf } from "@/lib/company-for-pdf";
 import { formatDisplayDate, formatDisplayTime } from "@/lib/format-date";
 import {
   BOTTOM_SAFE,
@@ -70,7 +71,9 @@ export async function generateReconciliationReportPdf(
   const filepath = path.join(uploadDir, filename);
   const publicPath = `/${folder}/${filename}`;
 
-  const letterhead = letterheadFromCompany(input.company);
+  const letterhead = letterheadFromCompany(
+    await ensureCompanyForPdf(input.company)
+  );
   const logoBuffer = await loadBrandLogoBuffer();
 
   await new Promise<void>((resolve, reject) => {

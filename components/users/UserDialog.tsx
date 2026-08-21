@@ -5,10 +5,9 @@ import {
 } from "@/components/ui/rejection-notice";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { KeyRound, UserPlus } from "lucide-react";
+import { KeyRound } from "lucide-react";
 
 import {
-  createUser,
   resetUserAccount,
   updateUser,
   type ResetUserAccountResult,
@@ -38,6 +37,8 @@ import {
   type DirectoryDialogControlProps,
 } from "@/components/ui/use-directory-dialog-open";
 import { Input } from "@/components/ui/input";
+import { localizeDepartmentLabel } from "@/lib/i18n/labels";
+import type { AppLocale } from "@/lib/i18n/locale";
 import { useT } from "@/lib/i18n/use-t";
 import {
   getAdminPasswordDisplayState,
@@ -68,14 +69,7 @@ type EditUser = {
   vendor: { id: string; name: string } | null;
 };
 
-type CreateProps = {
-  mode: "create";
-  /** Managers may set Login ID / username (Users module manage). */
-  canEditUsername?: boolean;
-} & DirectoryDialogControlProps;
-
-type EditProps = {
-  mode: "edit";
+type Props = {
   user: EditUser;
   showDelete?: boolean;
   deleteDisabled?: boolean;
@@ -87,20 +81,20 @@ type EditProps = {
   canEditUsername?: boolean;
 } & DirectoryDialogControlProps;
 
-type Props = CreateProps | EditProps;
-
-function formatEmployeeLinkLabel(employee: NonNullable<EditUser["employee"]>): string {
+function formatEmployeeLinkLabel(
+  employee: NonNullable<EditUser["employee"]>,
+  locale: AppLocale
+): string {
   const name = `${employee.firstName} ${employee.lastName}`.trim();
   if (employee.category?.name) {
-    return `${employee.category.name} — ${name}`;
+    return `${localizeDepartmentLabel(null, employee.category.name, locale)} — ${name}`;
   }
   return `${employee.employeeNo} — ${name}`;
 }
 
 export default function UserDialog(props: Props) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const router = useRouter();
-  const isEdit = props.mode === "edit";
   const showTrigger = props.showTrigger ?? true;
   const canEditUsername = props.canEditUsername ?? true;
   const { open, setOpen } = useDirectoryDialogOpen(
@@ -118,18 +112,16 @@ export default function UserDialog(props: Props) {
     useState<Partial<EditUser> | null>(null);
   const [formRevision, setFormRevision] = useState(0);
 
-  const formId = isEdit ? `edit-user-form-${props.user.id}` : "create-user-form";
-  const linkLabel = isEdit
-    ? props.user.employee
-      ? t("pages.users.linkedEmployee", {
-          label: formatEmployeeLinkLabel(props.user.employee),
-        })
-      : props.user.client
-        ? t("pages.users.linkedClient", { name: props.user.client.name })
-        : props.user.vendor
-          ? t("pages.users.linkedVendor", { name: props.user.vendor.name })
-          : null
-    : null;
+  const formId = `edit-user-form-${props.user.id}`;
+  const linkLabel = props.user.employee
+    ? t("pages.users.linkedEmployee", {
+        label: formatEmployeeLinkLabel(props.user.employee, locale),
+      })
+    : props.user.client
+      ? t("pages.users.linkedClient", { name: props.user.client.name })
+      : props.user.vendor
+        ? t("pages.users.linkedVendor", { name: props.user.vendor.name })
+        : null;
 
   const { isDirty, handleFormInput, resetDirtyTracking } = useHtmlFormDirty(
     formId,
@@ -183,17 +175,13 @@ export default function UserDialog(props: Props) {
     // Login active/revoked is controlled only via Revoke Access / Restore Access.
     formData.delete("active");
 
-    if (isEdit && !canEditUsername) {
+    if (!canEditUsername) {
       formData.set("username", props.user.username);
     }
 
     startTransition(async () => {
       try {
-        if (isEdit) {
-          await updateUser(props.user.id, formData);
-        } else {
-          await createUser(formData);
-        }
+        await updateUser(props.user.id, formData);
         setExitConfirmOpen(false);
         setOpen(false);
         setBaseline(null);
@@ -218,8 +206,6 @@ export default function UserDialog(props: Props) {
   }
 
   function handleResetAccount() {
-    if (!isEdit) return;
-
     const confirmed = window.confirm(
       t("pages.users.form.resetAccountConfirm", {
         username: props.user.username,
@@ -241,42 +227,26 @@ export default function UserDialog(props: Props) {
 
   const busy = pending || resetPending;
   const canSubmit = !busy;
-  const showDelete =
-    isEdit && props.mode === "edit" ? (props.showDelete ?? false) : false;
-  const deleteDisabled =
-    isEdit && props.mode === "edit" ? (props.deleteDisabled ?? false) : false;
-  const deleteDisabledReason =
-    isEdit && props.mode === "edit" ? props.deleteDisabledReason : undefined;
+  const showDelete = props.showDelete ?? false;
+  const deleteDisabled = props.deleteDisabled ?? false;
+  const deleteDisabledReason = props.deleteDisabledReason;
   /** Same eligibility as Revoke Access: active client/vendor/employee-linked login. */
   const showLinkedLoginActions =
-    isEdit &&
-    props.mode === "edit" &&
     props.user.active &&
     Boolean(props.user.employee || props.user.client || props.user.vendor);
   const showRevoke = showLinkedLoginActions;
   const showRemovePortalLogin = showLinkedLoginActions;
-  const revokeDisabled =
-    isEdit && props.mode === "edit"
-      ? (props.revokeDisabled ?? props.deleteDisabled ?? false)
-      : false;
+  const revokeDisabled = props.revokeDisabled ?? props.deleteDisabled ?? false;
   const revokeDisabledReason =
-    isEdit && props.mode === "edit"
-      ? (props.revokeDisabledReason ??
-        props.deleteDisabledReason ??
-        undefined)
-      : undefined;
+    props.revokeDisabledReason ?? props.deleteDisabledReason ?? undefined;
   const removePortalLoginDisabled = revokeDisabled;
-  const removePortalLoginDisabledReason =
-    isEdit && props.mode === "edit" && revokeDisabled
-      ? (props.revokeDisabledReason ??
-        props.deleteDisabledReason ??
-        t("pages.users.cannotRemovePortalOwn"))
-      : undefined;
+  const removePortalLoginDisabledReason = revokeDisabled
+    ? (props.revokeDisabledReason ??
+      props.deleteDisabledReason ??
+      t("pages.users.cannotRemovePortalOwn"))
+    : undefined;
 
-  const editUser =
-    isEdit && props.mode === "edit"
-      ? { ...props.user, ...accountOverride }
-      : null;
+  const editUser = { ...props.user, ...accountOverride };
   const passwordSetupContext =
     editUser && editUser.passwordDisplay !== undefined
       ? {
@@ -309,23 +279,15 @@ export default function UserDialog(props: Props) {
       >
         {showTrigger ? (
           <DialogTrigger asChild>
-            {isEdit ? (
-              <Button variant="infoBadge" size="badge">
-                {t("common.actions.edit")}
-              </Button>
-            ) : (
-              <Button variant="successBadge" size="badge">
-                {t("pages.users.addUser")}
-              </Button>
-            )}
+            <Button variant="infoBadge" size="badge">
+              {t("common.actions.edit")}
+            </Button>
           </DialogTrigger>
         ) : null}
 
         <EmployeeDialogShell
-          icon={isEdit ? KeyRound : UserPlus}
-          title={
-            isEdit ? t("pages.users.editUser") : t("pages.users.createUser")
-          }
+          icon={KeyRound}
+          title={t("pages.users.editUser")}
           description={t("pages.users.description")}
           maxWidth="lg"
           footer={
@@ -374,9 +336,7 @@ export default function UserDialog(props: Props) {
               >
                 {pending
                   ? t("common.actions.saving")
-                  : isEdit
-                    ? t("common.actions.saveChanges")
-                    : t("pages.users.createUser")}
+                  : t("common.actions.saveChanges")}
               </EmployeePrimaryButton>
             </div>
           }
@@ -400,7 +360,7 @@ export default function UserDialog(props: Props) {
                     id="user-name"
                     name="name"
                     placeholder={t("pages.users.form.displayNamePlaceholder")}
-                    defaultValue={isEdit ? (editUser?.name ?? "") : ""}
+                    defaultValue={editUser.name}
                     required
                     className={employeeInputClass}
                   />
@@ -422,7 +382,7 @@ export default function UserDialog(props: Props) {
                     id="user-username"
                     name="username"
                     placeholder={t("pages.users.form.usernamePlaceholder")}
-                    defaultValue={isEdit ? (editUser?.username ?? "") : ""}
+                    defaultValue={editUser.username}
                     required
                     minLength={3}
                     maxLength={32}
@@ -447,36 +407,13 @@ export default function UserDialog(props: Props) {
                     name="email"
                     type="email"
                     placeholder={t("pages.users.form.recoveryEmailPlaceholder")}
-                    defaultValue={isEdit ? (editUser?.email ?? "") : ""}
+                    defaultValue={editUser.email ?? ""}
                     required
                     className={employeeInputClass}
                   />
                 </div>
 
-                {!isEdit ? (
-                  <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
-                    <label
-                      htmlFor="user-password"
-                      className="text-sm font-medium text-text"
-                    >
-                      {t("pages.users.form.temporaryPassword")}
-                    </label>
-                    <p className="text-xs text-muted">
-                      {t("pages.users.form.passwordCreateHint")}
-                    </p>
-                    <Input
-                      id="user-password"
-                      name="password"
-                      type="password"
-                      placeholder={t("pages.users.form.tempPasswordPlaceholder")}
-                      minLength={6}
-                      autoComplete="new-password"
-                      className={employeeInputClass}
-                    />
-                  </div>
-                ) : null}
-
-                {isEdit && editUser && editUser.passwordDisplay !== undefined ? (
+                {editUser.passwordDisplay !== undefined ? (
                   <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-medium text-text">
@@ -509,44 +446,40 @@ export default function UserDialog(props: Props) {
                 ) : null}
               </div>
 
-              {isEdit && (
-                <div className="rounded-xl border border-border bg-elevated p-4">
-                  <h3 className="text-sm font-semibold text-text">
-                    {t("pages.users.form.accountLink")}
-                  </h3>
-                  <p className="mt-1 text-sm text-muted">
-                    {linkLabel ?? t("pages.users.form.unlinkedAdmin")}
-                  </p>
-                  <p className="mt-2 text-xs text-muted">
-                    {t("pages.users.form.accountLinkHint")}
-                  </p>
-                </div>
-              )}
+              <div className="rounded-xl border border-border bg-elevated p-4">
+                <h3 className="text-sm font-semibold text-text">
+                  {t("pages.users.form.accountLink")}
+                </h3>
+                <p className="mt-1 text-sm text-muted">
+                  {linkLabel ?? t("pages.users.form.unlinkedAdmin")}
+                </p>
+                <p className="mt-2 text-xs text-muted">
+                  {t("pages.users.form.accountLinkHint")}
+                </p>
+              </div>
 
-              {isEdit && (
-                <div className="space-y-3 rounded-xl border border-red-500/25 bg-card-tint-red p-4">
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-semibold text-danger">
-                      {t("pages.users.form.resetAccount")}
-                    </h3>
-                    <p className="text-xs text-muted">
-                      {t("pages.users.form.resetAccountHint")}
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="destructiveBadge"
-                    size="badge"
-                    disabled={busy}
-                    onClick={handleResetAccount}
-                    className="!w-auto !min-w-[7.5rem] !max-w-none px-3"
-                  >
-                    {resetPending
-                      ? t("common.actions.processing")
-                      : t("pages.users.form.resetAccount")}
-                  </Button>
+              <div className="space-y-3 rounded-xl border border-red-500/25 bg-card-tint-red p-4">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-semibold text-danger">
+                    {t("pages.users.form.resetAccount")}
+                  </h3>
+                  <p className="text-xs text-muted">
+                    {t("pages.users.form.resetAccountHint")}
+                  </p>
                 </div>
-              )}
+                <Button
+                  type="button"
+                  variant="destructiveBadge"
+                  size="badge"
+                  disabled={busy}
+                  onClick={handleResetAccount}
+                  className="!w-auto !min-w-[7.5rem] !max-w-none px-3"
+                >
+                  {resetPending
+                    ? t("common.actions.processing")
+                    : t("pages.users.form.resetAccount")}
+                </Button>
+              </div>
             </div>
           </form>
         </EmployeeDialogShell>
@@ -561,7 +494,7 @@ export default function UserDialog(props: Props) {
         onCancel={() => setExitConfirmOpen(false)}
       />
 
-      {showRemovePortalLogin && isEdit ? (
+      {showRemovePortalLogin ? (
         <UserPermanentlyRemovePortalLoginDialog
           user={{
             id: props.user.id,
@@ -577,7 +510,7 @@ export default function UserDialog(props: Props) {
         />
       ) : null}
 
-      {showRevoke && isEdit ? (
+      {showRevoke ? (
         <UserRevokeLoginAccessDialog
           user={{
             id: props.user.id,
@@ -593,7 +526,7 @@ export default function UserDialog(props: Props) {
         />
       ) : null}
 
-      {showDelete && isEdit ? (
+      {showDelete ? (
         <UserSoftDeleteDialog
           user={{
             id: props.user.id,

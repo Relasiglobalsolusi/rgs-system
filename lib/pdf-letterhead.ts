@@ -2,12 +2,6 @@ import { existsSync } from "fs";
 import { readFile } from "fs/promises";
 import path from "path";
 import type PDFDocument from "pdfkit";
-import {
-  DISPLAY_COMPANY_NAME,
-  LEGAL_COMPANY_NAME,
-  LETTERHEAD,
-} from "@/lib/company-identity";
-import { defaultWebsiteContent } from "@/lib/website-content";
 
 export {
   DISPLAY_COMPANY_NAME,
@@ -45,6 +39,8 @@ export type CompanyForPdf = {
   email?: string | null;
   phone?: string | null;
   address?: string | null;
+  website?: string | null;
+  npwp?: string | null;
   bankName?: string | null;
   bankAccountNumber?: string | null;
   bankAccountName?: string | null;
@@ -56,6 +52,8 @@ export type LetterheadInfo = {
   address: string;
   email: string;
   phone: string;
+  website: string;
+  taxId: string;
 };
 
 type PdfDoc = InstanceType<typeof PDFDocument>;
@@ -108,37 +106,36 @@ export async function loadBrandLogoBuffer(): Promise<Buffer | null> {
   }
 }
 
+function linesFromMultiline(value: string): string[] {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function displayWebsite(value?: string | null): string {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return "";
+  return trimmed.replace(/^https?:\/\//i, "").replace(/\/$/, "");
+}
+
+/**
+ * Letterhead from Company Details. Empty fields stay empty — no demo address.
+ */
 export function letterheadFromCompany(
   company?: CompanyForPdf | null
 ): LetterheadInfo {
-  const site = defaultWebsiteContent;
-  const name =
-    company?.name?.trim() &&
-    !/^rgs\s*(one|1|cleaning)$/i.test(company.name.trim())
-      ? company.name.trim()
-      : DISPLAY_COMPANY_NAME;
-
-  const customAddress =
-    company?.address?.trim() &&
-    company.address.trim().toLowerCase() !== "jakarta, indonesia"
-      ? company.address.trim()
-      : null;
-
-  const addressLines = customAddress
-    ? customAddress.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
-    : [...LETTERHEAD.addressLines];
-
-  // Public documents always use the corporate website contact
-  // (www.rgs.co.id), not Company.email / Company.phone from the ERP record.
-  const email = site.contact.email || LETTERHEAD.email;
-  const phone = site.contact.phone || LETTERHEAD.phone;
+  const name = company?.name?.trim() ?? "";
+  const addressLines = linesFromMultiline(company?.address ?? "");
 
   return {
     name,
     addressLines,
     address: addressLines.join(", "),
-    email,
-    phone,
+    email: company?.email?.trim() ?? "",
+    phone: company?.phone?.trim() ?? "",
+    website: displayWebsite(company?.website),
+    taxId: company?.npwp?.trim() ?? "",
   };
 }
 
@@ -171,12 +168,7 @@ function drawLogoFallback(
       width,
       lineBreak: false,
     });
-  doc
-    .font("Helvetica")
-    .fontSize(7)
-    .fillColor(PDF_BRAND.muted)
-    .text(LEGAL_COMPANY_NAME, x, y + 30, { width, lineBreak: false });
-  return y + 42;
+  return y + 32;
 }
 
 /**
@@ -232,25 +224,34 @@ export function drawLetterheadHeader(
 
   // Right-aligned contact block (logo already carries the wordmark).
   const extraContactLines =
-    (letterhead.phone ? 1 : 0) + (letterhead.email ? 1 : 0);
+    (letterhead.phone ? 1 : 0) +
+    (letterhead.email ? 1 : 0) +
+    (letterhead.website ? 1 : 0) +
+    (letterhead.taxId ? 1 : 0);
+  const nameLine = letterhead.name ? 1 : 0;
   const contactBlockH =
-    12 + letterhead.addressLines.length * 10 + extraContactLines * 10 + 4;
+    nameLine * 12 +
+    letterhead.addressLines.length * 10 +
+    extraContactLines * 10 +
+    4;
   const contactTop = Math.max(
     headerTop,
     headerTop + (logoBottom - headerTop - contactBlockH) / 2
   );
 
   let ry = contactTop;
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(8.5)
-    .fillColor(PDF_BRAND.ink)
-    .text(LEGAL_COMPANY_NAME, rightX, ry, {
-      width: rightW,
-      align: "right",
-      lineBreak: false,
-    });
-  ry += 12;
+  if (letterhead.name) {
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(8.5)
+      .fillColor(PDF_BRAND.ink)
+      .text(letterhead.name, rightX, ry, {
+        width: rightW,
+        align: "right",
+        lineBreak: false,
+      });
+    ry += 12;
+  }
 
   for (const line of letterhead.addressLines) {
     doc
@@ -265,7 +266,12 @@ export function drawLetterheadHeader(
     ry += 10;
   }
 
-  if (letterhead.phone || letterhead.email) {
+  if (
+    letterhead.phone ||
+    letterhead.email ||
+    letterhead.website ||
+    letterhead.taxId
+  ) {
     ry += 2;
   }
   if (letterhead.phone) {
@@ -286,6 +292,30 @@ export function drawLetterheadHeader(
       .fontSize(7.5)
       .fillColor(PDF_BRAND.body)
       .text(letterhead.email, rightX, ry, {
+        width: rightW,
+        align: "right",
+        lineBreak: false,
+      });
+    ry += 10;
+  }
+  if (letterhead.website) {
+    doc
+      .font("Helvetica")
+      .fontSize(7.5)
+      .fillColor(PDF_BRAND.body)
+      .text(letterhead.website, rightX, ry, {
+        width: rightW,
+        align: "right",
+        lineBreak: false,
+      });
+    ry += 10;
+  }
+  if (letterhead.taxId) {
+    doc
+      .font("Helvetica")
+      .fontSize(7.5)
+      .fillColor(PDF_BRAND.body)
+      .text(`NPWP ${letterhead.taxId}`, rightX, ry, {
         width: rightW,
         align: "right",
         lineBreak: false,
@@ -313,12 +343,13 @@ export function drawPdfPageFooter(
 
   const contactBits = letterhead
     ? [
-        LEGAL_COMPANY_NAME,
+        letterhead.name,
         letterhead.addressLines[0],
         letterhead.phone,
         letterhead.email,
+        letterhead.website,
       ].filter(Boolean)
-    : [LEGAL_COMPANY_NAME];
+    : [];
 
   doc
     .moveTo(PAGE_MARGIN, y - 8)

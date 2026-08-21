@@ -135,7 +135,7 @@ export default function BillingProjectDirectory({
         key: "subCategory",
         title: t("common.labels.type"),
         width: STATUS_COLUMN_WIDTH,
-        align: "center",
+        cellAlign: "center",
         className: "min-w-[10rem] overflow-visible whitespace-nowrap",
         render: (project) => {
           const typeLines = localizeSubCategoryChipLines(
@@ -161,7 +161,7 @@ export default function BillingProjectDirectory({
         key: "status",
         title: t("common.labels.status"),
         width: "14rem",
-        align: "center",
+        cellAlign: "center",
         className: "min-w-[14rem] overflow-visible",
         render: (project) => {
           const englishLabel = getProjectWorkflowStatusLabel({

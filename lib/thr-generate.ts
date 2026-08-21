@@ -55,6 +55,7 @@ export async function generateThrPaymentsForCompany(
       companyId,
       status: { in: ["ACTIVE", "ON_LEAVE"] },
       archivedFromDirectory: false,
+      employmentType: "FULL_TIME",
       basePay: { not: null },
     },
     select: {

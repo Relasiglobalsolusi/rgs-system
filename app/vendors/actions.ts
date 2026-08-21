@@ -34,10 +34,6 @@ import {
   formatVendorSoftDeleteBlockers,
   getVendorSoftDeleteBlockers,
 } from "@/lib/vendor-soft-delete";
-import {
-  normalizePaymentTermsDays,
-  PAYMENT_TERMS_DAYS_OPTIONS,
-} from "@/lib/invoice-period";
 import { formatContactPersonName } from "@/lib/contact-person";
 import {
   bulkLineFile,
@@ -46,24 +42,14 @@ import {
 } from "@/lib/bulk-create";
 import { SORT_ORDER_STEP } from "@/lib/reorder";
 import { deleteLocalUpload, saveUpload } from "@/lib/upload";
-
-const ALLOWED_PAYMENT_TERMS_DAYS = new Set<number>(PAYMENT_TERMS_DAYS_OPTIONS);
-
-type VendorTypeValue = "COMPANY" | "INDIVIDUAL";
-
-function parsePaymentTermsDays(formData: FormData): number {
-  const raw = Number(formData.get("paymentTermsDays") ?? NaN);
-  if (!Number.isFinite(raw) || !ALLOWED_PAYMENT_TERMS_DAYS.has(raw)) {
-    return normalizePaymentTermsDays(14);
-  }
-  return normalizePaymentTermsDays(raw);
-}
+import {
+  parseVendorTypeValue,
+  vendorRequiresIndonesianTaxId,
+  type VendorTypeValue,
+} from "@/lib/vendor-type";
 
 function parseVendorType(formData: FormData): VendorTypeValue {
-  const vendorTypeRaw = String(formData.get("vendorType") ?? "COMPANY")
-    .trim()
-    .toUpperCase();
-  return vendorTypeRaw === "INDIVIDUAL" ? "INDIVIDUAL" : "COMPANY";
+  return parseVendorTypeValue(String(formData.get("vendorType") ?? "COMPANY"));
 }
 
 /**
@@ -224,27 +210,33 @@ export async function createVendor(formData: FormData) {
     await assertCanManageVendors(locale);
 
     const vendorType = parseVendorType(formData);
+    const requiresIndonesianTaxId = vendorRequiresIndonesianTaxId(vendorType);
     const identity = resolveVendorFormIdentity(formData, vendorType, locale);
     const address = capitalizeProper(
       String(formData.get("address") ?? "").trim()
     );
-    const npwp = await parseRequiredVendorNpwp(formData, vendorType, locale);
+    const npwp = requiresIndonesianTaxId
+      ? await parseRequiredVendorNpwp(formData, vendorType, locale)
+      : null;
     const vendorSince =
       parseFormDateInput(formData.get("vendorSince"), {
         fieldLabel: translate(locale, "pages.vendors.form.vendorSince"),
       }) ?? new Date();
-    const paymentTermsDays = parsePaymentTermsDays(formData);
 
     const company = await prisma.company.findFirst();
     if (!company) {
       throw new Error(translate(locale, "pages.vendors.companyNotFound"));
     }
 
-    const taxIdDocumentUrl = await saveTaxIdDocument(formData, {
-      fileBasePrefix: vendorType === "INDIVIDUAL" ? "NPWP-NIK" : "NPWP",
-    });
-    if (!taxIdDocumentUrl) {
-      throw new Error(taxIdDocumentMissingMessage(vendorType, locale));
+    let taxIdDocumentUrl: string | null = null;
+    if (requiresIndonesianTaxId) {
+      taxIdDocumentUrl =
+        (await saveTaxIdDocument(formData, {
+          fileBasePrefix: vendorType === "INDIVIDUAL" ? "NPWP-NIK" : "NPWP",
+        })) ?? null;
+      if (!taxIdDocumentUrl) {
+        throw new Error(taxIdDocumentMissingMessage(vendorType, locale));
+      }
     }
 
     const sortOrder = await nextCompanyScopedSortOrder("vendor", company.id);
@@ -267,7 +259,6 @@ export async function createVendor(formData: FormData) {
           contactPersonEmail: identity.contactPersonEmail,
           contactPersonPhone: identity.contactPersonPhone,
           vendorSince,
-          paymentTermsDays,
           companyId: company.id,
           active: true,
           sortOrder,
@@ -297,7 +288,6 @@ const VENDOR_LINE_FIELDS = [
   "contactPersonEmail",
   "contactPersonPhone",
   "vendorSince",
-  "paymentTermsDays",
 ];
 
 export async function createVendorsInBulk(formData: FormData) {
@@ -316,15 +306,15 @@ export async function createVendorsInBulk(formData: FormData) {
       identity: ReturnType<typeof resolveVendorFormIdentity>;
       vendorType: VendorTypeValue;
       address: string;
-      npwp: string;
-      taxIdDocumentUrl: string;
+      npwp: string | null;
+      taxIdDocumentUrl: string | null;
       vendorSince: Date;
-      paymentTermsDays: number;
     }> = [];
 
     for (let index = 0; index < lineCount; index += 1) {
       const row = lineFormData(formData, index, VENDOR_LINE_FIELDS);
       const vendorType = parseVendorType(row);
+      const requiresIndonesianTaxId = vendorRequiresIndonesianTaxId(vendorType);
       const namePeek = String(row.get("name") ?? "").trim();
       const firstPeek = String(row.get("contactPersonFirstName") ?? "").trim();
       const npwpPeek = String(row.get("npwp") ?? "").trim();
@@ -333,18 +323,18 @@ export async function createVendorsInBulk(formData: FormData) {
 
       let identity: ReturnType<typeof resolveVendorFormIdentity>;
       let address: string;
-      let npwp: string;
+      let npwp: string | null;
       let vendorSince: Date;
-      let paymentTermsDays: number;
       try {
         identity = resolveVendorFormIdentity(row, vendorType, locale);
         address = capitalizeProper(String(row.get("address") ?? "").trim());
-        npwp = await parseRequiredVendorNpwp(row, vendorType, locale);
+        npwp = requiresIndonesianTaxId
+          ? await parseRequiredVendorNpwp(row, vendorType, locale)
+          : null;
         vendorSince =
           parseFormDateInput(row.get("vendorSince"), {
             fieldLabel: translate(locale, "pages.vendors.form.vendorSince"),
           }) ?? new Date();
-        paymentTermsDays = parsePaymentTermsDays(row);
       } catch (error) {
         throw new Error(
           translate(locale, "bulkCreate.lineError", {
@@ -355,19 +345,22 @@ export async function createVendorsInBulk(formData: FormData) {
         );
       }
 
-      const file = bulkLineFile(formData, index, "taxIdDocument");
-      if (!file) {
-        throw new Error(
-          translate(locale, "bulkCreate.lineError", {
-            n: String(index + 1),
-            message: taxIdDocumentMissingMessage(vendorType, locale),
-          })
-        );
+      let taxIdDocumentUrl: string | null = null;
+      if (requiresIndonesianTaxId) {
+        const file = bulkLineFile(formData, index, "taxIdDocument");
+        if (!file) {
+          throw new Error(
+            translate(locale, "bulkCreate.lineError", {
+              n: String(index + 1),
+              message: taxIdDocumentMissingMessage(vendorType, locale),
+            })
+          );
+        }
+        taxIdDocumentUrl = await saveUpload(file, "uploads/vendors", {
+          fileBaseName: vendorType === "INDIVIDUAL" ? "NPWP-NIK" : "NPWP",
+        });
+        uploaded.push(taxIdDocumentUrl);
       }
-      const taxIdDocumentUrl = await saveUpload(file, "uploads/vendors", {
-        fileBaseName: vendorType === "INDIVIDUAL" ? "NPWP-NIK" : "NPWP",
-      });
-      uploaded.push(taxIdDocumentUrl);
       rows.push({
         identity,
         vendorType,
@@ -375,7 +368,6 @@ export async function createVendorsInBulk(formData: FormData) {
         npwp,
         taxIdDocumentUrl,
         vendorSince,
-        paymentTermsDays,
       });
     }
 
@@ -404,7 +396,6 @@ export async function createVendorsInBulk(formData: FormData) {
             contactPersonEmail: row.identity.contactPersonEmail,
             contactPersonPhone: row.identity.contactPersonPhone,
             vendorSince: row.vendorSince,
-            paymentTermsDays: row.paymentTermsDays,
             companyId: company.id,
             active: true,
             sortOrder,
@@ -461,16 +452,18 @@ export async function updateVendor(id: string, formData: FormData) {
     await assertCanManageVendors(locale);
 
     const vendorType = parseVendorType(formData);
+    const requiresIndonesianTaxId = vendorRequiresIndonesianTaxId(vendorType);
     const identity = resolveVendorFormIdentity(formData, vendorType, locale);
     const address = capitalizeProper(
       String(formData.get("address") ?? "").trim()
     );
-    const npwp = await parseRequiredVendorNpwp(formData, vendorType, locale);
+    const npwp = requiresIndonesianTaxId
+      ? await parseRequiredVendorNpwp(formData, vendorType, locale)
+      : null;
     const vendorSince =
       parseFormDateInput(formData.get("vendorSince"), {
         fieldLabel: translate(locale, "pages.vendors.form.vendorSince"),
       }) ?? new Date();
-    const paymentTermsDays = parsePaymentTermsDays(formData);
 
     const existing = await prisma.vendor.findUnique({
       where: { id },
@@ -488,16 +481,22 @@ export async function updateVendor(id: string, formData: FormData) {
       throw new Error(translate(locale, "pages.vendors.notFound"));
     }
 
-    const uploadedTaxIdDocumentUrl = await saveTaxIdDocument(formData, {
-      shortCode: existing.shortCode,
-      fileBasePrefix: vendorType === "INDIVIDUAL" ? "NPWP-NIK" : "NPWP",
-    });
-    const taxIdDocumentUrl =
-      uploadedTaxIdDocumentUrl !== undefined
-        ? uploadedTaxIdDocumentUrl
-        : existing.taxIdDocumentUrl;
-    if (!taxIdDocumentUrl) {
-      throw new Error(taxIdDocumentMissingMessage(vendorType, locale));
+    let uploadedTaxIdDocumentUrl: string | null | undefined;
+    let taxIdDocumentUrl: string | null = existing.taxIdDocumentUrl;
+    if (requiresIndonesianTaxId) {
+      uploadedTaxIdDocumentUrl = await saveTaxIdDocument(formData, {
+        shortCode: existing.shortCode,
+        fileBasePrefix: vendorType === "INDIVIDUAL" ? "NPWP-NIK" : "NPWP",
+      });
+      taxIdDocumentUrl =
+        uploadedTaxIdDocumentUrl !== undefined
+          ? uploadedTaxIdDocumentUrl
+          : existing.taxIdDocumentUrl;
+      if (!taxIdDocumentUrl) {
+        throw new Error(taxIdDocumentMissingMessage(vendorType, locale));
+      }
+    } else {
+      taxIdDocumentUrl = null;
     }
 
     const contactDisplay =
@@ -517,16 +516,13 @@ export async function updateVendor(id: string, formData: FormData) {
           phone: identity.phone || null,
           address: address || null,
           npwp,
-          ...(uploadedTaxIdDocumentUrl !== undefined
-            ? { taxIdDocumentUrl: uploadedTaxIdDocumentUrl }
-            : {}),
+          taxIdDocumentUrl,
           contactPersonFirstName: identity.contactPersonFirstName,
           contactPersonLastName: identity.contactPersonLastName,
           contactPersonPosition: identity.contactPersonPosition,
           contactPersonEmail: identity.contactPersonEmail,
           contactPersonPhone: identity.contactPersonPhone,
           vendorSince,
-          paymentTermsDays,
         },
       });
 
@@ -542,9 +538,8 @@ export async function updateVendor(id: string, formData: FormData) {
     });
 
     if (
-      uploadedTaxIdDocumentUrl &&
       existing.taxIdDocumentUrl &&
-      existing.taxIdDocumentUrl !== uploadedTaxIdDocumentUrl
+      existing.taxIdDocumentUrl !== taxIdDocumentUrl
     ) {
       await deleteLocalUpload(existing.taxIdDocumentUrl);
     }

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 
 import { getCurrentSession } from "@/lib/auth";
+import { loadCompanyForPdf } from "@/lib/company-for-pdf";
 import { getServerLocale, localeToBcp47 } from "@/lib/i18n/locale";
 import {
   getInternalPayrollLockRecord,
@@ -15,7 +16,6 @@ import {
 import { buildInternalPayrollPdfBuffer } from "@/lib/internal-payroll-pdf";
 import { formatPayrollPeriodRange } from "@/lib/internal-payroll-period";
 import { canAccess } from "@/lib/permissions";
-import { prisma } from "@/lib/prisma";
 import { toPermissionUser } from "@/lib/session";
 import { jakartaYearMonth } from "@/lib/vat";
 
@@ -62,15 +62,7 @@ export async function GET(request: NextRequest) {
         year,
         month,
       }),
-      prisma.company.findUnique({
-        where: { id: session.user.companyId },
-        select: {
-          name: true,
-          email: true,
-          phone: true,
-          address: true,
-        },
-      }),
+      loadCompanyForPdf(session.user.companyId),
       getInternalPayrollLockRecord(session.user.companyId, year, month),
     ]);
 

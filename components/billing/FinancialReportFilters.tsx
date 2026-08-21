@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
 import type { FinancialReportScopeClient } from "@/app/billing/financial-report/actions";
+import type { CompanyBankAccountOption } from "@/lib/company-bank-accounts";
+import { formatBankAccountOptionLabel } from "@/lib/company-bank-accounts";
 import { directoryFilterSelectTriggerClass } from "@/components/ui/DirectoryFilterSelect";
 import {
   Select,
@@ -13,7 +15,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  FINANCIAL_REPORT_ALL_BANKS,
   FINANCIAL_REPORT_GENERAL_SCOPE,
+  FINANCIAL_REPORT_UNASSIGNED_BANK,
   FINANCIAL_REPORT_YEARLY_MONTH,
   financialReportHref,
   financialReportYearOptions,
@@ -27,6 +31,9 @@ type Props = {
   clients: FinancialReportScopeClient[];
   scopeClientId: string | null;
   projectId?: string;
+  bankAccounts?: CompanyBankAccountOption[];
+  /** Keep the clicked Financial Report card when changing period / bank. */
+  detailMetric?: string;
 };
 
 export default function FinancialReportFilters({
@@ -34,6 +41,8 @@ export default function FinancialReportFilters({
   clients,
   scopeClientId,
   projectId,
+  bankAccounts = [],
+  detailMetric,
 }: Props) {
   const { t } = useT();
   const router = useRouter();
@@ -44,6 +53,7 @@ export default function FinancialReportFilters({
       ? FINANCIAL_REPORT_YEARLY_MONTH
       : String(selection.month);
   const scopeValue = scopeClientId ?? FINANCIAL_REPORT_GENERAL_SCOPE;
+  const bankValue = selection.bank ?? FINANCIAL_REPORT_ALL_BANKS;
 
   function navigate(
     next: FinancialReportSelection,
@@ -54,9 +64,14 @@ export default function FinancialReportFilters({
         ? `/billing/financial-report/${nextClientId}/${projectId}`
         : nextClientId
           ? `/billing/financial-report/${nextClientId}`
-          : "/billing/financial-report";
+          : detailMetric
+            ? "/billing/financial-report/detail"
+            : "/billing/financial-report";
+    const href = financialReportHref(path, next);
     startTransition(() => {
-      router.push(financialReportHref(path, next));
+      router.push(
+        detailMetric && !nextClientId ? `${href}&metric=${detailMetric}` : href
+      );
     });
   }
 
@@ -72,6 +87,7 @@ export default function FinancialReportFilters({
             if (value == null) return;
             navigate(
               {
+                ...selection,
                 year: selection.year,
                 month:
                   value === FINANCIAL_REPORT_YEARLY_MONTH
@@ -120,7 +136,7 @@ export default function FinancialReportFilters({
           onValueChange={(value) => {
             if (value == null) return;
             navigate(
-              { year: Number(value), month: selection.month },
+              { ...selection, year: Number(value), month: selection.month },
               scopeClientId
             );
           }}
@@ -180,6 +196,52 @@ export default function FinancialReportFilters({
             {clients.map((client) => (
               <SelectItem key={client.id} value={client.id}>
                 {client.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </label>
+
+      <label className="grid min-w-[14rem] gap-1.5">
+        <span className="text-xs font-semibold uppercase tracking-wide text-subtle">
+          {t("pages.financialReport.filterBank")}
+        </span>
+        <Select
+          value={bankValue}
+          onValueChange={(value) => {
+            if (value == null) return;
+            navigate({ ...selection, bank: value }, scopeClientId);
+          }}
+        >
+          <SelectTrigger
+            aria-label={t("pages.financialReport.filterBank")}
+            className={cn(directoryFilterSelectTriggerClass, "w-full sm:w-[16rem]")}
+          >
+            <SelectValue>
+              {(value) => {
+                if (!value || value === FINANCIAL_REPORT_ALL_BANKS) {
+                  return t("pages.financialReport.filterBankAll");
+                }
+                if (value === FINANCIAL_REPORT_UNASSIGNED_BANK) {
+                  return t("pages.financialReport.filterBankUnassigned");
+                }
+                const account = bankAccounts.find((row) => row.id === value);
+                return account
+                  ? formatBankAccountOptionLabel(account)
+                  : t("pages.financialReport.filterBank");
+              }}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={FINANCIAL_REPORT_ALL_BANKS}>
+              {t("pages.financialReport.filterBankAll")}
+            </SelectItem>
+            <SelectItem value={FINANCIAL_REPORT_UNASSIGNED_BANK}>
+              {t("pages.financialReport.filterBankUnassigned")}
+            </SelectItem>
+            {bankAccounts.map((account) => (
+              <SelectItem key={account.id} value={account.id}>
+                {formatBankAccountOptionLabel(account)}
               </SelectItem>
             ))}
           </SelectContent>

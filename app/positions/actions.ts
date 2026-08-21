@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 
 import { prisma } from "@/lib/prisma";
-import { parseModuleAccessFromForm } from "@/lib/permissions";
 import { canManageEmployees } from "@/lib/project-access";
 import { positionSlugFromName } from "@/lib/positions";
 import { requireSession, toPermissionUser } from "@/lib/session";

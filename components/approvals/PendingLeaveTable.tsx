@@ -7,6 +7,7 @@ import LeaveTypeLabel from "@/components/leaves/LeaveTypeLabel";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import ProofLightbox from "@/components/ui/ProofLightbox";
 import StatusBadge from "@/components/ui/StatusBadge";
+import { STATUS_COLUMN_WIDTH } from "@/components/ui/trash-action-buttons";
 import { formatDisplayDate } from "@/lib/format-date";
 import { useT } from "@/lib/i18n/use-t";
 
@@ -35,7 +36,7 @@ export default function PendingLeaveTable({ data }: Props) {
         key: "employee",
         title: t("pages.approvals.columns.employee"),
         width: "10rem",
-        className: "min-w-[10rem]",
+        share: 2,
         render: (row) => (
           <div className="min-w-0">
             <p className="font-medium text-text">
@@ -48,9 +49,8 @@ export default function PendingLeaveTable({ data }: Props) {
       {
         key: "type",
         title: t("pages.approvals.columns.type"),
-        width: "10rem",
-        align: "center",
-        className: "min-w-[10rem] overflow-visible whitespace-nowrap",
+        width: STATUS_COLUMN_WIDTH,
+        cellAlign: "center",
         render: (row) => (
           <StatusBadge status={row.type === "SICK" ? "warning" : "active"}>
             <LeaveTypeLabel type={row.type} />
@@ -61,7 +61,6 @@ export default function PendingLeaveTable({ data }: Props) {
         key: "dates",
         title: t("pages.approvals.period"),
         width: "12rem",
-        className: "min-w-[12rem] whitespace-nowrap",
         render: (row) => (
           <span className="text-muted">
             {formatDisplayDate(row.startDate)} –{" "}
@@ -72,21 +71,22 @@ export default function PendingLeaveTable({ data }: Props) {
       {
         key: "reason",
         title: t("pages.approvals.columns.reason"),
+        share: 2,
         render: (row) => (
-          <span className="max-w-xs text-subtle">{row.reason}</span>
+          <span className="min-w-0 text-sm leading-6 text-text">{row.reason}</span>
         ),
       },
       {
         key: "proof",
         title: t("pages.approvals.proof"),
         width: "5rem",
-        className: "min-w-[5rem] whitespace-nowrap",
+        cellAlign: "center",
         render: (row) =>
           row.proofUrl ? (
             <button
               type="button"
               onClick={() => setProofSrc(row.proofUrl)}
-              className="text-cyan-400 hover:underline"
+              className="text-sm font-semibold text-accent-cyan hover:underline"
             >
               {t("common.actions.view")}
             </button>
@@ -97,9 +97,10 @@ export default function PendingLeaveTable({ data }: Props) {
       {
         key: "actions",
         title: t("common.labels.actions"),
-        width: "10rem",
-        align: "center",
-        className: "min-w-[10rem] overflow-visible whitespace-nowrap",
+        // Two 7.5rem chips + gap-2 + pl-4 + pr-10. The directory 24rem
+        // parking width would keep a slider on a 1440 laptop + sidebar.
+        width: "19rem",
+        cellAlign: "center",
         render: (row) => <ApprovalActions id={row.id} />,
       },
     ],

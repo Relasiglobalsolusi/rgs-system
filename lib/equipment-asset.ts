@@ -5,29 +5,10 @@ import {
   normalizeInventoryQty,
   toDecimal,
 } from "@/lib/inventory";
+import { isVehicleItemType } from "@/lib/inventory-sku";
+import { parseRequiredVehiclePlate } from "@/lib/vehicle-plate";
 
 const EQUIPMENT_ITEM_TYPE = "Equipment";
-
-/**
- * Legacy note from when surplus mint phantoms were soft-retired (RETIRED).
- * New reconcile hard-deletes those rows; this remains for UI + leftover purge.
- */
-export const EQUIPMENT_SURPLUS_RETIRE_NOTE =
-  "System cleanup: duplicate unit removed";
-
-const LEGACY_SURPLUS_RETIRE_NOTES = [
-  EQUIPMENT_SURPLUS_RETIRE_NOTE,
-  "Reconcile: surplus mint from stock+onProject backfill",
-] as const;
-
-export function isEquipmentSurplusRetireNote(
-  notes: string | null | undefined
-): boolean {
-  return (
-    !!notes &&
-    (LEGACY_SURPLUS_RETIRE_NOTES as readonly string[]).includes(notes)
-  );
-}
 
 export type EquipmentRetirementKind = "sold" | "writtenOff";
 
@@ -51,6 +32,11 @@ export function equipmentRetirementKind(asset: {
 
 export function isEquipmentItemType(itemType: string): boolean {
   return itemType.trim().toLowerCase() === EQUIPMENT_ITEM_TYPE.toLowerCase();
+}
+
+/** Equipment units use SKU-A{n}. Vehicles use the number plate as the asset code. */
+export function isCodedIdentityItemType(itemType: string): boolean {
+  return isEquipmentItemType(itemType) || isVehicleItemType(itemType);
 }
 
 /**
@@ -117,9 +103,20 @@ async function allocateAssetCodes(
 }
 
 /**
- * Mint N discrete EquipmentAsset rows when stock increases for an Equipment item.
- * Call inside the same transaction as the PURCHASE / receive movement.
- * Each new asset locks ex-tax `unitCost` from that purchase (not catalog WAVG,
+ * Warehouse new (never issued) = on-hand stock minus coded AVAILABLE units.
+ * Coded AVAILABLE units are returned / used machines at Head Office.
+ */
+export function uncodedWarehouseQty(
+  currentStock: number,
+  availableCoded: number
+): number {
+  return Math.max(0, normalizeInventoryQty(currentStock - availableCoded));
+}
+
+/**
+ * Mint N discrete EquipmentAsset rows. Codes are born when warehouse sends.
+ * Purchase no longer mints — sealed warehouse boxes stay uncoded.
+ * Each new asset locks ex-tax `unitCost` from that receipt (not catalog WAVG,
  * not tax-inclusive invoice gross).
  * Returns the number of assets created (whole units only).
  */
@@ -128,9 +125,15 @@ export async function mintEquipmentAssets(
   companyId: string,
   itemId: string,
   qty: number,
-  options?: { unitCost?: number | null }
+  options?: {
+    unitCost?: number | null;
+    status?: "AVAILABLE" | "IN_TRANSIT";
+    projectId?: string | null;
+    issueMovementId?: string | null;
+    assignedAt?: Date | null;
+  }
 ): Promise<number> {
-  const wholeUnits = normalizeInventoryQty(qty);
+  const wholeUnits = Math.round(qty);
   if (wholeUnits <= 0) return 0;
 
   const item = await db.inventoryItem.findFirst({
@@ -150,7 +153,10 @@ export async function mintEquipmentAssets(
       companyId,
       itemId: item.id,
       assetCode,
-      status: "AVAILABLE" as const,
+      status: options?.status ?? "AVAILABLE",
+      projectId: options?.projectId ?? null,
+      issueMovementId: options?.issueMovementId ?? null,
+      assignedAt: options?.assignedAt ?? null,
       unitCost: lockedUnitCost,
     })),
   });
@@ -158,26 +164,137 @@ export async function mintEquipmentAssets(
 }
 
 /**
- * Equipment `currentStock` / On Hand = warehouse AVAILABLE units only.
- * Units ON_PROJECT remain company-owned (location change), so they are not
- * included in On Hand — unlike chemicals/consumables which consume stock.
+ * Mint one vehicle unit whose asset code is the number plate.
+ * Catalog SKU stays VEH-###; the plate is the physical identity.
  */
-async function countEquipmentAssetsByStatus(
+export async function mintVehicleAssetByPlate(
+  db: DbClient,
+  companyId: string,
+  itemId: string,
+  plateNumber: string,
+  options?: {
+    unitCost?: number | null;
+    status?: "AVAILABLE" | "IN_TRANSIT";
+  }
+): Promise<string> {
+  const plate = parseRequiredVehiclePlate(plateNumber);
+
+  const item = await db.inventoryItem.findFirst({
+    where: { id: itemId, companyId },
+    select: { id: true, itemType: true },
+  });
+  if (!item || !isVehicleItemType(item.itemType)) {
+    throw new Error("Number plate can only be used for a Vehicle catalog item.");
+  }
+
+  const existing = await db.equipmentAsset.findFirst({
+    where: { companyId, assetCode: plate },
+    select: { id: true, itemId: true },
+  });
+  if (existing) {
+    if (existing.itemId !== item.id) {
+      throw new Error("This number plate is already on file as a vehicle asset.");
+    }
+    if (
+      options?.unitCost != null &&
+      Number.isFinite(options.unitCost)
+    ) {
+      await db.equipmentAsset.update({
+        where: { id: existing.id },
+        data: { unitCost: toDecimal(options.unitCost) },
+      });
+    }
+    return plate;
+  }
+
+  const lockedUnitCost =
+    options?.unitCost != null && Number.isFinite(options.unitCost)
+      ? toDecimal(options.unitCost)
+      : null;
+
+  await db.equipmentAsset.create({
+    data: {
+      companyId,
+      itemId: item.id,
+      assetCode: plate,
+      serialNo: plate,
+      status: options?.status ?? "AVAILABLE",
+      unitCost: lockedUnitCost,
+    },
+  });
+  return plate;
+}
+
+/**
+ * Delete leftover warehouse units minted at purchase time (legacy).
+ * New purchases do not mint — if the purchase window is empty or has fewer
+ * assets than the buy qty, skip delete so uncoded warehouse stock can reverse.
+ * A full window of AVAILABLE units is still removed.
+ */
+export async function deleteEquipmentAssetsMintedForPurchase(
+  db: DbClient,
+  options: {
+    companyId: string;
+    itemId: string;
+    qty: number;
+    purchasedAt: Date;
+  }
+): Promise<number> {
+  const wholeUnits = Math.round(options.qty);
+  if (wholeUnits <= 0) return 0;
+
+  const windowEnd = new Date(options.purchasedAt.getTime() + 5 * 60 * 1000);
+  const minted = await db.equipmentAsset.findMany({
+    where: {
+      companyId: options.companyId,
+      itemId: options.itemId,
+      createdAt: { gte: options.purchasedAt, lte: windowEnd },
+    },
+    select: { id: true, status: true },
+    orderBy: [{ createdAt: "asc" }, { assetCode: "asc" }],
+  });
+
+  if (minted.length === 0 || minted.length < wholeUnits) {
+    return 0;
+  }
+
+  const toRemove = minted.slice(0, wholeUnits);
+  if (toRemove.some((asset) => asset.status !== "AVAILABLE")) {
+    throw new Error(
+      "Cannot reverse this purchase. Equipment from this buy is already issued, in transit, sold, or written off. Return or reverse those first."
+    );
+  }
+
+  await db.equipmentAsset.deleteMany({
+    where: { id: { in: toRemove.map((asset) => asset.id) } },
+  });
+  return wholeUnits;
+}
+
+/**
+ * Equipment `currentStock` / On Hand = uncoded new warehouse qty + coded
+ * AVAILABLE (returned used units at Head Office).
+ * Units ON_PROJECT / IN_TRANSIT / AT_FACTORY stay company-owned off-hand.
+ */
+export async function countEquipmentAssetsByStatus(
   db: DbClient,
   itemId: string
 ): Promise<{
   available: number;
   onProject: number;
   inTransit: number;
+  atFactory: number;
   retired: number;
 }> {
-  const [available, onProject, inTransit, retired] = await Promise.all([
-    db.equipmentAsset.count({ where: { itemId, status: "AVAILABLE" } }),
-    db.equipmentAsset.count({ where: { itemId, status: "ON_PROJECT" } }),
-    db.equipmentAsset.count({ where: { itemId, status: "IN_TRANSIT" } }),
-    db.equipmentAsset.count({ where: { itemId, status: "RETIRED" } }),
-  ]);
-  return { available, onProject, inTransit, retired };
+  const [available, onProject, inTransit, atFactory, retired] =
+    await Promise.all([
+      db.equipmentAsset.count({ where: { itemId, status: "AVAILABLE" } }),
+      db.equipmentAsset.count({ where: { itemId, status: "ON_PROJECT" } }),
+      db.equipmentAsset.count({ where: { itemId, status: "IN_TRANSIT" } }),
+      db.equipmentAsset.count({ where: { itemId, status: "AT_FACTORY" } }),
+      db.equipmentAsset.count({ where: { itemId, status: "RETIRED" } }),
+    ]);
+  return { available, onProject, inTransit, atFactory, retired };
 }
 
 export class InsufficientEquipmentAssetsError extends Error {
@@ -212,7 +329,7 @@ export async function retireEquipmentAssets(
     notePrefix?: "Write-off" | "Sold off";
   }
 ): Promise<number> {
-  const wholeUnits = normalizeInventoryQty(qty);
+  const wholeUnits = Math.round(qty);
   if (wholeUnits <= 0) return 0;
 
   const item = await db.inventoryItem.findFirst({
@@ -282,6 +399,148 @@ export async function retireEquipmentAssets(
 }
 
 /**
+ * Sell specific equipment units from the warehouse or from a site.
+ * Keeps the asset code. On-site units are marked sold in place — they do not
+ * return to the warehouse first. Detaches them from the project issue so
+ * open-issue qty still matches remaining on-site units.
+ */
+export async function retireEquipmentAssetsForSale(
+  db: DbClient,
+  companyId: string,
+  itemId: string,
+  qty: number,
+  reason: string | null | undefined,
+  options: {
+    soldOffMovementId: string;
+    assetIds: string[];
+  }
+): Promise<{ warehouseQty: number; projectIds: string[] }> {
+  const wholeUnits = Math.round(qty);
+  if (wholeUnits <= 0) {
+    return { warehouseQty: 0, projectIds: [] };
+  }
+
+  const item = await db.inventoryItem.findFirst({
+    where: { id: itemId, companyId },
+    select: { id: true, itemType: true },
+  });
+  if (!item || !isEquipmentItemType(item.itemType)) {
+    return { warehouseQty: 0, projectIds: [] };
+  }
+
+  const assetIds = options.assetIds.filter(Boolean);
+  if (assetIds.length !== wholeUnits) {
+    throw new InsufficientEquipmentAssetsError(assetIds.length, wholeUnits);
+  }
+
+  const assets = await db.equipmentAsset.findMany({
+    where: {
+      id: { in: assetIds },
+      companyId,
+      itemId,
+      status: { in: ["AVAILABLE", "ON_PROJECT"] },
+    },
+    select: {
+      id: true,
+      status: true,
+      projectId: true,
+      movementId: true,
+      issueMovementId: true,
+    },
+  });
+  if (assets.length !== wholeUnits) {
+    throw new InsufficientEquipmentAssetsError(assets.length, wholeUnits);
+  }
+
+  const warehouseQty = assets.filter((asset) => asset.status === "AVAILABLE")
+    .length;
+  const projectIds = [
+    ...new Set(
+      assets
+        .map((asset) => asset.projectId)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
+  const issueMovementIds = [
+    ...new Set(
+      assets.flatMap((asset) =>
+        [asset.movementId, asset.issueMovementId].filter(
+          (id): id is string => Boolean(id)
+        )
+      )
+    ),
+  ];
+
+  const note = reason?.trim()
+    ? `Sold off: ${reason.trim()}`
+    : "Sold off";
+
+  await db.equipmentAsset.updateMany({
+    where: { id: { in: assets.map((asset) => asset.id) } },
+    data: {
+      status: "RETIRED",
+      soldOffMovementId: options.soldOffMovementId,
+      projectId: null,
+      movementId: null,
+      issueMovementId: null,
+      assignedAt: null,
+      notes: note,
+    },
+  });
+
+  await shrinkOrVoidEquipmentIssueMovements(
+    db,
+    companyId,
+    issueMovementIds,
+    "Sold from site"
+  );
+
+  return { warehouseQty, projectIds };
+}
+
+/** Shrink or void open project issues after coded units leave the site. */
+export async function shrinkOrVoidEquipmentIssueMovements(
+  db: DbClient,
+  companyId: string,
+  issueMovementIds: string[],
+  voidReason: string
+): Promise<void> {
+  for (const movementId of issueMovementIds) {
+    const remaining = await db.equipmentAsset.count({
+      where: {
+        companyId,
+        status: "ON_PROJECT",
+        OR: [{ movementId }, { issueMovementId: movementId }],
+      },
+    });
+    const issue = await db.inventoryMovement.findFirst({
+      where: {
+        id: movementId,
+        companyId,
+        type: "ISSUE_TO_PROJECT",
+        voidedAt: null,
+      },
+      select: { id: true },
+    });
+    if (!issue) continue;
+    if (remaining <= 0) {
+      await db.inventoryMovement.update({
+        where: { id: movementId },
+        data: {
+          voidedAt: new Date(),
+          voidReason,
+        },
+      });
+    } else {
+      await db.inventoryMovement.update({
+        where: { id: movementId },
+        data: { quantity: toDecimal(-remaining) },
+      });
+    }
+  }
+}
+
+/**
  * Restore equipment assets retired by a stock write-off back to AVAILABLE.
  * Does not void the movement or restore stock — caller handles that for full reversals.
  */
@@ -293,7 +552,7 @@ export async function restoreEquipmentAssetsForWriteOff(
   qty: number,
   writeOffReason?: string | null
 ): Promise<number> {
-  const wholeUnits = normalizeInventoryQty(qty);
+  const wholeUnits = Math.round(qty);
   if (wholeUnits <= 0) return 0;
 
   const linked = await db.equipmentAsset.updateMany({
@@ -358,7 +617,7 @@ export async function restoreEquipmentAssetsForSoldOff(
   qty: number,
   soldOffReason?: string | null
 ): Promise<number> {
-  const wholeUnits = normalizeInventoryQty(qty);
+  const wholeUnits = Math.round(qty);
   if (wholeUnits <= 0) return 0;
 
   const linked = await db.equipmentAsset.updateMany({
@@ -419,43 +678,82 @@ export async function markAvailableEquipmentAssetsInTransit(
   qty: number,
   options?: { transitMovementId?: string; movedAt?: Date }
 ): Promise<number> {
-  const wholeUnits = normalizeInventoryQty(qty);
+  const wholeUnits = Math.round(qty);
   if (wholeUnits <= 0) return 0;
 
   const item = await db.inventoryItem.findFirst({
     where: { id: itemId, companyId },
-    select: { id: true, itemType: true },
+    select: {
+      id: true,
+      itemType: true,
+      currentStock: true,
+      lastUnitCost: true,
+      avgUnitCost: true,
+    },
   });
   if (!item || !isEquipmentItemType(item.itemType)) return 0;
 
   const availableCount = await db.equipmentAsset.count({
     where: { companyId, itemId, status: "AVAILABLE" },
   });
-  if (wholeUnits > availableCount) {
-    throw new InsufficientEquipmentAssetsError(availableCount, wholeUnits);
+  const currentStock = inventoryQtyFromDecimal(item.currentStock);
+  const uncodedBefore = uncodedWarehouseQty(
+    currentStock + wholeUnits,
+    availableCount
+  );
+  const mintCount = Math.min(uncodedBefore, wholeUnits);
+  const codedCount = wholeUnits - mintCount;
+  if (codedCount > availableCount) {
+    throw new InsufficientEquipmentAssetsError(
+      availableCount + uncodedBefore,
+      wholeUnits
+    );
   }
 
-  const assets = await db.equipmentAsset.findMany({
-    where: { companyId, itemId, status: "AVAILABLE" },
-    select: { id: true },
-    orderBy: [{ createdAt: "asc" }, { assetCode: "asc" }],
-    take: wholeUnits,
-  });
-  if (assets.length < wholeUnits) {
-    throw new InsufficientEquipmentAssetsError(availableCount, wholeUnits);
-  }
+  const movedAt = options?.movedAt ?? new Date();
+  const unitCost =
+    decimalToNumberSafe(item.lastUnitCost) ??
+    decimalToNumberSafe(item.avgUnitCost);
 
-  await db.equipmentAsset.updateMany({
-    where: { id: { in: assets.map((a) => a.id) } },
-    data: {
+  if (mintCount > 0) {
+    await mintEquipmentAssets(db, companyId, itemId, mintCount, {
+      unitCost,
       status: "IN_TRANSIT",
       projectId,
       issueMovementId: options?.transitMovementId ?? null,
-      assignedAt: options?.movedAt ?? new Date(),
-    },
-  });
+      assignedAt: movedAt,
+    });
+  }
+
+  if (codedCount > 0) {
+    const assets = await db.equipmentAsset.findMany({
+      where: { companyId, itemId, status: "AVAILABLE" },
+      select: { id: true },
+      orderBy: [{ createdAt: "asc" }, { assetCode: "asc" }],
+      take: codedCount,
+    });
+    if (assets.length < codedCount) {
+      throw new InsufficientEquipmentAssetsError(availableCount, wholeUnits);
+    }
+
+    await db.equipmentAsset.updateMany({
+      where: { id: { in: assets.map((a) => a.id) } },
+      data: {
+        status: "IN_TRANSIT",
+        projectId,
+        issueMovementId: options?.transitMovementId ?? null,
+        assignedAt: movedAt,
+      },
+    });
+  }
 
   return wholeUnits;
+}
+
+function decimalToNumberSafe(value: Prisma.Decimal | null | undefined): number | null {
+  if (value == null) return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
 }
 
 /**
@@ -475,7 +773,7 @@ export async function assignInTransitEquipmentAssetsToProject(
     fromProjectId?: string;
   }
 ): Promise<number> {
-  const wholeUnits = normalizeInventoryQty(qty);
+  const wholeUnits = Math.round(qty);
   if (wholeUnits <= 0) return 0;
 
   const assets = await db.equipmentAsset.findMany({
@@ -648,9 +946,9 @@ export class EquipmentInvariantError extends Error {
 /**
  * Read-only checks that Inventory and asset ledger agree for Equipment items.
  *
- * - `currentStock === count(AVAILABLE)`
- * - owned active === AVAILABLE + ON_PROJECT (always; status partition)
- * - optionally purchase − write-off − sold-off === AVAILABLE + ON_PROJECT
+ * - `currentStock >= count(AVAILABLE)` (uncoded new = stock − AVAILABLE)
+ * - owned active === stock + ON_PROJECT + IN_TRANSIT + AT_FACTORY
+ * - optionally purchase − write-off − sold-off − factory send + factory receive
  *   (`checkOwnedVsPurchases` — use in reconcile; skip on hot paths so legacy
  *   surplus drift cannot block assign / release / contract end)
  * - open Equipment ISSUE abs(qty) === linked ON_PROJECT assets for that movement
@@ -686,21 +984,22 @@ async function checkEquipmentInventoryInvariants(
   const violations: EquipmentInvariantViolation[] = [];
 
   for (const item of items) {
-    const { available, onProject, inTransit } =
+    const { available, onProject, inTransit, atFactory } =
       await countEquipmentAssetsByStatus(db, item.id);
     const stockOnHand = inventoryQtyFromDecimal(item.currentStock);
-    if (stockOnHand !== available) {
+    if (stockOnHand < available) {
       violations.push({
         itemId: item.id,
         sku: item.sku,
         kind: "STOCK_VS_AVAILABLE",
         expected: available,
         actual: stockOnHand,
+        detail: "currentStock must cover coded AVAILABLE units",
       });
     }
 
-    // Owned active (non-retired custody) is AVAILABLE + ON_PROJECT + IN_TRANSIT.
-    const activeOwned = available + onProject + inTransit;
+    // Owned active = uncoded warehouse + coded AVAILABLE + off-hand custody.
+    const activeOwned = stockOnHand + onProject + inTransit + atFactory;
 
     if (options?.checkOwnedVsPurchases) {
       const movements = await db.inventoryMovement.findMany({
@@ -708,15 +1007,29 @@ async function checkEquipmentInventoryInvariants(
           itemId: item.id,
           companyId,
           voidedAt: null,
-          type: { in: ["PURCHASE", "WRITE_OFF", "SOLD_OFF"] },
+          type: {
+            in: [
+              "PURCHASE",
+              "WRITE_OFF",
+              "SOLD_OFF",
+              "RETURN_TO_FACTORY",
+              "RECEIVE_FROM_FACTORY",
+            ],
+          },
         },
         select: { type: true, quantity: true },
       });
       let expectedOwned = 0;
       for (const movement of movements) {
         const qty = Math.abs(inventoryQtyFromDecimal(movement.quantity));
-        if (movement.type === "PURCHASE") expectedOwned += qty;
-        else expectedOwned -= qty;
+        if (
+          movement.type === "PURCHASE" ||
+          movement.type === "RECEIVE_FROM_FACTORY"
+        ) {
+          expectedOwned += qty;
+        } else {
+          expectedOwned -= qty;
+        }
       }
       expectedOwned = Math.max(0, normalizeInventoryQty(expectedOwned));
       if (activeOwned !== expectedOwned) {
@@ -726,7 +1039,8 @@ async function checkEquipmentInventoryInvariants(
           kind: "OWNED_VS_ACTIVE",
           expected: expectedOwned,
           actual: activeOwned,
-          detail: "purchaseNet vs AVAILABLE+ON_PROJECT+IN_TRANSIT",
+          detail:
+            "purchaseNet vs warehouse+ON_PROJECT+IN_TRANSIT+AT_FACTORY",
         });
       }
     }

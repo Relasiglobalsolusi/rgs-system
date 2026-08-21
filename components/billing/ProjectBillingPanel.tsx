@@ -5,7 +5,14 @@ import {
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
 import { useRouter } from "next/navigation";
-import { Fragment, useState, useTransition, useEffect, useMemo } from "react";
+import {
+  Fragment,
+  useState,
+  useTransition,
+  useEffect,
+  useMemo,
+  type DragEvent,
+} from "react";
 import {
   compileInvoicePeriod,
   deleteInvoicePeriod,
@@ -25,11 +32,18 @@ import ContractExtensionsHistory, {
 } from "@/components/projects/ContractExtensionsHistory";
 import { findPriorOpenPeriodWarning } from "@/lib/billing";
 import { isContractCycleSubCategory } from "@/lib/project-contract";
+import { ChipCell } from "@/components/ui/DataTable";
 import StatusBadge, { StackedChipLabel } from "@/components/ui/StatusBadge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { preventBrowserFileNavigation } from "@/components/ui/FileDropField";
+import { MoneyInput } from "@/components/ui/MoneyInput";
 import { flexibleBadgeChipClassName } from "@/components/ui/trash-action-buttons";
 import { cn } from "@/lib/utils";
+import {
+  invoicePeriodElementId,
+  projectPeriodHref,
+} from "@/lib/project-directory-rows";
+import ScrollToInvoicePeriod from "@/components/billing/ScrollToInvoicePeriod";
 import { isAwaitingClientAction } from "@/lib/client-billing-review";
 import {
   getInvoicePaymentDisplay,
@@ -88,6 +102,7 @@ export type BillingPeriodRow = {
 type Props = {
   projectId: string;
   projectName: string;
+  highlightPeriodId?: string | null;
   billingMode: BillingMode | string;
   billingPeriodBasis?: BillingPeriodBasis | string | null;
   billingCycleStartDay?: number | null;
@@ -96,7 +111,7 @@ type Props = {
   invoicingDay: number;
   /** Real contract start (ISO) — drives Regular Cleaning anniversary cycles. */
   startDate?: string | null;
-  /** Client payment terms (0 = Cash) — used if a legacy period lacks dueAt. */
+  /** Project payment terms (0 = Cash) — used if a legacy period lacks dueAt. */
   paymentTermsDays?: number | null;
   periods: BillingPeriodRow[];
   canManage: boolean;
@@ -121,6 +136,7 @@ function priceToInput(value: number | null): string {
 export default function ProjectBillingPanel({
   projectId,
   projectName,
+  highlightPeriodId = null,
   billingMode,
   billingPeriodBasis = null,
   billingCycleStartDay = null,
@@ -322,6 +338,7 @@ export default function ProjectBillingPanel({
 
   return (
     <div className="space-y-6">
+      <ScrollToInvoicePeriod periodId={highlightPeriodId} />
       {canManage && priorOpenWarn ? (
         <p className="rounded-xl border border-amber-500/25 bg-card-tint-amber px-4 py-3 text-sm text-amber-200">
           {t("pages.billing.priorPeriodOpenWarn", {
@@ -368,12 +385,9 @@ export default function ProjectBillingPanel({
           </p>
           {canManage ? (
             <div className="mt-2 space-y-2">
-              <Input
-                type="number"
-                min={1}
-                step="1"
+              <MoneyInput
                 value={priceInput}
-                onChange={(e) => setPriceInput(e.target.value)}
+                onValueChange={setPriceInput}
                 placeholder={t("pages.billing.amountExampleLarge")}
                 className="h-9 border-border bg-elevated text-text"
               />
@@ -601,7 +615,21 @@ export default function ProjectBillingPanel({
                 return (
                   <Fragment key={period.id}>
                   <tr
-                    className="border-b border-border last:border-0 hover:bg-elevated"
+                    id={invoicePeriodElementId(period.id)}
+                    className={cn(
+                      "cursor-pointer border-b border-border last:border-0 hover:bg-elevated",
+                      highlightPeriodId === period.id && "bg-card-tint-amber"
+                    )}
+                    onClick={(event) => {
+                      if (
+                        (event.target as HTMLElement).closest(
+                          "a,button,label,input,textarea"
+                        )
+                      ) {
+                        return;
+                      }
+                      router.push(projectPeriodHref(projectId, period.id));
+                    }}
                   >
                     <td className="px-4 py-3.5">
                       <p className="font-medium text-text">
@@ -623,6 +651,9 @@ export default function ProjectBillingPanel({
                               percent: period.milestonePercent,
                             })
                           : ""}
+                      </p>
+                      <p className="mt-1 text-xs font-medium text-accent-teal">
+                        {t("pages.projects.periodPage.openHint")}
                       </p>
                     </td>
                     <td className="px-4 py-3.5 text-muted">
@@ -667,6 +698,7 @@ export default function ProjectBillingPanel({
                       )}
                     </td>
                     <td className="px-4 py-3.5 text-center">
+                      <ChipCell>
                       <div className="inline-flex max-w-full flex-wrap items-center justify-center gap-1.5">
                         {isMilestone &&
                         (period.status === "ONGOING" ||
@@ -750,6 +782,7 @@ export default function ProjectBillingPanel({
                           />
                         ) : null}
                       </div>
+                      </ChipCell>
                     </td>
                     <td className="px-4 py-3.5 text-xs text-subtle">
                       {display.daysSinceInvoiced != null && (
@@ -796,7 +829,12 @@ export default function ProjectBillingPanel({
                           <span className="text-muted">—</span>
                         )}
                     </td>
-                    <td className="px-4 py-3.5 pr-10 text-center">
+                    <td
+                      className="px-4 py-3.5 pr-10 text-center"
+                      onClick={(event) => event.stopPropagation()}
+                      onKeyDown={(event) => event.stopPropagation()}
+                    >
+                      <ChipCell>
                       <div className="inline-flex max-w-full flex-col items-center justify-center gap-2">
                         <div className="hidden max-w-full flex-wrap items-center justify-center gap-2 has-[>*]:inline-flex">
                           {period.paymentProofPath && (
@@ -845,6 +883,15 @@ export default function ProjectBillingPanel({
                                   flexibleBadgeChipClassName,
                                   "cursor-pointer gap-1"
                                 )}
+                                onDragOver={preventBrowserFileNavigation}
+                                onDrop={(event: DragEvent<HTMLLabelElement>) => {
+                                  preventBrowserFileNavigation(event);
+                                  if (pending) return;
+                                  submitPaymentProof(
+                                    period.id,
+                                    event.dataTransfer.files?.[0]
+                                  );
+                                }}
                               >
                                 <Upload className="h-3.5 w-3.5" />
                                 {pending
@@ -1044,6 +1091,7 @@ export default function ProjectBillingPanel({
                           </div>
                         )}
                       </div>
+                      </ChipCell>
                     </td>
                   </tr>
                   {isClientPortal && clientReviewPending ? (

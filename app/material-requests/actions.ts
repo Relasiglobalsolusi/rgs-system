@@ -8,12 +8,14 @@ import { translate } from "@/lib/i18n/translate";
 import { getServerLocale } from "@/lib/i18n/locale";
 import {
   INVENTORY_ISSUE_PROJECT_STATUSES,
+  inventoryQtyFromDecimal,
   toDecimal,
 } from "@/lib/inventory";
 import type { AppLocale } from "@/lib/i18n/locale";
 import { prisma } from "@/lib/prisma";
 import { requireModule, toPermissionUser } from "@/lib/session";
 import { assertCanApproveProjectServiceArea } from "@/lib/om-approval";
+import { isAreaManagerOrAbovePosition } from "@/lib/positions";
 import { capitalizeProper } from "@/lib/text-case";
 
 function toActionError(error: unknown, fallback: string) {
@@ -32,7 +34,10 @@ async function requireCompany(locale: AppLocale) {
 async function requireLinkedEmployee(userId: string, companyId: string) {
   const employee = await prisma.employee.findFirst({
     where: { userId, companyId, status: "ACTIVE" },
-    select: { id: true },
+    select: {
+      id: true,
+      jobPosition: { select: { slug: true, name: true } },
+    },
   });
   if (!employee) {
     throw new Error("Employee profile required.");
@@ -89,10 +94,15 @@ export async function createMaterialRequest(formData: FormData) {
         deletedAt: null,
         tracksStock: true,
       },
-      select: { id: true },
+      select: { id: true, currentStock: true },
     });
     if (items.length !== lines.length) {
       throw new Error(translate(locale, "pages.inventory.itemNotFound"));
+    }
+    if (
+      items.some((item) => inventoryQtyFromDecimal(item.currentStock) <= 0)
+    ) {
+      throw new Error(translate(locale, "pages.materialRequests.itemOutOfStock"));
     }
 
     const project = await prisma.project.findFirst({
@@ -107,24 +117,51 @@ export async function createMaterialRequest(formData: FormData) {
       throw new Error(translate(locale, "pages.materialRequests.projectInvalid"));
     }
 
-    await prisma.materialRequest.create({
-      data: {
-        companyId: company.id,
-        projectId: project.id,
-        requestedById: employee.id,
-        notes,
-        status: "REQUESTED",
-        lines: {
-          create: lines.map((line) => ({
-            itemId: line.itemId,
-            quantity: line.quantity,
-          })),
+    const autoApprove =
+      employee.jobPosition != null &&
+      isAreaManagerOrAbovePosition(employee.jobPosition);
+
+    await prisma.$transaction(async (tx) => {
+      const created = await tx.materialRequest.create({
+        data: {
+          companyId: company.id,
+          projectId: project.id,
+          requestedById: employee.id,
+          notes,
+          status: autoApprove ? "APPROVED" : "REQUESTED",
+          reviewedById: autoApprove ? session.user.id : null,
+          reviewedAt: autoApprove ? new Date() : null,
+          lines: {
+            create: lines.map((line) => ({
+              itemId: line.itemId,
+              quantity: line.quantity,
+            })),
+          },
         },
-      },
+        include: { lines: true },
+      });
+
+      if (autoApprove) {
+        await tx.transferOrder.create({
+          data: {
+            companyId: company.id,
+            projectId: created.projectId,
+            materialRequestId: created.id,
+            status: "PENDING_SEND",
+            lines: {
+              create: created.lines.map((line) => ({
+                itemId: line.itemId,
+                quantity: line.quantity,
+              })),
+            },
+          },
+        });
+      }
     });
 
     revalidatePath("/material-requests");
     revalidatePath("/approvals");
+    if (autoApprove) revalidatePath("/transfer-orders");
   } catch (error) {
     throw toActionError(
       error,

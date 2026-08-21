@@ -2,7 +2,7 @@ import type { Prisma, ServiceArea } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import {
-  hasFullModuleAccess,
+  isOwnerAccount,
   type PermissionUser,
 } from "@/lib/permissions";
 import {
@@ -31,22 +31,14 @@ export function canApproveServiceArea(options: {
   return areas.includes(options.projectServiceArea);
 }
 
-export function canApproveManagedProject(options: {
-  unrestricted?: boolean;
-  managedProjectIds?: string[] | null;
-  projectId: string;
-}): boolean {
-  if (options.unrestricted) return true;
-  const ids = options.managedProjectIds ?? [];
-  return ids.includes(options.projectId);
-}
-
 export function approvalDeniedMessage(projectServiceArea: ServiceArea): string {
   return `${NOT_AUTHORIZED_TO_APPROVE_DETAIL} This project is ${serviceAreaLabel(projectServiceArea)}.`;
 }
 
 type ApprovalEmployee = {
+  id: string;
   omApprovalAreas: ServiceArea[];
+  manageAllProjects: boolean;
   jobPosition: { slug: string; name: string } | null;
   areaManagedProjects: Array<{ projectId: string }>;
 };
@@ -57,11 +49,51 @@ async function loadApprovalEmployee(
   return prisma.employee.findUnique({
     where: { userId },
     select: {
+      id: true,
       omApprovalAreas: true,
+      manageAllProjects: true,
       jobPosition: { select: { slug: true, name: true } },
       areaManagedProjects: { select: { projectId: true } },
     },
   });
+}
+
+/** OM with no saved project list still covers every project in their areas. */
+export function managerCoversAllProjects(options: {
+  isOperationsManager?: boolean;
+  manageAllProjects?: boolean | null;
+  managedProjectCount?: number;
+}): boolean {
+  if (options.manageAllProjects) return true;
+  if (
+    options.isOperationsManager &&
+    (options.managedProjectCount ?? 0) === 0
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function managedProjectIdsOf(employee: ApprovalEmployee): string[] {
+  return employee.areaManagedProjects.map((row) => row.projectId);
+}
+
+function omCoversProject(employee: ApprovalEmployee, projectId: string): boolean {
+  if (
+    managerCoversAllProjects({
+      isOperationsManager: true,
+      manageAllProjects: employee.manageAllProjects,
+      managedProjectCount: employee.areaManagedProjects.length,
+    })
+  ) {
+    return true;
+  }
+  return managedProjectIdsOf(employee).includes(projectId);
+}
+
+function amCoversProject(employee: ApprovalEmployee, projectId: string): boolean {
+  if (employee.manageAllProjects) return true;
+  return managedProjectIdsOf(employee).includes(projectId);
 }
 
 /**
@@ -75,12 +107,7 @@ export async function assertCanApproveProjectServiceArea(options: {
   projectServiceArea: ServiceArea;
   projectId?: string | null;
 }): Promise<void> {
-  const unrestricted = hasFullModuleAccess({
-    ...options.permissionUser,
-    username: options.username ?? undefined,
-  });
-
-  if (unrestricted) return;
+  if (isOwnerAccount({ username: options.username })) return;
 
   const employee = await loadApprovalEmployee(options.userId);
 
@@ -94,10 +121,12 @@ export async function assertCanApproveProjectServiceArea(options: {
 
   if (
     isOm &&
+    employee &&
     canApproveServiceArea({
-      omApprovalAreas: employee?.omApprovalAreas,
+      omApprovalAreas: employee.omApprovalAreas,
       projectServiceArea: options.projectServiceArea,
-    })
+    }) &&
+    (!options.projectId || omCoversProject(employee, options.projectId))
   ) {
     return;
   }
@@ -108,13 +137,9 @@ export async function assertCanApproveProjectServiceArea(options: {
 
   if (
     isAm &&
+    employee &&
     options.projectId &&
-    canApproveManagedProject({
-      managedProjectIds: employee?.areaManagedProjects.map(
-        (row) => row.projectId
-      ),
-      projectId: options.projectId,
-    })
+    amCoversProject(employee, options.projectId)
   ) {
     return;
   }
@@ -160,13 +185,101 @@ export async function getOmServiceAreaListFilter(options: {
     if (areas.length === 0) {
       return { id: { in: [] } };
     }
-    return { serviceArea: { in: areas } };
+    const allProjects = managerCoversAllProjects({
+      isOperationsManager: true,
+      manageAllProjects: employee.manageAllProjects,
+      managedProjectCount: employee.areaManagedProjects.length,
+    });
+    if (allProjects) {
+      return { serviceArea: { in: areas } };
+    }
+    const ids = employee.areaManagedProjects.map((row) => row.projectId);
+    return {
+      AND: [{ serviceArea: { in: areas } }, { id: { in: ids } }],
+    };
   }
 
   if (isAreaManagerPosition(employee.jobPosition)) {
+    if (employee.manageAllProjects) {
+      return { subCategory: { not: "INTERNAL" } };
+    }
     const ids = employee.areaManagedProjects.map((row) => row.projectId);
     return { id: { in: ids } };
   }
 
   return null;
+}
+
+export async function assertCanWriteProject(options: {
+  userId: string;
+  username?: string | null;
+  projectId: string;
+  serviceArea: ServiceArea;
+}): Promise<void> {
+  if (isOwnerAccount({ username: options.username })) return;
+
+  const employee = await loadApprovalEmployee(options.userId);
+  if (!employee?.jobPosition) return;
+  if (isDirectorPosition(employee.jobPosition)) return;
+
+  if (isOperationsManagerPosition(employee.jobPosition)) {
+    if (
+      canApproveServiceArea({
+        omApprovalAreas: employee.omApprovalAreas,
+        projectServiceArea: options.serviceArea,
+      }) &&
+      omCoversProject(employee, options.projectId)
+    ) {
+      return;
+    }
+    throw new Error(approvalDeniedMessage(options.serviceArea));
+  }
+
+  if (isAreaManagerPosition(employee.jobPosition)) {
+    if (amCoversProject(employee, options.projectId)) {
+      return;
+    }
+    throw new Error(approvalDeniedMessage(options.serviceArea));
+  }
+}
+
+export async function assertCanCreateProjectInScope(options: {
+  userId: string;
+  username?: string | null;
+  serviceArea: ServiceArea;
+}): Promise<{ areaManagerEmployeeId: string | null }> {
+  if (isOwnerAccount({ username: options.username })) {
+    return { areaManagerEmployeeId: null };
+  }
+
+  const employee = await loadApprovalEmployee(options.userId);
+  if (employee?.jobPosition && isDirectorPosition(employee.jobPosition)) {
+    return { areaManagerEmployeeId: null };
+  }
+
+  if (
+    employee?.jobPosition &&
+    isOperationsManagerPosition(employee.jobPosition)
+  ) {
+    if (
+      canApproveServiceArea({
+        omApprovalAreas: employee.omApprovalAreas,
+        projectServiceArea: options.serviceArea,
+      })
+    ) {
+      const all = managerCoversAllProjects({
+        isOperationsManager: true,
+        manageAllProjects: employee.manageAllProjects,
+        managedProjectCount: employee.areaManagedProjects.length,
+      });
+      return { areaManagerEmployeeId: all ? null : employee.id };
+    }
+    throw new Error(approvalDeniedMessage(options.serviceArea));
+  }
+
+  if (employee?.jobPosition && isAreaManagerPosition(employee.jobPosition)) {
+    return { areaManagerEmployeeId: employee.id };
+  }
+
+  return { areaManagerEmployeeId: null };
 }

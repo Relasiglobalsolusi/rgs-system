@@ -1,6 +1,6 @@
 /**
- * Head Office verifies payment / tax documents in the app.
- * Files stay on this server. Cloud reading is optional and off unless configured.
+ * Head Office confirms payment and tax documents in the app.
+ * Files stay on this server.
  */
 
 const MIN_REASON_LENGTH = 3;

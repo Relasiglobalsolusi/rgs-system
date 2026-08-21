@@ -31,12 +31,9 @@ import { capitalizeName, capitalizeProper } from "@/lib/text-case";
 import { parseFormDateInput } from "@/lib/bulk-import/parse-import-date";
 import { getNextClientShortCode } from "@/lib/client-short-code";
 import {
-  normalizePaymentTermsDays,
-  PAYMENT_TERMS_DAYS_OPTIONS,
-} from "@/lib/invoice-period";
-import {
   formatContactPersonName,
 } from "@/lib/contact-person";
+import { persistClientProjectGroupMembership } from "@/app/clients/multi-project-actions";
 import { assertClientNameAvailable } from "@/lib/client-name";
 import {
   assertClientCanBeSoftDeleted,
@@ -51,17 +48,7 @@ import {
 import { SORT_ORDER_STEP } from "@/lib/reorder";
 import { deleteLocalUpload, saveUpload } from "@/lib/upload";
 
-const ALLOWED_PAYMENT_TERMS_DAYS = new Set<number>(PAYMENT_TERMS_DAYS_OPTIONS);
-
 type ClientTypeValue = "COMPANY" | "INDIVIDUAL";
-
-function parsePaymentTermsDays(formData: FormData): number {
-  const raw = Number(formData.get("paymentTermsDays") ?? NaN);
-  if (!Number.isFinite(raw) || !ALLOWED_PAYMENT_TERMS_DAYS.has(raw)) {
-    return normalizePaymentTermsDays(14);
-  }
-  return normalizePaymentTermsDays(raw);
-}
 
 function parseClientType(formData: FormData): ClientTypeValue {
   const clientTypeRaw = String(formData.get("clientType") ?? "COMPANY")
@@ -241,7 +228,6 @@ export async function createClient(formData: FormData) {
       parseFormDateInput(formData.get("clientSince"), {
         fieldLabel: translate(locale, "pages.clients.form.clientSince"),
       }) ?? new Date();
-    const paymentTermsDays = parsePaymentTermsDays(formData);
     const preferredLoginId = String(formData.get("loginId") ?? "").trim();
     const multiProjectAccess =
       String(formData.get("multiProjectAccess") ?? "").toLowerCase() ===
@@ -285,7 +271,6 @@ export async function createClient(formData: FormData) {
           contactPersonEmail: identity.contactPersonEmail,
           contactPersonPhone: identity.contactPersonPhone,
           clientSince,
-          paymentTermsDays,
           multiProjectAccess,
           multiProjectSecurityMode: multiProjectAccess
             ? "MASTER_AND_GROUP"
@@ -331,7 +316,6 @@ const CLIENT_LINE_FIELDS = [
   "npwp",
   "clientType",
   "clientSince",
-  "paymentTermsDays",
   "multiProjectAccess",
 ];
 
@@ -354,7 +338,6 @@ export async function createClientsInBulk(formData: FormData) {
       npwp: string;
       taxIdDocumentUrl: string;
       clientSince: Date;
-      paymentTermsDays: number;
       multiProjectAccess: boolean;
     }> = [];
     const seenNames = new Set<string>();
@@ -366,7 +349,6 @@ export async function createClientsInBulk(formData: FormData) {
       let address: string;
       let npwp: string;
       let clientSince: Date;
-      let paymentTermsDays: number;
       let multiProjectAccess: boolean;
       try {
         identity = resolveClientFormIdentity(row, clientType, locale);
@@ -376,7 +358,6 @@ export async function createClientsInBulk(formData: FormData) {
           parseFormDateInput(row.get("clientSince"), {
             fieldLabel: translate(locale, "pages.clients.form.clientSince"),
           }) ?? new Date();
-        paymentTermsDays = parsePaymentTermsDays(row);
         multiProjectAccess =
           clientType === "INDIVIDUAL"
             ? false
@@ -425,7 +406,6 @@ export async function createClientsInBulk(formData: FormData) {
         npwp,
         taxIdDocumentUrl,
         clientSince,
-        paymentTermsDays,
         multiProjectAccess,
       });
     }
@@ -460,7 +440,6 @@ export async function createClientsInBulk(formData: FormData) {
             contactPersonEmail: row.identity.contactPersonEmail,
             contactPersonPhone: row.identity.contactPersonPhone,
             clientSince: row.clientSince,
-            paymentTermsDays: row.paymentTermsDays,
             multiProjectAccess: row.multiProjectAccess,
             multiProjectSecurityMode: row.multiProjectAccess
               ? "MASTER_AND_GROUP"
@@ -540,7 +519,6 @@ export async function updateClient(id: string, formData: FormData) {
       parseFormDateInput(formData.get("clientSince"), {
         fieldLabel: translate(locale, "pages.clients.form.clientSince"),
       }) ?? new Date();
-    const paymentTermsDays = parsePaymentTermsDays(formData);
 
     const existing = await prisma.client.findUnique({
       where: { id },
@@ -605,7 +583,6 @@ export async function updateClient(id: string, formData: FormData) {
           contactPersonEmail: identity.contactPersonEmail,
           contactPersonPhone: identity.contactPersonPhone,
           clientSince,
-          paymentTermsDays,
         },
       });
 
@@ -615,6 +592,8 @@ export async function updateClient(id: string, formData: FormData) {
         data: { name: contactDisplay },
       });
     });
+
+    await persistClientProjectGroupMembership(id, formData);
 
     if (
       uploadedTaxIdDocumentUrl &&

@@ -9,6 +9,7 @@ import type { ProjectSubCategory } from "@prisma/client";
 
 type Props = {
   listTitleKey?: string;
+  title?: string;
   subCategory?: ProjectSubCategory | null;
   count: number;
   countKind: "project" | "item";
@@ -18,6 +19,7 @@ type Props = {
 
 export default function ProjectsListHeader({
   listTitleKey,
+  title: titleOverride,
   subCategory,
   count,
   countKind,
@@ -28,11 +30,13 @@ export default function ProjectsListHeader({
 
   const title = listTitleKey
     ? t(listTitleKey)
-    : subCategory
-      ? t("pages.projects.subCategoryProjects", {
-          type: localizeSubCategory(subCategory, locale),
-        })
-      : t("pages.projects.allTitle");
+    : titleOverride
+      ? titleOverride
+      : subCategory
+        ? t("pages.projects.subCategoryProjects", {
+            type: localizeSubCategory(subCategory, locale),
+          })
+        : t("pages.projects.allTitle");
 
   const countLabel =
     countKind === "item"

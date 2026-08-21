@@ -1,9 +1,9 @@
 import PDFDocument from "pdfkit";
 
+import { ensureCompanyForPdf } from "@/lib/company-for-pdf";
 import { formatDisplayDate } from "@/lib/format-date";
 import { localeToBcp47, type AppLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
-import { DISPLAY_COMPANY_NAME } from "@/lib/company-identity";
 import {
   BOTTOM_SAFE,
   CONTENT_WIDTH,
@@ -66,14 +66,16 @@ export async function buildInternalPayrollPdfBuffer(
 ): Promise<Buffer> {
   const locale = input.locale ?? "en";
   const logo = await loadBrandLogoBuffer();
-  const letterhead = letterheadFromCompany(input.company);
+  const letterhead = letterheadFromCompany(
+    await ensureCompanyForPdf(input.company)
+  );
 
   const doc = new PDFDocument({
     size: "A4",
     margin: PAGE_MARGIN,
     info: {
       Title: `${input.title ?? "Internal Payroll"} — ${input.periodLabel}`,
-      Author: DISPLAY_COMPANY_NAME,
+      Author: letterhead.name,
     },
   });
 

@@ -34,8 +34,10 @@ type LifecycleArgs = {
   projectName: string;
   /** Regular Cleaning contracts invoice a month without ending the project. */
   isRegularContract: boolean;
-  /** Regular / Security End Contract asks for the real last day on site. */
+  /** Regular / Security / Payroll Management End Contract asks for the last day on site. */
   requiresLastDay?: boolean;
+  /** Parking End Contract asks for the last calendar month. */
+  requiresLastMonth?: boolean;
   plannedEndDate?: Date | string | null;
 };
 
@@ -48,6 +50,7 @@ export function useProjectLifecycleActions({
   projectName,
   isRegularContract,
   requiresLastDay = false,
+  requiresLastMonth = false,
   plannedEndDate = null,
 }: LifecycleArgs) {
   const { t } = useT();
@@ -60,6 +63,7 @@ export function useProjectLifecycleActions({
     if (planned && planned < today) return planned;
     return today;
   });
+  const [lastMonth, setLastMonth] = useState(() => lastDay.slice(0, 7));
 
   function handleInvoiceError(
     result: Awaited<ReturnType<typeof finishProject>>,
@@ -189,7 +193,7 @@ export function useProjectLifecycleActions({
         : t("pages.projects.finish.confirmFinishNamed", { name: projectName })
     );
     if (!confirmed) return;
-    if (requiresLastDay) {
+    if (requiresLastMonth || requiresLastDay) {
       setLastDayOpen(true);
       return;
     }
@@ -197,12 +201,20 @@ export function useProjectLifecycleActions({
   }
 
   function confirmLastDay() {
-    if (!lastDay) {
-      showRejection({ reasons: t("pages.projects.finish.lastDayRequired") });
-      return;
-    }
     const formData = new FormData();
-    formData.set("lastDay", lastDay);
+    if (requiresLastMonth) {
+      if (!/^\d{4}-\d{2}$/.test(lastMonth)) {
+        showRejection({ reasons: t("pages.projects.finish.lastMonthRequired") });
+        return;
+      }
+      formData.set("lastMonth", lastMonth);
+    } else {
+      if (!lastDay) {
+        showRejection({ reasons: t("pages.projects.finish.lastDayRequired") });
+        return;
+      }
+      formData.set("lastDay", lastDay);
+    }
     submitEndOrFinish(formData);
   }
 
@@ -216,6 +228,8 @@ export function useProjectLifecycleActions({
     setLastDayOpen,
     lastDay,
     setLastDay,
+    lastMonth,
+    setLastMonth,
     confirmLastDay,
   };
 }
@@ -239,6 +253,7 @@ export default function ProjectFinishButton({
   projectName,
   isRegularContract,
   requiresLastDay = false,
+  requiresLastMonth = false,
   plannedEndDate = null,
   mode = "full",
   size = "sm",
@@ -254,12 +269,15 @@ export default function ProjectFinishButton({
     setLastDayOpen,
     lastDay,
     setLastDay,
+    lastMonth,
+    setLastMonth,
     confirmLastDay,
   } = useProjectLifecycleActions({
       projectId,
       projectName,
       isRegularContract,
       requiresLastDay,
+      requiresLastMonth,
       plannedEndDate,
     });
   const isBadge = size === "badge";
@@ -330,12 +348,16 @@ export default function ProjectFinishButton({
             </>
           )}
         </Button>
-        {requiresLastDay ? (
+        {requiresLastDay || requiresLastMonth ? (
           <Dialog open={lastDayOpen} onOpenChange={setLastDayOpen}>
             <EmployeeDialogShell
               icon={CalendarClock}
               title={t("pages.projects.finish.endContract")}
-              description={t("pages.projects.finish.lastDayHint")}
+              description={
+                requiresLastMonth
+                  ? t("pages.projects.finish.lastMonthHint")
+                  : t("pages.projects.finish.lastDayHint")
+              }
               maxWidth="md"
               footer={
                 <div className="flex w-full flex-col gap-3 sm:flex-row sm:justify-end">
@@ -359,17 +381,31 @@ export default function ProjectFinishButton({
             >
               <div className={employeeDialogFieldClass}>
                 <label className="text-sm font-medium text-text">
-                  {t("pages.projects.finish.lastDay")}
+                  {requiresLastMonth
+                    ? t("pages.projects.finish.lastMonth")
+                    : t("pages.projects.finish.lastDay")}
                 </label>
-                <Input
-                  type="date"
-                  value={lastDay}
-                  max={toDateInputValue(new Date())}
-                  onChange={(event) => setLastDay(event.target.value)}
-                  className={employeeInputClass}
-                />
+                {requiresLastMonth ? (
+                  <Input
+                    type="month"
+                    value={lastMonth}
+                    max={toDateInputValue(new Date()).slice(0, 7)}
+                    onChange={(event) => setLastMonth(event.target.value)}
+                    className={employeeInputClass}
+                  />
+                ) : (
+                  <Input
+                    type="date"
+                    value={lastDay}
+                    max={toDateInputValue(new Date())}
+                    onChange={(event) => setLastDay(event.target.value)}
+                    className={employeeInputClass}
+                  />
+                )}
                 <p className={employeeDialogHintClass}>
-                  {t("pages.projects.finish.lastDayHint")}
+                  {requiresLastMonth
+                    ? t("pages.projects.finish.lastMonthHint")
+                    : t("pages.projects.finish.lastDayHint")}
                 </p>
               </div>
             </EmployeeDialogShell>

@@ -14,37 +14,44 @@ import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/button";
 import TeamDeleteDialog from "@/components/teams/TeamDeleteDialog";
-import TeamFormDialog from "@/components/teams/TeamFormDialog";
+import TeamFormDialog, {
+  type TeamTypeOption,
+} from "@/components/teams/TeamFormDialog";
 import TeamMembersDialog, {
   type EligibleEmployeeRow,
   type TeamMemberRow,
 } from "@/components/teams/TeamMembersDialog";
+import { localizeOperationsTeamKind } from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
-import type { OperationsTeamKindValue } from "@/lib/operations-teams";
+import type { OperationsTeamKindValue } from "@/lib/operations-team-kind";
+import { catalogDisplayName } from "@/lib/project-service-catalog";
 
 export type TeamAssignmentRow = {
   id: string;
   name: string;
-  kind: OperationsTeamKindValue;
+  kind: OperationsTeamKindValue | null;
+  serviceAreaCatalogId: string | null;
   memberCount: number;
   occupiedProjectName: string | null;
   members: TeamMemberRow[];
 };
 
-type Filter = "all" | OperationsTeamKindValue;
+type Filter = "all" | string;
 
 type Props = {
   teams: TeamAssignmentRow[];
+  catalog: TeamTypeOption[];
   eligible: EligibleEmployeeRow[];
   canManage: boolean;
 };
 
 export default function TeamAssignmentDirectory({
   teams,
+  catalog,
   eligible,
   canManage,
 }: Props) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [createOpen, setCreateOpen] = useState(false);
@@ -58,16 +65,18 @@ export default function TeamAssignmentDirectory({
   const visible = useMemo(
     () =>
       teams.filter((team) => {
-        if (filter !== "all" && team.kind !== filter) return false;
+        if (filter !== "all" && team.serviceAreaCatalogId !== filter) {
+          return false;
+        }
         return matchesDirectorySearch(query, team.name);
       }),
     [teams, filter, query]
   );
 
-  function kindLabel(kind: OperationsTeamKindValue) {
-    return kind === "FACADE_CLEANING"
-      ? t("pages.teams.kindFacade")
-      : t("pages.teams.kindGeneral");
+  function typeLabel(team: TeamAssignmentRow) {
+    const area = catalog.find((row) => row.id === team.serviceAreaCatalogId);
+    if (area) return catalogDisplayName(area, locale);
+    return localizeOperationsTeamKind(team.kind, locale);
   }
 
   const columns: DataTableColumn<TeamAssignmentRow>[] = [
@@ -81,7 +90,7 @@ export default function TeamAssignmentDirectory({
       key: "kind",
       title: t("pages.teams.columns.type"),
       render: (team) => (
-        <span className="text-muted">{kindLabel(team.kind)}</span>
+        <span className="text-muted">{typeLabel(team)}</span>
       ),
     },
     {
@@ -98,6 +107,7 @@ export default function TeamAssignmentDirectory({
     {
       key: "status",
       title: t("pages.teams.columns.status"),
+      align: "center",
       render: (team) =>
         team.occupiedProjectName ? (
           <StatusBadge status="warning" compact>
@@ -114,9 +124,9 @@ export default function TeamAssignmentDirectory({
           {
             key: "actions",
             title: t("pages.teams.columns.actions"),
-            align: "right" as const,
+            align: "center" as const,
             render: (team: TeamAssignmentRow) => (
-              <div className="flex justify-end gap-1.5">
+              <div className="flex justify-center gap-1.5">
                 <Button
                   type="button"
                   variant="infoBadge"
@@ -177,20 +187,19 @@ export default function TeamAssignmentDirectory({
         >
           {t("pages.teams.filterAll")}
         </DirectoryFilterTab>
-        <DirectoryFilterTab
-          active={filter === "GENERAL_CLEANING"}
-          onClick={() => setFilter("GENERAL_CLEANING")}
-          count={teams.filter((team) => team.kind === "GENERAL_CLEANING").length}
-        >
-          {t("pages.teams.kindGeneral")}
-        </DirectoryFilterTab>
-        <DirectoryFilterTab
-          active={filter === "FACADE_CLEANING"}
-          onClick={() => setFilter("FACADE_CLEANING")}
-          count={teams.filter((team) => team.kind === "FACADE_CLEANING").length}
-        >
-          {t("pages.teams.kindFacade")}
-        </DirectoryFilterTab>
+        {catalog.map((area) => (
+          <DirectoryFilterTab
+            key={area.id}
+            active={filter === area.id}
+            onClick={() => setFilter(area.id)}
+            count={
+              teams.filter((team) => team.serviceAreaCatalogId === area.id)
+                .length
+            }
+          >
+            {catalogDisplayName(area, locale)}
+          </DirectoryFilterTab>
+        ))}
       </div>
 
       {visible.length === 0 ? (
@@ -214,16 +223,25 @@ export default function TeamAssignmentDirectory({
         />
       )}
 
-      <TeamFormDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <TeamFormDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        catalog={catalog}
+      />
       <TeamFormDialog
         key={editTeam?.id ?? "edit-team"}
         open={Boolean(editTeam)}
         onOpenChange={(open) => {
           if (!open) setEditTeamId(null);
         }}
+        catalog={catalog}
         team={
           editTeam
-            ? { id: editTeam.id, name: editTeam.name, kind: editTeam.kind }
+            ? {
+                id: editTeam.id,
+                name: editTeam.name,
+                serviceAreaCatalogId: editTeam.serviceAreaCatalogId,
+              }
             : null
         }
       />

@@ -6,36 +6,107 @@ import { Prisma } from "@prisma/client";
 
 import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
-import { taxInvoiceDateToUtcDate } from "@/lib/payment-document-verify";
+import {
+  inferDocumentMime,
+  taxInvoiceDateToUtcDate,
+} from "@/lib/payment-document-verify";
 import { canAccess } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/project-billing";
-import { mintEquipmentAssets } from "@/lib/equipment-asset";
-import { lockInventoryItemRow } from "@/lib/inventory-access";
-import { nextWeightedAvgUnitCost, toDecimal, inventoryQtyFromDecimal, isWholeInventoryQty, normalizeInventoryQty } from "@/lib/inventory";
-import { extractPurchaseInvoiceFields } from "@/lib/purchase-invoice-extract";
-import type { ExtractPurchaseInvoiceResult } from "@/lib/purchase-invoice-extract-client";
+import {
+  isEquipmentItemType,
+  mintVehicleAssetByPlate,
+} from "@/lib/equipment-asset";
+import {
+  listCompanyBankAccountOptions,
+  parseFormCompanyBankAccountId,
+} from "@/lib/company-bank-accounts";
+import { parseRequiredVehiclePlate } from "@/lib/vehicle-plate";
+import { unwindAndReversePurchaseInvoice } from "@/lib/purchase-invoice-reverse";
+import {
+  toDecimal,
+  isWholeInventoryQty,
+  normalizeInventoryQty,
+} from "@/lib/inventory";
+import { isVehicleItemType } from "@/lib/inventory-sku";
+import {
+  applyPurchaseLineStockIn,
+  stockInPendingPurchaseLines,
+} from "@/lib/purchase-stock-in";
+import { calculateVehicleLease } from "@/lib/vehicle-lease";
+import {
+  allowsDecimalInventoryQty,
+  isPackInventoryUnit,
+  normalizeInventoryUnit,
+  stockQuantityFromPurchase,
+} from "@/lib/inventory-units";
 import { parseManualVerifyReason } from "@/lib/in-house-document-verify";
 import {
   assertPurchasePurposeProject,
   parsePurchasePurpose,
   purchaseCreatesStock,
+  resolvePurchasePurpose,
 } from "@/lib/purchase-purpose";
 import { requireSession, toPermissionUser } from "@/lib/session";
 import { nextPettyCashTopUpRef } from "@/lib/petty-cash";
+import { writeRecordChange } from "@/lib/record-change";
+import { capitalizeProper, titleCaseWords } from "@/lib/text-case";
 import {
+  commercialTaxIncludesVat,
+  commercialTaxRequiresRatePercent,
+  parseCommercialPphRatePercent,
+  parseCommercialTaxKind,
+  parseOtherTaxName,
+  type CommercialTaxKind,
+} from "@/lib/commercial-tax";
+import {
+  governmentPayeeName,
+  parseGovernmentTaxKind,
+} from "@/lib/government-tax";
+import { vendorMatchesPurchaseOrigin } from "@/lib/vendor-type";
+import {
+  applyExclusiveVat,
+  assertInclusiveCreditableTax,
   exclusiveUnitCostFromInclusive,
   parsePpnRatePercent,
   ppnRateFromPercent,
 } from "@/lib/vat";
+import {
+  isCashPaymentTerms,
+  PAYMENT_TERMS_DAYS_OPTIONS,
+  type PaymentTermsDaysOption,
+} from "@/lib/invoice-period";
+import {
+  buildBillingDocumentFileBase,
+  deleteLocalUpload,
+  saveUpload,
+} from "@/lib/upload";
+import {
+  allocateImportStockCost,
+  calculateImportLandedCost,
+  isHandlingByHeadOffice,
+  normalizeImportCurrency,
+  parseImportDecimal,
+  parseImportFormPayload,
+  type ImportFormPayload,
+  type ImportLandedCostResult,
+} from "@/lib/import-landed-cost";
+import { todayDateInput } from "@/lib/project-contract";
 
 type PurchaseLineInput = {
-  itemId: string;
+  itemId?: string;
+  description?: string;
   quantity: number;
   unitPrice: number;
+  foreignAmount?: number;
+  unit?: string;
+  packContents?: number;
 };
 
-function parsePurchaseLinesJson(raw: string): PurchaseLineInput[] {
+function parsePurchaseLinesJson(
+  raw: string,
+  options: { requireCatalogItem: boolean }
+): PurchaseLineInput[] {
   if (!raw.trim()) return [];
   let parsed: unknown;
   try {
@@ -48,32 +119,292 @@ function parsePurchaseLinesJson(raw: string): PurchaseLineInput[] {
   }
   return parsed.map((row, index) => {
     const itemId = String((row as { itemId?: unknown })?.itemId ?? "").trim();
+    const description = String(
+      (row as { description?: unknown })?.description ?? ""
+    ).trim();
     const quantity = Number((row as { quantity?: unknown })?.quantity);
     const unitPrice = Number((row as { unitPrice?: unknown })?.unitPrice);
-    if (!itemId) {
+    const unit = String((row as { unit?: unknown })?.unit ?? "").trim();
+    const packRaw = (row as { packContents?: unknown })?.packContents;
+    const packContents =
+      packRaw == null || packRaw === "" ? undefined : Number(packRaw);
+    const foreignRaw = (row as { foreignAmount?: unknown })?.foreignAmount;
+    const foreignAmount =
+      foreignRaw == null || foreignRaw === ""
+        ? undefined
+        : Number(foreignRaw);
+    if (options.requireCatalogItem && !itemId) {
       throw new Error(`Select an item for line ${index + 1}.`);
+    }
+    if (!options.requireCatalogItem && !description) {
+      throw new Error(`Describe the service for line ${index + 1}.`);
     }
     if (!Number.isFinite(quantity) || quantity <= 0) {
       throw new Error(`Enter a valid quantity for line ${index + 1}.`);
     }
-    if (!isWholeInventoryQty(quantity)) {
+    if (
+      !allowsDecimalInventoryQty(unit || "pcs") &&
+      !isWholeInventoryQty(quantity)
+    ) {
       throw new Error(`Quantity for line ${index + 1} must be a whole number.`);
     }
     if (!Number.isFinite(unitPrice) || unitPrice < 0) {
       throw new Error(`Enter a valid unit cost for line ${index + 1}.`);
     }
-    return { itemId, quantity, unitPrice };
+    if (
+      packContents != null &&
+      (!Number.isFinite(packContents) || packContents <= 0)
+    ) {
+      throw new Error(`Enter how many are in each pack for line ${index + 1}.`);
+    }
+    if (
+      foreignAmount != null &&
+      (!Number.isFinite(foreignAmount) || foreignAmount < 0)
+    ) {
+      throw new Error(`Enter a valid invoice share for line ${index + 1}.`);
+    }
+    return {
+      itemId: itemId || undefined,
+      description: description || undefined,
+      quantity,
+      unitPrice,
+      foreignAmount,
+      unit: unit || undefined,
+      packContents,
+    };
   });
 }
-import {
-  buildBillingDocumentFileBase,
-  deleteLocalUpload,
-  saveUpload,
-} from "@/lib/upload";
+
+function formFlagTrue(formData: FormData, key: string): boolean {
+  const raw = String(formData.get(key) ?? "")
+    .trim()
+    .toLowerCase();
+  return raw === "true" || raw === "on" || raw === "yes";
+}
+
+function parseFocShipping(
+  formData: FormData,
+  rateError = "Enter the Bank Rate for this shipping cost."
+): {
+  currency: string | null;
+  foreignAmount: number | null;
+  rateToIdr: number | null;
+  idr: number | null;
+} {
+  const amount = parseImportDecimal(
+    String(formData.get("shippingForeignAmount") ?? "")
+  );
+  if (amount == null || amount <= 0) {
+    return {
+      currency: null,
+      foreignAmount: null,
+      rateToIdr: null,
+      idr: null,
+    };
+  }
+  const currency = normalizeImportCurrency(
+    String(formData.get("shippingCurrency") ?? ""),
+    "IDR"
+  );
+  if (currency === "IDR") {
+    return {
+      currency: "IDR",
+      foreignAmount: amount,
+      rateToIdr: null,
+      idr: Math.round(amount * 100) / 100,
+    };
+  }
+  const rate = parseImportDecimal(
+    String(formData.get("shippingRateToIdr") ?? "")
+  );
+  if (rate == null || rate <= 0) {
+    throw new Error(rateError);
+  }
+  return {
+    currency,
+    foreignAmount: amount,
+    rateToIdr: rate,
+    idr: Math.round(amount * rate * 100) / 100,
+  };
+}
+
+function optionalDecimal(value: number | null | undefined): Prisma.Decimal | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  return new Prisma.Decimal(value);
+}
+
+function parseImportFulfillment(
+  value: FormDataEntryValue | null
+): "INTERNAL" | "OUTSOURCED" {
+  return String(value ?? "").trim().toUpperCase() === "OUTSOURCED"
+    ? "OUTSOURCED"
+    : "INTERNAL";
+}
+
+function parsePurchasePaymentTermsDays(
+  formData: FormData
+): PaymentTermsDaysOption {
+  const raw = Number(String(formData.get("paymentTermsDays") ?? "").trim());
+  if (!(PAYMENT_TERMS_DAYS_OPTIONS as readonly number[]).includes(raw)) {
+    throw new Error("Select Cash or Net payment terms.");
+  }
+  return raw as PaymentTermsDaysOption;
+}
+
+function parseOptionalMoneyField(
+  formData: FormData,
+  key: string
+): number | null {
+  const raw = String(formData.get(key) ?? "").trim().replace(/,/g, "");
+  if (!raw) return null;
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+function parseVehicleLeaseFromForm(formData: FormData): {
+  isVehicleLease: boolean;
+  otrAmount: number | null;
+  downPayment: number | null;
+  tenorMonths: number | null;
+  interestPercentYear: number | null;
+  adminFee: number | null;
+  insuranceAmount: number | null;
+  fiduciaryFee: number | null;
+  provisionFee: number | null;
+  otherFee: number | null;
+  monthlyInstallment: number | null;
+} {
+  const isVehicleLease = formData.get("isVehicleLease") === "true";
+  if (!isVehicleLease) {
+    return {
+      isVehicleLease: false,
+      otrAmount: null,
+      downPayment: null,
+      tenorMonths: null,
+      interestPercentYear: null,
+      adminFee: null,
+      insuranceAmount: null,
+      fiduciaryFee: null,
+      provisionFee: null,
+      otherFee: null,
+      monthlyInstallment: null,
+    };
+  }
+  const otrAmount = parseOptionalMoneyField(formData, "leaseOtrAmount");
+  const downPayment = parseOptionalMoneyField(formData, "leaseDownPayment") ?? 0;
+  const tenorMonths = Number(String(formData.get("leaseTenorMonths") ?? "").trim());
+  const interestPercentYear =
+    parseOptionalMoneyField(formData, "leaseInterestPercentYear") ?? 0;
+  const adminFee = parseOptionalMoneyField(formData, "leaseAdminFee") ?? 0;
+  const insuranceAmount =
+    parseOptionalMoneyField(formData, "leaseInsuranceAmount") ?? 0;
+  const fiduciaryFee = parseOptionalMoneyField(formData, "leaseFiduciaryFee") ?? 0;
+  const provisionFee = parseOptionalMoneyField(formData, "leaseProvisionFee") ?? 0;
+  const otherFee = parseOptionalMoneyField(formData, "leaseOtherFee") ?? 0;
+  if (otrAmount == null || otrAmount <= 0) {
+    throw new Error("Enter the vehicle On The Road price.");
+  }
+  if (!Number.isFinite(tenorMonths) || tenorMonths < 1) {
+    throw new Error("Enter the lease tenor in months.");
+  }
+  const schedule = calculateVehicleLease({
+    otrAmount,
+    downPayment,
+    tenorMonths,
+    interestPercentYear,
+    adminFee,
+    insuranceAmount,
+    fiduciaryFee,
+    provisionFee,
+    otherFee,
+  });
+  return {
+    isVehicleLease: true,
+    otrAmount,
+    downPayment,
+    tenorMonths,
+    interestPercentYear,
+    adminFee,
+    insuranceAmount,
+    fiduciaryFee,
+    provisionFee,
+    otherFee,
+    monthlyInstallment: schedule?.monthlyInstallment ?? null,
+  };
+}
+
+function parseHandlingFee(
+  formData: FormData,
+  required: boolean
+): {
+  handlingFeeIdr: number | null;
+  handlingFeeIncludesPpn: boolean;
+  handlingFeePpnRatePercent: number | null;
+  handlingFeeAmountPaidIdr: number | null;
+} {
+  const raw = String(formData.get("handlingFeeIdr") ?? "").trim();
+  if (!raw) {
+    if (required) throw new Error("Enter the handling fee.");
+    return {
+      handlingFeeIdr: null,
+      handlingFeeIncludesPpn: false,
+      handlingFeePpnRatePercent: null,
+      handlingFeeAmountPaidIdr: null,
+    };
+  }
+  const fee = Number(raw.replace(/,/g, ""));
+  if (!Number.isFinite(fee) || fee < 0) {
+    throw new Error("Enter a valid handling fee.");
+  }
+  if (required && fee <= 0) {
+    throw new Error("Enter the handling fee.");
+  }
+  const charged = formData.get("handlingFeeIncludesPpn") === "true";
+  if (!charged) {
+    return {
+      handlingFeeIdr: fee,
+      handlingFeeIncludesPpn: false,
+      handlingFeePpnRatePercent: null,
+      handlingFeeAmountPaidIdr: fee,
+    };
+  }
+  const rate = parsePpnRatePercent(
+    String(formData.get("handlingFeePpnRatePercent") ?? "")
+  );
+  if (rate == null) {
+    throw new Error("Enter the handling fee Value Added Tax rate.");
+  }
+  const split = applyExclusiveVat(fee, ppnRateFromPercent(rate));
+  return {
+    handlingFeeIdr: split.dpp,
+    handlingFeeIncludesPpn: true,
+    handlingFeePpnRatePercent: rate,
+    handlingFeeAmountPaidIdr: split.gross,
+  };
+}
+
+function outsourcedImportPayload(payload: ImportFormPayload): ImportFormPayload {
+  return {
+    ...payload,
+    formEApplied: false,
+    beaMasukApplied: false,
+    beaMasukRatePercent: 0,
+    beaMasukAmountIdr: null,
+    ppnbmApplied: false,
+    ppnbmRatePercent: 0,
+    ppnbmAmountIdr: null,
+    ppnApplied: false,
+    ppnAmountIdr: null,
+    pph22Applied: false,
+    pph22AmountIdr: null,
+    clearanceCostIdr: 0,
+  };
+}
 
 const UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 const UPLOAD_MIME = new Set([
   "image/jpeg",
+  "image/jpg",
   "image/png",
   "image/webp",
   "image/gif",
@@ -92,6 +423,11 @@ async function requirePurchaseManageAccess() {
   return session;
 }
 
+export async function listPurchasePayoutBankAccounts() {
+  const session = await requirePurchaseManageAccess();
+  return listCompanyBankAccountOptions(session.user.companyId);
+}
+
 function requireImageOrPdfUpload(
   value: FormDataEntryValue | null,
   opts: { requiredMessage: string; sizeMessage: string; typeMessage: string }
@@ -102,8 +438,8 @@ function requireImageOrPdfUpload(
   if (value.size > UPLOAD_MAX_BYTES) {
     throw new Error(opts.sizeMessage);
   }
-  const mime = value.type || "";
-  if (mime && !UPLOAD_MIME.has(mime)) {
+  const mime = inferDocumentMime(value);
+  if (mime && mime !== "application/octet-stream" && !UPLOAD_MIME.has(mime)) {
     throw new Error(opts.typeMessage);
   }
   return value;
@@ -119,11 +455,22 @@ function optionalImageOrPdfUpload(
   if (value.size > UPLOAD_MAX_BYTES) {
     throw new Error(opts.sizeMessage);
   }
-  const mime = value.type || "";
-  if (mime && !UPLOAD_MIME.has(mime)) {
+  const mime = inferDocumentMime(value);
+  if (mime && mime !== "application/octet-stream" && !UPLOAD_MIME.has(mime)) {
     throw new Error(opts.typeMessage);
   }
   return value;
+}
+
+function parseBillingId(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    throw new Error("Billing ID is required.");
+  }
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits.length >= 12 && digits.length <= 18) return digits;
+  if (trimmed.length >= 8) return trimmed;
+  throw new Error("Enter a valid DJP Billing ID.");
 }
 
 function parseAmount(raw: string): Prisma.Decimal {
@@ -172,43 +519,20 @@ async function savePurchaseTaxInvoiceFile(
   });
 }
 
-/**
- * Soft-fill commercial purchase invoice fields from an uploaded bill.
- * Never blocks save — failures return `{ ok: false }` for client toast/manual entry.
- */
-export async function extractPurchaseInvoiceFromUpload(
-  formData: FormData
-): Promise<ExtractPurchaseInvoiceResult> {
-  const session = await requirePurchaseManageAccess();
-
-  const file = formData.get("document");
-  if (!(file instanceof File) || file.size <= 0) {
-    return { ok: false, code: "extract_failed" };
-  }
-  if (file.size > UPLOAD_MAX_BYTES) {
-    return { ok: false, code: "extract_failed" };
-  }
-  const mime = file.type || "";
-  if (mime && !UPLOAD_MIME.has(mime)) {
-    return { ok: false, code: "extract_failed" };
-  }
-
-  const portalVendorId = session.user.vendorId ?? null;
-  const vendors = await prisma.vendor.findMany({
-    where: {
-      companyId: session.user.companyId,
-      active: true,
-      ...(portalVendorId ? { id: portalVendorId } : {}),
-    },
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
-
-  return extractPurchaseInvoiceFields(file, vendors);
-}
-
 export async function createPurchaseInvoice(formData: FormData) {
   const session = await requirePurchaseManageAccess();
+  const locale = await getServerLocale();
+  const bankAccountId = await parseFormCompanyBankAccountId(
+    formData,
+    session.user.companyId,
+    {
+      requiredWhenAccountsExist: true,
+      requiredMessage: translate(
+        locale,
+        "pages.billing.purchaseBankAccountRequired"
+      ),
+    }
+  );
 
   const purchaseCategoryRawEarly = String(formData.get("purchaseCategory") ?? "")
     .trim()
@@ -258,6 +582,7 @@ export async function createPurchaseInvoice(formData: FormData) {
           purchaseCategory: "PETTY_CASH",
           purpose: "PETTY_CASH",
           paidAt: new Date(),
+          bankAccountId,
           createdById: session.user.id,
         },
       });
@@ -283,14 +608,77 @@ export async function createPurchaseInvoice(formData: FormData) {
     return;
   }
 
+  if (purchaseCategoryRawEarly === "GOVERNMENT") {
+    if (session.user.vendorId) {
+      throw new Error("Government bills are recorded by Head Office only.");
+    }
+    const governmentTaxKind = parseGovernmentTaxKind(
+      formData.get("governmentTaxKind")
+    );
+    const invoiceRef = parseBillingId(String(formData.get("invoiceRef") ?? ""));
+    const notesRaw = String(formData.get("notes") ?? "").trim();
+    if (!notesRaw) {
+      throw new Error("Describe what this government bill is for.");
+    }
+    const amount = parseAmount(String(formData.get("amount") ?? "").trim());
+    const invoiceAmount = decimalToNumber(amount);
+    if (invoiceAmount == null || invoiceAmount <= 0) {
+      throw new Error("Enter a valid amount.");
+    }
+    const invoiceDateRaw = String(formData.get("invoiceDate") ?? "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(invoiceDateRaw)) {
+      throw new Error("Date is required.");
+    }
+    const invoiceDate = taxInvoiceDateToUtcDate(invoiceDateRaw);
+    const supplierName = governmentPayeeName(governmentTaxKind);
+    const file = requireImageOrPdfUpload(formData.get("document"), {
+      requiredMessage: "Upload the billing notice or payment invoice.",
+      sizeMessage: "File must be 10 MB or smaller.",
+      typeMessage: "Upload an image or PDF.",
+    });
+    const filePath = await saveUpload(file, "uploads/purchase-invoices", {
+      fileBaseName: buildBillingDocumentFileBase({
+        prefix: "Government-Billing",
+        clientName: supplierName,
+        invoiceNumber: invoiceRef,
+      }),
+    });
+
+    await prisma.purchaseInvoice.create({
+      data: {
+        companyId: session.user.companyId,
+        supplierName,
+        vendorId: null,
+        invoiceRef,
+        invoiceDate,
+        amount,
+        filePath,
+        notes: notesRaw,
+        includesPpn: false,
+        purchaseCategory: "GOVERNMENT",
+        governmentTaxKind,
+        purpose: "INTERNAL",
+        origin: "LOCAL",
+        paidAt: new Date(),
+        bankAccountId,
+        createdById: session.user.id,
+      },
+    });
+
+    revalidatePath("/billing/purchase-invoices");
+    revalidatePath("/billing/tax-invoices");
+    revalidatePath("/billing/financial-report");
+    return;
+  }
+
   let supplierName = String(formData.get("supplierName") ?? "").trim();
   const vendorIdRaw = String(formData.get("vendorId") ?? "").trim();
-  const invoiceRef = String(formData.get("invoiceRef") ?? "").trim();
-  const invoiceDateRaw = String(formData.get("invoiceDate") ?? "").trim();
+  let invoiceRef = String(formData.get("invoiceRef") ?? "").trim();
+  let invoiceDateRaw = String(formData.get("invoiceDate") ?? "").trim();
   const amountRaw = String(formData.get("amount") ?? "").trim();
   const linesRaw = String(formData.get("linesJson") ?? "").trim();
   const notesRaw = String(formData.get("notes") ?? "").trim();
-  const includesPpn =
+  let includesPpn =
     formData.get("includesPpn") === "on" ||
     formData.get("includesPpn") === "true";
   const purchaseCategoryRaw = String(formData.get("purchaseCategory") ?? "")
@@ -298,12 +686,224 @@ export async function createPurchaseInvoice(formData: FormData) {
     .toUpperCase();
   const purchaseCategory =
     purchaseCategoryRaw === "SERVICE" ? "SERVICE" : "PRODUCT";
-  const purpose = parsePurchasePurpose(formData.get("purchasePurpose"));
-  const projectIdRaw = String(formData.get("projectId") ?? "").trim();
+  const originRaw = String(formData.get("purchaseOrigin") ?? "LOCAL")
+    .trim()
+    .toUpperCase();
+  const freeOfCharge =
+    (purchaseCategory === "PRODUCT" || purchaseCategory === "SERVICE") &&
+    (formData.get("freeOfCharge") === "on" ||
+      formData.get("freeOfCharge") === "true");
+  const freeOfChargeReason = freeOfCharge
+    ? capitalizeProper(
+        String(formData.get("freeOfChargeReason") ?? "").trim()
+      )
+    : "";
+  if (freeOfCharge && !freeOfChargeReason) {
+    throw new Error("Enter the reason this purchase is free of charge.");
+  }
+  const hasInvoice = !freeOfCharge || formFlagTrue(formData, "hasInvoice");
+  const focShipping = freeOfCharge
+    ? parseFocShipping(
+        formData,
+        purchaseCategory === "SERVICE"
+          ? "Enter the Bank Rate for this related cost."
+          : "Enter the Bank Rate for this shipping cost."
+      )
+    : {
+        currency: null,
+        foreignAmount: null,
+        rateToIdr: null,
+        idr: null,
+      };
+  const focRelatedCostDescription =
+    freeOfCharge &&
+    purchaseCategory === "SERVICE" &&
+    (focShipping.idr ?? 0) > 0
+      ? titleCaseWords(String(formData.get("shippingDescription") ?? "").trim())
+      : null;
+  if (
+    freeOfCharge &&
+    purchaseCategory === "SERVICE" &&
+    (focShipping.idr ?? 0) > 0 &&
+    !focRelatedCostDescription
+  ) {
+    throw new Error("Enter what this related cost is.");
+  }
+  const requestedImport =
+    purchaseCategory === "PRODUCT" && originRaw === "IMPORT";
+  const hasCustomsFees =
+    freeOfCharge &&
+    purchaseCategory === "PRODUCT" &&
+    requestedImport &&
+    formFlagTrue(formData, "hasCustomsFees");
+  if (!hasInvoice) {
+    invoiceRef = "";
+    invoiceDateRaw = /^\d{4}-\d{2}-\d{2}$/.test(invoiceDateRaw)
+      ? invoiceDateRaw
+      : todayDateInput();
+  }
+  const origin =
+    hasCustomsFees ||
+    (!freeOfCharge &&
+      purchaseCategory === "PRODUCT" &&
+      originRaw === "IMPORT")
+      ? "IMPORT"
+      : "LOCAL";
+  const purpose = resolvePurchasePurpose({
+    category: purchaseCategory,
+    requested: parsePurchasePurpose(formData.get("purchasePurpose")),
+  });
+  const projectIdRaw =
+    purchaseCategory === "SERVICE"
+      ? String(formData.get("projectId") ?? "").trim()
+      : "";
   const ppnRateRaw = String(formData.get("ppnRatePercent") ?? "").trim();
 
   const portalVendorId = session.user.vendorId ?? null;
-  const lines = parsePurchaseLinesJson(linesRaw);
+  let lines = parsePurchaseLinesJson(linesRaw, {
+    requireCatalogItem: purchaseCategory === "PRODUCT",
+  });
+  if (freeOfCharge && !hasCustomsFees) {
+    includesPpn = false;
+    lines = lines.map((line) => ({ ...line, unitPrice: 0 }));
+    if ((focShipping.idr ?? 0) > 0 && lines.length > 0) {
+      const allocated = allocateImportStockCost({
+        stockLandedCostIdr: focShipping.idr ?? 0,
+        headerForeignAmount: 0,
+        lines: lines.map((line) => ({ quantity: line.quantity })),
+      });
+      lines = lines.map((line, index) => ({
+        ...line,
+        unitPrice: allocated[index]?.unitCostIdr ?? 0,
+      }));
+    }
+  }
+  const paymentTermsDays = freeOfCharge
+    ? 0
+    : parsePurchasePaymentTermsDays(formData);
+  const invoicePaidNow =
+    freeOfCharge ||
+    (origin !== "IMPORT" && isCashPaymentTerms(paymentTermsDays));
+  const importFulfillment =
+    origin === "IMPORT"
+      ? parseImportFulfillment(formData.get("importFulfillment"))
+      : null;
+  const rawHandlingVendorId =
+    origin === "IMPORT"
+      ? String(formData.get("handlingVendorId") ?? "").trim()
+      : "";
+  const importDutiesBillingId =
+    (origin === "IMPORT" && importFulfillment === "INTERNAL") || hasCustomsFees
+      ? String(formData.get("importDutiesBillingId") ?? "").trim()
+      : "";
+  const recordingImportArrivalNow =
+    origin === "IMPORT" &&
+    (Boolean(importDutiesBillingId) ||
+      (importFulfillment === "OUTSOURCED" &&
+        Boolean(rawHandlingVendorId) &&
+        !isHandlingByHeadOffice(rawHandlingVendorId) &&
+        Boolean(String(formData.get("handlingFeeIdr") ?? "").trim())));
+  const importPaidItems =
+    origin === "IMPORT"
+      ? recordingImportArrivalNow
+        ? invoicePaidNow
+          ? "BOTH"
+          : "DUTIES"
+        : "INVOICE"
+      : null;
+  const handledByHeadOffice =
+    origin === "IMPORT" &&
+    importFulfillment === "INTERNAL" &&
+    isHandlingByHeadOffice(rawHandlingVendorId);
+  if (
+    origin === "IMPORT" &&
+    importFulfillment === "OUTSOURCED" &&
+    isHandlingByHeadOffice(rawHandlingVendorId)
+  ) {
+    throw new Error("Select the Handling Vendor.");
+  }
+  const handling =
+    origin === "IMPORT" && !handledByHeadOffice
+      ? parseHandlingFee(
+          formData,
+          recordingImportArrivalNow && importFulfillment === "OUTSOURCED"
+        )
+      : {
+          handlingFeeIdr: null,
+          handlingFeeIncludesPpn: false,
+          handlingFeePpnRatePercent: null,
+          handlingFeeAmountPaidIdr: null,
+        };
+
+  let importPayload: ImportFormPayload | null = null;
+  let importResult: ImportLandedCostResult | null = null;
+  let importStockLandedCostIdr: number | null = null;
+  if (origin === "IMPORT") {
+    const importJsonRaw = String(formData.get("importJson") ?? "").trim();
+    if (!importJsonRaw) {
+      if (!freeOfCharge) {
+        throw new Error("Enter the overseas invoice amount and Bank Rate.");
+      }
+    } else {
+    importPayload = parseImportFormPayload(importJsonRaw, {
+      requireCustomsRates: recordingImportArrivalNow,
+    });
+    if (importFulfillment === "OUTSOURCED") {
+      importPayload = outsourcedImportPayload(importPayload);
+    }
+    importResult = calculateImportLandedCost(importPayload);
+    if (
+      recordingImportArrivalNow &&
+      hasCustomsFees &&
+      (importPayload.declaredValue == null || importPayload.declaredValue <= 0)
+    ) {
+      throw new Error("Enter the declared value.");
+    }
+    includesPpn =
+      importFulfillment === "INTERNAL" ? importResult.ppnApplied : false;
+    importStockLandedCostIdr =
+      (focShipping.idr ?? 0) +
+      importResult.paidToVendorIdr +
+      (importFulfillment === "INTERNAL"
+        ? importResult.beaMasukAmountIdr + importResult.ppnbmAmountIdr
+        : 0) +
+      (handling.handlingFeeIdr ?? 0);
+    const allocated = allocateImportStockCost({
+      stockLandedCostIdr: importStockLandedCostIdr,
+      headerForeignAmount: importPayload.foreignAmount,
+      lines: lines.map((line) => ({
+        quantity: line.quantity,
+        foreignAmount: line.foreignAmount,
+      })),
+    });
+    lines = lines.map((line, index) => ({
+      ...line,
+      unitPrice: allocated[index]?.unitCostIdr ?? 0,
+    }));
+    }
+  }
+
+  let includedTaxKind: CommercialTaxKind | null = null;
+  let pphRatePercentValue: number | null = null;
+  let otherTaxName: string | null = null;
+  if (origin !== "IMPORT") {
+    const taxIncluded = includesPpn;
+    if (taxIncluded) {
+      includedTaxKind = parseCommercialTaxKind(formData.get("includedTaxKind"));
+      includesPpn = commercialTaxIncludesVat(includedTaxKind);
+      otherTaxName = parseOtherTaxName(
+        formData.get("otherTaxName"),
+        includedTaxKind
+      );
+      if (commercialTaxRequiresRatePercent(includedTaxKind)) {
+        pphRatePercentValue = parseCommercialPphRatePercent(
+          formData.get("pphRatePercent")
+        );
+      }
+    } else {
+      includesPpn = false;
+    }
+  }
   // HO purchases must specify catalog lines; vendor portal may still send header-only.
   if (!portalVendorId && lines.length === 0) {
     throw new Error("Add at least one purchased item.");
@@ -335,10 +935,17 @@ export async function createPurchaseInvoice(formData: FormData) {
         companyId: session.user.companyId,
         active: true,
       },
-      select: { id: true, name: true },
+      select: { id: true, name: true, vendorType: true },
     });
     if (!vendor) {
       throw new Error("Select a registered vendor.");
+    }
+    if (!vendorMatchesPurchaseOrigin(vendor.vendorType, origin)) {
+      throw new Error(
+        origin === "IMPORT"
+          ? "Imported From Overseas only uses an Overseas vendor."
+          : "Bought Locally only uses a Company or Individual vendor."
+      );
     }
     vendorId = vendor.id;
     supplierName = vendor.name;
@@ -347,7 +954,7 @@ export async function createPurchaseInvoice(formData: FormData) {
   if (!vendorId || !supplierName) {
     throw new Error("Select a registered vendor.");
   }
-  if (!invoiceRef) {
+  if (hasInvoice && !invoiceRef) {
     throw new Error("Invoice Number / Ref is required.");
   }
 
@@ -370,15 +977,23 @@ export async function createPurchaseInvoice(formData: FormData) {
     projectId = taggedProject.id;
   }
   assertPurchasePurposeProject({ purpose, projectId });
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(invoiceDateRaw)) {
+  if (hasInvoice && !/^\d{4}-\d{2}-\d{2}$/.test(invoiceDateRaw)) {
     throw new Error("Invoice Date is required.");
   }
+  if (!hasInvoice && !/^\d{4}-\d{2}-\d{2}$/.test(invoiceDateRaw)) {
+    invoiceDateRaw = todayDateInput();
+  }
 
-  const file = requireImageOrPdfUpload(formData.get("document"), {
-    requiredMessage: "Upload the purchase invoice document.",
-    sizeMessage: "File must be 10 MB or smaller.",
-    typeMessage: "Upload an image or PDF.",
-  });
+  const file = hasInvoice
+    ? requireImageOrPdfUpload(formData.get("document"), {
+        requiredMessage: "Upload the purchase invoice document.",
+        sizeMessage: "File must be 10 MB or smaller.",
+        typeMessage: "Upload an image or PDF.",
+      })
+    : optionalImageOrPdfUpload(formData.get("document"), {
+        sizeMessage: "File must be 10 MB or smaller.",
+        typeMessage: "Upload an image or PDF.",
+      });
 
   const taxFile =
     includesPpn
@@ -392,18 +1007,26 @@ export async function createPurchaseInvoice(formData: FormData) {
 
   let lineTotal = 0;
   if (lines.length > 0) {
-    const itemIds = [...new Set(lines.map((line) => line.itemId))];
-    const catalog = await prisma.inventoryItem.findMany({
-      where: {
-        companyId: session.user.companyId,
-        id: { in: itemIds },
-        active: true,
-        deletedAt: null,
-      },
-      select: { id: true, tracksStock: true },
-    });
-    if (catalog.length !== itemIds.length) {
-      throw new Error("One or more items are missing from the catalog.");
+    const itemIds = [
+      ...new Set(
+        lines
+          .map((line) => line.itemId)
+          .filter((id): id is string => Boolean(id))
+      ),
+    ];
+    if (purchaseCategory === "PRODUCT") {
+      const catalog = await prisma.inventoryItem.findMany({
+        where: {
+          companyId: session.user.companyId,
+          id: { in: itemIds },
+          active: true,
+          deletedAt: null,
+        },
+        select: { id: true, tracksStock: true },
+      });
+      if (catalog.length !== itemIds.length) {
+        throw new Error("One or more items are missing from the catalog.");
+      }
     }
     lineTotal = lines.reduce(
       (sum, line) => sum + line.quantity * line.unitPrice,
@@ -414,10 +1037,15 @@ export async function createPurchaseInvoice(formData: FormData) {
     }
   }
 
-  const amount =
-    lines.length > 0
-      ? new Prisma.Decimal(Math.round(lineTotal * 100) / 100)
-      : parseAmount(amountRaw);
+  const amount = freeOfCharge
+    ? new Prisma.Decimal(
+        Math.round((hasCustomsFees ? 0 : focShipping.idr ?? 0) * 100) / 100
+      )
+    : origin === "IMPORT" && importResult
+      ? new Prisma.Decimal(importResult.invoiceAmountIdr)
+      : lines.length > 0
+        ? new Prisma.Decimal(Math.round(lineTotal * 100) / 100)
+        : parseAmount(amountRaw);
   const invoiceAmount = decimalToNumber(amount);
   if (invoiceAmount == null) {
     throw new Error("Enter a valid amount.");
@@ -425,9 +1053,18 @@ export async function createPurchaseInvoice(formData: FormData) {
 
   let ppnRatePercent: number | null = null;
   if (includesPpn) {
-    ppnRatePercent = parsePpnRatePercent(ppnRateRaw);
+    ppnRatePercent =
+      origin === "IMPORT" && importResult
+        ? importResult.ppnRatePercent
+        : parsePpnRatePercent(ppnRateRaw);
     if (ppnRatePercent == null) {
       throw new Error("Enter the tax rate percent for this purchase.");
+    }
+    if (origin !== "IMPORT") {
+      assertInclusiveCreditableTax(
+        invoiceAmount,
+        ppnRateFromPercent(ppnRatePercent)
+      );
     }
   }
 
@@ -435,13 +1072,15 @@ export async function createPurchaseInvoice(formData: FormData) {
     ? parseManualVerifyReason(formData.get("manualReason"))
     : null;
 
-  const filePath = await saveUpload(file, "uploads/purchase-invoices", {
-    fileBaseName: buildBillingDocumentFileBase({
-      prefix: "Purchase-Invoice",
-      clientName: supplierName,
-      invoiceNumber: invoiceRef,
-    }),
-  });
+  const filePath = file
+    ? await saveUpload(file, "uploads/purchase-invoices", {
+        fileBaseName: buildBillingDocumentFileBase({
+          prefix: "Purchase-Invoice",
+          clientName: supplierName,
+          invoiceNumber: invoiceRef || "No-Invoice",
+        }),
+      })
+    : "";
 
   let taxInvoiceFilePath: string | null = null;
   if (taxFile) {
@@ -456,6 +1095,156 @@ export async function createPurchaseInvoice(formData: FormData) {
       throw error;
     }
   }
+
+  const handlingVendorId = handledByHeadOffice ? "" : rawHandlingVendorId;
+
+  if (recordingImportArrivalNow && hasCustomsFees && !importDutiesBillingId) {
+    throw new Error("Enter the Import Duties Billing ID.");
+  }
+  if (
+    recordingImportArrivalNow &&
+    origin === "IMPORT" &&
+    importFulfillment === "INTERNAL"
+  ) {
+    if (!importDutiesBillingId) {
+      throw new Error("Enter the Import Duties Billing ID.");
+    }
+    if (!handledByHeadOffice && !handlingVendorId) {
+      throw new Error("Select the Handling Vendor or Handled By Head Office.");
+    }
+  }
+  if (
+    recordingImportArrivalNow &&
+    origin === "IMPORT" &&
+    importFulfillment === "OUTSOURCED"
+  ) {
+    if (!handlingVendorId) {
+      throw new Error("Select the Handling Vendor.");
+    }
+  }
+  if (
+    origin === "IMPORT" &&
+    handling.handlingFeeIdr != null &&
+    handling.handlingFeeIdr > 0 &&
+    !handlingVendorId
+  ) {
+    throw new Error("Select the Handling Vendor.");
+  }
+  if (handlingVendorId) {
+    const handlingVendor = await prisma.vendor.findFirst({
+      where: {
+        id: handlingVendorId,
+        companyId: session.user.companyId,
+        active: true,
+      },
+      select: { id: true, vendorType: true },
+    });
+    if (!handlingVendor) {
+      throw new Error("Select the Handling Vendor.");
+    }
+    if (!vendorMatchesPurchaseOrigin(handlingVendor.vendorType, "LOCAL")) {
+      throw new Error(
+        "The Handling Vendor must be a Company or Individual."
+      );
+    }
+  }
+
+  let importDutiesFilePath: string | null = null;
+  const dutiesFile =
+    recordingImportArrivalNow &&
+    origin === "IMPORT" &&
+    importFulfillment === "INTERNAL"
+      ? requireImageOrPdfUpload(formData.get("importDutiesDocument"), {
+          requiredMessage: "Upload the Import Duties invoice.",
+          sizeMessage: "Import duties file must be 10 MB or smaller.",
+          typeMessage: "Upload an image or PDF for the Import Duties invoice.",
+        })
+      : recordingImportArrivalNow && hasCustomsFees
+        ? requireImageOrPdfUpload(formData.get("importDutiesDocument"), {
+            requiredMessage:
+              "Upload the tax invoice or Billing ID document for these duties.",
+            sizeMessage: "Import duties file must be 10 MB or smaller.",
+            typeMessage:
+              "Upload an image or PDF for the tax invoice or Billing ID document.",
+          })
+        : optionalImageOrPdfUpload(formData.get("importDutiesDocument"), {
+            sizeMessage: "Import duties file must be 10 MB or smaller.",
+            typeMessage: "Upload an image or PDF for the Import Duties invoice.",
+          });
+  if (dutiesFile) {
+    importDutiesFilePath = await saveUpload(
+      dutiesFile,
+      "uploads/purchase-invoices",
+      {
+        fileBaseName: buildBillingDocumentFileBase({
+          prefix: "Import-Duties",
+          clientName: supplierName,
+          invoiceNumber: invoiceRef,
+        }),
+      }
+    );
+  }
+
+  let handlingFeeTaxInvoicePath: string | null = null;
+  const requireHandlingInvoice =
+    recordingImportArrivalNow &&
+    origin === "IMPORT" &&
+    (importFulfillment === "OUTSOURCED" ||
+      (handling.handlingFeeIdr != null && handling.handlingFeeIdr > 0));
+  const handlingFeeFile =
+    requireHandlingInvoice
+      ? requireImageOrPdfUpload(formData.get("handlingFeeDocument"), {
+          requiredMessage: "Upload the Handling Fee invoice.",
+          sizeMessage: "Handling Fee invoice must be 10 MB or smaller.",
+          typeMessage: "Upload an image or PDF for the Handling Fee invoice.",
+        })
+      : origin === "IMPORT"
+        ? optionalImageOrPdfUpload(formData.get("handlingFeeDocument"), {
+            sizeMessage: "Handling Fee invoice must be 10 MB or smaller.",
+            typeMessage: "Upload an image or PDF for the Handling Fee invoice.",
+          })
+        : null;
+  if (handlingFeeFile) {
+    handlingFeeTaxInvoicePath = await saveUpload(
+      handlingFeeFile,
+      "uploads/purchase-invoices",
+      {
+        fileBaseName: buildBillingDocumentFileBase({
+          prefix: "Import-Handling",
+          clientName: supplierName,
+          invoiceNumber: invoiceRef,
+        }),
+      }
+    );
+  }
+
+  if (origin === "IMPORT") {
+    const handlingTaxFile = handling.handlingFeeIncludesPpn
+      ? requireImageOrPdfUpload(formData.get("handlingFeeTaxDocument"), {
+          requiredMessage: "Upload the tax invoice for the handling fee.",
+          sizeMessage: "Handling tax invoice must be 10 MB or smaller.",
+          typeMessage: "Upload an image or PDF for the handling tax invoice.",
+        })
+      : optionalImageOrPdfUpload(formData.get("handlingFeeTaxDocument"), {
+          sizeMessage: "Handling tax invoice must be 10 MB or smaller.",
+          typeMessage: "Upload an image or PDF for the handling tax invoice.",
+        });
+    if (handlingTaxFile) {
+      taxInvoiceFilePath = await saveUpload(
+        handlingTaxFile,
+        "uploads/purchase-invoices",
+        {
+          fileBaseName: buildBillingDocumentFileBase({
+            prefix: "Import-Handling-Tax",
+            clientName: supplierName,
+            invoiceNumber: invoiceRef,
+          }),
+        }
+      );
+    }
+  }
+
+  const vehicleLease = parseVehicleLeaseFromForm(formData);
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -472,30 +1261,221 @@ export async function createPurchaseInvoice(formData: FormData) {
           taxInvoiceUploadedAt: taxInvoiceFilePath ? new Date() : null,
           taxInvoiceManualReason,
           notes: notesRaw || null,
+          freeOfCharge,
+          freeOfChargeReason: freeOfCharge ? freeOfChargeReason : null,
+          hasInvoice,
+          shippingCurrency: focShipping.currency,
+          shippingForeignAmount: optionalDecimal(focShipping.foreignAmount),
+          shippingRateToIdr: optionalDecimal(focShipping.rateToIdr),
+          shippingIdr: optionalDecimal(focShipping.idr),
+          hasCustomsFees,
+          declaredValue: optionalDecimal(importPayload?.declaredValue),
+          declaredCurrency: hasCustomsFees
+            ? importPayload?.declaredCurrency ?? null
+            : null,
+          declaredCustomsRate: optionalDecimal(
+            hasCustomsFees ? importPayload?.declaredCustomsRate : null
+          ),
           includesPpn,
+          includedTaxKind,
+          pphRatePercent: pphRatePercentValue,
+          otherTaxName: focRelatedCostDescription ?? otherTaxName,
           purchaseCategory,
           ppnRatePercent,
           purpose,
           projectId,
+          paymentTermsDays,
+          paidAt: invoicePaidNow ? new Date() : null,
+          paidById: invoicePaidNow ? session.user.id : null,
+          bankAccountId,
+          origin,
+          invoiceCurrency: hasCustomsFees
+            ? null
+            : importPayload?.currency ?? null,
+          invoiceForeignAmount: hasCustomsFees
+            ? null
+            : optionalDecimal(importPayload?.foreignAmount),
+          exchangeRateToIdr: hasCustomsFees
+            ? null
+            : optionalDecimal(importPayload?.exchangeRateToIdr),
+          customsRateToIdr: optionalDecimal(
+            hasCustomsFees
+              ? importPayload?.declaredCustomsRate
+              : importPayload?.customsRateToIdr
+          ),
+          customsRatesToIdr: importPayload?.customsRatesToIdr ?? undefined,
+          invoiceAmountIdr: optionalDecimal(importResult?.invoiceAmountIdr),
+          freightCurrency:
+            (importPayload?.freightForeignAmount ?? 0) > 0 ||
+            (importResult?.vendorFreightIdr ?? 0) > 0
+              ? importPayload?.freightCurrency ?? null
+              : null,
+          freightForeignAmount:
+            (importPayload?.freightForeignAmount ?? 0) > 0
+              ? optionalDecimal(importPayload?.freightForeignAmount)
+              : null,
+          freightIdr: optionalDecimal(importResult?.freightIdr),
+          freightIncludedInInvoice:
+            importPayload?.freightIncludedInInvoice !== false,
+          freightRateToIdr:
+            importPayload?.freightIncludedInInvoice === false &&
+            importPayload?.freightCurrency !== "IDR"
+              ? optionalDecimal(importPayload?.freightRateToIdr)
+              : null,
+          freightCustomsRateToIdr:
+            importPayload?.freightIncludedInInvoice === false &&
+            importPayload?.freightCurrency !== "IDR"
+              ? optionalDecimal(importPayload?.freightCustomsRateToIdr)
+              : null,
+          insuranceCurrency:
+            (importPayload?.insuranceForeignAmount ?? 0) > 0 ||
+            (importResult?.vendorInsuranceIdr ?? 0) > 0
+              ? importPayload?.insuranceCurrency ?? null
+              : null,
+          insuranceForeignAmount:
+            (importPayload?.insuranceForeignAmount ?? 0) > 0
+              ? optionalDecimal(importPayload?.insuranceForeignAmount)
+              : null,
+          insuranceIdr: optionalDecimal(importResult?.insuranceIdr),
+          insuranceIncludedInInvoice:
+            importPayload?.insuranceIncludedInInvoice !== false,
+          insuranceRateToIdr:
+            importPayload?.insuranceIncludedInInvoice === false &&
+            importPayload?.insuranceCurrency !== "IDR"
+              ? optionalDecimal(importPayload?.insuranceRateToIdr)
+              : null,
+          insuranceCustomsRateToIdr:
+            importPayload?.insuranceIncludedInInvoice === false &&
+            importPayload?.insuranceCurrency !== "IDR"
+              ? optionalDecimal(importPayload?.insuranceCustomsRateToIdr)
+              : null,
+          bankFeeCurrency: importResult?.bankChargeIdr
+            ? importPayload?.bankFeeCurrency ?? null
+            : null,
+          bankFeeForeignAmount: importResult?.bankChargeIdr
+            ? optionalDecimal(importPayload?.bankFeeForeignAmount)
+            : null,
+          bankFeeIdr: optionalDecimal(importResult?.bankChargeIdr),
+          fullAmountFeeCurrency: importResult?.fullAmountFeeIdr
+            ? importPayload?.fullAmountFeeCurrency ?? null
+            : null,
+          fullAmountFeeForeignAmount: importResult?.fullAmountFeeIdr
+            ? optionalDecimal(importPayload?.fullAmountFeeForeignAmount)
+            : null,
+          fullAmountFeeIdr: optionalDecimal(importResult?.fullAmountFeeIdr),
+          localBankFeeIdr: optionalDecimal(importResult?.localBankFeeIdr),
+          clearanceCostIdr: optionalDecimal(importResult?.clearanceCostIdr),
+          formEApplied: importResult?.formEApplied ?? false,
+          beaMasukApplied: importResult?.beaMasukApplied ?? false,
+          beaMasukRatePercent: optionalDecimal(importResult?.beaMasukRatePercent),
+          beaMasukAmountIdr: optionalDecimal(importResult?.beaMasukAmountIdr),
+          ppnbmApplied: importResult?.ppnbmApplied ?? false,
+          ppnbmRatePercent: optionalDecimal(importResult?.ppnbmRatePercent),
+          ppnbmAmountIdr: optionalDecimal(importResult?.ppnbmAmountIdr),
+          importPpnAmountIdr: optionalDecimal(importResult?.ppnAmountIdr),
+          pph22Applied: importResult?.pph22Applied ?? false,
+          pph22Basis: importResult?.pph22Applied
+            ? importResult.pph22Basis
+            : null,
+          pph22RatePercent: optionalDecimal(importResult?.pph22RatePercent),
+          pph22AmountIdr: optionalDecimal(importResult?.pph22AmountIdr),
+          customsValueIdr: optionalDecimal(importResult?.customsValueIdr),
+          importValueIdr: optionalDecimal(importResult?.importValueIdr),
+          stockLandedCostIdr: optionalDecimal(
+            freeOfCharge && !hasCustomsFees
+              ? purchaseCategory === "SERVICE"
+                ? null
+                : focShipping.idr
+              : importStockLandedCostIdr
+          ),
+          importFulfillment,
+          importPaidItems,
+          importDutiesBillingId: importDutiesBillingId || null,
+          importDutiesFilePath:
+            origin === "IMPORT" || hasCustomsFees
+              ? importDutiesFilePath
+              : null,
+          importDutiesPaidAt: recordingImportArrivalNow ? new Date() : null,
+          importDutiesPaidById: recordingImportArrivalNow
+            ? session.user.id
+            : null,
+          importPpnBillingId: null,
+          importPph22BillingId: null,
+          handlingVendorId: handlingVendorId || null,
+          handlingFeeIdr: optionalDecimal(handling.handlingFeeIdr),
+          handlingFeeIncludesPpn: handling.handlingFeeIncludesPpn,
+          handlingFeePpnRatePercent: optionalDecimal(
+            handling.handlingFeePpnRatePercent
+          ),
+          handlingFeeAmountPaidIdr: optionalDecimal(
+            handling.handlingFeeAmountPaidIdr
+          ),
+          handlingFeeTaxInvoicePath,
+          isVehicleLease: vehicleLease.isVehicleLease,
+          leaseOtrAmount: optionalDecimal(vehicleLease.otrAmount),
+          leaseDownPayment: optionalDecimal(vehicleLease.downPayment),
+          leaseTenorMonths: vehicleLease.tenorMonths,
+          leaseInterestPercentYear: optionalDecimal(
+            vehicleLease.interestPercentYear
+          ),
+          leaseAdminFee: optionalDecimal(vehicleLease.adminFee),
+          leaseInsuranceAmount: optionalDecimal(vehicleLease.insuranceAmount),
+          leaseFiduciaryFee: optionalDecimal(vehicleLease.fiduciaryFee),
+          leaseProvisionFee: optionalDecimal(vehicleLease.provisionFee),
+          leaseOtherFee: optionalDecimal(vehicleLease.otherFee),
+          leaseMonthlyInstallment: optionalDecimal(
+            vehicleLease.monthlyInstallment
+          ),
           createdById: session.user.id,
         },
       });
 
-      // Commercial invoice lines stay tax-inclusive when PPN applies.
-      // Stock valuation / EquipmentAsset.unitCost always use ex-tax (DPP) unit cost.
+      // Local commercial lines stay tax-inclusive when PPN applies.
+      // Import lines are already warehouse (ex-tax) unit cost.
       const ppnRate =
-        includesPpn && ppnRatePercent != null
+        origin !== "IMPORT" && includesPpn && ppnRatePercent != null
           ? ppnRateFromPercent(ppnRatePercent)
           : 0;
 
+      let mintedVehiclePlate: string | null = null;
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i]!;
         const totalPrice = line.quantity * line.unitPrice;
+        const purchaseUnitCost =
+          origin === "IMPORT"
+            ? line.unitPrice
+            : ppnRate > 0
+              ? exclusiveUnitCostFromInclusive(line.unitPrice, ppnRate)
+              : line.unitPrice;
+        const costTotalPrice = line.quantity * purchaseUnitCost;
+        const stockQty = normalizeInventoryQty(
+          stockQuantityFromPurchase({
+            purchaseQty: line.quantity,
+            packContents: line.packContents,
+          })
+        );
         const costUnitPrice =
-          ppnRate > 0
-            ? exclusiveUnitCostFromInclusive(line.unitPrice, ppnRate)
-            : line.unitPrice;
-        const costTotalPrice = line.quantity * costUnitPrice;
+          stockQty > 0
+            ? Math.round((costTotalPrice / stockQty) * 100) / 100
+            : purchaseUnitCost;
+
+        if (!line.itemId) {
+          await tx.purchaseInvoiceLine.create({
+            data: {
+              purchaseInvoiceId: invoice.id,
+              itemId: null,
+              description: line.description ?? null,
+              unit: line.unit ? normalizeInventoryUnit(line.unit) : null,
+              packContents: optionalDecimal(line.packContents),
+              quantity: toDecimal(line.quantity),
+              unitPrice: toDecimal(line.unitPrice),
+              totalPrice: toDecimal(totalPrice),
+              sortOrder: i,
+            },
+          });
+          continue;
+        }
+
         const item = await tx.inventoryItem.findFirst({
           where: {
             id: line.itemId,
@@ -503,16 +1483,39 @@ export async function createPurchaseInvoice(formData: FormData) {
             active: true,
             deletedAt: null,
           },
-          select: { id: true, tracksStock: true, itemType: true },
+          select: { id: true, tracksStock: true, itemType: true, unit: true },
         });
         if (!item) {
           throw new Error("One or more items are missing from the catalog.");
+        }
+
+        if (
+          isPackInventoryUnit(line.unit ?? "") &&
+          normalizeInventoryUnit(line.unit ?? "") !==
+            normalizeInventoryUnit(item.unit) &&
+          !(line.packContents != null && line.packContents > 0)
+        ) {
+          throw new Error(
+            `Enter how many ${item.unit} are in each ${line.unit} for line ${i + 1}.`
+          );
+        }
+
+        if (
+          isEquipmentItemType(item.itemType) &&
+          !isWholeInventoryQty(stockQty)
+        ) {
+          throw new Error(
+            `Equipment quantity for line ${i + 1} must be a whole number.`
+          );
         }
 
         const createdLine = await tx.purchaseInvoiceLine.create({
           data: {
             purchaseInvoiceId: invoice.id,
             itemId: item.id,
+            description: line.description ?? null,
+            unit: line.unit ? normalizeInventoryUnit(line.unit) : item.unit,
+            packContents: optionalDecimal(line.packContents),
             quantity: toDecimal(line.quantity),
             unitPrice: toDecimal(line.unitPrice),
             totalPrice: toDecimal(totalPrice),
@@ -520,71 +1523,75 @@ export async function createPurchaseInvoice(formData: FormData) {
           },
         });
 
-        if (!item.tracksStock || !purchaseCreatesStock(purpose)) continue;
-
-        const locked = await lockInventoryItemRow(tx, item.id);
-        if (!locked || !locked.active) {
-          throw new Error("One or more items are missing from the catalog.");
+        if (isVehicleItemType(item.itemType)) {
+          if (mintedVehiclePlate) {
+            throw new Error(
+              "Record one vehicle per expense. Use a separate expense for each number plate."
+            );
+          }
+          if (!isWholeInventoryQty(stockQty) || Math.round(stockQty) !== 1) {
+            throw new Error(
+              "Vehicle quantity must be 1. Record each vehicle on its own expense."
+            );
+          }
+          mintedVehiclePlate = parseRequiredVehiclePlate(
+            formData.get("vehiclePlate")
+          );
+          await mintVehicleAssetByPlate(
+            tx,
+            session.user.companyId,
+            item.id,
+            mintedVehiclePlate,
+            { unitCost: costUnitPrice }
+          );
+          await tx.purchaseInvoice.update({
+            where: { id: invoice.id },
+            data: { vehiclePlate: mintedVehiclePlate },
+          });
         }
-        const currentStock = inventoryQtyFromDecimal(locked.currentStock);
-        const avgUnitCost = decimalToNumber(locked.avgUnitCost);
-        const newAvg = nextWeightedAvgUnitCost({
-          currentStock,
-          avgUnitCost,
-          purchaseQty: line.quantity,
-          purchaseUnitPrice: costUnitPrice,
-        });
-        const newStock = normalizeInventoryQty(currentStock + line.quantity);
 
-        const movement = await tx.inventoryMovement.create({
-          data: {
-            companyId: session.user.companyId,
-            itemId: item.id,
-            type: "PURCHASE",
-            quantity: toDecimal(line.quantity),
-            unitCost: toDecimal(costUnitPrice),
-            totalCost: toDecimal(costTotalPrice),
-            movedAt: invoiceDate,
-            notes: notesRaw || null,
-            createdById: session.user.id,
-          },
-        });
+        if (
+          !item.tracksStock ||
+          !purchaseCreatesStock(purpose, purchaseCategory) ||
+          (origin === "IMPORT" && !recordingImportArrivalNow)
+        ) {
+          continue;
+        }
+        if (!vendorId) {
+          throw new Error("Select the vendor.");
+        }
 
-        await tx.inventoryPurchase.create({
-          data: {
-            companyId: session.user.companyId,
-            itemId: item.id,
-            vendorId: vendorId!,
-            purchasedAt: invoiceDate,
-            quantity: toDecimal(line.quantity),
-            unitPrice: toDecimal(costUnitPrice),
-            totalPrice: toDecimal(costTotalPrice),
-            invoiceNo: invoiceRef,
-            receiptUrl: filePath,
-            notes: notesRaw || null,
-            movementId: movement.id,
-            purchaseInvoiceLineId: createdLine.id,
-            createdById: session.user.id,
-          },
+        await applyPurchaseLineStockIn(tx, {
+          companyId: session.user.companyId,
+          userId: session.user.id,
+          invoiceDate,
+          invoiceRef,
+          filePath,
+          notes: notesRaw || null,
+          vendorId,
+          itemId: item.id,
+          purchaseInvoiceLineId: createdLine.id,
+          stockQty,
+          costUnitPrice,
+          costTotalPrice,
         });
-
-        await tx.inventoryItem.update({
-          where: { id: item.id },
-          data: {
-            currentStock: toDecimal(newStock),
-            lastUnitCost: toDecimal(costUnitPrice),
-            avgUnitCost: toDecimal(newAvg),
-          },
-        });
-
-        await mintEquipmentAssets(
-          tx,
-          session.user.companyId,
-          item.id,
-          line.quantity,
-          { unitCost: costUnitPrice }
-        );
       }
+
+      await writeRecordChange({
+        db: tx,
+        companyId: session.user.companyId,
+        userId: session.user.id,
+        action: "CREATE",
+        entity: "PurchaseInvoice",
+        entityId: invoice.id,
+        description: "Recorded purchase",
+        newValue: {
+          supplierName,
+          invoiceRef,
+          amount: invoiceAmount,
+          origin,
+        },
+      });
     });
   } catch (error) {
     await deleteLocalUpload(filePath);
@@ -691,6 +1698,18 @@ export async function markPurchaseInvoicePaid(formData: FormData) {
     typeMessage: translate(locale, "pages.billing.paymentProofImageOrPdf"),
   });
 
+  const bankAccountId = await parseFormCompanyBankAccountId(
+    formData,
+    session.user.companyId,
+    {
+      requiredWhenAccountsExist: true,
+      requiredMessage: translate(
+        locale,
+        "pages.billing.purchaseBankAccountRequired"
+      ),
+    }
+  );
+
   const invoice = await prisma.purchaseInvoice.findFirst({
     where: {
       id: purchaseInvoiceId,
@@ -701,7 +1720,11 @@ export async function markPurchaseInvoicePaid(formData: FormData) {
       supplierName: true,
       invoiceRef: true,
       paidAt: true,
+      reversedAt: true,
       paymentProofPath: true,
+      origin: true,
+      importDutiesPaidAt: true,
+      importPaidItems: true,
     },
   });
 
@@ -709,6 +1732,9 @@ export async function markPurchaseInvoicePaid(formData: FormData) {
     throw new Error(
       translate(locale, "pages.billing.purchaseMarkPaidNotFound")
     );
+  }
+  if (invoice.reversedAt) {
+    throw new Error("This purchase was reversed.");
   }
   if (invoice.paidAt) {
     throw new Error(
@@ -737,9 +1763,16 @@ export async function markPurchaseInvoicePaid(formData: FormData) {
         paidAt,
         paymentProofPath,
         paidById: session.user.id,
+        bankAccountId,
         paymentManualReason: parseManualVerifyReason(
           formData.get("manualReason")
         ),
+        importPaidItems:
+          invoice.origin === "IMPORT"
+            ? invoice.importDutiesPaidAt
+              ? "BOTH"
+              : "INVOICE"
+            : invoice.importPaidItems,
       },
     });
   } catch (error) {
@@ -759,4 +1792,140 @@ export async function markPurchaseInvoicePaid(formData: FormData) {
   revalidatePath("/vendors");
 
   return { id: invoice.id, paidAt };
+}
+
+export async function markImportDutiesPaid(formData: FormData) {
+  const session = await requirePurchaseManageAccess();
+  const id = String(formData.get("purchaseInvoiceId") ?? "").trim();
+  const billingId = String(formData.get("importDutiesBillingId") ?? "").trim();
+  if (!id) throw new Error("Purchase is required.");
+  if (!billingId) throw new Error("Enter the Import Duties Billing ID.");
+
+  const invoice = await prisma.purchaseInvoice.findFirst({
+    where: {
+      id,
+      companyId: session.user.companyId,
+      origin: "IMPORT",
+      reversedAt: null,
+    },
+    select: {
+      id: true,
+      importDutiesPaidAt: true,
+      importDutiesBillingId: true,
+      importDutiesFilePath: true,
+      supplierName: true,
+      invoiceRef: true,
+      invoiceDate: true,
+      filePath: true,
+      notes: true,
+      vendorId: true,
+      purpose: true,
+      purchaseCategory: true,
+      paidAt: true,
+    },
+  });
+  if (!invoice) throw new Error("Import purchase not found.");
+  if (invoice.importDutiesPaidAt) {
+    throw new Error("Import duties are already marked paid.");
+  }
+
+  const file = optionalImageOrPdfUpload(formData.get("importDutiesDocument"), {
+    sizeMessage: "Import duties file must be 10 MB or smaller.",
+    typeMessage: "Upload an image or PDF.",
+  });
+  if (!file && !invoice.importDutiesFilePath) {
+    throw new Error("Upload the Import Duties invoice.");
+  }
+  const importDutiesFilePath = file
+    ? await saveUpload(file, "uploads/purchase-invoices", {
+        fileBaseName: buildBillingDocumentFileBase({
+          prefix: "Import-Duties",
+          clientName: invoice.supplierName,
+          invoiceNumber: invoice.invoiceRef,
+        }),
+      })
+    : invoice.importDutiesFilePath;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.purchaseInvoice.update({
+      where: { id: invoice.id },
+      data: {
+        importDutiesBillingId: billingId,
+        importDutiesFilePath,
+        importDutiesPaidAt: new Date(),
+        importDutiesPaidById: session.user.id,
+        importPaidItems: invoice.paidAt ? "BOTH" : "DUTIES",
+      },
+    });
+    await stockInPendingPurchaseLines(tx, {
+      companyId: session.user.companyId,
+      userId: session.user.id,
+      invoice: {
+        id: invoice.id,
+        invoiceDate: invoice.invoiceDate,
+        invoiceRef: invoice.invoiceRef,
+        filePath: invoice.filePath,
+        notes: invoice.notes,
+        vendorId: invoice.vendorId,
+        purpose: invoice.purpose,
+        purchaseCategory: invoice.purchaseCategory,
+      },
+    });
+  });
+  await writeRecordChange({
+    companyId: session.user.companyId,
+    userId: session.user.id,
+    action: "UPDATE",
+    entity: "PurchaseInvoice",
+    entityId: invoice.id,
+    description: "Import duties paid",
+    oldValue: { importDutiesPaidAt: null },
+    newValue: { importDutiesPaidAt: true, importDutiesBillingId: billingId },
+  });
+  revalidatePath("/billing/purchase-invoices");
+  revalidatePath("/inventory");
+}
+
+export async function reversePurchaseInvoice(formData: FormData) {
+  const session = await requirePurchaseManageAccess();
+  const id = String(formData.get("purchaseInvoiceId") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!id) throw new Error("Purchase is required.");
+  if (!reason) throw new Error("Enter the reverse reason.");
+
+  const reversed = await prisma.$transaction(async (tx) => {
+    const result = await unwindAndReversePurchaseInvoice(tx, {
+      companyId: session.user.companyId,
+      userId: session.user.id,
+      invoiceId: id,
+      reason,
+    });
+    await writeRecordChange({
+      db: tx,
+      companyId: session.user.companyId,
+      userId: session.user.id,
+      action: "REVERSE",
+      entity: "PurchaseInvoice",
+      entityId: id,
+      description: reason,
+      oldValue: {
+        amount: result.amount,
+        paidAt: result.paidAt?.toISOString() ?? null,
+        projectId: result.projectId,
+      },
+      newValue: { reversed: true, reason },
+    });
+    return result;
+  });
+
+  revalidatePath("/billing/purchase-invoices");
+  revalidatePath("/billing/financial-report");
+  revalidatePath("/billing/settlements");
+  revalidatePath("/billing/tax-invoices");
+  revalidatePath("/billing/petty-cash");
+  revalidatePath("/inventory");
+  if (reversed.projectId) {
+    revalidatePath("/projects");
+    revalidatePath(`/projects/${reversed.projectId}`);
+  }
 }

@@ -6,7 +6,7 @@ import {
   employeeInputClass,
 } from "@/components/employees/employee-dialog-ui";
 import { Input } from "@/components/ui/input";
-import { PAYMENT_TERMS_DAYS_OPTIONS } from "@/lib/invoice-period";
+import { MoneyInput } from "@/components/ui/MoneyInput";
 import { useT } from "@/lib/i18n/use-t";
 import type { ProjectSubCategory } from "@prisma/client";
 
@@ -26,8 +26,6 @@ type Props = {
     payrollCutoffEndDay?: number | null;
     payrollTaxPercent?: number | null;
   };
-  /** Default payment terms when creating payroll (from selected client). */
-  clientPaymentTermsDays?: number | null;
   /** Prefix field names (e.g. `line.0.`) for bulk create. */
   namePrefix?: string;
 };
@@ -45,7 +43,6 @@ function percentDefault(value: number | null | undefined): string {
 export default function ServiceCommercialFields({
   subCategory,
   defaults,
-  clientPaymentTermsDays,
   namePrefix = "",
 }: Props) {
   const { t } = useT();
@@ -58,14 +55,10 @@ export default function ServiceCommercialFields({
         <label className="text-sm font-medium text-text">
           {t("pages.projects.serviceCommercial.monthlyFee")}
         </label>
-        <Input
+        <MoneyInput
           name={nameOf("contractPrice")}
-          type="number"
-          min={0}
-          step="1"
           required
           defaultValue={moneyDefault(defaults?.contractPrice)}
-          placeholder="0"
           className={employeeInputClass}
         />
         <p className={employeeDialogHintClass}>
@@ -82,13 +75,9 @@ export default function ServiceCommercialFields({
           <label className="text-sm font-medium text-text">
             {t("pages.projects.serviceCommercial.setupCost")}
           </label>
-          <Input
+          <MoneyInput
             name={nameOf("setupCost")}
-            type="number"
-            min={0}
-            step="1"
             defaultValue={moneyDefault(defaults?.setupCost)}
-            placeholder="0"
             className={employeeInputClass}
           />
           <p className={employeeDialogHintClass}>
@@ -117,13 +106,9 @@ export default function ServiceCommercialFields({
           <label className="text-sm font-medium text-text">
             {t("pages.projects.serviceCommercial.monthlyClientFee")}
           </label>
-          <Input
+          <MoneyInput
             name={nameOf("monthlyClientFee")}
-            type="number"
-            min={0}
-            step="1"
             defaultValue={moneyDefault(defaults?.monthlyClientFee)}
-            placeholder="0"
             className={employeeInputClass}
           />
           <p className={employeeDialogHintClass}>
@@ -134,13 +119,10 @@ export default function ServiceCommercialFields({
           <label className="text-sm font-medium text-text">
             {t("pages.projects.serviceCommercial.memberParkingUnitFee")}
           </label>
-          <Input
+          <MoneyInput
             name={nameOf("memberParkingUnitFee")}
-            type="number"
-            min={0}
-            step="1"
             defaultValue={moneyDefault(defaults?.memberParkingUnitFee)}
-            placeholder="10000"
+            placeholder="10.000"
             className={employeeInputClass}
           />
           <p className={employeeDialogHintClass}>
@@ -190,19 +172,6 @@ export default function ServiceCommercialFields({
   }
 
   if (subCategory === "PAYROLL_MANAGEMENT") {
-    const termsDefault =
-      defaults?.paymentTermsDays != null &&
-      (PAYMENT_TERMS_DAYS_OPTIONS as readonly number[]).includes(
-        defaults.paymentTermsDays
-      )
-        ? defaults.paymentTermsDays
-        : clientPaymentTermsDays != null &&
-            (PAYMENT_TERMS_DAYS_OPTIONS as readonly number[]).includes(
-              clientPaymentTermsDays
-            )
-          ? clientPaymentTermsDays
-          : 14;
-
     return (
       <div className="space-y-4">
         <p className={employeeDialogHintClass}>
@@ -242,27 +211,6 @@ export default function ServiceCommercialFields({
           />
           <p className={employeeDialogHintClass}>
             {t("pages.projects.serviceCommercial.payrollTaxPercentHint")}
-          </p>
-        </div>
-        <div className={employeeDialogFieldClass}>
-          <label className="text-sm font-medium text-text">
-            {t("pages.projects.serviceCommercial.paymentTermsDays")}
-          </label>
-          <select
-            name={nameOf("paymentTermsDays")}
-            defaultValue={String(termsDefault)}
-            className={employeeInputClass}
-          >
-            {PAYMENT_TERMS_DAYS_OPTIONS.map((days) => (
-              <option key={days} value={days}>
-                {days === 0
-                  ? t("common.paymentTerms.cash")
-                  : t("common.paymentTerms.net", { days })}
-              </option>
-            ))}
-          </select>
-          <p className={employeeDialogHintClass}>
-            {t("pages.projects.serviceCommercial.paymentTermsDaysHint")}
           </p>
         </div>
         <div className={employeeDialogFieldClass}>

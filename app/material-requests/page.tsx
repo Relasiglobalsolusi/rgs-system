@@ -45,10 +45,10 @@ export default async function MaterialRequestsPage() {
           sku: true,
           name: true,
           unit: true,
+          itemType: true,
           currentStock: true,
         },
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-        take: 300,
       })
     : [];
 
@@ -66,7 +66,6 @@ export default async function MaterialRequestsPage() {
                     sku: true,
                     name: true,
                     unit: true,
-                    currentStock: true,
                   },
                 },
               },
@@ -103,8 +102,12 @@ export default async function MaterialRequestsPage() {
           <MaterialRequestForm
             checkedInProjectName={checkedInProjectName}
             items={catalogItems.map((item) => ({
-              ...item,
-              currentStock: inventoryQtyFromDecimal(item.currentStock),
+              id: item.id,
+              sku: item.sku,
+              name: item.name,
+              unit: item.unit,
+              itemType: item.itemType,
+              available: inventoryQtyFromDecimal(item.currentStock) > 0,
             }))}
           />
         </SectionCard>
@@ -156,9 +159,6 @@ export default async function MaterialRequestsPage() {
                         sku: line.item.sku,
                         name: line.item.name,
                         unit: line.item.unit,
-                        currentStock: inventoryQtyFromDecimal(
-                          line.item.currentStock
-                        ),
                       },
                     })),
                     transferOrder: request.transferOrder,

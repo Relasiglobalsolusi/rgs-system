@@ -64,16 +64,6 @@ export function getReportPeriodBounds(
   };
 }
 
-export function defaultReportPeriod(
-  bounds: ReportPeriodBounds,
-  now: Date = new Date()
-): YearMonth {
-  const current = toYearMonth(parseDateInput(formatAppDateInput(now)));
-  if (compareYearMonth(current, bounds.min) < 0) return bounds.min;
-  if (compareYearMonth(current, bounds.max) > 0) return bounds.max;
-  return current;
-}
-
 export function isReportPeriodInBounds(
   year: number,
   month: number,

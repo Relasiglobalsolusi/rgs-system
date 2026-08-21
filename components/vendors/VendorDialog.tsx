@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/use-directory-dialog-open";
 import { useT } from "@/lib/i18n/use-t";
 import { isValidNpwp } from "@/lib/npwp";
+import { vendorRequiresIndonesianTaxId } from "@/lib/vendor-type";
 
 const CREATE_FORM_ID = "create-vendor-form";
 
@@ -116,10 +117,14 @@ export default function VendorDialog({
   }, [open]);
 
   async function submit(formData: FormData) {
+    const vendorType = String(formData.get("vendorType") ?? "");
     const npwpRaw = String(formData.get("npwp") ?? "").trim();
     const isIndividual =
       String(formData.get("vendorType") ?? "").toUpperCase() === "INDIVIDUAL";
-    if (!npwpRaw || !isValidNpwp(npwpRaw)) {
+    if (
+      vendorRequiresIndonesianTaxId(vendorType) &&
+      (!npwpRaw || !isValidNpwp(npwpRaw))
+    ) {
       const npwpMessage = !npwpRaw
         ? isIndividual
           ? t("validation.npwpOrNikRequired")

@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/select";
 import { bulkLineField, createBulkLineKey } from "@/lib/bulk-create";
 import { INVENTORY_ITEM_TYPE_PRESETS } from "@/lib/inventory-sku";
+import { localizeInventoryItemType } from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
 
 const FORM_ID = "bulk-create-inventory-item-form";
@@ -51,7 +52,7 @@ export default function ItemCatalogBulkCreateDialog({
   open: controlledOpen,
   onOpenChange,
 }: Props) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [itemType, setItemType] = useState("");
   const [previewSkus, setPreviewSkus] = useState<string[]>([]);
@@ -184,7 +185,7 @@ export default function ItemCatalogBulkCreateDialog({
                 onValueChange={(value) => setItemType(value ?? "")}
                 items={INVENTORY_ITEM_TYPE_PRESETS.map((preset) => ({
                   value: preset,
-                  label: t(`pages.inventory.itemTypes.${preset}`),
+                  label: localizeInventoryItemType(preset, locale),
                 }))}
               >
                 <SelectTrigger
@@ -196,11 +197,7 @@ export default function ItemCatalogBulkCreateDialog({
                   >
                     {(value) => {
                       if (!value) return null;
-                      return INVENTORY_ITEM_TYPE_PRESETS.includes(
-                        value as (typeof INVENTORY_ITEM_TYPE_PRESETS)[number]
-                      )
-                        ? t(`pages.inventory.itemTypes.${value}`)
-                        : value;
+                      return localizeInventoryItemType(value, locale);
                     }}
                   </SelectValue>
                 </SelectTrigger>
@@ -209,9 +206,9 @@ export default function ItemCatalogBulkCreateDialog({
                     <SelectItem
                       key={preset}
                       value={preset}
-                      label={t(`pages.inventory.itemTypes.${preset}`)}
+                      label={localizeInventoryItemType(preset, locale)}
                     >
-                      {t(`pages.inventory.itemTypes.${preset}`)}
+                      {localizeInventoryItemType(preset, locale)}
                     </SelectItem>
                   ))}
                 </SelectContent>

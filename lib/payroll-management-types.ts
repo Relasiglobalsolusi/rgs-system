@@ -8,4 +8,5 @@ export type PayrollManagementReviewEmployee = {
   dailyRate: number;
   wage: number;
   days: PayrollDayRow[];
+  cicoExempt?: boolean;
 };

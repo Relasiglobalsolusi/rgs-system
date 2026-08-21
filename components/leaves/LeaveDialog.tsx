@@ -12,7 +12,7 @@ import {
   useTransition,
   type DragEvent,
 } from "react";
-import { ClipboardCheck, Upload } from "lucide-react";
+import { ClipboardCheck, Plus, Upload } from "lucide-react";
 
 import { createLeaveRequest } from "@/app/leaves/actions";
 import {
@@ -28,8 +28,8 @@ import {
   useHtmlFormDirty,
   type HtmlFormDirtyBaseline,
 } from "@/components/employees/employee-dialog-ui";
-import ProjectOptionPills from "@/components/projects/ProjectOptionPills";
 import { Button } from "@/components/ui/button";
+import { outlineChipTones } from "@/components/ui/StatusBadge";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -228,11 +228,8 @@ export default function LeaveDialog() {
         disablePointerDismissal
       >
         <DialogTrigger asChild>
-          <Button
-            variant="successBadge"
-            size="badgeFlex"
-            className="text-xs tracking-[0.06em]"
-          >
+          <Button variant="successBadge" size="badgeFlex">
+            <Plus className="h-3.5 w-3.5 shrink-0" />
             {t("pages.leaves.newRequest")}
           </Button>
         </DialogTrigger>
@@ -257,13 +254,41 @@ export default function LeaveDialog() {
             className={cn(employeeDialogFormClass, "gap-7")}
             onInput={handleFormInput}
           >
-            <ProjectOptionPills
-              label={t("pages.leaves.requestType")}
-              value={type}
-              options={leaveTypeOptions}
-              onChange={setType}
-              columns={2}
-            />
+            <div className={employeeDialogFieldClass}>
+              <label className="text-sm font-medium text-text">
+                {t("pages.leaves.requestType")}
+              </label>
+              <div
+                className="grid grid-cols-2 gap-2.5"
+                role="radiogroup"
+                aria-label={t("pages.leaves.requestType")}
+              >
+                {leaveTypeOptions.map((option) => {
+                  const selected = type === option.value;
+                  const isSick = option.value === "SICK";
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => setType(option.value)}
+                      className={cn(
+                        "flex min-h-11 items-center justify-center rounded-xl border px-3 py-3 text-sm font-semibold tracking-wide transition",
+                        selected &&
+                          !isSick &&
+                          outlineChipTones.emeraldInteractive,
+                        selected && isSick && outlineChipTones.warningInteractive,
+                        !selected &&
+                          "border-border bg-elevated text-muted hover:border-border-strong hover:text-text"
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
             <div className={employeeDialogGridClass}>
               <div className={employeeDialogFieldClass}>

@@ -8,16 +8,6 @@ import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
 const Select = SelectPrimitive.Root
 
-function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
-  return (
-    <SelectPrimitive.Group
-      data-slot="select-group"
-      className={cn("scroll-my-1", className)}
-      {...props}
-    />
-  )
-}
-
 /**
  * Compact option row: label left, optional count badge (no dash/leader stretch).
  * Use inside SelectItem / SelectValue for filter options with totals.
@@ -110,6 +100,7 @@ function SelectTrigger({
 function SelectContent({
   className,
   children,
+  toolbar,
   side = "bottom",
   sideOffset = 6,
   align = "start",
@@ -120,7 +111,9 @@ function SelectContent({
   Pick<
     SelectPrimitive.Positioner.Props,
     "align" | "alignOffset" | "side" | "sideOffset" | "alignItemWithTrigger"
-  >) {
+  > & {
+    toolbar?: React.ReactNode
+  }) {
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Positioner
@@ -145,6 +138,18 @@ function SelectContent({
           )}
           {...props}
         >
+          {toolbar ? (
+            <div
+              className="sticky top-0 z-20 -mx-1 -mt-1 mb-1 border-b border-border bg-popover p-1.5"
+              onPointerDown={(event) => event.stopPropagation()}
+              onKeyDown={(event) => {
+                event.stopPropagation()
+                if (event.key === "Enter") event.preventDefault()
+              }}
+            >
+              {toolbar}
+            </div>
+          ) : null}
           <SelectScrollUpButton />
           <SelectPrimitive.List className="outline-none">
             {children}
@@ -153,22 +158,6 @@ function SelectContent({
         </SelectPrimitive.Popup>
       </SelectPrimitive.Positioner>
     </SelectPrimitive.Portal>
-  )
-}
-
-function SelectLabel({
-  className,
-  ...props
-}: SelectPrimitive.GroupLabel.Props) {
-  return (
-    <SelectPrimitive.GroupLabel
-      data-slot="select-label"
-      className={cn(
-        "px-2.5 pt-1.5 pb-1 text-[11px] font-semibold tracking-wide text-muted uppercase",
-        className
-      )}
-      {...props}
-    />
   )
 }
 
@@ -203,19 +192,6 @@ function SelectItem({
         {children}
       </SelectPrimitive.ItemText>
     </SelectPrimitive.Item>
-  )
-}
-
-function SelectSeparator({
-  className,
-  ...props
-}: SelectPrimitive.Separator.Props) {
-  return (
-    <SelectPrimitive.Separator
-      data-slot="select-separator"
-      className={cn("pointer-events-none -mx-1 my-1 h-px bg-border", className)}
-      {...props}
-    />
   )
 }
 
@@ -258,13 +234,8 @@ function SelectScrollDownButton({
 export {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectOptionLabel,
-  SelectScrollDownButton,
-  SelectScrollUpButton,
-  SelectSeparator,
   SelectTrigger,
   SelectValue,
 }

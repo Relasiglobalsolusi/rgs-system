@@ -80,13 +80,6 @@ export function resolveAdminRecoverablePassword(
   };
 }
 
-/** Server-only: decode stored copy; legacy plaintext rows pass through unchanged. */
-export function decryptRecoverablePassword(
-  stored: string | null | undefined
-): string | null {
-  return resolveAdminRecoverablePassword(stored).plaintext;
-}
-
 export function hasRecoverablePasswordStored(
   stored: string | null | undefined
 ): boolean {

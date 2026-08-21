@@ -9,12 +9,15 @@ import {
 } from "@/lib/persist-reorder";
 import { projectHistoryWhere, UNPAID_INVOICE_STATUSES } from "@/lib/billing";
 import {
-  isCommercialProjectSubCategory,
+  allowedSubCategoriesForServiceArea,
+  isClientProjectSubCategory,
   isProjectSubCategory,
   isServiceProjectSubCategory,
   serviceAreaForSubCategory,
   subCategoryForServiceArea,
 } from "@/lib/project-subcategory";
+import { billingSubCategoryForCatalog } from "@/lib/project-service-catalog";
+import { isCleaningOneTimeType } from "@/lib/project-form-subcategory";
 import {
   clampProjectDurationDays,
   daysBetweenDates,
@@ -59,7 +62,8 @@ import {
   type PaymentTermsDaysOption,
 } from "@/lib/invoice-period";
 import { snapDateToCutoffDay } from "@/lib/payroll-management";
-import { taxInvoiceDefaultsFromClient } from "@/lib/npwp";
+import { parseProjectChargedTax } from "@/lib/commercial-tax";
+import { parseFormCompanyBankAccountId } from "@/lib/company-bank-accounts";
 import { toActionError } from "@/lib/prisma-errors";
 import { parseServiceArea } from "@/lib/service-area";
 import { requireModule, toPermissionUser } from "@/lib/session";
@@ -69,7 +73,11 @@ import {
   issueInvoicesForFinishedProject,
   reconcileDueInvoiceForProject,
 } from "@/app/projects/invoice-actions";
-import { assertCanApproveProjectServiceArea } from "@/lib/om-approval";
+import {
+  assertCanApproveProjectServiceArea,
+  assertCanCreateProjectInScope,
+  assertCanWriteProject,
+} from "@/lib/om-approval";
 import {
   canDeleteActiveStageProjects,
   canManageProjects,
@@ -117,12 +125,25 @@ import {
   finalizePendingEarlyEndIfDue,
 } from "@/lib/project-early-end";
 
+async function assertSessionCanWriteProject(
+  session: { user: { id: string; username?: string } },
+  project: { id: string; serviceArea: import("@prisma/client").ServiceArea }
+) {
+  await assertCanWriteProject({
+    userId: session.user.id,
+    username: session.user.username,
+    projectId: project.id,
+    serviceArea: project.serviceArea,
+  });
+}
+
 const projectDeleteSelect = {
   id: true,
   name: true,
   clientId: true,
   status: true,
   subCategory: true,
+  serviceArea: true,
   invoicePeriods: {
     select: {
       invoicePdfPath: true,
@@ -139,6 +160,8 @@ async function nextCrewIdsWithTeams(
     companyId: string;
     projectId: string;
     subCategory: string;
+    areaCatalogId?: string | null;
+    serviceArea?: string | null;
     formData: FormData;
     extraEmployeeIds: string[];
   }
@@ -147,6 +170,8 @@ async function nextCrewIdsWithTeams(
     companyId: opts.companyId,
     projectId: opts.projectId,
     subCategory: opts.subCategory,
+    areaCatalogId: opts.areaCatalogId,
+    serviceArea: opts.serviceArea,
     teamIds: parseTeamIdsFromForm(opts.formData),
     extraEmployeeIds: opts.extraEmployeeIds,
   });
@@ -250,7 +275,7 @@ function revalidateAfterProjectDelete(opts: {
   revalidatePath("/billing");
   revalidatePath("/employees");
   revalidatePath("/users");
-  revalidatePath("/shifts");
+  revalidatePath("/shifts", "layout");
   revalidatePath("/cico");
   revalidatePath("/attendance");
   if (opts.projectId) {
@@ -293,7 +318,7 @@ async function permanentlyDeleteProject(project: {
   });
   revalidatePath("/employees");
   revalidatePath("/users");
-  revalidatePath("/shifts");
+  revalidatePath("/shifts", "layout");
   revalidatePath("/cico");
   revalidatePath("/attendance");
 
@@ -431,22 +456,79 @@ function parseSubCategory(formData: FormData) {
 
 /**
  * Resolve subcategory + service area together.
- * Non-cleaning areas lock a 1:1 subcategory; Cleaning requires a commercial cleaning type.
+ * Parking / Payroll stay 1:1. Cleaning One Time only allows General | Facade.
  */
-function resolveSubCategoryAndServiceArea(formData: FormData) {
+async function resolveSubCategoryAndServiceArea(
+  formData: FormData,
+  companyId: string
+) {
+  const areaCatalogId = String(formData.get("areaCatalogId") ?? "").trim();
+  const subcategoryCatalogId = String(
+    formData.get("subcategoryCatalogId") ?? ""
+  ).trim();
   const serviceArea = parseServiceArea(formData.get("serviceArea"));
+
+  if (subcategoryCatalogId) {
+    const catalogSub = await prisma.projectSubcategoryCatalog.findFirst({
+      where: {
+        id: subcategoryCatalogId,
+        area: { companyId },
+      },
+      include: { area: true },
+    });
+    if (!catalogSub) {
+      throw new Error("Subcategory was not found.");
+    }
+    if (areaCatalogId && catalogSub.areaId !== areaCatalogId) {
+      throw new Error("Subcategory does not belong to this service area.");
+    }
+    if (
+      catalogSub.billingKind === "ONE_TIME" &&
+      !catalogSub.area.allowsOneTime
+    ) {
+      throw new Error("This service area cannot have One Time.");
+    }
+    const subCategory = billingSubCategoryForCatalog({
+      systemArea: catalogSub.area.systemArea,
+      billingKind: catalogSub.billingKind,
+      systemSubCategory: catalogSub.systemSubCategory,
+    });
+    return {
+      subCategory,
+      serviceArea: catalogSub.area.systemArea,
+      areaCatalogId: catalogSub.areaId,
+      subcategoryCatalogId: catalogSub.id,
+    };
+  }
+
   const lockedSub = subCategoryForServiceArea(serviceArea);
   if (lockedSub) {
-    return { subCategory: lockedSub, serviceArea };
+    return {
+      subCategory: lockedSub,
+      serviceArea,
+      areaCatalogId: areaCatalogId || null,
+      subcategoryCatalogId: null,
+    };
   }
 
   const subCategory = parseSubCategory(formData);
-  if (!isCommercialProjectSubCategory(subCategory)) {
-    throw new Error("Choose a cleaning subcategory for Cleaning projects.");
+  if (serviceArea === "CLEANING" && isCleaningOneTimeType(subCategory)) {
+    return {
+      subCategory,
+      serviceArea: "CLEANING" as const,
+      areaCatalogId: areaCatalogId || null,
+      subcategoryCatalogId: null,
+    };
+  }
+  const allowed = allowedSubCategoriesForServiceArea(serviceArea);
+  if (!allowed.includes(subCategory) || !isClientProjectSubCategory(subCategory)) {
+    throw new Error("Choose a project type for this service area.");
   }
   return {
     subCategory,
     serviceArea: serviceAreaForSubCategory(subCategory),
+    areaCatalogId: areaCatalogId || null,
+    subcategoryCatalogId: null,
   };
 }
 
@@ -545,8 +627,7 @@ type ServiceCommercialFields = {
 
 function parseServiceCommercialFields(
   formData: FormData,
-  subCategory: string,
-  clientPaymentTermsDays: number
+  subCategory: string
 ): ServiceCommercialFields {
   const empty: ServiceCommercialFields = {
     contractPrice: null,
@@ -610,10 +691,6 @@ function parseServiceCommercialFields(
         required: true,
         label: "Management fee %",
       }),
-      paymentTermsDays: parseProjectPaymentTermsDays(
-        formData,
-        clientPaymentTermsDays
-      ),
       payrollCutoffStartDay: cutoffStartDay,
       payrollCutoffEndDay: cutoffEndDay,
       payrollTaxPercent:
@@ -671,6 +748,7 @@ async function createMilestoneSchedulePeriods(
     startDate: Date | null;
     installmentPercents: number[];
     contractPrice?: number | null;
+    bankAccountId?: string | null;
   }
 ) {
   const schedule = buildMilestoneSchedule(
@@ -699,6 +777,7 @@ async function createMilestoneSchedulePeriods(
         status: "ONGOING",
         amount: row.amount,
         milestonePercent: row.cumulativePercent,
+        bankAccountId: opts.bankAccountId ?? null,
       },
     });
   }
@@ -718,8 +797,15 @@ export async function createProject(formData: FormData) {
     const formDurationDays = parseDurationDays(formData);
     const clientId = String(formData.get("clientId") ?? "").trim();
     const employeeIds = formData.getAll("employeeIds").map(String);
-    const { subCategory, serviceArea } =
-      resolveSubCategoryAndServiceArea(formData);
+    const companyId = session.user.companyId;
+    if (!companyId) throw new Error("Company not found.");
+    const { subCategory, serviceArea, areaCatalogId, subcategoryCatalogId } =
+      await resolveSubCategoryAndServiceArea(formData, companyId);
+    const createScope = await assertCanCreateProjectInScope({
+      userId: session.user.id,
+      username: session.user.username,
+      serviceArea,
+    });
     const { location, latitude, longitude, locationRadiusMeters } =
       await parseLocationFields(formData);
     const shiftCount = parseShiftCount(formData.get("shiftCount"));
@@ -850,7 +936,7 @@ export async function createProject(formData: FormData) {
     // Ignore form tax fields — derive With/Without tax from the client NPWP.
     const client = await prisma.client.findFirst({
       where: { id: clientId, companyId: company.id, active: true },
-      select: { id: true, npwp: true, paymentTermsDays: true },
+      select: { id: true, npwp: true },
     });
     if (!client) {
       throw new Error(
@@ -872,13 +958,20 @@ export async function createProject(formData: FormData) {
       );
     }
 
-    const { requiresTaxInvoice } = taxInvoiceDefaultsFromClient(client);
+    const {
+      chargedTaxKind,
+      requiresTaxInvoice,
+      pphRatePercent,
+      otherTaxName,
+    } = parseProjectChargedTax(formData);
+    const paymentTermsDays = parseProjectPaymentTermsDays(formData, 14);
+    const bankAccountId = await parseFormCompanyBankAccountId(
+      formData,
+      company.id,
+      { requiredWhenAccountsExist: true }
+    );
     const serviceFields = isService
-      ? parseServiceCommercialFields(
-          formData,
-          subCategory,
-          client.paymentTermsDays
-        )
+      ? parseServiceCommercialFields(formData, subCategory)
       : null;
     if (subCategory === "PAYROLL_MANAGEMENT" && endDate) {
       const cutoff = serviceFields?.payrollCutoffEndDay;
@@ -916,13 +1009,19 @@ export async function createProject(formData: FormData) {
           memberParkingUnitCount: serviceFields?.memberParkingUnitCount ?? null,
           parkingTaxPercent: serviceFields?.parkingTaxPercent ?? null,
           serviceFeePercent: serviceFields?.serviceFeePercent ?? null,
-          paymentTermsDays: serviceFields?.paymentTermsDays ?? null,
+          paymentTermsDays,
+          bankAccountId,
           payrollCutoffStartDay: serviceFields?.payrollCutoffStartDay ?? null,
           payrollCutoffEndDay: serviceFields?.payrollCutoffEndDay ?? null,
           payrollTaxPercent: serviceFields?.payrollTaxPercent ?? null,
           subCategory,
           serviceArea,
+          areaCatalogId,
+          subcategoryCatalogId,
           requiresTaxInvoice,
+          chargedTaxKind,
+          pphRatePercent,
+          otherTaxName,
           companyId: company.id,
           clientId,
           sortOrder,
@@ -930,6 +1029,15 @@ export async function createProject(formData: FormData) {
           shiftCount,
         },
       });
+
+      if (createScope.areaManagerEmployeeId) {
+        await tx.areaManagerProject.create({
+          data: {
+            employeeId: createScope.areaManagerEmployeeId,
+            projectId: created.id,
+          },
+        });
+      }
 
       await syncProjectShifts(tx, created.id, shiftCount, shiftWindows);
 
@@ -940,6 +1048,7 @@ export async function createProject(formData: FormData) {
           startDate: startDate ?? estimatedStartDate,
           installmentPercents: milestoneInstallments,
           contractPrice: null,
+          bankAccountId,
         });
       }
 
@@ -994,6 +1103,7 @@ export async function createProject(formData: FormData) {
             periodEnd: first.periodEnd,
             label: first.label,
             status: "ONGOING",
+            bankAccountId,
           },
         });
       }
@@ -1004,6 +1114,8 @@ export async function createProject(formData: FormData) {
           companyId: company.id,
           projectId: created.id,
           subCategory,
+          areaCatalogId,
+          serviceArea,
           formData,
           extraEmployeeIds: employeeIds,
         });
@@ -1036,7 +1148,7 @@ export async function createProject(formData: FormData) {
     revalidatePath("/billing");
     revalidatePath("/employees");
     revalidatePath("/users");
-    revalidatePath("/shifts");
+    revalidatePath("/shifts", "layout");
   } catch (error) {
     throw toActionError(error, "Failed to create project.");
   }
@@ -1122,6 +1234,61 @@ export async function reorderProjects(ids: string[]) {
   }
 }
 
+export async function updateProjectBankAccount(
+  projectId: string,
+  formData: FormData
+) {
+  try {
+    const session = await requireModule("projects");
+    if (session.user.clientId) {
+      throw new Error("Client portal users cannot edit projects.");
+    }
+    const companyId = session.user.companyId;
+    if (!companyId) throw new Error("Company not found.");
+
+    const existing = await prisma.project.findFirst({
+      where: { id: projectId, companyId },
+      select: { id: true, clientId: true, serviceArea: true },
+    });
+    if (!existing) throw new Error("Project not found.");
+    await assertCanWriteProject({
+      userId: session.user.id,
+      username: session.user.username,
+      projectId,
+      serviceArea: existing.serviceArea,
+    });
+
+    const bankAccountId = await parseFormCompanyBankAccountId(
+      formData,
+      companyId,
+      { requiredWhenAccountsExist: true }
+    );
+
+    await prisma.$transaction(async (tx) => {
+      await tx.project.update({
+        where: { id: projectId },
+        data: { bankAccountId },
+      });
+      await tx.projectInvoicePeriod.updateMany({
+        where: {
+          projectId,
+          invoicePdfPath: null,
+          status: { in: ["ONGOING", "COMPILING"] },
+        },
+        data: { bankAccountId },
+      });
+    });
+
+    revalidatePath("/projects");
+    revalidatePath(`/projects/${projectId}`);
+    if (existing.clientId) {
+      revalidatePath(`/billing/${existing.clientId}/${projectId}`);
+    }
+  } catch (error) {
+    throw toActionError(error, "Could not save the bank account.");
+  }
+}
+
 export async function updateProject(id: string, formData: FormData) {
   try {
     const session = await requireModule("projects");
@@ -1162,11 +1329,18 @@ export async function updateProject(id: string, formData: FormData) {
         payrollCutoffStartDay: true,
         payrollCutoffEndDay: true,
         shiftCount: true,
+        serviceArea: true,
       },
     });
     if (!existing) {
       throw new Error("Project not found.");
     }
+    await assertCanWriteProject({
+      userId: session.user.id,
+      username: session.user.username,
+      projectId: id,
+      serviceArea: existing.serviceArea,
+    });
 
     // Internal HO/Warehouse: location/GPS/staff only — no commercial dates/client.
     if (
@@ -1241,8 +1415,8 @@ export async function updateProject(id: string, formData: FormData) {
       return;
     }
 
-    const { subCategory, serviceArea } =
-      resolveSubCategoryAndServiceArea(formData);
+    const { subCategory, serviceArea, areaCatalogId, subcategoryCatalogId } =
+      await resolveSubCategoryAndServiceArea(formData, companyId);
     const billingMode = resolveBillingMode(
       formData,
       subCategory,
@@ -1344,27 +1518,36 @@ export async function updateProject(id: string, formData: FormData) {
       }
     }
 
-    // Tax is always required. NPWP / NIK comes from the client record.
-    let clientPaymentTermsDays = 14;
     if (clientId) {
       const client = await prisma.client.findFirst({
         where: { id: clientId, companyId: existing.companyId, active: true },
-        select: { id: true, npwp: true, paymentTermsDays: true },
+        select: { id: true, npwp: true },
       });
       if (!client) {
         throw new Error(
           "Client not found or is deleted. Choose an active client."
         );
       }
-      clientPaymentTermsDays = client.paymentTermsDays;
     }
 
+    const {
+      chargedTaxKind,
+      requiresTaxInvoice,
+      pphRatePercent,
+      otherTaxName,
+    } = parseProjectChargedTax(formData);
+
+    const paymentTermsDays = parseProjectPaymentTermsDays(
+      formData,
+      existing.paymentTermsDays ?? 14
+    );
+    const bankAccountId = await parseFormCompanyBankAccountId(
+      formData,
+      companyId,
+      { requiredWhenAccountsExist: true }
+    );
     const serviceFields = isService
-      ? parseServiceCommercialFields(
-          formData,
-          subCategory,
-          existing.paymentTermsDays ?? clientPaymentTermsDays
-        )
+      ? parseServiceCommercialFields(formData, subCategory)
       : null;
     if (subCategory === "PAYROLL_MANAGEMENT" && endDate) {
       const cutoff = serviceFields?.payrollCutoffEndDay;
@@ -1398,12 +1581,17 @@ export async function updateProject(id: string, formData: FormData) {
           status: existing.status,
           subCategory,
           serviceArea,
+          areaCatalogId,
+          subcategoryCatalogId,
           invoicingDay,
           billingMode,
           billingPeriodBasis,
           billingCycleStartDay,
           billingCycleEndDay,
-          requiresTaxInvoice: true,
+          requiresTaxInvoice,
+          chargedTaxKind,
+          pphRatePercent,
+          otherTaxName,
           // Milestone: preserve price set in billing. Service: persist form terms.
           // Cleaning non-milestone: clear contract price.
           ...(isService
@@ -1418,7 +1606,6 @@ export async function updateProject(id: string, formData: FormData) {
                   serviceFields?.memberParkingUnitCount ?? null,
                 parkingTaxPercent: serviceFields?.parkingTaxPercent ?? null,
                 serviceFeePercent: serviceFields?.serviceFeePercent ?? null,
-                paymentTermsDays: serviceFields?.paymentTermsDays ?? null,
                 payrollCutoffStartDay:
                   serviceFields?.payrollCutoffStartDay ?? null,
                 payrollCutoffEndDay: serviceFields?.payrollCutoffEndDay ?? null,
@@ -1433,7 +1620,6 @@ export async function updateProject(id: string, formData: FormData) {
                   memberParkingUnitCount: null,
                   parkingTaxPercent: null,
                   serviceFeePercent: null,
-                  paymentTermsDays: null,
                   payrollCutoffStartDay: null,
                   payrollCutoffEndDay: null,
                   payrollTaxPercent: null,
@@ -1447,17 +1633,27 @@ export async function updateProject(id: string, formData: FormData) {
                   memberParkingUnitCount: null,
                   parkingTaxPercent: null,
                   serviceFeePercent: null,
-                  paymentTermsDays: null,
                   payrollCutoffStartDay: null,
                   payrollCutoffEndDay: null,
                   payrollTaxPercent: null,
                 }),
+          paymentTermsDays,
+          bankAccountId,
           clientId: clientId || null,
           shiftCount,
         },
       });
 
       await syncProjectShifts(tx, id, shiftCount, shiftWindows);
+
+      await tx.projectInvoicePeriod.updateMany({
+        where: {
+          projectId: id,
+          invoicePdfPath: null,
+          status: { in: ["ONGOING", "COMPILING"] },
+        },
+        data: { bankAccountId },
+      });
 
       // Drop unissued schedule rows when leaving milestone billing (safe; issued stay).
       if (leavingMilestone) {
@@ -1481,6 +1677,8 @@ export async function updateProject(id: string, formData: FormData) {
             companyId: existing.companyId,
             projectId: id,
             subCategory,
+            areaCatalogId,
+            serviceArea,
             formData,
             extraEmployeeIds: employeeIds,
           })
@@ -1538,7 +1736,7 @@ export async function updateProject(id: string, formData: FormData) {
     revalidatePath("/billing");
     revalidatePath("/employees");
     revalidatePath("/users");
-    revalidatePath("/shifts");
+    revalidatePath("/shifts", "layout");
     revalidatePath("/cico");
     revalidatePath("/attendance");
   } catch (error) {
@@ -1569,9 +1767,15 @@ export async function assignProjectStaff(formData: FormData) {
         status: true,
         companyId: true,
         subCategory: true,
+        serviceArea: true,
+        areaCatalogId: true,
       },
     });
     if (!existing) throw new Error("Project not found.");
+    await assertSessionCanWriteProject(session, {
+      id,
+      serviceArea: existing.serviceArea,
+    });
     if (isPlanningProjectStatus(existing.status)) {
       throw new Error("Assign staff after the project is In Progress.");
     }
@@ -1584,6 +1788,8 @@ export async function assignProjectStaff(formData: FormData) {
           companyId: existing.companyId,
           projectId: id,
           subCategory: existing.subCategory,
+          areaCatalogId: existing.areaCatalogId,
+          serviceArea: existing.serviceArea,
           formData,
           extraEmployeeIds: employeeIds,
         })
@@ -1630,7 +1836,7 @@ export async function assignProjectStaff(formData: FormData) {
     revalidatePath(`/projects/${id}`);
     revalidatePath("/projects");
     revalidatePath("/employees");
-    revalidatePath("/shifts");
+    revalidatePath("/shifts", "layout");
     revalidatePath("/cico");
     revalidatePath("/attendance");
   } catch (error) {
@@ -1661,6 +1867,7 @@ export async function deleteProject(id: string) {
   if (!project) {
     throw new Error("Project not found.");
   }
+  await assertSessionCanWriteProject(session, project);
 
   if (
     isInProgressCleaningProjectDeleteBlocked({
@@ -1794,7 +2001,7 @@ function revalidateAfterProjectLifecycle(opts: {
   revalidatePath("/clients");
   revalidatePath("/employees");
   revalidatePath("/users");
-  revalidatePath("/shifts");
+  revalidatePath("/shifts", "layout");
   revalidatePath("/cico");
   revalidatePath("/attendance");
   if (opts.clientId) {
@@ -1989,11 +2196,14 @@ export async function startProject(
       billingCycleStartDay: true,
       billingCycleEndDay: true,
       payrollCutoffEndDay: true,
+      serviceArea: true,
+      areaCatalogId: true,
     },
   });
   if (!project) {
     throw new Error("Project not found.");
   }
+  await assertSessionCanWriteProject(session, project);
   if (!isPlanningProjectStatus(project.status)) {
     throw new Error("Only Planning projects can move to In Progress.");
   }
@@ -2072,6 +2282,8 @@ export async function startProject(
           companyId,
           projectId: id,
           subCategory: project.subCategory,
+          areaCatalogId: project.areaCatalogId,
+          serviceArea: project.serviceArea,
           formData,
           extraEmployeeIds: employeeIds,
         })
@@ -2183,7 +2395,7 @@ export async function startProject(
   });
   revalidatePath("/employees");
   revalidatePath("/users");
-  revalidatePath("/shifts");
+  revalidatePath("/shifts", "layout");
 }
 
 /**
@@ -2207,6 +2419,7 @@ export async function moveProjectToPlanning(id: string): Promise<void> {
       status: true,
       clientId: true,
       subCategory: true,
+      serviceArea: true,
       invoicePeriods: {
         where: {
           status: { in: ["AWAITING_PAYMENT", "OVERDUE", "PENDING_VERIFICATION", "COMPILING"] },
@@ -2219,6 +2432,7 @@ export async function moveProjectToPlanning(id: string): Promise<void> {
   if (!project) {
     throw new Error("Project not found.");
   }
+  await assertSessionCanWriteProject(session, project);
   if (project.subCategory === "INTERNAL") {
     throw new Error("Internal projects stay In Progress and cannot move to Planning.");
   }
@@ -2245,7 +2459,7 @@ export async function moveProjectToPlanning(id: string): Promise<void> {
   });
   revalidatePath("/employees");
   revalidatePath("/users");
-  revalidatePath("/shifts");
+  revalidatePath("/shifts", "layout");
   revalidatePath("/cico");
   revalidatePath("/attendance");
 }
@@ -2281,6 +2495,7 @@ export async function finishProject(
       billingMode: true,
       contractPrice: true,
       requiresTaxInvoice: true,
+      serviceArea: true,
       invoicePeriods: {
         select: {
           id: true,
@@ -2297,6 +2512,7 @@ export async function finishProject(
   if (!project) {
     throw new Error("Project not found.");
   }
+  await assertSessionCanWriteProject(session, project);
   if (project.status === "COMPLETED") {
     throw new Error("Project is already finished.");
   }
@@ -2310,7 +2526,7 @@ export async function finishProject(
   }
   if (isMilestoneSubCategory(project.subCategory)) {
     throw new Error(
-      "General Cleaning and Facade projects complete after the client approves the last part and the last invoice is marked paid. Use Submit for Approval — do not finish the project manually."
+      "General Cleaning, Facade Cleaning, and One-Time Landscaping complete after the client approves the last part and the last invoice is marked paid. Use Submit for Approval — do not finish the project manually."
     );
   }
 
@@ -2407,7 +2623,7 @@ export async function finishProject(
   });
   revalidatePath("/employees");
   revalidatePath("/users");
-  revalidatePath("/shifts");
+  revalidatePath("/shifts", "layout");
 
   return {
     invoice: {
@@ -2457,6 +2673,7 @@ export async function submitProjectForApproval(projectId: string) {
         startDate: true,
         endDate: true,
         clientId: true,
+        serviceArea: true,
         invoicePeriods: {
           where: {
             status: { in: ["ONGOING", "COMPILING", "AWAITING_CLIENT_REVIEW"] },
@@ -2474,6 +2691,7 @@ export async function submitProjectForApproval(projectId: string) {
     });
 
     if (!project) throw new Error(translate(locale, "pages.projects.notFound"));
+    await assertSessionCanWriteProject(session, project);
 
     if (project.subCategory === "INTERNAL") {
       throw new Error(
@@ -2635,9 +2853,11 @@ export async function extendProjectContract(id: string, formData: FormData) {
         clientId: true,
         subCategory: true,
         endDate: true,
+        serviceArea: true,
       },
     });
     if (!project) throw new Error("Project not found.");
+    await assertSessionCanWriteProject(session, project);
     if (!isExtendableContractSubCategory(project.subCategory)) {
       throw new Error(
         "Only Regular Cleaning, Security, Parking, and Payroll Management contracts can be extended."
@@ -2785,16 +3005,27 @@ async function endContractCycleEarly(
     clientId: string | null;
     startDate: Date | null;
     endDate: Date | null;
+    subCategory: string;
     contractPrice: Parameters<typeof decimalToNumber>[0];
   },
   formData?: FormData
 ): Promise<FinishProjectResult> {
-  const lastDay = parseOptionalDateInput(
-    String(formData?.get("lastDay") ?? ""),
-    "last day"
-  );
+  const lastMonthRaw = String(formData?.get("lastMonth") ?? "").trim();
+  const lastMonthMatch = /^(\d{4})-(\d{2})$/.exec(lastMonthRaw);
+  const lastDayFromMonth = lastMonthMatch
+    ? new Date(
+        Date.UTC(Number(lastMonthMatch[1]), Number(lastMonthMatch[2]), 0)
+      )
+    : null;
+  const lastDay =
+    lastDayFromMonth ??
+    parseOptionalDateInput(String(formData?.get("lastDay") ?? ""), "last day");
   if (!lastDay) {
-    throw new Error("Enter the real last day on site.");
+    throw new Error(
+      project.subCategory === "PARKING"
+        ? "Pick the last month of the parking contract."
+        : "Enter the real last day on site."
+    );
   }
   if (!project.startDate) {
     throw new Error("Set the contract start date before ending the contract.");
@@ -2820,11 +3051,13 @@ async function endContractCycleEarly(
     await releaseAllProjectCrew(tx, project.id);
   });
 
-  await prepareLastContractPeriod({
-    projectId: project.id,
-    startDate: start,
-    lastDay: last,
-  });
+  if (usesInvoicePeriods(project.subCategory)) {
+    await prepareLastContractPeriod({
+      projectId: project.id,
+      startDate: start,
+      lastDay: last,
+    });
+  }
 
   const billingPath = project.clientId
     ? `/billing/${project.clientId}/${project.id}`
@@ -2873,9 +3106,11 @@ export async function renewProjectContract(id: string, formData: FormData) {
       billingPeriodBasis: true,
       billingCycleStartDay: true,
       billingCycleEndDay: true,
+      serviceArea: true,
     },
   });
   if (!project) throw new Error("Project not found.");
+  await assertSessionCanWriteProject(session, project);
   if (!isExtendableContractSubCategory(project.subCategory)) {
     throw new Error(
       "Only Regular Cleaning, Security, Parking, and Payroll Management contracts can be renewed this way."
@@ -2913,31 +3148,33 @@ export async function renewProjectContract(id: string, formData: FormData) {
     },
   });
 
-  const first = firstMonthlyPeriodBounds(
-    project.billingPeriodBasis,
-    nextStart,
-    {
-      fromDay: project.billingCycleStartDay,
-      toDay: project.billingCycleEndDay,
-    }
-  );
-  await prisma.projectInvoicePeriod.upsert({
-    where: {
-      projectId_periodStart_periodEnd: {
+  if (usesInvoicePeriods(project.subCategory)) {
+    const first = firstMonthlyPeriodBounds(
+      project.billingPeriodBasis,
+      nextStart,
+      {
+        fromDay: project.billingCycleStartDay,
+        toDay: project.billingCycleEndDay,
+      }
+    );
+    await prisma.projectInvoicePeriod.upsert({
+      where: {
+        projectId_periodStart_periodEnd: {
+          projectId: id,
+          periodStart: first.periodStart,
+          periodEnd: first.periodEnd,
+        },
+      },
+      update: { label: first.label, status: "ONGOING" },
+      create: {
         projectId: id,
         periodStart: first.periodStart,
         periodEnd: first.periodEnd,
+        label: first.label,
+        status: "ONGOING",
       },
-    },
-    update: { label: first.label, status: "ONGOING" },
-    create: {
-      projectId: id,
-      periodStart: first.periodStart,
-      periodEnd: first.periodEnd,
-      label: first.label,
-      status: "ONGOING",
-    },
-  });
+    });
+  }
 
   revalidateAfterProjectLifecycle({
     projectId: id,
@@ -2964,14 +3201,19 @@ export async function redoProjectJob(id: string, formData: FormData) {
       subCategory: true,
       billingMode: true,
       companyId: true,
+      serviceArea: true,
+      areaCatalogId: true,
       invoicePeriods: {
         select: { milestonePercent: true },
       },
     },
   });
   if (!project) throw new Error("Project not found.");
+  await assertSessionCanWriteProject(session, project);
   if (!isRedoJobSubCategory(project.subCategory)) {
-    throw new Error("Re-do Job is only for General Cleaning and Facade Cleaning.");
+    throw new Error(
+      "Re-do Job is only for General Cleaning, Facade Cleaning, and One-Time Landscaping."
+    );
   }
   if (project.status !== "COMPLETED") {
     throw new Error("Re-do Job is only for a completed job.");
@@ -3058,6 +3300,8 @@ export async function redoProjectJob(id: string, formData: FormData) {
       companyId: project.companyId,
       projectId: id,
       subCategory: project.subCategory,
+      areaCatalogId: project.areaCatalogId,
+      serviceArea: project.serviceArea,
       formData,
       extraEmployeeIds: extras,
     });
@@ -3127,7 +3371,7 @@ function revalidateSiteCoverPaths(projectId: string) {
   revalidatePath("/billing/payroll");
   revalidatePath("/billing/financial-report");
   revalidatePath("/cico");
-  revalidatePath("/shifts");
+  revalidatePath("/shifts", "layout");
 }
 
 export async function assignBackupEmployee(formData: FormData) {

@@ -42,7 +42,7 @@ const KNOWN_SECTION_TITLES = new Set(DEFAULT_SECTION_ORDER);
 const HR_NAV_KEYS = new Set(["attendance", "shifts", "leaves"]);
 
 /** Nav keys that moved from Operations → Administration. */
-const ADMIN_NAV_KEYS = new Set(["itemCatalog"]);
+const ADMIN_NAV_KEYS = new Set(["itemCatalog", "settings"]);
 
 /** Nav keys that moved from Human Resources → Operations. */
 const OPS_FROM_HR_NAV_KEYS = new Set(["approvals"]);

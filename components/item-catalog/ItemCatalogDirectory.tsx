@@ -17,7 +17,11 @@ import BulkImportDialog from "@/components/bulk-import/BulkImportDialog";
 import InventoryItemDialog from "@/components/inventory/InventoryItemDialog";
 import ItemCatalogBulkCreateDialog from "@/components/item-catalog/ItemCatalogBulkCreateDialog";
 import InventoryItemEditDialog from "@/components/inventory/InventoryItemEditDialog";
-import { partitionItemsByInventoryItemType } from "@/components/inventory/inventory-category";
+import {
+  INVENTORY_CATEGORY_DISPLAY_ORDER,
+  INVENTORY_CATEGORY_TITLE_KEY,
+  partitionItemsByInventoryItemType,
+} from "@/components/inventory/inventory-category";
 import type { InventoryCatalogItem } from "@/components/inventory/inventory-types";
 import DirectoryAddButton from "@/components/ui/DirectoryAddButton";
 import DirectorySearchInput, {
@@ -30,9 +34,11 @@ import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge from "@/components/ui/StatusBadge";
 import {
   ACTIONS_TRIPLE_CHIP_COLUMN_WIDTH,
+  STATUS_COLUMN_WIDTH,
   trashActionChipClassName,
 } from "@/components/ui/trash-action-buttons";
 import { Button } from "@/components/ui/button";
+import { localizeInventoryItemType } from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
 import { showRejectionFromError } from "@/components/ui/rejection-notice";
 
@@ -42,7 +48,7 @@ type Props = {
 };
 
 export default function ItemCatalogDirectory({ canManage, items }: Props) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const [searchQuery, setSearchQuery] = useState("");
   const [createItemOpen, setCreateItemOpen] = useState(false);
   const [bulkCreateOpen, setBulkCreateOpen] = useState(false);
@@ -69,10 +75,11 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
           item.name,
           item.sku,
           item.itemType,
+          localizeInventoryItemType(item.itemType, locale),
           item.description
         )
       ),
-    [items, searchQuery]
+    [items, searchQuery, locale]
   );
 
   const categorized = useMemo(
@@ -154,12 +161,13 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
       key: "itemType",
       title: t("pages.itemCatalog.columns.itemType"),
       width: "8rem",
+      render: (row) => localizeInventoryItemType(row.itemType, locale),
     },
     {
       key: "active",
       title: t("pages.itemCatalog.columns.status"),
-      width: "7rem",
-      align: "center",
+      width: STATUS_COLUMN_WIDTH,
+      cellAlign: "center",
       render: (row) => (
         <StatusBadge status={row.active ? "active" : "inactive"} compact>
           {row.active
@@ -174,7 +182,7 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
             key: "actions",
             title: t("pages.itemCatalog.columns.actions"),
             width: ACTIONS_TRIPLE_CHIP_COLUMN_WIDTH,
-            align: "center" as const,
+            cellAlign: "center" as const,
             className: "min-w-[34rem] overflow-visible whitespace-nowrap",
             render: (row: InventoryCatalogItem) => (
               <div className="flex shrink-0 items-center justify-center gap-2 whitespace-nowrap">
@@ -304,30 +312,14 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
         </SectionCard>
       ) : (
         <div className="space-y-8">
-          {categorized.equipment.length > 0
-            ? renderCategoryTable(
-                t("pages.inventory.overview.categoryEquipment"),
-                categorized.equipment
-              )
-            : null}
-          {categorized.chemical.length > 0
-            ? renderCategoryTable(
-                t("pages.inventory.overview.categoryChemicals"),
-                categorized.chemical
-              )
-            : null}
-          {categorized.consumable.length > 0
-            ? renderCategoryTable(
-                t("pages.inventory.overview.categoryConsumables"),
-                categorized.consumable
-              )
-            : null}
-          {categorized.other.length > 0
-            ? renderCategoryTable(
-                t("pages.inventory.overview.categoryOthers"),
-                categorized.other
-              )
-            : null}
+          {INVENTORY_CATEGORY_DISPLAY_ORDER.map((key) =>
+            categorized[key].length > 0
+              ? renderCategoryTable(
+                  t(INVENTORY_CATEGORY_TITLE_KEY[key]),
+                  categorized[key]
+                )
+              : null
+          )}
         </div>
       )}
 

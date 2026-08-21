@@ -19,17 +19,6 @@ import { showRejectionFromError } from "@/components/ui/rejection-notice";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n/use-t";
 
-export type EquipmentAssetOption = {
-  id: string;
-  assetCode: string;
-  serialNo: string | null;
-  item: {
-    id: string;
-    sku: string;
-    name: string;
-  };
-};
-
 export type AssignedEquipmentAsset = {
   id: string;
   assetCode: string;

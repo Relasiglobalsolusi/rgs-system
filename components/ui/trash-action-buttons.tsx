@@ -12,10 +12,6 @@ import { cn } from "@/lib/utils";
 
 export { permanentDeleteLabelClassName, stackedChipLabelClassName };
 
-/** Fixed outer box — ERP-wide for all directory action chips. */
-export const TRASH_CHIP_HEIGHT = "2.75rem";
-export const TRASH_CHIP_WIDTH = "7.5rem";
-
 /**
  * Outer box — identical for Delete, Restore, Permanently Delete,
  * Permissions, Assign, Cannot delete, and Button size="badge".

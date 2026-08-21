@@ -44,10 +44,6 @@ export function parsePettyCashAmount(raw: string): number {
   return Math.round(num);
 }
 
-/** IDR cash compares as whole rupiah. */
-export function pettyCashAmountsMatch(a: number, b: number): boolean {
-  return Math.round(a) === Math.round(b);
-}
 
 export function eachUtcDateInclusive(start: Date, end: Date): Date[] {
   const days: Date[] = [];

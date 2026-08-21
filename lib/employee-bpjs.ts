@@ -157,15 +157,58 @@ export type ParsedEmployeeFinance = {
   jkkPercent: number | null;
   securityDepositRequired: boolean;
   cicoExempt: boolean;
+  progressExempt: boolean;
   bankName: string | null;
   bankAccountNumber: string | null;
   bankAccountName: string | null;
 };
 
-export function parseEmployeeFinanceFromForm(formData: FormData): ParsedEmployeeFinance {
+/** Part Time staff are paid per day: no security deposit, no BPJS enrollment. */
+export function isDailyPaidPartTime(
+  employmentType: FormDataEntryValue | string | null | undefined
+): boolean {
+  const raw = String(employmentType ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, "_");
+  return raw === "PART_TIME" || raw === "PT";
+}
+
+export function parseEmployeeFinanceFromForm(
+  formData: FormData,
+  employmentType?: FormDataEntryValue | string | null
+): ParsedEmployeeFinance {
   const basePay = parseBasePayInput(formData.get("basePay"));
   if (basePay == null || basePay <= 0) {
     throw new Error("Base pay is required and must be greater than zero.");
+  }
+
+  const bankName = String(formData.get("bankName") ?? "").trim() || null;
+  const bankAccountNumber =
+    String(formData.get("bankAccountNumber") ?? "").trim() || null;
+  const bankAccountName =
+    String(formData.get("bankAccountName") ?? "").trim() || null;
+
+  const partTime = isDailyPaidPartTime(
+    employmentType ?? formData.get("employmentType")
+  );
+  if (partTime) {
+    return {
+      basePay,
+      bpjsKesehatanEnabled: false,
+      bpjsKetenagakerjaanEnabled: false,
+      jhtEnabled: false,
+      jpEnabled: false,
+      jkkEnabled: false,
+      jkmEnabled: false,
+      jkkPercent: null,
+      securityDepositRequired: false,
+      cicoExempt: parseCheckboxFlag(formData.get("cicoExempt")),
+      progressExempt: parseCheckboxFlag(formData.get("progressExempt")),
+      bankName,
+      bankAccountNumber,
+      bankAccountName,
+    };
   }
 
   const bpjsKesehatanEnabled = parseCheckboxFlag(formData.get("bpjsKesehatanEnabled"));
@@ -190,12 +233,6 @@ export function parseEmployeeFinanceFromForm(formData: FormData): ParsedEmployee
     }
   }
 
-  const bankName = String(formData.get("bankName") ?? "").trim() || null;
-  const bankAccountNumber =
-    String(formData.get("bankAccountNumber") ?? "").trim() || null;
-  const bankAccountName =
-    String(formData.get("bankAccountName") ?? "").trim() || null;
-
   return {
     basePay,
     bpjsKesehatanEnabled,
@@ -209,6 +246,7 @@ export function parseEmployeeFinanceFromForm(formData: FormData): ParsedEmployee
       formData.get("securityDepositRequired")
     ),
     cicoExempt: parseCheckboxFlag(formData.get("cicoExempt")),
+    progressExempt: parseCheckboxFlag(formData.get("progressExempt")),
     bankName,
     bankAccountNumber,
     bankAccountName,

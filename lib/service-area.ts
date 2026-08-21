@@ -1,34 +1,36 @@
 import type { ServiceArea } from "@prisma/client";
 
-/** Service areas used on projects (client sites). */
+/** Built-in service areas on Add Project (client sites). OTHER is user-created. */
 export const PROJECT_SERVICE_AREAS = [
   "CLEANING",
+  "LANDSCAPING",
   "PARKING",
   "SECURITY",
   "PAYROLL_MANAGEMENT",
 ] as const satisfies readonly ServiceArea[];
 
-export type ProjectServiceAreaValue = (typeof PROJECT_SERVICE_AREAS)[number];
-
-/** All areas an Operations Manager may hold for approvals. */
-export const OM_APPROVAL_AREAS = [
-  "CLEANING",
-  "PARKING",
-  "SECURITY",
-  "HEAD_OFFICE",
+/** Project work lanes including user-created catalog areas. */
+export const STORED_PROJECT_SERVICE_AREAS = [
+  ...PROJECT_SERVICE_AREAS,
+  "OTHER",
 ] as const satisfies readonly ServiceArea[];
+
+export type ProjectServiceAreaValue = (typeof PROJECT_SERVICE_AREAS)[number];
 
 const LABELS: Record<ServiceArea, string> = {
   CLEANING: "Cleaning",
+  LANDSCAPING: "Landscaping",
   PARKING: "Parking",
   SECURITY: "Security",
   HEAD_OFFICE: "Head Office",
   PAYROLL_MANAGEMENT: "Payroll Management",
+  OTHER: "Other",
 };
 
 /** Display order for OM Approval Areas checkboxes. */
 export const OM_APPROVAL_AREA_ORDER: ServiceArea[] = [
   "CLEANING",
+  "LANDSCAPING",
   "PARKING",
   "SECURITY",
   "HEAD_OFFICE",
@@ -42,12 +44,18 @@ export function isProjectServiceArea(value: string): value is ProjectServiceArea
   return (PROJECT_SERVICE_AREAS as readonly string[]).includes(value);
 }
 
+export function isStoredProjectServiceArea(
+  value: string
+): value is (typeof STORED_PROJECT_SERVICE_AREAS)[number] {
+  return (STORED_PROJECT_SERVICE_AREAS as readonly string[]).includes(value);
+}
+
 export function parseServiceArea(
   value: FormDataEntryValue | string | null | undefined,
   fallback: ServiceArea = "CLEANING"
 ): ServiceArea {
   const raw = String(value ?? "").trim().toUpperCase();
-  return isProjectServiceArea(raw) ? raw : fallback;
+  return isStoredProjectServiceArea(raw) ? raw : fallback;
 }
 
 /** Narrow a stored ServiceArea to a project/site area (never Head Office). */
@@ -55,7 +63,8 @@ export function asProjectServiceArea(
   area: ServiceArea,
   fallback: ProjectServiceAreaValue = "CLEANING"
 ): ProjectServiceAreaValue {
-  return isProjectServiceArea(area) ? area : fallback;
+  if (isProjectServiceArea(area)) return area;
+  return fallback;
 }
 
 /** Operations Manager (Cleaning And Parking) style label. */

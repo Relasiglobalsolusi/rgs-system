@@ -5,6 +5,8 @@ import { Undo2 } from "lucide-react";
 
 import {
   compareMovedAtDesc,
+  INVENTORY_CATEGORY_DISPLAY_ORDER,
+  INVENTORY_CATEGORY_TITLE_KEY,
   partitionByInventoryItemType,
 } from "@/components/inventory/inventory-category";
 import InventorySoldOffDetailDialog from "@/components/inventory/InventorySoldOffDetailDialog";
@@ -24,6 +26,7 @@ type Props = {
   soldOffs: InventorySoldOffRow[];
   searchQuery: string;
   canReverse: boolean;
+  canAttach?: boolean;
   onReverse: (row: InventorySoldOffRow) => void;
 };
 
@@ -31,6 +34,7 @@ export default function InventorySoldOffTables({
   soldOffs,
   searchQuery,
   canReverse,
+  canAttach = false,
   onReverse,
 }: Props) {
   const { t } = useT();
@@ -121,6 +125,42 @@ export default function InventorySoldOffTables({
       render: (row) => formatContractPrice(row.totalPrice),
     },
     {
+      key: "documents",
+      title: t("pages.sales.columns.documents"),
+      share: 1.2,
+      render: (row) => {
+        const invoice = Boolean(row.invoiceUrl?.trim());
+        const payment = Boolean(row.paymentProofUrl?.trim());
+        const taxNeeded = row.buyerType === "COMPANY";
+        const tax = Boolean(row.buyerIdentityDocUrl?.trim());
+        const parts = [
+          invoice
+            ? t("pages.sales.docInvoiceReady")
+            : t("pages.sales.docInvoiceMissing"),
+          payment
+            ? t("pages.sales.docPaymentReady")
+            : t("pages.sales.docPaymentMissing"),
+        ];
+        if (taxNeeded) {
+          parts.push(
+            tax
+              ? t("pages.sales.docTaxReady")
+              : t("pages.sales.docTaxMissing")
+          );
+        }
+        const complete = invoice && (!taxNeeded || tax);
+        return (
+          <span
+            className={
+              complete ? "text-xs text-muted" : "text-xs font-medium text-warning"
+            }
+          >
+            {parts.join(" · ")}
+          </span>
+        );
+      },
+    },
+    {
       key: "createdBy",
       title: t("pages.inventory.columns.soldBy"),
       share: 1,
@@ -132,7 +172,7 @@ export default function InventorySoldOffTables({
             key: "actions",
             title: t("pages.inventory.columns.actions"),
             width: "8rem",
-            align: "right" as const,
+            cellAlign: "center" as const,
             render: (row: InventorySoldOffRow) => (
               <Button
                 type="button"
@@ -195,30 +235,14 @@ export default function InventorySoldOffTables({
   return (
     <>
       <div className="space-y-8">
-        {categorized.equipment.length > 0
-          ? renderCategoryTable(
-              t("pages.inventory.overview.categoryEquipment"),
-              categorized.equipment
-            )
-          : null}
-        {categorized.chemical.length > 0
-          ? renderCategoryTable(
-              t("pages.inventory.overview.categoryChemicals"),
-              categorized.chemical
-            )
-          : null}
-        {categorized.consumable.length > 0
-          ? renderCategoryTable(
-              t("pages.inventory.overview.categoryConsumables"),
-              categorized.consumable
-            )
-          : null}
-        {categorized.other.length > 0
-          ? renderCategoryTable(
-              t("pages.inventory.overview.categoryOthers"),
-              categorized.other
-            )
-          : null}
+        {INVENTORY_CATEGORY_DISPLAY_ORDER.map((key) =>
+          categorized[key].length > 0
+            ? renderCategoryTable(
+                t(INVENTORY_CATEGORY_TITLE_KEY[key]),
+                categorized[key]
+              )
+            : null
+        )}
       </div>
 
       <InventorySoldOffDetailDialog
@@ -228,6 +252,7 @@ export default function InventorySoldOffTables({
         }}
         row={detailRow}
         canReverse={canReverse}
+        canAttach={canAttach}
         onReverse={(row) => {
           setDetailRow(null);
           onReverse(row);

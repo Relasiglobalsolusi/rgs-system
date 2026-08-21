@@ -1,9 +1,11 @@
 import { prisma } from "@/lib/prisma";
-import { canAssignInventoryToProject } from "@/lib/inventory-access";
+import {
+  canAssignInventoryToProject,
+  canReturnEquipmentToFactory,
+} from "@/lib/inventory-access";
 import { canManageInventory } from "@/lib/project-access";
 import { decimalToNumber } from "@/lib/project-billing";
 import { inventoryQtyFromDecimal } from "@/lib/inventory";
-import { isOwnerAccount } from "@/lib/permissions";
 import { requireModule, toPermissionUser } from "@/lib/session";
 
 import AppShell from "@/components/layout/AppShell";
@@ -23,9 +25,13 @@ export default async function InventoryPage() {
       username: session.user.username,
     }
   );
-  const canReverseSale = isOwnerAccount({
-    username: session.user.username,
-  });
+  const canReturnToFactory = await canReturnEquipmentToFactory(
+    session.user.id,
+    {
+      ...permissionUser,
+      username: session.user.username,
+    }
+  );
 
   const company = await prisma.company.findFirst({ select: { id: true } });
   if (!company) {
@@ -46,15 +52,15 @@ export default async function InventoryPage() {
     purchases,
     issues,
     writeOffs,
-    soldOffs,
     assetRows,
+    factoryRows,
   ] = await Promise.all([
       prisma.inventoryItem.findMany({
         where: { companyId: company.id, deletedAt: null },
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       }),
       prisma.inventoryPurchase.findMany({
-        where: { companyId: company.id },
+        where: { companyId: company.id, movement: { voidedAt: null } },
         include: {
           item: {
             select: {
@@ -116,40 +122,6 @@ export default async function InventoryPage() {
         orderBy: { movedAt: "desc" },
         take: 200,
       }),
-      prisma.inventorySale.findMany({
-        where: {
-          companyId: company.id,
-          movement: { voidedAt: null },
-        },
-        include: {
-          item: {
-            select: {
-              id: true,
-              sku: true,
-              name: true,
-              unit: true,
-              itemType: true,
-            },
-          },
-          client: {
-            select: { id: true, name: true },
-          },
-          movement: {
-            select: {
-              totalCost: true,
-              equipmentAssetsFromSoldOff: {
-                select: { id: true, assetCode: true, serialNo: true },
-                orderBy: { assetCode: "asc" },
-              },
-            },
-          },
-          createdBy: {
-            select: { id: true, name: true, username: true },
-          },
-        },
-        orderBy: { soldAt: "desc" },
-        take: 200,
-      }),
       prisma.equipmentAsset.findMany({
         where: { companyId: company.id },
         select: {
@@ -168,6 +140,17 @@ export default async function InventoryPage() {
           project: { select: { id: true, name: true } },
         },
         orderBy: [{ assetCode: "asc" }],
+      }),
+      prisma.equipmentFactoryReturn.findMany({
+        where: { companyId: company.id },
+        include: {
+          asset: { select: { assetCode: true } },
+          vendor: { select: { name: true } },
+          item: { select: { id: true, sku: true, name: true } },
+          createdBy: { select: { id: true, name: true, username: true } },
+        },
+        orderBy: { sentAt: "desc" },
+        take: 200,
       }),
     ]);
 
@@ -226,59 +209,60 @@ export default async function InventoryPage() {
       item: row.item!,
     }));
 
-  const soldOffRows = soldOffs
-    .filter((row) => row.item?.id != null)
-    .map((row) => {
-      const subtotal = decimalToNumber(row.subtotal) ?? 0;
-      const totalPrice = decimalToNumber(row.totalPrice) ?? 0;
-      const taxAmount = decimalToNumber(row.taxAmount) ?? 0;
-      const effectiveSubtotal =
-        subtotal > 0 || taxAmount > 0 ? subtotal : totalPrice;
-      const costBasis = decimalToNumber(row.movement?.totalCost) ?? 0;
-      return {
-        id: row.id,
-        soldAt: row.soldAt.toISOString(),
-        quantity: Math.abs(inventoryQtyFromDecimal(row.quantity)),
-        unitPrice: decimalToNumber(row.unitPrice) ?? 0,
-        totalPrice,
-        subtotal: effectiveSubtotal,
-        taxAmount,
-        taxRatePercent: decimalToNumber(row.taxRatePercent),
-        costBasis,
-        gainLoss: effectiveSubtotal - costBasis,
-        buyer: row.buyer,
-        buyerType: row.buyerType as "INDIVIDUAL" | "COMPANY" | null,
-        buyerPicName: row.buyerPicName,
-        buyerPhone: row.buyerPhone,
-        buyerIdNumber: row.buyerIdNumber,
-        buyerTaxId: row.buyerTaxId,
-        buyerRegistration: row.buyerRegistration,
-        buyerIdentityDocUrl: row.buyerIdentityDocUrl,
-        invoiceUrl: row.invoiceUrl,
-        clientId: row.clientId,
-        clientName: row.client?.name ?? null,
-        notes: row.notes,
-        createdBy: row.createdBy,
-        assets: row.movement?.equipmentAssetsFromSoldOff ?? [],
-        item: row.item!,
-      };
-    });
+  const soldMovementIds = [
+    ...new Set(
+      assetRows
+        .map((row) => row.soldOffMovementId)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
+  const soldSales =
+    soldMovementIds.length > 0
+      ? await prisma.inventorySale.findMany({
+          where: {
+            companyId: company.id,
+            movementId: { in: soldMovementIds },
+          },
+          select: {
+            movementId: true,
+            soldAt: true,
+            buyer: true,
+            client: { select: { name: true } },
+          },
+        })
+      : [];
+  const saleByMovement = new Map(
+    soldSales.map((sale) => [
+      sale.movementId,
+      {
+        buyer: sale.buyer?.trim() || sale.client?.name?.trim() || null,
+        soldAt: sale.soldAt.toISOString(),
+      },
+    ])
+  );
 
   const overviewAssets = assetRows
     .filter((a) => a.item?.id != null)
-    .map((a) => ({
-      id: a.id,
-      assetCode: a.assetCode,
-      status: a.status as "AVAILABLE" | "ON_PROJECT" | "RETIRED",
-      unitCost: decimalToNumber(a.unitCost),
-      serialNo: a.serialNo,
-      notes: a.notes,
-      assignedAt: a.assignedAt?.toISOString() ?? null,
-      writeOffMovementId: a.writeOffMovementId,
-      soldOffMovementId: a.soldOffMovementId,
-      item: a.item!,
-      project: a.project,
-    }));
+    .map((a) => {
+      const sale = a.soldOffMovementId
+        ? saleByMovement.get(a.soldOffMovementId)
+        : undefined;
+      return {
+        id: a.id,
+        assetCode: a.assetCode,
+        status: a.status,
+        unitCost: decimalToNumber(a.unitCost),
+        serialNo: a.serialNo,
+        notes: a.notes,
+        assignedAt: a.assignedAt?.toISOString() ?? null,
+        writeOffMovementId: a.writeOffMovementId,
+        soldOffMovementId: a.soldOffMovementId,
+        soldBuyer: sale?.buyer ?? null,
+        soldAt: sale?.soldAt ?? null,
+        item: a.item!,
+        project: a.project,
+      };
+    });
 
   return (
     <AppShell
@@ -292,12 +276,28 @@ export default async function InventoryPage() {
       <InventoryWorkspace
         canManage={canManage}
         canAssignToProject={canAssignToProject}
-        canReverseSale={canReverseSale}
+        canReturnToFactory={canReturnToFactory}
         items={catalogItems}
         purchases={purchaseRows}
         issues={issueRows}
         writeOffs={writeOffRows}
-        soldOffs={soldOffRows}
+        factoryReturns={factoryRows
+          .filter((row) => row.item?.id != null)
+          .map((row) => ({
+            id: row.id,
+            sentAt: row.sentAt.toISOString(),
+            originalIntent: row.originalIntent,
+            status: row.status,
+            reason: row.reason,
+            quantity: inventoryQtyFromDecimal(row.quantity),
+            refundAmount: decimalToNumber(row.refundAmount),
+            refundedAt: row.refundedAt?.toISOString() ?? null,
+            receivedAt: row.receivedAt?.toISOString() ?? null,
+            vendorName: row.vendor?.name ?? null,
+            assetCode: row.asset?.assetCode ?? null,
+            item: row.item!,
+            createdBy: row.createdBy,
+          }))}
         equipmentAssets={overviewAssets}
       />
     </AppShell>

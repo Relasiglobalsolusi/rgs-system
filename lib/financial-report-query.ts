@@ -6,12 +6,39 @@ import { jakartaYearMonth, utcRangeForJakartaMonth } from "@/lib/vat";
 
 export const FINANCIAL_REPORT_GENERAL_SCOPE = "general";
 export const FINANCIAL_REPORT_YEARLY_MONTH = "yearly";
+export const FINANCIAL_REPORT_ALL_BANKS = "all";
+export const FINANCIAL_REPORT_UNASSIGNED_BANK = "unassigned";
+
+export type FinancialReportBankScope =
+  | { kind: "all" }
+  | { kind: "unassigned" }
+  | { kind: "account"; id: string };
 
 export type FinancialReportSelection = {
   year: number;
   /** 1–12 for one calendar month; null means the whole year. */
   month: number | null;
+  /** `all`, `unassigned`, or a CompanyBankAccount id. */
+  bank?: string;
 };
+
+export function parseFinancialReportBankScope(
+  raw: string | null | undefined
+): FinancialReportBankScope {
+  const value = raw?.trim() || FINANCIAL_REPORT_ALL_BANKS;
+  if (value === FINANCIAL_REPORT_ALL_BANKS) return { kind: "all" };
+  if (value === FINANCIAL_REPORT_UNASSIGNED_BANK) return { kind: "unassigned" };
+  return { kind: "account", id: value };
+}
+
+export function bankAccountWhere(
+  bank: string
+): { bankAccountId?: string | null } {
+  const scope = parseFinancialReportBankScope(bank);
+  if (scope.kind === "all") return {};
+  if (scope.kind === "unassigned") return { bankAccountId: null };
+  return { bankAccountId: scope.id };
+}
 
 export type DateRange = {
   from: Date;
@@ -26,7 +53,11 @@ function firstParam(value: SearchParamValue): string {
 }
 
 export function parseFinancialReportSelection(
-  params: { year?: SearchParamValue; month?: SearchParamValue },
+  params: {
+    year?: SearchParamValue;
+    month?: SearchParamValue;
+    bank?: SearchParamValue;
+  },
   now: Date = new Date()
 ): FinancialReportSelection {
   const current = jakartaYearMonth(now);
@@ -35,22 +66,32 @@ export function parseFinancialReportSelection(
     ? Math.max(2000, Math.min(2100, Math.round(yearRaw)))
     : current.year;
 
+  const bankRaw = firstParam(params.bank);
+  const bank = bankRaw || FINANCIAL_REPORT_ALL_BANKS;
   const monthRaw = firstParam(params.month).toLowerCase();
   if (
     monthRaw === FINANCIAL_REPORT_YEARLY_MONTH ||
     monthRaw === "year" ||
     monthRaw === "annual"
   ) {
-    return { year, month: null };
+    return { year, month: null, bank };
   }
   if (!monthRaw) {
-    return { year, month: year === current.year ? current.month : null };
+    return {
+      year,
+      month: year === current.year ? current.month : null,
+      bank,
+    };
   }
   const month = Number(monthRaw);
   if (!Number.isFinite(month) || month < 1 || month > 12) {
-    return { year, month: year === current.year ? current.month : null };
+    return {
+      year,
+      month: year === current.year ? current.month : null,
+      bank,
+    };
   }
-  return { year, month: Math.round(month) };
+  return { year, month: Math.round(month), bank };
 }
 
 export function financialReportCalendarRange(
@@ -90,6 +131,9 @@ export function financialReportQueryString(
       ? FINANCIAL_REPORT_YEARLY_MONTH
       : String(selection.month)
   );
+  if (selection.bank && selection.bank !== FINANCIAL_REPORT_ALL_BANKS) {
+    params.set("bank", selection.bank);
+  }
   return params.toString();
 }
 

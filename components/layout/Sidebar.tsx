@@ -45,7 +45,7 @@ export default function Sidebar({
             <BrandLogo
               priority
               className="mx-auto block w-full"
-              imageClassName="mx-auto block h-auto w-full max-h-[9rem] object-contain"
+              imageClassName="mx-auto block h-auto w-full max-h-[9rem] min-h-[5.25rem] object-contain"
             />
           </div>
           <BrandSlogan className="shrink-0 px-1" />

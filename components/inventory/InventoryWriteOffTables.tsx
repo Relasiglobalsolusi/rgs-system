@@ -5,6 +5,8 @@ import { Undo2 } from "lucide-react";
 
 import {
   compareMovedAtDesc,
+  INVENTORY_CATEGORY_DISPLAY_ORDER,
+  INVENTORY_CATEGORY_TITLE_KEY,
   partitionByInventoryItemType,
 } from "@/components/inventory/inventory-category";
 import type { InventoryWriteOffRow } from "@/components/inventory/inventory-types";
@@ -122,7 +124,7 @@ export default function InventoryWriteOffTables({
             key: "actions",
             title: t("pages.inventory.columns.actions"),
             width: "8rem",
-            align: "right" as const,
+            cellAlign: "center" as const,
             render: (row: InventoryWriteOffRow) => (
               <Button
                 type="button"
@@ -186,30 +188,14 @@ export default function InventoryWriteOffTables({
 
   return (
     <div className="space-y-8">
-      {categorized.equipment.length > 0
-        ? renderCategoryTable(
-            t("pages.inventory.overview.categoryEquipment"),
-            categorized.equipment
-          )
-        : null}
-      {categorized.chemical.length > 0
-        ? renderCategoryTable(
-            t("pages.inventory.overview.categoryChemicals"),
-            categorized.chemical
-          )
-        : null}
-      {categorized.consumable.length > 0
-        ? renderCategoryTable(
-            t("pages.inventory.overview.categoryConsumables"),
-            categorized.consumable
-          )
-        : null}
-      {categorized.other.length > 0
-        ? renderCategoryTable(
-            t("pages.inventory.overview.categoryOthers"),
-            categorized.other
-          )
-        : null}
+      {INVENTORY_CATEGORY_DISPLAY_ORDER.map((key) =>
+        categorized[key].length > 0
+          ? renderCategoryTable(
+              t(INVENTORY_CATEGORY_TITLE_KEY[key]),
+              categorized[key]
+            )
+          : null
+      )}
     </div>
   );
 }

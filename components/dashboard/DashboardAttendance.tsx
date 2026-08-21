@@ -79,7 +79,7 @@ export default function DashboardAttendance({
         </div>
         {!personal && canViewAttendanceReport && (
           <Link
-            href="/attendance"
+            href="/progress"
             className="inline-flex min-h-10 items-center self-start rounded-lg border border-accent-cyan/25 bg-card-tint-cyan px-3 py-2 text-sm font-medium text-cyan-300 transition hover:border-accent-cyan/40 hover:text-cyan-200 lg:min-h-0 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0 lg:text-cyan-400 lg:hover:text-cyan-300"
           >
             {t("pages.dashboard.attendanceReport")}

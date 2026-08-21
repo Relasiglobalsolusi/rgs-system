@@ -3,6 +3,7 @@ import { readFile } from "fs/promises";
 import path from "path";
 import PDFDocument from "pdfkit";
 
+import { ensureCompanyForPdf } from "@/lib/company-for-pdf";
 import {
   formatDisplayDate,
   formatDisplayTime,
@@ -29,6 +30,21 @@ import type {
 
 const JAKARTA_TZ = "Asia/Jakarta";
 
+/** Task entries sit under the employee header — never as wide as a person break. */
+const TASK_INDENT = 14;
+const DAY_BANNER_H = 28;
+const DAY_BANNER_AFTER = 12;
+const EMPLOYEE_HEADER_H = 46;
+const EMPLOYEE_HEADER_AFTER = 10;
+const DAY_BLOCK_GAP = 10;
+const EMPLOYEE_BLOCK_GAP = 6;
+/** Break a little early so rounding / wrapping cannot orphan a header. */
+const KEEP_TOGETHER_FUDGE = 8;
+const PHOTO_WIDTH = 148;
+const PHOTO_HEIGHT = 102;
+const PHOTO_GAP = 10;
+const PHOTOS_PER_ROW = 3;
+
 export type ProjectMonthlyReportPdfInput = {
   feed: ProjectMonthlyDayFeed;
   periodLabel: string;
@@ -37,6 +53,11 @@ export type ProjectMonthlyReportPdfInput = {
 };
 
 type PdfDoc = InstanceType<typeof PDFDocument>;
+
+type PdfCtx = {
+  locale: AppLocale;
+  bcp47: string;
+};
 
 function publicUrlToFsPath(url: string): string | null {
   if (!url) return null;
@@ -68,20 +89,182 @@ async function loadImageBuffer(url: string): Promise<Buffer | null> {
   }
 }
 
+function drawDayBanner(doc: PdfDoc, ctx: PdfCtx, dayLabel: string) {
+  const y = doc.y;
+  const workDate = translate(ctx.locale, "pages.reports.pdfWorkDate");
+
+  doc.rect(PAGE_MARGIN, y, CONTENT_WIDTH, DAY_BANNER_H).fill(BRAND.ink);
+  doc.rect(PAGE_MARGIN, y, 5, DAY_BANNER_H).fill(BRAND.teal);
+
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(7)
+    .fillColor(BRAND.teal)
+    .text(workDate.toUpperCase(), PAGE_MARGIN + 14, y + 9, {
+      width: 92,
+      lineBreak: false,
+    });
+
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(10)
+    .fillColor(BRAND.white)
+    .text(dayLabel, PAGE_MARGIN + 108, y + 8, {
+      width: CONTENT_WIDTH - 122,
+      lineBreak: false,
+    });
+
+  doc.y = y + DAY_BANNER_H + DAY_BANNER_AFTER;
+}
+
+function remainingOnPage(doc: PdfDoc): number {
+  return BOTTOM_SAFE - doc.y;
+}
+
+function fullPageContentHeight(): number {
+  return BOTTOM_SAFE - PAGE_MARGIN;
+}
+
 function ensureSpace(doc: PdfDoc, needed: number) {
-  if (doc.y + needed > BOTTOM_SAFE) {
+  const remaining = remainingOnPage(doc);
+  const request = Math.min(Math.max(needed, 0), fullPageContentHeight());
+  if (
+    request > remaining &&
+    remaining < fullPageContentHeight() - KEEP_TOGETHER_FUDGE
+  ) {
     doc.addPage();
   }
 }
 
-function drawSectionRule(doc: PdfDoc, color: string = BRAND.rule) {
-  doc
-    .moveTo(PAGE_MARGIN, doc.y)
-    .lineTo(PAGE_MARGIN + CONTENT_WIDTH, doc.y)
-    .strokeColor(color)
-    .lineWidth(1)
-    .stroke();
-  doc.moveDown(0.55);
+/**
+ * Page-break before a block when header + first content cannot fit.
+ * Leading gap is skipped if the block moves to a new page.
+ * Oversized blocks stay on the current page when already near the top.
+ */
+function ensureKeepTogether(doc: PdfDoc, needed: number, leadingGap = 0) {
+  const remaining = remainingOnPage(doc);
+  const request = Math.min(
+    Math.max(leadingGap + needed, 0),
+    fullPageContentHeight()
+  );
+  if (
+    request > remaining &&
+    remaining < fullPageContentHeight() - KEEP_TOGETHER_FUDGE
+  ) {
+    doc.addPage();
+    return;
+  }
+  if (leadingGap > 0) {
+    doc.y += leadingGap;
+  }
+}
+
+function measureWrappedHeight(
+  doc: PdfDoc,
+  text: string,
+  font: string,
+  size: number,
+  width: number
+): number {
+  doc.font(font).fontSize(size);
+  return doc.heightOfString(text, { width });
+}
+
+function measureProgressReportHeight(
+  doc: PdfDoc,
+  ctx: PdfCtx,
+  report: FeedProgressReport,
+  photoBuffers: Map<string, Buffer>
+): number {
+  const width = CONTENT_WIDTH - TASK_INDENT;
+  let h = 0;
+
+  if (report.stageLabel) {
+    h += measureWrappedHeight(
+      doc,
+      report.stageLabel,
+      "Helvetica-Bold",
+      8,
+      width
+    );
+    h += 0.15 * doc.currentLineHeight();
+  }
+
+  if (report.notes) {
+    h += measureWrappedHeight(doc, report.notes, "Helvetica", 8.5, width);
+    h += 0.2 * doc.currentLineHeight();
+  }
+
+  const timeLabel = formatDisplayTime(
+    report.createdAt,
+    { timeZone: JAKARTA_TZ },
+    ctx.bcp47
+  );
+  h += measureWrappedHeight(doc, timeLabel, "Helvetica", 7.5, width);
+  h += 0.3 * doc.currentLineHeight();
+
+  if (report.photos.length === 0) {
+    h += measureWrappedHeight(
+      doc,
+      translate(ctx.locale, "pages.progress.noPhotos"),
+      "Helvetica",
+      8,
+      width
+    );
+  } else {
+    let loaded = 0;
+    let missing = 0;
+    for (const photo of report.photos) {
+      if (photoBuffers.get(photo.url)) loaded += 1;
+      else missing += 1;
+    }
+    const rows = Math.ceil(loaded / PHOTOS_PER_ROW);
+    h += rows * (PHOTO_HEIGHT + 14);
+    if (missing > 0) {
+      const sample = `${translate(ctx.locale, "pages.reports.progressPhoto")}: /`;
+      h +=
+        missing *
+        (measureWrappedHeight(doc, sample, "Helvetica", 7.5, width) + 4);
+    }
+  }
+
+  doc.font("Helvetica").fontSize(8);
+  h += 0.4 * doc.currentLineHeight();
+  return h + KEEP_TOGETHER_FUDGE;
+}
+
+function measureEmptyProgressHeight(doc: PdfDoc, ctx: PdfCtx): number {
+  const width = CONTENT_WIDTH - TASK_INDENT;
+  const h = measureWrappedHeight(
+    doc,
+    translate(ctx.locale, "pages.reports.noProgressForEmployee"),
+    "Helvetica",
+    8,
+    width
+  );
+  return h + 0.45 * doc.currentLineHeight() + KEEP_TOGETHER_FUDGE;
+}
+
+/** Employee name bar + first report (or empty placeholder) — never split. */
+function measureEmployeeKeepTogether(
+  doc: PdfDoc,
+  ctx: PdfCtx,
+  employee: FeedEmployeeDay,
+  photoBuffers: Map<string, Buffer>
+): number {
+  const headerBlock = EMPLOYEE_HEADER_H + EMPLOYEE_HEADER_AFTER;
+  if (employee.progressReports.length === 0) {
+    return headerBlock + measureEmptyProgressHeight(doc, ctx);
+  }
+  return (
+    headerBlock +
+    measureProgressReportHeight(
+      doc,
+      ctx,
+      employee.progressReports[0],
+      photoBuffers
+    )
+  );
 }
 
 function drawTitleBlock(
@@ -130,15 +313,17 @@ function drawTitleBlock(
     .fillColor(BRAND.muted)
     .text(`Generated ${formatDisplayDate(new Date())}`, { width: CONTENT_WIDTH });
 
-  doc.moveDown(0.7);
-  drawSectionRule(doc, BRAND.teal);
+  doc.moveDown(0.55);
 }
 
 function drawCicoLine(
   doc: PdfDoc,
   employee: FeedEmployeeDay,
   locale: AppLocale,
-  bcp47: string
+  bcp47: string,
+  x: number,
+  y: number,
+  width: number
 ) {
   const checkIn = employee.cico?.checkIn ?? null;
   const checkOut = employee.cico?.checkOut ?? null;
@@ -149,8 +334,9 @@ function drawCicoLine(
       .font("Helvetica")
       .fontSize(8)
       .fillColor(BRAND.muted)
-      .text(translate(locale, "pages.reports.noCicoForEmployee"), {
-        width: CONTENT_WIDTH,
+      .text(translate(locale, "pages.reports.noCicoForEmployee"), x, y, {
+        width,
+        lineBreak: false,
       });
     return;
   }
@@ -178,33 +364,33 @@ function drawCicoLine(
     .fillColor(BRAND.body)
     .text(
       `${checkInLabel} ${checkInTime}  ·  ${checkOutLabel} ${checkOutTime}${durationPart}`,
-      { width: CONTENT_WIDTH }
+      x,
+      y,
+      { width, lineBreak: false }
     );
 }
 
 function drawProgressReport(
   doc: PdfDoc,
+  ctx: PdfCtx,
   report: FeedProgressReport,
   photoBuffers: Map<string, Buffer>,
-  locale: AppLocale,
-  bcp47: string
+  options?: { allowBreakBefore?: boolean }
 ) {
-  ensureSpace(doc, 80);
+  if (options?.allowBreakBefore !== false) {
+    ensureSpace(doc, 72);
+  }
 
-  doc
-    .roundedRect(PAGE_MARGIN, doc.y, CONTENT_WIDTH, 4, 1)
-    .fill(BRAND.panelBg);
-  doc.moveDown(0.35);
-
-  const blockTop = doc.y;
+  const x = PAGE_MARGIN + TASK_INDENT;
+  const width = CONTENT_WIDTH - TASK_INDENT;
 
   if (report.stageLabel) {
     doc
       .font("Helvetica-Bold")
-      .fontSize(9)
-      .fillColor(BRAND.ink)
-      .text(report.stageLabel, PAGE_MARGIN, blockTop, { width: CONTENT_WIDTH });
-    doc.moveDown(0.2);
+      .fontSize(8)
+      .fillColor(BRAND.body)
+      .text(report.stageLabel, x, doc.y, { width });
+    doc.moveDown(0.15);
   }
 
   if (report.notes) {
@@ -212,8 +398,8 @@ function drawProgressReport(
       .font("Helvetica")
       .fontSize(8.5)
       .fillColor(BRAND.body)
-      .text(report.notes, { width: CONTENT_WIDTH });
-    doc.moveDown(0.25);
+      .text(report.notes, x, doc.y, { width });
+    doc.moveDown(0.2);
   }
 
   doc
@@ -221,21 +407,22 @@ function drawProgressReport(
     .fontSize(7.5)
     .fillColor(BRAND.muted)
     .text(
-      formatDisplayTime(report.createdAt, { timeZone: JAKARTA_TZ }, bcp47),
-      { width: CONTENT_WIDTH }
+      formatDisplayTime(report.createdAt, { timeZone: JAKARTA_TZ }, ctx.bcp47),
+      x,
+      doc.y,
+      { width }
     );
-  doc.moveDown(0.35);
+  doc.moveDown(0.3);
 
   if (report.photos.length === 0) {
     doc
       .font("Helvetica")
       .fontSize(8)
       .fillColor(BRAND.muted)
-      .text(translate(locale, "pages.progress.noPhotos"), { width: CONTENT_WIDTH });
+      .text(translate(ctx.locale, "pages.progress.noPhotos"), x, doc.y, {
+        width,
+      });
   } else {
-    const photoWidth = 160;
-    const photoHeight = 110;
-    const gap = 12;
     let col = 0;
     let rowTop = doc.y;
 
@@ -243,7 +430,7 @@ function drawProgressReport(
       const buffer = photoBuffers.get(photo.url);
       if (!buffer) {
         if (col !== 0) {
-          doc.y = rowTop + photoHeight + 16;
+          doc.y = rowTop + PHOTO_HEIGHT + 14;
           col = 0;
         }
         ensureSpace(doc, 16);
@@ -251,22 +438,25 @@ function drawProgressReport(
           .font("Helvetica")
           .fontSize(7.5)
           .fillColor(BRAND.muted)
-          .text(`${translate(locale, "pages.reports.progressPhoto")}: ${photo.url}`, {
-            width: CONTENT_WIDTH,
-          });
+          .text(
+            `${translate(ctx.locale, "pages.reports.progressPhoto")}: ${photo.url}`,
+            x,
+            doc.y,
+            { width }
+          );
         rowTop = doc.y;
         continue;
       }
 
       if (col === 0) {
-        ensureSpace(doc, photoHeight + 20);
+        ensureSpace(doc, PHOTO_HEIGHT + 18);
         rowTop = doc.y;
       }
 
-      const x = PAGE_MARGIN + col * (photoWidth + gap);
+      const photoX = x + col * (PHOTO_WIDTH + PHOTO_GAP);
       try {
-        doc.image(buffer, x, rowTop, {
-          fit: [photoWidth, photoHeight],
+        doc.image(buffer, photoX, rowTop, {
+          fit: [PHOTO_WIDTH, PHOTO_HEIGHT],
           align: "center",
           valign: "center",
         });
@@ -275,99 +465,148 @@ function drawProgressReport(
           .font("Helvetica")
           .fontSize(7.5)
           .fillColor(BRAND.muted)
-          .text(translate(locale, "pages.reports.progressPhoto"), x, rowTop, {
-            width: photoWidth,
+          .text(translate(ctx.locale, "pages.reports.progressPhoto"), photoX, rowTop, {
+            width: PHOTO_WIDTH,
           });
       }
 
       col += 1;
-      if (col >= 3) {
-        doc.y = rowTop + photoHeight + 12;
+      if (col >= PHOTOS_PER_ROW) {
+        doc.y = rowTop + PHOTO_HEIGHT + 10;
         col = 0;
       }
     }
 
     if (col !== 0) {
-      doc.y = rowTop + photoHeight + 12;
+      doc.y = rowTop + PHOTO_HEIGHT + 10;
     }
   }
 
-  doc.moveDown(0.5);
+  doc.moveDown(0.4);
+}
+
+function drawEmployeeHeader(
+  doc: PdfDoc,
+  ctx: PdfCtx,
+  employee: FeedEmployeeDay
+) {
+  const y = doc.y;
+  const padX = 12;
+  const nameY = y + 8;
+  const nameW = CONTENT_WIDTH * 0.58;
+  const metaX = PAGE_MARGIN + nameW;
+  const metaW = CONTENT_WIDTH - nameW - padX;
+
+  doc.rect(PAGE_MARGIN, y, CONTENT_WIDTH, EMPLOYEE_HEADER_H).fill(BRAND.lavenderSoft);
+  doc.rect(PAGE_MARGIN, y, 3, EMPLOYEE_HEADER_H).fill(BRAND.lavender);
+
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(11)
+    .fillColor(BRAND.ink)
+    .text(employee.name, PAGE_MARGIN + padX, nameY, {
+      width: nameW - padX,
+      height: 14,
+      ellipsis: true,
+    });
+
+  const empNoLabel = translate(ctx.locale, "pages.reports.pdfEmployeeNo");
+  doc
+    .font("Helvetica")
+    .fontSize(8)
+    .fillColor(BRAND.muted)
+    .text(`${empNoLabel}  ${employee.employeeNo}`, metaX, nameY + 2, {
+      width: metaW,
+      align: "right",
+      lineBreak: false,
+    });
+
+  drawCicoLine(
+    doc,
+    employee,
+    ctx.locale,
+    ctx.bcp47,
+    PAGE_MARGIN + padX,
+    y + 26,
+    CONTENT_WIDTH - padX * 2
+  );
+
+  doc.y = y + EMPLOYEE_HEADER_H + EMPLOYEE_HEADER_AFTER;
 }
 
 function drawEmployeeSection(
   doc: PdfDoc,
+  ctx: PdfCtx,
   employee: FeedEmployeeDay,
   photoBuffers: Map<string, Buffer>,
-  locale: AppLocale,
-  bcp47: string
+  isFirstOnDay: boolean
 ) {
-  ensureSpace(doc, 60);
+  // First employee of the day is already reserved with the Work Date bar.
+  if (!isFirstOnDay) {
+    ensureKeepTogether(
+      doc,
+      measureEmployeeKeepTogether(doc, ctx, employee, photoBuffers),
+      EMPLOYEE_BLOCK_GAP
+    );
+  }
 
-  const headerY = doc.y;
-
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(10)
-    .fillColor(BRAND.ink)
-    .text(employee.name, PAGE_MARGIN, headerY, { width: CONTENT_WIDTH * 0.65 });
-
-  doc
-    .font("Helvetica")
-    .fontSize(8.5)
-    .fillColor(BRAND.muted)
-    .text(employee.employeeNo, PAGE_MARGIN + CONTENT_WIDTH * 0.65, headerY + 1, {
-      width: CONTENT_WIDTH * 0.35,
-      align: "right",
-    });
-
-  doc.y = headerY + 16;
-  drawCicoLine(doc, employee, locale, bcp47);
-  doc.moveDown(0.35);
+  drawEmployeeHeader(doc, ctx, employee);
 
   if (employee.progressReports.length === 0) {
     doc
       .font("Helvetica")
       .fontSize(8)
       .fillColor(BRAND.muted)
-      .text(translate(locale, "pages.reports.noProgressForEmployee"), {
-        width: CONTENT_WIDTH,
-      });
+      .text(
+        translate(ctx.locale, "pages.reports.noProgressForEmployee"),
+        PAGE_MARGIN + TASK_INDENT,
+        doc.y,
+        { width: CONTENT_WIDTH - TASK_INDENT }
+      );
+    doc.x = PAGE_MARGIN;
     doc.moveDown(0.45);
     return;
   }
 
-  for (const report of employee.progressReports) {
-    drawProgressReport(doc, report, photoBuffers, locale, bcp47);
-  }
+  employee.progressReports.forEach((report, index) => {
+    drawProgressReport(doc, ctx, report, photoBuffers, {
+      // First entry must stay with the name bar; later entries may wrap pages.
+      allowBreakBefore: index !== 0,
+    });
+  });
 }
 
 function drawDaySection(
   doc: PdfDoc,
+  ctx: PdfCtx,
   dateKey: string,
   employees: FeedEmployeeDay[],
   photoBuffers: Map<string, Buffer>,
-  locale: AppLocale,
-  bcp47: string
+  isFirstDay: boolean
 ) {
-  ensureSpace(doc, 48);
+  const dayLabel = formatDisplayDate(
+    dateKey,
+    { timeZone: "UTC", weekday: "long" },
+    ctx.bcp47
+  );
 
-  const dayLabel = formatDisplayDate(dateKey, { timeZone: "UTC" }, bcp47);
+  const firstEmployee = employees[0];
+  const firstEmployeeKeep = firstEmployee
+    ? measureEmployeeKeepTogether(doc, ctx, firstEmployee, photoBuffers)
+    : 0;
+  ensureKeepTogether(
+    doc,
+    DAY_BANNER_H + DAY_BANNER_AFTER + firstEmployeeKeep,
+    isFirstDay ? 0 : DAY_BLOCK_GAP
+  );
 
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(9)
-    .fillColor(BRAND.tealDeep)
-    .text(dayLabel.toUpperCase(), PAGE_MARGIN, doc.y, { width: CONTENT_WIDTH });
+  drawDayBanner(doc, ctx, dayLabel);
 
-  doc.moveDown(0.35);
-  drawSectionRule(doc, BRAND.rule);
+  employees.forEach((employee, index) => {
+    drawEmployeeSection(doc, ctx, employee, photoBuffers, index === 0);
+  });
 
-  for (const employee of employees) {
-    drawEmployeeSection(doc, employee, photoBuffers, locale, bcp47);
-  }
-
-  doc.moveDown(0.35);
+  doc.moveDown(0.25);
 }
 
 async function preloadPhotoBuffers(
@@ -396,7 +635,9 @@ async function preloadPhotoBuffers(
 export async function buildProjectMonthlyReportPdfBuffer(
   input: ProjectMonthlyReportPdfInput
 ): Promise<Buffer> {
-  const letterhead = letterheadFromCompany(input.company);
+  const letterhead = letterheadFromCompany(
+    await ensureCompanyForPdf(input.company)
+  );
   const logoBuffer = await loadBrandLogoBuffer();
   const locale = input.locale ?? DEFAULT_LOCALE;
   const bcp47 = localeToBcp47(locale);
@@ -415,6 +656,11 @@ export async function buildProjectMonthlyReportPdfBuffer(
       bufferPages: true,
     });
 
+    const ctx: PdfCtx = {
+      locale,
+      bcp47,
+    };
+
     const chunks: Buffer[] = [];
     doc.on("data", (chunk: Buffer) => chunks.push(chunk));
     doc.on("end", () => resolve(Buffer.concat(chunks)));
@@ -432,9 +678,16 @@ export async function buildProjectMonthlyReportPdfBuffer(
           width: CONTENT_WIDTH,
         });
     } else {
-      for (const day of activeDays) {
-        drawDaySection(doc, day.dateKey, day.employees, photoBuffers, locale, bcp47);
-      }
+      activeDays.forEach((day, index) => {
+        drawDaySection(
+          doc,
+          ctx,
+          day.dateKey,
+          day.employees,
+          photoBuffers,
+          index === 0
+        );
+      });
     }
 
     const range = doc.bufferedPageRange();

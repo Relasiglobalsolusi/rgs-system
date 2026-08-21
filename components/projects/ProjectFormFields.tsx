@@ -18,6 +18,9 @@ import ProjectStaffPicker, {
   type ProjectStaffEmployee,
 } from "@/components/projects/ProjectStaffPicker";
 import ProjectTimelineFields from "@/components/projects/ProjectTimelineFields";
+import PaymentTermsField from "@/components/billing/PaymentTermsField";
+import CompanyBankAccountField from "@/components/company-details/CompanyBankAccountField";
+import type { CompanyBankAccountOption } from "@/lib/company-bank-accounts";
 import ServiceCommercialFields from "@/components/projects/ServiceCommercialFields";
 import {
   employeeDialogFieldClass,
@@ -25,6 +28,7 @@ import {
   employeeInputClass,
   employeeSelectTriggerClass,
 } from "@/components/employees/employee-dialog-ui";
+import { FileDropField } from "@/components/ui/FileDropField";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -36,10 +40,22 @@ import {
 import { DEFAULT_LOCATION_RADIUS_METERS } from "@/lib/geo";
 import { DEFAULT_NEW_PROJECT_SHIFTS } from "@/lib/project-shifts";
 import {
-  COMMERCIAL_PROJECT_SUB_CATEGORIES,
+  isLandscapingProjectSubCategory,
   isServiceProjectSubCategory,
   subCategoryForServiceArea,
 } from "@/lib/project-subcategory";
+import {
+  ONE_TIME_FORM_VALUE,
+  storedSubCategoryFromForm,
+  type CleaningOneTimeType,
+} from "@/lib/project-form-subcategory";
+import {
+  billingSubCategoryForCatalog,
+  catalogDisplayName,
+  catalogSubsForAddProject,
+  type ProjectCatalogAreaDTO,
+} from "@/lib/project-service-catalog";
+import { teamsForProjectServiceArea } from "@/lib/operations-team-kind";
 import type { ProjectServiceAreaValue } from "@/lib/service-area";
 import {
   DEFAULT_CONTRACT_DURATION_MONTHS,
@@ -60,6 +76,13 @@ import type {
   BillingPeriodBasis,
   ProjectSubCategory,
 } from "@prisma/client";
+import CommercialTaxKindField from "@/components/billing/CommercialTaxKindField";
+import {
+  commercialTaxRequiresOtherName,
+  commercialTaxRequiresRatePercent,
+  defaultCommercialNonVatRatePercent,
+  type CommercialTaxKind,
+} from "@/lib/commercial-tax";
 import { taxInvoiceDefaultsFromClient } from "@/lib/npwp";
 import { localizeBillingMode, localizeSubCategory } from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
@@ -69,6 +92,8 @@ const LocationPicker = dynamic(
   () => import("@/components/projects/LocationPicker"),
   { ssr: false }
 );
+
+type FormServiceArea = ProjectServiceAreaValue | "OTHER";
 
 export type ProjectFormClient = {
   id: string;
@@ -81,9 +106,13 @@ export type ProjectFormInitialStatus = "PLANNED" | "IN_PROGRESS";
 
 export type ProjectFormFieldsState = {
   clientId: string;
+  chargedTaxKind: CommercialTaxKind | "";
+  otherTaxName: string;
+  pphRatePercent: string;
   planSumOk: boolean;
   isService: boolean;
   isContract: boolean;
+  isLandscaping: boolean;
   showPaymentPlan: boolean;
   initialStatus: ProjectFormInitialStatus;
   controlledSignature: string;
@@ -93,6 +122,8 @@ type Props = {
   employees: ProjectStaffEmployee[];
   teams?: ProjectTeamOption[];
   clients: ProjectFormClient[];
+  catalog?: ProjectCatalogAreaDTO[];
+  bankAccounts?: CompanyBankAccountOption[];
   /** Prefix form field names (e.g. `line.0.`) for bulk create. */
   namePrefix?: string;
   /** Prefix element ids so multiple forms can sit on one page. */
@@ -105,6 +136,8 @@ export default function ProjectFormFields({
   employees,
   teams = [],
   clients,
+  catalog = [],
+  bankAccounts = [],
   namePrefix = "",
   idPrefix = "",
   onFormValuesChange,
@@ -126,14 +159,15 @@ export default function ProjectFormFields({
     [t]
   );
 
-  const subcategoryOptions = useMemo(
-    () =>
-      COMMERCIAL_PROJECT_SUB_CATEGORIES.map((value) => ({
-        value,
-        label: localizeSubCategory(value, locale),
-      })),
-    [locale]
+  const [serviceArea, setServiceArea] =
+    useState<FormServiceArea>("CLEANING");
+  const [areaCatalogId, setAreaCatalogId] = useState(
+    () => catalog.find((area) => area.systemArea === "CLEANING")?.id ?? ""
   );
+  const [uiSubcategory, setUiSubcategory] = useState("REGULAR_CLEANING");
+  const [oneTimeCleaningType, setOneTimeCleaningType] =
+    useState<CleaningOneTimeType>("GENERAL_CLEANING");
+  const [subcategoryCatalogId, setSubcategoryCatalogId] = useState("");
 
   const generalFacadeBillingOptions = useMemo(
     () =>
@@ -145,15 +179,41 @@ export default function ProjectFormFields({
   );
 
   const [clientId, setClientId] = useState(clients[0]?.id ?? "");
+  const [chargedTaxKind, setChargedTaxKind] = useState<
+    CommercialTaxKind | ""
+  >("");
+  const [pphRatePercent, setPphRatePercent] = useState("");
+  const [otherTaxName, setOtherTaxName] = useState("");
   const [npwp, setNpwp] = useState(
     () => taxInvoiceDefaultsFromClient(clients[0]).npwp
   );
   const [initialStatus, setInitialStatus] =
     useState<ProjectFormInitialStatus>("PLANNED");
-  const [subCategory, setSubCategory] =
-    useState<ProjectSubCategory>("REGULAR_CLEANING");
-  const [serviceArea, setServiceArea] =
-    useState<ProjectServiceAreaValue>("CLEANING");
+  const selectedCatalogArea = useMemo(
+    () =>
+      catalog.find((area) => area.id === areaCatalogId) ??
+      catalog.find((area) => area.systemArea === serviceArea) ??
+      null,
+    [areaCatalogId, catalog, serviceArea]
+  );
+  const selectedCustomSub = useMemo(
+    () =>
+      selectedCatalogArea?.subcategories.find(
+        (sub) => sub.id === subcategoryCatalogId && !sub.isSystem
+      ) ?? null,
+    [selectedCatalogArea, subcategoryCatalogId]
+  );
+  const subCategory: ProjectSubCategory = selectedCustomSub
+    ? billingSubCategoryForCatalog({
+        systemArea: selectedCatalogArea?.systemArea ?? serviceArea,
+        billingKind: selectedCustomSub.billingKind,
+        systemSubCategory: selectedCustomSub.systemSubCategory,
+      })
+    : storedSubCategoryFromForm({
+        serviceArea,
+        uiSubcategory,
+        oneTimeCleaningType,
+      }) ?? "REGULAR_CLEANING";
   const [billingMode, setBillingMode] = useState<BillingMode>(
     defaultBillingMode("REGULAR_CLEANING")
   );
@@ -191,6 +251,7 @@ export default function ProjectFormFields({
   const [shiftCount, setShiftCount] = useState(DEFAULT_NEW_PROJECT_SHIFTS);
 
   const isContract = isContractSubCategory(subCategory);
+  const isLandscaping = isLandscapingProjectSubCategory(subCategory);
   const isService = isServiceProjectSubCategory(subCategory);
   const isMonthTimeline = usesMonthDurationTimeline(subCategory);
   const isMilestoneEligible = isMilestoneSubCategory(subCategory);
@@ -209,6 +270,9 @@ export default function ProjectFormFields({
 
   const controlledSignature = JSON.stringify({
     clientId,
+    chargedTaxKind,
+    pphRatePercent,
+    otherTaxName,
     npwp,
     initialStatus,
     subCategory,
@@ -229,18 +293,26 @@ export default function ProjectFormFields({
   useLayoutEffect(() => {
     onStateChangeRef.current?.({
       clientId,
+      chargedTaxKind,
+      otherTaxName,
+      pphRatePercent,
       planSumOk,
       isService,
       isContract,
+      isLandscaping,
       showPaymentPlan,
       initialStatus,
       controlledSignature,
     });
   }, [
     clientId,
+    chargedTaxKind,
+    otherTaxName,
+    pphRatePercent,
     planSumOk,
     isService,
     isContract,
+    isLandscaping,
     showPaymentPlan,
     initialStatus,
     controlledSignature,
@@ -262,8 +334,7 @@ export default function ProjectFormFields({
     onFormValuesChange?.();
   }
 
-  function handleSubCategoryChange(next: ProjectSubCategory) {
-    setSubCategory(next);
+  function applyResolvedSubCategory(next: ProjectSubCategory) {
     const nextMode = defaultBillingMode(next);
     setBillingMode(nextMode);
     if (!isMilestoneSubCategory(next) || nextMode !== "MILESTONE") {
@@ -278,19 +349,85 @@ export default function ProjectFormFields({
     onFormValuesChange?.();
   }
 
-  function handleServiceAreaChange(next: ProjectServiceAreaValue) {
-    setServiceArea(next);
-    const locked = subCategoryForServiceArea(next);
-    if (locked) {
-      handleSubCategoryChange(locked);
+  function handleUiSubcategoryChange(next: string) {
+    setUiSubcategory(next);
+    setSubcategoryCatalogId("");
+    if (next === ONE_TIME_FORM_VALUE && serviceArea === "CLEANING") {
+      applyResolvedSubCategory(oneTimeCleaningType);
       return;
     }
-    if (
-      !COMMERCIAL_PROJECT_SUB_CATEGORIES.includes(
-        subCategory as (typeof COMMERCIAL_PROJECT_SUB_CATEGORIES)[number]
-      )
-    ) {
-      handleSubCategoryChange("REGULAR_CLEANING");
+    const resolved =
+      storedSubCategoryFromForm({
+        serviceArea,
+        uiSubcategory: next,
+        oneTimeCleaningType,
+      }) ?? "REGULAR_CLEANING";
+    applyResolvedSubCategory(resolved);
+  }
+
+  function handleCustomSubcategoryChange(subId: string) {
+    const row = selectedCatalogArea?.subcategories.find((item) => item.id === subId);
+    setSubcategoryCatalogId(subId);
+    setUiSubcategory(subId);
+    if (!row || !selectedCatalogArea) return;
+    applyResolvedSubCategory(
+      billingSubCategoryForCatalog({
+        systemArea: selectedCatalogArea.systemArea,
+        billingKind: row.billingKind,
+        systemSubCategory: row.systemSubCategory,
+      })
+    );
+  }
+
+  function handleOneTimeCleaningTypeChange(next: CleaningOneTimeType) {
+    setOneTimeCleaningType(next);
+    applyResolvedSubCategory(next);
+  }
+
+  function handleServiceAreaChange(next: FormServiceArea, catalogId?: string) {
+    setServiceArea(next);
+    setAreaCatalogId(
+      catalogId ??
+        catalog.find((area) => area.systemArea === next)?.id ??
+        ""
+    );
+    setSubcategoryCatalogId("");
+    const locked = subCategoryForServiceArea(next);
+    if (locked) {
+      setUiSubcategory(locked);
+      applyResolvedSubCategory(locked);
+      return;
+    }
+    if (next === "CLEANING") {
+      setUiSubcategory("REGULAR_CLEANING");
+      applyResolvedSubCategory("REGULAR_CLEANING");
+      return;
+    }
+    if (next === "LANDSCAPING") {
+      setUiSubcategory("REGULAR_LANDSCAPING");
+      applyResolvedSubCategory("REGULAR_LANDSCAPING");
+      return;
+    }
+    if (next === "SECURITY") {
+      setUiSubcategory("SECURITY");
+      applyResolvedSubCategory("SECURITY");
+      return;
+    }
+    const nextArea = catalog.find((area) => area.id === catalogId);
+    const firstCustom = nextArea
+      ? catalogSubsForAddProject(nextArea)[0]
+      : undefined;
+    if (firstCustom && nextArea) {
+      setSubcategoryCatalogId(firstCustom.id);
+      setUiSubcategory(firstCustom.id);
+      applyResolvedSubCategory(
+        billingSubCategoryForCatalog({
+          systemArea: nextArea.systemArea,
+          billingKind: firstCustom.billingKind,
+          systemSubCategory: firstCustom.systemSubCategory,
+        })
+      );
+      return;
     }
     onFormValuesChange?.();
   }
@@ -313,6 +450,12 @@ export default function ProjectFormFields({
       />
       <input type="hidden" name={nameOf("subCategory")} value={subCategory} />
       <input type="hidden" name={nameOf("serviceArea")} value={serviceArea} />
+      <input type="hidden" name={nameOf("areaCatalogId")} value={areaCatalogId} />
+      <input
+        type="hidden"
+        name={nameOf("subcategoryCatalogId")}
+        value={subcategoryCatalogId}
+      />
       <input type="hidden" name={nameOf("billingMode")} value={billingMode} />
       {isContract || subCategory === "SECURITY" ? (
         <input
@@ -372,29 +515,198 @@ export default function ProjectFormFields({
 
       <ProjectOptionPills
         label={t("pages.projects.serviceArea")}
-        value={serviceArea}
-        options={[
-          { value: "CLEANING", label: t("pages.projects.serviceAreaCleaning") },
-          { value: "PARKING", label: t("pages.projects.serviceAreaParking") },
-          { value: "SECURITY", label: t("pages.projects.serviceAreaSecurity") },
-          {
-            value: "PAYROLL_MANAGEMENT",
-            label: t("pages.projects.serviceAreaPayroll"),
-          },
-        ]}
-        onChange={(value) =>
-          handleServiceAreaChange(value as ProjectServiceAreaValue)
+        value={areaCatalogId || serviceArea}
+        options={
+          catalog.length > 0
+            ? catalog.map((area) => ({
+                value: area.id,
+                label: catalogDisplayName(area, locale),
+              }))
+            : [
+                {
+                  value: "CLEANING",
+                  label: t("pages.projects.serviceAreaCleaning"),
+                },
+                {
+                  value: "LANDSCAPING",
+                  label: t("pages.projects.serviceAreaLandscaping"),
+                },
+                {
+                  value: "PARKING",
+                  label: t("pages.projects.serviceAreaParking"),
+                },
+                {
+                  value: "SECURITY",
+                  label: t("pages.projects.serviceAreaSecurity"),
+                },
+                {
+                  value: "PAYROLL_MANAGEMENT",
+                  label: t("pages.projects.serviceAreaPayroll"),
+                },
+              ]
         }
+        onChange={(value) => {
+          const area = catalog.find((item) => item.id === value);
+          if (area) {
+            const nextArea: FormServiceArea =
+              area.systemArea === "OTHER" || area.systemArea === "HEAD_OFFICE"
+                ? "OTHER"
+                : (area.systemArea as ProjectServiceAreaValue);
+            handleServiceAreaChange(nextArea, area.id);
+            return;
+          }
+          handleServiceAreaChange(value as ProjectServiceAreaValue);
+        }}
         columns={2}
       />
 
       {serviceArea === "CLEANING" ? (
+        <>
+          <ProjectOptionPills
+            label={t("pages.projects.subcategory")}
+            value={uiSubcategory}
+            options={[
+              {
+                value: "REGULAR_CLEANING",
+                label: localizeSubCategory("REGULAR_CLEANING", locale),
+              },
+              {
+                value: "CONTRACT_GENERAL_CLEANING",
+                label: localizeSubCategory("CONTRACT_GENERAL_CLEANING", locale),
+              },
+              {
+                value: "CONTRACT_FACADE_CLEANING",
+                label: localizeSubCategory("CONTRACT_FACADE_CLEANING", locale),
+              },
+              {
+                value: ONE_TIME_FORM_VALUE,
+                label: t("pages.projects.oneTime"),
+              },
+              ...(selectedCatalogArea?.subcategories
+                .filter((sub) => !sub.isSystem)
+                .map((sub) => ({
+                  value: sub.id,
+                  label: catalogDisplayName(sub, locale),
+                })) ?? []),
+            ]}
+            onChange={(value) => {
+              const custom = selectedCatalogArea?.subcategories.find(
+                (sub) => sub.id === value && !sub.isSystem
+              );
+              if (custom) {
+                handleCustomSubcategoryChange(value);
+                return;
+              }
+              handleUiSubcategoryChange(value);
+            }}
+            columns={2}
+          />
+          {uiSubcategory === ONE_TIME_FORM_VALUE && !selectedCustomSub ? (
+            <ProjectOptionPills
+              label={t("pages.projects.oneTimeType")}
+              value={oneTimeCleaningType}
+              options={[
+                {
+                  value: "GENERAL_CLEANING",
+                  label: localizeSubCategory("GENERAL_CLEANING", locale),
+                },
+                {
+                  value: "FACADE_CLEANING",
+                  label: localizeSubCategory("FACADE_CLEANING", locale),
+                },
+              ]}
+              onChange={(value) =>
+                handleOneTimeCleaningTypeChange(value as CleaningOneTimeType)
+              }
+              columns={2}
+            />
+          ) : null}
+        </>
+      ) : null}
+
+      {serviceArea === "LANDSCAPING" ? (
         <ProjectOptionPills
           label={t("pages.projects.subcategory")}
-          value={subCategory}
-          options={subcategoryOptions}
-          onChange={handleSubCategoryChange}
-          columns={3}
+          value={uiSubcategory}
+          options={[
+            {
+              value: "REGULAR_LANDSCAPING",
+              label: t("pages.projects.formRegular"),
+            },
+            ...(selectedCatalogArea?.allowsOneTime !== false
+              ? [
+                  {
+                    value: ONE_TIME_FORM_VALUE,
+                    label: t("pages.projects.oneTime"),
+                  },
+                ]
+              : []),
+            ...(selectedCatalogArea?.subcategories
+              .filter((sub) => !sub.isSystem)
+              .map((sub) => ({
+                value: sub.id,
+                label: catalogDisplayName(sub, locale),
+              })) ?? []),
+          ]}
+          onChange={(value) => {
+            const custom = selectedCatalogArea?.subcategories.find(
+              (sub) => sub.id === value && !sub.isSystem
+            );
+            if (custom) {
+              handleCustomSubcategoryChange(value);
+              return;
+            }
+            handleUiSubcategoryChange(value);
+          }}
+          columns={2}
+        />
+      ) : null}
+
+      {serviceArea === "SECURITY" ? (
+        <ProjectOptionPills
+          label={t("pages.projects.subcategory")}
+          value={uiSubcategory}
+          options={[
+            { value: "SECURITY", label: t("pages.projects.formRegular") },
+            ...(selectedCatalogArea?.allowsOneTime !== false
+              ? [
+                  {
+                    value: ONE_TIME_FORM_VALUE,
+                    label: t("pages.projects.oneTime"),
+                  },
+                ]
+              : []),
+            ...(selectedCatalogArea?.subcategories
+              .filter((sub) => !sub.isSystem)
+              .map((sub) => ({
+                value: sub.id,
+                label: catalogDisplayName(sub, locale),
+              })) ?? []),
+          ]}
+          onChange={(value) => {
+            const custom = selectedCatalogArea?.subcategories.find(
+              (sub) => sub.id === value && !sub.isSystem
+            );
+            if (custom) {
+              handleCustomSubcategoryChange(value);
+              return;
+            }
+            handleUiSubcategoryChange(value);
+          }}
+          columns={2}
+        />
+      ) : null}
+
+      {serviceArea === "OTHER" && selectedCatalogArea ? (
+        <ProjectOptionPills
+          label={t("pages.projects.subcategory")}
+          value={uiSubcategory}
+          options={catalogSubsForAddProject(selectedCatalogArea).map((sub) => ({
+            value: sub.id,
+            label: catalogDisplayName(sub, locale),
+          }))}
+          onChange={handleCustomSubcategoryChange}
+          columns={2}
         />
       ) : null}
 
@@ -444,9 +756,99 @@ export default function ProjectFormFields({
         <ServiceCommercialFields
           key={`${subCategory}-${clientId}`}
           subCategory={subCategory}
-          clientPaymentTermsDays={selectedClient?.paymentTermsDays}
           namePrefix={namePrefix}
         />
+      ) : null}
+
+      <PaymentTermsField
+        name={nameOf("paymentTermsDays")}
+        id={idOf("payment-terms")}
+        defaultValue={14}
+      />
+
+      <CompanyBankAccountField
+        name={nameOf("bankAccountId")}
+        id={idOf("bank-account")}
+        accounts={bankAccounts}
+      />
+
+      <CommercialTaxKindField
+        id={idOf("charged-tax-kind")}
+        name={nameOf("chargedTaxKind")}
+        value={chargedTaxKind}
+        onChange={(next) => {
+          setChargedTaxKind(next);
+          const nextRate = defaultCommercialNonVatRatePercent(next);
+          setPphRatePercent(nextRate != null ? String(nextRate) : "");
+          if (next !== "OTHER") setOtherTaxName("");
+          onFormValuesChange?.();
+        }}
+        label={t("pages.projects.chargedTaxKind")}
+        hint={t("pages.projects.chargedTaxKindHint")}
+        placeholder={t("pages.projects.chargedTaxKindPlaceholder")}
+      />
+
+      {chargedTaxKind && commercialTaxRequiresOtherName(chargedTaxKind) ? (
+        <div className={employeeDialogFieldClass}>
+          <label
+            htmlFor={idOf("other-tax-name")}
+            className="text-sm font-medium text-text"
+          >
+            {t("pages.billing.otherTaxName")}
+            <span className="text-red-400"> *</span>
+          </label>
+          <Input
+            id={idOf("other-tax-name")}
+            name={nameOf("otherTaxName")}
+            required
+            value={otherTaxName}
+            onChange={(event) => {
+              setOtherTaxName(event.target.value);
+              onFormValuesChange?.();
+            }}
+            placeholder={t("pages.billing.otherTaxNamePlaceholder")}
+            className={employeeInputClass}
+          />
+          <p className="text-xs text-subtle">
+            {t("pages.billing.otherTaxNameHint")}
+          </p>
+        </div>
+      ) : null}
+
+      {chargedTaxKind && commercialTaxRequiresRatePercent(chargedTaxKind) ? (
+        <div className={employeeDialogFieldClass}>
+          <label
+            htmlFor={idOf("pph-rate")}
+            className="text-sm font-medium text-text"
+          >
+            {chargedTaxKind === "OTHER"
+              ? t("pages.billing.otherTaxRate")
+              : t("pages.projects.pphRatePercent")}
+            <span className="text-red-400"> *</span>
+          </label>
+          <Input
+            id={idOf("pph-rate")}
+            name={nameOf("pphRatePercent")}
+            required
+            inputMode="decimal"
+            value={pphRatePercent}
+            onChange={(event) => {
+              setPphRatePercent(event.target.value);
+              onFormValuesChange?.();
+            }}
+            placeholder={
+              chargedTaxKind === "OTHER"
+                ? t("pages.billing.otherTaxRatePlaceholder")
+                : t("pages.projects.pphRatePercentPlaceholder")
+            }
+            className={employeeInputClass}
+          />
+          <p className="text-xs text-subtle">
+            {chargedTaxKind === "OTHER"
+              ? t("pages.billing.otherTaxRateHint")
+              : t("pages.projects.pphRatePercentHint")}
+          </p>
+        </div>
       ) : null}
 
       <div className={employeeDialogFieldClass}>
@@ -528,30 +930,25 @@ export default function ProjectFormFields({
       {initialStatus === "IN_PROGRESS" ? (
         <>
           <div className={employeeDialogFieldClass}>
-            <label
-              htmlFor={idOf("contract-proof")}
-              className="text-sm font-medium text-text"
-            >
-              {t("pages.projects.contractProof")}
-            </label>
-            <Input
+            <FileDropField
               id={idOf("contract-proof")}
-              type="file"
               name={nameOf("contractProof")}
-              accept="image/*,.pdf,application/pdf"
+              label={t("pages.projects.contractProof")}
               required
-              className={employeeInputClass}
+              accept="image/*,.pdf,application/pdf"
             />
             <p className="text-xs text-subtle">
               {t("pages.projects.contractProofHint")}
             </p>
           </div>
-          {isMilestoneEligible ? (
-            <ProjectTeamPicker
-              teams={teams.filter((team) => team.kind === subCategory)}
-              namePrefix={namePrefix}
-            />
-          ) : null}
+          <ProjectTeamPicker
+            teams={teamsForProjectServiceArea(teams, {
+              areaCatalogId,
+              serviceArea,
+              subCategory,
+            })}
+            namePrefix={namePrefix}
+          />
           <ProjectStaffPicker
             employees={employees}
             namePrefix={namePrefix}

@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import type { ProjectSubCategory } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import {
@@ -13,23 +12,34 @@ import { requireSession, toPermissionUser } from "@/lib/session";
 import { getProjectWhereForUser, canManageProjects } from "@/lib/project-access";
 import { canAccess } from "@/lib/permissions";
 import { formatDisplayDate } from "@/lib/format-date";
+import { isInternalProjectSubCategory } from "@/lib/project-subcategory";
 import {
-  isInternalProjectSubCategory,
-  isProjectSubCategory,
-  CLIENT_PROJECT_SUB_CATEGORIES,
-} from "@/lib/project-subcategory";
+  CLEANING_DIRECTORY_SUB_CHIPS,
+  DIRECTORY_ALL_SECTION_ORDER,
+  ONE_TIME_DIRECTORY_SUB_CHIPS,
+  PROJECT_DIRECTORY_TOP_CHIPS,
+  customChipId,
+  directorySectionForProject,
+  isSystemTopChip,
+  projectWhereForDirectoryChips,
+  resolveDirectoryChips,
+  toCustomChip,
+  type DirectorySectionKey,
+} from "@/lib/project-directory-chips";
+import {
+  catalogDisplayName,
+  type ProjectCatalogAreaDTO,
+} from "@/lib/project-service-catalog";
+import {
+  ensureProjectServiceCatalog,
+} from "@/app/projects/catalog-actions";
 import { isContractCycleSubCategory } from "@/lib/project-contract";
+import { mapProjectTeamOption } from "@/lib/operations-teams";
 import { isMilestoneSubCategory } from "@/lib/project-billing";
-import { isGcFacadeAwaitingPayment } from "@/lib/project-awaiting-payment";
+import { localizeSubCategory } from "@/lib/i18n/labels";
+import ProjectServiceAreaManageDialog from "@/components/projects/ProjectServiceAreaManageDialog";
 import {
-  localizeSubCategory,
-  localizeSubCategoryShort,
-} from "@/lib/i18n/labels";
-import {
-  getMostUrgentUnpaidPeriod,
   getPaymentDueStage,
-  isPendingApprovalPeriod,
-  isUnpaidInvoiceStatus,
   paymentDueWhere,
   pendingApprovalWhere,
   projectHistoryWhere,
@@ -37,13 +47,21 @@ import {
 import {
   decimalToNumber,
   formatInvoicePeriodLabel,
-  formatProjectTitle,
 } from "@/lib/project-billing";
 import {
-  formatInvoicePeriodDateRange,
   isMonthlyPeriodAwaitingReconcile,
   isMonthlyPeriodReadyToInvoice,
 } from "@/lib/invoice-period";
+import {
+  buildProjectDirectoryItems,
+  formatDirectoryDateRange,
+  isDirectoryPeriodRow,
+  projectBillingHref,
+  projectDetailHref,
+  projectPeriodHref,
+  serializeDirectoryDecimals,
+  serializeDirectoryProject,
+} from "@/lib/project-directory-rows";
 import { processPendingEarlyEndReconciles } from "@/lib/project-early-end";
 import {
   countDueMonthlyInvoiceReminders,
@@ -62,6 +80,7 @@ import SectionCard from "@/components/ui/SectionCard";
 import EmptyState from "@/components/ui/EmptyState";
 
 import ProjectAddControl from "@/components/projects/ProjectAddControl";
+import { listCompanyBankAccountOptions } from "@/lib/company-bank-accounts";
 import ProjectHistoryClearAllDialog from "@/components/projects/ProjectHistoryClearAllDialog";
 import ProjectsListHeader from "@/components/projects/ProjectsListHeader";
 import ProjectTable, {
@@ -89,16 +108,28 @@ const SUBCATEGORY_CHIP_VIEWS = new Set<ProjectListView | undefined>([
   "pending-approval",
 ]);
 
-/** Directory tables: Internal on top, then Regular → Facade → General. */
-const PROJECT_DIRECTORY_TYPE_ORDER = [
-  "INTERNAL",
-  "REGULAR_CLEANING",
-  "FACADE_CLEANING",
-  "GENERAL_CLEANING",
-  "SECURITY",
-  "PARKING",
-  "PAYROLL_MANAGEMENT",
-] as const satisfies readonly ProjectSubCategory[];
+const TOP_CHIP_LABEL_KEYS = {
+  all: "pages.projects.directoryChipAll",
+  INTERNAL: "pages.projects.directoryChipInternal",
+  ONE_TIME: "pages.projects.directoryChipOneTime",
+  CLEANING: "pages.projects.directoryChipCleaning",
+  SECURITY: "pages.projects.directoryChipSecurity",
+  PARKING: "pages.projects.directoryChipParking",
+  PAYROLL_MANAGEMENT: "pages.projects.directoryChipPayroll",
+  LANDSCAPING: "pages.projects.directoryChipLandscaping",
+} as const;
+
+const CLEANING_SUB_LABEL_KEYS = {
+  REGULAR: "pages.projects.directorySubRegular",
+  GENERAL: "pages.projects.directorySubGeneral",
+  FACADE: "pages.projects.directorySubFacade",
+} as const;
+
+const ONE_TIME_SUB_LABEL_KEYS = {
+  LANDSCAPING: "pages.projects.directorySubLandscaping",
+  SECURITY: "pages.projects.directorySubSecurity",
+  CLEANING: "pages.projects.directorySubCleaning",
+} as const;
 
 function isProjectListView(value: string): value is ProjectListView {
   return (PROJECT_LIST_VIEWS as readonly string[]).includes(value);
@@ -116,13 +147,15 @@ function resolveProjectListView(
 
 function buildProjectsHref(opts: {
   clientId?: string;
-  subCategory?: string;
   view?: ProjectListView;
+  area?: string;
+  sub?: string;
 }) {
   const params = new URLSearchParams();
   if (opts.clientId) params.set("clientId", opts.clientId);
   if (opts.view) params.set("view", opts.view);
-  if (opts.subCategory) params.set("subCategory", opts.subCategory);
+  if (opts.area && opts.area !== "all") params.set("area", opts.area);
+  if (opts.sub) params.set("sub", opts.sub);
   const query = params.toString();
   return query ? `/projects?${query}` : "/projects";
 }
@@ -181,6 +214,8 @@ export default async function ProjectsPage({
     clientId?: string;
     subCategory?: string;
     view?: string;
+    area?: string;
+    sub?: string;
   }>;
 }) {
   const session = await requireSession();
@@ -188,6 +223,8 @@ export default async function ProjectsPage({
     clientId: filterClientId,
     subCategory: filterSubCategoryRaw,
     view: filterViewRaw,
+    area: filterAreaRaw,
+    sub: filterSubRaw,
   } = await searchParams;
 
   // Prefer ?view=completed; keep ?view=history as a redirect alias.
@@ -195,18 +232,21 @@ export default async function ProjectsPage({
     const params = new URLSearchParams();
     params.set("view", "completed");
     if (filterClientId) params.set("clientId", filterClientId);
+    if (filterAreaRaw) params.set("area", filterAreaRaw);
+    if (filterSubRaw) params.set("sub", filterSubRaw);
     if (filterSubCategoryRaw) params.set("subCategory", filterSubCategoryRaw);
     redirect(`/projects?${params.toString()}`);
   }
 
   const filterView = resolveProjectListView(filterViewRaw);
 
-  const filterSubCategory =
-    SUBCATEGORY_CHIP_VIEWS.has(filterView) &&
-    filterSubCategoryRaw &&
-    isProjectSubCategory(filterSubCategoryRaw)
-      ? filterSubCategoryRaw
-      : undefined;
+  const directoryChips = SUBCATEGORY_CHIP_VIEWS.has(filterView)
+    ? resolveDirectoryChips({
+        area: filterAreaRaw,
+        sub: filterSubRaw,
+        subCategory: filterSubCategoryRaw,
+      })
+    : { area: "all" as const, sub: undefined };
 
   const permissionUser = toPermissionUser(session);
   const canManage = canManageProjects(permissionUser);
@@ -223,6 +263,18 @@ export default async function ProjectsPage({
   });
 
   const company = await prisma.company.findFirst();
+  let serviceCatalog: ProjectCatalogAreaDTO[] = [];
+  if (company) {
+    try {
+      serviceCatalog = await ensureProjectServiceCatalog(company.id);
+    } catch {
+      serviceCatalog = [];
+    }
+  }
+
+  const bankAccounts = company
+    ? await listCompanyBankAccountOptions(company.id)
+    : [];
 
   if (!company) {
     return (
@@ -235,10 +287,12 @@ export default async function ProjectsPage({
   }
 
   // Ensure Head Office / Warehouse Internal projects exist (and migrate legacy rows).
-  if (!session.user.clientId) {
+  if (!session.user.clientId && session.user.companyId) {
     try {
-      const { getAttendanceDirectory } = await import("@/app/attendance/actions");
-      await getAttendanceDirectory();
+      const { ensureInternalAttendanceSites } = await import(
+        "@/lib/ensure-internal-attendance-sites"
+      );
+      await ensureInternalAttendanceSites(session.user.companyId);
     } catch {
       // Directory still loads if ensure fails.
     }
@@ -299,7 +353,7 @@ export default async function ProjectsPage({
           ...(!session.user.clientId && filterClientId
             ? { clientId: filterClientId }
             : {}),
-          ...(filterSubCategory ? { subCategory: filterSubCategory } : {}),
+          ...projectWhereForDirectoryChips(directoryChips),
         },
         include: {
           client: true,
@@ -329,6 +383,23 @@ export default async function ProjectsPage({
           },
           operationsTeamLinks: {
             select: { teamId: true },
+          },
+          areaCatalog: {
+            select: {
+              id: true,
+              nameEn: true,
+              nameId: true,
+              systemArea: true,
+            },
+          },
+          subcategoryCatalog: {
+            select: {
+              id: true,
+              nameEn: true,
+              nameId: true,
+              isSystem: true,
+              billingKind: true,
+            },
           },
           _count: {
             select: { assignments: true, progressReports: true },
@@ -382,6 +453,7 @@ export default async function ProjectsPage({
         ? prisma.operationsTeam.findMany({
             where: { companyId: company.id },
             include: {
+              serviceAreaCatalog: { select: { systemArea: true } },
               members: {
                 include: {
                   employee: {
@@ -390,20 +462,12 @@ export default async function ProjectsPage({
                 },
               },
             },
-            orderBy: [{ kind: "asc" }, { sortOrder: "asc" }, { name: "asc" }],
+            orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
           })
         : Promise.resolve([]),
     ]);
 
-  const teamOptions = operationsTeams.map((team) => ({
-    id: team.id,
-    name: team.name,
-    kind: team.kind,
-    memberIds: team.members.map((member) => member.employeeId),
-    memberNames: team.members.map(
-      (member) => `${member.employee.firstName} ${member.employee.lastName}`
-    ),
-  }));
+  const teamOptions = operationsTeams.map(mapProjectTeamOption);
 
   const staffConflicts =
     canManage && employees.length > 0
@@ -415,47 +479,29 @@ export default async function ProjectsPage({
       : [];
   const staffEmployees = annotateStaffPickerConflicts(employees, staffConflicts);
 
-  // Strip Prisma Decimal so project rows are safe for Client Components
-  // (ProjectDirectoryActions / ProjectEditDialog). Keep numeric contract price
-  // for directory Reconcile suggested amounts.
-  const projectsRaw = projectsFetched.map(
-    ({ contractPrice, ...rest }) => ({
-      ...rest,
-      contractPrice: decimalToNumber(contractPrice),
-    })
-  );
+  // Strip Prisma Decimal on the project and nested invoicePeriods so rows are
+  // safe for Client Components (ProjectTable). Keep numeric amounts for
+  // directory Reconcile suggested values.
+  const projectsRaw = projectsFetched.map(serializeDirectoryProject);
 
   const now = new Date();
-  const projectsForView =
-    filterView === "in-progress"
-      ? projectsRaw.filter(
-          (project) =>
-            !isGcFacadeAwaitingPayment({
-              subCategory: project.subCategory,
-              status: project.status,
-              billingMode: project.billingMode,
-              invoicePeriods: project.invoicePeriods,
-            })
-        )
-      : projectsRaw;
   const projectsSorted =
     filterView === "payment-due"
-      ? [...projectsForView].sort((a, b) => {
+      ? [...projectsRaw].sort((a, b) => {
           const aStage = getPaymentDueStage(
             a.invoicePeriods.map((p) => ({
               ...p,
-              paymentTermsDays: a.client?.paymentTermsDays,
+              paymentTermsDays: a.paymentTermsDays,
             })),
             now
           );
           const bStage = getPaymentDueStage(
             b.invoicePeriods.map((p) => ({
               ...p,
-              paymentTermsDays: b.client?.paymentTermsDays,
+              paymentTermsDays: b.paymentTermsDays,
             })),
             now
           );
-          // Unpaid / late first (by due date); awaiting invoice last.
           if (aStage.kind !== bStage.kind) {
             return aStage.kind === "awaiting_payment" ? -1 : 1;
           }
@@ -468,83 +514,29 @@ export default async function ProjectsPage({
           if (dueDiff !== 0) return dueDiff;
           return a.sortOrder - b.sortOrder;
         })
-      : projectsForView;
+      : projectsRaw;
 
-  /**
-   * Payment Due: one row per unpaid milestone installment.
-   * Active / Completed: one row per project (completed never expands by period).
-   */
-  type DirectoryItem = {
-    key: string;
-    project: (typeof projectsSorted)[number];
-    focusPeriod:
-      | (typeof projectsSorted)[number]["invoicePeriods"][number]
-      | null;
-  };
-
-  const directoryItems: DirectoryItem[] = [];
-  for (const project of projectsSorted) {
-    if (filterView === "pending-approval") {
-      const pending = [...project.invoicePeriods]
-        .filter((period) => isPendingApprovalPeriod(period))
-        .sort(
-          (a, b) =>
-            new Date(a.periodStart).getTime() -
-            new Date(b.periodStart).getTime()
-        );
-      for (const period of pending) {
-        directoryItems.push({
-          key: `${project.id}:${period.id}`,
-          project,
-          focusPeriod: period,
-        });
-      }
-      continue;
-    }
-    if (filterView === "payment-due" && project.billingMode === "MILESTONE") {
-      const unpaid = project.invoicePeriods
-        .filter((p) => isUnpaidInvoiceStatus(p.status))
-        .sort((a, b) => {
-          const aDue = a.dueAt?.getTime() ?? Number.POSITIVE_INFINITY;
-          const bDue = b.dueAt?.getTime() ?? Number.POSITIVE_INFINITY;
-          if (aDue !== bDue) return aDue - bDue;
-          return (a.milestonePercent ?? 0) - (b.milestonePercent ?? 0);
-        });
-      if (unpaid.length > 0) {
-        for (const period of unpaid) {
-          directoryItems.push({
-            key: `${project.id}:${period.id}`,
-            project,
-            focusPeriod: period,
-          });
-        }
-        continue;
-      }
-    }
-
-    directoryItems.push({
-      key: project.id,
-      project,
-      focusPeriod:
-        filterView === "completed"
-          ? null
-          : getMostUrgentUnpaidPeriod(
-              project.invoicePeriods.map((p) => ({
-                ...p,
-                paymentTermsDays: project.client?.paymentTermsDays,
-              })),
-              now
-            ),
-    });
-  }
-
+  const directoryItems = buildProjectDirectoryItems(projectsSorted, filterView);
   const projects = projectsSorted;
 
-  const tableRows: ProjectTableRow[] = directoryItems.map(
-    ({ key, project, focusPeriod }) => {
-      const isPlanningCard = project.status === PROJECT_PLANNING_STATUS;
+  const tableRows: ProjectTableRow[] = serializeDirectoryDecimals(
+    directoryItems.map(({ key, project, kind, focusPeriod }) => {
+      const isPeriodRow = Boolean(
+        isDirectoryPeriodRow(kind) && focusPeriod
+      );
+      const isPlanningCard = kind === "planning";
       const isInternal = isInternalProjectSubCategory(project.subCategory);
-      const timeline = isPlanningCard
+      const periodLine =
+        isPeriodRow && focusPeriod
+          ? formatDirectoryDateRange(
+              focusPeriod.periodStart,
+              focusPeriod.periodEnd,
+              locale
+            ) ??
+            focusPeriod.label?.trim() ??
+            null
+          : null;
+      const contractTimeline = isPlanningCard
         ? project.estimatedStartDate
           ? t("pages.projects.detail.estStart", {
               date: formatDisplayDate(project.estimatedStartDate),
@@ -555,22 +547,24 @@ export default async function ProjectsPage({
           : `${
               project.startDate ? formatDisplayDate(project.startDate) : "-"
             } → ${project.endDate ? formatDisplayDate(project.endDate) : "-"}`;
+      const timeline = isPeriodRow
+        ? periodLine ?? contractTimeline
+        : contractTimeline;
 
       const location = project.location?.trim() || null;
       const clientName = project.client?.name ?? null;
+      const isLiveContractRow = kind === "in-progress";
 
       const stagePeriods = (
-        filterView === "payment-due" && focusPeriod
+        kind === "payment-due" && focusPeriod
           ? [focusPeriod]
           : project.invoicePeriods
       ).map((p) => ({
         ...p,
-        paymentTermsDays: project.client?.paymentTermsDays,
+        paymentTermsDays: project.paymentTermsDays,
       }));
       const paymentStage =
-        filterView === "payment-due"
-          ? getPaymentDueStage(stagePeriods, now)
-          : null;
+        kind === "payment-due" ? getPaymentDueStage(stagePeriods, now) : null;
       const dueLabel =
         paymentStage?.kind === "awaiting_payment" && paymentStage.dueAt != null
           ? t("pages.projects.dueOn", {
@@ -587,17 +581,7 @@ export default async function ProjectsPage({
                 ? t("pages.projects.awaitingPayment")
                 : null);
 
-      const displayTitle =
-        filterView === "pending-approval" && focusPeriod?.periodStart && focusPeriod?.periodEnd
-          ? `${project.name} · ${formatInvoicePeriodDateRange(
-              new Date(focusPeriod.periodStart),
-              new Date(focusPeriod.periodEnd)
-            )}`
-          : formatProjectTitle(
-              project.name,
-              filterView === "completed" ? null : focusPeriod,
-              locale
-            );
+      const displayTitle = project.name;
 
       const hasOpenCollection = project.invoicePeriods.some((period) =>
         [
@@ -609,6 +593,7 @@ export default async function ProjectsPage({
         ].includes(period.status)
       );
       const invoiceCycleDue =
+        isLiveContractRow &&
         project.billingMode === "MONTHLY" &&
         project.status === "IN_PROGRESS" &&
         project.invoicePeriods.some((period) =>
@@ -618,6 +603,7 @@ export default async function ProjectsPage({
           )
         );
       const dueReconcilePeriod =
+        isLiveContractRow &&
         project.billingMode === "MONTHLY" &&
         project.status === "IN_PROGRESS" &&
         canManage &&
@@ -649,31 +635,33 @@ export default async function ProjectsPage({
               t("pages.billing.thisBillingPeriod"),
             suggestedAmount:
               decimalToNumber(dueReconcilePeriod.amount) ??
-              project.contractPrice,
+              decimalToNumber(project.contractPrice),
           }
         : null;
       const canStart =
         canManage &&
+        kind === "planning" &&
         (filterView === "planning" ||
           filterView === undefined ||
           filterView === "in-progress") &&
         project.status === PROJECT_PLANNING_STATUS;
       const canFinish =
         canManage &&
+        isLiveContractRow &&
         !isInternal &&
         (filterView === "in-progress" || filterView === undefined) &&
         project.status === "IN_PROGRESS" &&
         isContractCycleSubCategory(project.subCategory);
-      // G3: General / Facade IN_PROGRESS projects can be submitted for approval.
-      // Internal + Security / Parking / Payroll have no cleaning approval chips.
       const canSubmitForApproval =
         canManage &&
+        isLiveContractRow &&
         !isInternal &&
         (filterView === "in-progress" || filterView === undefined) &&
         project.status === "IN_PROGRESS" &&
         isMilestoneSubCategory(project.subCategory);
       const eligibleForMoveBack =
         canManage &&
+        isLiveContractRow &&
         !isInternal &&
         (filterView === "in-progress" || filterView === undefined) &&
         project.status === "IN_PROGRESS";
@@ -683,17 +671,20 @@ export default async function ProjectsPage({
       const canMarkPaid =
         canManage &&
         filterView === "payment-due" &&
+        kind === "payment-due" &&
         paymentStage?.kind === "awaiting_payment" &&
         Boolean(paymentStage.unpaidPeriodId);
       const billingHref =
         filterView === "payment-due" && project.clientId
-          ? `/billing/${project.clientId}/${project.id}`
+          ? projectBillingHref(project.clientId, project.id, focusPeriod?.id)
           : null;
 
       return {
         key,
         project,
+        rowKind: kind,
         displayTitle,
+        periodLine,
         timeline,
         location,
         clientName,
@@ -710,77 +701,222 @@ export default async function ProjectsPage({
         moveBackBlockedByCollection,
         canMarkPaid,
         billingHref,
-        detailHref: `/projects/${project.id}`,
+        detailHref: focusPeriod?.id
+          ? projectPeriodHref(project.id, focusPeriod.id)
+          : projectDetailHref(project.id),
+        typeLabel:
+          project.subcategoryCatalog && !project.subcategoryCatalog.isSystem
+            ? catalogDisplayName(project.subcategoryCatalog, locale)
+            : localizeSubCategory(project.subCategory, locale),
       };
-    }
-  );
+    })
+  ) as ProjectTableRow[];
 
-  const filterPills = [
-    {
-      key: "all",
-      label: t("common.actions.all"),
+  const customAreas = serviceCatalog.filter((area) => !area.isSystem);
+  const topChips = [
+    ...PROJECT_DIRECTORY_TOP_CHIPS.map((key) => ({
+      key,
+      label: t(TOP_CHIP_LABEL_KEYS[key]),
       href: buildProjectsHref({
         clientId: filterClientId,
         view: filterView,
+        area: key,
       }),
-    },
-    ...[
-      "INTERNAL" as const,
-      ...CLIENT_PROJECT_SUB_CATEGORIES,
-    ].map((value) => ({
-      key: value,
-      label: localizeSubCategoryShort(value, locale),
+    })),
+    ...customAreas.map((area) => ({
+      key: toCustomChip(area.id),
+      label: catalogDisplayName(area, locale),
       href: buildProjectsHref({
         clientId: filterClientId,
         view: filterView,
-        subCategory: value,
+        area: toCustomChip(area.id),
       }),
     })),
   ];
+
+  const selectedCatalogArea =
+    customChipId(directoryChips.area)
+      ? serviceCatalog.find((area) => area.id === customChipId(directoryChips.area))
+      : serviceCatalog.find(
+          (area) =>
+            area.isSystem &&
+            area.slug === directoryChips.area &&
+            directoryChips.area !== "all" &&
+            directoryChips.area !== "INTERNAL" &&
+            directoryChips.area !== "ONE_TIME"
+        );
+
+  const subChips =
+    directoryChips.area === "CLEANING"
+      ? [
+          ...CLEANING_DIRECTORY_SUB_CHIPS.map((row) => ({
+            key: row.key,
+            label: t(CLEANING_SUB_LABEL_KEYS[row.key]),
+            href: buildProjectsHref({
+              clientId: filterClientId,
+              view: filterView,
+              area: "CLEANING",
+              sub: row.key,
+            }),
+          })),
+          ...((
+            serviceCatalog.find((area) => area.slug === "CLEANING")
+              ?.subcategories ?? []
+          )
+            .filter((sub) => !sub.isSystem && sub.billingKind === "CONTRACT")
+            .map((sub) => ({
+              key: toCustomChip(sub.id),
+              label: catalogDisplayName(sub, locale),
+              href: buildProjectsHref({
+                clientId: filterClientId,
+                view: filterView,
+                area: "CLEANING",
+                sub: toCustomChip(sub.id),
+              }),
+            })) ?? []),
+        ]
+      : directoryChips.area === "ONE_TIME"
+        ? [
+            ...ONE_TIME_DIRECTORY_SUB_CHIPS.map((row) => ({
+              key: row.key,
+              label: t(ONE_TIME_SUB_LABEL_KEYS[row.key]),
+              href: buildProjectsHref({
+                clientId: filterClientId,
+                view: filterView,
+                area: "ONE_TIME",
+                sub: row.key,
+              }),
+            })),
+            ...serviceCatalog.flatMap((area) =>
+              area.allowsOneTime
+                ? area.subcategories
+                    .filter(
+                      (sub) => !sub.isSystem && sub.billingKind === "ONE_TIME"
+                    )
+                    .map((sub) => ({
+                      key: toCustomChip(sub.id),
+                      label:
+                        sub.slug === "ONE_TIME"
+                          ? catalogDisplayName(area, locale)
+                          : catalogDisplayName(sub, locale),
+                      href: buildProjectsHref({
+                        clientId: filterClientId,
+                        view: filterView,
+                        area: "ONE_TIME",
+                        sub: toCustomChip(sub.id),
+                      }),
+                    }))
+                : []
+            ),
+          ]
+        : directoryChips.area === "LANDSCAPING"
+          ? [
+              {
+                key: "LANDSCAPING",
+                label: t("pages.projects.directorySubLandscaping"),
+                href: buildProjectsHref({
+                  clientId: filterClientId,
+                  view: filterView,
+                  area: "LANDSCAPING",
+                  sub: "LANDSCAPING",
+                }),
+              },
+            ]
+          : selectedCatalogArea && !selectedCatalogArea.isSystem
+            ? selectedCatalogArea.subcategories
+                .filter((sub) => sub.billingKind === "CONTRACT")
+                .map((sub) => ({
+                  key: toCustomChip(sub.id),
+                  label: catalogDisplayName(sub, locale),
+                  href: buildProjectsHref({
+                    clientId: filterClientId,
+                    view: filterView,
+                    area: toCustomChip(selectedCatalogArea.id),
+                    sub: toCustomChip(sub.id),
+                  }),
+                }))
+            : [];
 
   // Planning + All Projects (same create affordance as the former first-row pattern on Planning).
   const showCreate =
     canManage && (filterView === "planning" || filterView === undefined);
 
-  const typeSections = PROJECT_DIRECTORY_TYPE_ORDER.map((subCategory) => {
-    const rows = tableRows.filter(
-      (row) => row.project.subCategory === subCategory
-    );
-    return {
-      key: subCategory,
-      label: localizeSubCategoryShort(subCategory, locale),
-      rows,
-    };
-  }).filter((section) => section.rows.length > 0);
+  function sectionLabel(key: DirectorySectionKey): string {
+    if (isSystemTopChip(key) && key !== "all") {
+      return t(TOP_CHIP_LABEL_KEYS[key]);
+    }
+    const customId = customChipId(key);
+    if (customId) {
+      const area = serviceCatalog.find((item) => item.id === customId);
+      if (area) return catalogDisplayName(area, locale);
+    }
+    return t("pages.projects.allTitle");
+  }
 
-  const sectionCountNoun =
-    filterView === "payment-due" ? ("item" as const) : ("project" as const);
-  const directoryCount =
-    filterView === "payment-due" ? directoryItems.length : projects.length;
+  const sectionKeys: DirectorySectionKey[] =
+    directoryChips.area === "all"
+      ? [
+          ...DIRECTORY_ALL_SECTION_ORDER,
+          ...customAreas.map((area) => toCustomChip(area.id)),
+        ]
+      : directoryChips.area === "CLEANING" && !directoryChips.sub
+        ? ["CLEANING"]
+        : directoryChips.area === "ONE_TIME" && !directoryChips.sub
+          ? ["ONE_TIME"]
+          : [directoryChips.area as DirectorySectionKey];
+
+  const typeSections = sectionKeys
+    .map((key) => ({
+      key,
+      label: sectionLabel(key),
+      rows: tableRows.filter((row) => {
+        const section = directorySectionForProject({
+          subCategory: row.project.subCategory,
+          areaCatalogId: row.project.areaCatalogId,
+          subcategoryCatalogIsSystem: row.project.subcategoryCatalog?.isSystem,
+          subcategoryBillingKind: row.project.subcategoryCatalog?.billingKind,
+          areaSystemArea: row.project.areaCatalog?.systemArea,
+        });
+        return section === key;
+      }),
+    }))
+    .filter((section) => section.rows.length > 0);
+
+  const usesItemCount =
+    filterView === "payment-due" ||
+    filterView === "pending-approval" ||
+    directoryItems.some((item) => isDirectoryPeriodRow(item.kind));
+  const sectionCountNoun = usesItemCount
+    ? ("item" as const)
+    : ("project" as const);
+  const directoryCount = directoryItems.length;
+  const filteredTitle =
+    directoryChips.area === "all"
+      ? null
+      : isSystemTopChip(directoryChips.area)
+        ? t(TOP_CHIP_LABEL_KEYS[directoryChips.area])
+        : sectionLabel(directoryChips.area as DirectorySectionKey);
   const shellTitleKey = filterView
     ? copy.shellTitleKey
-    : filterSubCategory
+    : filteredTitle
       ? undefined
       : ("pages.projects.allTitle" as const);
 
   return (
     <AppShell
       titleKey={shellTitleKey}
-      title={
-        !shellTitleKey && filterSubCategory
-          ? localizeSubCategory(filterSubCategory, locale)
-          : undefined
-      }
+      title={!shellTitleKey && filteredTitle ? filteredTitle : undefined}
     >
       <ProjectsListHeader
         listTitleKey={
           filterView
             ? copy.listTitleKey
-            : filterSubCategory
+            : filteredTitle
               ? undefined
               : "pages.projects.allTitle"
         }
-        subCategory={filterView ? undefined : filterSubCategory}
+        title={!filterView && filteredTitle ? filteredTitle : undefined}
+        subCategory={undefined}
         count={directoryCount}
         countKind={sectionCountNoun}
         filterClient={
@@ -788,7 +924,8 @@ export default async function ProjectsPage({
             ? {
                 name: filterClient.name,
                 clearHref: buildProjectsHref({
-                  subCategory: filterSubCategory,
+                  area: directoryChips.area,
+                  sub: directoryChips.sub,
                   view: filterView,
                 }),
               }
@@ -826,31 +963,53 @@ export default async function ProjectsPage({
       ) : null}
 
       {(SUBCATEGORY_CHIP_VIEWS.has(filterView) || showCreate) && (
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          {SUBCATEGORY_CHIP_VIEWS.has(filterView)
-            ? filterPills.map((pill) => {
-                const isActive =
-                  pill.key === "all"
-                    ? !filterSubCategory
-                    : filterSubCategory === pill.key;
+        <div className="mb-5 space-y-4">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-4">
+            {SUBCATEGORY_CHIP_VIEWS.has(filterView)
+              ? topChips.map((pill) => {
+                  const isActive =
+                    pill.key === "all"
+                      ? directoryChips.area === "all"
+                      : directoryChips.area === pill.key;
 
-                return (
-                  <DirectoryFilterTab
-                    key={pill.key}
-                    href={pill.href}
-                    active={isActive}
-                  >
-                    {pill.label}
-                  </DirectoryFilterTab>
-                );
-              })
-            : null}
-          {showCreate ? (
-            <ProjectAddControl
-              employees={staffEmployees}
-              teams={teamOptions}
-              clients={clients}
-            />
+                  return (
+                    <DirectoryFilterTab
+                      key={pill.key}
+                      href={pill.href}
+                      active={isActive}
+                    >
+                      {pill.label}
+                    </DirectoryFilterTab>
+                  );
+                })
+              : null}
+            {canManage ? (
+              <div className="ml-auto flex flex-wrap items-center justify-end gap-4">
+                {showCreate ? (
+                  <ProjectAddControl
+                    employees={serializeDirectoryDecimals(staffEmployees)}
+                    teams={serializeDirectoryDecimals(teamOptions)}
+                    clients={serializeDirectoryDecimals(clients)}
+                    catalog={serviceCatalog}
+                    bankAccounts={bankAccounts}
+                  />
+                ) : null}
+                <ProjectServiceAreaManageDialog catalog={serviceCatalog} />
+              </div>
+            ) : null}
+          </div>
+          {SUBCATEGORY_CHIP_VIEWS.has(filterView) && subChips.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {subChips.map((pill) => (
+                <DirectoryFilterTab
+                  key={pill.key}
+                  href={pill.href}
+                  active={directoryChips.sub === pill.key}
+                >
+                  {pill.label}
+                </DirectoryFilterTab>
+              ))}
+            </div>
           ) : null}
         </div>
       )}
@@ -910,7 +1069,7 @@ export default async function ProjectsPage({
                       )}
                 </p>
               </div>
-              {section.key === "REGULAR_CLEANING" &&
+              {(section.key === "CLEANING" || section.key === "LANDSCAPING") &&
               canManage &&
               (filterView === undefined ||
                 filterView === "planning" ||
@@ -925,8 +1084,8 @@ export default async function ProjectsPage({
                 canManage={canManage}
                 canOpenBilling={canOpenBilling}
                 emptyMessage={t(copy.emptyMessageKey)}
-                employees={staffEmployees}
-                teams={teamOptions}
+                employees={serializeDirectoryDecimals(staffEmployees)}
+                teams={serializeDirectoryDecimals(teamOptions)}
               />
             </section>
           ))}

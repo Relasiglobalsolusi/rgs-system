@@ -22,6 +22,8 @@ import {
   type BulkImportPreviewStatus,
   type BulkImportResult,
 } from "@/lib/bulk-import/types";
+import { localizeInventoryItemType } from "@/lib/i18n/labels";
+import type { AppLocale } from "@/lib/i18n/locale";
 import { useLocale } from "@/lib/i18n/use-locale";
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
@@ -87,8 +89,12 @@ function primaryField(row: BulkImportPreviewRow) {
   return row.fields["Item Name"] ?? "—";
 }
 
-function secondaryField(row: BulkImportPreviewRow) {
-  return [row.fields["Item Type"], row.fields.Description]
+function secondaryField(row: BulkImportPreviewRow, locale: AppLocale) {
+  const itemType = row.fields["Item Type"]?.trim();
+  return [
+    itemType ? localizeInventoryItemType(itemType, locale) : null,
+    row.fields.Description,
+  ]
     .filter((value) => value && value !== "—")
     .join(" · ");
 }
@@ -124,9 +130,11 @@ function IssueList({
 function PreviewList({
   preview,
   t,
+  locale,
 }: {
   preview: BulkImportPreview;
   t: (key: string, params?: Record<string, string | number>) => string;
+  locale: AppLocale;
 }) {
   return (
     <div className="flex max-h-[22rem] flex-col gap-2 overflow-y-auto pr-1">
@@ -144,7 +152,7 @@ function PreviewList({
                 })}
               </p>
               <p className="truncate text-xs leading-5 text-muted">
-                {secondaryField(row) || t("bulkImport.noExtraDetails")}
+                {secondaryField(row, locale) || t("bulkImport.noExtraDetails")}
               </p>
               {row.message ? (
                 <p
@@ -619,7 +627,7 @@ export default function BulkImportDialog({
                   {t("bulkImport.invalidSkipped")}
                 </p>
               </div>
-              <PreviewList preview={preview} t={t} />
+              <PreviewList preview={preview} t={t} locale={locale} />
             </div>
           ) : null}
 

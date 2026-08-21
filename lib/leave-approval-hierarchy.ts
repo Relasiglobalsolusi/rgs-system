@@ -42,6 +42,7 @@ export type LeaveReviewerProfile = {
   employeeId?: string | null;
   jobPosition?: { slug?: string | null; name?: string | null } | null;
   omApprovalAreas?: ServiceArea[] | null;
+  manageAllProjects?: boolean;
   managedProjectIds?: string[];
 };
 
@@ -240,6 +241,7 @@ function amCanApproveRequesterProjects(
   if (!isReviewerAreaManager(reviewer) || requesterProjectIds.length === 0) {
     return false;
   }
+  if (reviewer.manageAllProjects) return true;
   const managed = reviewer.managedProjectIds ?? [];
   return requesterProjectIds.some((id) => managed.includes(id));
 }
@@ -313,6 +315,7 @@ export async function resolveLeaveReviewerProfile(options: {
     select: {
       id: true,
       omApprovalAreas: true,
+      manageAllProjects: true,
       jobPosition: { select: { slug: true, name: true } },
       areaManagedProjects: { select: { projectId: true } },
     },
@@ -328,6 +331,7 @@ export async function resolveLeaveReviewerProfile(options: {
     employeeId: employee?.id ?? null,
     jobPosition: employee?.jobPosition ?? null,
     omApprovalAreas: employee?.omApprovalAreas ?? [],
+    manageAllProjects: employee?.manageAllProjects ?? false,
     managedProjectIds:
       employee?.areaManagedProjects.map((row) => row.projectId) ?? [],
   };

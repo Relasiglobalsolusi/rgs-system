@@ -3,6 +3,7 @@ import AppShell from "@/components/layout/AppShell";
 import TransferOrderBreadcrumbs from "@/components/transfer-orders/TransferOrderBreadcrumbs";
 import TransferOrderClientDirectory from "@/components/transfer-orders/TransferOrderClientDirectory";
 import TransferOrderCountBadges from "@/components/transfer-orders/TransferOrderCountBadges";
+import TransferOrderPendingCards from "@/components/transfer-orders/TransferOrderPendingCards";
 import SectionCard from "@/components/ui/SectionCard";
 import { createTranslator } from "@/lib/i18n/translate";
 import { getServerLocale } from "@/lib/i18n/locale";
@@ -22,6 +23,8 @@ export default async function TransferOrdersPage() {
       <TransferOrderBreadcrumbs
         items={[{ labelKey: "pages.transferOrders.title" }]}
       />
+
+      <TransferOrderPendingCards orders={directory.pendingOrders} />
 
       <SectionCard className="mb-5 p-5 sm:p-6">
         <div className="flex flex-wrap items-end justify-between gap-3">

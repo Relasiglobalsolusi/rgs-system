@@ -16,8 +16,10 @@ import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import { Dialog } from "@/components/ui/dialog";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
+import InventoryLifetimeStats from "@/components/inventory/InventoryLifetimeStats";
 import { isBelowMinStock, formatInventoryQtyWithUnit } from "@/lib/inventory";
-import { INVENTORY_ITEM_TYPE_PRESETS } from "@/lib/inventory-sku";
+import { formatDisplayDate } from "@/lib/format-date";
+import { localizeInventoryItemType } from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
 import { formatContractPrice } from "@/lib/project-billing";
 import { cn } from "@/lib/utils";
@@ -39,39 +41,12 @@ function SoftPill({ children }: { children: ReactNode }) {
   );
 }
 
-function QtyStat({
-  label,
-  value,
-  emphasize,
-  tone,
-}: {
-  label: string;
-  value: string;
-  emphasize?: boolean;
-  tone?: string;
-}) {
-  return (
-    <div className="min-w-0 px-4 py-3 sm:px-5">
-      <p className={labelClass}>{label}</p>
-      <p
-        className={cn(
-          "mt-1 tabular-nums tracking-tight",
-          emphasize ? "text-lg font-bold sm:text-xl" : "text-sm font-semibold",
-          tone ?? "text-text"
-        )}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
-
 export default function InventoryStockItemDetailDialog({
   open,
   onOpenChange,
   item,
 }: Props) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const [detail, setDetail] = useState<InventoryStockItemDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -116,11 +91,7 @@ export default function InventoryStockItemDetailDialog({
   const unit = detail?.item.unit ?? item.unit;
   const itemTypeRaw = (detail?.item.itemType ?? item.itemType).trim();
   const itemTypeLabel = itemTypeRaw
-    ? INVENTORY_ITEM_TYPE_PRESETS.includes(
-        itemTypeRaw as (typeof INVENTORY_ITEM_TYPE_PRESETS)[number]
-      )
-      ? t(`pages.inventory.itemTypes.${itemTypeRaw}`)
-      : itemTypeRaw
+    ? localizeInventoryItemType(itemTypeRaw, locale)
     : null;
 
   const currentStock = detail?.item.currentStock ?? item.currentStock;
@@ -144,6 +115,30 @@ export default function InventoryStockItemDetailDialog({
           ) : null}
         </div>
       ),
+    },
+    {
+      key: "quantity",
+      title: t("pages.inventory.columns.qty"),
+      width: "8rem",
+      align: "right",
+      render: (row) => formatInventoryQtyWithUnit(row.quantity, unit),
+    },
+  ];
+
+  const saleColumns: DataTableColumn<
+    InventoryStockItemDetail["sales"][number]
+  >[] = [
+    {
+      key: "soldAt",
+      title: t("pages.inventory.stockDetailSoldAt"),
+      share: 1,
+      render: (row) => formatDisplayDate(row.soldAt),
+    },
+    {
+      key: "buyer",
+      title: t("pages.inventory.stockDetailSoldTo"),
+      share: 2,
+      render: (row) => row.buyer?.trim() || "—",
     },
     {
       key: "quantity",
@@ -205,58 +200,16 @@ export default function InventoryStockItemDetailDialog({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 border-t border-border sm:grid-cols-3 lg:grid-cols-5">
-              <div className="border-b border-border sm:border-b-0 sm:border-r lg:border-b-0">
-                <QtyStat
-                  label={t("pages.inventory.stockDetailBought")}
-                  value={
-                    loading || !detail
-                      ? "—"
-                      : formatInventoryQtyWithUnit(detail.totalBought, unit)
-                  }
-                  emphasize
-                />
-              </div>
-              <div className="border-b border-border sm:border-b-0 sm:border-r lg:border-b-0">
-                <QtyStat
-                  label={t("pages.inventory.stockDetailAssigned")}
-                  value={
-                    loading || !detail
-                      ? "—"
-                      : formatInventoryQtyWithUnit(detail.totalAssigned, unit)
-                  }
-                  emphasize
-                />
-              </div>
-              <div className="border-b border-border border-r-0 sm:border-b-0 sm:border-r lg:border-b-0">
-                <QtyStat
-                  label={t("pages.inventory.stockDetailInStock")}
-                  value={formatInventoryQtyWithUnit(currentStock, unit)}
-                  emphasize
-                  tone={lowStock ? "text-warning" : undefined}
-                />
-              </div>
-              <div className="border-b border-border sm:border-b-0 sm:border-r lg:border-b-0">
-                <QtyStat
-                  label={t("pages.inventory.stockDetailWrittenOff")}
-                  value={
-                    loading || !detail
-                      ? "—"
-                      : formatInventoryQtyWithUnit(detail.totalWrittenOff, unit)
-                  }
-                />
-              </div>
-              <div>
-                <QtyStat
-                  label={t("pages.inventory.stockDetailSold")}
-                  value={
-                    loading || !detail
-                      ? "—"
-                      : formatInventoryQtyWithUnit(detail.totalSold, unit)
-                  }
-                />
-              </div>
-            </div>
+            <InventoryLifetimeStats
+              unit={unit}
+              loading={loading || !detail}
+              totalBought={detail?.totalBought ?? null}
+              currentStock={currentStock}
+              totalAssigned={detail?.totalAssigned ?? null}
+              totalSold={detail?.totalSold ?? null}
+              totalWrittenOff={detail?.totalWrittenOff ?? null}
+              lowStock={lowStock}
+            />
 
             {(detail?.item.avgUnitCost != null ||
               detail?.item.lastUnitCost != null ||
@@ -322,6 +275,39 @@ export default function InventoryStockItemDetailDialog({
                 columns={assignmentColumns}
                 data={detail.projectAssignments}
                 getRowKey={(row) => row.projectId}
+              />
+            )}
+          </SectionCard>
+
+          <SectionCard className="space-y-3 p-4 sm:p-5">
+            <div>
+              <h4 className="text-sm font-semibold text-text">
+                {t("pages.inventory.stockDetailSalesTitle")}
+              </h4>
+              <p className="mt-1 text-xs leading-relaxed text-muted">
+                {t("pages.inventory.stockDetailSalesDesc")}
+              </p>
+            </div>
+            {loading ? (
+              <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted">
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                {t("pages.inventory.stockDetailLoading")}
+              </div>
+            ) : error ? (
+              <EmptyState
+                title={t("pages.inventory.stockDetailLoadFailed")}
+                description={error}
+              />
+            ) : !detail || detail.sales.length === 0 ? (
+              <EmptyState
+                title={t("pages.inventory.stockDetailEmptySales")}
+                description={t("pages.inventory.stockDetailEmptySalesDesc")}
+              />
+            ) : (
+              <DataTable
+                columns={saleColumns}
+                data={detail.sales}
+                getRowKey={(row) => row.id}
               />
             )}
           </SectionCard>

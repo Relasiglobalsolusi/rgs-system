@@ -71,7 +71,7 @@ export default function TaxInvoiceTable({
         key: "status",
         title: t("common.labels.status"),
         width: "14rem",
-        align: "center",
+        cellAlign: "center",
         className: "min-w-[14rem] overflow-visible",
         render: (row) => (
           <div className="inline-flex max-w-full flex-wrap items-center justify-center gap-1.5">
@@ -121,7 +121,7 @@ export default function TaxInvoiceTable({
         key: "actions",
         title: t("common.labels.actions"),
         width: ACTIONS_SINGLE_CHIP_COLUMN_WIDTH,
-        align: "center",
+        cellAlign: "center",
         className: "min-w-[12.5rem] overflow-visible whitespace-nowrap",
         render: (row) => (
           <div

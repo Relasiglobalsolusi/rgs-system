@@ -1,9 +1,8 @@
 /**
  * VAT / PPN helpers for Finance → VAT.
  *
- * Commercial amounts in this ERP are treated as **tax-inclusive** when PPN applies
- * (same assumption as tax-invoice verification). Until DPP/PPN are stored from
- * faktur OCR, we derive them with the standard inclusive split at 11%.
+ * Commercial amounts in this ERP are treated as **tax-inclusive** when PPN applies.
+ * DPP and PPN are derived with the standard inclusive split.
  */
 
 /** Inclusive PPN rate used when faktur DPP/PPN amounts are not stored. */
@@ -77,7 +76,24 @@ export function exclusiveUnitCostFromInclusive(
   if (!Number.isFinite(rate) || rate <= 0) {
     return inclusiveUnitPrice;
   }
-  return splitInclusiveVat(inclusiveUnitPrice, rate).dpp;
+  return assertInclusiveCreditableTax(inclusiveUnitPrice, rate).dpp;
+}
+
+/**
+ * Tax Included = Yes and the tax is creditable (PPN):
+ * amount paid (DPP) + tax credit = the inclusive unit cost.
+ */
+export function assertInclusiveCreditableTax(
+  inclusiveAmount: number,
+  rate: number
+): VatSplit {
+  const split = splitInclusiveVat(inclusiveAmount, rate);
+  if (split.dpp + split.ppn !== split.gross) {
+    throw new Error(
+      "The amount paid plus the tax credit must equal the tax-included unit cost."
+    );
+  }
+  return split;
 }
 
 export function jakartaYearMonth(now: Date = new Date()): {
@@ -102,6 +118,33 @@ export function utcRangeForJakartaMonth(year: number, month: number): {
   const start = new Date(Date.UTC(year, month - 1, 1));
   const endExclusive = new Date(Date.UTC(year, month, 1));
   return { start, endExclusive };
+}
+
+/** UTC day bounds for one Jakarta calendar date (`@db.Date`). */
+export function utcRangeForJakartaDate(
+  year: number,
+  month: number,
+  day: number
+): {
+  start: Date;
+  endExclusive: Date;
+} {
+  const start = new Date(Date.UTC(year, month - 1, day));
+  const endExclusive = new Date(Date.UTC(year, month - 1, day + 1));
+  return { start, endExclusive };
+}
+
+export function daysInUtcMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+export function utcRangeForJakartaYear(year: number): {
+  start: Date;
+  endExclusive: Date;
+} {
+  return {
+    start: new Date(Date.UTC(year, 0, 1)),
+    endExclusive: new Date(Date.UTC(year + 1, 0, 1)),
+  };
 }
 
 export function isDateInJakartaMonth(

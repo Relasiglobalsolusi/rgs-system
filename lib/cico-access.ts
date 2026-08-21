@@ -20,6 +20,7 @@ type CicoEmployee = Pick<
   | "placement"
   | "employeeType"
   | "internalHomeSite"
+  | "progressExempt"
 > & {
   jobPosition?: { name?: string | null; slug?: string | null } | null;
 };
@@ -55,6 +56,7 @@ export function requiresCicoProgressReport(
   employee: CicoEmployee | null | undefined
 ): boolean {
   if (!employee) return false;
+  if (employee.progressExempt) return false;
   return isCleaningStaffPosition(employee.jobPosition ?? {});
 }
 
@@ -62,11 +64,13 @@ export function requiresCicoProgressReport(
  * Who may submit field progress photos:
  * cleaning positions, or Security staff (on Security projects — anytime, no
  * forced interval; managers handle cadence offline).
+ * Progress-exempt employees (including Technician) cannot submit.
  */
 export function canSubmitFieldProgressReport(
   employee: CicoEmployee | null | undefined
 ): boolean {
   if (!employee) return false;
+  if (employee.progressExempt) return false;
   const position = employee.jobPosition ?? {};
   return (
     isCleaningStaffPosition(position) || isSecurityStaffPosition(position)

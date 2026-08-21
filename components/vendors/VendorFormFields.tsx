@@ -1,7 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { Upload } from "lucide-react";
+import { useState } from "react";
 
 import ProjectOptionPills from "@/components/projects/ProjectOptionPills";
 import { Input } from "@/components/ui/input";
@@ -20,10 +19,14 @@ import {
 import { resolveContactPersonNameParts } from "@/lib/contact-person";
 import { formatDateForInput } from "@/lib/format-tenure";
 import { useT } from "@/lib/i18n/use-t";
-import { PAYMENT_TERMS_DAYS_OPTIONS } from "@/lib/invoice-period";
 import { npwpFieldCustomValidity } from "@/lib/npwp";
 import { todayDateInput } from "@/lib/project-contract";
+import { FileDropField } from "@/components/ui/FileDropField";
 import { cn } from "@/lib/utils";
+import {
+  vendorRequiresIndonesianTaxId,
+  type VendorTypeValue,
+} from "@/lib/vendor-type";
 
 export type VendorFormDefaults = {
   name?: string;
@@ -35,17 +38,13 @@ export type VendorFormDefaults = {
   npwp?: string;
   taxIdDocumentUrl?: string | null;
   vendorSince?: Date | string | null;
-  /** Payment terms in days; 0 = Cash (default 14). */
-  paymentTermsDays?: number | null;
   contactPersonFirstName?: string;
   contactPersonLastName?: string;
   contactPersonPosition?: string;
   contactPersonEmail?: string;
   contactPersonPhone?: string;
-  vendorType?: "COMPANY" | "INDIVIDUAL";
+  vendorType?: VendorTypeValue;
 };
-
-const PAYMENT_TERMS_OPTIONS = PAYMENT_TERMS_DAYS_OPTIONS;
 
 type Props = {
   mode: "create" | "edit";
@@ -115,32 +114,35 @@ export default function VendorFormFields({
   const [vendorName, setVendorName] = useState(defaults?.name ?? "");
   const [firstName, setFirstName] = useState(initialParts.firstName);
   const [lastName, setLastName] = useState(initialParts.lastName);
-  const [vendorType, setVendorType] = useState<"COMPANY" | "INDIVIDUAL">(
+  const [vendorType, setVendorType] = useState<VendorTypeValue>(
     defaults?.vendorType ?? "COMPANY"
   );
-  const taxIdFileInputRef = useRef<HTMLInputElement>(null);
-  const [selectedTaxIdFileName, setSelectedTaxIdFileName] = useState("");
+  const [selectedTaxIdFileName, setSelectedTaxIdFileName] = useState<
+    string | null
+  >(null);
 
   const isIndividual = vendorType === "INDIVIDUAL";
+  const isOverseas = vendorType === "OVERSEAS";
+  const requiresIndonesianTaxId = vendorRequiresIndonesianTaxId(vendorType);
   const individualDisplayName = `${firstName} ${lastName}`.trim();
   const hasExistingTaxIdDocument = Boolean(defaults?.taxIdDocumentUrl);
   const taxIdDocumentRequired =
-    mode === "create" || !hasExistingTaxIdDocument;
+    requiresIndonesianTaxId && (mode === "create" || !hasExistingTaxIdDocument);
 
   const shortCodeValue =
     mode === "create"
       ? previewShortCode ?? ""
       : defaults?.shortCode ?? "";
 
-  function handleVendorTypeChange(next: "COMPANY" | "INDIVIDUAL") {
-    if (next === "INDIVIDUAL" && vendorType === "COMPANY") {
+  function handleVendorTypeChange(next: VendorTypeValue) {
+    if (next === "INDIVIDUAL" && vendorType !== "INDIVIDUAL") {
       if (!firstName.trim() && !lastName.trim() && vendorName.trim()) {
         const parts = resolveContactPersonNameParts(vendorName, null);
         setFirstName(parts.firstName);
         setLastName(parts.lastName ?? "");
       }
     }
-    if (next === "COMPANY" && vendorType === "INDIVIDUAL") {
+    if (next !== "INDIVIDUAL" && vendorType === "INDIVIDUAL") {
       if (individualDisplayName) {
         setVendorName(individualDisplayName);
       }
@@ -163,12 +165,16 @@ export default function VendorFormFields({
           title={
             isIndividual
               ? t("pages.vendors.form.organizationIndividual")
-              : t("pages.vendors.form.organization")
+              : isOverseas
+                ? t("pages.vendors.form.organizationOverseas")
+                : t("pages.vendors.form.organization")
           }
           description={
             isIndividual
               ? t("pages.vendors.form.organizationIndividualDesc")
-              : t("pages.vendors.form.organizationDesc")
+              : isOverseas
+                ? t("pages.vendors.form.organizationOverseasDesc")
+                : t("pages.vendors.form.organizationDesc")
           }
         />
 
@@ -186,11 +192,15 @@ export default function VendorFormFields({
                   value: "INDIVIDUAL",
                   label: t("pages.vendors.form.vendorTypeIndividual"),
                 },
+                {
+                  value: "OVERSEAS",
+                  label: t("pages.vendors.form.vendorTypeOverseas"),
+                },
               ]}
               onChange={(value) =>
-                handleVendorTypeChange(value as "COMPANY" | "INDIVIDUAL")
+                handleVendorTypeChange(value as VendorTypeValue)
               }
-              columns={2}
+              columns={3}
             />
             <input type="hidden" name={nameOf("vendorType")} value={vendorType} />
           </div>
@@ -354,6 +364,7 @@ export default function VendorFormFields({
             />
           </div>
 
+          {requiresIndonesianTaxId ? (
           <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
             <label
               htmlFor={idOf("vendor-npwp")}
@@ -400,7 +411,9 @@ export default function VendorFormFields({
                 : t("pages.vendors.form.companyNpwpHint")}
             </p>
           </div>
+          ) : null}
 
+          {requiresIndonesianTaxId ? (
           <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
             <label
               htmlFor={idOf("vendor-tax-id-document")}
@@ -423,35 +436,23 @@ export default function VendorFormFields({
                 </a>
               </p>
             ) : null}
-            <button
-              type="button"
-              onClick={() => taxIdFileInputRef.current?.click()}
-              className="flex h-11 w-full items-center gap-3 rounded-xl border border-dashed border-border bg-elevated px-4 text-left text-sm text-muted transition hover:border-accent-cyan/40 hover:text-text"
-            >
-              <Upload className="h-4 w-4 shrink-0 text-muted" />
-              <span>
-                {selectedTaxIdFileName
-                  ? selectedTaxIdFileName
-                  : hasExistingTaxIdDocument
-                    ? t("pages.vendors.form.taxIdDocumentReplace")
-                    : isIndividual
-                      ? t("pages.vendors.form.taxIdDocumentUploadIndividual")
-                      : t("pages.vendors.form.taxIdDocumentUploadCompany")}
-              </span>
-            </button>
-            <input
-              ref={taxIdFileInputRef}
+            <FileDropField
               id={idOf("vendor-tax-id-document")}
               name={nameOf("taxIdDocument")}
-              type="file"
-              accept="image/*,.pdf"
               required={taxIdDocumentRequired}
-              className="sr-only"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                setSelectedTaxIdFileName(file?.name ?? "");
+              fileName={selectedTaxIdFileName}
+              onPick={(file) => {
+                setSelectedTaxIdFileName(file?.name ?? null);
                 onFormValuesChange?.();
               }}
+              accept="image/*,.pdf"
+              emptyLabel={
+                hasExistingTaxIdDocument
+                  ? t("pages.vendors.form.taxIdDocumentReplace")
+                  : isIndividual
+                    ? t("pages.vendors.form.taxIdDocumentUploadIndividual")
+                    : t("pages.vendors.form.taxIdDocumentUploadCompany")
+              }
             />
             <p className={employeeDialogHintClass}>
               {hasExistingTaxIdDocument
@@ -461,6 +462,7 @@ export default function VendorFormFields({
                   : t("pages.vendors.form.taxIdDocumentHintCompany")}
             </p>
           </div>
+          ) : null}
 
           <div className={employeeDialogFieldClass}>
             <label
@@ -483,40 +485,6 @@ export default function VendorFormFields({
               {isIndividual
                 ? t("pages.vendors.form.vendorSinceHintIndividual")
                 : t("pages.vendors.form.vendorSinceHint")}
-            </p>
-          </div>
-
-          <div className={employeeDialogFieldClass}>
-            <label
-              htmlFor={idOf("vendor-payment-terms")}
-              className={employeeDialogLabelClass}
-            >
-              {t("pages.vendors.form.paymentTerms")}
-            </label>
-            <select
-              id={idOf("vendor-payment-terms")}
-              name={nameOf("paymentTermsDays")}
-              defaultValue={String(
-                defaults?.paymentTermsDays != null &&
-                  PAYMENT_TERMS_OPTIONS.includes(
-                    defaults.paymentTermsDays as (typeof PAYMENT_TERMS_OPTIONS)[number]
-                  )
-                  ? defaults.paymentTermsDays
-                  : 14
-              )}
-              className={employeeInputClass}
-              onChange={() => onFormValuesChange?.()}
-            >
-              {PAYMENT_TERMS_OPTIONS.map((days) => (
-                <option key={days} value={days}>
-                  {days === 0
-                    ? t("common.paymentTerms.cash")
-                    : t("common.paymentTerms.net", { days })}
-                </option>
-              ))}
-            </select>
-            <p className={employeeDialogHintClass}>
-              {t("pages.vendors.form.paymentTermsHint")}
             </p>
           </div>
         </div>

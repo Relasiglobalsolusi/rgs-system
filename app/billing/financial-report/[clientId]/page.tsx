@@ -10,6 +10,7 @@ import {
 
 import {
   getFinancialReportClientProjects,
+  listFinancialReportBankAccounts,
   listFinancialReportScopeClients,
 } from "@/app/billing/financial-report/actions";
 import AppShell from "@/components/layout/AppShell";
@@ -29,6 +30,7 @@ import { formatContractPrice } from "@/lib/project-billing";
 type SearchParams = Promise<{
   year?: string;
   month?: string;
+  bank?: string;
 }>;
 
 export default async function FinancialReportClientPage({
@@ -42,9 +44,10 @@ export default async function FinancialReportClientPage({
   const selection = parseFinancialReportSelection(await searchParams);
   const queryString = financialReportQueryString(selection);
   const t = createTranslator(await getServerLocale());
-  const [data, scopeClients] = await Promise.all([
+  const [data, scopeClients, bankAccounts] = await Promise.all([
     getFinancialReportClientProjects(clientId, selection),
     listFinancialReportScopeClients(),
+    listFinancialReportBankAccounts(),
   ]);
 
   if (!data) notFound();
@@ -67,6 +70,7 @@ export default async function FinancialReportClientPage({
         selection={selection}
         clients={scopeClients}
         scopeClientId={clientId}
+        bankAccounts={bankAccounts}
       />
 
       <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">

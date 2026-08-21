@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { lockPayrollManagementPeriodForExport } from "@/app/billing/payroll-management-actions";
 import { getCurrentSession } from "@/lib/auth";
+import { loadCompanyForPdf } from "@/lib/company-for-pdf";
 import { getServerLocale, localeToBcp47 } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
 import { buildInternalPayrollPdfBuffer } from "@/lib/internal-payroll-pdf";
@@ -11,7 +12,6 @@ import {
 } from "@/lib/payroll-management";
 import { reviewToPayrollPdfEmployees } from "@/lib/payroll-management-review";
 import { canAccess } from "@/lib/permissions";
-import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/project-billing";
 import { toPermissionUser } from "@/lib/session";
 import { jakartaYearMonth } from "@/lib/vat";
@@ -71,15 +71,7 @@ export async function GET(request: NextRequest) {
       year,
       month,
     });
-    const company = await prisma.company.findUnique({
-      where: { id: session.user.companyId },
-      select: {
-        name: true,
-        email: true,
-        phone: true,
-        address: true,
-      },
-    });
+    const company = await loadCompanyForPdf(session.user.companyId);
 
     const cutoffEnd = prepared.project.payrollCutoffEndDay ?? 1;
     const cutoffLabel = formatPayrollManagementWindowLabel(

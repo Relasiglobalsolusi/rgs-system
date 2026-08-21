@@ -3,6 +3,7 @@ import TeamAssignmentDirectory, {
   type TeamAssignmentRow,
 } from "@/components/teams/TeamAssignmentDirectory";
 import { jakartaTodayKey } from "@/lib/operations-team-calendar";
+import { ensureTeamServiceAreas } from "@/lib/operations-team-catalog";
 import {
   currentOccupiedProjectName,
   eligibleTeamMemberWhere,
@@ -23,12 +24,18 @@ export default async function TeamsAssignmentPage() {
         titleKey="pages.teams.assignmentTitle"
         descriptionKey="pages.teams.assignmentDescription"
       >
-        <TeamAssignmentDirectory teams={[]} eligible={[]} canManage={false} />
+        <TeamAssignmentDirectory
+          teams={[]}
+          catalog={[]}
+          eligible={[]}
+          canManage={false}
+        />
       </AppShell>
     );
   }
 
   const today = new Date(`${jakartaTodayKey()}T00:00:00.000Z`);
+  const catalog = await ensureTeamServiceAreas(companyId);
 
   const [teams, eligible] = await Promise.all([
     prisma.operationsTeam.findMany({
@@ -79,7 +86,8 @@ export default async function TeamsAssignmentPage() {
   const rows: TeamAssignmentRow[] = teams.map((team) => ({
     id: team.id,
     name: team.name,
-    kind: team.kind,
+    kind: team.kind as TeamAssignmentRow["kind"],
+    serviceAreaCatalogId: team.serviceAreaCatalogId,
     memberCount: team.members.length,
     occupiedProjectName: currentOccupiedProjectName(
       occupancyWindowsFromLinks(team.projectLinks),
@@ -100,6 +108,11 @@ export default async function TeamsAssignmentPage() {
     >
       <TeamAssignmentDirectory
         teams={rows}
+        catalog={catalog.map((area) => ({
+          id: area.id,
+          nameEn: area.nameEn,
+          nameId: area.nameId,
+        }))}
         eligible={eligible}
         canManage={canManage}
       />

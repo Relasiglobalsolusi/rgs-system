@@ -363,25 +363,6 @@ export default function ClientTable({
         },
       },
       {
-        key: "paymentTerms",
-        title: t("pages.clients.columns.paymentTerms"),
-        width: "12rem",
-        share: 0.75,
-        className:
-          "min-w-[12rem] whitespace-nowrap max-xl:min-w-[10rem] max-xl:px-2 max-xl:pr-8",
-        render: (client) => (
-          <span className="tabular-nums text-muted">
-            {client.paymentTermsDays == null
-              ? "—"
-              : client.paymentTermsDays === 0
-                ? t("common.paymentTerms.cashShort")
-                : t("common.paymentTerms.netShort", {
-                    days: client.paymentTermsDays,
-                  })}
-          </span>
-        ),
-      },
-      {
         key: "projects",
         title: t("pages.clients.columns.projects"),
         width: "5.5rem",
@@ -397,7 +378,7 @@ export default function ClientTable({
         key: "portalLogin",
         title: t("pages.clients.columns.portalLogin"),
         width: STATUS_COLUMN_WIDTH,
-        align: "center",
+        cellAlign: "center",
         className:
           "min-w-[10rem] overflow-visible whitespace-nowrap max-xl:min-w-[9rem] max-xl:px-2",
         render: (client) => {
@@ -407,7 +388,7 @@ export default function ClientTable({
               ? "active"
               : portalStatus === "revoked"
                 ? "revoked"
-                : "inactive";
+                : "danger";
           const label =
             portalStatus === "yes"
               ? t("pages.clients.portalStatus.yes")
@@ -432,7 +413,7 @@ export default function ClientTable({
         width: isTrashActions
           ? TRASH_ACTIONS_COLUMN_WIDTH
           : ACTIONS_SINGLE_CHIP_COLUMN_WIDTH,
-        align: "center",
+        cellAlign: "center",
         className: isTrashActions
           ? "min-w-[22rem] overflow-visible whitespace-nowrap max-xl:min-w-[20rem] max-xl:px-2"
           : "min-w-[12.5rem] overflow-visible whitespace-nowrap max-xl:min-w-[11rem] max-xl:px-2",

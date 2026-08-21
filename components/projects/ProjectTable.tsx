@@ -27,8 +27,11 @@ import {
 } from "@/lib/i18n/labels";
 import type { AppLocale } from "@/lib/i18n/locale";
 import { useT } from "@/lib/i18n/use-t";
-import { isGcFacadeAwaitingPayment } from "@/lib/project-awaiting-payment";
 import { isInternalProjectSubCategory } from "@/lib/project-subcategory";
+import {
+  isDirectoryPeriodRow,
+  type ProjectDirectoryRowKind,
+} from "@/lib/project-directory-rows";
 import {
   getProjectWorkflowStatusLabel,
   isPlanningProjectStatus,
@@ -83,6 +86,20 @@ export type ProjectTableProject = {
   progress: number;
   status: string;
   subCategory: ProjectSubCategory;
+  areaCatalogId?: string | null;
+  areaCatalog?: {
+    id: string;
+    nameEn: string;
+    nameId: string;
+    systemArea: string;
+  } | null;
+  subcategoryCatalog?: {
+    id: string;
+    nameEn: string;
+    nameId: string;
+    isSystem: boolean;
+    billingKind: "CONTRACT" | "ONE_TIME";
+  } | null;
   billingMode?: BillingMode;
   requiresTaxInvoice?: boolean;
   clientId: string | null;
@@ -96,7 +113,10 @@ export type ProjectTableProject = {
 export type ProjectTableRow = {
   key: string;
   project: ProjectTableProject;
+  rowKind: ProjectDirectoryRowKind;
   displayTitle: string;
+  /** Period dates for Pending Approval / Payment Due queues (line 2). */
+  periodLine: string | null;
   timeline: string;
   location: string | null;
   clientName: string | null;
@@ -118,6 +138,8 @@ export type ProjectTableRow = {
   canMarkPaid: boolean;
   billingHref: string | null;
   detailHref: string;
+  /** Catalog or localized type name (keeps Regular / General / Internal truthful). */
+  typeLabel?: string;
 };
 
 type Props = {
@@ -132,14 +154,8 @@ type Props = {
   teams?: ProjectTeamOption[];
 };
 
-function isPaymentDueRow(
-  row: ProjectTableRow,
-  filterView: ProjectTableFilterView
-): boolean {
-  if (filterView === "payment-due") return true;
-  if (row.paymentStage) return true;
-  if (row.invoiceCycleDue) return true;
-  return false;
+function isPaymentDueRow(row: ProjectTableRow): boolean {
+  return row.rowKind === "payment-due";
 }
 
 /**
@@ -315,8 +331,12 @@ export default function ProjectTable({
   const showPaymentDueColumn = filterView === "payment-due";
   /** Completed Projects: when payment was received (latest period paidAt). */
   const showPaidColumn = filterView === "completed";
-  /** Payment-due expands one project into multiple period rows — skip DnD there. */
-  const reorderable = canManage && filterView !== "payment-due";
+  /** Period queues expand one project into multiple rows — skip DnD there. */
+  const reorderable =
+    canManage &&
+    filterView !== "payment-due" &&
+    filterView !== "pending-approval" &&
+    !rows.some((row) => isDirectoryPeriodRow(row.rowKind));
 
   function handleReorder(orderedIds: string[]) {
     if (!reorderable) return;
@@ -352,11 +372,29 @@ export default function ProjectTable({
           const isInternal = isInternalProjectSubCategory(
             row.project.subCategory
           );
-          // Internal HO/Warehouse: seeded location duplicates the name — title only.
-          if (isInternal) {
+          const isPeriodRow = isDirectoryPeriodRow(row.rowKind);
+          if (isInternal && !isPeriodRow) {
             return (
               <div className="min-w-0 text-left">
                 <p className="font-semibold text-text">{row.displayTitle}</p>
+              </div>
+            );
+          }
+          if (isPeriodRow) {
+            const address =
+              row.location?.trim() || t("pages.projects.noLocation");
+            return (
+              <div className="min-w-0 text-left">
+                <p className="font-semibold text-text">{row.displayTitle}</p>
+                {row.periodLine ? (
+                  <p className="mt-0.5 text-sm text-muted">{row.periodLine}</p>
+                ) : null}
+                <p className="mt-0.5 max-w-md truncate text-sm text-subtle">
+                  {address}
+                </p>
+                <p className="mt-1 text-xs font-medium text-accent-teal">
+                  {t("pages.projects.periodPage.openHint")}
+                </p>
               </div>
             );
           }
@@ -386,8 +424,9 @@ export default function ProjectTable({
         share: internalEqual?.share ?? 1,
         className: internalEqual?.className ?? "min-w-[11rem]",
         render: (row) => {
-          // Planning: no progress reports / staff assignment yet — hide counts.
-          const showOpsCounts = !isPlanningProjectStatus(row.project.status);
+          const showOpsCounts =
+            !isPlanningProjectStatus(row.project.status) &&
+            !isDirectoryPeriodRow(row.rowKind);
           return (
             <div className="min-w-0 text-left">
               <p className="text-muted">{row.timeline}</p>
@@ -419,13 +458,13 @@ export default function ProjectTable({
         title: t("pages.projects.cleaningType"),
         width: internalEqual?.width ?? STATUS_COLUMN_WIDTH,
         share: internalEqual?.share ?? 1,
-        align: "center",
+        cellAlign: "center",
         className: internalEqual
           ? `${internalEqual.className} overflow-visible whitespace-nowrap`
           : "min-w-[10rem] overflow-visible whitespace-nowrap",
         render: (row) => (
           <StatusBadge status="success" compact>
-            {localizeSubCategory(row.project.subCategory, locale)}
+            {row.typeLabel ?? localizeSubCategory(row.project.subCategory, locale)}
           </StatusBadge>
         ),
       },
@@ -434,25 +473,27 @@ export default function ProjectTable({
         title: t("pages.projects.columns.status"),
         width: internalEqual?.width ?? STATUS_COLUMN_WIDTH,
         share: internalEqual?.share ?? 1,
-        align: "center",
+        cellAlign: "center",
         className: internalEqual
           ? `${internalEqual.className} overflow-visible whitespace-nowrap`
           : "min-w-[10rem] overflow-visible whitespace-nowrap",
         render: (row) => {
-          const awaitingPayment = isGcFacadeAwaitingPayment({
-            subCategory: row.project.subCategory,
-            status: row.project.status,
-            billingMode: row.project.billingMode,
-            invoicePeriods: row.project.invoicePeriods,
-          });
-          const paymentDue = isPaymentDueRow(row, filterView);
+          const paymentDue = isPaymentDueRow(row);
           const englishLabel = getProjectWorkflowStatusLabel({
-            status: row.project.status,
+            status:
+              row.rowKind === "in-progress" ? "IN_PROGRESS" : row.project.status,
             paymentDue,
-            awaitingPayment,
+            pendingApproval: row.rowKind === "pending-approval",
           });
           const label = localizeWorkflowStatus(
-            { status: row.project.status, paymentDue, awaitingPayment },
+            {
+              status:
+                row.rowKind === "in-progress"
+                  ? "IN_PROGRESS"
+                  : row.project.status,
+              paymentDue,
+              pendingApproval: row.rowKind === "pending-approval",
+            },
             locale
           );
           const lines = localizeWorkflowChipLines(englishLabel, locale);
@@ -486,7 +527,7 @@ export default function ProjectTable({
         title: t("pages.projects.due"),
         width: "10rem",
         share: 1,
-        align: "center",
+        cellAlign: "center",
         className: "min-w-[9rem] overflow-visible whitespace-nowrap",
         render: (row) => (
           <div className="flex w-full items-center justify-center">
@@ -502,7 +543,7 @@ export default function ProjectTable({
         title: t("pages.projects.paid"),
         width: "10rem",
         share: 1,
-        align: "center",
+        cellAlign: "center",
         className: "min-w-[9rem] overflow-visible whitespace-nowrap",
         render: (row) => (
           <div className="flex w-full items-center justify-center">
@@ -562,7 +603,7 @@ export default function ProjectTable({
         title: t("common.labels.actions"),
         width: PROJECT_ACTIONS_COLUMN_WIDTH,
         share: 1,
-        align: "center",
+        cellAlign: "center",
         className: "min-w-0 max-w-full overflow-hidden",
         render: (row) => (
           <div

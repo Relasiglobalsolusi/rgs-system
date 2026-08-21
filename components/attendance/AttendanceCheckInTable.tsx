@@ -59,7 +59,7 @@ export default function AttendanceCheckInTable({ data }: Props) {
         key: "photo",
         title: t("pages.progress.columns.photos"),
         width: "5rem",
-        align: "center",
+        cellAlign: "center",
         className: "min-w-[5rem] whitespace-nowrap",
         render: (row) =>
           row.checkInPhotoUrl ? (

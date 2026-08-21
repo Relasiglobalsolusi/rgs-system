@@ -9,6 +9,8 @@ import type { ProjectStaffEmployee } from "@/components/projects/ProjectStaffPic
 import type { ProjectTeamOption } from "@/components/projects/ProjectTeamPicker";
 import DirectoryAddButton from "@/components/ui/DirectoryAddButton";
 import { useT } from "@/lib/i18n/use-t";
+import type { CompanyBankAccountOption } from "@/lib/company-bank-accounts";
+import type { ProjectCatalogAreaDTO } from "@/lib/project-service-catalog";
 
 type ClientOption = {
   id: string;
@@ -21,6 +23,8 @@ type Props = {
   employees: ProjectStaffEmployee[];
   teams?: ProjectTeamOption[];
   clients: ClientOption[];
+  catalog?: ProjectCatalogAreaDTO[];
+  bankAccounts?: CompanyBankAccountOption[];
 };
 
 /**
@@ -31,6 +35,8 @@ export default function ProjectAddControl({
   employees,
   teams = [],
   clients,
+  catalog = [],
+  bankAccounts = [],
 }: Props) {
   const { t } = useT();
   const [createOpen, setCreateOpen] = useState(false);
@@ -38,7 +44,7 @@ export default function ProjectAddControl({
 
   return (
     <>
-      <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-4">
         <DirectoryAddButton
           label={t("pages.projects.addProject")}
           onClick={() => setCreateOpen(true)}
@@ -55,6 +61,8 @@ export default function ProjectAddControl({
         employees={employees}
         teams={teams}
         clients={clients}
+        catalog={catalog}
+        bankAccounts={bankAccounts}
         open={createOpen}
         onOpenChange={setCreateOpen}
         showTrigger={false}
@@ -66,6 +74,8 @@ export default function ProjectAddControl({
         employees={employees}
         teams={teams}
         clients={clients}
+        catalog={catalog}
+        bankAccounts={bankAccounts}
       />
     </>
   );

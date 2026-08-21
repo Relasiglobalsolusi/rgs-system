@@ -123,6 +123,7 @@ export const en = {
       netShort: "Net {days}",
       cash: "Cash — due when invoice is submitted",
       net: "Net {days} — due within {days} days of invoice",
+      netMonths: "Net {days} ({months} months)",
     },
     labels: {
       name: "Name",
@@ -161,9 +162,17 @@ export const en = {
       deleted: "Deleted",
       trash: "Trash",
       searchPlaceholder: "Search...",
+      searchProjects: "Search Projects...",
+      searchBankAccounts: "Search Bank Accounts...",
+      noMatchingProjects: "No projects match this search.",
+      noMatchingBankAccounts: "No bank accounts match this search.",
       noResults: "No results",
       unknown: "Unknown",
       na: "—",
+      dropFileOrBrowse: "Drop file here or browse",
+      dropFilesOrBrowse: "Drop files here or browse",
+      fileMustBeImageOrPdf: "Use a photo or PDF.",
+      fileMustBeImage: "Use a photo.",
       selectedCount: "{count} selected",
       showingCount: "Showing {count}",
       ofTotal: "of {total}",
@@ -223,8 +232,10 @@ export const en = {
       "All Billing": "All Billing",
       Reconciliation: "Reconciliation",
       "Tax Invoice": "Tax Invoice",
+      Tax: "Tax",
       Purchases: "Expenses",
       Expenses: "Expenses",
+      Sales: "Sales",
       "Petty Cash": "Petty Cash",
       "Upload History": "Upload History",
       "Payment & Settlement": "Payment & Settlement",
@@ -233,7 +244,8 @@ export const en = {
       "Internal Payroll": "Internal Payroll",
       "Financial Report": "Financial Report",
       VAT: "VAT",
-      "Progress Reports": "Progress Reports",
+      "Progress Reports": "Progress Report",
+      "Progress Report": "Progress Report",
       CICO: "CICO",
       "Attendance Report": "Attendance Report",
       Shifts: "Shifts",
@@ -245,6 +257,7 @@ export const en = {
       "Client Reports": "Client Reports",
       Inventory: "Inventory",
       "Item Catalog": "Item Catalog",
+      "Company Details": "Company Details",
       Teams: "Teams",
       Assignment: "Assignment",
       "Team Availability": "Team Availability",
@@ -350,9 +363,30 @@ export const en = {
       REJECTED: "Rejected",
       CANCELLED: "Cancelled",
     },
-    leaveType: {
-      PERMISSION: "Permission",
-      SICK: "Sick Leave",
+    clientReview: {
+      NONE: "—",
+      AWAITING_CLIENT: "Awaiting Client",
+      CLIENT_APPROVED: "Client Approved",
+      CLIENT_REVISED: "Client Revised",
+      HO_APPROVED_REVISION: "Revision Approved",
+      HO_REJECTED_REVISION: "Revision Rejected",
+    },
+    clientReviewChip: {
+      AWAITING_CLIENT1: "Awaiting",
+      AWAITING_CLIENT2: "Client",
+      CLIENT_APPROVED1: "Client",
+      CLIENT_APPROVED2: "Approved",
+      CLIENT_REVISED1: "Client",
+      CLIENT_REVISED2: "Revised",
+      HO_APPROVED_REVISION1: "Revision",
+      HO_APPROVED_REVISION2: "Approved",
+      HO_REJECTED_REVISION1: "Revision",
+      HO_REJECTED_REVISION2: "Rejected",
+    },
+    reviewKind: {
+      PROGRESS: "Progress",
+      RECONCILIATION: "Reconciliation",
+      PAYROLL_MANAGEMENT: "Payroll Management",
     },
     user: {
       active: "Active",
@@ -373,20 +407,31 @@ export const en = {
       REGULAR_CLEANING: "Regular Cleaning",
       GENERAL_CLEANING: "General Cleaning",
       FACADE_CLEANING: "Facade Cleaning",
+      CONTRACT_GENERAL_CLEANING: "General Cleaning",
+      CONTRACT_FACADE_CLEANING: "Facade Cleaning",
+      REGULAR_LANDSCAPING: "Regular Landscaping",
+      ONE_TIME_LANDSCAPING: "One Time Landscaping",
       INTERNAL: "Internal Project",
       SECURITY: "Security",
+      ONE_TIME_SECURITY: "One Time Security",
       PARKING: "Parking",
       PAYROLL_MANAGEMENT: "Payroll Management",
       short: {
         REGULAR_CLEANING: "Regular",
         GENERAL_CLEANING: "General",
         FACADE_CLEANING: "Facade",
+        CONTRACT_GENERAL_CLEANING: "General",
+        CONTRACT_FACADE_CLEANING: "Facade",
+        REGULAR_LANDSCAPING: "Regular",
+        ONE_TIME_LANDSCAPING: "One Time",
         INTERNAL: "Internal",
         SECURITY: "Security",
+        ONE_TIME_SECURITY: "One Time",
         PARKING: "Parking",
         PAYROLL_MANAGEMENT: "Payroll",
       },
       cleaningSuffix: "Cleaning",
+      landscapingSuffix: "Landscaping",
       projectSuffix: "Project",
       serviceSuffix: "Service",
     },
@@ -419,6 +464,7 @@ export const en = {
       cleaningStaff: "Cleaning Staff",
       generalCleaningStaff: "General Cleaning Staff",
       gondolaStaff: "Gondola Staff",
+      technician: "Technician",
     },
   },
 
@@ -433,7 +479,7 @@ export const en = {
       yourBillingDesc: "Metrics for your vendor account only — no company-wide data.",
       vendorInvoices: "Your invoices",
       vendorInvoicesDesc: "Purchase invoices linked to your account",
-      vendorAwaitingTax: "Awaiting tax invoice",
+      vendorAwaitingTax: "Needs Tax Invoice",
       vendorAwaitingTaxDesc: "PPN masukan still to upload",
       vendorTaxUploaded: "Tax invoices uploaded",
       vendorTaxUploadedDesc: "Faktur pajak on file",
@@ -504,7 +550,7 @@ export const en = {
         "Your check-in for today will appear here after you clock in.",
       teamCheckInHint: "Records appear here as employees check in today.",
       showingLatestCheckIns: "Showing latest {count} check-ins",
-      attendanceReport: "Attendance Report",
+      attendanceReport: "Progress Report",
       attendanceIn: "In",
       attendanceOut: "Out",
     },
@@ -518,6 +564,15 @@ export const en = {
       openBilling: "Open Billing",
       completedTitle: "Completed Projects",
       addProject: "Add Project",
+      bankAccount: "Bank Account",
+      bankAccountHint:
+        "Printed on invoices for this project. You can change it later on the project page.",
+      bankAccountChangeHint:
+        "Changing this does not rewrite invoices that are already issued.",
+      bankAccountEmpty: "Add a bank account in Company Details first.",
+      bankAccountRequired: "Choose the bank account clients pay to.",
+      bankAccountPlaceholder: "Select Bank Account",
+      bankAccountSaved: "Bank Account saved.",
       newProject: "New Project",
       createProject: "Create Project",
       creating: "Creating...",
@@ -535,16 +590,105 @@ export const en = {
         "Set up an ongoing Regular Cleaning contract with site location and standby staff.",
       createDescriptionMilestone:
         "Set up General or Facade work with a payment milestone schedule staff can invoice later.",
+      createDescriptionLandscapingContract:
+        "Set up an ongoing Regular Landscaping contract with site location and standby staff.",
+      createDescriptionLandscapingOneTime:
+        "Set up One-Time Landscaping with a payment plan staff can invoice later.",
       projectName: "Project name",
       selectClient: "Select client",
       startingStage: "Starting Stage",
       serviceArea: "Service Area",
       serviceAreaCleaning: "Cleaning",
+      serviceAreaLandscaping: "Landscaping",
       serviceAreaParking: "Parking",
       serviceAreaSecurity: "Security",
       serviceAreaPayroll: "Payroll Management",
       serviceAreaHeadOffice: "Head Office",
       subcategory: "Subcategory",
+      oneTime: "One Time",
+      oneTimeType: "One Time Type",
+      oneTimeCleaningHint:
+        "Choose General Cleaning or Facade Cleaning.",
+      formRegular: "Regular",
+      addServiceArea: "Add Service Area",
+      addSubcategory: "Add Subcategory",
+      catalogAreaTitle: "Add Service Area",
+      catalogAreaDescription:
+        "Create a service area that can be selected on Add Project. Choose whether this area can have One Time projects.",
+      catalogSubTitle: "Add Subcategory",
+      catalogSubDescription:
+        "Add a subcategory under the selected service area.",
+      catalogName: "Name",
+      catalogNameId: "Name (Indonesian)",
+      catalogNamePlaceholder: "e.g. Pest Control",
+      catalogBillingKind: "Billing",
+      catalogBillingContract: "Contract",
+      catalogBillingOneTime: "One Time",
+      catalogCreating: "Adding...",
+      catalogCreateArea: "Add Service Area",
+      catalogCreateSub: "Add Subcategory",
+      catalogAreaRequired: "Select a service area first.",
+      manageServiceAreas: "Manage Service Areas",
+      manageServiceAreasTitle: "Service Areas",
+      manageServiceAreasDescription:
+        "Add, rename, or delete service areas. Click a service area to manage its subcategories.",
+      manageSubcategoriesDescription:
+        "Add, rename, or delete subcategories for this service area.",
+      serviceAreaCount: "{count} service areas",
+      serviceAreaCountOne: "{count} service area",
+      subcategoryManageCount: "{count} subcategories",
+      subcategoryManageCountOne: "{count} subcategory",
+      emptyServiceAreas: "No service areas yet. Add one to use on Add Project.",
+      emptyCatalogSubcategories: "No subcategories in this service area.",
+      backToServiceAreas: "Back To Service Areas",
+      catalogEnableOneTime: "Enable One Time",
+      catalogEnableOneTimeHint:
+        "Yes allows one-shot projects for this service area.",
+      catalogProjects: "Projects",
+      catalogEditAreaTitle: "Rename Service Area",
+      catalogEditAreaDescription:
+        "Update the service area name shown on Add Project.",
+      catalogEditSubTitle: "Rename Subcategory",
+      catalogEditSubDescription:
+        "Update the subcategory name shown on Add Project.",
+      catalogDeleteAreaTitle: "Delete Service Area?",
+      catalogDeleteAreaConfirm: "Delete Service Area",
+      catalogDeleteAreaDescEmpty:
+        "This service area will be permanently removed.",
+      catalogDeleteAreaDescInUse:
+        "This service area cannot be deleted while a project is still ongoing.",
+      catalogDeleteSubTitle: "Delete Subcategory?",
+      catalogDeleteSubConfirm: "Delete Subcategory",
+      catalogDeleteSubDescEmpty:
+        "This subcategory will be permanently removed.",
+      catalogDeleteSubDescInUse:
+        "This subcategory cannot be deleted while a project is still ongoing.",
+      catalogAreaInUseOne:
+        "{count} ongoing project still uses this service area.",
+      catalogAreaInUseOther:
+        "{count} ongoing projects still use this service area.",
+      catalogSubInUseOne:
+        "{count} ongoing project still uses this subcategory.",
+      catalogSubInUseOther:
+        "{count} ongoing projects still use this subcategory.",
+      catalogUpdateAreaFailed: "Could not update the service area.",
+      catalogUpdateSubFailed: "Could not update the subcategory.",
+      catalogDeleteAreaFailed: "Could not delete the service area.",
+      catalogDeleteSubFailed: "Could not delete the subcategory.",
+      directoryChipAll: "All",
+      directoryChipInternal: "Internal",
+      directoryChipOneTime: "One Time",
+      directoryChipCleaning: "Cleaning",
+      directoryChipSecurity: "Security",
+      directoryChipParking: "Parking",
+      directoryChipPayroll: "Payroll",
+      directoryChipLandscaping: "Landscaping",
+      directorySubRegular: "Regular",
+      directorySubGeneral: "General",
+      directorySubFacade: "Facade",
+      directorySubLandscaping: "Landscaping",
+      directorySubSecurity: "Security",
+      directorySubCleaning: "Cleaning",
       billingPeriodBasis: "Billing Periods",
       billingPeriodBasisCalendarMonth: "Calendar Month",
       billingPeriodBasisContractCycle: "Custom Period",
@@ -577,9 +721,9 @@ export const en = {
         serviceFeePercent: "Management Fee %",
         serviceFeePercentHint:
           "Type the management fee percent for this job. There is no built-in default.",
-        paymentTermsDays: "Client Payment Terms",
+        paymentTermsDays: "Payment Terms",
         paymentTermsDaysHint:
-          "Days until the client pays the invoice (wages + fee + tax). Defaults from the client payment terms.",
+          "How many days after we invoice this project until the client pays. Same client, different project, different terms.",
         payrollCutoffStartDay: "Cutoff Start Day",
         payrollCutoffEndDay: "Cutoff Day",
         payrollCutoffHint:
@@ -596,9 +740,19 @@ export const en = {
       taxInvoiceLabel: "Tax Invoice",
       companyNpwp: "NPWP / NIK",
       companyNpwpHint:
-        "Tax is always required. The tax ID comes from the client’s NPWP or NIK. Change it in the Client directory.",
+        "The client tax ID used on a tax invoice. Change it in the Client directory.",
       withoutTaxNote:
         "This client has no NPWP or NIK yet. Add it on the client record — a tax invoice needs one or the other.",
+      chargedTaxKind: "What Tax Do We Charge On This Project",
+      chargedTaxKindHint:
+        "Choose the tax we charge this client. Value Added Tax means we issue a tax invoice. Income tax is withheld or final. Other Tax asks for the name and percent.",
+      chargedTaxKindPlaceholder: "Select The Tax",
+      chargedTaxKindRequired: "Select the tax we charge on this project.",
+      pphRatePercent: "Income Tax Rate",
+      pphRatePercentHint:
+        "Usual Article 23 withholding is 2%. Change it if this project uses another rate.",
+      pphRatePercentPlaceholder: "e.g. 2",
+      pphRatePercentRequired: "Enter the income tax rate for this project.",
       taxManagedOnClient: "Managed on the client record",
       withTax: "With Tax",
       withoutTax: "Without Tax",
@@ -623,12 +777,12 @@ export const en = {
       emptyInProgress: "No projects In Progress",
       emptyInProgressDesc:
         "Projects appear here after Move to In Progress from Planning.",
-      emptyPendingApproval: "No projects pending approval",
+      emptyPendingApproval: "No periods pending approval",
       emptyPendingApprovalDesc:
-        "Projects awaiting mutual approval appear here after Submit for Approval or reconcile. They move to Payment Due once the client and HO both agree.",
+        "Each billing period awaiting mutual approval appears as its own row after Submit for Approval or reconcile. The same project can appear more than once. Periods move to Payment Due once the client and HO both agree.",
       emptyPaymentDue: "No payment due",
       emptyPaymentDueDesc:
-        "Issued invoices appear here until payment is verified. Regular Cleaning projects stay In Progress while a cycle is due.",
+        "Each issued invoice period appears here until payment is verified. The same project can appear more than once. Regular Cleaning projects stay In Progress while a cycle is due.",
       emptyCompleted: "No completed projects",
       emptyCompletedDesc: "Finished and fully paid projects appear here.",
       moveToInProgress: "Move to In Progress",
@@ -718,11 +872,11 @@ export const en = {
           "This compiles all progress reports into a PDF and opens client and HO review. The project status will change to Pending Approval.",
         confirm: "Submit",
         regularNotAllowed:
-          "Regular Cleaning uses reconcile. Reconcile the due billing period to start approval.",
+          "Regular Cleaning and Regular Landscaping use reconcile. Reconcile the due billing period to start approval.",
         internalNotAllowed:
           "Internal projects do not use Submit for Approval.",
         notAllowed:
-          "Submit for Approval is only for General Cleaning and Facade Cleaning.",
+          "Submit for Approval is only for General Cleaning, Facade Cleaning, and One-Time Landscaping.",
         inProgressOnly:
           "Only In Progress projects can be submitted for approval.",
         noOngoingMilestone:
@@ -915,6 +1069,8 @@ export const en = {
         projectType: "Project type",
         projectControls: "Project controls",
         client: "Client",
+        bankAccount: "Bank Account",
+        chargedTax: "Tax We Charge",
         location: "Location",
         estimatedStart: "Estimated start",
         contractPeriod: "Contract period",
@@ -946,9 +1102,9 @@ export const en = {
         siteLocation: "Site Location",
         cicoSiteLocation: "CICO Site Location",
         cicoSiteLocationHint:
-          "GPS pin and geofence radius used for Head Office and Warehouse office CICO.",
+          "GPS pin and site radius used for Head Office and Warehouse office CICO.",
         cicoCoordinates: "CICO Coordinates",
-        cicoGeofenceRadius: "Geofence Radius",
+        cicoGeofenceRadius: "Site Radius",
         cicoGeofenceRadiusValue: "{meters} m",
         cicoGpsNotSet: "Not Set",
         cicoGpsEmptyManage:
@@ -989,6 +1145,72 @@ export const en = {
         voidIssueSuccess: "Inventory issue voided. Stock restored.",
         voidReason: "Void Reason",
         voidReasonPlaceholder: "Why is this issue being voided?",
+      },
+      periodPage: {
+        openHint: "Open period details",
+        backToProject: "Back To Project",
+        whatThisIsTitle: "What This Period Is",
+        whatThisIsMonthly:
+          "This is one monthly billing cycle of {project}. It is not the whole contract. The list row for {start} – {end} is this cycle only: the reports, the amount, and the status chips belong to these dates.",
+        whatThisIsMilestone:
+          "This is a progress billing step of {project} ({percent}% of the job). The list row is this step only, not the whole job.",
+        whatThisIsCompletion:
+          "This is the completion bill for {project}. It covers {start} through {end}.",
+        whatThisIsGeneric:
+          "This is one billing period of {project}. It covers {start} through {end}. The list row is this period only, not the whole contract.",
+        whyTitle: "Why The List Looks Like This",
+        emptyInvoiceDates:
+          "Invoice Sent and Due Date are empty because the sales invoice has not been issued yet. That happens after this period is approved.",
+        pendingApprovalWhy:
+          "Pending Approval means the progress package for this cycle was sent for review. The client must Approve or Revise. If they revise, Head Office reviews the change. The sales invoice is issued only after both sides agree.",
+        pendingApprovalClientRevised:
+          "The client asked for a revision. Head Office still needs to accept or reject that change before this period can be invoiced.",
+        pendingApprovalHoRejected:
+          "Head Office rejected the last revision. The client needs to review the package again.",
+        taxPendingWhy:
+          "Tax Pending means this client needs a tax invoice for this period, and it has not been recorded yet.",
+        taxDoneWhy: "The tax invoice for this period has been recorded.",
+        awaitingPaymentWhy:
+          "The sales invoice has been issued. Payment is due on {date}.",
+        overdueWhy:
+          "The sales invoice is overdue. Payment was due on {date}.",
+        verifyingWhy:
+          "A payment proof was uploaded. Head Office still needs to confirm it.",
+        paidWhy: "This period is paid. Payment was recorded on {date}.",
+        ongoingWhy:
+          "This cycle is still open. It has not been sent for approval or invoiced yet.",
+        compilingWhy: "The invoice for this period is being compiled.",
+        reconcileWhy:
+          "This cycle has ended and is ready to reconcile before it can be sent to the client.",
+        factsTitle: "Period Details",
+        project: "Project",
+        client: "Client",
+        type: "Type",
+        billingMode: "Billing Mode",
+        amount: "Amount",
+        fromContractPrice:
+          "Taken from the project contract price until a period amount is set.",
+        invoiceSent: "Invoice Sent",
+        dueDate: "Due Date",
+        paidOn: "Paid On",
+        notYet: "Not yet",
+        reportsTitle: "Progress Reports In This Period",
+        reportsHint:
+          "The list shows “{count} reports” because these field reports fall in this cycle.",
+        reportsEmpty: "No progress reports fall in these dates yet.",
+        photoCountOne: "{count} photo",
+        photoCountOther: "{count} photos",
+        noNotes: "No notes",
+        serviceArea: "Service Area",
+        openAllReports: "Open All Progress Reports",
+        documentsTitle: "Documents",
+        viewReviewReport: "View Report",
+        noDocuments:
+          "No documents have been generated for this period yet.",
+        openBilling: "Open Billing",
+        clientRevisionNote: "Client Revision Note",
+        hoReviewNote: "Head Office Review Note",
+        compileNote: "Compile Note",
       },
       filterAllProjects: "All Projects",
       equipmentPicker: {
@@ -1047,10 +1269,10 @@ export const en = {
         searchAddress: "Search",
         latitude: "Latitude",
         longitude: "Longitude",
-        radius: "Geofence Radius (m)",
+        radius: "Site Radius (m)",
         radiusPlaceholder: "Radius (m)",
         internalCicoHint:
-          "Set the map pin and geofence radius for office CICO at this Internal site (Head Office or Warehouse).",
+          "Set the map pin and site radius for office CICO at this Internal site (Head Office or Warehouse).",
         pasteLabel: "Paste Google Maps coordinates / link",
         pastePlaceholder:
           "-6.200000, 106.816666 or Google Maps / share.google URL",
@@ -1111,6 +1333,10 @@ export const en = {
           "Reconcile this billing period so the client and HO can approve before the invoice is issued.",
         lastDay: "Last day on site",
         lastDayRequired: "Enter the real last day on site.",
+        lastMonth: "Last Month",
+        lastMonthRequired: "Pick the last month of the parking contract.",
+        lastMonthHint:
+          "Pick the last calendar month on site. The last day is the last day of that month. Parking bills that month in the Parking workspace. Reconcile on the 1st of the next month.",
         lastDayHint:
           "Pick the last working day (today or earlier). If you pick today, we reconcile tomorrow so that day is fully closed. Then the pack goes to the client for Approve.",
         confirmEndContract:
@@ -1410,16 +1636,26 @@ export const en = {
         groups: "Project Groups",
         groupName: "Group Name",
         addGroup: "Add Group",
+        addGroupHint:
+          "Name the group only. Then tick the projects that belong in it and use Assign To Group. Leftover projects stay ungrouped.",
         ungrouped: "Ungrouped Projects",
         ungroupedWarning:
           "Ungrouped projects stay inaccessible in the client portal while Multi-Project Access is active.",
         masterCode: "Master Security Code",
         groupCode: "Group Security Code",
         generateCode: "Generate Security Code",
-        codeGenerated: "Copy this Security Code now. It will not be shown again.",
+        regenerateCode: "Regenerate Security Code",
+        regenerateCodeConfirm:
+          "Regenerate this Security Code? The current code will stop working.",
+        currentCode: "Security Code",
         codeHint: "Hint (last 2): {hint}",
+        codeMissingFull:
+          "The full Security Code is not on file. Regenerate to create a new one you can copy.",
         noCodeYet: "No active code",
-        assign: "Assign",
+        assign: "Assign To Group",
+        assignTo: "Assign To",
+        groupRequiredToAssign: "Choose a group first.",
+        projectsRequiredToAssign: "Select at least one project to assign.",
         countable: "{count} countable projects",
         activeBadge: "Active",
         armedBadge: "Armed",
@@ -1542,7 +1778,7 @@ export const en = {
       selectRow: "Select {name}",
       import: {
         vendorTypeInvalid:
-          'Vendor Type must be "Company" or "Individual" (or Perusahaan / Perorangan).',
+          'Vendor Type must be "Company", "Individual", or "Overseas".',
         nameRequired: "Vendor Name is required.",
         individualFirstRequired:
           "First Name is required for Individual vendors.",
@@ -1598,6 +1834,9 @@ export const en = {
         organizationIndividual: "Vendor",
         organizationIndividualDesc:
           "Personal details used for purchases and contact records.",
+        organizationOverseas: "Overseas Vendor",
+        organizationOverseasDesc:
+          "A supplier outside Indonesia. Indonesian Tax ID is not required.",
         vendorName: "Vendor Name",
         firstName: "First Name",
         lastName: "Last Name",
@@ -1653,6 +1892,7 @@ export const en = {
         vendorType: "Vendor Type",
         vendorTypeCompany: "Company",
         vendorTypeIndividual: "Individual",
+        vendorTypeOverseas: "Overseas",
       },
     },
     employees: {
@@ -1719,6 +1959,7 @@ export const en = {
       positionCountOne: "{count} position",
       addPosition: "Add Position",
       emptyPositions: "No positions configured.",
+      emptyPositionsDepartment: "No positions in this department.",
       deletedSubtitle: "Soft-deleted employees until restored",
       unassigned: "Unassigned",
       unassignedSubtitle: "Active staff waiting for Head Office or a project",
@@ -2026,10 +2267,15 @@ export const en = {
           "Choose a position available for the selected department.",
         approvalAreas: "Approval Areas",
         approvalAreasHint:
-          "Select at least one area this Operations Manager may approve — Cleaning, Security, Parking for site crews, and Head Office for desk staff leave.",
+          "Select at least one area this Operations Manager may approve — Cleaning, Landscaping, Security, Parking for site crews, and Head Office for desk staff leave.",
+        manageAllProjects: "Access to All Projects",
+        manageAllProjectsHintOm:
+          "On: this Operations Manager covers every project in the ticked Approval Areas. Off: pick the projects one by one.",
+        manageAllProjectsHintAm:
+          "On: this Area Manager covers every project. Off: pick the projects one by one.",
         areaProjects: "Covered Projects",
         areaProjectsHint:
-          "Select the projects this Area Manager covers. They can approve material requests and similar items only for these projects.",
+          "Tick the projects this person may manage. Leave Access to All Projects off to use this list.",
         areaProjectsEmpty:
           "No client projects are available yet. Add a project first.",
         areaProjectsSearch: "Search by project, client, or location",
@@ -2042,12 +2288,19 @@ export const en = {
         finances: "Finances",
         financesHint:
           "Base pay and BPJS settings. Contributions recalculate as you change options.",
+        financesHintPartTime:
+          "Part Time staff are paid per day. Security Deposit is not collected. BPJS Ketenagakerjaan and BPJS Kesehatan are not enrolled.",
+        partTimeExemptNote:
+          "Paid per day, so Security Deposit is not collected. Exempt from BPJS Ketenagakerjaan and BPJS Kesehatan.",
         securityDepositRequired: "Security Deposit",
         securityDepositRequiredHint:
           "When on, Internal Payroll can take a security deposit for this person. Head Office can turn this on or off for any role.",
-        cicoExempt: "Paid Monthly Salary (No Check-In Count)",
+        cicoExempt: "Exempt From CICO",
         cicoExemptHint:
-          "When on, Internal Payroll pays the full monthly salary. Use for staff who do not check in.",
+          "When on, this person does not check in or check out. Internal Payroll pays their full monthly wage automatically.",
+        progressExempt: "Exempt From Progress Report",
+        progressExemptHint:
+          "When on, this person still checks in and out, but does not submit a Progress Report. Check-out is not blocked waiting for a report.",
         bankName: "Bank Name",
         bankAccountNumber: "Account Number",
         bankAccountName: "Account Holder Name",
@@ -2055,6 +2308,7 @@ export const en = {
           "Printed on the Internal Payroll PDF so wages can be transferred. The account holder name must match the bank book.",
         basePay: "Base Pay",
         basePayHint: "Monthly wage in IDR used for BPJS and THR calculations.",
+        basePayHintPartTime: "Daily wage in IDR. Part Time staff are paid per day.",
         bpjsKesehatan: "BPJS Kesehatan",
         bpjsKesehatanHelp:
           "Total 5% of monthly wage (capped at Rp 12,000,000): 4% company, 1% employee.",
@@ -2099,11 +2353,9 @@ export const en = {
         "Manage ERP login accounts, restore access, and generate portal logins for clients and employees that need them.",
       directoryTitle: "User Accounts",
       directoryDesc:
-        "Manage ERP login accounts. New employees and clients can get a linked login when created. Use Add User for unlinked admin accounts.",
+        "Manage ERP login accounts. Generate a login from an existing employee, or from a client for portal access.",
       showingForClient: "Showing portal users for {name}.",
-      addUser: "Add User",
       editUser: "Edit User Account",
-      createUser: "Create User Account",
       searchPlaceholder: "Search users...",
       deleted: "Deleted",
       deletedClient: "Deleted Client",
@@ -2327,11 +2579,11 @@ export const en = {
       permissionsDescFooter:
         "Existing accounts keep stored overrides until you save. Saved changes apply on the next request.",
       permissionsDescClient:
-        "Client portal defaults on: Dashboard, Projects, Progress Reports, Attendance Report, Client Reports, and Invoice and Billing.",
+        "Client portal defaults on: Dashboard, Projects, Progress Report, and Invoice and Billing.",
       permissionsDescVendor:
         "Vendor portal access is disabled — vendor-linked logins cannot sign in to any module. Toggles below have no effect until portal access is re-enabled.",
       permissionsDescEmployee:
-        "Employee defaults: Dashboard, Progress Reports, CICO (field staff), Leave & Sick; HO staff also get Projects and Attendance Report.",
+        "Employee defaults: Dashboard, Progress Report, CICO (field staff), Leave & Sick; HO staff also get Projects.",
       permissionsDescAdmin:
         "Admin accounts start with full access to every module/page so they can delegate access per user.",
       permissionsDefaultOn: "Default: On",
@@ -2354,10 +2606,6 @@ export const en = {
           "Only Users managers can rename Login ID / username.",
         recoveryEmail: "Recovery Email",
         recoveryEmailPlaceholder: "password-reset@company.co.id",
-        temporaryPassword: "Temporary Password",
-        passwordCreateHint:
-          "Optional. Leave blank for first-login setup, or set a temporary password the user must change.",
-        tempPasswordPlaceholder: "Temporary password (optional)",
         currentPassword: "Current Password",
         currentPasswordHint:
           "Recoverable copy shown here after the user completes first-login. Updated when the user or admin sets a new password. No copy while first-login is pending. Reset Account returns the account to first-login pending without issuing a password.",
@@ -2433,8 +2681,9 @@ export const en = {
       title: "Invoice and Billing",
       description: "Track client invoices, due dates, and payment history.",
       allBilling: "All Billing",
-      taxInvoice: "Tax Invoice",
-      taxInvoiceDescription: "Track Output VAT (PPN Keluaran) and Input VAT (PPN Masukan) by month, and manage faktur for billed periods.",
+      taxInvoice: "Tax",
+      taxInvoiceDescription:
+        "Value Added Tax, Income Tax credits, and other tax paid or withheld. Output VAT is what you charge clients. Input VAT and prepaid Income Tax are credits you use later.",
       taxInvoiceClientDesc: "Tax invoices for this client.",
       taxInvoicePendingDesc:
         "Issued commercial invoices that still need a Tax Invoice (faktur).",
@@ -2481,6 +2730,12 @@ export const en = {
         "Vendor purchase invoices with a due date from payment terms.",
       settlementsArCount: "{count} unpaid client invoice(s)",
       settlementsApCount: "{count} vendor bill(s) with due dates",
+      settlementsCardAr: "Accounts Receivable",
+      settlementsCardArOverdue: "Overdue Receivables",
+      settlementsCardArOverdueHint: "Client invoices past due",
+      settlementsCardAp: "Accounts Payable",
+      settlementsCardApOverdue: "Overdue Payables",
+      settlementsCardApOverdueHint: "Vendor bills past due",
       settlementsArEmpty: "No open collections",
       settlementsArEmptyDesc:
         "Issued client invoices awaiting payment will appear here.",
@@ -2492,14 +2747,23 @@ export const en = {
       vendorUploadStatus: "Upload status",
       vendorPaymentStatus: "Payment status",
       vendorStatusTaxUploaded: "Tax uploaded",
-      vendorStatusTaxMissing: "Needs tax invoice",
+      vendorStatusTaxMissing: "Needs Tax Invoice",
       vendorStatusNoTaxRequired: "No tax required",
       vendorStatusOpen: "Open",
       vendorStatusOverdue: "Overdue",
       vendorStatusPaid: "Paid",
-      vendorAwaitingTax: "Awaiting tax invoice",
+      vendorAwaitingTax: "Needs Tax Invoice",
       purchaseCount: "{count} purchase invoice(s)",
       purchasePeriod: "Period",
+      purchaseAllDays: "All Days",
+      purchaseDayOption: "Day {day}",
+      purchaseCardTotal: "Total Expenses",
+      purchaseCardUnpaid: "Unpaid",
+      purchaseCardUnpaidHint: "Still in Accounts Payable",
+      purchaseCardOverdue: "Overdue Bills",
+      purchaseCardOverdueHint: "Vendor invoices past the due date",
+      purchaseCardIncompleteImport: "Incomplete Imports",
+      purchaseCardIncompleteImportHint: "Shipping, duties, or vendor payment still missing",
       purchaseEmpty: "No Expenses Yet",
       purchaseEmptyDesc:
         "Add a supplier bill, service, or Petty Cash top-up with the amount and any document.",
@@ -2518,17 +2782,70 @@ export const en = {
         "Vendors must be registered under Vendors before adding a purchase.",
       purchaseVendorRegisterFirst:
         "Register a vendor under Vendors before adding a purchase.",
+      purchaseVendorRegisterOverseasFirst:
+        "Register an Overseas vendor under Vendors before adding an import.",
+      purchaseVendorRegisterLocalFirst:
+        "Register a Company or Individual vendor under Vendors before adding a local purchase.",
+      purchaseVendorMustBeOverseas:
+        "Imported From Overseas only uses Overseas vendors.",
+      purchaseVendorOverseasRequired: "Select an Overseas vendor.",
       purchaseInvoiceRef: "Invoice Number / Ref",
       purchaseInvoiceRefShort: "Invoice #{ref}",
+      purchaseInvoiceRefNone: "No Invoice",
       purchaseInvoiceRefPlaceholder: "e.g. INV-1042",
       purchaseInvoiceDate: "Invoice Date",
       purchaseDate: "Date",
-      purchasePaymentTerms: "Payment terms",
+      purchasePaymentTerms: "Payment Terms",
       paymentDue: "Payment due",
       purchasePaymentTermsHint:
-        "Vendor terms: {terms}. Payment due {dueDate}.",
+        "This purchase: {terms}. Payment due {dueDate}.",
       purchasePaymentTermsCashHint:
-        "Vendor terms: Cash — due on the invoice date ({dueDate}).",
+        "Cash — the supplier invoice is paid now ({dueDate}).",
+      purchasePaymentTermsImportNetHint:
+        "Net {days} — the factory invoice is accounts payable until Invoice Paid. Import duties are recorded after the goods arrive in Jakarta.",
+      purchaseImportSaveEarlyHint:
+        "Save the factory invoice now. Upload the bank transfer and import duties after you actually pay and after the goods arrive in Jakarta.",
+      purchaseImportDutiesOptionalHint:
+        "Optional until the goods arrive in Jakarta. You can add the Billing ID and related costs later.",
+      purchaseStatusRecordNotCompleted: "Record Not Completed",
+      purchaseStatusAwaitingImportDuties: "Awaiting Import Duties",
+      purchaseStatusAwaitingVendorPayment: "Awaiting Vendor Payment",
+      purchaseStatusAwaitingHandling: "Awaiting Handling Invoice",
+      purchaseStatusAwaitingShipping: "Awaiting Shipping",
+      purchaseStatusComplete: "Complete",
+      purchaseCompleteImportArrival: "Record Import Arrival",
+      purchaseCompleteImportArrivalHint:
+        "Enter the Import Duties Billing ID and upload the duties invoice after the goods arrive in Jakarta.",
+      purchaseVehicleLease: "Vehicle Lease",
+      purchaseVehicleLeaseFindHint:
+        "To record a vehicle lease, add a line item and set Item Type to Vehicle. Lease fields then appear here.",
+      purchaseVehicleLeaseHint:
+        "Indonesian finance lease: down payment now, then monthly installments. Bank fees are usually paid up front.",
+      purchaseVehicleLeaseToggle: "This vehicle is leased",
+      purchaseVehicleIdentity: "Vehicle Identity",
+      purchaseVehicleIdentityHint:
+        "Enter the number plate. It becomes this vehicle’s asset code. One vehicle per expense.",
+      purchaseVehiclePlate: "Number Plate",
+      purchaseVehiclePlatePlaceholder: "e.g. B 1234 ABC",
+      purchaseVehiclePlateHint:
+        "The number plate is this vehicle’s asset code. One vehicle per expense.",
+      purchaseVehiclePlateRequired: "Enter the vehicle number plate.",
+      purchaseLeaseOtr: "On The Road Price",
+      purchaseLeaseDownPayment: "Down Payment",
+      purchaseLeaseTenor: "Tenor (Months)",
+      purchaseLeaseInterest: "Yearly Interest Percent",
+      purchaseLeaseAdminFee: "Administration Fee",
+      purchaseLeaseInsurance: "Insurance",
+      purchaseLeaseFiduciary: "Fiduciary Fee",
+      purchaseLeaseProvision: "Provision Fee",
+      purchaseLeaseOtherFee: "Other Bank Fees",
+      purchaseLeaseMonthly: "Monthly Installment",
+      purchaseLeasePrincipal: "Financed Amount",
+      purchaseLeaseUpfront: "Upfront To Pay",
+      purchaseLeaseTotal: "Total Lease Cost",
+      purchaseItemTypeVehicle: "Vehicle",
+      purchasePaymentTermsHintField:
+        "Cash pays the supplier invoice now. Net leaves it as accounts payable until Invoice Paid.",
       purchaseAmount: "Amount",
       purchaseAmountPlaceholder: "e.g. 1500000",
       purchaseItemsBought: "Items Bought",
@@ -2537,7 +2854,23 @@ export const en = {
       purchaseSelectItem: "Select Item",
       purchaseQty: "Qty",
       purchaseUnitCost: "Unit Cost",
+      purchaseUnit: "Unit",
+      purchasePackContents: "Each Contains",
+      purchasePackContentsHint:
+        "How many {unit} are inside each {pack}. Warehouse stock uses this.",
+      purchasePackContentsRequired:
+        "Enter how many {unit} are in each {pack} for line {n}.",
+      purchaseServiceFor: "What The Service Is For",
+      purchaseServiceForHint:
+        "Type the work or fee. This is not a warehouse item.",
+      purchaseServiceDescription: "Service Description",
+      purchaseServiceDescriptionPlaceholder:
+        "e.g. Office Air Conditioner Servicing",
+      purchaseAddService: "Add Service Line",
+      purchaseServiceLineRequired: "Describe the service for line {n}.",
+      purchaseServiceLinesRequired: "Add at least one service line.",
       purchaseLineLabel: "Item {n}",
+      purchaseServiceLineLabel: "Service {n}",
       purchaseLineUnitHint: "Unit: {unit}",
       purchaseLineTotal: "Line {amount}",
       purchaseAmountTotal: "Total {amount}",
@@ -2546,7 +2879,7 @@ export const en = {
       purchaseLineQtyRequired: "Enter a valid quantity for line {n}.",
       purchaseLineCostRequired: "Enter a valid unit cost for line {n}.",
       purchaseCatalogEmpty:
-        "Create catalog items under Inventory before adding a purchase.",
+        "Add the item in Item Catalog first, then choose it here.",
       purchaseNotes: "Notes",
       purchaseNotesPlaceholder: "Optional notes",
       purchasePurpose: "Purchase Purpose",
@@ -2554,7 +2887,7 @@ export const en = {
       purchasePurposeProject: "Project",
       purchasePurposeInternal: "Internal",
       purchasePurposeHint:
-        "Stock adds goods to the warehouse. Project tags the expense to a site. Internal is Head Office overhead.",
+        "Tag this service to a project, or to Head Office overhead. Products always become warehouse stock — issue them to a project from Inventory.",
       purchaseProject: "Project",
       purchaseProjectPlaceholder: "Select a project",
       purchaseProjectRequired: "Select the project this purchase is for.",
@@ -2562,51 +2895,383 @@ export const en = {
       purchaseCategoryProduct: "Product",
       purchaseCategoryService: "Service",
       purchaseCategoryPettyCash: "Petty Cash",
+      purchaseCategoryGovernment: "Government",
       purchaseCategoryHint:
-        "Product and Service are vendor bills. Petty Cash adds money to the field cash float.",
+        "A product becomes warehouse stock. Issue it to a site from Inventory if the project needs it. Service, Petty Cash, and Government are not stock.",
+      governmentTaxType: "Tax Type",
+      governmentTaxTypeHint:
+        "Choose the DJP account this Billing ID is paying. Value Added Tax is credited in the monthly VAT return. Corporate Income Tax Article 25 and 29 are credited when you file the annual company return.",
+      governmentTaxKindPpn: "Value Added Tax",
+      governmentTaxKindPph25: "Corporate Income Tax Installment",
+      governmentTaxKindPph29: "Corporate Income Tax Settlement",
+      governmentTaxKindPph21: "Employee Income Tax",
+      governmentTaxKindPph23: "Withholding Tax On Services",
+      governmentTaxKindPph42: "Final Income Tax",
+      governmentTaxKindStampDuty: "Stamp Duty",
+      governmentTaxKindPbb: "Land And Building Tax",
+      governmentTaxKindPph22: "Income Tax Article 22",
+      governmentTaxKindOther: "Other Government Charge",
+      commercialTaxKindPpn: "Value Added Tax",
+      commercialTaxKindPph23: "Income Tax Article 23",
+      commercialTaxKindPpnAndPph23: "Value Added Tax And Income Tax Article 23",
+      commercialTaxKindPph42: "Final Income Tax Article 4-2",
+      commercialTaxKindPpnAndPph42:
+        "Value Added Tax And Final Income Tax Article 4-2",
+      commercialTaxKindPph21: "Employee Income Tax Article 21",
+      commercialTaxKindPph22: "Income Tax Article 22",
+      commercialTaxKindPph26: "Income Tax Article 26",
+      commercialTaxKindStampDuty: "Stamp Duty",
+      commercialTaxKindPbb: "Land And Building Tax",
+      commercialTaxKindOther: "Other Tax",
+      otherTaxName: "What Tax Is This",
+      otherTaxNameHint: "Type the name of this tax.",
+      otherTaxNamePlaceholder: "e.g. Regional Tax",
+      otherTaxNameRequired: "Enter the tax name.",
+      otherTaxRate: "Tax Rate",
+      otherTaxRatePlaceholder: "e.g. 10",
+      otherTaxRateRequired: "Enter the tax rate percent.",
+      otherTaxRateHint: "Percent charged or paid for this other tax.",
+      governmentBillingId: "Billing ID",
+      governmentBillingIdPlaceholder: "e.g. 020012345678901",
+      governmentBillingIdHint:
+        "The 15-digit ID Billing from Direktorat Jenderal Pajak (Coretax / DJP Online).",
+      governmentBillingIdShort: "Billing ID {ref}",
+      governmentDescription: "Description",
+      governmentDescriptionPlaceholder: "e.g. Monthly Value Added Tax for August",
+      governmentDescriptionRequired: "Describe what this government bill is for.",
+      governmentAmount: "Invoice Amount",
+      governmentAmountHint: "Indonesian Rupiah only.",
+      governmentCurrency: "Currency",
+      governmentCurrencyIdr: "Indonesian Rupiah",
+      governmentDocument: "Billing Invoice",
+      governmentDocumentRequired: "Upload the billing notice or payment invoice.",
+      governmentViewDocument: "View Billing Invoice",
+      governmentChip: "Government",
+      purchaseImportTaxCreditNote:
+        "Value Added Tax is a monthly input-VAT credit. Income Tax Article 22 is a year-end corporate tax credit.",
+      purchaseImportPpnOnGoods: "Value Added Tax On Imported Goods",
+      purchaseImportPpnOnHandling: "Value Added Tax On Handling Fee",
+      purchaseImportPpnOnItems: "Value Added Tax On Items",
+      purchaseImportTaxCreditOnThis: "Tax Credit On This Purchase",
+      purchaseImportPaidToVendor: "Paid To Vendor",
+      purchaseImportPaidToVendorTotal: "Total Paid To Vendor",
+      purchaseImportAmountSent: "Amount Sent",
+      purchaseImportPaidToVendorHint:
+        "Factory Invoice + included Freight + included Insurance + Bank Charge, × Bank Rate, plus Telex Fee. Separate freight or insurance is added after Amount Sent.",
+      purchaseImportGrandTotalSpend: "Grand Total Spend",
+      purchaseImportGrandTotalSpendHint:
+        "Cash spent on this import: remittance, any separate freight or insurance, import duties, and handling fee.",
+      purchaseImportCredits: "Tax Credits",
+      purchaseImportVatCredit: "Tax Credit / Value Added Tax",
+      purchaseImportPph22Credit: "Income Tax Article 22 / PPh Credit",
+      purchaseImportCreditsAndWarehouse: "Credits And Warehouse Cost",
+      purchaseImportWarehouseSpendHint:
+        "Warehouse Cost is Grand Total Spend minus Value Added Tax and Income Tax Article 22 credits.",
+      purchaseImportDetails: "Details",
+      purchaseOrigin: "Where Was This Bought",
+      purchaseOriginLocal: "Bought Locally",
+      purchaseOriginImport: "Imported From Overseas",
+      purchaseOriginHint:
+        "Local supplier bills stay in Rupiah. Overseas invoices need the Bank Rate, the Customs Rate, fees, and the import charges that apply.",
+      purchaseImportPaidTitle: "What Is Paid On This Import",
+      purchaseImportPaidHint:
+        "The factory invoice is recorded now. Payment follows the Terms of Payment. Shipping and import duties are usually paid when those bills arrive. Missing pieces stay as chips until you upload them.",
+      purchaseImportPaidInvoice:
+        "Factory invoice — recorded now. {terms}: unpaid stays in Accounts Payable until paid.",
+      purchaseImportPaidShipping:
+        "Shipping — pay when you have the freight bill. If it is not on the factory invoice, enter it here or the record stays Awaiting Shipping.",
+      purchaseImportPaidDuties:
+        "Import duties — after the goods arrive in Jakarta. Upload the Billing ID then. Until then the chip is Awaiting Import Duties.",
+      importFulfillment: "How Is This Import Handled",
+      importHandledInternally: "Handled Internally",
+      importHandledInternallyHint:
+        "Tick the import charges that apply, then enter the one Billing ID and upload the Import Duties invoice that matches those charges. Choose a Handling Vendor, or Handled By Head Office if staff process the import — then there is no handling fee.",
+      importOutsourced: "Outsourced",
+      importOutsourcedHint:
+        "The handler pays all duties and tax. Relasi Global Solusi pays the factory invoice (now or later) and reimburses their all-in handling fee.",
+      importWhatIsPaid: "What Is Paid",
+      importPaidInvoice: "Invoice",
+      importPaidDuties: "Import Duties",
+      importPaidBoth: "Invoice And Duties",
+      importDutiesBillingId: "Import Duties Billing ID",
+      importDutiesBillingIdRequired: "Enter the Import Duties Billing ID.",
+      importDutiesBillingIdHint:
+        "One Billing ID for the import charges ticked above. Duties and tax are paid together on this ID.",
+      importDutiesDocument: "Import Duties Invoice",
+      importDutiesDocumentRequired: "Upload the Import Duties invoice.",
+      importDutiesDocumentHint:
+        "The Billing ID invoice for those import charges. This is the duties and tax document — no separate tax invoice.",
+      importPpnBillingId: "Import Value Added Tax Billing ID",
+      importPpnBillingIdRequired: "Enter the Import Value Added Tax Billing ID.",
+      importPph22BillingId: "Income Tax Article 22 Billing ID",
+      importPph22BillingIdRequired: "Enter the Income Tax Article 22 Billing ID.",
+      importDutiesNoTermsHint:
+        "Import duties and tax have no payment terms. They must be paid now.",
+      handlingVendor: "Handling Vendor",
+      handlingVendorPlaceholder: "Select The Handling Vendor",
+      handlingVendorPlaceholderInternal:
+        "Select The Handling Vendor Or Head Office",
+      handlingVendorRequired: "Select the Handling Vendor.",
+      handlingVendorOrHeadOfficeRequired:
+        "Select the Handling Vendor or Handled By Head Office.",
+      handlingVendorMustBeLocal:
+        "The Handling Vendor must be a Company or Individual.",
+      handlingVendorRegisterLocalFirst:
+        "Register a Company or Individual vendor under Vendors before choosing a Handling Vendor.",
+      handlingByHeadOffice: "Handled By Head Office",
+      handlingByHeadOfficeHint:
+        "Head Office staff handle this import. There is no handling fee.",
+      handlingFee: "Handling Fee",
+      handlingFeeHintInternal:
+        "The management fee the customs agent charges to help get the goods out.",
+      handlingFeeHintOutsourced:
+        "The all-in amount we reimburse the handler. Their invoice covers duties and tax.",
+      handlingFeeRequired: "Enter the handling fee.",
+      handlingFeeIncludesPpn: "Is Value Added Tax Charged On This Handling Fee?",
+      handlingFeePpnRate: "Handling Fee Value Added Tax Rate",
+      handlingFeeAmountPaid: "Handling Fee Amount Paid",
+      handlingFeeTotalPaid: "Total paid including Value Added Tax: {amount}.",
+      handlingFeeInvoice: "Handling Fee Invoice",
+      handlingFeeInvoiceRequired: "Upload the Handling Fee invoice.",
+      handlingFeeInvoiceHint:
+        "The handling vendor’s invoice for their fee. This is not the factory invoice and not the Import Duties invoice.",
+      handlingFeeTaxInvoice: "Handling Tax Invoice",
+      handlingFeeTaxInvoiceRequired:
+        "Upload the tax invoice for the handling fee.",
+      handlingFeeTaxInvoiceHint:
+        "The faktur pajak for the handling fee when Value Added Tax is charged. This is input tax, not the Import Duties Billing ID.",
+      purchaseFactoryInvoice: "Factory Invoice",
+      purchaseFactoryInvoiceHint:
+        "The overseas supplier invoice for the goods.",
+      importDutiesDocumentCreditHint:
+        "The Billing ID invoice paid to the government. Value Added Tax and Income Tax Article 22 on this document are tax credits.",
+      purchaseBackToExpenses: "Expenses",
+      purchaseOpenExpense: "Open",
+      purchaseWhatWeBought: "On This Expense",
+      purchaseNoLineItems: "Nothing is recorded on this expense.",
+      purchaseLineItem: "Description",
+      purchaseLineQty: "Quantity",
+      purchaseLineUnitCost: "Unit Cost",
+      purchaseExpenseLineTotal: "Total",
+      purchaseDocuments: "Documents",
+      purchaseDocumentsHint:
+        "Every file attached to this expense. For an import that is the factory invoice, the Import Duties Billing ID invoice, the handling invoice, and the handling tax invoice when Value Added Tax is charged.",
+      purchaseDocumentMissing: "Not attached.",
+      purchaseImportBreakdown: "Import Breakdown",
+      purchaseImportCustomsValue: "Customs Value (CIF)",
+      purchaseImportCifPair: "{foreign}  =  {idr}",
+      purchaseImportCustomsRateDutiesHint:
+        "Each foreign currency uses its own Customs Rate for Customs Value (CIF). Rupiah freight or insurance is added as entered.",
+      purchaseReversed: "Reversed",
+      importDutiesPaid: "Import Duties Paid",
+      invoicePaid: "Invoice Paid",
+      purchaseReverse: "Reverse",
+      purchaseReverseReason: "Why are you reversing this purchase?",
+      purchaseReverseFailed: "Could not reverse this purchase.",
+      purchaseOriginChipLocal: "Local",
+      purchaseOriginChipImport: "Imported",
+      purchaseImportCurrency: "Currency",
+      purchaseImportForeignAmount: "Factory Invoice",
+      purchaseImportForeignPlaceholder: "e.g. 5000",
+      purchaseImportFactoryCurrencyHint:
+        "Bank Charge uses this currency. Freight and insurance do too, unless marked Not Included In Factory Invoice.",
+      purchaseImportNotIncludedInFactoryInvoice: "Not Included In Factory Invoice",
+      purchaseImportLineRate: "Rate",
+      purchaseImportSeparateFeeHint:
+        "Paid on a separate transfer. Enter the Bank Rate for remittance and the Customs Rate for this currency.",
+      purchaseImportSeparateIdrHint:
+        "Enter this amount in Rupiah. Bank Rate and Customs Rate are not used.",
+      purchaseImportFreightSeparate: "Freight (Separate Payment)",
+      purchaseImportInsuranceSeparate: "Insurance (Separate Payment)",
+      purchaseImportRate: "Bank Rate",
+      purchaseImportRatePlaceholder: "e.g. 16200",
+      purchaseImportRateHint:
+        "The rate the bank used for this remittance. 16200 is shown as Rp 16.200.",
+      purchaseImportCustomsRate: "Customs Rate",
+      purchaseImportCustomsRateFor: "Customs Rate ({currency})",
+      purchaseImportCustomsRatePlaceholder: "e.g. 16200",
+      purchaseImportCustomsRateHint:
+        "The official tax rate for this currency. Used for Customs Value (CIF). Not the Bank Rate.",
+      purchaseImportInvoiceIdr: "Factory Invoice in Rupiah: {amount} ({currency}).",
+      purchaseImportInvoiceIdrLabel: "Factory Invoice In Rupiah",
+      purchaseImportCustomsInvoice: "Invoice At Customs Rate",
+      purchaseImportCustomsInvoiceIdr:
+        "Customs Value (CIF): {amount}.",
+      purchaseImportBankFee: "Bank Charges",
+      purchaseImportBankChargesHint:
+        "Bank Charge is in Factory Invoice currency. Telex Fee is in Rupiah.",
+      purchaseImportBankCharge: "Bank Charge",
+      purchaseImportBankChargeHint:
+        "The full bank charge in Factory Invoice currency.",
+      purchaseImportFullAmountFee: "Full Amount Bank Fee",
+      purchaseImportFullAmountFeeHint:
+        "So the vendor receives the full invoice amount, with nothing deducted from the transfer. Converted at the Bank Rate when not Rupiah.",
+      purchaseImportLocalBankFee: "Telex Fee",
+      purchaseImportLocalBankFeeHint:
+        "The local bank telex charge, billed in Rupiah.",
+      purchaseImportClearance: "Clearance Cost",
+      purchaseImportFreight: "Freight",
+      purchaseImportFreightHint:
+        "Same currency as Factory Invoice. Leave empty if freight is already in the factory invoice.",
+      purchaseImportInsurance: "Insurance",
+      purchaseImportInsuranceHint:
+        "Same currency as Factory Invoice. Usually none.",
+      purchaseImportConvertedIdr: "{amount} in Rupiah",
+      purchaseImportFeesHint:
+        "The four factory-currency lines × Bank Rate is Amount Sent. Telex Fee is added in Rupiah.",
+      purchaseImportCharges: "Import Charges That Apply",
+      purchaseImportChargesHint:
+        "Tick each charge on the Import Duties invoice, one by one. Leave the paid amount blank to use the official calculation, or type the amount from the notice.",
+      purchaseImportChargesTotal:
+        "Import charges total: {amount}. The Import Duties invoice must match this total.",
+      purchaseImportDutiesTotal: "Total Import Duties",
+      purchaseImportDutiesTotalHint:
+        "Customs Duty, luxury tax, Value Added Tax, and Income Tax Article 22 together. This must match the Import Duties invoice.",
+      purchaseImportTotalExpense: "Total Expense",
+      purchaseImportTotalExpenseHint:
+        "Total Paid To Vendor + Total Import Duties + Handling Fee.",
+      purchaseImportFormE: "Certificate Of Origin Form E",
+      purchaseImportFormEHint:
+        "ASEAN Form E / ATIGA. When Customs accepts it, Customs Duty is usually 0%.",
+      purchaseImportBeaMasuk: "Customs Duty (Bea Masuk)",
+      purchaseImportBeaMasukHint:
+        "Charged on the Rupiah customs value (invoice + freight + insurance). Rate depends on the HS code. Enter the percent from the notice, or the amount paid.",
+      purchaseImportPpnbm: "Luxury Goods Tax (PPnBM)",
+      purchaseImportPpnbmHint:
+        "Charged on Import Value (customs value + Customs Duty). Only for listed luxury goods. Leave off for ordinary supplies.",
+      purchaseImportPpn: "Value Added Tax (PPN)",
+      purchaseImportPpnHint:
+        "Charged on Import Value (customs value + Customs Duty). Ordinary goods use an effective 11%. This is recoverable input tax — not added to warehouse unit cost.",
+      purchaseImportPph22: "Income Tax Article 22 (PPh 22)",
+      purchaseImportPph22Hint:
+        "Charged on the same Import Value as Value Added Tax (customs value + Customs Duty). 2.5% with an Importer Identification Number, 7.5% without. Prepaid tax — not added to warehouse unit cost.",
+      purchaseImportValue: "Import Value",
+      purchaseImportPph22Basis: "Importer Identification",
+      purchaseImportPph22Api: "Has Number (2.5%)",
+      purchaseImportPph22WithoutApi: "No Number (7.5%)",
+      purchaseImportPph22Custom: "Other Rate",
+      purchaseImportRatePercent: "Rate Percent",
+      purchaseImportPaidAmount: "Amount Paid (Rupiah)",
+      purchaseImportAutoAmount: "Calculated",
+      purchaseImportShipping: "Freight And Insurance",
+      purchaseImportStockCost: "Warehouse Cost",
+      purchaseImportStockCostHint:
+        "Warehouse unit cost is Warehouse Cost ÷ pieces. Value Added Tax and Income Tax Article 22 stay on the expense but are not built into stock.",
+      purchaseImportCashOut: "Total Paid For This Import",
+      purchaseImportUnitCost: "{qty} pieces → Warehouse Unit Cost {amount}",
+      purchaseImportUnitCostNeedQty:
+        "Add the number of pieces so warehouse unit cost can be calculated.",
+      purchaseImportForeignLine: "Invoice Share (Foreign)",
+      purchaseImportRequired:
+        "Enter the overseas invoice amount, the Bank Rate, and the Customs Rate.",
+      purchaseImportForeignLineRequired:
+        "Enter this line’s share of the overseas invoice.",
+      purchaseFreeOfCharge: "Free Of Charge",
+      purchaseFreeOfChargeHint:
+        "Yes when the vendor sends this at no cost (warranty, replacement, complimentary). Stock still comes in. There is no payable.",
+      purchaseFreeOfChargeServiceHint:
+        "Yes when the vendor provides this at no cost (warranty, complimentary). There is no payable.",
+      purchaseFreeOfChargeReason: "Free Of Charge Reason",
+      purchaseFreeOfChargeReasonPlaceholder:
+        "e.g. Under warranty — factory sent replacement spare parts",
+      purchaseFreeOfChargeReasonRequired:
+        "Enter the reason this purchase is free of charge.",
+      purchaseFreeOfChargeChip: "Free Of Charge",
+      purchaseHasInvoice: "Does This Have An Invoice?",
+      purchaseHasInvoiceHint:
+        "Free of charge vendors often send no invoice. Choose No if there is none.",
+      purchaseAddShippingCost: "Add Shipping Cost",
+      purchaseAddShippingCostHint:
+        "Cash spent to receive the goods. This is not a factory invoice.",
+      purchaseShippingCost: "Shipping Cost",
+      purchaseShippingAmount: "Amount",
+      purchaseShippingRequired: "Enter the shipping cost.",
+      purchaseShippingRateRequired: "Enter the Bank Rate for this shipping cost.",
+      purchaseShippingIdrHint:
+        "Enter this amount in Rupiah. Bank Rate is not used.",
+      purchaseShippingFxHint:
+        "Enter the amount and the Bank Rate the bank used for this payment.",
+      purchaseAddRelatedCosts: "Add Related Costs",
+      purchaseAddRelatedCostsHint:
+        "Cash spent for this service. This is not a vendor invoice.",
+      purchaseRelatedCost: "Related Cost",
+      purchaseRelatedCostPlaceholder: "e.g. Site Visit, Permit",
+      purchaseRelatedCostRequired: "Enter what this related cost is.",
+      purchaseRelatedCostAmountRequired: "Enter the related cost.",
+      purchaseRelatedCostRateRequired:
+        "Enter the Bank Rate for this related cost.",
+      purchaseHasCustomsFees: "Are There Customs Fees?",
+      purchaseHasCustomsFeesHint:
+        "Any customs fees or duties to release the goods?",
+      purchaseCustomsFeesImportOnlyHint:
+        "Customs fees apply to imports only.",
+      purchaseDeclaredValue: "Declared Value",
+      purchaseDeclaredValueHint:
+        "How much the vendor or PIB declared. This is the customs base, not a factory invoice.",
+      purchaseDeclaredValueRequired: "Enter the declared value.",
+      purchaseDeclaredIdrHint:
+        "Enter this amount in Rupiah. Customs Rate is not used.",
+      purchaseDeclaredFxHint:
+        "Enter the amount and the Customs Rate (NDPBM) for this currency.",
+      purchaseDeclaredCustomsRateRequired:
+        "Enter the Customs Rate for this declared value.",
+      purchaseCustomsFeesCost: "Duties Cost",
+      purchaseCustomsFeesCostHint:
+        "The amount paid to release the goods. This is cash spent.",
+      purchaseCustomsFeesCostRequired: "Enter the duties cost.",
+      purchaseCustomsFeesDocumentRequired:
+        "Upload the tax invoice or Billing ID document for these duties.",
       purchaseIncludesPpn: "Tax Included",
       purchaseIncludesPpnHint:
-        "Choose Yes when the supplier bill includes tax (e.g. PPN or PPH, depending on the product or service).",
+        "Choose Yes when the supplier bill includes tax. You will then choose whether it is Value Added Tax, Income Tax, or both.",
       purchaseIncludesPpnChip: "With Tax",
       purchaseNoPpnChip: "No Tax",
-      purchasePpnRate: "Tax Rate",
+      purchaseIncludedTaxKind: "What Tax Is Included",
+      purchaseIncludedTaxKindHint:
+        "Choose the tax printed on this supplier bill.",
+      purchaseIncludedTaxKindPlaceholder: "Select The Tax",
+      purchaseIncludedTaxKindRequired: "Select the tax type on this bill.",
+      purchasePphRate: "Income Tax Rate",
+      purchasePphRatePlaceholder: "e.g. 2",
+      purchasePphRateRequired: "Enter the income tax rate percent for this purchase.",
+      purchasePphRateHint:
+        "Usual Article 23 rate is 2%. Change it if this bill uses another rate.",
+      purchasePpnRate: "Value Added Tax Rate",
       purchasePpnRatePlaceholder: "e.g. 11",
       purchasePpnRateRequired: "Enter the tax rate percent for this purchase.",
       outputPpnRateHint:
         "Output PPN (PPN Keluaran) rate for this invoice. Editable — not locked to 11%. Default is the current product rate.",
       purchasePpnRateHint:
         "Defaults to 11%. Change this if the invoice uses a different tax rate.",
-      purchaseVatPreview: "Estimated DPP {dpp} · Tax {tax} (tax-inclusive amount).",
+      purchaseVatPreview:
+        "Amount paid {dpp} + tax credit {tax} = tax-included unit cost {gross}.",
+      purchaseVatSplitMismatch:
+        "The amount paid plus the tax credit must equal the tax-included unit cost.",
+      purchaseBankAccount: "Paid From Bank",
+      purchaseBankAccountHint:
+        "The company bank account this expense is paid from.",
+      purchaseBankAccountRequired: "Select the company bank this is paid from.",
       purchasePpnColumn: "Tax",
       purchaseDocument: "Invoice",
       purchaseChooseDocument: "Choose a purchase invoice file.",
-      purchaseReadingInvoice: "Reading invoice…",
-      purchaseExtractSuccess:
-        "Invoice fields filled from the document — review and edit before saving.",
-      purchaseExtractFailed:
-        "Could not read invoice — fill manually.",
-      purchaseScanInvoice: "Scan invoice",
       purchaseUploadConfirm: "Save Expense",
       purchaseUploading: "Saving…",
       purchaseUploadFailed: "Failed to save purchase.",
       purchaseUploaded: "Added",
+      purchaseUploadedBy: "Added by {name}",
       purchaseViewFile: "View",
       purchaseViewInvoiceAction: "View Invoice",
       purchaseInvoice: "Purchase invoice",
       purchaseTaxInvoice: "Tax Invoice",
       purchaseTaxInvoiceOptional: "Tax Invoice (optional)",
       purchaseTaxInvoiceHint:
-        "Optional faktur pajak for input VAT (PPN masukan). Strict AI checks apply when attached (RGS as buyer, supplier as seller). You can also attach it later from the purchase card.",
+        "Optional faktur pajak for input VAT (PPN masukan). You can also attach it later from the purchase card.",
       purchaseChooseTaxInvoice: "Choose a tax invoice file.",
       purchaseUploadTaxInvoice: "Upload",
       purchaseUploadTaxInvoiceAction: "Upload Tax Invoice",
       purchaseUploadTaxInvoiceTitle: "Upload Tax Invoice",
       purchaseUploadTaxInvoiceDesc:
         "Attach the faktur pajak (input VAT) for this purchase.",
-      purchaseUploadTaxInvoiceCallout:
-        "Strict checks for PPN masukan: RGS as buyer, supplier as seller, company Tax ID (NPWP) when configured, taxable base + VAT (DPP + PPN) / total within ±2 IDR, unique serial. Unclear or swapped parties are rejected.",
-      purchaseTaxInvoiceVerifyRejected:
-        "Tax invoice could not be saved — document check failed:",
       purchaseUploadTaxInvoiceConfirm: "Save Tax Invoice",
       purchaseUploadTaxInvoiceFailed: "Failed to upload tax invoice.",
       purchaseNoTaxInvoice: "—",
@@ -2644,7 +3309,7 @@ export const en = {
       noTaxCompletedDesc: "Sent Tax Invoices will show up here.",
       taxInvoiceDue: "Tax Invoice Due",
       taxInvoiceSent: "Tax Invoice Sent",
-      markTaxDone: "Mark tax invoice sent",
+      markTaxDone: "Upload Tax Invoice",
       submitPayment: "Submit payment",
       rejectPayment: "Reject payment proof",
       rejectPaymentConfirm:
@@ -2696,7 +3361,7 @@ export const en = {
         "Upload proof of payment, then confirm. Clears the due invoice; the project stays active for future months.",
       paymentReceivedDialogDescHistory:
         "Upload proof of payment, then confirm. When all invoices are paid, the project moves to Completed.",
-      taxInvoiceSentDialogTitle: "Mark tax invoice sent",
+      taxInvoiceSentDialogTitle: "Upload Tax Invoice",
       taxInvoiceSentDialogDesc:
         "Upload the tax invoice, then confirm. Can be done before or after payment is recorded.",
       documentVerifyContext: "For",
@@ -2706,82 +3371,23 @@ export const en = {
       chooseTaxInvoiceDocument:
         "Please choose an image or PDF of the tax invoice.",
       paymentVerifyHint:
-        "Documents stay on this server. Head Office confirms here with a reason. Cloud document reading is off unless configured — we do not send documents out by default.",
+        "Documents stay on this server. Head Office confirms here with a reason.",
       taxInvoiceVerifyHint:
-        "Documents stay on this server. Head Office confirms the tax invoice here with a reason. Cloud reading is off unless configured.",
+        "Documents stay on this server. Head Office confirms the tax invoice here with a reason.",
       purchaseTaxInvoiceVerifyHint:
-        "Documents stay on this server. Head Office confirms the supplier tax invoice here with a reason. Cloud reading is off unless configured.",
+        "Documents stay on this server. Head Office confirms the supplier tax invoice here with a reason.",
       inHouseVerifyReason: "Confirmation Reason",
       inHouseVerifyReasonPlaceholder:
         "Why this document is accepted (required).",
       inHouseVerifyBanner:
-        "Files stay on Relasi Global Solusi servers. Head Office verifies in this app. Cloud document reading is off unless configured — we do not send documents out by default.",
+        "Files stay on Relasi Global Solusi servers. Head Office confirms them in this app.",
       inHouseVerifyTitle: "Confirm Payment In House",
       inHouseVerifyDesc:
-        "Review the uploaded proof on this server, then confirm with a reason. Mark Paid works without a cloud reader.",
+        "Review the uploaded proof on this server, then confirm with a reason.",
       inHouseVerifyConfirm: "Confirm And Mark Paid",
       inHouseReasonRequired: "Enter a confirmation reason.",
-      paymentVerifyChecking: "Checking documents…",
-      paymentVerifyRejected: "Payment could not be recorded — document check failed:",
-      taxInvoiceVerifyRejected:
-        "Tax invoice could not be marked sent — document check failed:",
-      confirmTaxInvoiceSent: "Confirm tax invoice sent",
-      paymentVerifyNotConfigured:
-        "Automatic document verification is not configured (set OPENAI_API_KEY).",
-      paymentVerifyInvoiceAmountMissing:
-        "This invoice has no amount on file, so payment documents cannot be verified.",
-      paymentVerifyInvoiceDateMissing:
-        "This invoice has no issue/submitted date on file, so the payment proof date cannot be verified.",
-      paymentVerifyCompanyBankMissing:
-        "Company recipient bank account is not configured. Set Company bank fields or COMPANY_BANK_ACCOUNT_NUMBER.",
-      paymentVerifyClientNpwpMissing:
-        "The client has no NPWP or NIK on file, so the tax invoice cannot be verified. Company clients need NPWP. Individual clients need NPWP or NIK.",
-      paymentVerifyClientNameMissing:
-        "The client has no name on file, so the tax invoice buyer name cannot be verified.",
-      paymentVerifySupplierNameMissing:
-        "Supplier name is required to verify the tax invoice seller (penjual).",
-      paymentVerifyProofAmountMismatch:
-        "Proof of payment amount does not match the invoice exactly (expected {expected}, found {found}).",
-      paymentVerifyProofRecipientMismatch:
-        "Proof recipient does not match the company bank account (expected {expected}, found {found}).",
-      paymentVerifyProofRecipientUnclear:
-        "Proof recipient could not be confirmed with enough confidence (truncated or unclear account/name; expected {expected}, found {found}). Upload a clearer slip showing the full recipient.",
-      paymentVerifyProofDateBeforeInvoice:
-        "Proof transfer date must be on or after the invoice issue date (invoice {invoiceDate}, proof {proofDate}).",
-      paymentVerifyProofStatusNotSuccess:
-        "Proof shows a non-successful transfer status ({status}). Only successful transfers are accepted.",
-      paymentVerifyProofPayerNameMismatch:
-        "Proof payer/sender name does not match the client (expected {expected}, found {found}).",
-      paymentVerifyProofReferenceMismatch:
-        "Proof reference does not match the invoice number (expected {expected}, found {found}).",
-      paymentVerifyTaxAmountMismatch:
-        "Tax invoice taxable base + VAT (DPP + PPN), or grand total, must equal the commercial invoice amount within ±2 IDR (tax-inclusive). Expected {expected}.",
-      paymentVerifyTaxNpwpMismatch:
-        "Tax invoice buyer Tax ID (NPWP) must match exactly after normalizing digits (expected {expected}, found {found}).",
-      paymentVerifyTaxBuyerNameMismatch:
-        "Tax invoice buyer name must match exactly after normalizing legal form/case (expected {expected}, found {found}). Truncated or partial names are rejected.",
-      paymentVerifyTaxBuyerIsCompany:
-        "Tax invoice lists RGS as buyer — for output VAT, RGS must be the seller; client must be the buyer. Found buyer: {found}.",
-      paymentVerifyTaxSellerIsClient:
-        "Tax invoice lists the client as seller — for output VAT, RGS must be the seller; client must be the buyer. Found seller: {found} (client: {client}).",
-      paymentVerifyTaxBuyerIsSupplier:
-        "Tax invoice lists the supplier as buyer — for input VAT (PPN masukan), RGS must be the buyer; supplier must be the seller. Found buyer: {found} (supplier: {supplier}).",
-      paymentVerifyTaxSellerIsCompany:
-        "Tax invoice lists RGS as seller — for input VAT (PPN masukan), RGS must be the buyer; supplier must be the seller. Found seller: {found}.",
-      paymentVerifyTaxSellerNameMismatch:
-        "Tax invoice seller must match {expected}. Found: {found}.",
-      paymentVerifyTaxSerialMissing:
-        "Could not read the tax invoice serial number.",
-      paymentVerifyTaxSerialDuplicate:
-        "This tax invoice serial ({serial}) was already used on another invoice or purchase.",
-      paymentVerifyTaxDocumentDuplicate:
-        "This tax invoice file was already uploaded on another invoice or purchase.",
-      paymentVerifyTaxDateReuse:
-        "This tax invoice date ({date}) was already used with the same amount on another invoice or purchase — possible reused tax invoice.",
-      paymentVerifyExtractFailed:
-        "Could not read the required fields from the uploaded document(s).",
-      paymentVerifyApiError:
-        "Document verification service failed. Try again, or check OPENAI_API_KEY / network.",
+      paymentVerifyChecking: "Saving…",
+      confirmTaxInvoiceSent: "Upload Tax Invoice",
       confirmPaymentReceived: "Confirm payment received",
       viewTaxInvoice: "View tax invoice",
       stillInPlanning: "Still in Planning",
@@ -2896,10 +3502,13 @@ export const en = {
         actionFailed: "Could not update this payroll period.",
         actionsTitle: "Period Actions",
         actionsDesc:
-          "Mark the wage bill paid when RGS has fronted it, then record the client invoice and close when reimbursed.",
+          "Client approval issues the invoice on the client payment terms. Confirm wages paid later with proof — that does not block Payment Due.",
         markWagesPaid: "Mark Wages Paid",
-        recordInvoice: "Record Client Invoice",
-        markReimbursed: "Mark Reimbursed",
+        confirmWagesPaid: "Confirm Wages Paid",
+        confirmWagesPaidDesc:
+          "After the client approves, Head Office can confirm the wage bill was paid. Upload the payment proof. This does not block Payment Due.",
+        wagesPaidProof: "Wage Payment Proof",
+        wagesPaidOn: "Wages confirmed {date}",
         viewProof: "View Payment Proof",
         unavailable: "Payroll Management workspace is not available for this project.",
         status: {
@@ -2954,7 +3563,7 @@ export const en = {
       monthlyBillingHelp:
         "Billing follows the contract start date (anniversary cycles). After a cycle ends, Reconcile compiles staff CICO into a report for the client portal (Approve or Revise). Client approval auto-issues the invoice and emails the client contact. Payment due uses the client’s payment terms (Cash = due on submit). The project stays active for future cycles.",
       noMilestonePeriods:
-        "No milestone periods yet. New General / Facade milestone projects create the full payment schedule at create time.",
+        "No milestone periods yet. New General Cleaning, Facade Cleaning, and One-Time Landscaping milestone projects create the full payment schedule at create time.",
       reportCountOne: "{count} report",
       reportCountOther: "{count} reports",
       percentOfProject: " · {percent}% of project",
@@ -3021,20 +3630,76 @@ export const en = {
       inputTotal: "Input VAT",
       inputTotalHint: "PPN Masukan for this period",
       netPayable: "Net VAT",
-      netPayableHint: "Output VAT − Input VAT",
+      netPayableHint: "Input VAT − Output VAT. Plus is credit. Minus is amount we owe.",
+      vatPaid: "VAT Paid",
+      vatPaidHint: "Government Billing ID payments this month",
+      vatRemaining: "VAT Still To Pay",
+      vatRemainingHint: "Amount still owed after Billing ID payments",
       tabs: {
         output: "Output VAT",
         input: "Input VAT",
+        income: "Income Tax",
+        other: "Other Tax",
       },
+      inputSourceImport: "Imported Goods",
+      inputSourceItems: "Items",
+      inputSourceService: "Service",
+      inputSourceHandling: "Handling Fee",
       pendingCount: "{count} Pending",
       outputTitle: "Output VAT (PPN Keluaran)",
       outputDesc:
         "Client invoice periods that require a tax invoice in this month.",
       inputTitle: "Input VAT (PPN Masukan)",
       inputDesc:
-        "Supplier purchases marked as including PPN, or with a tax invoice file, in this month.",
+        "Input VAT this month, by source: items, imported goods, and handling fee. Import VAT is credited from the customs payment. Handling-fee VAT is credited from the handler's tax invoice.",
+      otherTitle: "Other Tax",
+      otherDesc:
+        "Income Tax we withhold and remit (Article 21 and Article 23), final Income Tax Article 4(2), stamp duty, and other government tax. Withholding is not a company tax credit.",
+      emptyOther: "No Other Tax",
+      emptyOtherDesc:
+        "No withholding, final Income Tax, or stamp duty payments fall in this month.",
+      otherRemittanceTotal: "Withholding Remitted",
+      otherRemittanceTotalHint: "Article 21 and Article 23 paid this month",
+      otherExpenseTotal: "Other Tax Expense",
+      otherExpenseTotalHint: "Article 4(2), stamp duty, and other tax this month",
+      incomeTitle: "Prepaid Corporate Income Tax",
+      incomeDesc:
+        "Income Tax Article 22 on imports and Corporate Income Tax Article 25 / 29 paid with a Billing ID. These reduce the company tax you owe when you file the annual return.",
+      incomeHint:
+        "Example: if annual company tax is 100 million and these credits are 90 million, you pay 10 million.",
+      incomeImportTotal: "Import Income Tax Article 22",
+      incomeImportTotalHint: "Prepaid tax collected at customs this year",
+      incomeInstallmentTotal: "Installments And Settlement",
+      incomeInstallmentTotalHint: "Article 25 installments and Article 29 settlement",
+      incomeCreditTotal: "Tax Credit Available",
+      incomeCreditTotalHint: "Total prepaid corporate income tax for this year",
+      emptyIncome: "No Income Tax Credits",
+      emptyIncomeDesc:
+        "No import Income Tax Article 22 or government Corporate Income Tax payments fall in this year.",
+      incomeSourceImport: "Import",
+      incomeSourceGovernment: "Government Billing ID",
+      columns: {
+        client: "Client",
+        vendor: "Vendor",
+        date: "Date",
+        gross: "Gross",
+        dpp: "DPP",
+        ppn: "VAT",
+        faktur: "Faktur",
+        source: "Source",
+        credit: "Prepaid Tax",
+        amount: "Amount",
+      },
       openTaxInvoices: "Open Tax Invoice",
       openPurchases: "Open Purchases",
+      taxDetail: "Tax Details",
+      taxDetailOutputDesc: "Output Value Added Tax on this invoice period.",
+      taxDetailCreditDesc: "Tax on this expense — credits, withholdings, and documents.",
+      backToTax: "Back To Tax",
+      relatedExpense: "This Expense",
+      relatedBilling: "Project Billing",
+      taxDocuments: "Tax Documents",
+      taxDocumentMissing: "No tax invoice uploaded yet.",
       fakturReady: "Faktur Ready",
       fakturPending: "Faktur Pending",
       emptyOutput: "No Output VAT",
@@ -3044,14 +3709,58 @@ export const en = {
       emptyInputDesc:
         "No supplier purchases with PPN fall in this month.",
       invoicePeriodFallback: "Invoice Period",
+    },
+    sales: {
+      title: "Sales",
+      description:
+        "Generate the sales invoice here. The PDF is created automatically. Upload the tax invoice for company buyers when required.",
+      permissionDenied: "You do not have permission to record sales.",
+      loadFailed: "Could not load sales.",
+      period: "Sale Period",
+      allDays: "All Days",
+      dayOption: "Day {day}",
+      totalSales: "Total Sales",
+      totalProfit: "Total Profit",
+      totalCost: "Cost Basis",
+      vatCollected: "VAT Collected",
+      saleCount: "{count} Sales",
+      saleCountOne: "1 Sale",
+      thisYear: "This year {amount}",
+      searchPlaceholder: "Search all sales: item, SKU, buyer, notes…",
+      addSale: "Generate Sales Invoice",
+      bankAccount: "Bank Account",
+      bankAccountHint:
+        "Required. Printed on the generated sale invoice. It cannot be changed after the sale is recorded.",
+      bankAccountEmpty: "Add a bank account in Company Details first.",
+      bankAccountRequired: "Choose the bank account for this sale invoice.",
+      invoiceAutoHint:
+        "The sale invoice PDF is generated automatically from Company Details and this bank account. You do not upload a sale invoice.",
+      invoiceGenerateFailed: "Could not generate the sale invoice PDF.",
+      generateInvoice: "Generate Invoice",
+      paymentProofRequired: "Upload the customer payment for this sale.",
+      viewPaymentProof: "View Payment",
+      paidOn: "Paid {date}",
+      attachMissing: "Attach missing documents",
+      hideAttach: "Hide attach",
+      attachRequired: "Upload a payment proof or tax invoice, or generate the sale invoice.",
+      attachSaved: "Sale documents saved.",
+      attachFailed: "Could not save sale documents.",
+      saveDocuments: "Save Documents",
       columns: {
-        client: "Client",
-        vendor: "Vendor",
-        date: "Date",
-        gross: "Gross",
-        dpp: "DPP",
-        ppn: "VAT",
-        faktur: "Faktur",
+        documents: "Documents",
+      },
+      docInvoiceReady: "Invoice",
+      docInvoiceMissing: "Invoice missing",
+      docPaymentReady: "Payment",
+      docPaymentMissing: "Payment Pending",
+      docTaxReady: "Tax Invoice",
+      docTaxMissing: "Tax Invoice missing",
+      form: {
+        paymentProof: "Customer Proof Of Payment",
+        paymentProofHint:
+          "Optional. Upload the bank transfer slip later if payment is not in yet.",
+        paidAt: "Payment Date",
+        paidAtHint: "Optional. Defaults to the sale date when payment proof is uploaded.",
       },
     },
     financialReport: {
@@ -3063,6 +3772,12 @@ export const en = {
       filterPeriodYearly: "Whole Year",
       filterReport: "Report",
       filterReportGeneral: "General",
+      filterBank: "Bank Account",
+      filterBankAll: "All Banks",
+      filterBankUnassigned: "Unassigned",
+      receiptsByBank: "Receipts By Bank",
+      receiptsByBankHint:
+        "Client invoice payments and sale receipts grouped by the account they were paid to.",
       rangeThisMonth: "This Month",
       rangeLifetime: "Lifetime",
       rangeHint:
@@ -3087,9 +3802,9 @@ export const en = {
       net: "Lifetime Net Profit",
       netHint: "Revenue − Expenses",
       companyMoneyInHint:
-        "Approved or invoiced amounts after tax is taken out by dividing (paid ÷ 1.12 at 12%). Parking, reimbursed payroll management, and sold-off stock.",
+        "Approved or invoiced amounts after tax is taken out by dividing, plus retained employee deposits. Held deposits are not income.",
       companyMoneyOutHint:
-        "Stock used on jobs, vendor bills when paid, Internal Payroll, parking outflows, and Head Office overhead.",
+        "Stock used on jobs, vendor bills when paid, Internal Payroll, parking outflows, Head Office overhead, and refunded employee deposits.",
       stockInWarehouse: "Inventory Value",
       stockInWarehouseHint: "Value of goods on hand. Not yet charged to a job.",
       headOfficeOverhead: "Head Office Overhead",
@@ -3098,7 +3813,7 @@ export const en = {
         "Warehouse wages, Internal purchases paid this period, and stock used on Internal Head Office or Warehouse.",
       depositsHeld: "Employee Deposits Held",
       depositsHeldHint:
-        "Balances held. Not income. Excluded from Monthly Net Profit.",
+        "Balances held. Not income and not Accounts Payable. Not included in period profit.",
       depositsReturned: "Employee Deposits Refunded",
       depositsReturnedHint:
         "Outflow when a held deposit is refunded on Internal Payroll (last or current project, or Head Office).",
@@ -3122,6 +3837,41 @@ export const en = {
       soldOffIncome: "Sold Off Income",
       soldOffIncomeYear: "This year {amount}",
       contractMinusSpending: "Revenue − Expenses",
+      detailDescription:
+        "A closer look at the number you clicked. Change the period above to refresh these figures.",
+      detail: {
+        periodNet: "Period Profit Detail",
+        netPosition: "Net Position Detail",
+        moneyIn: "Revenue Detail",
+        moneyOut: "Expenses Detail",
+        ar: "Accounts Receivable Detail",
+        ap: "Accounts Payable Detail",
+        warehouse: "Inventory Value Detail",
+        overhead: "Head Office Overhead Detail",
+        deposits: "Employee Deposits Held Detail",
+        depositsReturned: "Employee Deposits Refunded Detail",
+        depositsKept: "Employee Deposits Retained Detail",
+        overheadWages: "Warehouse Wages",
+        overheadPurchases: "Internal Purchases",
+        overheadStock: "Internal Stock Used",
+        warehouseHelp:
+          "Goods still in the warehouse are assets, not expenses, until they are issued to a job.",
+        openInventory: "Open Inventory",
+        moneyInHelp:
+          "Revenue includes retained employee deposits. Held deposits are not income.",
+        moneyOutHelp:
+          "Expenses include Head Office overhead and refunded employee deposits.",
+        overheadHelp:
+          "Head Office wages, Internal purchases paid this period, and stock used on Internal sites.",
+        depositsHelp:
+          "Held deposits are not income. Refunds are outflows. Retained deposits are Head Office income.",
+        depositsReturnedHelp:
+          "Cash paid back on Internal Payroll when a held Security deposit is refunded.",
+        depositsKeptHelp:
+          "Head Office income when resignation is not according to procedure and the deposit is retained.",
+        netPositionHelp:
+          "Period profit minus unpaid vendor bills. Accounts Receivable is what clients still owe.",
+      },
       contractValueHint: "Sum of project contract prices.",
       spendingHint: "Stock used on the job, project purchases, and Internal Payroll days clocked here.",
       moneyIn: "Revenue",
@@ -3249,9 +3999,6 @@ export const en = {
       title: "Petty Cash",
       description:
         "Cash entrusted to field and operations staff for meals, client entertainment, emergencies, and daily part-time pay.",
-      directoryTitle: "Petty Cash",
-      directoryDesc:
-        "Operations holds the field float. Top up from Finance → Expenses. Every spend needs a bill photo. The reader checks the amount; you type the same amount before it is taken from the float.",
       currentBalance: "Current balance",
       lifetimeIn: "Lifetime Petty Cash in",
       monthIn: "This month in",
@@ -3263,25 +4010,23 @@ export const en = {
       recordSpend: "Record Spend",
       spendTitle: "Record Petty Cash Spend",
       spendDesc:
-        "Upload the bill, wait for the amount to be read, then type that same amount to debit Petty Cash.",
+        "Upload the bill and enter the amount paid to debit Petty Cash.",
       spendConfirm: "Debit Petty Cash",
       spending: "Saving…",
       spendFailed: "Could not record this spend.",
       proof: "Bill / receipt",
-      proofHint: "Take a clear photo of the bill. The paid amount must be readable.",
+      proofHint: "Take a clear photo of the bill or receipt.",
       proofRequired: "Upload the bill or receipt photo.",
-      readingBill: "Reading the bill…",
-      extractedAmount: "Bill amount read: {amount}. Type the same amount to accept.",
-      extractRequired: "Wait until the bill amount has been read.",
-      extractFailed: "Could not read the paid amount. Upload a clearer photo.",
-      extractNotConfigured:
-        "Document reading is not configured. Ask Head Office to enable it.",
-      amountMismatch: "The amount you typed must match the bill amount.",
       enteredAmount: "Amount paid",
       amountPlaceholder: "e.g. 85000",
       date: "Date",
       descriptionLabel: "Description",
       descriptionPlaceholder: "e.g. Lunch for site team",
+      billIsFor: "This Bill Is For",
+      billIsForPlaceholder: "Select Area Manager or above",
+      billIsForRequired: "Select which Area Manager or above this bill is for.",
+      billIsForHint:
+        "Attribute this spend to an Area Manager, Operations Manager, or Director.",
       project: "Project",
       projectPlaceholder: "Optional project",
       projectHint: "Tag a site when this spend belongs to a job.",
@@ -3316,6 +4061,7 @@ export const en = {
       directoryDesc:
         "This module is only for RGS employees. Client Payroll Management projects are billed separately.",
       periodTitle: "Pay Period",
+      searchEmployee: "Search by employee name or number",
       periodDesc:
         "Wage = daily rate (base pay ÷ 26) × complete 9-hour days in this window. An assigned double shift pays two days only after 18 hours on that project. Under 9 or 18 hours: the day stays blank until Full pay or a custom amount. Days without CICO, including leave, are unpaid.",
       periodWindow:
@@ -3331,6 +4077,7 @@ export const en = {
       daySite: "Project / Site",
       dayCheckIn: "Check-In",
       dayCheckOut: "Check-Out",
+      exempt: "Exempt",
       dayHours: "Hours",
       dayPay: "Pay",
       doubleShift: "Double Shift",
@@ -3352,6 +4099,8 @@ export const en = {
       customPayApplied: "Custom amount",
       checkedOutBeforeShiftEnd: "Checked Out Before Shift End",
       absent: "Absent",
+      restDay: "Rest Day",
+      onLeave: "On Leave",
       paySummaryTitle: "Pay Summary",
       noDays: "No complete CICO and no expected absences in this period.",
       totalEmployees: "Employees",
@@ -3515,15 +4264,72 @@ export const en = {
       taxNa: "N/A (no tax ID)",
     },
     progress: {
-      title: "Progress Reports",
+      title: "Progress Report",
       description:
         "Site photo reports for cleaning staff (Cleaning Staff, GC Staff, In-House Cleaning). Upload while on shift — check-out is blocked until at least one report is submitted for the project.",
       feedDescription:
-        "Monitor Progress Reports in real time (view only). Open a project for the photo feed, or filter by employee.",
+        "Open a project, choose a day, then filter by employee. Download a monthly report after the month ends.",
+      clientFeedDescription:
+        "Open a project to view notes and photos for your sites. Download a monthly report after the month ends.",
+      chooseClientHint:
+        "Select a client, then a project. Search clients, then search projects.",
       chooseProject: "Choose Project",
       chooseProjectHint:
         "View-only feed — open a project to monitor reports as photos are uploaded.",
+      chooseProjectHintClient:
+        "Open a project to view notes and photos for your sites.",
+      searchClients: "Search Clients",
+      searchProjects: "Search Projects",
+      clientsSection: "Clients",
+      clientsSectionDesc: "In Progress project sites grouped by client.",
+      internalSection: "Internal",
+      internalSectionDesc: "Head Office and Warehouse.",
+      internalSiteHint: "Internal Site",
+      projectsSection: "Projects",
+      projectsSectionDesc: "Project sites for this client.",
+      clientProjectsDesc: "Choose a project to view the Progress Report.",
+      noClients: "No Clients",
+      noClientsDesc: "No clients with accessible projects were found.",
+      noClientsMatch: "No clients match your search.",
+      noProjects: "No Projects",
+      noProjectsDesc: "This client has no projects you can view.",
+      noProjectsMatch: "No projects match your search.",
+      projectCountOne: "{count} Project",
+      projectCountOther: "{count} Projects",
+      breadcrumbAria: "Progress Report Navigation",
+      downloadMonthlyReport: "Download Monthly Report",
+      downloadProgressReport: "Download Progress Report",
+      downloadAttendance: "Download Attendance",
+      attendanceSection: "Attendance",
+      attendanceModeDay: "Day",
+      attendanceModeMonth: "Month",
+      closedMonthHint:
+        "Only closed months can be downloaded. The current month is available after it ends.",
+      closedDayHint:
+        "Attendance for a day can be downloaded after that day ends.",
+      noClosedMonths: "No Closed Months Yet",
+      noClosedMonthsHint:
+        "Monthly downloads become available on the first day of the next month.",
+      dayNotClosed: "This Day Is Still In Progress",
+      dayNotClosedHint: "Pick a past date to download that day's reports.",
+      earlyCheckoutTitle: "Checked Out Before Shift End",
+      earlyCheckoutDesc:
+        "Staff who checked out before the planned shift end. A report was recorded. There is no automatic pay cut.",
+      earlyCheckoutEmptyDay: "No Check-Outs Before Shift End On This Day",
+      earlyCheckoutEmptyMonth: "No Check-Outs Before Shift End In This Month",
+      earlyCheckoutThisMonth: "This Month",
+      attendancePdfTitle: "Attendance",
+      attendancePdfShift: "Shift",
+      attendancePdfHours: "Work Hours",
+      attendancePdfEarly: "Before Shift End",
+      attendancePdfEmpty: "No attendance recorded for this period.",
       backToProjects: "Back to Projects",
+      viewMode: "View",
+      filterByDate: "Report Date",
+      filterByDateHint: "Use the calendar to jump to a specific day.",
+      filterByMonth: "Report Month",
+      filterByMonthHint:
+        "Read every report from the first day through the last day of this month, without downloading.",
       filterByEmployee: "Filter by Employee",
       filterAllEmployees: "All Employees",
       feedEmpty: "No progress reports for this project yet.",
@@ -3557,6 +4363,7 @@ export const en = {
       emptyDescription:
         "No projects or photo reports for this date. Cleaning staff should upload site photos for each assigned cleaning project (including Internal) while on shift.",
       emptyForDate: "No progress reports for this date.",
+      emptyForMonth: "No progress reports for this month.",
       submittedBy: "Submitted by",
       selectProject: "Select Project",
       serviceArea: "Service Area",
@@ -3570,6 +4377,7 @@ export const en = {
       progressPhoto: "Progress Photo",
       required: "(required)",
       reportsForDate: "Reports for {date}",
+      reportsForMonth: "Reports for {range}",
       directorySubtitle:
         "Grouped by Project → Assigned Employee → Progress Reports",
       directoryHint: "Project → Employee → Progress Reports",
@@ -3631,6 +4439,11 @@ export const en = {
           "You must be checked in via CICO for this project before submitting a Progress Report.",
         reportDateMustMatchCico:
           "Progress Report date must match your open CICO work day for this project.",
+        monthNotClosed:
+          "This month is still in progress. Download is available after the month ends.",
+        dayNotClosed:
+          "This day is still in progress. Download is available after the day ends.",
+        exportFailed: "Failed to export PDF.",
         reportDateLocked: "Progress Report date cannot be changed.",
         editDayLocked:
           "This progress report can no longer be edited after the day is over.",
@@ -3750,9 +4563,9 @@ export const en = {
         "A Progress Report is required to check out. Please upload it and retry CICO.",
       uploadProgressNow: "Upload Progress Report",
       footerNote:
-        "CICO for Active On Project cleaning staff at assigned cleaning sites (including Internal). GPS geofence and on-site photos are required for check-in and check-out. Check-out also requires at least one Progress Report for this shift day.",
+        "CICO for Active On Project cleaning staff at assigned cleaning sites (including Internal). You must be within the project site, and on-site photos are required, to check in or check out. Check-out also requires at least one Progress Report for this shift day.",
       footerNoteCheckInOnly:
-        "GPS geofence and on-site photos are required for check-in and check-out. A Progress Report is not required for your position.",
+        "You must be within the project site, and on-site photos are required, to check in or check out. A Progress Report is not required for your position.",
       chooseImageFile: "Please choose an image file for your on-site photo.",
       photoRequiredAlert:
         "A check-in photo is required. Take a photo that shows you at this project site.",
@@ -3784,7 +4597,7 @@ export const en = {
         checkedInToday: "Checked In Today",
         openCheckIns: "Open Check-Ins",
         sitesWithActivity: "Sites With Activity",
-        viewAttendanceReport: "Attendance Report",
+        viewAttendanceReport: "Progress Report",
         viewProjects: "Projects",
         todaysSiteCheckIns: "Today's Site Check-Ins",
         noCheckInsToday: "No check-ins recorded yet today.",
@@ -3793,7 +4606,7 @@ export const en = {
           "Sample project layout — controls are disabled for Head Office accounts.",
         fieldWorkerFlow: "Field CICO",
         fieldWorkerFlowHint:
-          "Select an In Progress project, then check in at site. Geofence and photo rules apply; Progress Report before check-out applies only for cleaning staff positions.",
+          "Select an In Progress project, then check in at site. You must be within the project site and take a photo; Progress Report before check-out applies only for cleaning staff positions.",
         controlsDisabled:
           "Check-in, check-out, and photo upload are disabled in preview mode.",
         noSampleProject:
@@ -3803,9 +4616,9 @@ export const en = {
         noEmployeeProfile:
           "Your admin account needs a linked employee profile to record CICO attendance.",
         footerNote:
-          "This is a read-only preview. Use Attendance Report for live monitoring and Projects to manage site assignments.",
+          "This is a read-only preview. Use Progress Report for live monitoring and Projects to manage site assignments.",
         fieldFooterNote:
-          "Attendance is recorded on your employee profile. You must be within the site geofence to check in or out.",
+          "Attendance is recorded on your employee profile. You must be within the project site to check in or check out.",
       },
     },
     attendance: {
@@ -3876,11 +4689,35 @@ export const en = {
     shifts: {
       title: "Shifts",
       description:
-        "Choose an active project. Add named shifts, assign staff, assign each person to Shift 1–4, or assign a double shift or backup. Check-in and check-out still record actual punch times.",
+        "Choose a client, then a project site. Add named shifts, assign staff, assign each person to Shift 1–4, or assign a double shift or backup. Check-in and check-out still record actual punch times.",
+      clientProjectsDesc:
+        "Choose a project site to manage shifts and assign staff.",
+      breadcrumbAria: "Shifts Navigation",
+      searchClients: "Search Clients",
+      searchProjects: "Search Projects",
+      clientsSection: "Clients",
+      clientsSectionDesc: "In Progress project sites grouped by client.",
+      internalSection: "Internal",
+      internalSectionDesc: "Head Office and Warehouse shifts.",
+      internalSiteHint: "Internal Site",
+      projectsSection: "Projects",
+      projectsSectionDesc: "Project sites for this client.",
+      projectCountOne: "{count} Project",
+      projectCountOther: "{count} Projects",
+      noClients: "No Clients",
+      noClientsDesc:
+        "In Progress projects appear here. Move a project to In Progress first.",
+      noClientsMatch: "No clients match your search.",
+      noProjects: "No Projects",
+      noProjectsDesc: "This client has no In Progress project sites.",
+      noProjectsMatch: "No projects match your search.",
       manageShifts: "Manage Shifts",
       addShift: "Add Shift",
       addShiftDesc: "Add Shift {number} and set its hours. Then assign a regular employee to it.",
-      addShiftHint: "Each shift is 9 hours. You can change the start and end times.",
+      addShiftHint:
+        "Each shift is 9 hours. Hours cannot overlap another shift on this project. Adjacent is fine — one can end at 16:00 and the next can start at 16:00.",
+      shiftClash:
+        "Shift {aNumber} ({aStart}–{aEnd}) clashes with Shift {bNumber} ({bStart}–{bEnd}). Shifts cannot overlap. Change the hours so one ends before the next starts.",
       addShiftConfirm: "Add Shift",
       addShiftSaving: "Adding…",
       addShiftFailed: "Could not add the shift.",
@@ -3896,7 +4733,7 @@ export const en = {
       assignStaffSaving: "Saving…",
       assignStaffFailed: "Could not assign staff.",
       backupTitle: "Backup Covers",
-      searchProjectsPlaceholder: "Search projects...",
+      searchProjectsPlaceholder: "Search Projects",
       searchEmployeesPlaceholder: "Search Employees...",
       searchPlaceholder: "Search...",
       emptyProjectsTitle: "No Active Projects",
@@ -3924,7 +4761,7 @@ export const en = {
       rosterTitle: "Staff Shifts",
       windowsTitle: "Project Shifts",
       windowsHint:
-        "Set hours here. Add Shift when the site needs another named shift (up to 4). Use Remove on a row after staff, backups, and double shifts are unassigned from that shift.",
+        "Set hours here. Shifts on this project cannot overlap. Add Shift when the site needs another named shift (up to 4). Use Remove on a row after staff, backups, and double shifts are unassigned from that shift.",
       assignShift: "Assigned Shift",
       selectShift: "Select Shift",
       unassignedShift: "No Shift",
@@ -3942,7 +4779,7 @@ export const en = {
       title: "Teams",
       assignmentTitle: "Assignment",
       assignmentDescription:
-        "Create General Cleaning and Facade Cleaning teams, then add permanent employees to each roster.",
+        "Create teams by service area, then add permanent employees to each roster.",
       availabilityTitle: "Team Availability",
       availabilityDescription:
         "See which teams are available and which are on a site this month.",
@@ -3955,11 +4792,13 @@ export const en = {
       kind: "Team Type",
       kindGeneral: "General Cleaning",
       kindFacade: "Facade Cleaning",
+      kindLandscaping: "Landscaping",
       searchPlaceholder: "Search teams...",
       filterAll: "All",
       emptyTitle: "No Teams Yet",
       emptyDescription:
-        "Add a General Cleaning or Facade Cleaning team, then allocate permanent employees.",
+        "Add a team for a service area, then allocate permanent employees.",
+      kindRequired: "Choose a team type.",
       emptySearch: "No teams match this search.",
       emptyMembers: "No members on this team yet.",
       emptyEligible: "No eligible employees are free to join a team.",
@@ -4004,15 +4843,41 @@ export const en = {
       descriptionManager: "View leave and sick requests for your team.",
       descriptionManagerShort: "View all leave and sick requests.",
       submitRequest: "Submit Request",
-      newRequest: "New request",
+      newRequest: "New Request",
+      filterAll: "All",
+      requestCount: "{count} Requests",
+      permissionSection: "Permission",
+      permissionSectionDesc: "Permission requests and their approval status.",
+      sickSection: "Sick Leave",
+      sickSectionDesc: "Sick leave requests and their approval status.",
+      stats: {
+        permissionTitle: "Permission",
+        permissionSubtitle: "Permission requests",
+        sickTitle: "Sick Leave",
+        sickSubtitle: "Sick leave requests",
+        pendingTitle: "Pending",
+        pendingSubtitle: "Waiting for a decision",
+        approvedTitle: "Approved",
+        approvedSubtitle: "Approved requests",
+      },
       dialogTitle: "Leave / Sick Request",
       dialogDescription:
         "Submit a permission or sick leave request for manager approval.",
-      emptyTitle: "No requests yet",
+      emptyTitle: "No Requests Yet",
+      emptyPermissionTitle: "No Permission Requests",
+      emptySickTitle: "No Sick Leave Requests",
+      emptyFilteredTitle: "No Matching Requests",
+      emptyFilteredDescription: "Nothing matches the selected filter.",
       emptyDescriptionEmployee: "Submit a permission or sick leave request when you need time off.",
       emptyDescriptionManager: "No leave or sick requests to show.",
       emptyDescriptionEmployeeShort: "Submit your first leave or sick request.",
       emptyDescriptionManagerShort: "No leave requests have been submitted.",
+      emptyPermissionDescriptionEmployee:
+        "Submit a permission request when you need time off.",
+      emptyPermissionDescriptionManager: "No permission requests to show.",
+      emptySickDescriptionEmployee:
+        "Submit a sick leave request when you need time off.",
+      emptySickDescriptionManager: "No sick leave requests to show.",
       approvedNotification: "Your leave request was approved.",
       approvedNotificationSingle: "Your {type} was approved",
       approvedNotificationMany: "{count} leave requests were approved",
@@ -4039,12 +4904,12 @@ export const en = {
         alreadyReviewed: "This request has already been reviewed.",
         notAllowedToApprove: "You are not allowed to approve this request.",
       },
-      requestType: "Request type",
-      startDate: "Start date",
-      endDate: "End date",
+      requestType: "Request Type",
+      startDate: "Start Date",
+      endDate: "End Date",
       reason: "Reason",
       reasonPlaceholder: "Reason for request...",
-      proofDocument: "Proof document",
+      proofDocument: "Proof Document",
       proofOptional: "(optional)",
       dropFileOrBrowse: "Drop file here or browse",
       proofMustBeImageOrPdf: "Proof must be an image or PDF.",
@@ -4064,7 +4929,7 @@ export const en = {
       description: "Approve leave, sick, and material requests.",
       emptyTitle: "All caught up",
       emptyDescription: "No pending requests to review.",
-      emptyLeaveTitle: "No leave requests",
+      emptyLeaveTitle: "No Leave Requests",
       emptyLeaveDescription: "No pending leave or sick requests.",
       emptyLeaveOnlyOwnDescription:
         "Nothing for you to approve right now. Your own request is listed above and needs another approver.",
@@ -4102,7 +4967,7 @@ export const en = {
         "Request materials for the project you are checked into. The Operations Manager or Area Manager approves, then warehouse sends a transfer order.",
       newRequest: "New Request",
       newRequestDesc:
-        "Pick catalog items and quantities for your checked-in project. Warehouse stock is shown for reference.",
+        "Choose an item type, then pick catalog items and quantities for your checked-in project. Items that are out of stock cannot be requested.",
       myRequests: "My Requests",
       myRequestsDesc:
         "Track approval status, transfer progress, and confirm receipt when the warehouse marks the order sent.",
@@ -4117,9 +4982,25 @@ export const en = {
       checkedInProjectLabel: "Checked-in project",
       checkedInHintDetail:
         "This request will be tied to this project and appear in Approvals for OM review.",
-      selectItem: "Select item…",
+      selectItem: "Select Item…",
+      selectItemTitle: "Select Item",
+      selectItemDesc:
+        "Choose the item type first, then pick a catalog item.",
+      itemTypeLabel: "Item Type",
+      itemTypeHint: "Choose what type of item is requested.",
+      itemTypes: {
+        sparePart: "Spare Parts",
+        consumable: "Consumables",
+        chemical: "Chemicals",
+        other: "Other",
+        equipment: "Equipment",
+        vehicle: "Vehicles",
+      },
+      searchItemsPlaceholder: "Search by name or SKU…",
+      noItemsForType: "No catalog items for this type.",
+      noItemsMatchSearch: "No items match your search.",
       addLine: "Add Line",
-      notesPlaceholder: "Optional notes for OM / warehouse (urgency, location on site…)",
+      notesPlaceholder: "Optional notes for AM / warehouse (urgency, location on site…)",
       reviewNotePlaceholder: "Optional review note (required context for rejects recommended)",
       submit: "Submit Request",
       submitHint: "After submit: Approvals → Transfer Orders → Confirm Received on site.",
@@ -4136,6 +5017,9 @@ export const en = {
       rejected: "Material request rejected.",
       noLines: "No line items.",
       stockShort: "Below request",
+      outOfStock: "Out Of Stock",
+      itemNotAvailable: "Item Not Available",
+      itemOutOfStock: "This item is out of stock.",
       status: {
         requested: "Requested",
         approved: "Approved",
@@ -4146,7 +5030,8 @@ export const en = {
         item: "Item",
         sku: "SKU",
         qty: "Qty requested",
-        onHand: "On hand",
+        onHand: "On Hand",
+        availability: "Availability",
         requester: "Requester",
         reviewed: "Reviewed",
         notes: "Notes",
@@ -4158,6 +5043,12 @@ export const en = {
       title: "Transfer Orders",
       description:
         "Warehouse Queue: browse by client and project, send approved materials, then site confirms receipt.",
+      pendingTitle: "Pending Transfer Order",
+      pendingTitleOther: "Pending Transfer Orders",
+      pendingDesc:
+        "Open orders that still need warehouse or site action.",
+      itemSummary: "{qty} {unit} {name}",
+      itemSummaryMore: "{qty} {unit} {name} and {count} more",
       directoryTitle: "Clients & Sites",
       directoryDesc:
         "Browse clients and internal sites. Open a project for its warehouse queue and transfer-order history.",
@@ -4277,6 +5168,9 @@ export const en = {
       cicoCheckOut: "Check-Out",
       cicoDurationOfWork: "Duration Of Work",
       cicoInProgress: "In progress",
+      pdfWorkDate: "Work Date",
+      pdfDayContinued: "Continued",
+      pdfEmployeeNo: "Employee No.",
       progressPhoto: "Progress photo",
       projectOne: "{count} project",
       projectOther: "{count} projects",
@@ -4299,10 +5193,6 @@ export const en = {
         "11": "November",
         "12": "December",
       },
-    },
-    departments: {
-      title: "Departments",
-      description: "Manage employee departments and numbering prefixes.",
     },
     inventory: {
       title: "Inventory",
@@ -4335,9 +5225,6 @@ export const en = {
       searchPurchasesFailed: "Could not search stock receipts.",
       itemTypeLocked: "Item type cannot be changed after create.",
       deleteItemFailed: "Could not delete catalog item.",
-      assetNotFound: "Equipment asset not found.",
-      assetUpdated: "Asset details updated.",
-      updateAssetFailed: "Could not update asset details.",
       addItem: "Add Item",
       addItemDesc:
         "Create a catalog item only. Stock receipts and stock are recorded separately.",
@@ -4367,20 +5254,25 @@ export const en = {
       addWriteOffDesc:
         "Permanently remove stock from on-hand with a mandatory reason. Decrease only — cannot write off more than on-hand. OM+ only.",
       saveWriteOff: "Write Off",
-      addSoldOff: "Record Sale",
+      addSoldOff: "Generate Sales Invoice",
       addSoldOffDesc:
-        "Sell stock or equipment from warehouse. Reduces on-hand stock and records sale proceeds. OM+ only.",
-      saveSoldOff: "Record Sale",
-      soldOffCreated: "Stock sale recorded.",
-      createSoldOffFailed: "Could not record sale.",
+        "Generate the sales invoice for warehouse stock. Choose the bank account — the PDF is created automatically. Upload the tax invoice for company buyers only. Reduces on-hand stock.",
+      saveSoldOff: "Generate Sales Invoice",
+      soldOffCreated: "Sales invoice generated.",
+      createSoldOffFailed: "Could not generate sales invoice.",
       searchSoldOffsPlaceholder:
         "Search all sales: item, SKU, buyer, notes…",
       searchingSoldOffs: "Searching older sales…",
       searchSoldOffsFailed: "Could not search sales.",
       soldOffAssetQtyMismatch:
         "Selected equipment assets must match the sale quantity.",
+      soldOffSelectAssetsRequired:
+        "Select the equipment units you are selling. Each unit already has an asset code.",
+      saleLossConfirmTitle: "Sell At A Loss?",
+      saleLossConfirmDescription:
+        "Selling the item at this price will incur a loss. Are you sure you want to do this?",
       voidSoldOffNotSupported:
-        "Sales cannot be voided from here. Reverse a sale from the Sales tab (owner only).",
+        "Sales cannot be voided from here. Reverse a sale from Finance → Sales.",
       buyerTypeRequired: "Choose Individual or Company for the buyer.",
       buyerNameRequired: "Buyer name is required.",
       companyNameRequired: "Company name is required.",
@@ -4391,7 +5283,7 @@ export const en = {
       buyerTaxIdRequired: "Company Tax ID (NPWP) is required for company buyers.",
       taxRateRequired: "Enter a tax rate for this sale.",
       taxAmountRequired: "Sale tax amount must be greater than zero.",
-      saleInvoiceRequired: "Upload the sale invoice for this sale.",
+      saleInvoiceRequired: "The sale invoice PDF could not be generated.",
       clientNotFound: "Linked client was not found.",
       clientTypeMismatch:
         "Linked client must match the selected buyer type.",
@@ -4417,7 +5309,7 @@ export const en = {
         "Gain/loss uses ex-tax sale vs ex-tax cost.",
       stockDetailTitle: "Stock Item Detail",
       stockDetailDesc:
-        "Lifetime receipts, warehouse stock, and project assignments for this item.",
+        "Lifetime bought, warehouse stock, assignments, sales, and write-offs for this item.",
       stockDetailBought: "Bought (All Time)",
       stockDetailAssigned: "Assigned",
       stockDetailInStock: "In Stock",
@@ -4429,8 +5321,15 @@ export const en = {
       stockDetailEmptyAssignments: "No Project Assignments",
       stockDetailEmptyAssignmentsDesc:
         "This item has not been issued to any project yet.",
+      stockDetailSalesTitle: "Sold",
+      stockDetailSalesDesc:
+        "When it left stock and who bought it. Open Finance → Sales for invoices, payment, and price.",
+      stockDetailEmptySales: "No Sales Yet",
+      stockDetailEmptySalesDesc: "This item has not been sold yet.",
       stockDetailLoading: "Loading item detail…",
       stockDetailLoadFailed: "Could not load stock item detail.",
+      stockDetailSoldTo: "Sold To",
+      stockDetailSoldAt: "Sold",
       itemCreated: "Catalog item created.",
       itemUpdated: "Catalog item updated.",
       itemDeactivated: "Catalog item deactivated.",
@@ -4460,7 +5359,8 @@ export const en = {
       reverseSaleConfirm: "Reverse Sale",
       reverseSaleFailed: "Could not reverse sale.",
       saleAlreadyReversed: "This sale was already reversed.",
-      reverseSalePermissionDenied: "Only the owner can reverse a sale.",
+      reverseSalePermissionDenied:
+        "You need Inventory access to reverse a sale.",
       itemNameRequired: "Item name is required.",
       itemTypeRequired: "Item type is required.",
       itemRequired: "Choose a catalog item.",
@@ -4473,6 +5373,8 @@ export const en = {
       projectNotIssuable:
         "Stock can only be issued to In Progress, Pending Approval, or On Hold projects.",
       insufficientStock: "Not enough stock. Available: {available} {unit}.",
+      insufficientUncodedStock:
+        "Not enough new warehouse units without an asset code. Available: {available} {unit}.",
       insufficientEquipmentAssets:
         "Not enough available equipment assets for this write-off. Available: {available}. Required: {requested}.",
       insufficientEquipmentAssetsForIssue:
@@ -4502,7 +5404,7 @@ export const en = {
         "Write-offs permanently reduce on-hand stock with a mandatory reason.",
       emptySoldOffs: "No Sales Yet",
       emptySoldOffsDesc:
-        "Sales record external stock sales and reduce on-hand inventory.",
+        "Generate a sales invoice under Finance → Sales. Sales reduce on-hand inventory.",
       emptyStock: "No Active Stock Items",
       emptyStockDesc: "Activate catalog items and record stock receipts to see stock.",
       emptyAssetList: "No Active Equipment Assets",
@@ -4518,6 +5420,7 @@ export const en = {
         assetList: "Asset List",
         writeOffs: "Write-Offs",
         soldOff: "Sales",
+        factoryReturns: "Return To Vendor",
       },
       stats: {
         itemsSubtitle: "{inactive} inactive",
@@ -4527,6 +5430,7 @@ export const en = {
         assetListSubtitle: "{warehouse} in warehouse · {owned} owned",
         writeOffsSubtitle: "Permanent stock removals",
         soldOffSubtitle: "External stock sales",
+        factoryReturnsSubtitle: "Waiting at the vendor",
       },
       projectIssues: {
         selectHint: "Select a project to view issued inventory.",
@@ -4545,9 +5449,9 @@ export const en = {
       },
       stock: {
         itemClickHint:
-          "Click a stock item to see lifetime bought, assigned, in-stock totals, and where it was issued by project.",
+          "Click a stock item to see bought, in stock, assigned, sold, and written off — plus who it was sold to.",
         equipmentClickHint:
-          "Click an equipment item to see warehouse and on-project units. On Hand is warehouse only — units on projects stay company-owned.",
+          "Click an equipment item to open its product page, including Return To Vendor.",
         equipmentLocations: "Equipment Locations",
         equipmentLocationSummary:
           "{warehouse} Warehouse · {onProject} On Project · {owned} Owned",
@@ -4559,10 +5463,13 @@ export const en = {
       },
       overview: {
         categoryEquipment: "Equipment",
+        categoryVehicles: "Vehicles",
+        categorySpareParts: "Spare Parts",
         categoryChemicals: "Chemicals",
         categoryConsumables: "Consumables",
         categoryOthers: "Others",
         assetCode: "Asset Code",
+        numberPlate: "Number Plate",
         location: "Location",
         locationWarehouse: "Warehouse",
         locationOnProject: "On Project",
@@ -4578,7 +5485,98 @@ export const en = {
         emptyAssets: "No active equipment units.",
         retired: "Retired",
         sold: "Sold",
+        soldTo: "Sold To",
         writtenOff: "Written Off",
+      },
+      saleSource: {
+        label: "What Are You Selling?",
+        required: "Choose New In Warehouse or Issued Asset.",
+        placeholder: "Choose New Or Issued",
+        newInWarehouse: "New In Warehouse",
+        issuedAsset: "Issued Asset",
+        newHint: "{available} sealed units in the warehouse. Sell by quantity. No asset code.",
+        issuedHint:
+          "Pick coded units. Location is the project name, or Head Office if the unit already came home.",
+        chooseHint: "New sealed boxes have no asset code. Issued units keep their code.",
+      },
+      product: {
+        description:
+          "Warehouse stock, coded units, sales, and Return To Vendor for this equipment.",
+        backToInventory: "Back To Inventory",
+        newInWarehouse: "New In Warehouse",
+        headOfficeUsed: "Head Office — Used",
+        headOffice: "Head Office",
+        inTransit: "In Transit",
+        assetList: "Asset List",
+        assetListHint:
+          "New warehouse boxes have no asset code. Issued units show their code and location.",
+        codedUnits: "Coded Units",
+        codedUnitsHint:
+          "Codes are assigned when warehouse sends a unit. Returned machines keep their code.",
+        newNoCode: "New — no asset code",
+        newStockRow: "{qty} New — no asset code",
+        soldNew: "Sold — New, no asset code",
+        soldNewNoCode: "Sold — New, no asset code",
+        soldNewRow: "{qty} Sold — New, no asset code",
+      },
+      factoryReturn: {
+        title: "Return To Vendor",
+        send: "Return To Vendor",
+        sendDesc:
+          "Send a new warehouse box or a coded unit. Refund closes now. Repair or Replace stays open until something comes back.",
+        sent: "Sent To Vendor.",
+        sendFailed: "Could not send this unit to the vendor.",
+        updated: "Vendor return updated.",
+        updateFailed: "Could not update this vendor return.",
+        permissionDenied:
+          "Only a Director or the owner can send equipment to the vendor.",
+        reasonRequired: "Enter the reason for this vendor return.",
+        intentRequired: "Choose Refund, Repair, or Replace.",
+        sourceRequired: "Choose New In Warehouse or Issued Asset.",
+        refundAmountRequired: "Enter the vendor refund amount.",
+        assetsRequired: "Select the coded units to send.",
+        insufficientNew: "Not enough new warehouse units without an asset code.",
+        insufficientStock: "Not enough warehouse stock for this vendor return.",
+        notFound: "Vendor return not found.",
+        notWaiting: "This vendor return is already closed.",
+        refundFailed: "Could not record the vendor refund.",
+        repairFailed: "Could not confirm the repaired unit.",
+        replaceFailed: "Could not receive the replacement.",
+        sentAt: "Sent",
+        unit: "Unit",
+        intent: "Vendor Action",
+        reason: "Reason",
+        source: "What Are You Sending?",
+        assets: "Issued Assets",
+        refundAmount: "Refund Amount",
+        recordRefund: "Record Refund",
+        recordRefundDesc:
+          "Close this return. Stock stays down. The refund amount is recorded here.",
+        confirmRepaired: "Confirm Repaired",
+        receiveReplacement: "Replacement Received",
+        vendorOptional: "Vendor (Optional)",
+        newNoCode: "{qty} New — no asset code",
+        newHint: "{available} sealed units available. They come back without a code if repaired.",
+        issuedHint:
+          "Pick coded units. Repair keeps the same code at Head Office. Replacement arrives as new stock with no code.",
+        productHint:
+          "Hanging returns always keep Record Refund, Confirm Repaired, and Replacement Received.",
+        empty: "No Vendor Returns",
+        emptyDesc: "Open an equipment product page to send a unit to the vendor.",
+        emptyDescDirector:
+          "Open an equipment item from Asset List to send a unit to the vendor.",
+        listHint: "Open the equipment name to send a unit or close a hanging return.",
+        intents: {
+          REFUND: "Refund",
+          REPAIR: "Repair",
+          REPLACE: "Replace",
+        },
+        statuses: {
+          WAITING: "Returned To Vendor",
+          REPAIRED: "Repaired",
+          REPLACED: "Replaced",
+          REFUNDED: "Refunded",
+        },
       },
       status: {
         active: "Active",
@@ -4638,6 +5636,10 @@ export const en = {
         itemTypeHint: "Classify the catalog item (not a stock receipt).",
         itemName: "Item Name",
         itemNamePlaceholder: "e.g. Floor Cleaner 5L",
+        vehiclePlate: "Number Plate",
+        vehiclePlatePlaceholder: "e.g. B 1234 ABC",
+        vehiclePlateHint:
+          "Optional now. If entered, this plate becomes the vehicle asset code.",
         sku: "SKU",
         skuHint:
           "System-generated from Item Type when you save (e.g. TOOL-001, CNS-002). Not entered manually.",
@@ -4656,13 +5658,16 @@ export const en = {
         catalogOnlyHint:
           "This creates the catalog entry only. Use Stock Receipts to add warehouse stock.",
         unit: "Unit",
-        unitHint: "Display unit for stock quantities (e.g. pcs, liter).",
+        unitHint:
+          "How stock is counted: piece, box, kilogram, liter, and the other warehouse measures.",
         minStock: "Min Stock",
         minStockHint: "Low-stock warning threshold on the Stock tab.",
         catalogItem: "Catalog Item",
         catalogItemPlaceholder: "Select Catalog Item",
         catalogItemSearchPlaceholder: "Search by name, SKU, or type…",
         catalogItemNoSearchMatch: "No stocked items match this search.",
+        soldOffNoStockForType:
+          "No stocked items of this type are available to sell.",
         catalogItemHint:
           "Pick an existing catalog item. Add new items under Item Catalog first.",
         vendor: "Vendor",
@@ -4752,7 +5757,7 @@ export const en = {
           "Required. Phone or WhatsApp number for the PIC.",
         buyerIdentityDoc: "Tax Invoice",
         buyerIdentityDocHint:
-          "Required for company buyers. Upload the tax invoice (faktur pajak) issued for this sale.",
+          "Required for company buyers. Upload the tax invoice (faktur pajak) only — the sales invoice PDF is generated automatically.",
         buyerTaxId: "Company Tax ID (NPWP)",
         buyerTaxIdIndividual: "Tax ID (NPWP)",
         buyerTaxIdPlaceholder: "15 Or 16 Digit NPWP",
@@ -4761,20 +5766,50 @@ export const en = {
         buyerIdentityEitherHint:
           "Required: enter Tax ID (NPWP) or National ID (KTP) — at least one.",
         saleInvoice: "Sale Invoice",
-        saleInvoiceHint: "Required. Upload the PDF or image of the sale invoice.",
+        saleInvoiceHint:
+          "Generated automatically from Company Details and the selected bank account.",
         soldOffItemHint:
           "On hand: {available} {unit}. Sale cannot exceed this amount.",
+        soldOffEquipmentHint:
+          "Warehouse {warehouse} · On site {onSite}. Pick the asset codes you are selling.",
         soldOffAssets: "Equipment Assets",
-        soldOffNoAssets: "No available equipment assets for this item.",
+        soldOffNoAssets: "No warehouse or on-site units for this item.",
         soldOffAssetsHint:
-          "Optional. Select specific units to retire; count must match quantity.",
+          "Required. Pick the exact units. A unit on a site is marked sold there — it does not come back to the warehouse first. The asset code stays the same.",
+        soldOffWarehouse: "Warehouse",
+        soldOffOnSite: "On Site · {project}",
         soldOffNotesPlaceholder: "Optional notes about this sale.",
       },
       itemTypes: {
-        Consumable: "Consumable",
+        Consumable: "Consumables",
         Equipment: "Equipment",
-        Chemical: "Chemical",
+        Vehicle: "Vehicles",
+        "Spare Part": "Spare Parts",
+        Chemical: "Chemicals",
         Other: "Other",
+      },
+      units: {
+        pcs: "Piece",
+        unit: "Unit",
+        pair: "Pair",
+        set: "Set",
+        roll: "Roll",
+        box: "Box",
+        carton: "Carton",
+        pack: "Pack",
+        bag: "Bag",
+        sack: "Sack",
+        drum: "Drum",
+        bottle: "Bottle",
+        can: "Can",
+        kg: "Kilogram",
+        g: "Gram",
+        ton: "Ton",
+        l: "Liter",
+        ml: "Milliliter",
+        m: "Meter",
+        cm: "Centimeter",
+        m2: "Square Meter",
       },
     },
     itemCatalog: {
@@ -4833,13 +5868,80 @@ export const en = {
         actions: "Actions",
       },
     },
+    companyDetails: {
+      title: "Company Details",
+      description:
+        "Office identity used on invoices, progress reports, and letterheads.",
+      directoryTitle: "Company Details",
+      directoryDesc:
+        "This is the source of truth for the company name, website, office address, and the contact printed on generated documents.",
+      companyNotFound: "Company not found.",
+      permissionDenied: "Only the owner can edit Company Details.",
+      nameRequired: "Company name is required.",
+      websiteInvalid: "Enter a valid website address.",
+      saved: "Company Details saved.",
+      saveFailed: "Could not save Company Details.",
+      sections: {
+        identity: "Identity",
+        identityHint:
+          "Printed on invoices, progress reports, and other letterheads.",
+        contact: "Contact",
+        contactHint: "Office address and how clients reach the company.",
+        tax: "Tax",
+        bank: "Bank",
+        bankHint:
+          "Recipient accounts printed on invoices. Add every account clients may pay to.",
+      },
+      form: {
+        name: "Company Name",
+        website: "Company Website",
+        websitePlaceholder: "https://www.rgs.co.id",
+        address: "Office Address",
+        addressPlaceholder: "Office street, block, city, and postal code",
+        addressHint: "Use one line per address row, as it should appear on letterheads.",
+        phone: "Phone",
+        email: "Email",
+        npwp: "NPWP",
+        npwpHint: "Company tax ID. Printed on letterheads when filled.",
+        bankName: "Bank Name",
+        bankAccountNumber: "Account Number",
+        bankAccountName: "Account Holder",
+        bankLabel: "Label",
+        bankLabelHint: "Optional. Example: Operating, Tax, or Project Transfers.",
+      },
+      bank: {
+        add: "Add Bank Account",
+        addTitle: "Add Bank Account",
+        addDesc: "This account can be printed on invoices and used in the Financial Report.",
+        editTitle: "Edit Bank Account",
+        editDesc: "Update the details printed on new invoices that use this account.",
+        save: "Save Bank Account",
+        saved: "Bank Account saved.",
+        saveFailed: "Could not save the bank account.",
+        deleted: "Bank Account deleted.",
+        deleteFailed: "Could not delete the bank account.",
+        notFound: "Bank account not found.",
+        fieldRequired: "{field} is required.",
+        cannotDeleteOpen:
+          "This account is still attached to an unpaid or open invoice. Choose another account on those invoices first, then delete it.",
+        empty: "No Bank Accounts",
+        emptyDesc: "Add a bank account so invoices can print where the client should pay.",
+        columns: {
+          bankName: "Bank Name",
+          accountNumber: "Account Number",
+          accountHolder: "Account Holder",
+          label: "Label",
+          actions: "Actions",
+        },
+      },
+    },
   },
 
   modules: {
     dashboard: "Dashboard",
     projects: "Projects",
     teams: "Teams",
-    progress: "Progress Reports",
+    progress: "Progress Report",
     cico: "CICO",
     pettyCash: "Petty Cash",
     attendance: "Attendance Report",
@@ -4854,7 +5956,8 @@ export const en = {
     invoicing: "Invoice and Billing",
     reconciliation: "Reconciliation",
     purchaseInvoices: "Expenses",
-    taxInvoices: "Tax Invoice",
+    sales: "Sales",
+    taxInvoices: "Tax",
     vendorPayments: "Payment & Settlement",
     thr: "THR",
     payroll: "Internal Payroll",
@@ -4864,7 +5967,7 @@ export const en = {
     users: "Users",
     employees: "Employees",
     departments: "Departments",
-    settings: "Settings",
+    settings: "Company Details",
     website: "Website CMS",
   },
 

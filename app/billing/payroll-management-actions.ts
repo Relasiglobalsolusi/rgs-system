@@ -3,7 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 
-import { addUtcDays } from "@/lib/invoice-period";
+import { parseDateInput } from "@/lib/invoice-period";
+import { INTERNAL_PAYROLL_WORKING_DAYS_DIVISOR } from "@/lib/internal-payroll-month";
+import { dayShiftHours } from "@/lib/internal-payroll-days";
+import { hoursMeetShift } from "@/lib/shift-pay";
 import {
   canUnlockInternalPayroll,
 } from "@/lib/internal-payroll-lock";
@@ -17,6 +20,7 @@ import {
   resolvePayrollManagementTaxPercent,
 } from "@/lib/payroll-management";
 import {
+  attachPayrollReviewCicoExempt,
   loadPayrollManagementReview,
   reviewToPayrollLines,
   snapshotToPayrollManagementReview,
@@ -145,7 +149,6 @@ export async function getPayrollManagementWorkspace(
       payrollCutoffStartDay: true,
       payrollCutoffEndDay: true,
       payrollTaxPercent: true,
-      client: { select: { paymentTermsDays: true } },
     },
   });
   if (!project) return null;
@@ -185,7 +188,7 @@ export async function getPayrollManagementWorkspace(
   const snapshot = snapshotToPayrollManagementReview(period?.pdfSnapshot);
   const review =
     period?.pdfLocked && snapshot
-      ? snapshot
+      ? await attachPayrollReviewCicoExempt(snapshot)
       : await livePayrollManagementReview({
           companyId: session.user.companyId,
           projectId: project.id,
@@ -204,8 +207,7 @@ export async function getPayrollManagementWorkspace(
     clientId: project.clientId,
     serviceFeePercent: feePercent,
     taxPercent,
-    paymentTermsDays:
-      project.paymentTermsDays ?? project.client?.paymentTermsDays ?? 14,
+    paymentTermsDays: project.paymentTermsDays ?? 14,
     cutoffStartDay: startDay,
     cutoffEndDay: endDay,
     cutoffLabel: formatPayrollManagementWindowLabel(
@@ -228,6 +230,7 @@ export async function getPayrollManagementWorkspace(
           status: period.status,
           notes: period.notes,
           wagesPaidAt: period.wagesPaidAt?.toISOString() ?? null,
+          wagesPaidProofPath: period.wagesPaidProofPath ?? null,
           invoicedAt: period.invoicedAt?.toISOString() ?? null,
           invoiceDueAt: period.invoiceDueAt?.toISOString() ?? null,
           reimbursedAt: period.reimbursedAt?.toISOString() ?? null,
@@ -376,6 +379,135 @@ export async function fillPayrollManagementFromCico(formData: FormData) {
     replaceLines: true,
   });
   revalidatePayrollPaths(result.project.clientId, projectId);
+}
+
+export async function decidePayrollManagementDay(formData: FormData) {
+  const session = await requirePayrollManagementAccess();
+  const projectId = String(formData.get("projectId") ?? "").trim();
+  const employeeId = String(formData.get("employeeId") ?? "").trim();
+  const dateKey = String(formData.get("dateKey") ?? "").trim();
+  const decisionRaw = String(formData.get("decision") ?? "").trim();
+  const year = Number(formData.get("year"));
+  const month = Number(formData.get("month"));
+
+  if (!projectId) throw new Error("Project is required.");
+  if (!employeeId) throw new Error("Employee is required.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+    throw new Error("Select the work date.");
+  }
+  if (decisionRaw !== "FULL_PAY" && decisionRaw !== "CUSTOM") {
+    throw new Error("Choose Full Pay or a custom amount.");
+  }
+
+  const synced = await syncPayrollManagementPeriodFromCico({
+    companyId: session.user.companyId,
+    userId: session.user.id,
+    projectId,
+    year,
+    month,
+    replaceLines: false,
+  });
+  assertPeriodEditable(synced.period.status, synced.period.pdfLocked);
+
+  const workDate = parseDateInput(dateKey);
+  const assignment = await prisma.projectAssignment.findFirst({
+    where: { projectId, employeeId },
+    select: {
+      employee: {
+        select: {
+          id: true,
+          basePay: true,
+          attendances: {
+            where: { projectId, date: workDate },
+            select: {
+              projectId: true,
+              checkIn: true,
+              checkOut: true,
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!assignment) throw new Error("Employee is not assigned to this project.");
+
+  const doubleShift = await prisma.doubleShiftAssignment.findFirst({
+    where: { employeeId, projectId, date: workDate },
+    select: { projectId: true },
+  });
+  const counted = dayShiftHours(
+    assignment.employee.attendances.map((row) => ({
+      date: workDate,
+      checkIn: row.checkIn,
+      checkOut: row.checkOut,
+      earlyCheckOut: false,
+      projectId: row.projectId,
+      projectName: null,
+    })),
+    doubleShift?.projectId
+  );
+  if (!counted.hasCompleteCico) {
+    throw new Error("This day needs a complete check-in and check-out.");
+  }
+  const requiredHours = doubleShift ? 18 : 9;
+  if (hoursMeetShift(counted.hours, requiredHours)) {
+    throw new Error("This day already meets the required hours.");
+  }
+
+  const dailyRate = Math.round(
+    (decimalToNumber(assignment.employee.basePay) ?? 0) /
+      INTERNAL_PAYROLL_WORKING_DAYS_DIVISOR
+  );
+  const customDigits = Number(String(formData.get("amount") ?? "").replace(/[^\d]/g, ""));
+  const paidAmount =
+    decisionRaw === "FULL_PAY"
+      ? dailyRate * (doubleShift ? 2 : 1)
+      : Math.round(customDigits);
+  if (!Number.isFinite(paidAmount) || paidAmount <= 0) {
+    throw new Error("Enter a custom amount greater than zero.");
+  }
+
+  const now = new Date();
+  await prisma.payrollManagementDayDecision.upsert({
+    where: {
+      periodId_employeeId_workDate: {
+        periodId: synced.period.id,
+        employeeId,
+        workDate,
+      },
+    },
+    create: {
+      periodId: synced.period.id,
+      employeeId,
+      workDate,
+      isDoubleShift: Boolean(doubleShift),
+      requiredHours,
+      hoursWorked: new Prisma.Decimal(counted.hours),
+      status: decisionRaw,
+      paidAmount: new Prisma.Decimal(paidAmount),
+      decidedById: session.user.id,
+      decidedAt: now,
+    },
+    update: {
+      isDoubleShift: Boolean(doubleShift),
+      requiredHours,
+      hoursWorked: new Prisma.Decimal(counted.hours),
+      status: decisionRaw,
+      paidAmount: new Prisma.Decimal(paidAmount),
+      decidedById: session.user.id,
+      decidedAt: now,
+    },
+  });
+
+  await syncPayrollManagementPeriodFromCico({
+    companyId: session.user.companyId,
+    userId: session.user.id,
+    projectId,
+    year,
+    month,
+    replaceLines: true,
+  });
+  revalidatePayrollPaths(synced.project.clientId, projectId);
 }
 
 export async function lockPayrollManagementPeriodForExport(options: {
@@ -699,126 +831,41 @@ export async function markPayrollManagementWagesPaid(formData: FormData) {
       status: true,
       wagesTotal: true,
       wagesPaidAt: true,
+      wagesPaidProofPath: true,
       projectId: true,
       project: { select: { clientId: true } },
     },
   });
   if (!period) throw new Error("Period not found.");
-  if (period.wagesPaidAt) {
-    revalidatePayrollPaths(period.project.clientId, period.projectId);
-    return;
-  }
   if (
-    period.status !== "WAGES_ENTERED" &&
-    period.status !== "CLIENT_APPROVED"
+    period.status !== "CLIENT_APPROVED" &&
+    period.status !== "INVOICED" &&
+    period.status !== "WAGES_PAID" &&
+    period.status !== "REIMBURSED"
   ) {
-    throw new Error("Save the employee pay list before marking wages paid.");
+    throw new Error("Confirm wages paid after the client approves this period.");
   }
   if ((decimalToNumber(period.wagesTotal) ?? 0) <= 0) {
     throw new Error("Add at least one wage line before marking wages paid.");
   }
 
-  await prisma.payrollManagementPeriod.update({
-    where: { id: period.id },
-    data: {
-      status: "WAGES_PAID",
-      wagesPaidAt: new Date(),
-      wagesPaidById: session.user.id,
-    },
-  });
-
-  revalidatePayrollPaths(period.project.clientId, period.projectId);
-}
-
-export async function recordPayrollManagementInvoice(formData: FormData) {
-  const session = await requirePayrollManagementAccess();
-  const periodId = String(formData.get("periodId") ?? "").trim();
-  if (!periodId) throw new Error("Period is required.");
-
-  const period = await prisma.payrollManagementPeriod.findFirst({
-    where: {
-      id: periodId,
-      project: {
-        companyId: session.user.companyId,
-        subCategory: "PAYROLL_MANAGEMENT",
-      },
-    },
-    include: {
-      project: {
-        select: {
-          id: true,
-          clientId: true,
-          paymentTermsDays: true,
-          client: { select: { paymentTermsDays: true } },
-        },
-      },
-    },
-  });
-  if (!period) throw new Error("Period not found.");
-  if (period.status !== "WAGES_PAID") {
-    throw new Error("Mark the wage bill as paid before recording the client invoice.");
-  }
-
-  const terms =
-    period.project.paymentTermsDays ??
-    period.project.client?.paymentTermsDays ??
-    14;
-  const invoicedAt = new Date();
-  const invoiceDueAt =
-    terms <= 0 ? invoicedAt : addUtcDays(invoicedAt, terms);
-
-  await prisma.payrollManagementPeriod.update({
-    where: { id: period.id },
-    data: {
-      status: "INVOICED",
-      invoicedAt,
-      invoicedById: session.user.id,
-      invoiceDueAt,
-    },
-  });
-
-  revalidatePayrollPaths(period.project.clientId, period.projectId);
-}
-
-export async function markPayrollManagementReimbursed(formData: FormData) {
-  const session = await requirePayrollManagementAccess();
-  const periodId = String(formData.get("periodId") ?? "").trim();
-  if (!periodId) throw new Error("Period is required.");
-
-  const period = await prisma.payrollManagementPeriod.findFirst({
-    where: {
-      id: periodId,
-      project: {
-        companyId: session.user.companyId,
-        subCategory: "PAYROLL_MANAGEMENT",
-      },
-    },
-    select: {
-      id: true,
-      status: true,
-      projectId: true,
-      paymentProofPath: true,
-      project: { select: { clientId: true } },
-    },
-  });
-  if (!period) throw new Error("Period not found.");
-  if (period.status !== "INVOICED") {
-    throw new Error("Record the client invoice before marking reimbursed.");
-  }
-
-  const proof = formData.get("paymentProof");
-  let paymentProofPath = period.paymentProofPath;
+  const proof = formData.get("wagesPaidProof");
+  let wagesPaidProofPath = period.wagesPaidProofPath;
   if (proof instanceof File && proof.size > 0) {
-    paymentProofPath = await saveUpload(proof, "uploads/payment-proofs");
+    wagesPaidProofPath = await saveUpload(proof, "uploads/payroll-wage-proofs", {
+      fileBaseName: `Wages-Paid-${period.id.slice(0, 8)}`,
+    });
+  }
+  if (!wagesPaidProofPath) {
+    throw new Error("Upload payment proof to confirm wages paid.");
   }
 
   await prisma.payrollManagementPeriod.update({
     where: { id: period.id },
     data: {
-      status: "REIMBURSED",
-      reimbursedAt: new Date(),
-      reimbursedById: session.user.id,
-      paymentProofPath,
+      wagesPaidAt: period.wagesPaidAt ?? new Date(),
+      wagesPaidById: session.user.id,
+      wagesPaidProofPath,
     },
   });
 

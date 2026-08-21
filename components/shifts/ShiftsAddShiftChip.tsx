@@ -20,15 +20,24 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useT } from "@/lib/i18n/use-t";
-import { defaultShiftWindows } from "@/lib/project-shifts";
+import {
+  defaultShiftWindows,
+  findProjectShiftClash,
+} from "@/lib/project-shifts";
 import { showRejectionFromError } from "@/components/ui/rejection-notice";
 
 export default function ShiftsAddShiftChip({
   projectId,
   nextNumber,
+  existingShifts = [],
 }: {
   projectId: string;
   nextNumber: number;
+  existingShifts?: Array<{
+    number: number;
+    startTime: string;
+    endTime: string;
+  }>;
 }) {
   const { t } = useT();
   const router = useRouter();
@@ -47,6 +56,24 @@ export default function ShiftsAddShiftChip({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const clash = findProjectShiftClash([
+      ...existingShifts,
+      { number: nextNumber, startTime, endTime },
+    ]);
+    if (clash) {
+      showRejectionFromError(
+        t("pages.shifts.shiftClash", {
+          aNumber: clash.a.number,
+          aStart: clash.a.startTime,
+          aEnd: clash.a.endTime,
+          bNumber: clash.b.number,
+          bStart: clash.b.startTime,
+          bEnd: clash.b.endTime,
+        }),
+        t("pages.shifts.addShiftFailed")
+      );
+      return;
+    }
     const formData = new FormData();
     formData.set("startTime", startTime);
     formData.set("endTime", endTime);

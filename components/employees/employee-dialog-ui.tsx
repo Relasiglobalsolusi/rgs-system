@@ -20,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { preventBrowserFileNavigation } from "@/components/ui/FileDropField";
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 
@@ -27,7 +28,7 @@ export const employeeInputClass =
   "h-11 w-full rounded-xl border border-border bg-elevated px-4 text-sm text-text shadow-none placeholder:text-subtle focus-visible:border-primary/45 focus-visible:ring-2 focus-visible:ring-primary/10";
 
 export const employeeSelectTriggerClass =
-  "h-11 w-full rounded-xl border border-border bg-elevated px-4 text-sm text-text shadow-none data-placeholder:text-subtle focus-visible:border-primary/45 focus-visible:ring-2 focus-visible:ring-primary/10";
+  "box-border flex h-11 min-h-11 max-h-11 w-full items-center rounded-xl border border-border bg-elevated px-4 py-0 text-sm text-text shadow-none data-placeholder:text-subtle data-[size=default]:h-11 data-[size=default]:min-h-11 data-[size=default]:max-h-11 data-[size=default]:py-0 focus-visible:border-primary/45 focus-visible:ring-2 focus-visible:ring-primary/10";
 
 /** High-contrast field label for bright dialog surfaces. */
 export const employeeDialogLabelClass = "text-sm font-semibold text-text";
@@ -205,6 +206,8 @@ export function EmployeeDialogShell({
 
   return (
     <DialogContent
+      onDragOver={preventBrowserFileNavigation}
+      onDrop={preventBrowserFileNavigation}
       className={cn(
         // Header + footer stay put; only the body scrolls so the close X remains visible.
         "flex flex-col gap-0 overflow-hidden rounded-2xl border border-border bg-panel p-0 text-text ring-0",

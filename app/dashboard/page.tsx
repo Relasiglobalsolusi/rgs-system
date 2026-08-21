@@ -304,7 +304,7 @@ export default async function DashboardPage() {
   // Client portal: only this client's projects and related site activity.
   if (accountType === "Client" && session.user.clientId) {
     const portalClientId = session.user.clientId;
-    const showClientAttendance = canViewAttendance;
+    const showClientAttendance = canViewAttendance || canViewProgress;
     const showClientProgress = canViewProgress;
     const showClientProjects = canViewProjects;
 
@@ -453,7 +453,7 @@ export default async function DashboardPage() {
                   records={todayAttendances.slice(0, 6)}
                   presentCount={presentCount}
                   totalEmployees={siteStaffCount}
-                  canViewAttendanceReport={canViewAttendance}
+                  canViewAttendanceReport={canViewProgress || canViewAttendance}
                 />
               </div>
             )}
@@ -499,13 +499,14 @@ export default async function DashboardPage() {
       where: {
         companyId: session.user.companyId,
         vendorId: portalVendorId,
+        reversedAt: null,
       },
       select: {
         id: true,
         invoiceDate: true,
         includesPpn: true,
         taxInvoiceFilePath: true,
-        vendor: { select: { paymentTermsDays: true } },
+        paymentTermsDays: true,
       },
       orderBy: { createdAt: "desc" },
     });
@@ -523,11 +524,7 @@ export default async function DashboardPage() {
         awaitingTax += 1;
       }
 
-      const termsDays = invoice.vendor?.paymentTermsDays ?? null;
-      if (termsDays == null) {
-        openBills += 1;
-        continue;
-      }
+      const termsDays = invoice.paymentTermsDays ?? 14;
       const dueAt = dueAtFromPaymentTerms(invoice.invoiceDate, termsDays);
       if (dueAt.getTime() < dueToday.getTime()) {
         overdueBills += 1;
@@ -881,7 +878,7 @@ export default async function DashboardPage() {
                 records={todayAttendances.slice(0, 6)}
                 presentCount={presentCount}
                 totalEmployees={fieldStaffCount}
-                canViewAttendanceReport={canViewAttendance}
+                canViewAttendanceReport={canViewProgress || canViewAttendance}
               />
             </div>
           )}

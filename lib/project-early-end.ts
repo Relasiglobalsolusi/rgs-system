@@ -1,13 +1,14 @@
 import { prisma } from "@/lib/prisma";
-import { toUtcDateOnly } from "@/lib/invoice-period";
-import { decimalToNumber } from "@/lib/project-billing";
+import { formatDateInput, toUtcDateOnly } from "@/lib/invoice-period";
+import { jakartaWorkDateKey } from "@/lib/shift-pay";
+import { decimalToNumber, usesInvoicePeriods } from "@/lib/project-billing";
 
-/** Reconcile only after the last working day is fully closed (lastDay + 1). */
+/** Reconcile only after the last working day is fully closed (Jakarta next day). */
 export function isReadyToReconcileAfterLastDay(
   lastDay: Date,
   now: Date = new Date()
 ): boolean {
-  return toUtcDateOnly(now).getTime() > toUtcDateOnly(lastDay).getTime();
+  return jakartaWorkDateKey(now) > formatDateInput(toUtcDateOnly(lastDay));
 }
 
 export async function finalizePendingEarlyEndIfDue(options: {
@@ -35,6 +36,17 @@ export async function finalizePendingEarlyEndIfDue(options: {
     },
   });
   if (!lastPeriod) {
+    const project = await prisma.project.findUnique({
+      where: { id: options.projectId },
+      select: { subCategory: true },
+    });
+    if (project && !usesInvoicePeriods(project.subCategory)) {
+      await prisma.project.update({
+        where: { id: options.projectId },
+        data: { pendingEarlyEndReconcile: false },
+      });
+      return { sent: false, error: null };
+    }
     return { sent: false, error: "Last billing period is missing." };
   }
   if (

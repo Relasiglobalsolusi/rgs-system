@@ -22,12 +22,13 @@ import { formatHiredAtLabel, formatTenure } from "@/lib/format-tenure";
 import { formatContactPersonName } from "@/lib/contact-person";
 import { useT } from "@/lib/i18n/use-t";
 import { formatPhoneForDisplay } from "@/lib/phone";
+import type { VendorTypeValue } from "@/lib/vendor-type";
 
 export type VendorRow = {
   id: string;
   name: string;
   shortCode: string;
-  vendorType?: "COMPANY" | "INDIVIDUAL";
+  vendorType?: VendorTypeValue;
   email: string | null;
   phone: string | null;
   address: string | null;
@@ -39,7 +40,6 @@ export type VendorRow = {
   contactPersonEmail: string | null;
   contactPersonPhone: string | null;
   vendorSince: Date | string;
-  paymentTermsDays?: number | null;
   active: boolean;
 };
 
@@ -338,24 +338,6 @@ export default function VendorTable({
             </div>
           );
         },
-      },
-      {
-        key: "paymentTerms",
-        title: t("pages.vendors.columns.paymentTerms"),
-        width: "12rem",
-        share: 0.75,
-        className: "min-w-[12rem] whitespace-nowrap",
-        render: (vendor) => (
-          <span className="tabular-nums text-muted">
-            {vendor.paymentTermsDays == null
-              ? "—"
-              : vendor.paymentTermsDays === 0
-                ? t("common.paymentTerms.cashShort")
-                : t("common.paymentTerms.netShort", {
-                    days: vendor.paymentTermsDays,
-                  })}
-          </span>
-        ),
       }
     );
 
@@ -368,7 +350,7 @@ export default function VendorTable({
         width: isTrashActions
           ? TRASH_ACTIONS_COLUMN_WIDTH
           : ACTIONS_SINGLE_CHIP_COLUMN_WIDTH,
-        align: "center",
+        cellAlign: "center",
         className: isTrashActions
           ? "min-w-[22rem] overflow-visible whitespace-nowrap"
           : "min-w-[12.5rem] overflow-visible whitespace-nowrap",

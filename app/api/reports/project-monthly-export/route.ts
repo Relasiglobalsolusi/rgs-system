@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getCurrentSession } from "@/lib/auth";
+import {
+  isClosedCalendarDay,
+  isClosedCalendarMonth,
+  yearMonthFromDateInput,
+} from "@/lib/closed-report-period";
+import { loadCompanyForPdf } from "@/lib/company-for-pdf";
+import { formatDisplayDate } from "@/lib/format-date";
 import { getServerLocale } from "@/lib/i18n/locale";
+import { translate } from "@/lib/i18n/translate";
+import { parseDateInput } from "@/lib/invoice-period";
 import { formatMonthLabel } from "@/lib/monthly-report";
 import { canAccess } from "@/lib/permissions";
 import { buildProjectMonthlyDayFeed } from "@/lib/project-monthly-feed";
@@ -21,9 +30,9 @@ export async function GET(request: NextRequest) {
   }
 
   const user = toPermissionUser(session);
-  if (!canAccess(user, "reports")) {
+  if (!canAccess(user, "progress")) {
     return NextResponse.json(
-      { error: "You do not have permission to access reports." },
+      { error: "You do not have permission to download this report." },
       { status: 403 }
     );
   }
@@ -31,8 +40,10 @@ export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const clientId = searchParams.get("clientId")?.trim();
   const projectId = searchParams.get("projectId")?.trim();
-  const year = Number(searchParams.get("year"));
-  const month = Number(searchParams.get("month"));
+  const mode = searchParams.get("mode")?.trim() || "month";
+  const date = searchParams.get("date")?.trim() ?? "";
+  const yearParam = Number(searchParams.get("year"));
+  const monthParam = Number(searchParams.get("month"));
 
   if (!clientId || !projectId) {
     return NextResponse.json(
@@ -48,18 +59,50 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
 
-  if (
-    !Number.isInteger(year) ||
-    !Number.isInteger(month) ||
-    month < 1 ||
-    month > 12 ||
-    year < 2000 ||
-    year > 2100
-  ) {
-    return NextResponse.json(
-      { error: "Invalid year or month." },
-      { status: 400 }
-    );
+  const locale = await getServerLocale();
+  let year = yearParam;
+  let month = monthParam;
+  let dateKey: string | undefined;
+
+  if (mode === "day") {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return NextResponse.json({ error: "Invalid date." }, { status: 400 });
+    }
+    if (!isClosedCalendarDay(date)) {
+      return NextResponse.json(
+        { error: translate(locale, "pages.progress.errors.dayNotClosed") },
+        { status: 400 }
+      );
+    }
+    const fromDate = yearMonthFromDateInput(date);
+    if (!fromDate) {
+      return NextResponse.json({ error: "Invalid date." }, { status: 400 });
+    }
+    year = fromDate.year;
+    month = fromDate.month;
+    dateKey = date;
+  } else if (mode === "month") {
+    if (
+      !Number.isInteger(year) ||
+      !Number.isInteger(month) ||
+      month < 1 ||
+      month > 12 ||
+      year < 2000 ||
+      year > 2100
+    ) {
+      return NextResponse.json(
+        { error: "Invalid year or month." },
+        { status: 400 }
+      );
+    }
+    if (!isClosedCalendarMonth(year, month)) {
+      return NextResponse.json(
+        { error: translate(locale, "pages.progress.errors.monthNotClosed") },
+        { status: 400 }
+      );
+    }
+  } else {
+    return NextResponse.json({ error: "Invalid export mode." }, { status: 400 });
   }
 
   try {
@@ -100,24 +143,18 @@ export async function GET(request: NextRequest) {
     }
 
     const [feed, company] = await Promise.all([
-      buildProjectMonthlyDayFeed(projectId, year, month),
-      prisma.company.findUnique({
-        where: { id: session.user.companyId },
-        select: {
-          name: true,
-          email: true,
-          phone: true,
-          address: true,
-        },
-      }),
+      buildProjectMonthlyDayFeed(projectId, year, month, dateKey ? { dateKey } : undefined),
+      loadCompanyForPdf(session.user.companyId),
     ]);
 
     if (!feed) {
       return NextResponse.json({ error: "Project not found." }, { status: 404 });
     }
 
-    const locale = await getServerLocale();
-    const periodLabel = formatMonthLabel(year, month, locale);
+    const periodLabel =
+      mode === "day" && dateKey
+        ? formatDisplayDate(parseDateInput(dateKey), { timeZone: "UTC" }, locale)
+        : formatMonthLabel(year, month, locale);
     const buffer = await buildProjectMonthlyReportPdfBuffer({
       feed,
       periodLabel,
@@ -130,7 +167,10 @@ export async function GET(request: NextRequest) {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "")
       .slice(0, 40);
-    const filename = `progress-report-${slug || "project"}-${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}.pdf`;
+    const filename =
+      mode === "day" && dateKey
+        ? `progress-report-${slug || "project"}-${dateKey}.pdf`
+        : `progress-report-${slug || "project"}-${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}.pdf`;
 
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,

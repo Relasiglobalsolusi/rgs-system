@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Upload } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import type { EmploymentType } from "@prisma/client";
 
 import { Input } from "@/components/ui/input";
@@ -44,11 +43,13 @@ import {
 } from "@/lib/service-area";
 import type { ServiceArea } from "@prisma/client";
 import { todayDateInput } from "@/lib/project-contract";
+import { sortProjectSelectOptions } from "@/lib/project-select";
 import { defaultPortalAccessRequested } from "@/lib/workforce-login";
 import { useT } from "@/lib/i18n/use-t";
 import DirectorySearchInput, {
   matchesDirectorySearch,
 } from "@/components/ui/DirectorySearchInput";
+import { FileDropField } from "@/components/ui/FileDropField";
 
 export type EmployeeFormDefaults = {
   employeeNo?: string;
@@ -64,6 +65,7 @@ export type EmployeeFormDefaults = {
   idDocumentUrl?: string | null;
   hiredAt?: Date | string | null;
   omApprovalAreas?: ServiceArea[];
+  manageAllProjects?: boolean;
   managedProjectIds?: string[];
   status?: "ACTIVE" | "ON_LEAVE" | "LEAVE_PENDING";
 } & EmployeeFinanceDefaults;
@@ -173,7 +175,7 @@ export default function EmployeeFormFields({
   const nameOf = (field: string) =>
     namePrefix ? `${namePrefix}${field}` : field;
   const idOf = (id: string) => (idPrefix ? `${idPrefix}${id}` : id);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [idDocumentName, setIdDocumentName] = useState<string | null>(null);
   const [createPortalLogin, setCreatePortalLogin] = useState<YesNoChoice>(
     defaults?.portalAccessRequested ? "Yes" : "No"
   );
@@ -184,6 +186,7 @@ export default function EmployeeFormFields({
     () => defaults?.managedProjectIds ?? []
   );
   const [projectSearch, setProjectSearch] = useState("");
+  const [manageAllProjects, setManageAllProjects] = useState(false);
 
   const selectedPosition = useMemo(
     () => positions.find((position) => position.id === positionId),
@@ -201,9 +204,29 @@ export default function EmployeeFormFields({
     slug: selectedPosition?.slug,
     name: selectedPosition?.name,
   });
+  const showProjectScope = showOmApprovalAreas || showAreaProjects;
+  const showProjectPicker = showProjectScope && !manageAllProjects;
+
+  useEffect(() => {
+    if (showOmApprovalAreas) {
+      setManageAllProjects(
+        Boolean(defaults?.manageAllProjects) ||
+          (defaults?.managedProjectIds?.length ?? 0) === 0
+      );
+      return;
+    }
+    if (showAreaProjects) {
+      setManageAllProjects(Boolean(defaults?.manageAllProjects));
+    }
+  }, [
+    showOmApprovalAreas,
+    showAreaProjects,
+    defaults?.manageAllProjects,
+    defaults?.managedProjectIds?.length,
+  ]);
   const visibleProjects = useMemo(() => {
-    if (!showAreaProjects) return [];
-    return projects.filter((project) =>
+    if (!showProjectPicker) return [];
+    return sortProjectSelectOptions(projects).filter((project) =>
       matchesDirectorySearch(
         projectSearch,
         project.name,
@@ -211,7 +234,7 @@ export default function EmployeeFormFields({
         project.location
       )
     );
-  }, [projects, projectSearch, showAreaProjects]);
+  }, [projects, projectSearch, showProjectPicker]);
   const isInHouseCleaning = isInHouseCleaningStaffPosition({
     slug: selectedPosition?.slug,
     name: selectedPosition?.name,
@@ -456,11 +479,13 @@ export default function EmployeeFormFields({
                 const areaLabelKey =
                   area === "CLEANING"
                     ? "pages.projects.serviceAreaCleaning"
-                    : area === "PARKING"
-                      ? "pages.projects.serviceAreaParking"
-                      : area === "SECURITY"
-                        ? "pages.projects.serviceAreaSecurity"
-                        : "pages.projects.serviceAreaHeadOffice";
+                    : area === "LANDSCAPING"
+                      ? "pages.projects.serviceAreaLandscaping"
+                      : area === "PARKING"
+                        ? "pages.projects.serviceAreaParking"
+                        : area === "SECURITY"
+                          ? "pages.projects.serviceAreaSecurity"
+                          : "pages.projects.serviceAreaHeadOffice";
                 return (
                   <label
                     key={area}
@@ -492,7 +517,35 @@ export default function EmployeeFormFields({
           </div>
         ) : null}
 
-        {showAreaProjects ? (
+        {showProjectScope ? (
+          <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+            <label className="inline-flex items-start gap-2 text-sm text-text">
+              <input
+                type="checkbox"
+                name={nameOf("manageAllProjects")}
+                value="1"
+                checked={manageAllProjects}
+                onChange={() => {
+                  setManageAllProjects((prev) => !prev);
+                  onFormValuesChange?.();
+                }}
+                className="mt-0.5 size-4 rounded border-border"
+              />
+              <span>
+                <span className="font-medium">
+                  {t("pages.employees.form.manageAllProjects")}
+                </span>
+                <span className="mt-1 block text-xs text-muted">
+                  {showOmApprovalAreas
+                    ? t("pages.employees.form.manageAllProjectsHintOm")
+                    : t("pages.employees.form.manageAllProjectsHintAm")}
+                </span>
+              </span>
+            </label>
+          </div>
+        ) : null}
+
+        {showProjectPicker ? (
           <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
             <label className="text-sm font-medium text-text">
               {t("pages.employees.form.areaProjects")}
@@ -727,6 +780,7 @@ export default function EmployeeFormFields({
 
       <EmployeeFinancesFields
         defaults={defaults}
+        employmentType={employmentType}
         positionSuggestsDeposit={defaultSecurityDepositRequired(
           selectedPosition
             ? { slug: selectedPosition.slug, name: selectedPosition.name }
@@ -753,24 +807,20 @@ export default function EmployeeFormFields({
             </a>
           </p>
         ) : null}
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="flex h-11 w-full items-center gap-3 rounded-xl border border-dashed border-border bg-elevated px-4 text-left text-sm text-muted transition hover:border-accent-cyan/40 hover:text-text"
-        >
-          <Upload className="h-4 w-4 shrink-0 text-muted" />
-          <span>
-            {defaults?.idDocumentUrl
-              ? t("pages.employees.form.idDocumentReplace")
-              : t("pages.employees.form.idDocumentUpload")}
-          </span>
-        </button>
-        <input
-          ref={fileInputRef}
+        <FileDropField
+          id={idOf("employee-id-document")}
           name={nameOf("idDocument")}
-          type="file"
+          fileName={idDocumentName}
+          onPick={(file) => {
+            setIdDocumentName(file?.name ?? null);
+            onFormValuesChange?.();
+          }}
           accept="image/*,.pdf"
-          className="sr-only"
+          emptyLabel={
+            defaults?.idDocumentUrl
+              ? t("pages.employees.form.idDocumentReplace")
+              : t("pages.employees.form.idDocumentUpload")
+          }
         />
       </div>
       )}

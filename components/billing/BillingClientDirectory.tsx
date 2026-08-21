@@ -99,7 +99,6 @@ export default function BillingClientDirectory({ clients }: Props) {
         key: "projects",
         title: t("pages.billing.projects"),
         width: "7rem",
-        align: "center",
         className: "min-w-[7rem] whitespace-nowrap",
         render: (client) => (
           <span className="tabular-nums text-muted">
@@ -134,7 +133,7 @@ export default function BillingClientDirectory({ clients }: Props) {
         key: "status",
         title: t("common.labels.status"),
         width: STATUS_COLUMN_WIDTH,
-        align: "center",
+        cellAlign: "center",
         className: "min-w-[10rem] overflow-visible whitespace-nowrap",
         render: (client) => (
           <div className="inline-flex max-w-full flex-wrap items-center justify-center gap-1.5">

@@ -84,16 +84,27 @@ export default function ProofLightbox({
               </div>
             </div>
           ) : (
-            <div className="relative flex min-h-[12rem] max-h-[min(80vh,48rem)] flex-1 items-center justify-center overflow-auto bg-elevated p-4">
-              <Image
-                src={src}
-                alt={label}
-                width={1920}
-                height={1080}
-                className="h-auto max-h-[min(76vh,46rem)] w-auto max-w-full object-contain"
-                unoptimized
-                priority
-              />
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div className="relative flex min-h-[12rem] max-h-[min(80vh,48rem)] flex-1 items-center justify-center overflow-auto bg-elevated p-4">
+                <Image
+                  src={src}
+                  alt={label}
+                  width={1920}
+                  height={1080}
+                  className="h-auto max-h-[min(76vh,46rem)] w-auto max-w-full object-contain"
+                  unoptimized
+                  priority
+                />
+              </div>
+              <div className="flex shrink-0 justify-end border-t border-border bg-strip px-5 py-3">
+                <a
+                  href={src}
+                  download
+                  className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+                >
+                  {t("common.actions.download")}
+                </a>
+              </div>
             </div>
           )
         ) : null}

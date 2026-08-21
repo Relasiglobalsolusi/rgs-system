@@ -21,33 +21,46 @@ import {
 import { Dialog } from "@/components/ui/dialog";
 import { showRejectionFromError } from "@/components/ui/rejection-notice";
 import { useT } from "@/lib/i18n/use-t";
-import type { OperationsTeamKindValue } from "@/lib/operations-teams";
+import { catalogDisplayName } from "@/lib/project-service-catalog";
+
+export type TeamTypeOption = {
+  id: string;
+  nameEn: string;
+  nameId: string;
+};
 
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  catalog: TeamTypeOption[];
   team?: {
     id: string;
     name: string;
-    kind: OperationsTeamKindValue;
+    serviceAreaCatalogId: string | null;
   } | null;
 };
 
-export default function TeamFormDialog({ open, onOpenChange, team }: Props) {
-  const { t } = useT();
+export default function TeamFormDialog({
+  open,
+  onOpenChange,
+  catalog,
+  team,
+}: Props) {
+  const { t, locale } = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const defaultTypeId = team?.serviceAreaCatalogId || catalog[0]?.id || "";
   const [name, setName] = useState(team?.name ?? "");
-  const [kind, setKind] = useState<OperationsTeamKindValue>(
-    team?.kind ?? "GENERAL_CLEANING"
-  );
+  const [serviceAreaCatalogId, setServiceAreaCatalogId] = useState(defaultTypeId);
   const isEdit = Boolean(team);
 
   function handleOpenChange(next: boolean) {
     onOpenChange(next);
     if (next) {
       setName(team?.name ?? "");
-      setKind(team?.kind ?? "GENERAL_CLEANING");
+      setServiceAreaCatalogId(
+        team?.serviceAreaCatalogId || catalog[0]?.id || ""
+      );
     }
   }
 
@@ -55,7 +68,7 @@ export default function TeamFormDialog({ open, onOpenChange, team }: Props) {
     event.preventDefault();
     const formData = new FormData();
     formData.set("name", name);
-    formData.set("kind", kind);
+    formData.set("serviceAreaCatalogId", serviceAreaCatalogId);
     if (team) formData.set("teamId", team.id);
     startTransition(async () => {
       try {
@@ -90,7 +103,10 @@ export default function TeamFormDialog({ open, onOpenChange, team }: Props) {
             >
               {t("common.actions.cancel")}
             </EmployeeSecondaryButton>
-            <EmployeePrimaryButton form="team-form" disabled={pending}>
+            <EmployeePrimaryButton
+              form="team-form"
+              disabled={pending || catalog.length === 0}
+            >
               {pending
                 ? t("common.actions.saving")
                 : isEdit
@@ -121,18 +137,16 @@ export default function TeamFormDialog({ open, onOpenChange, team }: Props) {
             <select
               id="team-kind"
               className={employeeSelectTriggerClass}
-              value={kind}
-              onChange={(event) =>
-                setKind(event.target.value as OperationsTeamKindValue)
-              }
-              disabled={pending}
+              value={serviceAreaCatalogId}
+              onChange={(event) => setServiceAreaCatalogId(event.target.value)}
+              disabled={pending || catalog.length === 0}
+              required
             >
-              <option value="GENERAL_CLEANING">
-                {t("pages.teams.kindGeneral")}
-              </option>
-              <option value="FACADE_CLEANING">
-                {t("pages.teams.kindFacade")}
-              </option>
+              {catalog.map((area) => (
+                <option key={area.id} value={area.id}>
+                  {catalogDisplayName(area, locale)}
+                </option>
+              ))}
             </select>
           </div>
         </form>

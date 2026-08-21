@@ -7,10 +7,12 @@ import {
   employeeInputClass,
 } from "@/components/employees/employee-dialog-ui";
 import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/MoneyInput";
 import {
   BPJS_JKK_PERCENT_MAX,
   BPJS_JKK_PERCENT_MIN,
   calculateBpjsBreakdown,
+  isDailyPaidPartTime,
   type EmployeeBpjsInput,
 } from "@/lib/employee-bpjs";
 import { useT } from "@/lib/i18n/use-t";
@@ -30,6 +32,7 @@ export type EmployeeFinanceDefaults = {
   depositHeldAmount?: number | null;
   securityDepositRequired?: boolean;
   cicoExempt?: boolean;
+  progressExempt?: boolean;
   bankName?: string | null;
   bankAccountNumber?: string | null;
   bankAccountName?: string | null;
@@ -37,6 +40,8 @@ export type EmployeeFinanceDefaults = {
 
 type Props = {
   defaults?: EmployeeFinanceDefaults;
+  /** Part Time (per-day pay): no security deposit, no BPJS enrollment. */
+  employmentType?: "FULL_TIME" | "PART_TIME";
   /** Position-based default when creating, or when the saved value is unset. */
   positionSuggestsDeposit?: boolean;
   onFormValuesChange?: () => void;
@@ -45,17 +50,6 @@ type Props = {
   namePrefix?: string;
   idPrefix?: string;
 };
-
-function digitsOnly(value: string): string {
-  return value.replace(/[^\d]/g, "");
-}
-
-function formatIdrInput(digits: string): string {
-  if (!digits) return "";
-  const num = Number(digits);
-  if (!Number.isFinite(num)) return "";
-  return new Intl.NumberFormat("id-ID").format(num);
-}
 
 function FinanceCheckbox({
   id,
@@ -90,6 +84,7 @@ function FinanceCheckbox({
 
 export default function EmployeeFinancesFields({
   defaults,
+  employmentType = "FULL_TIME",
   positionSuggestsDeposit = false,
   onFormValuesChange,
   includeBankFields = true,
@@ -100,16 +95,18 @@ export default function EmployeeFinancesFields({
   const nameOf = (field: string) =>
     namePrefix ? `${namePrefix}${field}` : field;
   const idOf = (id: string) => (idPrefix ? `${idPrefix}${id}` : id);
+  const partTimeDailyPay = isDailyPaidPartTime(employmentType);
   const [basePayDigits, setBasePayDigits] = useState(() =>
     defaults?.basePay != null && defaults.basePay > 0
       ? String(Math.round(defaults.basePay))
       : ""
   );
   const [bpjsKesehatanEnabled, setBpjsKesehatanEnabled] = useState(
-    Boolean(defaults?.bpjsKesehatanEnabled)
+    Boolean(defaults?.bpjsKesehatanEnabled) && !isDailyPaidPartTime(employmentType)
   );
   const [bpjsKetenagakerjaanEnabled, setBpjsKetenagakerjaanEnabled] = useState(
-    Boolean(defaults?.bpjsKetenagakerjaanEnabled)
+    Boolean(defaults?.bpjsKetenagakerjaanEnabled) &&
+      !isDailyPaidPartTime(employmentType)
   );
   const [jhtEnabled, setJhtEnabled] = useState(Boolean(defaults?.jhtEnabled));
   const [jpEnabled, setJpEnabled] = useState(Boolean(defaults?.jpEnabled));
@@ -119,28 +116,51 @@ export default function EmployeeFinancesFields({
     defaults?.jkkPercent != null ? String(defaults.jkkPercent) : ""
   );
   const [securityDepositRequired, setSecurityDepositRequired] = useState(() =>
-    defaults?.securityDepositRequired ?? positionSuggestsDeposit
+    isDailyPaidPartTime(employmentType)
+      ? false
+      : (defaults?.securityDepositRequired ?? positionSuggestsDeposit)
   );
   const [cicoExempt, setCicoExempt] = useState(() =>
     Boolean(defaults?.cicoExempt)
   );
+  const [progressExempt, setProgressExempt] = useState(() =>
+    Boolean(defaults?.progressExempt)
+  );
 
   useEffect(() => {
+    if (partTimeDailyPay) {
+      setSecurityDepositRequired(false);
+      setBpjsKesehatanEnabled(false);
+      setBpjsKetenagakerjaanEnabled(false);
+      setJhtEnabled(false);
+      setJpEnabled(false);
+      setJkkEnabled(false);
+      setJkmEnabled(false);
+      setJkkPercent("");
+      return;
+    }
     if (defaults?.securityDepositRequired !== undefined) return;
     setSecurityDepositRequired(positionSuggestsDeposit);
-  }, [defaults?.securityDepositRequired, positionSuggestsDeposit]);
+  }, [
+    defaults?.securityDepositRequired,
+    partTimeDailyPay,
+    positionSuggestsDeposit,
+  ]);
 
   const input: EmployeeBpjsInput = useMemo(() => {
     const basePay = Number(basePayDigits || "0");
     const jkkNum = Number(String(jkkPercent).replace(",", "."));
     return {
       basePay: Number.isFinite(basePay) ? basePay : 0,
-      bpjsKesehatanEnabled,
-      bpjsKetenagakerjaanEnabled,
-      jhtEnabled: bpjsKetenagakerjaanEnabled && jhtEnabled,
-      jpEnabled: bpjsKetenagakerjaanEnabled && jpEnabled,
-      jkkEnabled: bpjsKetenagakerjaanEnabled && jkkEnabled,
-      jkmEnabled: bpjsKetenagakerjaanEnabled && jkmEnabled,
+      bpjsKesehatanEnabled: partTimeDailyPay ? false : bpjsKesehatanEnabled,
+      bpjsKetenagakerjaanEnabled: partTimeDailyPay
+        ? false
+        : bpjsKetenagakerjaanEnabled,
+      jhtEnabled:
+        !partTimeDailyPay && bpjsKetenagakerjaanEnabled && jhtEnabled,
+      jpEnabled: !partTimeDailyPay && bpjsKetenagakerjaanEnabled && jpEnabled,
+      jkkEnabled: !partTimeDailyPay && bpjsKetenagakerjaanEnabled && jkkEnabled,
+      jkmEnabled: !partTimeDailyPay && bpjsKetenagakerjaanEnabled && jkmEnabled,
       jkkPercent: Number.isFinite(jkkNum) ? jkkNum : null,
     };
   }, [
@@ -152,6 +172,7 @@ export default function EmployeeFinancesFields({
     jkkEnabled,
     jkmEnabled,
     jkkPercent,
+    partTimeDailyPay,
   ]);
 
   const breakdown = useMemo(() => calculateBpjsBreakdown(input), [input]);
@@ -167,23 +188,47 @@ export default function EmployeeFinancesFields({
           {t("pages.employees.form.finances")}
         </h3>
         <p className="mt-1 text-xs text-muted">
-          {t("pages.employees.form.financesHint")}
+          {partTimeDailyPay
+            ? t("pages.employees.form.financesHintPartTime")
+            : t("pages.employees.form.financesHint")}
         </p>
       </div>
 
-      <FinanceCheckbox
-        id={idOf("security-deposit-required")}
-        name={nameOf("securityDepositRequired")}
-        checked={securityDepositRequired}
-        label={t("pages.employees.form.securityDepositRequired")}
-        onChange={(next) => {
-          setSecurityDepositRequired(next);
-          bump();
-        }}
-      />
-      <p className="text-xs text-muted">
-        {t("pages.employees.form.securityDepositRequiredHint")}
-      </p>
+      {partTimeDailyPay ? (
+        <>
+          <p className="text-xs text-muted">
+            {t("pages.employees.form.partTimeExemptNote")}
+          </p>
+          <input type="hidden" name={nameOf("securityDepositRequired")} value="false" />
+          <input type="hidden" name={nameOf("bpjsKesehatanEnabled")} value="false" />
+          <input
+            type="hidden"
+            name={nameOf("bpjsKetenagakerjaanEnabled")}
+            value="false"
+          />
+          <input type="hidden" name={nameOf("jhtEnabled")} value="false" />
+          <input type="hidden" name={nameOf("jpEnabled")} value="false" />
+          <input type="hidden" name={nameOf("jkkEnabled")} value="false" />
+          <input type="hidden" name={nameOf("jkmEnabled")} value="false" />
+          <input type="hidden" name={nameOf("jkkPercent")} value="" />
+        </>
+      ) : (
+        <>
+          <FinanceCheckbox
+            id={idOf("security-deposit-required")}
+            name={nameOf("securityDepositRequired")}
+            checked={securityDepositRequired}
+            label={t("pages.employees.form.securityDepositRequired")}
+            onChange={(next) => {
+              setSecurityDepositRequired(next);
+              bump();
+            }}
+          />
+          <p className="text-xs text-muted">
+            {t("pages.employees.form.securityDepositRequiredHint")}
+          </p>
+        </>
+      )}
 
       <FinanceCheckbox
         id={idOf("cico-exempt")}
@@ -197,6 +242,20 @@ export default function EmployeeFinancesFields({
       />
       <p className="text-xs text-muted">
         {t("pages.employees.form.cicoExemptHint")}
+      </p>
+
+      <FinanceCheckbox
+        id={idOf("progress-exempt")}
+        name={nameOf("progressExempt")}
+        checked={progressExempt}
+        label={t("pages.employees.form.progressExempt")}
+        onChange={(next) => {
+          setProgressExempt(next);
+          bump();
+        }}
+      />
+      <p className="text-xs text-muted">
+        {t("pages.employees.form.progressExemptHint")}
       </p>
 
       {defaults?.depositStatus && defaults.depositStatus !== "NONE" ? (
@@ -275,23 +334,25 @@ export default function EmployeeFinancesFields({
           {t("pages.employees.form.basePay")}
         </label>
         <p className="text-xs text-muted">
-          {t("pages.employees.form.basePayHint")}
+          {partTimeDailyPay
+            ? t("pages.employees.form.basePayHintPartTime")
+            : t("pages.employees.form.basePayHint")}
         </p>
-        <Input
+        <MoneyInput
           id={idOf("employee-base-pay")}
           name={nameOf("basePay")}
-          inputMode="numeric"
           required
-          value={formatIdrInput(basePayDigits)}
-          onChange={(event) => {
-            setBasePayDigits(digitsOnly(event.target.value));
+          value={basePayDigits}
+          onValueChange={(next) => {
+            setBasePayDigits(next);
             bump();
           }}
-          placeholder="0"
           className={employeeInputClass}
         />
       </div>
 
+      {partTimeDailyPay ? null : (
+        <>
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
         <FinanceCheckbox
           id={idOf("bpjs-kesehatan")}
@@ -449,6 +510,8 @@ export default function EmployeeFinancesFields({
           </p>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

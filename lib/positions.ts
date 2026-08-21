@@ -25,9 +25,21 @@ export const DEFAULT_WORKFORCE_DEPARTMENTS = [
   { slug: "operations", name: "Operations", prefix: "OPR", sortOrder: 20 },
 ] as const;
 
+export const TECHNICIAN_DEFAULT_MODULE_ACCESS = {
+  dashboard: true,
+  cico: true,
+  leaves: true,
+} as const;
+
 export const DEFAULT_POSITIONS_BY_CATEGORY_SLUG: Record<
   string,
-  Array<{ slug: string; name: string; description: string; sortOrder: number }>
+  Array<{
+    slug: string;
+    name: string;
+    description: string;
+    sortOrder: number;
+    defaultModuleAccess?: Record<string, boolean>;
+  }>
 > = {
   corporate: [
     {
@@ -107,6 +119,14 @@ export const DEFAULT_POSITIONS_BY_CATEGORY_SLUG: Record<
       sortOrder: 26,
     },
     {
+      slug: "technician",
+      name: "Technician",
+      description:
+        "Site technician — dashboard, check-in, check-out, and leave. No progress report.",
+      sortOrder: 27,
+      defaultModuleAccess: { ...TECHNICIAN_DEFAULT_MODULE_ACCESS },
+    },
+    {
       slug: "area-manager",
       name: "Area Manager",
       description:
@@ -154,6 +174,17 @@ export function isAreaManagerPosition(position: {
     slug === "area-manager" ||
     name === "area manager" ||
     name === "am"
+  );
+}
+
+export function isAreaManagerOrAbovePosition(position: {
+  slug?: string | null;
+  name?: string | null;
+}): boolean {
+  return (
+    isDirectorPosition(position) ||
+    isOperationsManagerPosition(position) ||
+    isAreaManagerPosition(position)
   );
 }
 
@@ -244,7 +275,7 @@ export function isCrewPickerPosition(position: {
   ) {
     return false;
   }
-  return isCleaningStaffPosition(position) || name.includes("gondola");
+  return isCleaningStaffPosition(position) || name.includes("gondola") || isTechnicianPosition(position);
 }
 
 export function isSecurityStaffPosition(position: {
@@ -272,6 +303,15 @@ export function defaultSecurityDepositRequired(position: {
     isSecurityStaffPosition(position) ||
     isParkingStaffPosition(position)
   );
+}
+
+export function isTechnicianPosition(position: {
+  slug?: string | null;
+  name?: string | null;
+}): boolean {
+  const slug = (position.slug ?? "").trim().toLowerCase();
+  const name = (position.name ?? "").trim().toLowerCase();
+  return slug === "technician" || name === "technician";
 }
 
 export function isParkingStaffPosition(position: {
@@ -380,6 +420,9 @@ export async function ensureDefaultPositions(
           description: item.description,
           sortOrder: item.sortOrder,
           active: true,
+          ...(item.defaultModuleAccess
+            ? { defaultModuleAccess: item.defaultModuleAccess }
+            : {}),
         },
       });
     }

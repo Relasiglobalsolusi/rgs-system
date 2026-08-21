@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 
 import UserTable from "@/components/users/UserTable";
-import UserDialog from "@/components/users/UserDialog";
 import WithoutPortalLoginView, {
   type ClientWithoutPortalLogin,
   type EmployeeWithoutPortalLogin,
@@ -29,7 +28,6 @@ import UserBulkReactivateDialog from "@/components/users/UserBulkReactivateDialo
 import UserBulkDeleteDialog from "@/components/users/UserBulkDeleteDialog";
 import BulkActionBar from "@/components/ui/BulkActionBar";
 import { permanentDeleteLabelClassName } from "@/components/ui/trash-action-buttons";
-import DirectoryAddButton from "@/components/ui/DirectoryAddButton";
 import DirectoryFilterTab from "@/components/ui/DirectoryFilterTab";
 import DirectorySearchInput, {
   matchesDirectorySearch,
@@ -132,7 +130,6 @@ export default function UserDirectory({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
-  const [createOpen, setCreateOpen] = useState(false);
   const [bulkDialogMode, setBulkDialogMode] =
     useState<BulkDialogMode>("deactivate");
 
@@ -338,7 +335,6 @@ export default function UserDirectory({
   );
 
   const showSelection = canEditPermissions;
-  const showAdd = canEditPermissions && directoryView === "active";
   const isActiveDirectory = directoryView === "active";
   const bulkActionLabel = isActiveDirectory ? (
     <span className={permanentDeleteLabelClassName}>
@@ -563,15 +559,6 @@ export default function UserDirectory({
                   </DirectoryFilterTab>
                 );
               })}
-
-            {showAdd ? (
-              <div className="ml-auto flex items-center gap-2">
-                <DirectoryAddButton
-                  label={t("pages.users.addUser")}
-                  onClick={() => setCreateOpen(true)}
-                />
-              </div>
-            ) : null}
           </div>
 
           <div className="mb-4">
@@ -701,16 +688,6 @@ export default function UserDirectory({
           )}
         </>
       )}
-
-      {showAdd ? (
-        <UserDialog
-          mode="create"
-          canEditUsername
-          open={createOpen}
-          onOpenChange={setCreateOpen}
-          showTrigger={false}
-        />
-      ) : null}
 
       {showSelection && bulkDialogMode === "deactivate" && (
         <UserBulkDeactivateDialog

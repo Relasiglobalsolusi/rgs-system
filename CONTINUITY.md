@@ -61,7 +61,6 @@
 | `NEXTAUTH_URL` | `https://one.rgs.co.id` in prod |
 | `WEBSITE_CORS_ORIGIN` | Prefer `https://rgs.co.id,https://www.rgs.co.id` |
 | `SMTP_*` | Password reset / invoices (optional but needed for mail features) |
-| `OPENAI_API_KEY` | Payment/tax AI verification (fail-closed if unset) |
 
 Secrets live only in: VPS `/var/www/rgs-system/.env` and local `.env` (gitignored).
 

@@ -89,7 +89,7 @@ export default function FinancialReportProjectDirectory({
         key: "subCategory",
         title: t("common.labels.type"),
         width: STATUS_COLUMN_WIDTH,
-        align: "center",
+        cellAlign: "center",
         className: "min-w-[10rem] overflow-visible whitespace-nowrap",
         render: (project) => {
           const typeLines = localizeSubCategoryChipLines(
@@ -162,7 +162,7 @@ export default function FinancialReportProjectDirectory({
         key: "status",
         title: t("common.labels.status"),
         width: "10rem",
-        align: "center",
+        cellAlign: "center",
         className: "min-w-[10rem] overflow-visible",
         render: (project) => {
           const englishLabel = getProjectWorkflowStatusLabel({
