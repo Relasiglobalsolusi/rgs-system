@@ -3094,7 +3094,7 @@ export default function PurchaseInvoiceUploadDialog({
                   if (next && commercialTaxIncludesVat(next) && !ppnRatePercent.trim()) {
                     setPpnRatePercent(String(DEFAULT_PRODUCT_PPN_RATE_PERCENT));
                   }
-                  const nextRate = defaultCommercialNonVatRatePercent(next);
+                  const nextRate = defaultCommercialNonVatRatePercent(next || null);
                   setPphRatePercent(nextRate != null ? String(nextRate) : "");
                   if (next !== "OTHER") setOtherTaxName("");
                   if (!next || !commercialTaxIncludesVat(next)) {

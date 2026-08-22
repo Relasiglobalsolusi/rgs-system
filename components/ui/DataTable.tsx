@@ -373,9 +373,11 @@ export default function DataTable<T>({
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
+    const scroller = el;
 
     function measure() {
-      const next = el.scrollWidth > el.clientWidth + OVERFLOW_SCROLL_TOLERANCE_PX;
+      const next =
+        scroller.scrollWidth > scroller.clientWidth + OVERFLOW_SCROLL_TOLERANCE_PX;
       setNeedsHScroll((prev) => (prev === next ? prev : next));
     }
 

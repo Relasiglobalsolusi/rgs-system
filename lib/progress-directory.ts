@@ -42,7 +42,12 @@ export function progressRouteClientId(project: {
 }): string {
   if (
     !project.clientId ||
-    (project.name != null && isAttendanceInternalProject(project))
+    (project.name != null &&
+      isAttendanceInternalProject({
+        name: project.name,
+        serviceArea: project.serviceArea,
+        subCategory: project.subCategory,
+      }))
   ) {
     return PROGRESS_INTERNAL_ROUTE_CLIENT_ID;
   }

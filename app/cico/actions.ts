@@ -104,6 +104,7 @@ type CicoCheckInEmployee = {
   internalHomeSite: InternalHomeSite;
   status: EmploymentStatus;
   archivedFromDirectory: boolean;
+  progressExempt: boolean;
   jobPosition?: { name?: string | null; slug?: string | null } | null;
 };
 

@@ -778,7 +778,7 @@ export default function ProjectFormFields({
         value={chargedTaxKind}
         onChange={(next) => {
           setChargedTaxKind(next);
-          const nextRate = defaultCommercialNonVatRatePercent(next);
+          const nextRate = defaultCommercialNonVatRatePercent(next || null);
           setPphRatePercent(nextRate != null ? String(nextRate) : "");
           if (next !== "OTHER") setOtherTaxName("");
           onFormValuesChange?.();

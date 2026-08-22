@@ -133,7 +133,7 @@ export async function stockInPendingPurchaseLines(
     if (!line.itemId || !line.item?.tracksStock) continue;
     if (line.inventoryPurchase) continue;
 
-    const stockQty = normalizeInventoryQty(decimalToNumber(line.quantity));
+    const stockQty = normalizeInventoryQty(decimalToNumber(line.quantity) ?? 0);
     if (stockQty <= 0) continue;
     if (
       isEquipmentItemType(line.item.itemType) &&
@@ -142,11 +142,11 @@ export async function stockInPendingPurchaseLines(
       throw new Error("Equipment quantity must be a whole number.");
     }
 
-    const costTotalPrice = decimalToNumber(line.totalPrice);
+    const costTotalPrice = decimalToNumber(line.totalPrice) ?? 0;
     const costUnitPrice =
       stockQty > 0
         ? Math.round((costTotalPrice / stockQty) * 100) / 100
-        : decimalToNumber(line.unitPrice);
+        : decimalToNumber(line.unitPrice) ?? 0;
 
     await applyPurchaseLineStockIn(tx, {
       companyId: params.companyId,

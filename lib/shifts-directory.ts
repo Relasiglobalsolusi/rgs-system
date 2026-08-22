@@ -40,7 +40,12 @@ export function shiftsRouteClientId(project: {
 }): string {
   if (
     !project.clientId ||
-    (project.name != null && isAttendanceInternalProject(project))
+    (project.name != null &&
+      isAttendanceInternalProject({
+        name: project.name,
+        serviceArea: project.serviceArea,
+        subCategory: project.subCategory,
+      }))
   ) {
     return SHIFTS_INTERNAL_ROUTE_CLIENT_ID;
   }

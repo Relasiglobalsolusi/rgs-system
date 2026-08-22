@@ -388,11 +388,11 @@ export default async function TaxInvoicesPage({
     .filter((row) => row.source === t("pages.vat.incomeSourceGovernment"))
     .reduce((sum, row) => sum + row.amount, 0);
 
-  const otherRows: IncomeTaxCreditRow[] = otherPurchases
-    .map((purchase) => {
-      const amount = decimalToNumber(purchase.amount) ?? 0;
-      if (amount <= 0 || !purchase.governmentTaxKind) return null;
-      return {
+  const otherRows: IncomeTaxCreditRow[] = otherPurchases.flatMap((purchase) => {
+    const amount = decimalToNumber(purchase.amount) ?? 0;
+    if (amount <= 0 || !purchase.governmentTaxKind) return [];
+    return [
+      {
         id: purchase.id,
         source: t(governmentTaxKindLabelKey(purchase.governmentTaxKind)),
         detail: [purchase.invoiceRef, purchase.notes]
@@ -401,9 +401,9 @@ export default async function TaxInvoicesPage({
         date: purchase.invoiceDate.toISOString(),
         amount,
         href: `/billing/tax-invoices/purchase/${purchase.id}`,
-      };
-    })
-    .filter((row): row is IncomeTaxCreditRow => row != null);
+      },
+    ];
+  });
   const otherRemittanceTotal = otherPurchases
     .filter(
       (row) =>

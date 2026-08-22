@@ -232,13 +232,12 @@ export async function loadPayrollManagementReview(options: {
           },
         }),
       ])
-    : [[], [], null] as const;
+    : [[], [], null];
 
   const leavesByEmployee = new Map<string, typeof leaves>();
   for (const leave of leaves) {
     const list = leavesByEmployee.get(leave.employeeId) ?? [];
-    list.push(leave);
-    leavesByEmployee.set(leave.employeeId, list);
+    leavesByEmployee.set(leave.employeeId, [...list, leave]);
   }
 
   const doubleByEmployeeDate = new Map<string, (typeof doubleShifts)[number]>();
@@ -346,10 +345,10 @@ export async function loadPayrollManagementReview(options: {
           absent: false,
           complete: true,
           doubleShift: isDoubleShift,
-          tookOverShiftLabel: double
+          tookOverShiftLabel: double?.coveringShift
             ? `Shift ${double.coveringShift.number}`
             : null,
-          tookOverFromName: double
+          tookOverFromName: double?.coveredEmployee
             ? formatEmployeeName(double.coveredEmployee)
             : null,
           sessionHours: sumAttendanceHours([session]),

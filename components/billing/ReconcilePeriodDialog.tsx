@@ -50,7 +50,7 @@ export default function ReconcilePeriodDialog({
   function submit() {
     if (mode === "adjust") {
       const n = parseContractPrice(adjustedAmount);
-      if (!Number.isFinite(n) || n <= 0) {
+      if (n == null || !Number.isFinite(n) || n <= 0) {
         showRejection({
           reasons: t("pages.billing.adjustAmountInvalid"),
         });

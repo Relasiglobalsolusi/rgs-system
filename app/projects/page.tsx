@@ -842,7 +842,7 @@ export default async function ProjectsPage({
     canManage && (filterView === "planning" || filterView === undefined);
 
   function sectionLabel(key: DirectorySectionKey): string {
-    if (isSystemTopChip(key) && key !== "all") {
+    if (isSystemTopChip(key)) {
       return t(TOP_CHIP_LABEL_KEYS[key]);
     }
     const customId = customChipId(key);
