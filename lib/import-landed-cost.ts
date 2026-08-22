@@ -274,7 +274,7 @@ function overrideOrComputed(
   return computed;
 }
 
-export function convertImportAmountToIdr(params: {
+function convertImportAmountToIdr(params: {
   foreignAmount?: number | null;
   currency?: string | null;
   exchangeRateToIdr: number;
@@ -294,7 +294,7 @@ export function convertImportAmountToIdr(params: {
 }
 
 /** True when the fee was stored or entered as Rupiah — do not apply Bank Rate. */
-export function importFeeStoredAsIdr(params: {
+function importFeeStoredAsIdr(params: {
   currency?: string | null;
   foreignAmount?: number | null;
 }): boolean {
@@ -329,7 +329,7 @@ export function parseCustomsRatesMap(
   return out;
 }
 
-export function resolveImportCustomsRates(input: {
+function resolveImportCustomsRates(input: {
   currency?: string | null;
   customsRateToIdr?: number | null;
   customsRatesToIdr?: Record<string, number> | null;
@@ -344,7 +344,7 @@ export function resolveImportCustomsRates(input: {
 }
 
 /** Stored Customs Rate for a factory currency. Never falls back to Bank Rate. */
-export function resolveFactoryCustomsRate(input: {
+function resolveFactoryCustomsRate(input: {
   currency?: string | null;
   customsRateToIdr?: number | null;
   customsRatesToIdr?: Record<string, number> | null;
@@ -676,6 +676,74 @@ export function summarizeImportCif(
   };
 }
 
+/** CIF from invoice + freight + insurance, before Customs Rate exists. */
+export function formatImportCifNowLabel(input: {
+  currency: string;
+  foreignAmount: number;
+  freightCurrency?: string | null;
+  freightForeignAmount?: number | null;
+  insuranceCurrency?: string | null;
+  insuranceForeignAmount?: number | null;
+  formatIdr: (amount: number) => string;
+}): string | null {
+  const factoryCurrency = normalizeImportCurrency(input.currency, "USD");
+  const factoryAmount = moneyOrZero(input.foreignAmount);
+  if (factoryAmount <= 0) return null;
+
+  type Part = { currency: string; amount: number; idr: boolean };
+  const parts: Part[] = [];
+
+  function push(
+    currency: string | null | undefined,
+    amount: number | null | undefined,
+    fallback: string
+  ) {
+    const value = moneyOrZero(amount);
+    if (value <= 0) return;
+    const asIdr = importFeeStoredAsIdr({
+      currency,
+      foreignAmount: amount,
+    });
+    const code = asIdr
+      ? "IDR"
+      : normalizeImportCurrency(currency, fallback);
+    const existing = parts.find(
+      (part) => part.currency === code && part.idr === asIdr
+    );
+    if (existing) {
+      existing.amount += value;
+      return;
+    }
+    parts.push({ currency: code, amount: value, idr: asIdr });
+  }
+
+  push(factoryCurrency, factoryAmount, factoryCurrency);
+  push(input.freightCurrency, input.freightForeignAmount, factoryCurrency);
+  push(
+    input.insuranceCurrency,
+    input.insuranceForeignAmount,
+    factoryCurrency
+  );
+  if (parts.length === 0) return null;
+
+  const labels = parts.map((part) =>
+    part.idr
+      ? input.formatIdr(part.amount)
+      : formatImportForeignAmount(part.currency, part.amount)
+  );
+  if (parts.length === 1) return labels[0] ?? null;
+  const sameFx =
+    parts.every((part) => !part.idr && part.currency === parts[0]!.currency);
+  if (sameFx) {
+    const total = parts.reduce((sum, part) => sum + part.amount, 0);
+    return `${labels.join(" + ")}  =  ${formatImportForeignAmount(
+      parts[0]!.currency,
+      total
+    )}`;
+  }
+  return labels.join(" + ");
+}
+
 export function formatImportForeignAmount(
   currency: string,
   amount: number
@@ -854,6 +922,46 @@ function vendorLine(params: {
       amountIdr: params.storedIdr,
     }),
   };
+}
+
+/**
+ * Warehouse factory portion. Uses Booking Rate (Net) or Bank Rate (Cash)
+ * remittance. Customs CIF is only the fallback when no rate was stored.
+ */
+export function importWarehouseFactoryPortionIdr(params: {
+  paidToVendorIdr: number;
+  customsValueIdr: number;
+}): number {
+  return params.paidToVendorIdr > 0
+    ? params.paidToVendorIdr
+    : Math.max(0, params.customsValueIdr);
+}
+
+/**
+ * Signed Rupiah for Head Office. Positive = paid more (expense).
+ * Negative = paid less (income). Warehouse stays on the Booking Rate.
+ */
+export function importRateDifferenceIdr(params: {
+  factoryCurrencyFxSum: number;
+  bookingRate: number;
+  bankRate: number;
+}): number {
+  const fx = moneyOrZero(params.factoryCurrencyFxSum);
+  const booking = moneyOrZero(params.bookingRate);
+  const bank = moneyOrZero(params.bankRate);
+  if (fx <= 0 || booking <= 0 || bank <= 0) return 0;
+  return Math.round((bank - booking) * fx);
+}
+
+/** Cash remittance fees stay in warehouse. Net settlement fees do not. */
+export function importRemittanceFeesGoToWarehouse(invoice: {
+  paidAt?: Date | string | null;
+  paymentTermsDays?: number | null;
+  paidExchangeRateToIdr?: unknown;
+}): boolean {
+  if (invoice.paidAt == null || invoice.paidAt === "") return false;
+  if (moneyOrZero(invoice.paidExchangeRateToIdr) > 0) return false;
+  return (invoice.paymentTermsDays ?? 0) === 0;
 }
 
 export function summarizeImportVendorRemittance(input: {
@@ -1074,8 +1182,12 @@ export function calculateImportLandedCost(
 
   const dutiesTotalIdr =
     beaMasukAmountIdr + ppnbmAmountIdr + ppnAmountIdr + pph22AmountIdr;
+  const factoryPortionIdr = importWarehouseFactoryPortionIdr({
+    paidToVendorIdr,
+    customsValueIdr,
+  });
   const stockLandedCostIdr =
-    paidToVendorIdr +
+    factoryPortionIdr +
     clearanceCostIdr +
     beaMasukAmountIdr +
     ppnbmAmountIdr;
@@ -1179,17 +1291,18 @@ export type ImportFormPayload = ImportLandedCostInput & {
 
 export function parseImportFormPayload(
   raw: string,
-  options?: { requireCustomsRates?: boolean }
+  options?: { requireCustomsRates?: boolean; requireBankRate?: boolean }
 ): ImportFormPayload {
-  const requireCustomsRates = options?.requireCustomsRates !== false;
+  const requireCustomsRates = options?.requireCustomsRates === true;
+  const requireBankRate = options?.requireBankRate !== false;
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
-    throw new Error("Enter the overseas invoice amount, Bank Rate, and Customs Rate.");
+    throw new Error("Enter the overseas factory invoice amount.");
   }
   if (!parsed || typeof parsed !== "object") {
-    throw new Error("Enter the overseas invoice amount, Bank Rate, and Customs Rate.");
+    throw new Error("Enter the overseas factory invoice amount.");
   }
   const row = parsed as Record<string, unknown>;
   const declaredValue = numberOrUndefined(row.declaredValue);
@@ -1211,7 +1324,10 @@ export function parseImportFormPayload(
     if (!Number.isFinite(foreignAmount) || foreignAmount <= 0) {
       throw new Error("Enter the overseas invoice amount.");
     }
-    if (!Number.isFinite(exchangeRateToIdr) || exchangeRateToIdr <= 0) {
+    if (
+      requireBankRate &&
+      (!Number.isFinite(exchangeRateToIdr) || exchangeRateToIdr <= 0)
+    ) {
       throw new Error("Enter the Bank Rate.");
     }
   } else if (Number.isFinite(foreignAmount) && foreignAmount < 0) {
@@ -1246,6 +1362,7 @@ export function parseImportFormPayload(
     bankRate: freightRateToIdr,
     customsRate: freightCustomsRateToIdr,
     label: "Freight",
+    requireBankRate,
     requireCustomsRate: requireCustomsRates,
   });
   requireSeparateFxRates({
@@ -1255,6 +1372,7 @@ export function parseImportFormPayload(
     bankRate: insuranceRateToIdr,
     customsRate: insuranceCustomsRateToIdr,
     label: "Insurance",
+    requireBankRate,
     requireCustomsRate: requireCustomsRates,
   });
   if (
@@ -1381,12 +1499,13 @@ function requireSeparateFxRates(params: {
   bankRate: number | undefined;
   customsRate: number | undefined;
   label: string;
+  requireBankRate?: boolean;
   requireCustomsRate?: boolean;
 }) {
   if (params.included) return;
   if (params.currency === "IDR") return;
   if (moneyOrZero(params.amount) <= 0) return;
-  if (moneyOrZero(params.bankRate) <= 0) {
+  if (params.requireBankRate !== false && moneyOrZero(params.bankRate) <= 0) {
     throw new Error(`Enter the ${params.label} Bank Rate.`);
   }
   if (

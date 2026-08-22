@@ -221,7 +221,6 @@ function revalidateBillingPaths(opts?: {
 }) {
   revalidatePath("/billing");
   revalidatePath("/billing/tax-invoices");
-  revalidatePath("/invoicing");
   if (opts?.clientId) {
     revalidatePath(`/billing/${opts.clientId}`);
     revalidatePath(`/billing/tax-invoices/${opts.clientId}`);
@@ -811,7 +810,7 @@ async function compileInvoicePeriodInner(
       projectId: period.projectId,
       clientId: period.project.clientId,
     });
-    revalidatePath("/reports");
+    revalidatePath("/progress");
 
     return { invoicePdfPath, reportCount: reports.length };
   } catch (error) {
@@ -936,7 +935,7 @@ export async function updateProjectContractPrice(formData: FormData) {
  * Issue (compile + deliver) an existing scheduled milestone period.
  * Periods are created upfront on project create; staff only invoice when ready.
  */
-export async function issueMilestonePeriod(periodId: string) {
+async function issueMilestonePeriod(periodId: string) {
   return issueMilestonePeriodInner(periodId, { approvedReview: false });
 }
 

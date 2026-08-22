@@ -468,7 +468,7 @@ export async function checkIn(formData: FormData) {
   }
 
   revalidatePath("/cico");
-  revalidatePath("/attendance");
+  revalidatePath("/progress");
   revalidatePath("/dashboard");
   revalidatePath("/billing/petty-cash");
 }
@@ -608,7 +608,7 @@ export async function checkOut(formData: FormData) {
   }
 
   revalidatePath("/cico");
-  revalidatePath("/attendance");
+  revalidatePath("/progress");
   revalidatePath("/dashboard");
   revalidatePath("/employees");
   revalidatePath("/progress");

@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   const user = toPermissionUser(session);
   if (!canAccess(user, "itemCatalog") || !canManageItemCatalog(user)) {
     return NextResponse.json(
-      { error: "You do not have permission to manage the item catalog." },
+      { error: "You do not have permission to manage the goods catalog." },
       { status: 403 }
     );
   }

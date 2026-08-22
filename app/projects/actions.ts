@@ -277,7 +277,7 @@ function revalidateAfterProjectDelete(opts: {
   revalidatePath("/users");
   revalidatePath("/shifts", "layout");
   revalidatePath("/cico");
-  revalidatePath("/attendance");
+  revalidatePath("/progress");
   if (opts.projectId) {
     revalidatePath(`/projects/${opts.projectId}`);
   }
@@ -320,7 +320,7 @@ async function permanentlyDeleteProject(project: {
   revalidatePath("/users");
   revalidatePath("/shifts", "layout");
   revalidatePath("/cico");
-  revalidatePath("/attendance");
+  revalidatePath("/progress");
 
   return { id: project.id, name: project.name };
 }
@@ -1411,7 +1411,7 @@ export async function updateProject(id: string, formData: FormData) {
       revalidatePath("/dashboard");
       revalidatePath("/employees");
       revalidatePath("/cico");
-      revalidatePath("/attendance");
+      revalidatePath("/progress");
       return;
     }
 
@@ -1738,7 +1738,7 @@ export async function updateProject(id: string, formData: FormData) {
     revalidatePath("/users");
     revalidatePath("/shifts", "layout");
     revalidatePath("/cico");
-    revalidatePath("/attendance");
+    revalidatePath("/progress");
   } catch (error) {
     throw toActionError(error, "Failed to update project.");
   }
@@ -1838,7 +1838,7 @@ export async function assignProjectStaff(formData: FormData) {
     revalidatePath("/employees");
     revalidatePath("/shifts", "layout");
     revalidatePath("/cico");
-    revalidatePath("/attendance");
+    revalidatePath("/progress");
   } catch (error) {
     throw toActionError(error, "Failed to assign staff.");
   }
@@ -2003,7 +2003,7 @@ function revalidateAfterProjectLifecycle(opts: {
   revalidatePath("/users");
   revalidatePath("/shifts", "layout");
   revalidatePath("/cico");
-  revalidatePath("/attendance");
+  revalidatePath("/progress");
   if (opts.clientId) {
     revalidatePath(`/billing/${opts.clientId}`);
     revalidatePath(`/billing/${opts.clientId}/${opts.projectId}`);
@@ -2461,7 +2461,7 @@ export async function moveProjectToPlanning(id: string): Promise<void> {
   revalidatePath("/users");
   revalidatePath("/shifts", "layout");
   revalidatePath("/cico");
-  revalidatePath("/attendance");
+  revalidatePath("/progress");
 }
 
 /**

@@ -55,7 +55,7 @@ export default function InventoryUnitSelect({
 
   return (
     <Select
-      value={current || undefined}
+      value={current || null}
       onValueChange={(next) => {
         if (next) onChange(next);
       }}

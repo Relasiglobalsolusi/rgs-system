@@ -1233,7 +1233,7 @@ export const menu: MenuSection[] = [
 
         icon: Tags,
 
-        label: "Item Catalog",
+        label: "Goods Catalog",
 
         href: "/item-catalog",
 

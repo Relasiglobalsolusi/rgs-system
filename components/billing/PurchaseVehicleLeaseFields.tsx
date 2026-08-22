@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 
 export type PurchaseVehicleLeaseDraft = {
   plateNumber: string;
+  vehicleYear: string;
   enabled: boolean;
   otrAmount: string;
   downPayment: string;
@@ -40,6 +41,7 @@ export type PurchaseVehicleLeaseDraft = {
 export function emptyVehicleLeaseDraft(): PurchaseVehicleLeaseDraft {
   return {
     plateNumber: "",
+    vehicleYear: "",
     enabled: false,
     otrAmount: "",
     downPayment: "",
@@ -117,6 +119,25 @@ export default function PurchaseVehicleLeaseFields({
         </p>
       </div>
       <div>
+        <label className={employeeDialogLabelClass} htmlFor="vehicle-year">
+          {t("pages.billing.purchaseVehicleYear")}
+          <span className="text-danger"> *</span>
+        </label>
+        <Input
+          id="vehicle-year"
+          disabled={disabled}
+          inputMode="numeric"
+          value={draft.vehicleYear}
+          onChange={(event) => patch({ vehicleYear: event.target.value })}
+          className={employeeInputClass}
+          placeholder={t("pages.billing.purchaseVehicleYearPlaceholder")}
+          autoComplete="off"
+        />
+        <p className={employeeDialogHintClass}>
+          {t("pages.billing.purchaseVehicleYearHint")}
+        </p>
+      </div>
+      <div>
         <p className="text-sm font-semibold text-text">
           {t("pages.billing.purchaseVehicleLease")}
         </p>
@@ -164,7 +185,7 @@ export default function PurchaseVehicleLeaseFields({
                 {t("pages.billing.purchaseLeaseTenor")}
               </label>
               <Select
-                value={draft.tenorMonths}
+                value={draft.tenorMonths || null}
                 onValueChange={(value) => {
                   if (value) patch({ tenorMonths: value });
                 }}

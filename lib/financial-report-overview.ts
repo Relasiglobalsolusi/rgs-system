@@ -1,5 +1,3 @@
-import { Prisma } from "@prisma/client";
-
 import {
   commercialPeriodGross,
   recognizedIncomeAmount,
@@ -62,6 +60,8 @@ export type OverheadBreakdown = {
   wages: number;
   internalPurchases: number;
   internalStockUsed: number;
+  importRateDifferenceExpense: number;
+  importRateDifferenceIncome: number;
 };
 
 export type BankReceiptRow = {
@@ -113,7 +113,7 @@ function inUtcRange(
   return true;
 }
 
-export async function getWarehouseStockValue(companyId: string): Promise<number> {
+async function getWarehouseStockValue(companyId: string): Promise<number> {
   const items = await prisma.inventoryItem.findMany({
     where: {
       companyId,
@@ -401,6 +401,81 @@ async function sumThrPaid(
   return decimalToNumber(agg._sum.amount) ?? 0;
 }
 
+export type ImportRateDifferenceRow = {
+  id: string;
+  supplierName: string;
+  invoiceRef: string;
+  paidAt: Date | null;
+  differenceIdr: number;
+};
+
+async function sumImportRateDifferences(
+  companyId: string,
+  from?: Date,
+  toExclusive?: Date
+): Promise<{ expense: number; income: number }> {
+  const invoices = await prisma.purchaseInvoice.findMany({
+    where: {
+      companyId,
+      origin: "IMPORT",
+      reversedAt: null,
+      paidAt: {
+        not: null,
+        ...(from ? { gte: from } : {}),
+        ...(toExclusive ? { lt: toExclusive } : {}),
+      },
+      importFxDifferenceIdr: { not: null },
+    },
+    select: { importFxDifferenceIdr: true },
+  });
+  let expense = 0;
+  let income = 0;
+  for (const invoice of invoices) {
+    const value = decimalToNumber(invoice.importFxDifferenceIdr) ?? 0;
+    if (value > 0) expense += value;
+    else if (value < 0) income += Math.abs(value);
+  }
+  return { expense, income };
+}
+
+export async function listImportRateDifferences(
+  companyId: string,
+  from?: Date,
+  toExclusive?: Date
+): Promise<ImportRateDifferenceRow[]> {
+  const invoices = await prisma.purchaseInvoice.findMany({
+    where: {
+      companyId,
+      origin: "IMPORT",
+      reversedAt: null,
+      paidAt: {
+        not: null,
+        ...(from ? { gte: from } : {}),
+        ...(toExclusive ? { lt: toExclusive } : {}),
+      },
+      importFxDifferenceIdr: { not: null },
+    },
+    select: {
+      id: true,
+      supplierName: true,
+      invoiceRef: true,
+      paidAt: true,
+      importFxDifferenceIdr: true,
+    },
+    orderBy: { paidAt: "desc" },
+    take: 80,
+  });
+  return invoices
+    .map((invoice) => ({
+      id: invoice.id,
+      supplierName: invoice.supplierName,
+      invoiceRef: invoice.invoiceRef,
+      paidAt: invoice.paidAt,
+      differenceIdr: decimalToNumber(invoice.importFxDifferenceIdr) ?? 0,
+    }))
+    .filter((row) => row.differenceIdr !== 0);
+}
+
 async function sumProjectExpenses(
   companyId: string,
   from?: Date,
@@ -649,6 +724,7 @@ async function periodPnl(
     thrPaid,
     incidentExpenses,
     pettyCashOut,
+    importFx,
   ] = await Promise.all([
     sumPaidInvoices(companyId, from, toExclusive, bank),
     sumSoldOff(companyId, from, toExclusive, bank),
@@ -679,6 +755,7 @@ async function periodPnl(
     sumPostedPettyCashOutflows(companyId, prisma, from, toExclusive).catch(
       () => 0
     ),
+    sumImportRateDifferences(companyId, from, toExclusive),
   ]);
 
   const commercialWages = [...wages.entries()]
@@ -693,13 +770,19 @@ async function periodPnl(
     wages: overheadWages,
     internalPurchases,
     internalStockUsed: internalStock,
-    total: overheadWages + internalPurchases + internalStock,
+    importRateDifferenceExpense: importFx.expense,
+    importRateDifferenceIncome: importFx.income,
+    total:
+      overheadWages +
+      internalPurchases +
+      internalStock +
+      importFx.expense,
   };
 
   const moneyIn =
-    bank === FINANCIAL_REPORT_ALL_BANKS
+    (bank === FINANCIAL_REPORT_ALL_BANKS
       ? paidIn + soldOff + payroll.moneyIn + parking.moneyIn + keptIncome
-      : paidIn + soldOff;
+      : paidIn + soldOff) + importFx.income;
   const moneyOut =
     inventoryOut +
     projectPurchases +
@@ -823,6 +906,8 @@ function emptyOverview(
       wages: 0,
       internalPurchases: 0,
       internalStockUsed: 0,
+      importRateDifferenceExpense: 0,
+      importRateDifferenceIncome: 0,
     },
     deposits: { held: 0, returned: 0, kept: 0 },
     receiptsByBank: [],
@@ -897,6 +982,3 @@ export async function getFinancialReportDetailOverview(
   return getFinancialReportOverviewData(companyId, selection);
 }
 
-export function toDecimal(value: number): Prisma.Decimal {
-  return new Prisma.Decimal(Math.round(value));
-}

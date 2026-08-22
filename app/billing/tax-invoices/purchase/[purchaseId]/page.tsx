@@ -107,7 +107,9 @@ export default async function PurchaseTaxDetailPage({
       ? t("pages.vat.inputSourceImport")
       : invoice.purchaseCategory === "SERVICE"
         ? t("pages.vat.inputSourceService")
-        : t("pages.vat.inputSourceItems");
+        : invoice.purchaseCategory === "VEHICLE"
+          ? t("pages.vat.inputSourceVehicle")
+          : t("pages.vat.inputSourceItems");
 
   return (
     <AppShell

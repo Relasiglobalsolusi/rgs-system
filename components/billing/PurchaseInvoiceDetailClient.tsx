@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, Upload } from "lucide-react";
 
@@ -8,6 +8,11 @@ import {
   markImportDutiesPaid,
   reversePurchaseInvoice,
 } from "@/app/billing/purchase-invoices/actions";
+import PurchaseImportCostFields, {
+  importDraftToInput,
+  purchaseImportDraftFromRecord,
+  type PurchaseImportArrivalRecord,
+} from "@/components/billing/PurchaseImportCostFields";
 import PurchaseMarkPaidDialog from "@/components/billing/PurchaseMarkPaidDialog";
 import PurchaseTaxInvoiceUploadDialog from "@/components/billing/PurchaseTaxInvoiceUploadDialog";
 import { BillingDocumentFilePick } from "@/components/billing/BillingDocumentVerifyDialog";
@@ -31,6 +36,11 @@ type Props = {
   canMarkDutiesPaid?: boolean;
   importDutiesBillingId?: string | null;
   isImport?: boolean;
+  needsImportBankRate?: boolean;
+  invoiceCurrency?: string | null;
+  invoiceForeignAmount?: number | null;
+  bookingRate?: number | null;
+  importArrival?: PurchaseImportArrivalRecord;
 };
 
 export default function PurchaseInvoiceDetailClient({
@@ -45,6 +55,11 @@ export default function PurchaseInvoiceDetailClient({
   canMarkDutiesPaid = false,
   importDutiesBillingId = null,
   isImport = false,
+  needsImportBankRate = false,
+  invoiceCurrency = null,
+  invoiceForeignAmount = null,
+  bookingRate = null,
+  importArrival,
 }: Props) {
   const { t } = useT();
   const router = useRouter();
@@ -59,6 +74,18 @@ export default function PurchaseInvoiceDetailClient({
     importDutiesBillingId ?? ""
   );
   const [dutiesFile, setDutiesFile] = useState<File | null>(null);
+  const [importDraft, setImportDraft] = useState(() =>
+    purchaseImportDraftFromRecord(importArrival ?? {})
+  );
+  const [dutiesError, setDutiesError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!dutiesOpen) return;
+    setImportDraft(purchaseImportDraftFromRecord(importArrival ?? {}));
+    setDutiesError(null);
+    // Snapshot factory-invoice amounts when the dialog opens. Do not reset while typing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dutiesOpen]);
 
   return (
     <>
@@ -203,46 +230,77 @@ export default function PurchaseInvoiceDetailClient({
           purchaseInvoiceId={purchaseInvoiceId}
           supplierName={supplierName}
           invoiceRef={invoiceRef}
+          needsImportBankRate={needsImportBankRate}
+          invoiceCurrency={invoiceCurrency}
+          invoiceForeignAmount={invoiceForeignAmount}
+          bookingRate={bookingRate}
         />
       ) : null}
       <Dialog open={dutiesOpen} onOpenChange={setDutiesOpen}>
-        <DialogContent>
+        <DialogContent className="flex max-h-[min(94vh,44rem)] flex-col overflow-hidden sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              {t("pages.billing.purchaseCompleteImportArrival")}
+              {t("pages.billing.purchaseImportDutiesSectionTitle")}
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-subtle">
             {t("pages.billing.purchaseCompleteImportArrivalHint")}
           </p>
-          <div className="space-y-3">
-            <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-subtle">
-                {t("pages.billing.importDutiesBillingId")}
-              </label>
-              <Input
-                value={dutiesBillingId}
-                onChange={(event) => setDutiesBillingId(event.target.value)}
-                disabled={pending}
-              />
-            </div>
-            <BillingDocumentFilePick
-              id="complete-import-duties-document"
-              label={t("pages.billing.importDutiesDocument")}
-              required
-              fileName={dutiesFile?.name ?? null}
-              onPick={setDutiesFile}
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+            <PurchaseImportCostFields
+              draft={importDraft}
+              onChange={setImportDraft}
               disabled={pending}
+              totalQuantity={importArrival?.totalQuantity ?? 0}
+              requireBankRate={false}
+              lockFactoryNow
+              showCustomsCharges
+              afterCharges={
+                <>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-subtle">
+                      {t("pages.billing.importDutiesBillingId")}
+                    </label>
+                    <Input
+                      value={dutiesBillingId}
+                      onChange={(event) => setDutiesBillingId(event.target.value)}
+                      disabled={pending}
+                    />
+                  </div>
+                  <BillingDocumentFilePick
+                    id="complete-import-duties-document"
+                    label={t("pages.billing.importDutiesDocument")}
+                    required
+                    fileName={dutiesFile?.name ?? null}
+                    onPick={setDutiesFile}
+                    disabled={pending}
+                  />
+                </>
+              }
             />
+            {dutiesError ? (
+              <p className="text-sm text-danger">{dutiesError}</p>
+            ) : null}
             <Button
               type="button"
               variant="accent"
               disabled={pending || !dutiesBillingId.trim()}
               onClick={() => {
                 if (!dutiesBillingId.trim()) return;
+                const importInput = importDraftToInput(importDraft, {
+                  requireCustomsRates: true,
+                });
+                if (!importInput) {
+                  setDutiesError(
+                    t("pages.billing.purchaseImportCustomsRateRequired")
+                  );
+                  return;
+                }
+                setDutiesError(null);
                 const formData = new FormData();
                 formData.set("purchaseInvoiceId", purchaseInvoiceId);
                 formData.set("importDutiesBillingId", dutiesBillingId.trim());
+                formData.set("importJson", JSON.stringify(importInput));
                 if (dutiesFile && dutiesFile.size > 0) {
                   formData.set("importDutiesDocument", dutiesFile);
                 }

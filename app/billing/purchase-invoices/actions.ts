@@ -21,7 +21,10 @@ import {
   listCompanyBankAccountOptions,
   parseFormCompanyBankAccountId,
 } from "@/lib/company-bank-accounts";
-import { parseRequiredVehiclePlate } from "@/lib/vehicle-plate";
+import {
+  parseRequiredVehiclePlate,
+  parseRequiredVehicleYear,
+} from "@/lib/vehicle-plate";
 import { unwindAndReversePurchaseInvoice } from "@/lib/purchase-invoice-reverse";
 import {
   toDecimal,
@@ -36,13 +39,13 @@ import {
 import { calculateVehicleLease } from "@/lib/vehicle-lease";
 import {
   allowsDecimalInventoryQty,
-  isPackInventoryUnit,
   normalizeInventoryUnit,
   stockQuantityFromPurchase,
 } from "@/lib/inventory-units";
 import { parseManualVerifyReason } from "@/lib/in-house-document-verify";
 import {
   assertPurchasePurposeProject,
+  parsePurchaseCategory,
   parsePurchasePurpose,
   purchaseCreatesStock,
   resolvePurchasePurpose,
@@ -84,13 +87,17 @@ import {
 import {
   allocateImportStockCost,
   calculateImportLandedCost,
+  importRateDifferenceIdr,
+  importRemittanceFeesGoToWarehouse,
   isHandlingByHeadOffice,
   normalizeImportCurrency,
   parseImportDecimal,
   parseImportFormPayload,
+  summarizeImportVendorRemittance,
   type ImportFormPayload,
   type ImportLandedCostResult,
 } from "@/lib/import-landed-cost";
+import { purchaseNeedsImportBankRate } from "@/lib/purchase-amount-display";
 import { todayDateInput } from "@/lib/project-contract";
 
 type PurchaseLineInput = {
@@ -401,6 +408,112 @@ function outsourcedImportPayload(payload: ImportFormPayload): ImportFormPayload 
   };
 }
 
+/** Arrival: lock factory CIF. Warehouse factory Rupiah uses the stored Booking / Bank Rate. */
+function lockImportArrivalPayload(
+  invoice: {
+    invoiceCurrency: string | null;
+    invoiceForeignAmount: Prisma.Decimal | null;
+    exchangeRateToIdr: Prisma.Decimal | null;
+    paidAt: Date | null;
+    paymentTermsDays?: number | null;
+    paidExchangeRateToIdr?: Prisma.Decimal | null;
+    freightCurrency: string | null;
+    freightForeignAmount: Prisma.Decimal | null;
+    freightIncludedInInvoice: boolean | null;
+    freightRateToIdr: Prisma.Decimal | null;
+    insuranceCurrency: string | null;
+    insuranceForeignAmount: Prisma.Decimal | null;
+    insuranceIncludedInInvoice: boolean | null;
+    insuranceRateToIdr: Prisma.Decimal | null;
+    bankFeeCurrency: string | null;
+    bankFeeForeignAmount: Prisma.Decimal | null;
+    bankFeeIdr: Prisma.Decimal | null;
+    fullAmountFeeCurrency: string | null;
+    fullAmountFeeForeignAmount: Prisma.Decimal | null;
+    fullAmountFeeIdr: Prisma.Decimal | null;
+    localBankFeeIdr: Prisma.Decimal | null;
+    declaredValue: Prisma.Decimal | null;
+    declaredCurrency: string | null;
+    hasCustomsFees: boolean;
+  },
+  payload: ImportFormPayload
+): ImportFormPayload {
+  const declaredValue = decimalToNumber(invoice.declaredValue) ?? 0;
+  if (invoice.hasCustomsFees && declaredValue > 0) {
+    const declaredCurrency = normalizeImportCurrency(
+      invoice.declaredCurrency ?? payload.declaredCurrency,
+      "IDR"
+    );
+    const declaredCustomsRate =
+      declaredCurrency === "IDR"
+        ? undefined
+        : payload.declaredCustomsRate ||
+          payload.customsRatesToIdr?.[declaredCurrency] ||
+          payload.customsRateToIdr;
+    return {
+      ...payload,
+      foreignAmount: 0,
+      exchangeRateToIdr: 0,
+      declaredValue,
+      declaredCurrency,
+      declaredCustomsRate,
+      freightForeignAmount: 0,
+      freightIdr: undefined,
+      insuranceForeignAmount: 0,
+      insuranceIdr: undefined,
+      bankFeeForeignAmount: 0,
+      localBankFeeIdr: 0,
+    };
+  }
+
+  return {
+    ...payload,
+    currency: normalizeImportCurrency(
+      invoice.invoiceCurrency ?? payload.currency,
+      "USD"
+    ),
+    foreignAmount:
+      decimalToNumber(invoice.invoiceForeignAmount) ?? payload.foreignAmount,
+    exchangeRateToIdr: decimalToNumber(invoice.exchangeRateToIdr) ?? 0,
+    freightIncludedInInvoice: invoice.freightIncludedInInvoice !== false,
+    freightCurrency: invoice.freightCurrency ?? payload.freightCurrency,
+    freightForeignAmount: decimalToNumber(invoice.freightForeignAmount) ?? 0,
+    freightIdr: undefined,
+    freightRateToIdr:
+      decimalToNumber(invoice.freightRateToIdr) ?? payload.freightRateToIdr,
+    freightCustomsRateToIdr: payload.freightCustomsRateToIdr,
+    insuranceIncludedInInvoice: invoice.insuranceIncludedInInvoice !== false,
+    insuranceCurrency: invoice.insuranceCurrency ?? payload.insuranceCurrency,
+    insuranceForeignAmount: decimalToNumber(invoice.insuranceForeignAmount) ?? 0,
+    insuranceIdr: undefined,
+    insuranceRateToIdr:
+      decimalToNumber(invoice.insuranceRateToIdr) ?? payload.insuranceRateToIdr,
+    insuranceCustomsRateToIdr: payload.insuranceCustomsRateToIdr,
+    ...(importRemittanceFeesGoToWarehouse(invoice)
+      ? {
+          bankFeeCurrency: invoice.bankFeeCurrency ?? payload.bankFeeCurrency,
+          bankFeeForeignAmount:
+            decimalToNumber(invoice.bankFeeForeignAmount) ?? 0,
+          bankFeeIdr: decimalToNumber(invoice.bankFeeIdr) ?? undefined,
+          fullAmountFeeCurrency:
+            invoice.fullAmountFeeCurrency ?? payload.fullAmountFeeCurrency,
+          fullAmountFeeForeignAmount:
+            decimalToNumber(invoice.fullAmountFeeForeignAmount) ?? 0,
+          fullAmountFeeIdr:
+            decimalToNumber(invoice.fullAmountFeeIdr) ?? undefined,
+          localBankFeeIdr: decimalToNumber(invoice.localBankFeeIdr) ?? 0,
+        }
+      : {
+          bankFeeForeignAmount: 0,
+          localBankFeeIdr: 0,
+          fullAmountFeeForeignAmount: 0,
+        }),
+    declaredValue: undefined,
+    declaredCurrency: undefined,
+    declaredCustomsRate: undefined,
+  };
+}
+
 const UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 const UPLOAD_MIME = new Set([
   "image/jpeg",
@@ -681,11 +794,15 @@ export async function createPurchaseInvoice(formData: FormData) {
   let includesPpn =
     formData.get("includesPpn") === "on" ||
     formData.get("includesPpn") === "true";
-  const purchaseCategoryRaw = String(formData.get("purchaseCategory") ?? "")
-    .trim()
-    .toUpperCase();
-  const purchaseCategory =
-    purchaseCategoryRaw === "SERVICE" ? "SERVICE" : "PRODUCT";
+  const purchaseCategory = parsePurchaseCategory(
+    formData.get("purchaseCategory")
+  );
+  if (
+    purchaseCategory === "PETTY_CASH" ||
+    purchaseCategory === "GOVERNMENT"
+  ) {
+    throw new Error("Use the dedicated form for this expense type.");
+  }
   const originRaw = String(formData.get("purchaseOrigin") ?? "LOCAL")
     .trim()
     .toUpperCase();
@@ -761,8 +878,12 @@ export async function createPurchaseInvoice(formData: FormData) {
 
   const portalVendorId = session.user.vendorId ?? null;
   let lines = parsePurchaseLinesJson(linesRaw, {
-    requireCatalogItem: purchaseCategory === "PRODUCT",
+    requireCatalogItem:
+      purchaseCategory === "PRODUCT" || purchaseCategory === "VEHICLE",
   });
+  if (purchaseCategory === "VEHICLE" || purchaseCategory === "SERVICE") {
+    lines = lines.map((line) => ({ ...line, quantity: 1 }));
+  }
   if (freeOfCharge && !hasCustomsFees) {
     includesPpn = false;
     lines = lines.map((line) => ({ ...line, unitPrice: 0 }));
@@ -778,12 +899,12 @@ export async function createPurchaseInvoice(formData: FormData) {
       }));
     }
   }
-  const paymentTermsDays = freeOfCharge
-    ? 0
-    : parsePurchasePaymentTermsDays(formData);
+  const paymentTermsDays =
+    freeOfCharge || purchaseCategory === "VEHICLE"
+      ? 0
+      : parsePurchasePaymentTermsDays(formData);
   const invoicePaidNow =
-    freeOfCharge ||
-    (origin !== "IMPORT" && isCashPaymentTerms(paymentTermsDays));
+    freeOfCharge || isCashPaymentTerms(paymentTermsDays);
   const importFulfillment =
     origin === "IMPORT"
       ? parseImportFulfillment(formData.get("importFulfillment"))
@@ -797,12 +918,7 @@ export async function createPurchaseInvoice(formData: FormData) {
       ? String(formData.get("importDutiesBillingId") ?? "").trim()
       : "";
   const recordingImportArrivalNow =
-    origin === "IMPORT" &&
-    (Boolean(importDutiesBillingId) ||
-      (importFulfillment === "OUTSOURCED" &&
-        Boolean(rawHandlingVendorId) &&
-        !isHandlingByHeadOffice(rawHandlingVendorId) &&
-        Boolean(String(formData.get("handlingFeeIdr") ?? "").trim())));
+    origin === "IMPORT" && Boolean(importDutiesBillingId);
   const importPaidItems =
     origin === "IMPORT"
       ? recordingImportArrivalNow
@@ -842,12 +958,21 @@ export async function createPurchaseInvoice(formData: FormData) {
     const importJsonRaw = String(formData.get("importJson") ?? "").trim();
     if (!importJsonRaw) {
       if (!freeOfCharge) {
-        throw new Error("Enter the overseas invoice amount and Bank Rate.");
+        throw new Error("Enter the overseas factory invoice amount.");
       }
     } else {
     importPayload = parseImportFormPayload(importJsonRaw, {
       requireCustomsRates: recordingImportArrivalNow,
+      requireBankRate: !freeOfCharge && !hasCustomsFees,
     });
+    if (!isCashPaymentTerms(paymentTermsDays)) {
+      importPayload = {
+        ...importPayload,
+        bankFeeForeignAmount: 0,
+        localBankFeeIdr: 0,
+        bankFeeIdr: undefined,
+      };
+    }
     if (importFulfillment === "OUTSOURCED") {
       importPayload = outsourcedImportPayload(importPayload);
     }
@@ -863,10 +988,7 @@ export async function createPurchaseInvoice(formData: FormData) {
       importFulfillment === "INTERNAL" ? importResult.ppnApplied : false;
     importStockLandedCostIdr =
       (focShipping.idr ?? 0) +
-      importResult.paidToVendorIdr +
-      (importFulfillment === "INTERNAL"
-        ? importResult.beaMasukAmountIdr + importResult.ppnbmAmountIdr
-        : 0) +
+      importResult.stockLandedCostIdr +
       (handling.handlingFeeIdr ?? 0);
     const allocated = allocateImportStockCost({
       stockLandedCostIdr: importStockLandedCostIdr,
@@ -1014,7 +1136,7 @@ export async function createPurchaseInvoice(formData: FormData) {
           .filter((id): id is string => Boolean(id))
       ),
     ];
-    if (purchaseCategory === "PRODUCT") {
+    if (purchaseCategory === "PRODUCT" || purchaseCategory === "VEHICLE") {
       const catalog = await prisma.inventoryItem.findMany({
         where: {
           companyId: session.user.companyId,
@@ -1022,10 +1144,22 @@ export async function createPurchaseInvoice(formData: FormData) {
           active: true,
           deletedAt: null,
         },
-        select: { id: true, tracksStock: true },
+        select: { id: true, tracksStock: true, itemType: true },
       });
       if (catalog.length !== itemIds.length) {
         throw new Error("One or more items are missing from the catalog.");
+      }
+      if (purchaseCategory === "VEHICLE") {
+        if (lines.length !== 1) {
+          throw new Error(
+            "Record one vehicle per expense. Use a separate expense for each number plate."
+          );
+        }
+        if (catalog.some((item) => !isVehicleItemType(item.itemType))) {
+          throw new Error("Choose a Vehicle type from Goods Catalog.");
+        }
+      } else if (catalog.some((item) => isVehicleItemType(item.itemType))) {
+        throw new Error("Record vehicles under the Vehicle expense type.");
       }
     }
     lineTotal = lines.reduce(
@@ -1244,7 +1378,10 @@ export async function createPurchaseInvoice(formData: FormData) {
     }
   }
 
-  const vehicleLease = parseVehicleLeaseFromForm(formData);
+  const vehicleLease =
+    purchaseCategory === "VEHICLE"
+      ? parseVehicleLeaseFromForm(formData)
+      : parseVehicleLeaseFromForm(new FormData());
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -1297,7 +1434,11 @@ export async function createPurchaseInvoice(formData: FormData) {
             : optionalDecimal(importPayload?.foreignAmount),
           exchangeRateToIdr: hasCustomsFees
             ? null
-            : optionalDecimal(importPayload?.exchangeRateToIdr),
+            : optionalDecimal(
+                importPayload && importPayload.exchangeRateToIdr > 0
+                  ? importPayload.exchangeRateToIdr
+                  : null
+              ),
           customsRateToIdr: optionalDecimal(
             hasCustomsFees
               ? importPayload?.declaredCustomsRate
@@ -1451,7 +1592,7 @@ export async function createPurchaseInvoice(formData: FormData) {
         const stockQty = normalizeInventoryQty(
           stockQuantityFromPurchase({
             purchaseQty: line.quantity,
-            packContents: line.packContents,
+            packContents: line.itemId ? null : line.packContents,
           })
         );
         const costUnitPrice =
@@ -1489,15 +1630,12 @@ export async function createPurchaseInvoice(formData: FormData) {
           throw new Error("One or more items are missing from the catalog.");
         }
 
+        const catalogUnit = normalizeInventoryUnit(item.unit);
         if (
-          isPackInventoryUnit(line.unit ?? "") &&
-          normalizeInventoryUnit(line.unit ?? "") !==
-            normalizeInventoryUnit(item.unit) &&
-          !(line.packContents != null && line.packContents > 0)
+          !allowsDecimalInventoryQty(catalogUnit) &&
+          !isWholeInventoryQty(line.quantity)
         ) {
-          throw new Error(
-            `Enter how many ${item.unit} are in each ${line.unit} for line ${i + 1}.`
-          );
+          throw new Error(`Quantity for line ${i + 1} must be a whole number.`);
         }
 
         if (
@@ -1514,8 +1652,8 @@ export async function createPurchaseInvoice(formData: FormData) {
             purchaseInvoiceId: invoice.id,
             itemId: item.id,
             description: line.description ?? null,
-            unit: line.unit ? normalizeInventoryUnit(line.unit) : item.unit,
-            packContents: optionalDecimal(line.packContents),
+            unit: catalogUnit,
+            packContents: null,
             quantity: toDecimal(line.quantity),
             unitPrice: toDecimal(line.unitPrice),
             totalPrice: toDecimal(totalPrice),
@@ -1537,16 +1675,22 @@ export async function createPurchaseInvoice(formData: FormData) {
           mintedVehiclePlate = parseRequiredVehiclePlate(
             formData.get("vehiclePlate")
           );
+          const mintedVehicleYear = parseRequiredVehicleYear(
+            formData.get("vehicleYear")
+          );
           await mintVehicleAssetByPlate(
             tx,
             session.user.companyId,
             item.id,
             mintedVehiclePlate,
-            { unitCost: costUnitPrice }
+            { unitCost: costUnitPrice, vehicleYear: mintedVehicleYear }
           );
           await tx.purchaseInvoice.update({
             where: { id: invoice.id },
-            data: { vehiclePlate: mintedVehiclePlate },
+            data: {
+              vehiclePlate: mintedVehiclePlate,
+              vehicleYear: mintedVehicleYear,
+            },
           });
         }
 
@@ -1603,7 +1747,6 @@ export async function createPurchaseInvoice(formData: FormData) {
 
   revalidatePath("/billing/purchase-invoices");
   revalidatePath("/billing/tax-invoices");
-  revalidatePath("/billing/vat");
   revalidatePath("/inventory");
 }
 
@@ -1725,6 +1868,21 @@ export async function markPurchaseInvoicePaid(formData: FormData) {
       origin: true,
       importDutiesPaidAt: true,
       importPaidItems: true,
+      invoiceCurrency: true,
+      invoiceForeignAmount: true,
+      invoiceAmountIdr: true,
+      exchangeRateToIdr: true,
+      freightCurrency: true,
+      freightForeignAmount: true,
+      freightIdr: true,
+      freightIncludedInInvoice: true,
+      freightRateToIdr: true,
+      insuranceCurrency: true,
+      insuranceForeignAmount: true,
+      insuranceIdr: true,
+      insuranceIncludedInInvoice: true,
+      insuranceRateToIdr: true,
+      amount: true,
     },
   });
 
@@ -1740,6 +1898,85 @@ export async function markPurchaseInvoicePaid(formData: FormData) {
     throw new Error(
       translate(locale, "pages.billing.purchaseMarkPaidAlreadyPaid")
     );
+  }
+
+  const needsImportBankRate = purchaseNeedsImportBankRate(invoice);
+  let importPaymentUpdate: Prisma.PurchaseInvoiceUncheckedUpdateInput = {};
+  if (needsImportBankRate) {
+    const bankRate = parseImportDecimal(
+      String(formData.get("importBankRate") ?? "")
+    );
+    if (bankRate == null || bankRate <= 0) {
+      throw new Error(
+        translate(locale, "pages.billing.purchaseMarkPaidBankRateRequired")
+      );
+    }
+    const bankChargeForeign = parseImportDecimal(
+      String(formData.get("importBankCharge") ?? "")
+    );
+    const telexIdr = parseImportDecimal(
+      String(formData.get("importTelexFee") ?? "")
+    );
+    const bookingRate = decimalToNumber(invoice.exchangeRateToIdr) ?? 0;
+    const remittanceInput = {
+      foreignAmount: decimalToNumber(invoice.invoiceForeignAmount) ?? 0,
+      currency: invoice.invoiceCurrency,
+      invoiceAmountIdr: decimalToNumber(invoice.invoiceAmountIdr),
+      freightCurrency: invoice.freightCurrency,
+      freightForeignAmount: decimalToNumber(invoice.freightForeignAmount),
+      freightIdr: decimalToNumber(invoice.freightIdr),
+      freightIncludedInInvoice: invoice.freightIncludedInInvoice,
+      freightRateToIdr: decimalToNumber(invoice.freightRateToIdr),
+      insuranceCurrency: invoice.insuranceCurrency,
+      insuranceForeignAmount: decimalToNumber(invoice.insuranceForeignAmount),
+      insuranceIdr: decimalToNumber(invoice.insuranceIdr),
+      insuranceIncludedInInvoice: invoice.insuranceIncludedInInvoice,
+      insuranceRateToIdr: decimalToNumber(invoice.insuranceRateToIdr),
+      bankFeeCurrency: invoice.invoiceCurrency,
+      bankFeeForeignAmount: bankChargeForeign,
+      localBankFeeIdr: telexIdr,
+    };
+    const bookedRemittance =
+      bookingRate > 0
+        ? summarizeImportVendorRemittance({
+            ...remittanceInput,
+            exchangeRateToIdr: bookingRate,
+            bankFeeForeignAmount: undefined,
+            localBankFeeIdr: undefined,
+          })
+        : null;
+    const remittance = summarizeImportVendorRemittance({
+      ...remittanceInput,
+      exchangeRateToIdr: bankRate,
+    });
+    const factoryIdr = remittance.factory.vendorIdr;
+    const fxDifference =
+      bookedRemittance != null
+        ? importRateDifferenceIdr({
+            factoryCurrencyFxSum: bookedRemittance.factoryCurrencyFxSum,
+            bookingRate,
+            bankRate,
+          })
+        : 0;
+    importPaymentUpdate = {
+      ...(bookedRemittance != null
+        ? {
+            paidExchangeRateToIdr: optionalDecimal(bankRate),
+            importFxDifferenceIdr: optionalDecimal(fxDifference),
+          }
+        : {
+            exchangeRateToIdr: optionalDecimal(bankRate),
+            invoiceAmountIdr: optionalDecimal(factoryIdr),
+            amount: new Prisma.Decimal(Math.round(factoryIdr * 100) / 100),
+          }),
+      bankFeeCurrency:
+        bankChargeForeign != null && bankChargeForeign > 0
+          ? invoice.invoiceCurrency
+          : null,
+      bankFeeForeignAmount: optionalDecimal(bankChargeForeign),
+      bankFeeIdr: optionalDecimal(remittance.bankCharge.vendorIdr),
+      localBankFeeIdr: optionalDecimal(telexIdr),
+    };
   }
 
   const paidAt = new Date();
@@ -1773,6 +2010,7 @@ export async function markPurchaseInvoicePaid(formData: FormData) {
               ? "BOTH"
               : "INVOICE"
             : invoice.importPaidItems,
+        ...importPaymentUpdate,
       },
     });
   } catch (error) {
@@ -1789,6 +2027,7 @@ export async function markPurchaseInvoicePaid(formData: FormData) {
 
   revalidatePath("/billing/purchase-invoices");
   revalidatePath("/billing/settlements");
+  revalidatePath("/billing/financial-report");
   revalidatePath("/vendors");
 
   return { id: invoice.id, paidAt };
@@ -1798,8 +2037,10 @@ export async function markImportDutiesPaid(formData: FormData) {
   const session = await requirePurchaseManageAccess();
   const id = String(formData.get("purchaseInvoiceId") ?? "").trim();
   const billingId = String(formData.get("importDutiesBillingId") ?? "").trim();
+  const importJsonRaw = String(formData.get("importJson") ?? "").trim();
   if (!id) throw new Error("Purchase is required.");
   if (!billingId) throw new Error("Enter the Import Duties Billing ID.");
+  if (!importJsonRaw) throw new Error("Enter the Customs Rate.");
 
   const invoice = await prisma.purchaseInvoice.findFirst({
     where: {
@@ -1822,12 +2063,72 @@ export async function markImportDutiesPaid(formData: FormData) {
       purpose: true,
       purchaseCategory: true,
       paidAt: true,
+      paymentTermsDays: true,
+      includesPpn: true,
+      ppnRatePercent: true,
+      importFulfillment: true,
+      hasCustomsFees: true,
+      invoiceCurrency: true,
+      invoiceForeignAmount: true,
+      exchangeRateToIdr: true,
+      freightCurrency: true,
+      freightForeignAmount: true,
+      freightIncludedInInvoice: true,
+      freightRateToIdr: true,
+      insuranceCurrency: true,
+      insuranceForeignAmount: true,
+      insuranceIncludedInInvoice: true,
+      insuranceRateToIdr: true,
+      bankFeeCurrency: true,
+      bankFeeForeignAmount: true,
+      bankFeeIdr: true,
+      fullAmountFeeCurrency: true,
+      fullAmountFeeForeignAmount: true,
+      fullAmountFeeIdr: true,
+      localBankFeeIdr: true,
+      declaredValue: true,
+      declaredCurrency: true,
+      handlingFeeIdr: true,
+      shippingIdr: true,
+      lines: {
+        select: {
+          id: true,
+          quantity: true,
+          inventoryPurchase: { select: { id: true } },
+        },
+        orderBy: { sortOrder: "asc" },
+      },
     },
   });
   if (!invoice) throw new Error("Import purchase not found.");
   if (invoice.importDutiesPaidAt) {
     throw new Error("Import duties are already marked paid.");
   }
+
+  const payload = parseImportFormPayload(importJsonRaw, {
+    requireCustomsRates: true,
+    requireBankRate: false,
+  });
+  const locked = lockImportArrivalPayload(invoice, payload);
+  const importResult = calculateImportLandedCost(
+    invoice.importFulfillment === "OUTSOURCED"
+      ? outsourcedImportPayload(locked)
+      : locked
+  );
+  const importStockLandedCostIdr =
+    (decimalToNumber(invoice.shippingIdr) ?? 0) +
+    importResult.stockLandedCostIdr +
+    (decimalToNumber(invoice.handlingFeeIdr) ?? 0);
+  const pricedLines = invoice.lines.filter(
+    (line) => (decimalToNumber(line.quantity) ?? 0) > 0
+  );
+  const allocated = allocateImportStockCost({
+    stockLandedCostIdr: importStockLandedCostIdr,
+    headerForeignAmount: locked.foreignAmount || locked.declaredValue || 0,
+    lines: pricedLines.map((line) => ({
+      quantity: decimalToNumber(line.quantity) ?? 0,
+    })),
+  });
 
   const file = optionalImageOrPdfUpload(formData.get("importDutiesDocument"), {
     sizeMessage: "Import duties file must be 10 MB or smaller.",
@@ -1846,32 +2147,95 @@ export async function markImportDutiesPaid(formData: FormData) {
       })
     : invoice.importDutiesFilePath;
 
-  await prisma.$transaction(async (tx) => {
-    await tx.purchaseInvoice.update({
-      where: { id: invoice.id },
-      data: {
-        importDutiesBillingId: billingId,
-        importDutiesFilePath,
-        importDutiesPaidAt: new Date(),
-        importDutiesPaidById: session.user.id,
-        importPaidItems: invoice.paidAt ? "BOTH" : "DUTIES",
-      },
+  const includesPpn =
+    invoice.importFulfillment === "INTERNAL"
+      ? importResult.ppnApplied
+      : invoice.includesPpn;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.purchaseInvoice.update({
+        where: { id: invoice.id },
+        data: {
+          importDutiesBillingId: billingId,
+          importDutiesFilePath,
+          importDutiesPaidAt: new Date(),
+          importDutiesPaidById: session.user.id,
+          importPaidItems: invoice.paidAt ? "BOTH" : "DUTIES",
+          customsRateToIdr: optionalDecimal(
+            invoice.hasCustomsFees
+              ? locked.declaredCustomsRate
+              : importResult.appliedCustomsRates[0]?.rate ??
+                locked.customsRateToIdr
+          ),
+          customsRatesToIdr: locked.customsRatesToIdr ?? undefined,
+          freightCustomsRateToIdr:
+            invoice.freightIncludedInInvoice === false &&
+            invoice.freightCurrency !== "IDR"
+              ? optionalDecimal(locked.freightCustomsRateToIdr)
+              : null,
+          insuranceCustomsRateToIdr:
+            invoice.insuranceIncludedInInvoice === false &&
+            invoice.insuranceCurrency !== "IDR"
+              ? optionalDecimal(locked.insuranceCustomsRateToIdr)
+              : null,
+          freightIdr: optionalDecimal(importResult.freightIdr),
+          insuranceIdr: optionalDecimal(importResult.insuranceIdr),
+          formEApplied: importResult.formEApplied,
+          beaMasukApplied: importResult.beaMasukApplied,
+          beaMasukRatePercent: optionalDecimal(importResult.beaMasukRatePercent),
+          beaMasukAmountIdr: optionalDecimal(importResult.beaMasukAmountIdr),
+          ppnbmApplied: importResult.ppnbmApplied,
+          ppnbmRatePercent: optionalDecimal(importResult.ppnbmRatePercent),
+          ppnbmAmountIdr: optionalDecimal(importResult.ppnbmAmountIdr),
+          importPpnAmountIdr: optionalDecimal(importResult.ppnAmountIdr),
+          pph22Applied: importResult.pph22Applied,
+          pph22Basis: importResult.pph22Applied ? importResult.pph22Basis : null,
+          pph22RatePercent: optionalDecimal(importResult.pph22RatePercent),
+          pph22AmountIdr: optionalDecimal(importResult.pph22AmountIdr),
+          customsValueIdr: optionalDecimal(importResult.customsValueIdr),
+          importValueIdr: optionalDecimal(importResult.importValueIdr),
+          stockLandedCostIdr: optionalDecimal(importStockLandedCostIdr),
+          includesPpn,
+          ppnRatePercent: includesPpn
+            ? optionalDecimal(importResult.ppnRatePercent)
+            : invoice.ppnRatePercent,
+        },
+      });
+      for (let i = 0; i < pricedLines.length; i++) {
+        const line = pricedLines[i]!;
+        if (line.inventoryPurchase) continue;
+        const allocatedLine = allocated[i];
+        await tx.purchaseInvoiceLine.update({
+          where: { id: line.id },
+          data: {
+            unitPrice: toDecimal(allocatedLine?.unitCostIdr ?? 0),
+            totalPrice: toDecimal(allocatedLine?.totalCostIdr ?? 0),
+          },
+        });
+      }
+      await stockInPendingPurchaseLines(tx, {
+        companyId: session.user.companyId,
+        userId: session.user.id,
+        invoice: {
+          id: invoice.id,
+          invoiceDate: invoice.invoiceDate,
+          invoiceRef: invoice.invoiceRef,
+          filePath: invoice.filePath,
+          notes: invoice.notes,
+          vendorId: invoice.vendorId,
+          purpose: invoice.purpose,
+          purchaseCategory: invoice.purchaseCategory,
+        },
+      });
     });
-    await stockInPendingPurchaseLines(tx, {
-      companyId: session.user.companyId,
-      userId: session.user.id,
-      invoice: {
-        id: invoice.id,
-        invoiceDate: invoice.invoiceDate,
-        invoiceRef: invoice.invoiceRef,
-        filePath: invoice.filePath,
-        notes: invoice.notes,
-        vendorId: invoice.vendorId,
-        purpose: invoice.purpose,
-        purchaseCategory: invoice.purchaseCategory,
-      },
-    });
-  });
+  } catch (error) {
+    if (file && importDutiesFilePath) {
+      await deleteLocalUpload(importDutiesFilePath);
+    }
+    throw error;
+  }
+
   await writeRecordChange({
     companyId: session.user.companyId,
     userId: session.user.id,
@@ -1880,9 +2244,14 @@ export async function markImportDutiesPaid(formData: FormData) {
     entityId: invoice.id,
     description: "Import duties paid",
     oldValue: { importDutiesPaidAt: null },
-    newValue: { importDutiesPaidAt: true, importDutiesBillingId: billingId },
+    newValue: {
+      importDutiesPaidAt: true,
+      importDutiesBillingId: billingId,
+      customsValueIdr: importResult.customsValueIdr,
+    },
   });
   revalidatePath("/billing/purchase-invoices");
+  revalidatePath("/billing/settlements");
   revalidatePath("/inventory");
 }
 

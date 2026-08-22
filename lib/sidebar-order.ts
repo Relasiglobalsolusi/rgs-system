@@ -125,7 +125,7 @@ function migrateHrSectionItems(
   );
 }
 
-/** Item Catalog: Operations → Administration. */
+/** Goods Catalog: Operations → Administration. */
 function migrateCatalogToAdmin(
   sections: Record<string, string[]>
 ): Record<string, string[]> {

@@ -90,6 +90,8 @@ export default async function SalesPage({
         assignedAt: true,
         writeOffMovementId: true,
         soldOffMovementId: true,
+        vehicleYear: true,
+        createdAt: true,
         item: {
           select: { id: true, sku: true, name: true, itemType: true },
         },
@@ -133,6 +135,8 @@ export default async function SalesPage({
       soldOffMovementId: asset.soldOffMovementId,
       soldBuyer: null,
       soldAt: null,
+      vehicleYear: asset.vehicleYear,
+      createdAt: asset.createdAt.toISOString(),
       item: asset.item!,
       project: asset.project,
     }));

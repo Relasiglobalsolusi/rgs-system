@@ -12,7 +12,12 @@ export type PurchaseInvoiceTableRow = {
   invoiceDateLabel: string;
   amountLabel: string;
   origin?: "LOCAL" | "IMPORT";
-  purchaseCategory?: "PRODUCT" | "SERVICE" | "PETTY_CASH" | "GOVERNMENT";
+  purchaseCategory?:
+    | "PRODUCT"
+    | "SERVICE"
+    | "PETTY_CASH"
+    | "GOVERNMENT"
+    | "VEHICLE";
   governmentTaxKindLabel?: string | null;
   freeOfCharge?: boolean;
   hasInvoice?: boolean;
@@ -69,6 +74,11 @@ function PurchaseInvoiceCard({ row }: { row: PurchaseInvoiceTableRow }) {
             {row.purchaseCategory === "GOVERNMENT" ? (
               <span className="shrink-0 rounded-md border border-accent-cyan/40 bg-card-tint-cyan px-2 py-0.5 text-[0.625rem] font-semibold uppercase tracking-[0.04em] text-accent-teal">
                 {row.governmentTaxKindLabel ?? t("pages.billing.governmentChip")}
+              </span>
+            ) : null}
+            {row.purchaseCategory === "VEHICLE" ? (
+              <span className="shrink-0 rounded-md border border-accent-cyan/40 bg-card-tint-cyan px-2 py-0.5 text-[0.625rem] font-semibold uppercase tracking-[0.04em] text-accent-teal">
+                {t("pages.billing.purchaseCategoryVehicle")}
               </span>
             ) : null}
             {row.freeOfCharge ? (

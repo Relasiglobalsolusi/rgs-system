@@ -26,7 +26,8 @@ import {
 import { Dialog } from "@/components/ui/dialog";
 import InventoryUnitSelect from "@/components/inventory/InventoryUnitSelect";
 import { localizeInventoryItemType } from "@/lib/i18n/labels";
-import { normalizeInventoryUnit } from "@/lib/inventory-units";
+import { isVehicleItemType } from "@/lib/inventory-sku";
+import { defaultUnitForItemType, normalizeInventoryUnit } from "@/lib/inventory-units";
 import { useT } from "@/lib/i18n/use-t";
 
 const EDIT_FORM_ID = "edit-inventory-item-form";
@@ -104,6 +105,7 @@ export default function InventoryItemEditDialog({
   }
 
   const itemTypeLabel = localizeInventoryItemType(item.itemType, locale);
+  const isVehicle = isVehicleItemType(item.itemType);
 
   return (
     <>
@@ -169,7 +171,9 @@ export default function InventoryItemEditDialog({
 
             <div className={employeeDialogFieldClass}>
               <label className={employeeDialogLabelClass} htmlFor="edit-item-name">
-                {t("pages.inventory.form.itemName")}
+                {isVehicle
+                  ? t("pages.inventory.form.vehicleBrandAndType")
+                  : t("pages.inventory.form.itemName")}
               </label>
               <input
                 id="edit-item-name"
@@ -177,7 +181,17 @@ export default function InventoryItemEditDialog({
                 required
                 defaultValue={item.name}
                 className={employeeInputClass}
+                placeholder={
+                  isVehicle
+                    ? t("pages.inventory.form.vehicleBrandAndTypeHint")
+                    : undefined
+                }
               />
+              {isVehicle ? (
+                <p className={employeeDialogHintClass}>
+                  {t("pages.inventory.form.vehicleBrandAndTypeHint")}
+                </p>
+              ) : null}
             </div>
 
             <div className={employeeDialogFieldClass}>
@@ -196,43 +210,54 @@ export default function InventoryItemEditDialog({
               />
             </div>
 
-            <div className={employeeDialogGridClass}>
-              <div className={employeeDialogFieldClass}>
-                <label className={employeeDialogLabelClass} htmlFor="edit-item-unit">
-                  {t("pages.inventory.form.unit")}
-                </label>
-                <input type="hidden" name="unit" value={unit} />
-                <InventoryUnitSelect
-                  id="edit-item-unit"
-                  value={unit}
-                  extraCodes={[item.unit]}
-                  onChange={setUnit}
-                />
-                <p className={employeeDialogHintClass}>
-                  {t("pages.inventory.form.unitHint")}
-                </p>
+            {isVehicle ? (
+              <input
+                type="hidden"
+                name="unit"
+                value={defaultUnitForItemType(item.itemType)}
+              />
+            ) : (
+              <div className={employeeDialogGridClass}>
+                <div className={employeeDialogFieldClass}>
+                  <label
+                    className={employeeDialogLabelClass}
+                    htmlFor="edit-item-unit"
+                  >
+                    {t("pages.inventory.form.unit")}
+                  </label>
+                  <input type="hidden" name="unit" value={unit} />
+                  <InventoryUnitSelect
+                    id="edit-item-unit"
+                    value={unit}
+                    extraCodes={[item.unit]}
+                    onChange={setUnit}
+                  />
+                  <p className={employeeDialogHintClass}>
+                    {t("pages.inventory.form.unitHint")}
+                  </p>
+                </div>
+                <div className={employeeDialogFieldClass}>
+                  <label
+                    className={employeeDialogLabelClass}
+                    htmlFor="edit-item-min-stock"
+                  >
+                    {t("pages.inventory.form.minStock")}
+                  </label>
+                  <input
+                    id="edit-item-min-stock"
+                    name="minStock"
+                    type="number"
+                    min={0}
+                    step={1}
+                    defaultValue={item.minStock}
+                    className={employeeInputClass}
+                  />
+                  <p className={employeeDialogHintClass}>
+                    {t("pages.inventory.form.minStockHint")}
+                  </p>
+                </div>
               </div>
-              <div className={employeeDialogFieldClass}>
-                <label
-                  className={employeeDialogLabelClass}
-                  htmlFor="edit-item-min-stock"
-                >
-                  {t("pages.inventory.form.minStock")}
-                </label>
-                <input
-                  id="edit-item-min-stock"
-                  name="minStock"
-                  type="number"
-                  min={0}
-                  step={1}
-                  defaultValue={item.minStock}
-                  className={employeeInputClass}
-                />
-                <p className={employeeDialogHintClass}>
-                  {t("pages.inventory.form.minStockHint")}
-                </p>
-              </div>
-            </div>
+            )}
           </form>
         </EmployeeDialogShell>
       </Dialog>

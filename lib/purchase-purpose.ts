@@ -23,11 +23,23 @@ export function parsePurchasePurpose(
  * when Inventory issues the item. Service / government / petty cash are
  * not stock-in.
  */
+export function parsePurchaseCategory(
+  value: FormDataEntryValue | string | null | undefined
+): "PRODUCT" | "SERVICE" | "PETTY_CASH" | "GOVERNMENT" | "VEHICLE" {
+  const raw = String(value ?? "").trim().toUpperCase();
+  if (raw === "SERVICE") return "SERVICE";
+  if (raw === "PETTY_CASH") return "PETTY_CASH";
+  if (raw === "GOVERNMENT") return "GOVERNMENT";
+  if (raw === "VEHICLE") return "VEHICLE";
+  return "PRODUCT";
+}
+
 export function resolvePurchasePurpose(options: {
   category: string;
   requested: PurchasePurpose;
 }): PurchasePurpose {
   if (options.category === "PRODUCT") return "STOCK";
+  if (options.category === "VEHICLE") return "STOCK";
   if (options.category === "SERVICE") {
     return options.requested === "PROJECT" ? "PROJECT" : "INTERNAL";
   }
@@ -54,11 +66,12 @@ export function assertPurchasePurposeProject(options: {
   }
 }
 
-/** Product / STOCK purchases create warehouse stock. */
+/** Product / STOCK purchases create warehouse stock. Vehicles mint assets instead. */
 export function purchaseCreatesStock(
   purpose: PurchasePurpose,
   category?: string | null
 ): boolean {
+  if (category === "VEHICLE") return false;
   if (category === "PRODUCT") return true;
   return purpose === "STOCK";
 }

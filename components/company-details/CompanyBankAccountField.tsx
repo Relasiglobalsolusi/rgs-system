@@ -109,7 +109,7 @@ export default function CompanyBankAccountField({
       )}
       <input type="hidden" name={name} value={selected} />
       <Select
-        value={selected || undefined}
+        value={selected ? selected : null}
         onValueChange={(next) => setSelected(next ?? "")}
         items={items}
         disabled={disabled || empty}

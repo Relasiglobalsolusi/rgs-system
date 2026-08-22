@@ -10,8 +10,17 @@ import {
 } from "@/app/billing/purchase-invoices/actions";
 import BillingDocumentVerifyDialog from "@/components/billing/BillingDocumentVerifyDialog";
 import CompanyBankAccountField from "@/components/company-details/CompanyBankAccountField";
+import {
+  employeeDialogFieldClass,
+  employeeDialogHintClass,
+  employeeDialogLabelClass,
+  employeeInputClass,
+} from "@/components/employees/employee-dialog-ui";
+import { Input } from "@/components/ui/input";
 import type { CompanyBankAccountOption } from "@/lib/company-bank-accounts";
+import { formatImportForeignAmount, parseImportDecimal } from "@/lib/import-landed-cost";
 import { useT } from "@/lib/i18n/use-t";
+import { formatContractPrice } from "@/lib/project-billing";
 
 type Props = {
   open: boolean;
@@ -19,6 +28,10 @@ type Props = {
   purchaseInvoiceId: string;
   supplierName: string;
   invoiceRef: string;
+  needsImportBankRate?: boolean;
+  invoiceCurrency?: string | null;
+  invoiceForeignAmount?: number | null;
+  bookingRate?: number | null;
   onSuccess?: () => void;
 };
 
@@ -28,6 +41,10 @@ export default function PurchaseMarkPaidDialog({
   purchaseInvoiceId,
   supplierName,
   invoiceRef,
+  needsImportBankRate = false,
+  invoiceCurrency,
+  invoiceForeignAmount,
+  bookingRate = null,
   onSuccess,
 }: Props) {
   const { t } = useT();
@@ -38,6 +55,9 @@ export default function PurchaseMarkPaidDialog({
     []
   );
   const [bankAccountId, setBankAccountId] = useState("");
+  const [importBankRate, setImportBankRate] = useState("");
+  const [importBankCharge, setImportBankCharge] = useState("");
+  const [importTelexFee, setImportTelexFee] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,6 +66,9 @@ export default function PurchaseMarkPaidDialog({
       setProofFile(null);
       setReason("");
       setBankAccountId("");
+      setImportBankRate("");
+      setImportBankCharge("");
+      setImportTelexFee("");
       setPending(false);
       setError(null);
       return;
@@ -65,11 +88,13 @@ export default function PurchaseMarkPaidDialog({
     };
   }, [open]);
 
+  const bankRateNumber = parseImportDecimal(importBankRate);
   const canSubmit = Boolean(
     proofFile &&
       proofFile.size > 0 &&
       reason.trim() &&
-      (bankAccounts.length === 0 || bankAccountId)
+      (bankAccounts.length === 0 || bankAccountId) &&
+      (!needsImportBankRate || (bankRateNumber != null && bankRateNumber > 0))
   );
 
   async function handleSubmit(event: FormEvent) {
@@ -84,12 +109,21 @@ export default function PurchaseMarkPaidDialog({
       setError(t("pages.billing.purchaseBankAccountRequired"));
       return;
     }
+    if (needsImportBankRate && (bankRateNumber == null || bankRateNumber <= 0)) {
+      setError(t("pages.billing.purchaseMarkPaidBankRateRequired"));
+      return;
+    }
 
     const formData = new FormData();
     formData.set("purchaseInvoiceId", purchaseInvoiceId);
     formData.set("paymentProof", proofFile);
     formData.set("manualReason", reason);
     formData.set("bankAccountId", bankAccountId);
+    if (needsImportBankRate) {
+      formData.set("importBankRate", importBankRate.trim());
+      formData.set("importBankCharge", importBankCharge.trim());
+      formData.set("importTelexFee", importTelexFee.trim());
+    }
 
     setPending(true);
     try {
@@ -108,13 +142,26 @@ export default function PurchaseMarkPaidDialog({
     }
   }
 
+  const factoryAmountLabel =
+    invoiceForeignAmount != null && invoiceForeignAmount > 0
+      ? formatImportForeignAmount(invoiceCurrency ?? "USD", invoiceForeignAmount)
+      : null;
+
   return (
     <BillingDocumentVerifyDialog
       open={open}
       onOpenChange={onOpenChange}
       icon={Banknote}
-      title={t("pages.billing.purchaseMarkPaidTitle")}
-      description={t("pages.billing.purchaseMarkPaidDesc")}
+      title={
+        needsImportBankRate
+          ? t("pages.billing.purchaseImportPayLaterTitle")
+          : t("pages.billing.purchaseMarkPaidTitle")
+      }
+      description={
+        needsImportBankRate
+          ? t("pages.billing.purchaseMarkPaidImportDesc")
+          : t("pages.billing.purchaseMarkPaidDesc")
+      }
       contextLabel={t("pages.billing.documentVerifyContext")}
       contextValue={`${supplierName} · ${invoiceRef}`}
       fileInputId={`purchase-paid-${purchaseInvoiceId}`}
@@ -124,7 +171,11 @@ export default function PurchaseMarkPaidDialog({
       requireReason
       reasonValue={reason}
       onReasonChange={setReason}
-      callout={t("pages.billing.purchaseMarkPaidHint")}
+      callout={
+        needsImportBankRate
+          ? t("pages.billing.purchaseMarkPaidBankRateHint")
+          : t("pages.billing.purchaseMarkPaidHint")
+      }
       error={error}
       pending={pending}
       canSubmit={canSubmit}
@@ -140,6 +191,87 @@ export default function PurchaseMarkPaidDialog({
         hint={t("pages.billing.purchaseBankAccountHint")}
         disabled={pending}
       />
+      {needsImportBankRate ? (
+        <div className="space-y-3">
+          {factoryAmountLabel ? (
+            <p className={employeeDialogHintClass}>
+              {t("pages.billing.purchaseMarkPaidImportHint", {
+                amount: factoryAmountLabel,
+              })}
+            </p>
+          ) : (
+            <p className={employeeDialogHintClass}>
+              {t("pages.billing.purchaseMarkPaidBankRateHint")}
+            </p>
+          )}
+          {bookingRate != null && bookingRate > 0 ? (
+            <p className={employeeDialogHintClass}>
+              {t("pages.billing.purchaseMarkPaidBookingRateShown", {
+                rate: formatContractPrice(bookingRate),
+              })}
+            </p>
+          ) : null}
+          <div className={employeeDialogFieldClass}>
+            <label
+              htmlFor={`purchase-paid-bank-rate-${purchaseInvoiceId}`}
+              className={employeeDialogLabelClass}
+            >
+              {t("pages.billing.purchaseMarkPaidBankRate")}
+              <span className="text-red-400"> *</span>
+            </label>
+            <Input
+              id={`purchase-paid-bank-rate-${purchaseInvoiceId}`}
+              inputMode="decimal"
+              disabled={pending}
+              value={importBankRate}
+              onChange={(event) => setImportBankRate(event.target.value)}
+              placeholder={t("pages.billing.purchaseImportRatePlaceholder")}
+              className={employeeInputClass}
+            />
+          </div>
+          <div className={employeeDialogFieldClass}>
+            <label
+              htmlFor={`purchase-paid-bank-charge-${purchaseInvoiceId}`}
+              className={employeeDialogLabelClass}
+            >
+              {t("pages.billing.purchaseMarkPaidBankCharge")}
+              {invoiceCurrency ? ` (${invoiceCurrency})` : ""}
+            </label>
+            <Input
+              id={`purchase-paid-bank-charge-${purchaseInvoiceId}`}
+              inputMode="decimal"
+              disabled={pending}
+              value={importBankCharge}
+              onChange={(event) => setImportBankCharge(event.target.value)}
+              placeholder="0"
+              className={employeeInputClass}
+            />
+            <p className={employeeDialogHintClass}>
+              {t("pages.billing.purchaseMarkPaidBankChargeHint")}
+            </p>
+          </div>
+          <div className={employeeDialogFieldClass}>
+            <label
+              htmlFor={`purchase-paid-telex-${purchaseInvoiceId}`}
+              className={employeeDialogLabelClass}
+            >
+              {t("pages.billing.purchaseMarkPaidTelexFee")}
+            </label>
+            <Input
+              id={`purchase-paid-telex-${purchaseInvoiceId}`}
+              inputMode="decimal"
+              disabled={pending}
+              value={importTelexFee}
+              onChange={(event) => setImportTelexFee(event.target.value)}
+              placeholder="0"
+              className={employeeInputClass}
+            />
+            <p className={employeeDialogHintClass}>
+              {t("pages.billing.purchaseMarkPaidTelexFeeHint")}
+            </p>
+          </div>
+        </div>
+      ) : null}
     </BillingDocumentVerifyDialog>
   );
 }

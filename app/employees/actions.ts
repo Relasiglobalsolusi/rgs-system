@@ -1013,7 +1013,7 @@ export async function assignEmployeeToHeadOffice(id: string) {
   revalidatePath("/projects");
   revalidatePath("/shifts", "layout");
   revalidatePath("/cico");
-  revalidatePath("/attendance");
+  revalidatePath("/progress");
 }
 
 /**
@@ -1070,7 +1070,7 @@ export async function releaseEmployeeFromProject(id: string) {
   revalidatePath("/projects");
   revalidatePath("/shifts", "layout");
   revalidatePath("/cico");
-  revalidatePath("/attendance");
+  revalidatePath("/progress");
 }
 
 async function deactivateEmployeeRecord(id: string, currentUserId: string) {

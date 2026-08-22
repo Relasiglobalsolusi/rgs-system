@@ -26,7 +26,7 @@ async function requireShiftsSession() {
 function revalidateShiftPaths(projectId?: string) {
   revalidatePath("/shifts", "layout");
   revalidatePath("/cico");
-  revalidatePath("/attendance");
+  revalidatePath("/progress");
   revalidatePath("/employees");
   revalidatePath("/projects");
   revalidatePath("/billing/payroll");

@@ -17,22 +17,8 @@ export function jakartaTodayAsUtcDateOnly(referenceDate: Date = new Date()): Dat
   return parseDateInput(formatAppDateInput(referenceDate));
 }
 
-/** Employee has at least one pending leave request. */
-export async function hasPendingLeaveRequest(
-  db: LeaveEmploymentDb,
-  employeeId: string
-): Promise<boolean> {
-  const count = await db.leaveRequest.count({
-    where: {
-      employeeId,
-      status: "PENDING",
-    },
-  });
-  return count > 0;
-}
-
 /** Approved leave whose period includes today (inclusive start/end, Asia/Jakarta). */
-export async function hasActiveApprovedLeavePeriod(
+async function hasActiveApprovedLeavePeriod(
   db: LeaveEmploymentDb,
   employeeId: string,
   referenceDate: Date = new Date()

@@ -13,6 +13,7 @@ import {
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
 import { Button } from "@/components/ui/button";
+import { inventoryUnitLabel } from "@/components/inventory/InventoryUnitSelect";
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 
@@ -158,7 +159,7 @@ export default function MaterialRequestForm({
                       </button>
                       {selected ? (
                         <p className="mt-1 text-xs text-subtle">
-                          {selected.sku} · {selected.unit}
+                          {selected.sku} · {inventoryUnitLabel(t, selected.unit)}
                         </p>
                       ) : null}
                     </td>

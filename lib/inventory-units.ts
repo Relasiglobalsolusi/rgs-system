@@ -26,15 +26,6 @@ export const INVENTORY_UNIT_CODES = [
 
 export type InventoryUnitCode = (typeof INVENTORY_UNIT_CODES)[number];
 
-const PACK_UNITS = new Set<string>([
-  "box",
-  "carton",
-  "pack",
-  "bag",
-  "sack",
-  "drum",
-]);
-
 const DECIMAL_UNITS = new Set<string>([
   "kg",
   "g",
@@ -122,10 +113,6 @@ export function normalizeInventoryUnit(raw: string | null | undefined): string {
   const alias = UNIT_ALIASES[trimmed.toLowerCase()];
   if (alias) return alias;
   return trimmed;
-}
-
-export function isPackInventoryUnit(unit: string): boolean {
-  return PACK_UNITS.has(normalizeInventoryUnit(unit));
 }
 
 export function allowsDecimalInventoryQty(unit: string): boolean {

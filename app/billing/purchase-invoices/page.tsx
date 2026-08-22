@@ -24,6 +24,7 @@ import {
   decimalToNumber,
   formatContractPrice,
 } from "@/lib/project-billing";
+import { formatPurchaseListedAmount } from "@/lib/purchase-amount-display";
 import { requireFinanceChild, toPermissionUser } from "@/lib/session";
 import { processScheduledPettyCashPays } from "@/lib/petty-cash";
 import { jakartaYearMonth, utcRangeForJakartaDate, utcRangeForJakartaMonth, daysInUtcMonth } from "@/lib/vat";
@@ -181,7 +182,7 @@ export default async function PurchaseInvoicesPage({
       supplierName: invoice.supplierName,
       invoiceRef: invoice.invoiceRef,
       invoiceDateLabel: formatDisplayDate(invoice.invoiceDate),
-      amountLabel: formatContractPrice(decimalToNumber(invoice.amount)),
+      amountLabel: formatPurchaseListedAmount(invoice),
       origin: invoice.origin,
       purchaseCategory: invoice.purchaseCategory,
       governmentTaxKindLabel: invoice.governmentTaxKind

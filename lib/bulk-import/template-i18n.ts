@@ -86,8 +86,8 @@ export function inventoryTemplateTitle(locale: AppLocale): string {
 
 export function inventoryTemplateHeaderNote(locale: AppLocale): string {
   return locale === "id"
-    ? "Katalog saja (bukan pembelian). Satu item per baris dari baris 3. Kolom * wajib. SKU dibuat sistem dari Jenis Item saat Konfirmasi (mis. TOOL-001). Unggah di Katalog Item → Impor Excel."
-    : "Catalog only (not purchases). One item per row from row 3. Columns marked * are required. SKU is system-generated from Item Type on Confirm (e.g. TOOL-001). Upload in Item Catalog → Import Excel.";
+    ? "Katalog saja (bukan pembelian). Satu item per baris dari baris 3. Kolom * wajib. SKU dibuat sistem dari Jenis Item saat Konfirmasi (mis. TOOL-001). Unggah di Katalog Barang → Impor Excel."
+    : "Catalog only (not purchases). One item per row from row 3. Columns marked * are required. SKU is system-generated from Item Type on Confirm (e.g. TOOL-001). Upload in Goods Catalog → Import Excel.";
 }
 
 /** True when a cell means “no value / not applicable” for import parsers. */

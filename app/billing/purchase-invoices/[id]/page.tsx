@@ -22,6 +22,10 @@ import {
   decimalToNumber,
   formatContractPrice,
 } from "@/lib/project-billing";
+import {
+  formatPurchaseListedAmount,
+  purchaseNeedsImportBankRate,
+} from "@/lib/purchase-amount-display";
 import { formatBankAccountOptionLabel } from "@/lib/company-bank-accounts";
 import { listPurchaseDocumentSlots } from "@/lib/purchase-invoice-documents";
 import {
@@ -31,8 +35,10 @@ import {
 import {
   displayImportCifBreakdown,
   formatImportCifFormulaLabel,
+  formatImportCifNowLabel,
   formatImportForeignAmount,
   impliedFactoryCustomsRateFromStoredCif,
+  importWarehouseFactoryPortionIdr,
   parseCustomsRatesMap,
   summarizeImportCif,
   summarizeImportVendorRemittance,
@@ -131,13 +137,15 @@ export default async function PurchaseInvoiceDetailPage({
   });
 
   const purposeLabel =
-    invoice.purpose === "PROJECT"
-      ? t("pages.billing.purchasePurposeProject")
-      : invoice.purpose === "INTERNAL"
-        ? t("pages.billing.purchasePurposeInternal")
-        : invoice.purpose === "PETTY_CASH"
-          ? t("pages.billing.purchaseCategoryPettyCash")
-          : t("pages.billing.purchasePurposeStock");
+    invoice.purchaseCategory === "VEHICLE"
+      ? t("pages.billing.purchaseVehicleBought")
+      : invoice.purpose === "PROJECT"
+        ? t("pages.billing.purchasePurposeProject")
+        : invoice.purpose === "INTERNAL"
+          ? t("pages.billing.purchasePurposeInternal")
+          : invoice.purpose === "PETTY_CASH"
+            ? t("pages.billing.purchaseCategoryPettyCash")
+            : t("pages.billing.purchasePurposeStock");
   const categoryLabel =
     invoice.purchaseCategory === "SERVICE"
       ? t("pages.billing.purchaseCategoryService")
@@ -145,9 +153,13 @@ export default async function PurchaseInvoiceDetailPage({
         ? t("pages.billing.purchaseCategoryPettyCash")
         : invoice.purchaseCategory === "GOVERNMENT"
           ? t("pages.billing.purchaseCategoryGovernment")
-          : t("pages.billing.purchaseCategoryProduct");
+          : invoice.purchaseCategory === "VEHICLE"
+            ? t("pages.billing.purchaseCategoryVehicle")
+            : t("pages.billing.purchaseCategoryProduct");
   const factoryAmountIdr = decimalToNumber(invoice.invoiceAmountIdr) ?? 0;
   const bankRate = decimalToNumber(invoice.exchangeRateToIdr);
+  const paidBankRate = decimalToNumber(invoice.paidExchangeRateToIdr);
+  const importFxDifference = decimalToNumber(invoice.importFxDifferenceIdr);
   const customsRate = decimalToNumber(invoice.customsRateToIdr);
   const invoiceForeignAmount = decimalToNumber(invoice.invoiceForeignAmount);
   const customsRatesMap = parseCustomsRatesMap(invoice.customsRatesToIdr);
@@ -214,7 +226,17 @@ export default async function PurchaseInvoiceDetailPage({
       cifDisplay.customsValueIdr,
       formatContractPrice
     );
+  const cifNowLabel = formatImportCifNowLabel({
+    currency: invoice.invoiceCurrency ?? "USD",
+    foreignAmount: invoiceForeignAmount ?? 0,
+    freightCurrency: invoice.freightCurrency,
+    freightForeignAmount: decimalToNumber(invoice.freightForeignAmount),
+    insuranceCurrency: invoice.insuranceCurrency,
+    insuranceForeignAmount: decimalToNumber(invoice.insuranceForeignAmount),
+    formatIdr: formatContractPrice,
+  });
   const customsRateRows = cifDisplay.appliedCustomsRates;
+  const netSettlement = paidBankRate != null && paidBankRate > 0;
   const remittance = summarizeImportVendorRemittance({
     foreignAmount: invoiceForeignAmount ?? 0,
     currency: invoice.invoiceCurrency,
@@ -230,15 +252,25 @@ export default async function PurchaseInvoiceDetailPage({
     insuranceIdr: decimalToNumber(invoice.insuranceIdr),
     insuranceIncludedInInvoice: invoice.insuranceIncludedInInvoice,
     insuranceRateToIdr: decimalToNumber(invoice.insuranceRateToIdr),
-    bankFeeCurrency: invoice.bankFeeCurrency,
-    bankFeeForeignAmount: decimalToNumber(invoice.bankFeeForeignAmount),
-    bankFeeIdr: decimalToNumber(invoice.bankFeeIdr),
-    fullAmountFeeCurrency: invoice.fullAmountFeeCurrency,
-    fullAmountFeeForeignAmount: decimalToNumber(
-      invoice.fullAmountFeeForeignAmount
-    ),
-    fullAmountFeeIdr: decimalToNumber(invoice.fullAmountFeeIdr),
-    localBankFeeIdr: decimalToNumber(invoice.localBankFeeIdr),
+    bankFeeCurrency: netSettlement ? undefined : invoice.bankFeeCurrency,
+    bankFeeForeignAmount: netSettlement
+      ? undefined
+      : decimalToNumber(invoice.bankFeeForeignAmount),
+    bankFeeIdr: netSettlement
+      ? undefined
+      : decimalToNumber(invoice.bankFeeIdr),
+    fullAmountFeeCurrency: netSettlement
+      ? undefined
+      : invoice.fullAmountFeeCurrency,
+    fullAmountFeeForeignAmount: netSettlement
+      ? undefined
+      : decimalToNumber(invoice.fullAmountFeeForeignAmount),
+    fullAmountFeeIdr: netSettlement
+      ? undefined
+      : decimalToNumber(invoice.fullAmountFeeIdr),
+    localBankFeeIdr: netSettlement
+      ? 0
+      : decimalToNumber(invoice.localBankFeeIdr),
   });
   const beaMasukIdr = decimalToNumber(invoice.beaMasukAmountIdr) ?? 0;
   const ppnbmIdr = decimalToNumber(invoice.ppnbmAmountIdr) ?? 0;
@@ -258,14 +290,33 @@ export default async function PurchaseInvoiceDetailPage({
   const taxCreditIdr = vatCreditIdr + pph22Idr;
   const grandTotalSpendIdr =
     vendorPaymentIdr + dutiesTotalIdr + handlingFeePaidIdr + shippingCostIdr;
-  const warehouseCostIdr = Math.max(0, grandTotalSpendIdr - taxCreditIdr);
+  const storedWarehouse = decimalToNumber(invoice.stockLandedCostIdr);
+  const liveWarehouse =
+    importWarehouseFactoryPortionIdr({
+      paidToVendorIdr: remittance.paidToVendorIdr,
+      customsValueIdr: cifIdr ?? 0,
+    }) +
+    beaMasukIdr +
+    ppnbmIdr +
+    handlingFeeDppIdr +
+    shippingCostIdr;
+  const warehouseCostIdr =
+    invoice.importDutiesPaidAt && storedWarehouse != null
+      ? storedWarehouse
+      : liveWarehouse;
   const showDutiesSection =
     invoice.importFulfillment !== "OUTSOURCED" || dutiesTotalIdr > 0;
+  const warehouseReady = Boolean(invoice.importDutiesPaidAt);
+  const hideServiceBreakdown = invoice.purchaseCategory === "SERVICE";
+  const showLineWarehouseCosts =
+    !hideServiceBreakdown && (!isImport || warehouseReady);
   const pageDescription = [
     invoice.invoiceRef,
-    isImport
-      ? t("pages.billing.purchaseOriginImport")
-      : t("pages.billing.purchaseOriginLocal"),
+    invoice.purchaseCategory === "VEHICLE"
+      ? t("pages.billing.purchaseVehicleBought")
+      : isImport
+        ? t("pages.billing.purchaseOriginImport")
+        : t("pages.billing.purchaseOriginLocal"),
   ].join(" · ");
 
   return (
@@ -384,7 +435,8 @@ export default async function PurchaseInvoiceDetailPage({
                 </th>
                 <td className={metaValueClassName}>{categoryLabel}</td>
               </tr>
-              {invoice.purchaseCategory === "SERVICE" ? (
+              {invoice.purchaseCategory === "SERVICE" ||
+              invoice.purchaseCategory === "VEHICLE" ? (
                 <tr className="border-b border-border">
                   <th scope="row" className={metaLabelClassName}>
                     {t("pages.billing.purchasePurpose")}
@@ -400,6 +452,14 @@ export default async function PurchaseInvoiceDetailPage({
                   <td className={`${metaValueClassName} font-mono`}>
                     {invoice.vehiclePlate}
                   </td>
+                </tr>
+              ) : null}
+              {invoice.vehicleYear != null ? (
+                <tr className="border-b border-border">
+                  <th scope="row" className={metaLabelClassName}>
+                    {t("pages.billing.purchaseVehicleYear")}
+                  </th>
+                  <td className={metaValueClassName}>{invoice.vehicleYear}</td>
                 </tr>
               ) : null}
               {invoice.bankAccount ? (
@@ -487,7 +547,7 @@ export default async function PurchaseInvoiceDetailPage({
                 <td className={`${metaValueClassName} text-base font-semibold tabular-nums`}>
                   {invoice.freeOfCharge
                     ? t("pages.billing.purchaseFreeOfChargeChip")
-                    : money(decimalToNumber(invoice.amount))}
+                    : formatPurchaseListedAmount(invoice)}
                 </td>
               </tr>
               {invoice.freeOfCharge && invoice.freeOfChargeReason ? (
@@ -556,8 +616,10 @@ export default async function PurchaseInvoiceDetailPage({
             <div className="grid gap-px bg-border lg:grid-cols-2">
               <div className="bg-card p-5 sm:p-6">
                 <p className="mb-3 text-base font-semibold tracking-tight text-text">
-                  {t("pages.billing.purchaseImportPaidToVendor")}
+                  {t("pages.billing.purchaseImportPayLaterTitle")}
                 </p>
+                {remittance.bankRate > 0 ? (
+                  <>
                 <CompactRow
                   label={t("pages.billing.purchaseFactoryInvoice")}
                   value={remittanceLineValue(remittance.factory)}
@@ -576,14 +638,43 @@ export default async function PurchaseInvoiceDetailPage({
                 ) : null}
                 <CompactRow
                   label={t("pages.billing.purchaseImportBankCharge")}
-                  value={remittanceLineValue(remittance.bankCharge)}
+                  value={
+                    remittance.bankCharge.vendorIdr > 0
+                      ? remittanceLineValue(remittance.bankCharge)
+                      : money(decimalToNumber(invoice.bankFeeIdr) ?? 0)
+                  }
                 />
                 <CompactRow
-                  label={t("pages.billing.purchaseImportRate")}
+                  label={
+                    paidBankRate != null && paidBankRate > 0
+                      ? t("pages.billing.purchaseImportBookingRate")
+                      : isCashPaymentTerms(invoice.paymentTermsDays ?? 0)
+                        ? t("pages.billing.purchaseImportRate")
+                        : t("pages.billing.purchaseImportBookingRate")
+                  }
                   value={
                     remittance.bankRate > 0 ? money(remittance.bankRate) : "—"
                   }
                 />
+                {paidBankRate != null && paidBankRate > 0 ? (
+                  <CompactRow
+                    label={t("pages.billing.purchaseImportRate")}
+                    value={money(paidBankRate)}
+                  />
+                ) : null}
+                {importFxDifference != null && importFxDifference !== 0 ? (
+                  <CompactRow
+                    label={t("pages.billing.purchaseImportRateDifference")}
+                    value={money(Math.abs(importFxDifference))}
+                  />
+                ) : null}
+                {importFxDifference != null && importFxDifference !== 0 ? (
+                  <p className="mt-1 text-xs leading-relaxed text-subtle">
+                    {importFxDifference > 0
+                      ? t("pages.billing.purchaseImportRateDifferenceExpenseHint")
+                      : t("pages.billing.purchaseImportRateDifferenceIncomeHint")}
+                  </p>
+                ) : null}
                 <CompactRow
                   label={t("pages.billing.purchaseImportAmountSent")}
                   value={money(remittance.amountSentIdr)}
@@ -618,9 +709,19 @@ export default async function PurchaseInvoiceDetailPage({
                 <p className="mt-2 text-xs leading-relaxed text-subtle">
                   {t("pages.billing.purchaseImportPaidToVendorHint")}
                 </p>
+                  </>
+                ) : (
+                  <p className="text-sm leading-relaxed text-subtle">
+                    {t("pages.billing.purchaseImportBankRateWhenPaid")}
+                  </p>
+                )}
               </div>
 
               <div className="bg-card p-5 sm:p-6">
+                <p className="mb-3 text-base font-semibold tracking-tight text-text">
+                  {t("pages.billing.purchaseImportFactoryNowTitle")}
+                </p>
+                {(cifIdr ?? 0) > 0 ? (
                 <ImportCifValueBlock
                   title={t("pages.billing.purchaseImportCustomsValue")}
                   titleClassName="text-base"
@@ -635,12 +736,29 @@ export default async function PurchaseInvoiceDetailPage({
                     (cifIdr != null ? money(cifIdr) : "—")
                   }
                 />
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-base font-semibold tracking-tight text-text">
+                      {t("pages.billing.purchaseImportCustomsValue")}
+                    </p>
+                    {cifNowLabel ? (
+                      <p className="text-xl font-semibold tabular-nums tracking-tight text-text">
+                        {cifNowLabel}
+                      </p>
+                    ) : null}
+                    <p className="text-sm leading-relaxed text-subtle">
+                      {t("pages.billing.purchaseImportCifNowHint")}
+                    </p>
+                  </div>
+                )}
 
                 {showDutiesSection ? (
                   <div className="mt-4">
                     <CompactHead
-                      label={t("pages.billing.purchaseImportDutiesTotal")}
+                      label={t("pages.billing.purchaseImportDutiesSectionTitle")}
                     />
+                    {invoice.importDutiesPaidAt || dutiesTotalIdr > 0 ? (
+                      <>
                     <CompactRow
                       label={t("pages.billing.purchaseImportBeaMasuk")}
                       value={money(beaMasukIdr)}
@@ -668,6 +786,8 @@ export default async function PurchaseInvoiceDetailPage({
                       value={money(dutiesTotalIdr)}
                       emphasize
                     />
+                      </>
+                    ) : null}
                     <p className="mt-2 text-xs leading-relaxed text-subtle">
                       {t("pages.billing.purchaseImportCustomsRateDutiesHint")}
                     </p>
@@ -703,6 +823,8 @@ export default async function PurchaseInvoiceDetailPage({
                 <p className="mb-3 text-base font-semibold tracking-tight text-text">
                   {t("pages.billing.purchaseImportCredits")}
                 </p>
+                {warehouseReady ? (
+                  <>
                 <div className="space-y-4">
                   <CreditTotal
                     label={t("pages.billing.purchaseImportVatCredit")}
@@ -728,12 +850,20 @@ export default async function PurchaseInvoiceDetailPage({
                 <p className="mt-3 text-xs leading-relaxed text-subtle">
                   {t("pages.billing.purchaseImportTaxCreditNote")}
                 </p>
+                  </>
+                ) : (
+                  <p className="text-sm leading-relaxed text-subtle">
+                    {t("pages.billing.purchaseImportWarehouseAfterDuties")}
+                  </p>
+                )}
               </div>
 
               <div className="bg-card p-5 sm:p-6">
                 <p className="mb-3 text-base font-semibold tracking-tight text-text">
                   {t("pages.billing.purchaseImportStockCost")}
                 </p>
+                {warehouseReady ? (
+                  <>
                 {shippingCostIdr > 0 ? (
                   <CompactRow
                     label={t("pages.billing.purchaseShippingCost")}
@@ -753,6 +883,12 @@ export default async function PurchaseInvoiceDetailPage({
                 <p className="mt-3 text-xs leading-relaxed text-subtle">
                   {t("pages.billing.purchaseImportWarehouseSpendHint")}
                 </p>
+                  </>
+                ) : (
+                  <p className="text-sm leading-relaxed text-subtle">
+                    {t("pages.billing.purchaseImportWarehouseAfterDuties")}
+                  </p>
+                )}
               </div>
             </div>
           </SectionCard>
@@ -772,11 +908,21 @@ export default async function PurchaseInvoiceDetailPage({
                 <thead>
                   <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-[0.08em] text-subtle">
                     <th className="py-2 pr-3">{t("pages.billing.purchaseLineItem")}</th>
-                    <th className="py-2 pr-3">{t("pages.billing.purchaseLineQty")}</th>
-                    <th className="py-2 pr-3">{t("pages.billing.purchaseLineUnitCost")}</th>
-                    <th className="py-2 text-right">
-                      {t("pages.billing.purchaseExpenseLineTotal")}
-                    </th>
+                    {hideServiceBreakdown ? null : (
+                      <th className="py-2 pr-3">{t("pages.billing.purchaseLineQty")}</th>
+                    )}
+                    {showLineWarehouseCosts ? (
+                      <th className="py-2 pr-3">
+                        {t("pages.billing.purchaseLineUnitCost")}
+                      </th>
+                    ) : null}
+                    {hideServiceBreakdown || showLineWarehouseCosts ? (
+                      <th className="py-2 text-right">
+                        {hideServiceBreakdown
+                          ? t("pages.billing.purchaseAmount")
+                          : t("pages.billing.purchaseExpenseLineTotal")}
+                      </th>
+                    ) : null}
                   </tr>
                 </thead>
                 <tbody>
@@ -798,21 +944,32 @@ export default async function PurchaseInvoiceDetailPage({
                             </p>
                           ) : null}
                         </td>
-                        <td className="py-2.5 pr-3 tabular-nums text-text">
-                          {qty}
-                          {unit ? ` ${unit}` : ""}
-                        </td>
-                        <td className="py-2.5 pr-3 tabular-nums text-text">
-                          {money(decimalToNumber(line.unitPrice))}
-                        </td>
-                        <td className="py-2.5 text-right tabular-nums font-medium text-text">
-                          {money(decimalToNumber(line.totalPrice))}
-                        </td>
+                        {hideServiceBreakdown ? null : (
+                          <td className="py-2.5 pr-3 tabular-nums text-text">
+                            {qty}
+                            {unit ? ` ${unit}` : ""}
+                          </td>
+                        )}
+                        {showLineWarehouseCosts ? (
+                          <td className="py-2.5 pr-3 tabular-nums text-text">
+                            {money(decimalToNumber(line.unitPrice))}
+                          </td>
+                        ) : null}
+                        {hideServiceBreakdown || showLineWarehouseCosts ? (
+                          <td className="py-2.5 text-right tabular-nums font-medium text-text">
+                            {money(decimalToNumber(line.totalPrice))}
+                          </td>
+                        ) : null}
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
+              {isImport && !warehouseReady ? (
+                <p className="mt-3 text-sm text-subtle">
+                  {t("pages.billing.purchaseImportWarehouseAfterDuties")}
+                </p>
+              ) : null}
             </div>
           )}
         </SectionCard>
@@ -885,6 +1042,10 @@ export default async function PurchaseInvoiceDetailPage({
               canManage={canManage && !invoice.reversedAt}
               canMarkPaid={canManage && !invoice.reversedAt}
               isPaid={isPaid}
+              needsImportBankRate={purchaseNeedsImportBankRate(invoice)}
+              invoiceCurrency={invoice.invoiceCurrency}
+              invoiceForeignAmount={invoiceForeignAmount}
+              bookingRate={bankRate}
               showLocalTaxUpload={
                 invoice.origin !== "IMPORT" &&
                 invoice.purchaseCategory !== "GOVERNMENT" &&
@@ -900,6 +1061,51 @@ export default async function PurchaseInvoiceDetailPage({
               }
               importDutiesBillingId={invoice.importDutiesBillingId}
               isImport={isImport}
+              importArrival={{
+                invoiceCurrency: invoice.invoiceCurrency,
+                invoiceForeignAmount,
+                freightCurrency: invoice.freightCurrency,
+                freightForeignAmount: decimalToNumber(
+                  invoice.freightForeignAmount
+                ),
+                freightIncludedInInvoice: invoice.freightIncludedInInvoice,
+                freightCustomsRateToIdr: decimalToNumber(
+                  invoice.freightCustomsRateToIdr
+                ),
+                insuranceCurrency: invoice.insuranceCurrency,
+                insuranceForeignAmount: decimalToNumber(
+                  invoice.insuranceForeignAmount
+                ),
+                insuranceIncludedInInvoice: invoice.insuranceIncludedInInvoice,
+                insuranceCustomsRateToIdr: decimalToNumber(
+                  invoice.insuranceCustomsRateToIdr
+                ),
+                customsRatesToIdr: invoice.customsRatesToIdr,
+                customsRateToIdr: customsRate,
+                formEApplied: invoice.formEApplied,
+                beaMasukApplied: invoice.beaMasukApplied,
+                beaMasukRatePercent: decimalToNumber(
+                  invoice.beaMasukRatePercent
+                ),
+                beaMasukAmountIdr: beaMasukIdr,
+                ppnbmApplied: invoice.ppnbmApplied,
+                ppnbmRatePercent: decimalToNumber(invoice.ppnbmRatePercent),
+                ppnbmAmountIdr: ppnbmIdr,
+                includesPpn: invoice.includesPpn,
+                ppnRatePercent: decimalToNumber(invoice.ppnRatePercent),
+                importPpnAmountIdr: importPpnIdr,
+                pph22Applied: invoice.pph22Applied,
+                pph22Basis: invoice.pph22Basis,
+                pph22RatePercent: decimalToNumber(invoice.pph22RatePercent),
+                pph22AmountIdr: pph22Idr,
+                declaredValue,
+                declaredCurrency: invoiceWithDeclared.declaredCurrency,
+                hasCustomsFees: invoice.hasCustomsFees,
+                totalQuantity: invoice.lines.reduce(
+                  (sum, line) => sum + (decimalToNumber(line.quantity) ?? 0),
+                  0
+                ),
+              }}
             />
           </div>
           {invoice.createdBy?.name ? (

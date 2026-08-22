@@ -305,6 +305,8 @@ enum PurchaseCategory {
   PETTY_CASH
   /// Tax or other government bill paid with a DJP Billing ID.
   GOVERNMENT
+  /// Local company vehicle. Not warehouse stock. One plate per expense.
+  VEHICLE
 }
 
 /// What a government expense is settling (DJP / other state bills).
@@ -1209,8 +1211,12 @@ model PurchaseInvoice {
   origin PurchaseOrigin @default(LOCAL)
   invoiceCurrency      String?
   invoiceForeignAmount Decimal? @db.Decimal(14, 4)
-  /// Bank Rate — the rate the bank used to transfer the invoice payment.
+  /// Cash: Bank Rate of the transfer. Net: Booking Rate that locks warehouse factory Rupiah.
   exchangeRateToIdr    Decimal? @db.Decimal(18, 6)
+  /// Bank Rate actually used when a Net import was paid. Booking Rate stays in exchangeRateToIdr.
+  paidExchangeRateToIdr Decimal? @db.Decimal(18, 6)
+  /// Signed Rupiah: (Bank Rate − Booking Rate) × factory FX. Positive = HO expense. Negative = HO income.
+  importFxDifferenceIdr Decimal? @db.Decimal(14, 2)
   /// Customs Rate — the rate customs used when the goods arrived (CIF / duties).
   customsRateToIdr     Decimal? @db.Decimal(18, 6)
   /// Per-currency Customs Rates for CIF, e.g. { "USD": 16200, "RMB": 2250 }. No IDR key.
@@ -1291,6 +1297,8 @@ model PurchaseInvoice {
 
   /// Number plate when this expense is a vehicle. Also used as the vehicle asset code.
   vehiclePlate String?
+  /// Model year of the vehicle on this expense.
+  vehicleYear Int?
 
   /// Company bank this purchase is paid from, or will be paid from.
   bankAccountId String?
@@ -2104,6 +2112,8 @@ model EquipmentAsset {
   /// Manufacturer / physical serial number (optional, user-set).
   serialNo String?
   notes    String?
+  /// Model year for vehicle assets. Unused for equipment.
+  vehicleYear Int?
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)

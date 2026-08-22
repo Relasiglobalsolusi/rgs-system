@@ -174,6 +174,7 @@ export async function mintVehicleAssetByPlate(
   plateNumber: string,
   options?: {
     unitCost?: number | null;
+    vehicleYear?: number | null;
     status?: "AVAILABLE" | "IN_TRANSIT";
   }
 ): Promise<string> {
@@ -195,13 +196,20 @@ export async function mintVehicleAssetByPlate(
     if (existing.itemId !== item.id) {
       throw new Error("This number plate is already on file as a vehicle asset.");
     }
-    if (
-      options?.unitCost != null &&
-      Number.isFinite(options.unitCost)
-    ) {
+    const existingPatch: {
+      unitCost?: ReturnType<typeof toDecimal>;
+      vehicleYear?: number;
+    } = {};
+    if (options?.unitCost != null && Number.isFinite(options.unitCost)) {
+      existingPatch.unitCost = toDecimal(options.unitCost);
+    }
+    if (options?.vehicleYear != null) {
+      existingPatch.vehicleYear = options.vehicleYear;
+    }
+    if (Object.keys(existingPatch).length > 0) {
       await db.equipmentAsset.update({
         where: { id: existing.id },
-        data: { unitCost: toDecimal(options.unitCost) },
+        data: existingPatch,
       });
     }
     return plate;
@@ -220,6 +228,7 @@ export async function mintVehicleAssetByPlate(
       serialNo: plate,
       status: options?.status ?? "AVAILABLE",
       unitCost: lockedUnitCost,
+      vehicleYear: options?.vehicleYear ?? null,
     },
   });
   return plate;

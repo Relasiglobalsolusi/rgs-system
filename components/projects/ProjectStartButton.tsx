@@ -87,7 +87,7 @@ function initialDurationDays(args: {
 }
 
 /** Opens dialog to collect real dates + staff, then Planning → In Progress. */
-export function useProjectStartAction({
+function useProjectStartAction({
   projectId,
   projectName,
   subCategory,
@@ -327,7 +327,7 @@ type ReturnArgs = {
 };
 
 /** Confirm + move In Progress → Planning (keeps all dates). */
-export function useProjectReturnToPlanningAction({
+function useProjectReturnToPlanningAction({
   projectId,
   projectName,
 }: ReturnArgs) {

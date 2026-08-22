@@ -5,7 +5,7 @@ import AppShell from "@/components/layout/AppShell";
 import { getInventoryStockItemDetail } from "@/app/inventory/actions";
 import { canReturnEquipmentToFactory } from "@/lib/inventory-access";
 import { inventoryQtyFromDecimal } from "@/lib/inventory";
-import { isCodedIdentityItemType } from "@/lib/equipment-asset";
+import { isEquipmentItemType } from "@/lib/equipment-asset";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/project-billing";
 import { canManageInventory } from "@/lib/project-access";
@@ -25,7 +25,7 @@ export default async function EquipmentItemPage({
   const item = await prisma.inventoryItem.findFirst({
     where: { id: itemId, companyId: company.id, deletedAt: null },
   });
-  if (!item || !isCodedIdentityItemType(item.itemType)) {
+  if (!item || !isEquipmentItemType(item.itemType)) {
     notFound();
   }
 
@@ -44,6 +44,8 @@ export default async function EquipmentItemPage({
           assignedAt: true,
           writeOffMovementId: true,
           soldOffMovementId: true,
+          vehicleYear: true,
+          createdAt: true,
           item: {
             select: { id: true, sku: true, name: true, itemType: true },
           },
@@ -157,6 +159,8 @@ export default async function EquipmentItemPage({
             soldOffMovementId: row.soldOffMovementId,
             soldBuyer: sale?.buyer ?? null,
             soldAt: sale?.soldAt ?? null,
+            vehicleYear: row.vehicleYear,
+            createdAt: row.createdAt.toISOString(),
             item: row.item,
             project: row.project,
           };

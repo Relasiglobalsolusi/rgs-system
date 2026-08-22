@@ -25,6 +25,10 @@ import {
   decimalToNumber,
   formatContractPrice,
 } from "@/lib/project-billing";
+import {
+  formatPurchaseListedAmount,
+  purchaseNeedsImportBankRate,
+} from "@/lib/purchase-amount-display";
 import { requireFinanceChild, toPermissionUser } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
@@ -142,7 +146,11 @@ export default async function SettlementsPage() {
         id: invoice.id,
         supplierName: invoice.supplierName,
         invoiceRef: invoice.invoiceRef,
-        amountLabel: formatContractPrice(decimalToNumber(invoice.amount)),
+        amountLabel: formatPurchaseListedAmount(invoice),
+        needsImportBankRate: purchaseNeedsImportBankRate(invoice),
+        invoiceCurrency: invoice.invoiceCurrency,
+        invoiceForeignAmount: decimalToNumber(invoice.invoiceForeignAmount),
+        bookingRate: decimalToNumber(invoice.exchangeRateToIdr),
         dueLabel: formatDisplayDate(payment.dueAt, { timeZone: "UTC" }),
         termsLabel: isCashPaymentTerms(termsDays)
           ? t("common.paymentTerms.cashShort")
@@ -360,6 +368,10 @@ export default async function SettlementsPage() {
                           purchaseInvoiceId={row.id}
                           supplierName={row.supplierName}
                           invoiceRef={row.invoiceRef}
+                          needsImportBankRate={row.needsImportBankRate}
+                          invoiceCurrency={row.invoiceCurrency}
+                          invoiceForeignAmount={row.invoiceForeignAmount}
+                          bookingRate={row.bookingRate}
                         />
                       ) : null}
                     </div>

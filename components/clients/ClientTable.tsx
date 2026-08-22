@@ -54,9 +54,9 @@ export type ClientRow = {
 };
 
 /** Portal Login column: Yes (active), Revoked (linked but inactive), No (never provisioned). */
-export type ClientPortalLoginStatus = "yes" | "revoked" | "no";
+type ClientPortalLoginStatus = "yes" | "revoked" | "no";
 
-export function getClientPortalLoginStatus(
+function getClientPortalLoginStatus(
   client: Pick<ClientRow, "users">
 ): ClientPortalLoginStatus {
   if (client.users.length === 0) return "no";

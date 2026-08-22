@@ -90,7 +90,6 @@
 
   /* Motion tokens — professional ERP pace (slightly slower than defaults) */
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-in-out-soft: cubic-bezier(0.4, 0, 0.2, 1);
   --duration-fast: 180ms;
   --duration-normal: 280ms;
   --duration-slow: 340ms;
@@ -1036,8 +1035,6 @@ p {
   --auth-error-text: #fca5a5;
   --auth-focus-border: rgba(34, 211, 238, 0.6);
   --auth-focus-ring: rgba(34, 211, 238, 0.08);
-  --auth-checkbox-bg: #0c1723;
-  --auth-checkbox-border: #475569;
   --auth-back-bg: rgba(255, 255, 255, 0.05);
   --auth-back-border: rgba(255, 255, 255, 0.15);
   --auth-back-text: #cbd5e1;
@@ -1143,16 +1140,6 @@ p {
   border: 1px solid rgba(185, 28, 28, 0.3);
   background-color: var(--color-card-tint-red);
   color: var(--auth-error-text);
-}
-
-.auth-checkbox-label {
-  color: var(--auth-muted);
-}
-
-.auth-checkbox {
-  border-color: var(--auth-checkbox-border);
-  background-color: var(--auth-checkbox-bg);
-  accent-color: var(--color-accent-cyan);
 }
 
 .auth-tagline-rule {
@@ -1742,8 +1729,6 @@ html:not(.dark) .auth-surface {
   --auth-error-text: #b91c1c;
   --auth-focus-border: rgba(47, 158, 144, 0.65);
   --auth-focus-ring: rgba(47, 158, 144, 0.16);
-  --auth-checkbox-bg: #ffffff;
-  --auth-checkbox-border: #64748b;
   --auth-back-bg: rgba(15, 35, 55, 0.04);
   --auth-back-border: rgba(15, 35, 55, 0.18);
   --auth-back-text: #1e293b;

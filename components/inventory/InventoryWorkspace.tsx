@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   Boxes,
+  Car,
   Factory,
   FolderKanban,
   ShoppingCart,
@@ -13,12 +14,14 @@ import {
 
 import { searchInventoryPurchases } from "@/app/inventory/actions";
 import InventoryAssetList from "@/components/inventory/InventoryAssetList";
+import InventoryVehicleList from "@/components/inventory/InventoryVehicleList";
 import InventoryProjectIssues from "@/components/inventory/InventoryProjectIssues";
 import InventoryReverseWriteOffDialog from "@/components/inventory/InventoryReverseWriteOffDialog";
 import InventoryStockTables from "@/components/inventory/InventoryStockTables";
 import InventoryWriteOffDialog from "@/components/inventory/InventoryWriteOffDialog";
 import InventoryWriteOffTables from "@/components/inventory/InventoryWriteOffTables";
-import { isCodedIdentityItemType } from "@/lib/equipment-asset";
+import { isCodedIdentityItemType, isEquipmentItemType } from "@/lib/equipment-asset";
+import { isVehicleItemType } from "@/lib/inventory-sku";
 import type {
   InventoryCatalogItem,
   InventoryFactoryReturnRow,
@@ -88,16 +91,29 @@ export default function InventoryWorkspace({
     () => items.filter((item) => item.active),
     [items]
   );
-  /** Chemical / Consumable / Spare Part / Other — Equipment and Vehicle live on Asset List. */
+  /** Chemical / Consumable / Spare Part / Other — Equipment on Asset List, vehicles on Vehicles. */
   const nonEquipmentItems = useMemo(
     () =>
       activeItems.filter((item) => !isCodedIdentityItemType(item.itemType)),
     [activeItems]
   );
   const equipmentCatalogItems = useMemo(
-    () =>
-      activeItems.filter((item) => isCodedIdentityItemType(item.itemType)),
+    () => activeItems.filter((item) => isEquipmentItemType(item.itemType)),
     [activeItems]
+  );
+  const vehicleAssets = useMemo(
+    () =>
+      equipmentAssets.filter((asset) =>
+        isVehicleItemType(asset.item?.itemType)
+      ),
+    [equipmentAssets]
+  );
+  const equipmentOnlyAssets = useMemo(
+    () =>
+      equipmentAssets.filter((asset) =>
+        isEquipmentItemType(asset.item?.itemType ?? "")
+      ),
+    [equipmentAssets]
   );
 
   const lowStockCount = useMemo(
@@ -180,6 +196,14 @@ export default function InventoryWorkspace({
   const hangingFactoryReturns = factoryReturns.filter(
     (row) => row.status === "WAITING"
   ).length;
+
+  const vehicleStats = useMemo(() => {
+    const live = vehicleAssets.filter((asset) => asset.status !== "RETIRED");
+    return {
+      count: live.length,
+      value: live.reduce((sum, asset) => sum + (asset.unitCost ?? 0), 0),
+    };
+  }, [vehicleAssets]);
 
   const trimmedSearch = searchQuery.trim();
 
@@ -273,7 +297,9 @@ export default function InventoryWorkspace({
   const searchPlaceholder =
     tab === "purchases"
       ? t("pages.inventory.searchPurchasesPlaceholder")
-      : t("pages.inventory.searchPlaceholder");
+      : tab === "vehicles"
+        ? t("pages.inventory.searchVehiclesPlaceholder")
+        : t("pages.inventory.searchPlaceholder");
 
   const purchaseColumns: DataTableColumn<InventoryPurchaseRow>[] = [
     {
@@ -344,7 +370,7 @@ export default function InventoryWorkspace({
   return (
     <>
       <div className="mb-5 space-y-3">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <DirectoryStatCard
             compact
             title={t("pages.inventory.tabs.stock")}
@@ -369,6 +395,18 @@ export default function InventoryWorkspace({
             accent="muted"
             selected={tab === "assetList"}
             onClick={() => selectTab("assetList")}
+          />
+          <DirectoryStatCard
+            compact
+            title={t("pages.inventory.tabs.vehicles")}
+            value={formatContractPrice(vehicleStats.value)}
+            subtitle={t("pages.inventory.stats.vehiclesSubtitle", {
+              count: String(vehicleStats.count),
+            })}
+            icon={<Car size={18} />}
+            accent="info"
+            selected={tab === "vehicles"}
+            onClick={() => selectTab("vehicles")}
           />
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -452,9 +490,14 @@ export default function InventoryWorkspace({
       {tab === "assetList" ? (
         <InventoryAssetList
           items={visibleEquipment}
-          equipmentAssets={equipmentAssets}
+          equipmentAssets={equipmentOnlyAssets}
           searchQuery={searchQuery}
           canManage={canManage}
+        />
+      ) : tab === "vehicles" ? (
+        <InventoryVehicleList
+          vehicles={vehicleAssets}
+          searchQuery={searchQuery}
         />
       ) : tab === "stock" ? (
         <InventoryStockTables items={visibleStock} searchQuery={searchQuery} />

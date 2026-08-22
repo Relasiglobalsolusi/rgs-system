@@ -97,9 +97,9 @@ export type EmployeeDirectoryView =
   | "trash";
 
 /** Portal Login column: Yes (active), Revoked (linked but inactive), No (never provisioned). */
-export type EmployeePortalLoginStatus = "yes" | "revoked" | "no";
+type EmployeePortalLoginStatus = "yes" | "revoked" | "no";
 
-export function getEmployeePortalLoginStatus(
+function getEmployeePortalLoginStatus(
   employee: Pick<Employee, "user">
 ): EmployeePortalLoginStatus {
   if (!employee.user) return "no";

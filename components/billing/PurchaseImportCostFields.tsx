@@ -4,6 +4,7 @@ import type { Dispatch, ReactNode, SetStateAction } from "react";
 import {
   calculateImportLandedCost,
   formatImportCifFormulaLabel,
+  formatImportCifNowLabel,
   formatImportForeignAmount,
   type ImportLandedCostInput,
   IMPORT_CURRENCIES,
@@ -11,6 +12,7 @@ import {
   IMPORT_PPH22_API_RATE_PERCENT,
   IMPORT_PPH22_NON_API_RATE_PERCENT,
   listImportCifFxCurrencies,
+  parseCustomsRatesMap,
   parseImportDecimal,
   pph22RatePercentForBasis,
   type ImportLandedCostResult,
@@ -115,6 +117,110 @@ export function emptyPurchaseImportDraft(): PurchaseImportDraft {
   };
 }
 
+function draftMoney(value: unknown): string {
+  if (value == null || value === "") return "";
+  const n = Number(
+    typeof value === "object" && value !== null && "toString" in value
+      ? value.toString()
+      : value
+  );
+  return Number.isFinite(n) && n !== 0 ? String(n) : "";
+}
+
+/** Locked factory-invoice amounts plus any duties already stored. */
+export function purchaseImportDraftFromRecord(record: {
+  invoiceCurrency?: string | null;
+  invoiceForeignAmount?: unknown;
+  freightCurrency?: string | null;
+  freightForeignAmount?: unknown;
+  freightIncludedInInvoice?: boolean | null;
+  insuranceCurrency?: string | null;
+  insuranceForeignAmount?: unknown;
+  insuranceIncludedInInvoice?: boolean | null;
+  customsRatesToIdr?: unknown;
+  formEApplied?: boolean | null;
+  beaMasukApplied?: boolean | null;
+  beaMasukRatePercent?: unknown;
+  beaMasukAmountIdr?: unknown;
+  ppnbmApplied?: boolean | null;
+  ppnbmRatePercent?: unknown;
+  ppnbmAmountIdr?: unknown;
+  includesPpn?: boolean | null;
+  ppnRatePercent?: unknown;
+  importPpnAmountIdr?: unknown;
+  pph22Applied?: boolean | null;
+  pph22Basis?: ImportPph22Basis | null;
+  pph22RatePercent?: unknown;
+  pph22AmountIdr?: unknown;
+  customsRateToIdr?: unknown;
+  declaredValue?: unknown;
+  declaredCurrency?: string | null;
+  hasCustomsFees?: boolean | null;
+  freightCustomsRateToIdr?: unknown;
+  insuranceCustomsRateToIdr?: unknown;
+}): PurchaseImportDraft {
+  const currency =
+    (
+      record.invoiceCurrency ||
+      record.declaredCurrency ||
+      "USD"
+    )
+      .trim()
+      .toUpperCase() || "USD";
+  const rates = parseCustomsRatesMap(record.customsRatesToIdr);
+  const customsRatesToIdr: Record<string, string> = {};
+  for (const [code, rate] of Object.entries(rates)) {
+    if (rate > 0) customsRatesToIdr[code] = String(rate);
+  }
+  const fallbackRate = Number(record.customsRateToIdr);
+  if (
+    customsRatesToIdr[currency] == null &&
+    Number.isFinite(fallbackRate) &&
+    fallbackRate > 0
+  ) {
+    customsRatesToIdr[currency] = String(fallbackRate);
+  }
+  return {
+    ...emptyPurchaseImportDraft(),
+    currency,
+    foreignAmount:
+      draftMoney(record.invoiceForeignAmount) ||
+      (record.hasCustomsFees ? draftMoney(record.declaredValue) : ""),
+    freightCurrency: (record.freightCurrency ?? currency).trim().toUpperCase() || currency,
+    freightAmount: draftMoney(record.freightForeignAmount),
+    freightIncludedInInvoice: record.freightIncludedInInvoice !== false,
+    insuranceCurrency:
+      (record.insuranceCurrency ?? currency).trim().toUpperCase() || currency,
+    insuranceAmount: draftMoney(record.insuranceForeignAmount),
+    insuranceIncludedInInvoice: record.insuranceIncludedInInvoice !== false,
+    freightCustomsRateToIdr: draftMoney(record.freightCustomsRateToIdr),
+    insuranceCustomsRateToIdr: draftMoney(record.insuranceCustomsRateToIdr),
+    customsRatesToIdr,
+    formEApplied: record.formEApplied === true,
+    beaMasukApplied: record.beaMasukApplied === true,
+    beaMasukRatePercent: draftMoney(record.beaMasukRatePercent),
+    beaMasukAmountIdr: draftMoney(record.beaMasukAmountIdr),
+    ppnbmApplied: record.ppnbmApplied === true,
+    ppnbmRatePercent: draftMoney(record.ppnbmRatePercent),
+    ppnbmAmountIdr: draftMoney(record.ppnbmAmountIdr),
+    ppnApplied: record.includesPpn !== false,
+    ppnRatePercent:
+      draftMoney(record.ppnRatePercent) ||
+      String(DEFAULT_PRODUCT_PPN_RATE_PERCENT),
+    ppnAmountIdr: draftMoney(record.importPpnAmountIdr),
+    pph22Applied: record.pph22Applied !== false,
+    pph22Basis: record.pph22Basis ?? "API",
+    pph22RatePercent: draftMoney(record.pph22RatePercent),
+    pph22AmountIdr: draftMoney(record.pph22AmountIdr),
+  };
+}
+
+export type PurchaseImportArrivalRecord = Parameters<
+  typeof purchaseImportDraftFromRecord
+>[0] & {
+  totalQuantity?: number;
+};
+
 function optionalOverride(raw: string): number | null {
   const parsed = parseImportDecimal(raw);
   return parsed == null ? null : parsed;
@@ -128,7 +234,7 @@ function draftLineCurrency(
   return included ? factoryCurrency : lineCurrency;
 }
 
-export function draftImportCifFxCurrencies(
+function draftImportCifFxCurrencies(
   draft: PurchaseImportDraft
 ): string[] {
   return listImportCifFxCurrencies({
@@ -180,19 +286,24 @@ function parseRequiredLineRate(raw: string): number | null {
 
 export function importDraftToInput(
   draft: PurchaseImportDraft,
-  options?: { requireCustomsRates?: boolean }
+  options?: { requireCustomsRates?: boolean; requireBankRate?: boolean }
 ) {
-  const requireCustomsRates = options?.requireCustomsRates !== false;
+  const requireCustomsRates = options?.requireCustomsRates === true;
+  const requireBankRate = options?.requireBankRate === true;
   const foreignAmount = parseImportDecimal(draft.foreignAmount);
-  const exchangeRateToIdr = parseImportDecimal(draft.exchangeRateToIdr);
-  const factoryCustomsRates = draftCustomsRatesToIdr(draft, [draft.currency]);
-  if (foreignAmount == null || exchangeRateToIdr == null) {
+  const exchangeRateToIdr = parseImportDecimal(draft.exchangeRateToIdr) ?? 0;
+  const cifCurrencies = draftImportCifFxCurrencies(draft);
+  const cifCustomsRates = draftCustomsRatesToIdr(draft, cifCurrencies);
+  if (foreignAmount == null) {
     return null;
   }
-  if (requireCustomsRates && factoryCustomsRates == null) {
+  if (requireBankRate && exchangeRateToIdr <= 0) {
     return null;
   }
-  const customsRatesToIdr = { ...(factoryCustomsRates ?? {}) };
+  if (requireCustomsRates && cifCurrencies.length > 0 && cifCustomsRates == null) {
+    return null;
+  }
+  const customsRatesToIdr = { ...(cifCustomsRates ?? {}) };
   const freightNeedsRates = separateFxLineNeedsRates(
     draft.freightIncludedInInvoice,
     draft.freightCurrency,
@@ -207,21 +318,29 @@ export function importDraftToInput(
     ? parseRequiredLineRate(draft.freightRateToIdr)
     : undefined;
   const freightCustomsRateToIdr = freightNeedsRates
-    ? parseRequiredLineRate(draft.freightCustomsRateToIdr)
+    ? parseRequiredLineRate(
+        draft.freightCustomsRateToIdr ||
+          draft.customsRatesToIdr[draft.freightCurrency] ||
+          ""
+      )
     : undefined;
   const insuranceRateToIdr = insuranceNeedsRates
     ? parseRequiredLineRate(draft.insuranceRateToIdr)
     : undefined;
   const insuranceCustomsRateToIdr = insuranceNeedsRates
-    ? parseRequiredLineRate(draft.insuranceCustomsRateToIdr)
+    ? parseRequiredLineRate(
+        draft.insuranceCustomsRateToIdr ||
+          draft.customsRatesToIdr[draft.insuranceCurrency] ||
+          ""
+      )
     : undefined;
-  if (freightNeedsRates && freightRateToIdr == null) {
+  if (requireBankRate && freightNeedsRates && freightRateToIdr == null) {
     return null;
   }
   if (requireCustomsRates && freightNeedsRates && freightCustomsRateToIdr == null) {
     return null;
   }
-  if (insuranceNeedsRates && insuranceRateToIdr == null) {
+  if (requireBankRate && insuranceNeedsRates && insuranceRateToIdr == null) {
     return null;
   }
   if (
@@ -246,7 +365,7 @@ export function importDraftToInput(
     customsRatesToIdr[draft.insuranceCurrency] = insuranceCustomsRateToIdr;
   }
   const customsRateToIdr = customsRatesToIdr[draft.currency] ?? 0;
-  if (requireCustomsRates && customsRateToIdr <= 0) {
+  if (requireCustomsRates && cifCurrencies.includes(draft.currency) && customsRateToIdr <= 0) {
     return null;
   }
   return {
@@ -506,6 +625,8 @@ function OptionalInvoiceFeeField({
   factoryCurrency,
   bankRate,
   factoryCustomsRate,
+  showBankRate = true,
+  showCustomsRate = true,
   included,
   currency,
   amount,
@@ -526,6 +647,8 @@ function OptionalInvoiceFeeField({
   factoryCurrency: string;
   bankRate: string;
   factoryCustomsRate: string;
+  showBankRate?: boolean;
+  showCustomsRate?: boolean;
   included: boolean;
   currency: string;
   amount: string;
@@ -574,7 +697,7 @@ function OptionalInvoiceFeeField({
       <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-2">
         {separate ? (
           <Select
-            value={currency}
+            value={currency || null}
             onValueChange={(value) => {
               if (!value) return;
               onChange({
@@ -621,41 +744,50 @@ function OptionalInvoiceFeeField({
           className={employeeInputClass}
         />
       </div>
-      {separate && !isIdr ? (
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <div className={employeeDialogFieldClass}>
-            <label htmlFor={`${id}-rate`} className={employeeDialogLabelClass}>
-              {lineRateLabel}
-            </label>
-            <Input
-              id={`${id}-rate`}
-              inputMode="decimal"
-              disabled={disabled}
-              value={rate}
-              onChange={(event) => onChange({ rate: event.target.value })}
-              placeholder={bankRate || "0"}
-              className={employeeInputClass}
-            />
-          </div>
-          <div className={employeeDialogFieldClass}>
-            <label
-              htmlFor={`${id}-customs-rate`}
-              className={employeeDialogLabelClass}
-            >
-              {lineCustomsRateLabel}
-            </label>
-            <Input
-              id={`${id}-customs-rate`}
-              inputMode="decimal"
-              disabled={disabled}
-              value={customsRate}
-              onChange={(event) =>
-                onChange({ customsRate: event.target.value })
-              }
-              placeholder={factoryCustomsRate || "0"}
-              className={employeeInputClass}
-            />
-          </div>
+      {separate && !isIdr && (showBankRate || showCustomsRate) ? (
+        <div
+          className={cn(
+            "mt-2 grid gap-2",
+            showBankRate && showCustomsRate ? "grid-cols-2" : "grid-cols-1"
+          )}
+        >
+          {showBankRate ? (
+            <div className={employeeDialogFieldClass}>
+              <label htmlFor={`${id}-rate`} className={employeeDialogLabelClass}>
+                {lineRateLabel}
+              </label>
+              <Input
+                id={`${id}-rate`}
+                inputMode="decimal"
+                disabled={disabled}
+                value={rate}
+                onChange={(event) => onChange({ rate: event.target.value })}
+                placeholder={bankRate || "0"}
+                className={employeeInputClass}
+              />
+            </div>
+          ) : null}
+          {showCustomsRate ? (
+            <div className={employeeDialogFieldClass}>
+              <label
+                htmlFor={`${id}-customs-rate`}
+                className={employeeDialogLabelClass}
+              >
+                {lineCustomsRateLabel}
+              </label>
+              <Input
+                id={`${id}-customs-rate`}
+                inputMode="decimal"
+                disabled={disabled}
+                value={customsRate}
+                onChange={(event) =>
+                  onChange({ customsRate: event.target.value })
+                }
+                placeholder={factoryCustomsRate || "0"}
+                className={employeeInputClass}
+              />
+            </div>
+          ) : null}
         </div>
       ) : null}
       <label
@@ -768,6 +900,18 @@ type Props = {
   } | null;
   /** FOC shipping cash added to warehouse cost. Not part of CIF. */
   extraStockCostIdr?: number;
+  /** Booking Rate (Net) or Bank Rate (Cash) is required to lock factory Rupiah. */
+  requireBankRate?: boolean;
+  /** Cash uses Bank Rate and fees. Net uses Booking Rate only. */
+  remittanceRateKind?: "bank" | "booking";
+  /** Payment terms and other factory-invoice-now fields. */
+  nowExtras?: ReactNode;
+  /** Arrival dialog: CIF amounts are already recorded and must not be edited. */
+  lockFactoryNow?: boolean;
+  /** Tax credits and warehouse cost only after duties are recorded. */
+  showWarehouseCost?: boolean;
+  /** Net terms: hide the pay-later remittance hint. Cash uses the Bank Rate fields instead. */
+  showPayLaterHint?: boolean;
 };
 
 export default function PurchaseImportCostFields({
@@ -783,7 +927,15 @@ export default function PurchaseImportCostFields({
   chargesOnly = false,
   declaredCif = null,
   extraStockCostIdr = 0,
+  requireBankRate = false,
+  remittanceRateKind = "bank",
+  nowExtras,
+  lockFactoryNow = false,
+  showWarehouseCost,
+  showPayLaterHint,
 }: Props) {
+  const revealWarehouseCost = showWarehouseCost ?? lockFactoryNow;
+  const revealPayLaterHint = showPayLaterHint ?? false;
   const { t } = useT();
 
   function patch(partial: Partial<PurchaseImportDraft>) {
@@ -818,6 +970,12 @@ export default function PurchaseImportCostFields({
     : 0;
   const handlingPpnShown = Math.max(0, handlingPaidShown - handlingCostShown);
   const vendorPaymentIdr = result?.paidToVendorIdr ?? 0;
+  const factoryPortionIdr =
+    result == null
+      ? 0
+      : vendorPaymentIdr > 0
+        ? vendorPaymentIdr
+        : result.customsValueIdr;
   const vatCreditShown =
     (result && showCustomsCharges ? result.ppnAmountIdr : 0) +
     handlingPpnShown;
@@ -831,31 +989,38 @@ export default function PurchaseImportCostFields({
       handlingPaidShown +
       shippingStockIdr
     : shippingStockIdr;
-  const warehouseCostIdr = Math.max(0, totalExpenseIdr - taxCreditShown);
+  const warehouseCostIdr =
+    (result
+      ? factoryPortionIdr +
+        (showCustomsCharges
+          ? result.beaMasukAmountIdr + result.ppnbmAmountIdr
+          : 0)
+      : 0) +
+    handlingCostShown +
+    shippingStockIdr;
   const unitCost =
     result && totalQuantity > 0
       ? Math.round((warehouseCostIdr / totalQuantity) * 100) / 100
       : null;
   const bankRateIdr = parseImportDecimal(draft.exchangeRateToIdr);
   const cifFxCurrencies = draftImportCifFxCurrencies(draft);
-  const lineCustomsCurrencies = new Set<string>();
-  if (
-    !draft.freightIncludedInInvoice &&
-    draft.freightCurrency !== "IDR" &&
-    parseImportDecimal(draft.freightAmount)
-  ) {
-    lineCustomsCurrencies.add(draft.freightCurrency);
-  }
-  if (
-    !draft.insuranceIncludedInInvoice &&
-    draft.insuranceCurrency !== "IDR" &&
-    parseImportDecimal(draft.insuranceAmount)
-  ) {
-    lineCustomsCurrencies.add(draft.insuranceCurrency);
-  }
-  const factoryCustomsCurrencies = cifFxCurrencies.filter(
-    (code) => code === draft.currency || !lineCustomsCurrencies.has(code)
-  );
+  const cifNowLabel = formatImportCifNowLabel({
+    currency: draft.currency,
+    foreignAmount: parseImportDecimal(draft.foreignAmount) ?? 0,
+    freightCurrency: draftLineCurrency(
+      draft.freightIncludedInInvoice,
+      draft.currency,
+      draft.freightCurrency
+    ),
+    freightForeignAmount: parseImportDecimal(draft.freightAmount),
+    insuranceCurrency: draftLineCurrency(
+      draft.insuranceIncludedInInvoice,
+      draft.currency,
+      draft.insuranceCurrency
+    ),
+    insuranceForeignAmount: parseImportDecimal(draft.insuranceAmount),
+    formatIdr: formatContractPrice,
+  });
 
   function patchCustomsRate(currency: string, value: string) {
     patch({
@@ -878,7 +1043,17 @@ export default function PurchaseImportCostFields({
 
   return (
     <div className="sm:col-span-2 space-y-3">
-      {chargesOnly ? null : (
+      {chargesOnly || lockFactoryNow ? null : (
+      <div className="space-y-3">
+      <div>
+        <p className={employeeDialogLabelClass}>
+          {t("pages.billing.purchaseImportFactoryNowTitle")}
+        </p>
+        <p className={employeeDialogHintClass}>
+          {t("pages.billing.purchaseImportFactoryNowHint")}
+        </p>
+      </div>
+      {nowExtras}
       <div className="grid gap-3 sm:grid-cols-2">
         <div className={employeeDialogFieldClass}>
           <label
@@ -890,7 +1065,7 @@ export default function PurchaseImportCostFields({
           </label>
           <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-2">
             <Select
-              value={draft.currency}
+              value={draft.currency || null}
               onValueChange={(value) => {
                 if (!value) return;
                 patch({
@@ -952,11 +1127,17 @@ export default function PurchaseImportCostFields({
           notIncludedLabel={t(
             "pages.billing.purchaseImportNotIncludedInFactoryInvoice"
           )}
-          lineRateLabel={t("pages.billing.purchaseImportRate")}
+          lineRateLabel={
+            remittanceRateKind === "booking"
+              ? t("pages.billing.purchaseImportBookingRate")
+              : t("pages.billing.purchaseImportRate")
+          }
           lineCustomsRateLabel={t("pages.billing.purchaseImportCustomsRate")}
           factoryCurrency={draft.currency}
           bankRate={draft.exchangeRateToIdr}
           factoryCustomsRate={draft.customsRatesToIdr[draft.currency] ?? ""}
+          showBankRate={requireBankRate}
+          showCustomsRate={false}
           included={draft.freightIncludedInInvoice}
           currency={draft.freightCurrency}
           amount={draft.freightAmount}
@@ -999,11 +1180,17 @@ export default function PurchaseImportCostFields({
           notIncludedLabel={t(
             "pages.billing.purchaseImportNotIncludedInFactoryInvoice"
           )}
-          lineRateLabel={t("pages.billing.purchaseImportRate")}
+          lineRateLabel={
+            remittanceRateKind === "booking"
+              ? t("pages.billing.purchaseImportBookingRate")
+              : t("pages.billing.purchaseImportRate")
+          }
           lineCustomsRateLabel={t("pages.billing.purchaseImportCustomsRate")}
           factoryCurrency={draft.currency}
           bankRate={draft.exchangeRateToIdr}
           factoryCustomsRate={draft.customsRatesToIdr[draft.currency] ?? ""}
+          showBankRate={requireBankRate}
+          showCustomsRate={false}
           included={draft.insuranceIncludedInInvoice}
           currency={draft.insuranceCurrency}
           amount={draft.insuranceAmount}
@@ -1037,73 +1224,178 @@ export default function PurchaseImportCostFields({
               : undefined
           }
         />
-        <FactoryCurrencyAmountField
-          id="purchase-import-bank"
-          label={t("pages.billing.purchaseImportBankCharge")}
-          hint={t("pages.billing.purchaseImportBankChargeHint")}
-          currency={draft.currency}
-          amount={draft.bankFeeAmount}
-          disabled={disabled}
-          onAmountChange={(bankFeeAmount) => patch({ bankFeeAmount })}
-          convertedLabel={
-            result && result.bankChargeIdr > 0
-              ? t("pages.billing.purchaseImportConvertedIdr", {
-                  amount: formatContractPrice(result.bankChargeIdr),
-                })
-              : undefined
-          }
-        />
-        <MoneyField
-          id="purchase-import-local-bank"
-          label={t("pages.billing.purchaseImportLocalBankFee")}
-          hint={t("pages.billing.purchaseImportLocalBankFeeHint")}
-          value={draft.localBankFeeIdr}
-          placeholder="0"
-          disabled={disabled}
-          onChange={(localBankFeeIdr) => patch({ localBankFeeIdr })}
-        />
-        <MoneyField
-          id="purchase-import-rate"
-          label={`${t("pages.billing.purchaseImportRate")} *`}
-          hint={
-            bankRateIdr != null && bankRateIdr > 0
-              ? formatContractPrice(bankRateIdr)
-              : t("pages.billing.purchaseImportRateHint")
-          }
-          value={draft.exchangeRateToIdr}
-          placeholder={t("pages.billing.purchaseImportRatePlaceholder")}
-          disabled={disabled}
-          onChange={(exchangeRateToIdr) => patch({ exchangeRateToIdr })}
-        />
-        {factoryCustomsCurrencies.map((code) => {
-          const rateValue = draft.customsRatesToIdr[code] ?? "";
-          const parsedRate = parseImportDecimal(rateValue);
-          return (
+      </div>
+      {cifNowLabel ? (
+        <div className="rounded-xl border border-border bg-card-tint-emerald/30 p-3 space-y-1">
+          <p className="text-sm font-semibold text-text">
+            {t("pages.billing.purchaseImportCustomsValue")}
+          </p>
+          <p className="text-sm font-semibold tabular-nums tracking-tight text-text">
+            {cifNowLabel}
+          </p>
+          <p className={employeeDialogHintClass}>
+            {t("pages.billing.purchaseImportCifNowHint")}
+          </p>
+        </div>
+      ) : null}
+      {requireBankRate ? (
+        <div className="space-y-3">
+          <div>
+            <p className={employeeDialogLabelClass}>
+              {t("pages.billing.purchaseImportPayLaterTitle")}
+            </p>
+            <p className={employeeDialogHintClass}>
+              {remittanceRateKind === "booking"
+                ? t("pages.billing.purchaseImportNetBookingHint")
+                : t("pages.billing.purchaseImportCashPayNowHint")}
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
             <MoneyField
-              key={code}
-              id={`purchase-import-customs-rate-${code}`}
-              label={`${t("pages.billing.purchaseImportCustomsRateFor", {
-                currency: code,
-              })} *`}
+              id="purchase-import-rate"
+              label={`${
+                remittanceRateKind === "booking"
+                  ? t("pages.billing.purchaseImportBookingRate")
+                  : t("pages.billing.purchaseImportRate")
+              } *`}
               hint={
-                parsedRate != null && parsedRate > 0
-                  ? formatContractPrice(parsedRate)
-                  : t("pages.billing.purchaseImportCustomsRateHint")
+                bankRateIdr != null && bankRateIdr > 0
+                  ? formatContractPrice(bankRateIdr)
+                  : remittanceRateKind === "booking"
+                    ? t("pages.billing.purchaseImportBookingRateHint")
+                    : t("pages.billing.purchaseImportRateHint")
               }
-              value={rateValue}
-              placeholder={t(
-                "pages.billing.purchaseImportCustomsRatePlaceholder"
-              )}
+              value={draft.exchangeRateToIdr}
+              placeholder={t("pages.billing.purchaseImportRatePlaceholder")}
               disabled={disabled}
-              onChange={(next) => patchCustomsRate(code, next)}
+              onChange={(exchangeRateToIdr) => patch({ exchangeRateToIdr })}
             />
-          );
-        })}
+            {remittanceRateKind === "booking" ? null : (
+              <>
+            <FactoryCurrencyAmountField
+              id="purchase-import-bank"
+              label={t("pages.billing.purchaseImportBankCharge")}
+              hint={t("pages.billing.purchaseImportBankChargeHint")}
+              currency={draft.currency}
+              amount={draft.bankFeeAmount}
+              disabled={disabled}
+              onAmountChange={(bankFeeAmount) => patch({ bankFeeAmount })}
+              convertedLabel={
+                result && result.bankChargeIdr > 0
+                  ? t("pages.billing.purchaseImportConvertedIdr", {
+                      amount: formatContractPrice(result.bankChargeIdr),
+                    })
+                  : undefined
+              }
+            />
+            <MoneyField
+              id="purchase-import-local-bank"
+              label={t("pages.billing.purchaseImportLocalBankFee")}
+              hint={t("pages.billing.purchaseImportLocalBankFeeHint")}
+              value={draft.localBankFeeIdr}
+              placeholder="0"
+              disabled={disabled}
+              onChange={(localBankFeeIdr) => patch({ localBankFeeIdr })}
+            />
+              </>
+            )}
+          </div>
+          <div className="space-y-1 rounded-xl border border-border bg-elevated/40 p-3">
+            <p className={employeeDialogLabelClass}>
+              {t("pages.billing.purchaseImportDutiesSectionTitle")}
+            </p>
+            <p className={employeeDialogHintClass}>
+              {t("pages.billing.purchaseImportDutiesLaterHint")}
+            </p>
+          </div>
+        </div>
+      ) : revealPayLaterHint ? (
+        <div className="space-y-1 rounded-xl border border-border bg-elevated/40 p-3">
+          <p className={employeeDialogLabelClass}>
+            {t("pages.billing.purchaseImportPayLaterTitle")}
+          </p>
+          <p className={employeeDialogHintClass}>
+            {t("pages.billing.purchaseImportPayLaterHint")}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <div className="space-y-1 rounded-xl border border-border bg-elevated/40 p-3">
+            <p className={employeeDialogLabelClass}>
+              {t("pages.billing.purchaseImportPayLaterTitle")}
+            </p>
+            <p className={employeeDialogHintClass}>
+              {t("pages.billing.purchaseImportNetRemittanceLaterHint")}
+            </p>
+          </div>
+          <div className="space-y-1 rounded-xl border border-border bg-elevated/40 p-3">
+            <p className={employeeDialogLabelClass}>
+              {t("pages.billing.purchaseImportDutiesSectionTitle")}
+            </p>
+            <p className={employeeDialogHintClass}>
+              {t("pages.billing.purchaseImportDutiesLaterHint")}
+            </p>
+          </div>
+        </div>
+      )}
       </div>
       )}
 
+      {lockFactoryNow ? (
+        <div className="rounded-xl border border-border bg-card-tint-emerald/30 p-3 space-y-1">
+          <p className={employeeDialogLabelClass}>
+            {t("pages.billing.purchaseImportFactoryNowTitle")}
+          </p>
+          <p className="text-sm font-semibold text-text">
+            {t("pages.billing.purchaseImportCustomsValue")}
+          </p>
+          {cifNowLabel ? (
+            <p className="text-sm font-semibold tabular-nums tracking-tight text-text">
+              {cifNowLabel}
+            </p>
+          ) : null}
+          <p className={employeeDialogHintClass}>
+            {t("pages.billing.purchaseImportCifNowHint")}
+          </p>
+        </div>
+      ) : null}
+
       {showCustomsCharges ? (
-      <div className="space-y-2">
+      <div className="space-y-3 rounded-xl border border-border bg-elevated/40 p-3">
+        <div>
+          <p className={employeeDialogLabelClass}>
+            {t("pages.billing.purchaseImportDutiesSectionTitle")}
+          </p>
+          <p className={employeeDialogHintClass}>
+            {t("pages.billing.purchaseImportDutiesSectionHint")}
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {cifFxCurrencies.map((code) => {
+            const rateValue = draft.customsRatesToIdr[code] ?? "";
+            const parsedRate = parseImportDecimal(rateValue);
+            return (
+              <MoneyField
+                key={code}
+                id={`purchase-import-customs-rate-${code}`}
+                label={`${t("pages.billing.purchaseImportCustomsRateFor", {
+                  currency: code,
+                })} *`}
+                hint={
+                  parsedRate != null && parsedRate > 0
+                    ? formatContractPrice(parsedRate)
+                    : t("pages.billing.purchaseImportCustomsRateHint")
+                }
+                value={rateValue}
+                placeholder={t(
+                  "pages.billing.purchaseImportCustomsRatePlaceholder"
+                )}
+                disabled={disabled}
+                onChange={(next) => patchCustomsRate(code, next)}
+              />
+            );
+          })}
+        </div>
         <p className={employeeDialogLabelClass}>
           {t("pages.billing.purchaseImportCharges")}
         </p>
@@ -1319,14 +1611,17 @@ export default function PurchaseImportCostFields({
             onChange={(pph22AmountIdr) => patch({ pph22AmountIdr })}
           />
         </ChargeCheckbox>
+        {afterCharges}
       </div>
-      ) : null}
+      ) : (
+        afterCharges
+      )}
 
-      {afterCharges}
-
-      {result ? (
+      {result &&
+      ((requireBankRate && (bankRateIdr ?? 0) > 0) ||
+        result.customsValueIdr > 0) ? (
         <div className="space-y-3 rounded-xl border border-border bg-card-tint-emerald/30 p-3">
-          {chargesOnly ? null : (
+          {chargesOnly || !requireBankRate || (bankRateIdr ?? 0) <= 0 ? null : (
           <div className="space-y-1.5">
             <p className="text-sm font-semibold text-text">
               {t("pages.billing.purchaseImportPaidToVendor")}
@@ -1356,7 +1651,11 @@ export default function PurchaseImportCostFields({
               />
             ) : null}
             <BreakdownRow
-              label={t("pages.billing.purchaseImportRate")}
+              label={
+                remittanceRateKind === "booking"
+                  ? t("pages.billing.purchaseImportBookingRate")
+                  : t("pages.billing.purchaseImportRate")
+              }
               amount={bankRateIdr ?? 0}
             />
             <BreakdownRow
@@ -1392,6 +1691,7 @@ export default function PurchaseImportCostFields({
           </div>
           )}
 
+          {result.customsValueIdr > 0 ? (
           <div className="space-y-1 pt-1">
             <ImportCifValueBlock
               title={t("pages.billing.purchaseImportCustomsValue")}
@@ -1408,7 +1708,8 @@ export default function PurchaseImportCostFields({
               }
             />
           </div>
-          {showCustomsCharges ? (
+          ) : null}
+          {showCustomsCharges && result.customsValueIdr > 0 ? (
             <div className="space-y-1.5 pt-1">
               <p className="text-sm font-semibold text-text">
                 {t("pages.billing.purchaseImportDutiesTotal")}
@@ -1460,6 +1761,8 @@ export default function PurchaseImportCostFields({
             />
           ) : null}
 
+          {revealWarehouseCost ? (
+            <>
           <div className="space-y-2 rounded-lg border border-border bg-card/70 p-3">
             <p className="text-sm font-semibold tracking-tight text-text">
               {t("pages.billing.purchaseImportCredits")}
@@ -1512,6 +1815,12 @@ export default function PurchaseImportCostFields({
           <p className={employeeDialogHintClass}>
             {t("pages.billing.purchaseImportStockCostHint")}
           </p>
+            </>
+          ) : (
+            <p className={employeeDialogHintClass}>
+              {t("pages.billing.purchaseImportWarehouseAfterDuties")}
+            </p>
+          )}
         </div>
       ) : null}
     </div>

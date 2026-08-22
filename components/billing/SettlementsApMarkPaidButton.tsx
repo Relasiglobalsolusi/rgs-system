@@ -11,12 +11,20 @@ type Props = {
   purchaseInvoiceId: string;
   supplierName: string;
   invoiceRef: string;
+  needsImportBankRate?: boolean;
+  invoiceCurrency?: string | null;
+  invoiceForeignAmount?: number | null;
+  bookingRate?: number | null;
 };
 
 export default function SettlementsApMarkPaidButton({
   purchaseInvoiceId,
   supplierName,
   invoiceRef,
+  needsImportBankRate = false,
+  invoiceCurrency = null,
+  invoiceForeignAmount = null,
+  bookingRate = null,
 }: Props) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
@@ -39,6 +47,10 @@ export default function SettlementsApMarkPaidButton({
         purchaseInvoiceId={purchaseInvoiceId}
         supplierName={supplierName}
         invoiceRef={invoiceRef}
+        needsImportBankRate={needsImportBankRate}
+        invoiceCurrency={invoiceCurrency}
+        invoiceForeignAmount={invoiceForeignAmount}
+        bookingRate={bookingRate}
       />
     </>
   );

@@ -57,7 +57,7 @@ export default function CommercialTaxKindField({
         {required ? <span className="text-red-400"> *</span> : null}
       </label>
       <Select
-        value={value || undefined}
+        value={value || null}
         onValueChange={(next) => {
           if (isCommercialTaxKind(next)) onChange(next);
         }}

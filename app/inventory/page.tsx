@@ -134,6 +134,8 @@ export default async function InventoryPage() {
           assignedAt: true,
           writeOffMovementId: true,
           soldOffMovementId: true,
+          vehicleYear: true,
+          createdAt: true,
           item: {
             select: { id: true, sku: true, name: true, itemType: true },
           },
@@ -259,6 +261,8 @@ export default async function InventoryPage() {
         soldOffMovementId: a.soldOffMovementId,
         soldBuyer: sale?.buyer ?? null,
         soldAt: sale?.soldAt ?? null,
+        vehicleYear: a.vehicleYear,
+        createdAt: a.createdAt.toISOString(),
         item: a.item!,
         project: a.project,
       };

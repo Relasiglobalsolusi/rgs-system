@@ -16,9 +16,11 @@ import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import SectionCard from "@/components/ui/SectionCard";
 import { buttonVariants } from "@/components/ui/button";
 import {
+  financialReportCalendarRange,
   financialReportQueryString,
   parseFinancialReportSelection,
 } from "@/lib/financial-report-query";
+import { listImportRateDifferences } from "@/lib/financial-report-overview";
 import { formatDisplayDate } from "@/lib/format-date";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
@@ -79,13 +81,27 @@ export default async function FinancialReportDetailPage({
   const needsClientDirectory =
     metric === "periodNet" || metric === "moneyIn" || metric === "moneyOut";
 
-  const [company, clients, scopeClients, bankAccounts] = await Promise.all([
+  const calendar = financialReportCalendarRange(selection);
+  const showImportRateDifference =
+    metric === "periodNet" ||
+    metric === "moneyIn" ||
+    metric === "moneyOut" ||
+    metric === "overhead";
+  const [company, clients, scopeClients, bankAccounts, importRateRows] =
+    await Promise.all([
     getFinancialReportDetailTotals(selection, metric),
     needsClientDirectory
       ? getFinancialReportClients(selection)
       : Promise.resolve([] as FinancialReportClientRow[]),
     listFinancialReportScopeClients(),
     listFinancialReportBankAccounts(),
+    showImportRateDifference
+      ? listImportRateDifferences(
+          session.user.companyId,
+          calendar.from,
+          calendar.toExclusive
+        )
+      : Promise.resolve([]),
   ]);
 
   const depositMetric =
@@ -284,6 +300,20 @@ export default async function FinancialReportDetailPage({
               title={t("pages.financialReport.detail.overheadStock")}
               value={formatContractPrice(company.overhead.internalStockUsed)}
             />
+            <DirectoryStatCard
+              title={t("pages.financialReport.detail.overheadRateDifferenceExpense")}
+              value={formatContractPrice(
+                company.overhead.importRateDifferenceExpense
+              )}
+              accent="warning"
+            />
+            <DirectoryStatCard
+              title={t("pages.financialReport.detail.overheadRateDifferenceIncome")}
+              value={formatContractPrice(
+                company.overhead.importRateDifferenceIncome
+              )}
+              accent="success"
+            />
           </>
         ) : null}
         {depositMetric ? (
@@ -331,6 +361,24 @@ export default async function FinancialReportDetailPage({
             title={t("pages.financialReport.detail.overheadStock")}
             value={formatContractPrice(company.overhead.internalStockUsed)}
           />
+          <DirectoryStatCard
+            title={t("pages.financialReport.detail.overheadRateDifferenceExpense")}
+            value={formatContractPrice(
+              company.overhead.importRateDifferenceExpense
+            )}
+            accent="warning"
+          />
+        </div>
+      ) : null}
+      {metric === "moneyIn" ? (
+        <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <DirectoryStatCard
+            title={t("pages.financialReport.detail.overheadRateDifferenceIncome")}
+            value={formatContractPrice(
+              company.overhead.importRateDifferenceIncome
+            )}
+            accent="success"
+          />
         </div>
       ) : null}
 
@@ -345,6 +393,52 @@ export default async function FinancialReportDetailPage({
           >
             {t("pages.financialReport.detail.openInventory")}
           </Link>
+        </SectionCard>
+      ) : null}
+
+      {importRateRows.length > 0 ? (
+        <SectionCard className="mt-4">
+          <h2 className="text-base font-semibold text-text">
+            {t("pages.financialReport.importRateDifference")}
+          </h2>
+          <p className="mt-1 text-sm text-subtle">
+            {t("pages.financialReport.importRateDifferenceHint")}
+          </p>
+          <ul className="mt-3 divide-y divide-border">
+            {importRateRows.map((row) => (
+              <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
+                <div>
+                  <Link
+                    href={`/billing/purchase-invoices/${row.id}`}
+                    className="text-sm font-medium text-text hover:underline"
+                  >
+                    {row.supplierName}
+                  </Link>
+                  <p className="text-xs text-subtle">
+                    {row.invoiceRef}
+                    {row.paidAt
+                      ? ` · ${formatDisplayDate(row.paidAt)}`
+                      : ""}
+                  </p>
+                </div>
+                <p
+                  className={
+                    row.differenceIdr > 0
+                      ? "text-sm font-medium tabular-nums text-warning"
+                      : "text-sm font-medium tabular-nums text-success"
+                  }
+                >
+                  {row.differenceIdr > 0
+                    ? t("pages.financialReport.importRateDifferenceExpenseLine", {
+                        amount: formatContractPrice(row.differenceIdr),
+                      })
+                    : t("pages.financialReport.importRateDifferenceIncomeLine", {
+                        amount: formatContractPrice(Math.abs(row.differenceIdr)),
+                      })}
+                </p>
+              </li>
+            ))}
+          </ul>
         </SectionCard>
       ) : null}
 

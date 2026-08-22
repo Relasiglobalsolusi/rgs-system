@@ -20,7 +20,10 @@ import {
   getNextInventorySku,
   isVehicleItemType,
 } from "@/lib/inventory-sku";
-import { normalizeVehiclePlate } from "@/lib/vehicle-plate";
+import {
+  parseRequiredVehiclePlate,
+  parseRequiredVehicleYear,
+} from "@/lib/vehicle-plate";
 import {
   defaultUnitForItemType,
   normalizeInventoryUnit,
@@ -30,7 +33,6 @@ import {
   assertEquipmentInventoryInvariants,
   countEquipmentAssetsByStatus,
   isEquipmentItemType,
-  mintVehicleAssetByPlate,
   releaseEquipmentAssetsForBulkIssue,
   restoreEquipmentAssetsForSoldOff,
   restoreEquipmentAssetsForWriteOff,
@@ -227,6 +229,7 @@ async function saveReceipt(
 function revalidateInventory(projectId?: string | null, itemId?: string | null) {
   revalidatePath("/inventory");
   revalidatePath("/item-catalog");
+  revalidatePath("/inventory/vehicles");
   if (projectId) {
     revalidatePath(`/projects/${projectId}`);
   }
@@ -276,7 +279,6 @@ export async function createInventoryItem(formData: FormData) {
   try {
     await assertCanManageItemCatalog(locale);
 
-    const name = String(formData.get("name") ?? "").trim();
     const itemType = titleCaseWords(
       String(formData.get("itemType") ?? "").trim()
     );
@@ -284,12 +286,24 @@ export async function createInventoryItem(formData: FormData) {
       String(formData.get("description") ?? "").trim()
     );
     const minStock = parseNonNegWholeQty(formData.get("minStock"), locale);
+    const vehicleBrand = String(formData.get("vehicleBrand") ?? "").trim();
+    const vehicleType = String(formData.get("vehicleType") ?? "").trim();
+    let name = String(formData.get("name") ?? "").trim();
 
-    if (!name) {
-      throw new Error(translate(locale, "pages.inventory.itemNameRequired"));
-    }
     if (!itemType) {
       throw new Error(translate(locale, "pages.inventory.itemTypeRequired"));
+    }
+    if (isVehicleItemType(itemType)) {
+      if (!vehicleBrand) {
+        throw new Error(translate(locale, "pages.inventory.vehicleBrandRequired"));
+      }
+      if (!vehicleType) {
+        throw new Error(translate(locale, "pages.inventory.vehicleTypeRequired"));
+      }
+      name = `${vehicleBrand} ${vehicleType}`.replace(/\s+/g, " ").trim();
+    }
+    if (!name) {
+      throw new Error(translate(locale, "pages.inventory.itemNameRequired"));
     }
 
     const company = await requireCompany(locale);
@@ -297,18 +311,16 @@ export async function createInventoryItem(formData: FormData) {
       "inventoryItem",
       company.id
     );
-    const unit = normalizeInventoryUnit(
-      String(formData.get("unit") ?? "").trim() ||
-        defaultUnitForItemType(itemType)
-    );
-
-    const plate = isVehicleItemType(itemType)
-      ? normalizeVehiclePlate(String(formData.get("vehiclePlate") ?? ""))
-      : "";
+    const unit = isVehicleItemType(itemType)
+      ? defaultUnitForItemType(itemType)
+      : normalizeInventoryUnit(
+          String(formData.get("unit") ?? "").trim() ||
+            defaultUnitForItemType(itemType)
+        );
 
     await prisma.$transaction(async (tx) => {
       const sku = await getNextInventorySku(company.id, itemType, tx);
-      const item = await tx.inventoryItem.create({
+      await tx.inventoryItem.create({
         data: {
           companyId: company.id,
           sku,
@@ -322,9 +334,6 @@ export async function createInventoryItem(formData: FormData) {
           tracksStock: !isVehicleItemType(itemType),
         },
       });
-      if (plate) {
-        await mintVehicleAssetByPlate(tx, company.id, item.id, plate);
-      }
     });
 
     revalidateInventory();
@@ -332,6 +341,81 @@ export async function createInventoryItem(formData: FormData) {
     throw toActionError(
       error,
       translate(locale, "pages.inventory.createItemFailed")
+    );
+  }
+}
+
+export async function updateVehicleAsset(formData: FormData) {
+  const locale = await getServerLocale();
+  try {
+    await assertCanManageInventory(locale);
+    const company = await requireCompany(locale);
+    const assetId = String(formData.get("assetId") ?? "").trim();
+    if (!assetId) {
+      throw new Error(translate(locale, "pages.inventory.vehicles.notFound"));
+    }
+
+    const plate = parseRequiredVehiclePlate(formData.get("vehiclePlate"));
+    const vehicleYear = parseRequiredVehicleYear(formData.get("vehicleYear"));
+
+    const asset = await prisma.equipmentAsset.findFirst({
+      where: { id: assetId, companyId: company.id },
+      select: {
+        id: true,
+        assetCode: true,
+        item: { select: { id: true, itemType: true } },
+      },
+    });
+    if (!asset || !isVehicleItemType(asset.item.itemType)) {
+      throw new Error(translate(locale, "pages.inventory.vehicles.notFound"));
+    }
+
+    const clash = await prisma.equipmentAsset.findFirst({
+      where: {
+        companyId: company.id,
+        assetCode: plate,
+        id: { not: asset.id },
+      },
+      select: { id: true },
+    });
+    if (clash) {
+      throw new Error(translate(locale, "pages.inventory.vehicles.plateTaken"));
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.equipmentAsset.update({
+        where: { id: asset.id },
+        data: {
+          assetCode: plate,
+          serialNo: plate,
+          vehicleYear,
+        },
+      });
+      if (asset.assetCode !== plate) {
+        await tx.purchaseInvoice.updateMany({
+          where: {
+            companyId: company.id,
+            vehiclePlate: asset.assetCode,
+          },
+          data: { vehiclePlate: plate, vehicleYear },
+        });
+      } else {
+        await tx.purchaseInvoice.updateMany({
+          where: {
+            companyId: company.id,
+            vehiclePlate: plate,
+          },
+          data: { vehicleYear },
+        });
+      }
+    });
+
+    revalidateInventory(null, asset.item.id);
+    revalidatePath(`/inventory/vehicles/${asset.id}`);
+  } catch (error) {
+    throw toActionError(
+      error,
+      translate(locale, "pages.inventory.vehicles.updateFailed")
     );
   }
 }
@@ -465,7 +549,10 @@ export async function updateInventoryItem(formData: FormData) {
     if (!existing) {
       throw new Error(translate(locale, "pages.inventory.itemNotFound"));
     }
-    const unit = normalizeInventoryUnit(unitRaw || existing.unit || "pcs");
+    const unit = isVehicleItemType(existing.itemType)
+      ? defaultUnitForItemType(existing.itemType)
+      : normalizeInventoryUnit(unitRaw || existing.unit || "pcs");
+    const nextMinStock = isVehicleItemType(existing.itemType) ? 0 : minStock;
 
     // Item type is locked after create (SKU prefix / equipment rules depend on it).
     if (
@@ -482,7 +569,7 @@ export async function updateInventoryItem(formData: FormData) {
         name,
         description: description || null,
         unit,
-        minStock: toDecimal(minStock),
+        minStock: toDecimal(nextMinStock),
       },
     });
 

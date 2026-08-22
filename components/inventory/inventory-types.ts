@@ -153,6 +153,8 @@ export type InventoryOverviewAssetRow = {
   soldOffMovementId: string | null;
   soldBuyer: string | null;
   soldAt: string | null;
+  vehicleYear: number | null;
+  createdAt: string;
   item: { id: string; sku: string; name: string; itemType: string } | null;
   project: { id: string; name: string } | null;
 };
@@ -188,6 +190,7 @@ export type InventoryUncodedSaleRow = {
 
 export type InventoryTab =
   | "assetList"
+  | "vehicles"
   | "stock"
   | "purchases"
   | "issues"

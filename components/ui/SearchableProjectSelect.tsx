@@ -67,7 +67,7 @@ export default function SearchableProjectSelect({
 
   return (
     <Select
-      value={value || undefined}
+      value={value || null}
       onValueChange={(next) => onValueChange(next ?? "")}
       items={items}
       disabled={disabled}

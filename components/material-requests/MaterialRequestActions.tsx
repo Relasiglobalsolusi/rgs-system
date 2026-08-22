@@ -105,7 +105,7 @@ export function ReviewMaterialRequestButtons({ id }: { id: string }) {
   );
 }
 
-export function ReceiveTransferOrderButton({ id }: { id: string }) {
+function ReceiveTransferOrderButton({ id }: { id: string }) {
   const { t } = useT();
   const [pending, startTransition] = useTransition();
   return (
@@ -134,7 +134,7 @@ export function ReceiveTransferOrderButton({ id }: { id: string }) {
   );
 }
 
-export function DidNotReceiveTransferOrderButton({ id }: { id: string }) {
+function DidNotReceiveTransferOrderButton({ id }: { id: string }) {
   const { t } = useT();
   const [pending, startTransition] = useTransition();
   return (

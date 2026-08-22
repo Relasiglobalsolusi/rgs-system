@@ -635,8 +635,3 @@ async function migrateFinanceEmployee(
   });
 }
 
-export function formatPositionLabel(
-  position: Pick<Position, "name"> | null | undefined
-): string {
-  return position?.name?.trim() || "-";
-}

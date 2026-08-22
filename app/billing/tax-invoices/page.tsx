@@ -303,7 +303,9 @@ export default async function TaxInvoicesPage({
           ? t("pages.vat.inputSourceImport")
           : purchase.purchaseCategory === "SERVICE"
             ? t("pages.vat.inputSourceService")
-            : t("pages.vat.inputSourceItems");
+            : purchase.purchaseCategory === "VEHICLE"
+              ? t("pages.vat.inputSourceVehicle")
+              : t("pages.vat.inputSourceItems");
       const rateLabel =
         storedRatePercent != null ? `${storedRatePercent}%` : null;
       inputRows.push({
