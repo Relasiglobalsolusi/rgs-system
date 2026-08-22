@@ -223,6 +223,7 @@ export const id = {
     collapse: "Ciutkan {label}",
     expand: "Perluas {label}",
     openMenu: "Buka navigasi",
+    closeMenu: "Tutup navigasi",
     menuTitle: "Navigasi",
     menuDescription:
       "Jelajahi bagian dan modul sidebar seperti Overview, Administrasi, Operasi, SDM, dan Keuangan.",
@@ -2640,8 +2641,51 @@ export const id = {
       purchaseCategoryService: "Jasa",
       purchaseCategoryPettyCash: "Kas Kecil",
       purchaseCategoryGovernment: "Pemerintah",
+      purchaseCategoryBankLoan: "Pinjaman Bank",
       purchaseCategoryHint:
-        "Produk menjadi stok gudang. Kendaraan dibeli di dalam negeri dan dicatat di Inventaris → Kendaraan. Jasa, Kas Kecil, dan Pemerintah bukan stok.",
+        "Produk menjadi stok gudang. Kendaraan dibeli di dalam negeri dan dicatat di Inventaris → Kendaraan. Jasa, Kas Kecil, Pemerintah, dan Pinjaman Bank bukan stok.",
+      bankLoanKind: "Jenis Pinjaman",
+      bankLoanKindStandby: "Fasilitas Standby",
+      bankLoanKindTerm: "Pinjaman Berjangka",
+      bankLoanKindHint:
+        "Fasilitas Standby: bunga hanya pada jumlah yang ditarik. Pinjaman Berjangka: angsuran tetap anuitas setiap bulan.",
+      bankLoanKindStandbyHint:
+        "Bank Indonesia biasanya menyebut ini Fasilitas Standby atau Kredit Rekening Koran. Bunga hanya dihitung dari saldo yang ditarik. Plafon yang belum dipakai tidak dikenai bunga.",
+      bankLoanKindTermHint:
+        "Ini Pinjaman Berjangka (Kredit Angsuran). Bank Indonesia umumnya memakai anuitas: satu angsuran tetap setiap bulan, di awal lebih banyak bunga, kemudian lebih banyak pokok.",
+      bankLoanKindRequired: "Pilih Fasilitas Standby atau Pinjaman Berjangka.",
+      bankLoanFacilityLimit: "Plafon Fasilitas",
+      bankLoanFacilityLimitHint:
+        "Plafon yang masih mengendap di bank. Bagian yang belum ditarik tidak dikenai bunga.",
+      bankLoanDrawnAmount: "Jumlah Ditarik",
+      bankLoanDrawnAmountHint:
+        "Berapa dari fasilitas yang sedang dipakai. Bunga bulanan dihitung dari jumlah ini.",
+      bankLoanDrawnRequired: "Masukkan jumlah yang sedang ditarik.",
+      bankLoanPrincipal: "Pokok Pinjaman",
+      bankLoanPrincipalHint: "Jumlah yang dipinjam dan diangsur selama tenor.",
+      bankLoanPrincipalRequired: "Masukkan pokok pinjaman.",
+      bankLoanAnnualRate: "Suku Bunga Tahunan %",
+      bankLoanAnnualRateHint:
+        "Suku bunga nominal tahunan dari bank. Bunga bulanan memakai suku bunga ini dibagi 12.",
+      bankLoanAnnualRateRequired: "Masukkan suku bunga tahunan.",
+      bankLoanTenorMonths: "Tenor (Bulan)",
+      bankLoanTenorMonthsHint: "Berapa bulan angsuran tetap berjalan.",
+      bankLoanTenorRequired: "Masukkan tenor dalam bulan.",
+      bankLoanMonthlyInterest: "Perkiraan Bunga Bulanan",
+      bankLoanMonthlyInstallment: "Perkiraan Angsuran Bulanan",
+      bankLoanFirstMonthSplit:
+        "Perkiraan bulan pertama: {interest} bunga dan {principal} pokok. Pembayaran ini dicatat sebagai biaya pinjaman bank Head Office agar sesuai mutasi bank.",
+      bankLoanPaymentAmount: "Jumlah Dibayar Saat Ini",
+      bankLoanPaymentAmountHint:
+        "Bunga, angsuran bulanan, atau jumlah lain yang benar-benar didebit bank. Jangan masukkan seluruh plafon yang belum dipakai.",
+      bankLoanRef: "Nomor Rekening Pinjaman / Referensi",
+      bankLoanRefPlaceholder: "Nomor rekening pinjaman atau nota bank",
+      bankLoanRefHint: "Nomor rekening pinjaman atau nota pembayaran dari bank.",
+      bankLoanDocument: "Nota Bank / Bukti Pembayaran",
+      purchaseTransferFee: "Biaya Transfer Bank",
+      purchaseTransferFeeHint:
+        "Biaya antar bank pada transfer ini (SKN, BI-FAST, atau RTGS). Isi 0 jika bank yang sama atau biayanya dibebaskan. Mencatatnya membuat kas ERP sesuai mutasi bank.",
+      purchaseTransferFeePlaceholder: "0",
       purchaseVehicleBought: "Kendaraan Dibeli",
       purchaseVehicleCatalogEmpty:
         "Tambah tipe Kendaraan di Katalog Barang terlebih dahulu, lalu pilih di sini.",
@@ -3452,6 +3496,27 @@ export const id = {
         "Laba periode dikurangi Utang Usaha — sisa setelah yang masih kita tanggung.",
       clientsStillOwe: "Piutang Usaha",
       weStillOweVendors: "Utang Usaha",
+      bpjsKesehatan: "BPJS Kesehatan",
+      bpjsKesehatanHint:
+        "Iuran perusahaan bulan ini untuk karyawan terdaftar. Utang kepada negara — belum dicocokkan dengan pembayaran.",
+      bpjsKetenagakerjaan: "BPJS Ketenagakerjaan",
+      bpjsKetenagakerjaanHint:
+        "Iuran perusahaan bulan ini untuk JHT, JP, JKK, dan JKM. Utang kepada negara — belum dicocokkan dengan pembayaran.",
+      bpjsEmployeeCount: "{count} karyawan terdaftar",
+      bpjsEmployeesTitle: "Karyawan Terdaftar",
+      bpjsEmployeeDetailTitle: "Iuran Karyawan",
+      bpjsNoEmployees: "Tidak ada karyawan penuh waktu aktif yang terdaftar di program ini.",
+      bpjsTenure: "Masa Kerja",
+      bpjsHiredAt: "Bergabung",
+      bpjsBasePay: "Gaji Pokok",
+      bpjsCompanyShare: "Tanggungan Perusahaan",
+      bpjsEmployeeShare: "Potongan Karyawan",
+      bpjsLineKesehatan: "BPJS Kesehatan",
+      bpjsLineJht: "JHT",
+      bpjsLineJp: "JP",
+      bpjsLineJkk: "JKK",
+      bpjsLineJkm: "JKM",
+      bpjsWageBase: "Dasar Upah",
       accountsReceivableHint:
         "Invoice yang sudah dikirim dan belum dibayar klien. Jatuh tempo {overdue}.",
       accountsPayableHint:
@@ -3507,6 +3572,12 @@ export const id = {
         deposits: "Rincian Deposit Karyawan Ditahan",
         depositsReturned: "Rincian Deposit Karyawan Dikembalikan",
         depositsKept: "Rincian Deposit Karyawan Hangus",
+        bpjsKesehatan: "Rincian BPJS Kesehatan",
+        bpjsKetenagakerjaan: "Rincian BPJS Ketenagakerjaan",
+        bpjsKesehatanHelp:
+          "Perusahaan 4% dari upah yang dibatasi. Karyawan 1% sudah dipotong di Penggajian Internal. Kartu ini adalah jumlah yang masih terutang ke BPJS bulan ini.",
+        bpjsKetenagakerjaanHelp:
+          "Bagian perusahaan untuk JHT, JP, JKK, dan JKM. Bagian karyawan sudah dipotong di Penggajian Internal.",
         overheadWages: "Gaji Gudang",
         overheadPurchases: "Pembelian Internal",
         overheadStock: "Stok Internal Terpakai",

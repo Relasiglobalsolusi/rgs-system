@@ -81,6 +81,7 @@ export function buildBillingDocumentFileBase(input: {
     | "Purchase-Tax-Invoice"
     | "Petty-Cash-Top-Up"
     | "Government-Billing"
+    | "Bank-Loan"
     | "Import-Duties"
     | "Import-Handling"
     | "Import-Handling-Tax";

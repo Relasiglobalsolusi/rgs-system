@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LogOut, Menu } from "lucide-react";
+import { ChevronLeft, LogOut, Menu } from "lucide-react";
 import { Suspense, useState } from "react";
 import { useSession } from "next-auth/react";
 
@@ -64,7 +64,7 @@ export default function MobileNavDialog({
         <DialogContent
           showCloseButton={false}
           className={cn(
-            "fixed inset-y-0 left-0 top-0 z-50 flex h-dvh max-h-dvh w-[min(100vw-3rem,20rem)] max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-y-0 border-l-0 border-r border-border bg-panel p-0 text-text shadow-[12px_0_40px_-16px_rgba(0,0,0,0.65)] sm:max-w-none",
+            "fixed inset-y-0 left-0 top-0 z-50 flex h-dvh max-h-dvh w-[min(100vw-3rem,20rem)] max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-visible rounded-none border-y-0 border-l-0 border-r border-border bg-panel p-0 text-text shadow-[12px_0_40px_-16px_rgba(0,0,0,0.65)] sm:max-w-none",
             "pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]",
             "data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-left-5 data-open:zoom-in-100 data-open:duration-300",
             "data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-left-5 data-closed:zoom-out-100 data-closed:duration-200"
@@ -74,6 +74,15 @@ export default function MobileNavDialog({
           <DialogDescription className="sr-only">
             {t("nav.menuDescription")}
           </DialogDescription>
+          <button
+            type="button"
+            aria-label={t("nav.closeMenu")}
+            title={t("nav.closeMenu")}
+            onClick={close}
+            className="absolute top-1/2 right-0 z-[60] flex h-20 w-9 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-r-xl border border-l-0 border-border bg-panel text-text shadow-[6px_0_18px_-8px_rgba(0,0,0,0.7)] transition hover:bg-elevated hover:text-accent-cyan"
+          >
+            <ChevronLeft size={22} strokeWidth={2.75} aria-hidden />
+          </button>
 
           <Suspense
             fallback={

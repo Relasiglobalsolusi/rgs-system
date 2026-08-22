@@ -155,7 +155,9 @@ export default async function PurchaseInvoiceDetailPage({
           ? t("pages.billing.purchaseCategoryGovernment")
           : invoice.purchaseCategory === "VEHICLE"
             ? t("pages.billing.purchaseCategoryVehicle")
-            : t("pages.billing.purchaseCategoryProduct");
+            : invoice.purchaseCategory === "BANK_LOAN"
+              ? t("pages.billing.purchaseCategoryBankLoan")
+              : t("pages.billing.purchaseCategoryProduct");
   const factoryAmountIdr = decimalToNumber(invoice.invoiceAmountIdr) ?? 0;
   const bankRate = decimalToNumber(invoice.exchangeRateToIdr);
   const paidBankRate = decimalToNumber(invoice.paidExchangeRateToIdr);
@@ -307,7 +309,9 @@ export default async function PurchaseInvoiceDetailPage({
   const showDutiesSection =
     invoice.importFulfillment !== "OUTSOURCED" || dutiesTotalIdr > 0;
   const warehouseReady = Boolean(invoice.importDutiesPaidAt);
-  const hideServiceBreakdown = invoice.purchaseCategory === "SERVICE";
+  const hideServiceBreakdown =
+    invoice.purchaseCategory === "SERVICE" ||
+    invoice.purchaseCategory === "BANK_LOAN";
   const showLineWarehouseCosts =
     !hideServiceBreakdown && (!isImport || warehouseReady);
   const pageDescription = [
@@ -356,6 +360,14 @@ export default async function PurchaseInvoiceDetailPage({
                 {invoice.governmentTaxKind
                   ? t(governmentTaxKindLabelKey(invoice.governmentTaxKind))
                   : t("pages.billing.governmentChip")}
+              </StatusBadge>
+            ) : invoice.purchaseCategory === "BANK_LOAN" ? (
+              <StatusBadge status="info">
+                {invoice.bankLoanKind === "STANDBY"
+                  ? t("pages.billing.bankLoanKindStandby")
+                  : invoice.bankLoanKind === "TERM"
+                    ? t("pages.billing.bankLoanKindTerm")
+                    : t("pages.billing.purchaseCategoryBankLoan")}
               </StatusBadge>
             ) : taxIncomplete ? (
               <StatusBadge status="pending">
@@ -512,7 +524,8 @@ export default async function PurchaseInvoiceDetailPage({
                   <td className={metaValueClassName}>{invoice.project.name}</td>
                 </tr>
               ) : null}
-              {invoice.purchaseCategory === "GOVERNMENT" ? null : (
+              {invoice.purchaseCategory === "GOVERNMENT" ||
+              invoice.purchaseCategory === "BANK_LOAN" ? null : (
                 <tr className="border-b border-border">
                   <th scope="row" className={metaLabelClassName}>
                     {t("pages.billing.purchasePaymentTerms")}
@@ -550,6 +563,80 @@ export default async function PurchaseInvoiceDetailPage({
                     : formatPurchaseListedAmount(invoice)}
                 </td>
               </tr>
+              {invoice.purchaseCategory === "BANK_LOAN" && invoice.bankLoanKind ? (
+                <tr className="border-b border-border">
+                  <th scope="row" className={metaLabelClassName}>
+                    {t("pages.billing.bankLoanKind")}
+                  </th>
+                  <td className={metaValueClassName}>
+                    {invoice.bankLoanKind === "STANDBY"
+                      ? t("pages.billing.bankLoanKindStandby")
+                      : t("pages.billing.bankLoanKindTerm")}
+                  </td>
+                </tr>
+              ) : null}
+              {invoice.bankLoanFacilityLimit != null ? (
+                <tr className="border-b border-border">
+                  <th scope="row" className={metaLabelClassName}>
+                    {t("pages.billing.bankLoanFacilityLimit")}
+                  </th>
+                  <td className={`${metaValueClassName} tabular-nums`}>
+                    {money(decimalToNumber(invoice.bankLoanFacilityLimit))}
+                  </td>
+                </tr>
+              ) : null}
+              {invoice.bankLoanPrincipal != null ? (
+                <tr className="border-b border-border">
+                  <th scope="row" className={metaLabelClassName}>
+                    {invoice.bankLoanKind === "STANDBY"
+                      ? t("pages.billing.bankLoanDrawnAmount")
+                      : t("pages.billing.bankLoanPrincipal")}
+                  </th>
+                  <td className={`${metaValueClassName} tabular-nums`}>
+                    {money(decimalToNumber(invoice.bankLoanPrincipal))}
+                  </td>
+                </tr>
+              ) : null}
+              {invoice.bankLoanAnnualRatePercent != null ? (
+                <tr className="border-b border-border">
+                  <th scope="row" className={metaLabelClassName}>
+                    {t("pages.billing.bankLoanAnnualRate")}
+                  </th>
+                  <td className={`${metaValueClassName} tabular-nums`}>
+                    {`${decimalToNumber(invoice.bankLoanAnnualRatePercent)}%`}
+                  </td>
+                </tr>
+              ) : null}
+              {invoice.bankLoanTenorMonths != null ? (
+                <tr className="border-b border-border">
+                  <th scope="row" className={metaLabelClassName}>
+                    {t("pages.billing.bankLoanTenorMonths")}
+                  </th>
+                  <td className={metaValueClassName}>
+                    {invoice.bankLoanTenorMonths}
+                  </td>
+                </tr>
+              ) : null}
+              {invoice.bankLoanMonthlyInstallment != null ? (
+                <tr className="border-b border-border">
+                  <th scope="row" className={metaLabelClassName}>
+                    {t("pages.billing.bankLoanMonthlyInstallment")}
+                  </th>
+                  <td className={`${metaValueClassName} tabular-nums`}>
+                    {money(decimalToNumber(invoice.bankLoanMonthlyInstallment))}
+                  </td>
+                </tr>
+              ) : null}
+              {invoice.transferFeeIdr != null ? (
+                <tr className="border-b border-border">
+                  <th scope="row" className={metaLabelClassName}>
+                    {t("pages.billing.purchaseTransferFee")}
+                  </th>
+                  <td className={`${metaValueClassName} tabular-nums`}>
+                    {money(decimalToNumber(invoice.transferFeeIdr))}
+                  </td>
+                </tr>
+              ) : null}
               {invoice.freeOfCharge && invoice.freeOfChargeReason ? (
                 <tr className="border-b border-border">
                   <th scope="row" className={metaLabelClassName}>

@@ -75,6 +75,13 @@ import {
   ppnRateFromPercent,
 } from "@/lib/vat";
 import {
+  BANK_LOAN_TENOR_MAX,
+  BANK_LOAN_TENOR_MIN,
+  parseBankLoanKind,
+  previewBankLoan,
+} from "@/lib/bank-loan";
+import {
+  CASH_PAYMENT_TERMS_DAYS,
   isCashPaymentTerms,
   PAYMENT_TERMS_DAYS_OPTIONS,
   type PaymentTermsDaysOption,
@@ -618,6 +625,24 @@ function parseAmount(raw: string): Prisma.Decimal {
   return new Prisma.Decimal(normalized);
 }
 
+function parseOptionalAmount(raw: string): Prisma.Decimal | null {
+  if (!String(raw ?? "").trim()) return null;
+  const amount = parseAmount(raw);
+  const value = decimalToNumber(amount);
+  if (value == null || value < 0) {
+    throw new Error("Enter a valid amount.");
+  }
+  return value === 0 ? null : amount;
+}
+
+function parseAnnualRatePercent(raw: string): Prisma.Decimal {
+  const value = Number(String(raw ?? "").trim().replace(",", "."));
+  if (!Number.isFinite(value) || value < 0 || value > 100) {
+    throw new Error("Enter the annual interest rate.");
+  }
+  return new Prisma.Decimal(value);
+}
+
 async function savePurchaseTaxInvoiceFile(
   file: File,
   supplierName: string,
@@ -647,6 +672,9 @@ export async function createPurchaseInvoice(formData: FormData) {
     }
   );
 
+  const transferFeeIdr = parseOptionalAmount(
+    String(formData.get("transferFeeIdr") ?? "")
+  );
   const purchaseCategoryRawEarly = String(formData.get("purchaseCategory") ?? "")
     .trim()
     .toUpperCase();
@@ -697,6 +725,7 @@ export async function createPurchaseInvoice(formData: FormData) {
           paidAt: new Date(),
           bankAccountId,
           createdById: session.user.id,
+          transferFeeIdr,
         },
       });
       await tx.pettyCashEntry.create({
@@ -775,11 +804,148 @@ export async function createPurchaseInvoice(formData: FormData) {
         paidAt: new Date(),
         bankAccountId,
         createdById: session.user.id,
+        transferFeeIdr,
       },
     });
 
     revalidatePath("/billing/purchase-invoices");
     revalidatePath("/billing/tax-invoices");
+    revalidatePath("/billing/financial-report");
+    return;
+  }
+
+  if (purchaseCategoryRawEarly === "BANK_LOAN") {
+    if (session.user.vendorId) {
+      throw new Error("Bank loan payments are recorded by Head Office only.");
+    }
+    const kind = parseBankLoanKind(formData.get("bankLoanKind"));
+    if (!kind) {
+      throw new Error("Choose Standby Facility or Term Loan.");
+    }
+    const invoiceRef = String(formData.get("invoiceRef") ?? "").trim();
+    if (!invoiceRef) {
+      throw new Error("Enter the loan account or bank reference.");
+    }
+    const notesRaw = String(formData.get("notes") ?? "").trim();
+    const amount = parseAmount(String(formData.get("amount") ?? "").trim());
+    const invoiceAmount = decimalToNumber(amount);
+    if (invoiceAmount == null || invoiceAmount <= 0) {
+      throw new Error("Enter a valid amount.");
+    }
+    const invoiceDateRaw = String(formData.get("invoiceDate") ?? "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(invoiceDateRaw)) {
+      throw new Error("Date is required.");
+    }
+    const invoiceDate = taxInvoiceDateToUtcDate(invoiceDateRaw);
+    const supplierName = String(formData.get("supplierName") ?? "").trim();
+    const vendorId = String(formData.get("vendorId") ?? "").trim();
+    if (!supplierName || !vendorId) {
+      throw new Error("Select a registered vendor.");
+    }
+    const vendor = await prisma.vendor.findFirst({
+      where: {
+        id: vendorId,
+        companyId: session.user.companyId,
+        active: true,
+      },
+      select: { id: true, name: true },
+    });
+    if (!vendor) {
+      throw new Error("Select a registered vendor.");
+    }
+    const annualRate = parseAnnualRatePercent(
+      String(formData.get("bankLoanAnnualRatePercent") ?? "")
+    );
+    const annualRateNumber = decimalToNumber(annualRate) ?? 0;
+    let facilityLimit: Prisma.Decimal | null = parseOptionalAmount(
+      String(formData.get("bankLoanFacilityLimit") ?? "")
+    );
+    let principal: Prisma.Decimal | null = null;
+    let tenorMonths: number | null = null;
+    let monthlyInstallment: Prisma.Decimal | null = null;
+
+    if (kind === "STANDBY") {
+      principal = parseOptionalAmount(
+        String(formData.get("bankLoanDrawnAmount") ?? "")
+      );
+      if (principal == null) {
+        throw new Error("Enter the amount currently drawn.");
+      }
+    } else {
+      principal = parseOptionalAmount(
+        String(formData.get("bankLoanPrincipal") ?? "")
+      );
+      if (principal == null) {
+        throw new Error("Enter the loan principal.");
+      }
+      const tenorRaw = Number(
+        String(formData.get("bankLoanTenorMonths") ?? "").trim()
+      );
+      tenorMonths = Math.round(tenorRaw);
+      if (
+        !Number.isFinite(tenorMonths) ||
+        tenorMonths < BANK_LOAN_TENOR_MIN ||
+        tenorMonths > BANK_LOAN_TENOR_MAX
+      ) {
+        throw new Error("Enter the tenor in months.");
+      }
+      const preview = previewBankLoan({
+        kind,
+        principal: decimalToNumber(principal),
+        annualPercent: annualRateNumber,
+        tenorMonths,
+      });
+      monthlyInstallment = optionalDecimal(preview?.monthlyInstallment);
+      facilityLimit = null;
+    }
+
+    const file = requireImageOrPdfUpload(formData.get("document"), {
+      requiredMessage: "Upload the bank advice or payment proof.",
+      sizeMessage: "File must be 10 MB or smaller.",
+      typeMessage: "Upload an image or PDF.",
+    });
+    const filePath = await saveUpload(file, "uploads/purchase-invoices", {
+      fileBaseName: buildBillingDocumentFileBase({
+        prefix: "Bank-Loan",
+        clientName: vendor.name,
+        invoiceNumber: invoiceRef,
+      }),
+    });
+
+    await prisma.purchaseInvoice.create({
+      data: {
+        companyId: session.user.companyId,
+        supplierName: vendor.name,
+        vendorId: vendor.id,
+        invoiceRef,
+        invoiceDate,
+        amount,
+        filePath,
+        notes:
+          notesRaw ||
+          (kind === "STANDBY"
+            ? "Bank loan payment — Standby Facility"
+            : "Bank loan payment — Term Loan"),
+        includesPpn: false,
+        purchaseCategory: "BANK_LOAN",
+        purpose: "INTERNAL",
+        origin: "LOCAL",
+        paymentTermsDays: CASH_PAYMENT_TERMS_DAYS,
+        paidAt: new Date(),
+        paidById: session.user.id,
+        bankAccountId,
+        createdById: session.user.id,
+        transferFeeIdr,
+        bankLoanKind: kind,
+        bankLoanPrincipal: principal,
+        bankLoanFacilityLimit: facilityLimit,
+        bankLoanAnnualRatePercent: annualRate,
+        bankLoanTenorMonths: tenorMonths,
+        bankLoanMonthlyInstallment: monthlyInstallment,
+      },
+    });
+
+    revalidatePath("/billing/purchase-invoices");
     revalidatePath("/billing/financial-report");
     return;
   }
@@ -799,7 +965,8 @@ export async function createPurchaseInvoice(formData: FormData) {
   );
   if (
     purchaseCategory === "PETTY_CASH" ||
-    purchaseCategory === "GOVERNMENT"
+    purchaseCategory === "GOVERNMENT" ||
+    purchaseCategory === "BANK_LOAN"
   ) {
     throw new Error("Use the dedicated form for this expense type.");
   }
@@ -1425,6 +1592,7 @@ export async function createPurchaseInvoice(formData: FormData) {
           paidAt: invoicePaidNow ? new Date() : null,
           paidById: invoicePaidNow ? session.user.id : null,
           bankAccountId,
+          transferFeeIdr,
           origin,
           invoiceCurrency: hasCustomsFees
             ? null
@@ -2004,6 +2172,13 @@ export async function markPurchaseInvoicePaid(formData: FormData) {
         paymentManualReason: parseManualVerifyReason(
           formData.get("manualReason")
         ),
+        ...(invoice.origin === "IMPORT"
+          ? {}
+          : {
+              transferFeeIdr: parseOptionalAmount(
+                String(formData.get("transferFeeIdr") ?? "")
+              ),
+            }),
         importPaidItems:
           invoice.origin === "IMPORT"
             ? invoice.importDutiesPaidAt

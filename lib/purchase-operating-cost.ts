@@ -11,6 +11,7 @@ export type PurchaseOperatingCostInput = {
   importPpnAmountIdr?: number | null;
   importValueIdr?: number | null;
   pph22AmountIdr?: number | null;
+  transferFeeIdr?: number | null;
 };
 
 /**
@@ -25,10 +26,16 @@ export function operatingPurchaseAmount(
   const amount = Number.isFinite(invoice.amount) ? invoice.amount : 0;
   if (amount <= 0) return 0;
 
+  const transferFee =
+    invoice.transferFeeIdr != null && Number.isFinite(invoice.transferFeeIdr)
+      ? Math.max(0, invoice.transferFeeIdr)
+      : 0;
+
   if (invoice.purchaseCategory === "GOVERNMENT") {
-    return isGovernmentOperatingExpense(invoice.governmentTaxKind)
+    const body = isGovernmentOperatingExpense(invoice.governmentTaxKind)
       ? amount
       : 0;
+    return body + transferFee;
   }
 
   const vat = purchaseImportInputVat({
@@ -43,5 +50,5 @@ export function operatingPurchaseAmount(
     invoice.origin === "IMPORT" && invoice.pph22AmountIdr != null
       ? invoice.pph22AmountIdr
       : 0;
-  return Math.max(0, amount - vat.ppn - pph22);
+  return Math.max(0, amount - vat.ppn - pph22) + transferFee;
 }

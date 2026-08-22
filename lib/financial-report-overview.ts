@@ -5,15 +5,10 @@ import {
 import {
   bankAccountWhere,
   FINANCIAL_REPORT_ALL_BANKS,
-  FINANCIAL_REPORT_UNASSIGNED_BANK,
   financialReportCalendarRange,
   financialReportWageRange,
   type FinancialReportSelection,
 } from "@/lib/financial-report-query";
-import {
-  formatBankAccountOptionLabel,
-  listCompanyBankAccounts,
-} from "@/lib/company-bank-accounts";
 import {
   getSecurityDepositSnapshot,
   sumInternalPayrollNetAdjustment,
@@ -34,6 +29,10 @@ import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/project-billing";
 import { jakartaYearMonth } from "@/lib/vat";
 import { sumPostedPettyCashOutflows } from "@/lib/petty-cash";
+import {
+  getBpjsPayableTotals,
+  type BpjsPayableTotals,
+} from "@/lib/financial-report-bpjs";
 import { operatingPurchaseAmount } from "@/lib/purchase-operating-cost";
 
 export const FINANCIAL_REPORT_JOB_STATUSES = [
@@ -64,12 +63,6 @@ export type OverheadBreakdown = {
   importRateDifferenceIncome: number;
 };
 
-export type BankReceiptRow = {
-  id: string | null;
-  label: string;
-  moneyIn: number;
-};
-
 export type FinancialReportOverview = {
   selection: FinancialReportSelection;
   period: MoneyPair;
@@ -80,7 +73,7 @@ export type FinancialReportOverview = {
   warehouseStockValue: number;
   overhead: OverheadBreakdown;
   deposits: SecurityDepositSnapshot;
-  receiptsByBank: BankReceiptRow[];
+  bpjsPayable: BpjsPayableTotals;
 };
 
 function pair(moneyIn: number, moneyOut: number): MoneyPair {
@@ -243,7 +236,7 @@ export async function getVendorsOwed(
       reversedAt: null,
       freeOfCharge: false,
       purpose: { not: "PETTY_CASH" },
-      purchaseCategory: { not: "GOVERNMENT" },
+      purchaseCategory: { notIn: ["GOVERNMENT", "BANK_LOAN"] },
       ...(clientId ? { project: { clientId } } : {}),
     },
     select: {
@@ -319,6 +312,7 @@ async function sumPurchases(
       importPpnAmountIdr: true,
       importValueIdr: true,
       pph22AmountIdr: true,
+      transferFeeIdr: true,
     },
   });
   return invoices.reduce((sum, invoice) => {
@@ -334,9 +328,34 @@ async function sumPurchases(
         importPpnAmountIdr: decimalToNumber(invoice.importPpnAmountIdr),
         importValueIdr: decimalToNumber(invoice.importValueIdr),
         pph22AmountIdr: decimalToNumber(invoice.pph22AmountIdr),
+        transferFeeIdr: decimalToNumber(invoice.transferFeeIdr),
       })
     );
   }, 0);
+}
+
+async function sumPettyCashTransferFees(
+  companyId: string,
+  from?: Date,
+  toExclusive?: Date
+): Promise<number> {
+  const invoices = await prisma.purchaseInvoice.findMany({
+    where: {
+      companyId,
+      purpose: "PETTY_CASH",
+      reversedAt: null,
+      paidAt: {
+        not: null,
+        ...(from ? { gte: from } : {}),
+        ...(toExclusive ? { lt: toExclusive } : {}),
+      },
+    },
+    select: { transferFeeIdr: true },
+  });
+  return invoices.reduce(
+    (sum, invoice) => sum + (decimalToNumber(invoice.transferFeeIdr) ?? 0),
+    0
+  );
 }
 
 async function sumPaidInvoices(
@@ -724,6 +743,7 @@ async function periodPnl(
     thrPaid,
     incidentExpenses,
     pettyCashOut,
+    pettyCashTransferFees,
     importFx,
   ] = await Promise.all([
     sumPaidInvoices(companyId, from, toExclusive, bank),
@@ -755,6 +775,7 @@ async function periodPnl(
     sumPostedPettyCashOutflows(companyId, prisma, from, toExclusive).catch(
       () => 0
     ),
+    sumPettyCashTransferFees(companyId, from, toExclusive),
     sumImportRateDifferences(companyId, from, toExclusive),
   ]);
 
@@ -793,101 +814,10 @@ async function periodPnl(
     payrollNetAdj +
     thrPaid +
     incidentExpenses +
-    pettyCashOut;
+    pettyCashOut +
+    pettyCashTransferFees;
 
   return { pair: pair(moneyIn, moneyOut), overhead };
-}
-
-async function listReceiptsByBank(
-  companyId: string,
-  from?: Date,
-  toExclusive?: Date,
-  bank = FINANCIAL_REPORT_ALL_BANKS
-): Promise<BankReceiptRow[]> {
-  const paidAt =
-    from || toExclusive
-      ? {
-          paidAt: {
-            ...(from ? { gte: from } : {}),
-            ...(toExclusive ? { lt: toExclusive } : {}),
-          },
-        }
-      : {};
-  const soldAt =
-    from || toExclusive
-      ? {
-          soldAt: {
-            ...(from ? { gte: from } : {}),
-            ...(toExclusive ? { lt: toExclusive } : {}),
-          },
-        }
-      : {};
-
-  const [periods, sales, accounts] = await Promise.all([
-    prisma.projectInvoicePeriod.findMany({
-      where: {
-        status: "PAID",
-        project: { companyId, subCategory: { not: "INTERNAL" } },
-        ...paidAt,
-      },
-      select: {
-        bankAccountId: true,
-        amount: true,
-        revisedInvoiceAmount: true,
-        ppnRatePercent: true,
-      },
-    }),
-    prisma.inventorySale.findMany({
-      where: {
-        companyId,
-        movement: { voidedAt: null },
-        ...soldAt,
-      },
-      select: { bankAccountId: true, totalPrice: true },
-    }),
-    listCompanyBankAccounts(companyId).catch(() => []),
-  ]);
-
-  const totals = new Map<string | null, number>();
-  for (const period of periods) {
-    const key = period.bankAccountId ?? null;
-    totals.set(
-      key,
-      (totals.get(key) ?? 0) +
-        recognizedIncomeAmount({
-          amount: period.amount,
-          revisedInvoiceAmount: period.revisedInvoiceAmount,
-          ppnRatePercent: period.ppnRatePercent,
-        })
-    );
-  }
-  for (const sale of sales) {
-    const key = sale.bankAccountId ?? null;
-    totals.set(
-      key,
-      (totals.get(key) ?? 0) + (decimalToNumber(sale.totalPrice) ?? 0)
-    );
-  }
-
-  const rows: BankReceiptRow[] = accounts.map((account) => ({
-    id: account.id,
-    label: formatBankAccountOptionLabel(account),
-    moneyIn: totals.get(account.id) ?? 0,
-  }));
-  const unassigned = totals.get(null) ?? 0;
-  if (unassigned > 0 || bank === FINANCIAL_REPORT_UNASSIGNED_BANK) {
-    rows.push({
-      id: null,
-      label: FINANCIAL_REPORT_UNASSIGNED_BANK,
-      moneyIn: unassigned,
-    });
-  }
-
-  if (bank === FINANCIAL_REPORT_ALL_BANKS) return rows;
-  if (bank === FINANCIAL_REPORT_UNASSIGNED_BANK) {
-    return rows.filter((row) => row.id == null);
-  }
-  return rows.filter((row) => row.id === bank);
 }
 
 function emptyOverview(
@@ -910,7 +840,10 @@ function emptyOverview(
       importRateDifferenceIncome: 0,
     },
     deposits: { held: 0, returned: 0, kept: 0 },
-    receiptsByBank: [],
+    bpjsPayable: {
+      kesehatan: { companyTotal: 0, employeeCount: 0 },
+      ketenagakerjaan: { companyTotal: 0, employeeCount: 0 },
+    },
     ...patch,
   };
 }
@@ -923,7 +856,7 @@ export async function getFinancialReportOverviewData(
   const wage = financialReportWageRange(selection);
   const bank = selection.bank ?? FINANCIAL_REPORT_ALL_BANKS;
 
-  const [period, clientsOwe, vendorsOwe, warehouseStockValue, deposits, receiptsByBank] =
+  const [period, clientsOwe, vendorsOwe, warehouseStockValue, deposits, bpjsPayable] =
     await Promise.all([
       periodPnl(
         companyId,
@@ -937,7 +870,7 @@ export async function getFinancialReportOverviewData(
       getVendorsOwed(companyId),
       getWarehouseStockValue(companyId),
       getSecurityDepositSnapshot(companyId),
-      listReceiptsByBank(companyId, calendar.from, calendar.toExclusive, bank),
+      getBpjsPayableTotals(companyId),
     ]);
 
   return {
@@ -949,7 +882,7 @@ export async function getFinancialReportOverviewData(
     warehouseStockValue,
     overhead: period.overhead,
     deposits,
-    receiptsByBank,
+    bpjsPayable,
   };
 }
 
@@ -978,6 +911,10 @@ export async function getFinancialReportDetailOverview(
   if (metric === "ap") {
     const vendorsOwe = await getVendorsOwed(companyId);
     return emptyOverview(selection, { vendorsOwe });
+  }
+  if (metric === "bpjsKesehatan" || metric === "bpjsKetenagakerjaan") {
+    const bpjsPayable = await getBpjsPayableTotals(companyId);
+    return emptyOverview(selection, { bpjsPayable });
   }
   return getFinancialReportOverviewData(companyId, selection);
 }

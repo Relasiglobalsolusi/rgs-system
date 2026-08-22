@@ -211,6 +211,7 @@ export const en = {
     collapse: "Collapse {label}",
     expand: "Expand {label}",
     openMenu: "Open Navigation",
+    closeMenu: "Close Navigation",
     menuTitle: "Navigation",
     menuDescription:
       "Browse sidebar sections and modules such as Overview, Administration, Operations, HR, and Finance.",
@@ -2612,8 +2613,51 @@ export const en = {
       purchaseCategoryService: "Service",
       purchaseCategoryPettyCash: "Petty Cash",
       purchaseCategoryGovernment: "Government",
+      purchaseCategoryBankLoan: "Bank Loan",
       purchaseCategoryHint:
-        "A product becomes warehouse stock. A vehicle is bought locally and recorded under Inventory → Vehicles. Service, Petty Cash, and Government are not stock.",
+        "A product becomes warehouse stock. A vehicle is bought locally and recorded under Inventory → Vehicles. Service, Petty Cash, Government, and Bank Loan are not stock.",
+      bankLoanKind: "Loan Type",
+      bankLoanKindStandby: "Standby Facility",
+      bankLoanKindTerm: "Term Loan",
+      bankLoanKindHint:
+        "Standby Facility: interest only on the amount drawn. Term Loan: a fixed monthly anuitas installment.",
+      bankLoanKindStandbyHint:
+        "Indonesian banks call this a Standby Facility or Kredit Rekening Koran. Interest is charged only on the drawn amount. The unused limit does not accrue interest.",
+      bankLoanKindTermHint:
+        "This is a Term Loan (Kredit Angsuran). Indonesian banks usually use anuitas: one fixed monthly amount that starts as mostly interest and later becomes mostly principal.",
+      bankLoanKindRequired: "Choose Standby Facility or Term Loan.",
+      bankLoanFacilityLimit: "Facility Limit",
+      bankLoanFacilityLimitHint:
+        "The unused ceiling sitting at the bank. Interest is not charged on this unused amount.",
+      bankLoanDrawnAmount: "Amount Drawn",
+      bankLoanDrawnAmountHint:
+        "How much of the facility is in use. Monthly interest is calculated on this amount.",
+      bankLoanDrawnRequired: "Enter the amount currently drawn.",
+      bankLoanPrincipal: "Loan Principal",
+      bankLoanPrincipalHint: "The amount borrowed that is repaid over the tenor.",
+      bankLoanPrincipalRequired: "Enter the loan principal.",
+      bankLoanAnnualRate: "Annual Interest Rate %",
+      bankLoanAnnualRateHint:
+        "Nominal yearly rate from the bank. Monthly interest uses this rate divided by 12.",
+      bankLoanAnnualRateRequired: "Enter the annual interest rate.",
+      bankLoanTenorMonths: "Tenor (Months)",
+      bankLoanTenorMonthsHint: "How many months the fixed installment runs.",
+      bankLoanTenorRequired: "Enter the tenor in months.",
+      bankLoanMonthlyInterest: "Estimated Monthly Interest",
+      bankLoanMonthlyInstallment: "Estimated Monthly Installment",
+      bankLoanFirstMonthSplit:
+        "First month estimate: {interest} interest and {principal} principal. This payment is booked as a Head Office bank-loan cost so the bank statement matches.",
+      bankLoanPaymentAmount: "Amount Paid This Time",
+      bankLoanPaymentAmountHint:
+        "Interest, the monthly installment, or another amount the bank actually debited. Do not enter the full unused facility.",
+      bankLoanRef: "Loan Account / Reference",
+      bankLoanRefPlaceholder: "Bank loan account or advice number",
+      bankLoanRefHint: "The bank’s loan account or payment advice number.",
+      bankLoanDocument: "Bank Advice / Payment Proof",
+      purchaseTransferFee: "Bank Transfer Fee",
+      purchaseTransferFeeHint:
+        "Interbank fee charged on this transfer (SKN, BI-FAST, or RTGS). Leave 0 when the same bank is used or the fee is waived. Booking it keeps the ERP cash in line with the bank statement.",
+      purchaseTransferFeePlaceholder: "0",
       purchaseVehicleBought: "Vehicle Bought",
       purchaseVehicleCatalogEmpty:
         "Add a Vehicle type in Goods Catalog first, then choose it here.",
@@ -3417,6 +3461,27 @@ export const en = {
         "Period profit minus Accounts Payable — what is left after what we still owe.",
       clientsStillOwe: "Accounts Receivable",
       weStillOweVendors: "Accounts Payable",
+      bpjsKesehatan: "BPJS Kesehatan",
+      bpjsKesehatanHint:
+        "This month’s company contribution for enrolled employees. Statutory payable — not yet matched to a payment.",
+      bpjsKetenagakerjaan: "BPJS Ketenagakerjaan",
+      bpjsKetenagakerjaanHint:
+        "This month’s company contribution for JHT, JP, JKK, and JKM. Statutory payable — not yet matched to a payment.",
+      bpjsEmployeeCount: "{count} enrolled employees",
+      bpjsEmployeesTitle: "Enrolled Employees",
+      bpjsEmployeeDetailTitle: "Employee Contribution",
+      bpjsNoEmployees: "No active full-time employees are enrolled in this program.",
+      bpjsTenure: "Tenure",
+      bpjsHiredAt: "Joined",
+      bpjsBasePay: "Base Pay",
+      bpjsCompanyShare: "Company Payable",
+      bpjsEmployeeShare: "Employee Deduction",
+      bpjsLineKesehatan: "BPJS Kesehatan",
+      bpjsLineJht: "JHT",
+      bpjsLineJp: "JP",
+      bpjsLineJkk: "JKK",
+      bpjsLineJkm: "JKM",
+      bpjsWageBase: "Wage Base",
       accountsReceivableHint:
         "Invoices already sent that the client has not paid yet. Overdue {overdue}.",
       accountsPayableHint:
@@ -3472,6 +3537,12 @@ export const en = {
         deposits: "Employee Deposits Held Detail",
         depositsReturned: "Employee Deposits Refunded Detail",
         depositsKept: "Employee Deposits Retained Detail",
+        bpjsKesehatan: "BPJS Kesehatan Detail",
+        bpjsKetenagakerjaan: "BPJS Ketenagakerjaan Detail",
+        bpjsKesehatanHelp:
+          "Company 4% of the capped wage. Employee 1% is already deducted on Internal Payroll. This card is the amount still owed to BPJS this month.",
+        bpjsKetenagakerjaanHelp:
+          "Company shares for JHT, JP, JKK, and JKM on enrolled employees. Employee shares are already deducted on Internal Payroll.",
         overheadWages: "Warehouse Wages",
         overheadPurchases: "Internal Purchases",
         overheadStock: "Internal Stock Used",

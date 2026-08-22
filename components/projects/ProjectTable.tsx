@@ -456,12 +456,10 @@ export default function ProjectTable({
       {
         key: "cleaningType",
         title: t("pages.projects.cleaningType"),
-        width: internalEqual?.width ?? STATUS_COLUMN_WIDTH,
-        share: internalEqual?.share ?? 1,
+        width: STATUS_COLUMN_WIDTH,
+        share: isInternalTable ? 0 : 1,
         cellAlign: "center",
-        className: internalEqual
-          ? `${internalEqual.className} overflow-visible whitespace-nowrap`
-          : "min-w-[10rem] overflow-visible whitespace-nowrap",
+        className: "min-w-[10rem] overflow-visible whitespace-nowrap",
         render: (row) => (
           <StatusBadge status="success" compact>
             {row.typeLabel ?? localizeSubCategory(row.project.subCategory, locale)}
@@ -471,12 +469,10 @@ export default function ProjectTable({
       {
         key: "status",
         title: t("pages.projects.columns.status"),
-        width: internalEqual?.width ?? STATUS_COLUMN_WIDTH,
-        share: internalEqual?.share ?? 1,
+        width: STATUS_COLUMN_WIDTH,
+        share: isInternalTable ? 0 : 1,
         cellAlign: "center",
-        className: internalEqual
-          ? `${internalEqual.className} overflow-visible whitespace-nowrap`
-          : "min-w-[10rem] overflow-visible whitespace-nowrap",
+        className: "min-w-[10rem] overflow-visible whitespace-nowrap",
         render: (row) => {
           const paymentDue = isPaymentDueRow(row);
           const englishLabel = getProjectWorkflowStatusLabel({

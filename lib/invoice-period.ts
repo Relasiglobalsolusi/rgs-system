@@ -197,7 +197,12 @@ export function isPurchaseTaxIncomplete(invoice: {
   origin?: string | null;
   purchaseCategory?: string | null;
 }): boolean {
-  if (invoice.purchaseCategory === "GOVERNMENT") return false;
+  if (
+    invoice.purchaseCategory === "GOVERNMENT" ||
+    invoice.purchaseCategory === "BANK_LOAN"
+  ) {
+    return false;
+  }
   // Import PPN is credited from the customs payment (PIB), not an e-Faktur.
   if (invoice.origin === "IMPORT") return false;
   return invoice.includesPpn && !invoice.taxInvoiceFilePath;

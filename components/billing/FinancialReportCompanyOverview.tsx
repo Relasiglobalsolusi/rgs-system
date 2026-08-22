@@ -2,10 +2,12 @@
 
 import {
   Banknote,
+  HeartPulse,
   Landmark,
   Package,
   Scale,
   Shield,
+  ShieldPlus,
   TrendingDown,
   Wallet,
 } from "lucide-react";
@@ -87,6 +89,30 @@ export default function FinancialReportCompanyOverview({
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <DirectoryStatCard
+            title={t("pages.financialReport.bpjsKesehatan")}
+            value={formatContractPrice(company.bpjsPayable.kesehatan.companyTotal)}
+            subtitle={t("pages.financialReport.bpjsEmployeeCount", {
+              count: company.bpjsPayable.kesehatan.employeeCount,
+            })}
+            icon={<HeartPulse size={18} />}
+            accent="warning"
+            href={detail("bpjsKesehatan")}
+          />
+          <DirectoryStatCard
+            title={t("pages.financialReport.bpjsKetenagakerjaan")}
+            value={formatContractPrice(
+              company.bpjsPayable.ketenagakerjaan.companyTotal
+            )}
+            subtitle={t("pages.financialReport.bpjsEmployeeCount", {
+              count: company.bpjsPayable.ketenagakerjaan.employeeCount,
+            })}
+            icon={<ShieldPlus size={18} />}
+            accent="warning"
+            href={detail("bpjsKetenagakerjaan")}
+          />
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <DirectoryStatCard
             title={t("pages.financialReport.stockInWarehouse")}
             value={formatContractPrice(company.warehouseStockValue)}
             subtitle={t("pages.financialReport.stockInWarehouseHint")}
@@ -104,33 +130,6 @@ export default function FinancialReportCompanyOverview({
           />
         </div>
       </div>
-      {company.receiptsByBank.length > 0 ? (
-        <div className="rounded-2xl border border-border bg-elevated p-4">
-          <h2 className="text-sm font-semibold text-text">
-            {t("pages.financialReport.receiptsByBank")}
-          </h2>
-          <p className="mt-1 text-sm text-subtle">
-            {t("pages.financialReport.receiptsByBankHint")}
-          </p>
-          <ul className="mt-3 divide-y divide-border">
-            {company.receiptsByBank.map((row) => (
-              <li
-                key={row.id ?? "unassigned"}
-                className="flex items-center justify-between gap-3 py-2 text-sm"
-              >
-                <span className="font-medium text-text">
-                  {row.id
-                    ? row.label
-                    : t("pages.financialReport.filterBankUnassigned")}
-                </span>
-                <span className="tabular-nums text-text">
-                  {formatContractPrice(row.moneyIn)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
     </div>
   );
 }

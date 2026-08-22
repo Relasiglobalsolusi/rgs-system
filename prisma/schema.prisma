@@ -307,6 +307,14 @@ enum PurchaseCategory {
   GOVERNMENT
   /// Local company vehicle. Not warehouse stock. One plate per expense.
   VEHICLE
+  /// Bank facility draw / installment / interest payment. Not stock.
+  BANK_LOAN
+}
+
+/// Standby facility (KRK) vs term loan (kredit angsuran / anuitas).
+enum BankLoanKind {
+  STANDBY
+  TERM
 }
 
 /// What a government expense is settling (DJP / other state bills).
@@ -1294,6 +1302,19 @@ model PurchaseInvoice {
   leaseProvisionFee Decimal? @db.Decimal(14, 2)
   leaseOtherFee Decimal? @db.Decimal(14, 2)
   leaseMonthlyInstallment Decimal? @db.Decimal(14, 2)
+
+  /// Standby Facility (interest on the drawn amount) or Term Loan (fixed anuitas).
+  bankLoanKind BankLoanKind?
+  /// Term loan principal, or the standby amount currently drawn.
+  bankLoanPrincipal Decimal? @db.Decimal(14, 2)
+  /// Standby facility ceiling (unused portion does not accrue interest).
+  bankLoanFacilityLimit Decimal? @db.Decimal(14, 2)
+  bankLoanAnnualRatePercent Decimal? @db.Decimal(6, 3)
+  bankLoanTenorMonths Int?
+  /// Computed anuitas installment for a term loan (reference, not the cash posting).
+  bankLoanMonthlyInstallment Decimal? @db.Decimal(14, 2)
+  /// Interbank transfer fee (SKN / BI-FAST / RTGS) booked with this payment.
+  transferFeeIdr Decimal? @db.Decimal(14, 2)
 
   /// Number plate when this expense is a vehicle. Also used as the vehicle asset code.
   vehiclePlate String?

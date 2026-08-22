@@ -20,8 +20,15 @@ import {
   financialReportQueryString,
   parseFinancialReportSelection,
 } from "@/lib/financial-report-query";
+import {
+  getBpjsPayableEmployee,
+  listBpjsPayableEmployees,
+  type BpjsEmployeePayableRow,
+  type BpjsPayableProgram,
+} from "@/lib/financial-report-bpjs";
 import { listImportRateDifferences } from "@/lib/financial-report-overview";
 import { formatDisplayDate } from "@/lib/format-date";
+import { formatHiredAtLabel, formatTenure } from "@/lib/format-tenure";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
 import { prisma } from "@/lib/prisma";
@@ -47,6 +54,8 @@ const METRICS = [
   "deposits",
   "depositsReturned",
   "depositsKept",
+  "bpjsKesehatan",
+  "bpjsKetenagakerjaan",
 ] as const;
 
 type Metric = (typeof METRICS)[number];
@@ -60,7 +69,16 @@ type SearchParams = Promise<{
   month?: string;
   bank?: string;
   metric?: string;
+  employeeId?: string;
 }>;
+
+const BPJS_LINE_KEYS = {
+  kesehatan: "pages.financialReport.bpjsLineKesehatan",
+  jht: "pages.financialReport.bpjsLineJht",
+  jp: "pages.financialReport.bpjsLineJp",
+  jkk: "pages.financialReport.bpjsLineJkk",
+  jkm: "pages.financialReport.bpjsLineJkm",
+} as const;
 
 export default async function FinancialReportDetailPage({
   searchParams,
@@ -71,12 +89,20 @@ export default async function FinancialReportDetailPage({
   if (session.user.clientId || session.user.vendorId) {
     redirect("/billing/financial-report");
   }
-  const t = createTranslator(await getServerLocale());
+  const locale = await getServerLocale();
+  const t = createTranslator(locale);
   const params = await searchParams;
   const metric = isMetric(params.metric) ? params.metric : "periodNet";
   const selection = parseFinancialReportSelection(params);
   const queryString = financialReportQueryString(selection);
   const backHref = `/billing/financial-report?${queryString}`;
+  const bpjsProgram: BpjsPayableProgram | null =
+    metric === "bpjsKesehatan"
+      ? "kesehatan"
+      : metric === "bpjsKetenagakerjaan"
+        ? "ketenagakerjaan"
+        : null;
+  const employeeId = String(params.employeeId ?? "").trim();
 
   const needsClientDirectory =
     metric === "periodNet" || metric === "moneyIn" || metric === "moneyOut";
@@ -109,7 +135,7 @@ export default async function FinancialReportDetailPage({
     metric === "depositsReturned" ||
     metric === "depositsKept";
 
-  const [arPeriods, apInvoices, heldDeposits, returnedDeposits, keptDeposits] =
+  const [arPeriods, apInvoices, heldDeposits, returnedDeposits, keptDeposits, bpjsEmployees, bpjsEmployee] =
     await Promise.all([
     metric === "ar" || metric === "netPosition"
       ? prisma.projectInvoicePeriod.findMany({
@@ -161,6 +187,12 @@ export default async function FinancialReportDetailPage({
     metric === "depositsKept" || metric === "moneyIn"
       ? listKeptSecurityDeposits(session.user.companyId)
       : Promise.resolve([]),
+    bpjsProgram
+      ? listBpjsPayableEmployees(session.user.companyId, bpjsProgram)
+      : Promise.resolve([] as BpjsEmployeePayableRow[]),
+    bpjsProgram && employeeId
+      ? getBpjsPayableEmployee(session.user.companyId, employeeId, bpjsProgram)
+      : Promise.resolve(null),
   ]);
 
   const titleKey = `pages.financialReport.detail.${metric}` as const;
@@ -271,6 +303,28 @@ export default async function FinancialReportDetailPage({
             value={formatContractPrice(company.vendorsOwe.unpaid)}
             subtitle={t("pages.financialReport.accountsPayableHint", {
               overdue: formatContractPrice(company.vendorsOwe.overdue),
+            })}
+            accent="warning"
+          />
+        ) : null}
+        {metric === "bpjsKesehatan" ? (
+          <DirectoryStatCard
+            title={t("pages.financialReport.bpjsKesehatan")}
+            value={formatContractPrice(company.bpjsPayable.kesehatan.companyTotal)}
+            subtitle={t("pages.financialReport.bpjsEmployeeCount", {
+              count: company.bpjsPayable.kesehatan.employeeCount,
+            })}
+            accent="warning"
+          />
+        ) : null}
+        {metric === "bpjsKetenagakerjaan" ? (
+          <DirectoryStatCard
+            title={t("pages.financialReport.bpjsKetenagakerjaan")}
+            value={formatContractPrice(
+              company.bpjsPayable.ketenagakerjaan.companyTotal
+            )}
+            subtitle={t("pages.financialReport.bpjsEmployeeCount", {
+              count: company.bpjsPayable.ketenagakerjaan.employeeCount,
             })}
             accent="warning"
           />
@@ -446,7 +500,9 @@ export default async function FinancialReportDetailPage({
       depositMetric ||
       metric === "netPosition" ||
       metric === "moneyIn" ||
-      metric === "moneyOut" ? (
+      metric === "moneyOut" ||
+      metric === "bpjsKesehatan" ||
+      metric === "bpjsKetenagakerjaan" ? (
         <SectionCard className="mt-4">
           <p className="text-sm text-subtle">
             {t(`pages.financialReport.detail.${metric}Help`)}
@@ -569,6 +625,113 @@ export default async function FinancialReportDetailPage({
               );
             })}
           </ul>
+        </SectionCard>
+      ) : null}
+
+      {bpjsEmployee ? (
+        <SectionCard className="mt-4">
+          <h2 className="text-base font-semibold text-text">
+            {t("pages.financialReport.bpjsEmployeeDetailTitle")}
+          </h2>
+          <p className="mt-1 text-sm text-subtle">
+            {bpjsEmployee.name}
+            <span className="ml-2">{bpjsEmployee.employeeNo}</span>
+          </p>
+          <dl className="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-subtle">{t("pages.financialReport.bpjsHiredAt")}</dt>
+              <dd className="text-text">
+                {formatHiredAtLabel(bpjsEmployee.hiredAt, locale) || "—"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-subtle">{t("pages.financialReport.bpjsTenure")}</dt>
+              <dd className="text-text">
+                {formatTenure(bpjsEmployee.hiredAt, new Date(), locale) || "—"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-subtle">{t("pages.financialReport.bpjsBasePay")}</dt>
+              <dd className="tabular-nums text-text">
+                {formatContractPrice(bpjsEmployee.basePay)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-subtle">{t("pages.financialReport.bpjsCompanyShare")}</dt>
+              <dd className="tabular-nums text-text">
+                {formatContractPrice(bpjsEmployee.companyAmount)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-subtle">{t("pages.financialReport.bpjsEmployeeShare")}</dt>
+              <dd className="tabular-nums text-text">
+                {formatContractPrice(bpjsEmployee.employeeAmount)}
+              </dd>
+            </div>
+          </dl>
+          <ul className="mt-4 divide-y divide-border">
+            {bpjsEmployee.lines.map((line) => (
+              <li
+                key={line.key}
+                className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
+              >
+                <span className="text-text">
+                  {t(BPJS_LINE_KEYS[line.key])}
+                  <span className="ml-2 text-subtle">
+                    {t("pages.financialReport.bpjsWageBase")}{" "}
+                    {formatContractPrice(line.wageBase)}
+                  </span>
+                </span>
+                <span className="tabular-nums text-text">
+                  {t("pages.financialReport.bpjsCompanyShare")}{" "}
+                  {formatContractPrice(line.companyAmount)}
+                  <span className="ml-2 text-subtle">
+                    {t("pages.financialReport.bpjsEmployeeShare")}{" "}
+                    {formatContractPrice(line.employeeAmount)}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </SectionCard>
+      ) : null}
+
+      {bpjsProgram ? (
+        <SectionCard className="mt-4">
+          <h2 className="text-base font-semibold text-text">
+            {t("pages.financialReport.bpjsEmployeesTitle")}
+          </h2>
+          {bpjsEmployees.length === 0 ? (
+            <p className="mt-3 text-sm text-subtle">
+              {t("pages.financialReport.bpjsNoEmployees")}
+            </p>
+          ) : (
+            <ul className="mt-3 divide-y divide-border">
+              {bpjsEmployees.map((row) => (
+                <li key={row.id}>
+                  <Link
+                    href={`/billing/financial-report/detail?metric=${metric}&employeeId=${row.id}${
+                      queryString ? `&${queryString}` : ""
+                    }`}
+                    className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm hover:underline"
+                  >
+                    <span className="text-text">
+                      {row.name}
+                      <span className="ml-2 text-subtle">{row.employeeNo}</span>
+                      {row.hiredAt ? (
+                        <span className="ml-2 text-subtle">
+                          {formatTenure(row.hiredAt, new Date(), locale)}
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="tabular-nums text-text">
+                      {formatContractPrice(row.companyAmount)}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
         </SectionCard>
       ) : null}
 

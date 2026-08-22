@@ -17,6 +17,7 @@ import {
   employeeInputClass,
 } from "@/components/employees/employee-dialog-ui";
 import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/MoneyInput";
 import type { CompanyBankAccountOption } from "@/lib/company-bank-accounts";
 import { formatImportForeignAmount, parseImportDecimal } from "@/lib/import-landed-cost";
 import { useT } from "@/lib/i18n/use-t";
@@ -58,6 +59,7 @@ export default function PurchaseMarkPaidDialog({
   const [importBankRate, setImportBankRate] = useState("");
   const [importBankCharge, setImportBankCharge] = useState("");
   const [importTelexFee, setImportTelexFee] = useState("");
+  const [transferFee, setTransferFee] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,6 +71,7 @@ export default function PurchaseMarkPaidDialog({
       setImportBankRate("");
       setImportBankCharge("");
       setImportTelexFee("");
+      setTransferFee("");
       setPending(false);
       setError(null);
       return;
@@ -123,6 +126,8 @@ export default function PurchaseMarkPaidDialog({
       formData.set("importBankRate", importBankRate.trim());
       formData.set("importBankCharge", importBankCharge.trim());
       formData.set("importTelexFee", importTelexFee.trim());
+    } else {
+      formData.set("transferFeeIdr", transferFee.trim());
     }
 
     setPending(true);
@@ -271,7 +276,27 @@ export default function PurchaseMarkPaidDialog({
             </p>
           </div>
         </div>
-      ) : null}
+      ) : (
+        <div className={employeeDialogFieldClass}>
+          <label
+            htmlFor={`purchase-paid-transfer-fee-${purchaseInvoiceId}`}
+            className={employeeDialogLabelClass}
+          >
+            {t("pages.billing.purchaseTransferFee")}
+          </label>
+          <MoneyInput
+            id={`purchase-paid-transfer-fee-${purchaseInvoiceId}`}
+            disabled={pending}
+            value={transferFee}
+            onValueChange={setTransferFee}
+            placeholder={t("pages.billing.purchaseTransferFeePlaceholder")}
+            className={employeeInputClass}
+          />
+          <p className={employeeDialogHintClass}>
+            {t("pages.billing.purchaseTransferFeeHint")}
+          </p>
+        </div>
+      )}
     </BillingDocumentVerifyDialog>
   );
 }

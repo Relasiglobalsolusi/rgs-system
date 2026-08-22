@@ -25,12 +25,19 @@ export function parsePurchasePurpose(
  */
 export function parsePurchaseCategory(
   value: FormDataEntryValue | string | null | undefined
-): "PRODUCT" | "SERVICE" | "PETTY_CASH" | "GOVERNMENT" | "VEHICLE" {
+):
+  | "PRODUCT"
+  | "SERVICE"
+  | "PETTY_CASH"
+  | "GOVERNMENT"
+  | "VEHICLE"
+  | "BANK_LOAN" {
   const raw = String(value ?? "").trim().toUpperCase();
   if (raw === "SERVICE") return "SERVICE";
   if (raw === "PETTY_CASH") return "PETTY_CASH";
   if (raw === "GOVERNMENT") return "GOVERNMENT";
   if (raw === "VEHICLE") return "VEHICLE";
+  if (raw === "BANK_LOAN") return "BANK_LOAN";
   return "PRODUCT";
 }
 
@@ -44,6 +51,7 @@ export function resolvePurchasePurpose(options: {
     return options.requested === "PROJECT" ? "PROJECT" : "INTERNAL";
   }
   if (options.category === "GOVERNMENT") return "INTERNAL";
+  if (options.category === "BANK_LOAN") return "INTERNAL";
   if (options.category === "PETTY_CASH") return "PETTY_CASH";
   return options.requested;
 }
@@ -71,7 +79,7 @@ export function purchaseCreatesStock(
   purpose: PurchasePurpose,
   category?: string | null
 ): boolean {
-  if (category === "VEHICLE") return false;
+  if (category === "VEHICLE" || category === "BANK_LOAN") return false;
   if (category === "PRODUCT") return true;
   return purpose === "STOCK";
 }

@@ -90,7 +90,10 @@ export function listPurchaseDocumentSlots(
     if (showInvoice) {
       slots.push({
         kind: "invoice",
-        titleKey: "pages.billing.purchaseInvoice",
+        titleKey:
+          source.purchaseCategory === "BANK_LOAN"
+            ? "pages.billing.bankLoanDocument"
+            : "pages.billing.purchaseInvoice",
         href: filePath,
       });
     }

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Source_Sans_3 } from "next/font/google";
 
 import { Providers } from "@/components/providers/Providers";
@@ -15,6 +15,15 @@ const sourceSans = Source_Sans_3({
 });
 
 export const metadata: Metadata = rgsMetadata;
+
+/** Phone default is 75% so more of a table fits. Pinch in if you need larger tap targets. */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 0.75,
+  minimumScale: 0.5,
+  maximumScale: 5,
+  userScalable: true,
+};
 
 export default async function RootLayout({
   children,
