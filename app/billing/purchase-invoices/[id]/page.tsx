@@ -471,7 +471,7 @@ export default async function PurchaseInvoiceDetailPage({
                     : t("pages.billing.paymentDue")}
                 </th>
                 <td className={metaValueClassName}>
-                  {isPaid
+                  {isPaid && invoice.paidAt
                     ? formatDisplayDate(invoice.paidAt)
                     : payment.dueAt
                       ? formatDisplayDate(payment.dueAt, { timeZone: "UTC" })
