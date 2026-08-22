@@ -111,6 +111,32 @@ export default function FinancialReportCompanyOverview({
             href={detail("bpjsKetenagakerjaan")}
           />
         </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <DirectoryStatCard
+            title={t("pages.financialReport.loanFunding")}
+            value={formatContractPrice(company.loanFundingIn)}
+            subtitle={t("pages.financialReport.loanFundingHint")}
+            icon={<Landmark size={18} />}
+            accent="info"
+            href={detail("loanFunding")}
+          />
+          <DirectoryStatCard
+            title={t("pages.financialReport.loanPrincipalReturned")}
+            value={formatContractPrice(company.loanPrincipalReturned)}
+            subtitle={t("pages.financialReport.loanPrincipalReturnedHint")}
+            icon={<TrendingDown size={18} />}
+            accent="muted"
+            href={detail("loanPrincipalReturned")}
+          />
+          <DirectoryStatCard
+            title={t("pages.financialReport.loansPayable")}
+            value={formatContractPrice(company.loansPayable)}
+            subtitle={t("pages.financialReport.loansPayableHint")}
+            icon={<Wallet size={18} />}
+            accent={company.loansPayable > 0 ? "warning" : "muted"}
+            href={detail("loansPayable")}
+          />
+        </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <DirectoryStatCard
             title={t("pages.financialReport.stockInWarehouse")}

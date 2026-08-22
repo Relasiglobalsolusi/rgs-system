@@ -74,12 +74,8 @@ import {
   parsePpnRatePercent,
   ppnRateFromPercent,
 } from "@/lib/vat";
-import {
-  BANK_LOAN_TENOR_MAX,
-  BANK_LOAN_TENOR_MIN,
-  parseBankLoanKind,
-  previewBankLoan,
-} from "@/lib/bank-loan";
+import { createLoanRepayment } from "@/lib/loan-facility-write";
+import { getLoanFacilitySnapshot } from "@/lib/loan-facility-query";
 import {
   CASH_PAYMENT_TERMS_DAYS,
   isCashPaymentTerms,
@@ -635,14 +631,6 @@ function parseOptionalAmount(raw: string): Prisma.Decimal | null {
   return value === 0 ? null : amount;
 }
 
-function parseAnnualRatePercent(raw: string): Prisma.Decimal {
-  const value = Number(String(raw ?? "").trim().replace(",", "."));
-  if (!Number.isFinite(value) || value < 0 || value > 100) {
-    throw new Error("Enter the annual interest rate.");
-  }
-  return new Prisma.Decimal(value);
-}
-
 async function savePurchaseTaxInvoiceFile(
   file: File,
   supplierName: string,
@@ -816,11 +804,18 @@ export async function createPurchaseInvoice(formData: FormData) {
 
   if (purchaseCategoryRawEarly === "BANK_LOAN") {
     if (session.user.vendorId) {
-      throw new Error("Bank loan payments are recorded by Head Office only.");
+      throw new Error("Loan payments are recorded by Head Office only.");
     }
-    const kind = parseBankLoanKind(formData.get("bankLoanKind"));
-    if (!kind) {
-      throw new Error("Choose Standby Facility or Term Loan.");
+    const facilityId = String(formData.get("loanFacilityId") ?? "").trim();
+    if (!facilityId) {
+      throw new Error("Select the registered loan.");
+    }
+    const facility = await getLoanFacilitySnapshot(
+      session.user.companyId,
+      facilityId
+    );
+    if (!facility) {
+      throw new Error("Register the loan under Finance → Loans first.");
     }
     const invoiceRef = String(formData.get("invoiceRef") ?? "").trim();
     if (!invoiceRef) {
@@ -837,68 +832,6 @@ export async function createPurchaseInvoice(formData: FormData) {
       throw new Error("Date is required.");
     }
     const invoiceDate = taxInvoiceDateToUtcDate(invoiceDateRaw);
-    const supplierName = String(formData.get("supplierName") ?? "").trim();
-    const vendorId = String(formData.get("vendorId") ?? "").trim();
-    if (!supplierName || !vendorId) {
-      throw new Error("Select a registered vendor.");
-    }
-    const vendor = await prisma.vendor.findFirst({
-      where: {
-        id: vendorId,
-        companyId: session.user.companyId,
-        active: true,
-      },
-      select: { id: true, name: true },
-    });
-    if (!vendor) {
-      throw new Error("Select a registered vendor.");
-    }
-    const annualRate = parseAnnualRatePercent(
-      String(formData.get("bankLoanAnnualRatePercent") ?? "")
-    );
-    const annualRateNumber = decimalToNumber(annualRate) ?? 0;
-    let facilityLimit: Prisma.Decimal | null = parseOptionalAmount(
-      String(formData.get("bankLoanFacilityLimit") ?? "")
-    );
-    let principal: Prisma.Decimal | null = null;
-    let tenorMonths: number | null = null;
-    let monthlyInstallment: Prisma.Decimal | null = null;
-
-    if (kind === "STANDBY") {
-      principal = parseOptionalAmount(
-        String(formData.get("bankLoanDrawnAmount") ?? "")
-      );
-      if (principal == null) {
-        throw new Error("Enter the amount currently drawn.");
-      }
-    } else {
-      principal = parseOptionalAmount(
-        String(formData.get("bankLoanPrincipal") ?? "")
-      );
-      if (principal == null) {
-        throw new Error("Enter the loan principal.");
-      }
-      const tenorRaw = Number(
-        String(formData.get("bankLoanTenorMonths") ?? "").trim()
-      );
-      tenorMonths = Math.round(tenorRaw);
-      if (
-        !Number.isFinite(tenorMonths) ||
-        tenorMonths < BANK_LOAN_TENOR_MIN ||
-        tenorMonths > BANK_LOAN_TENOR_MAX
-      ) {
-        throw new Error("Enter the tenor in months.");
-      }
-      const preview = previewBankLoan({
-        kind,
-        principal: decimalToNumber(principal),
-        annualPercent: annualRateNumber,
-        tenorMonths,
-      });
-      monthlyInstallment = optionalDecimal(preview?.monthlyInstallment);
-      facilityLimit = null;
-    }
-
     const file = requireImageOrPdfUpload(formData.get("document"), {
       requiredMessage: "Upload the bank advice or payment proof.",
       sizeMessage: "File must be 10 MB or smaller.",
@@ -907,46 +840,31 @@ export async function createPurchaseInvoice(formData: FormData) {
     const filePath = await saveUpload(file, "uploads/purchase-invoices", {
       fileBaseName: buildBillingDocumentFileBase({
         prefix: "Bank-Loan",
-        clientName: vendor.name,
+        clientName: facility.lenderName,
         invoiceNumber: invoiceRef,
       }),
     });
 
-    await prisma.purchaseInvoice.create({
-      data: {
+    await prisma.$transaction(async (tx) => {
+      await createLoanRepayment({
+        db: tx,
         companyId: session.user.companyId,
-        supplierName: vendor.name,
-        vendorId: vendor.id,
-        invoiceRef,
-        invoiceDate,
-        amount,
-        filePath,
-        notes:
-          notesRaw ||
-          (kind === "STANDBY"
-            ? "Bank loan payment — Standby Facility"
-            : "Bank loan payment — Term Loan"),
-        includesPpn: false,
-        purchaseCategory: "BANK_LOAN",
-        purpose: "INTERNAL",
-        origin: "LOCAL",
-        paymentTermsDays: CASH_PAYMENT_TERMS_DAYS,
-        paidAt: new Date(),
-        paidById: session.user.id,
+        userId: session.user.id,
+        facilityId: facility.id,
+        amount: invoiceAmount,
+        transferFeeIdr: decimalToNumber(transferFeeIdr),
+        movementDate: invoiceDate,
         bankAccountId,
-        createdById: session.user.id,
-        transferFeeIdr,
-        bankLoanKind: kind,
-        bankLoanPrincipal: principal,
-        bankLoanFacilityLimit: facilityLimit,
-        bankLoanAnnualRatePercent: annualRate,
-        bankLoanTenorMonths: tenorMonths,
-        bankLoanMonthlyInstallment: monthlyInstallment,
-      },
+        invoiceRef,
+        filePath,
+        notes: notesRaw,
+      });
     });
 
     revalidatePath("/billing/purchase-invoices");
     revalidatePath("/billing/financial-report");
+    revalidatePath("/billing/loans");
+    revalidatePath(`/billing/loans/${facility.id}`);
     return;
   }
 

@@ -192,6 +192,7 @@ export const id = {
       Tax: "Pajak",
       Purchases: "Pengeluaran",
       Expenses: "Pengeluaran",
+      Loans: "Pinjaman",
       Sales: "Penjualan",
       "Petty Cash": "Kas Kecil",
       "Upload History": "Riwayat Unggah",
@@ -2641,9 +2642,33 @@ export const id = {
       purchaseCategoryService: "Jasa",
       purchaseCategoryPettyCash: "Kas Kecil",
       purchaseCategoryGovernment: "Pemerintah",
-      purchaseCategoryBankLoan: "Pinjaman Bank",
+      purchaseCategoryBankLoan: "Pinjaman",
       purchaseCategoryHint:
-        "Produk menjadi stok gudang. Kendaraan dibeli di dalam negeri dan dicatat di Inventaris → Kendaraan. Jasa, Kas Kecil, Pemerintah, dan Pinjaman Bank bukan stok.",
+        "Produk menjadi stok gudang. Kendaraan dibeli di dalam negeri dan dicatat di Inventaris → Kendaraan. Jasa, Kas Kecil, Pemerintah, dan Pinjaman bukan stok.",
+      loanSource: "Sumber Pinjaman",
+      loanSourceBank: "Pinjaman Bank",
+      loanSourceShareholder: "Pinjaman Pemegang Saham",
+      loanSourceHint:
+        "Pinjaman Bank memakai fasilitas bank yang sudah didaftarkan. Pinjaman Pemegang Saham adalah uang yang ditaruh pemegang saham ke perusahaan.",
+      loanSourceRequired: "Pilih Pinjaman Bank atau Pinjaman Pemegang Saham.",
+      loanFacility: "Pinjaman Terdaftar",
+      loanFacilityPlaceholder: "Pilih pinjaman terdaftar",
+      loanFacilityRequired: "Pilih pinjaman terdaftar untuk pembayaran ini.",
+      loanFacilityEmpty:
+        "Daftarkan pinjaman di Keuangan → Pinjaman terlebih dahulu, lalu kembali ke sini untuk mencatat pengembalian.",
+      loanOutstanding: "Pokok Yang Masih Terutang",
+      loanInterestDue: "Bunga Untuk Pembayaran Ini",
+      loanPrincipalDue: "Pokok Dalam Pembayaran Ini",
+      loanSuggestedPayment: "Jumlah Yang Harus Dibayar Dari Rekening",
+      loanPaymentSplit:
+        "Bunga {interest} adalah beban. Pokok {principal} mengurangi sisa utang. Rekening bank membayar totalnya.",
+      loanChargesInterest: "Apakah Pemegang Saham Membebankan Bunga?",
+      loanChargesInterestHint:
+        "Jika ya, sistem menghitung bunga dari saldo terutang. Rekening bank membayar angka itu, plus pokok yang Anda kembalikan.",
+      loanShareholderName: "Nama Pemegang Saham",
+      loanShareholderNameRequired: "Masukkan nama pemegang saham.",
+      loanInterestPaid: "Bunga Dibayar",
+      loanPrincipalReturned: "Pokok Dikembalikan",
       bankLoanKind: "Jenis Pinjaman",
       bankLoanKindStandby: "Fasilitas Standby",
       bankLoanKindTerm: "Pinjaman Berjangka",
@@ -3493,7 +3518,16 @@ export const id = {
       periodNet: "Laba Periode",
       netPosition: "Posisi Bersih",
       netPositionHint:
-        "Laba periode dikurangi Utang Usaha — sisa setelah yang masih kita tanggung.",
+        "Laba periode dikurangi Utang Usaha dan pinjaman yang masih terutang. Penarikan pinjaman adalah pendanaan, bukan pendapatan.",
+      loanFunding: "Masuk Dari Pinjaman Dan Pemegang Saham",
+      loanFundingHint:
+        "Uang yang diambil dari pinjaman bank atau pemegang saham terdaftar pada periode ini. Pendanaan — bukan pendapatan proyek.",
+      loanPrincipalReturned: "Pokok Pinjaman Dikembalikan",
+      loanPrincipalReturnedHint:
+        "Pokok yang dibayar kembali periode ini. Ini pengeluaran pembiayaan, bukan beban operasional.",
+      loansPayable: "Utang Pinjaman",
+      loansPayableHint:
+        "Pokok yang masih terutang pada pinjaman bank dan pemegang saham.",
       clientsStillOwe: "Piutang Usaha",
       weStillOweVendors: "Utang Usaha",
       bpjsKesehatan: "BPJS Kesehatan",
@@ -3574,6 +3608,15 @@ export const id = {
         depositsKept: "Rincian Deposit Karyawan Hangus",
         bpjsKesehatan: "Rincian BPJS Kesehatan",
         bpjsKetenagakerjaan: "Rincian BPJS Ketenagakerjaan",
+        loanFunding: "Rincian Masuk Dari Pinjaman Dan Pemegang Saham",
+        loanPrincipalReturned: "Rincian Pokok Pinjaman Dikembalikan",
+        loansPayable: "Rincian Utang Pinjaman",
+        loanFundingHelp:
+          "Penarikan periode ini. Kas berasal dari bank atau pemegang saham. Jangan diperlakukan sebagai pendapatan proyek.",
+        loanPrincipalReturnedHelp:
+          "Pokok yang dikembalikan periode ini. Bunga tetap di Beban. Kartu ini hanya pokok.",
+        loansPayableHelp:
+          "Yang masih terutang pada fasilitas terdaftar. Masuk Posisi Bersih sebagai utang nyata.",
         bpjsKesehatanHelp:
           "Perusahaan 4% dari upah yang dibatasi. Karyawan 1% sudah dipotong di Penggajian Internal. Kartu ini adalah jumlah yang masih terutang ke BPJS bulan ini.",
         bpjsKetenagakerjaanHelp:
@@ -3599,7 +3642,7 @@ export const id = {
         depositsKeptHelp:
           "Pendapatan Head Office saat resign tidak sesuai prosedur dan deposit ditahan perusahaan.",
         netPositionHelp:
-          "Laba periode dikurangi utang pemasok. Piutang adalah yang masih terutang klien."
+          "Laba periode dikurangi utang pemasok dan pinjaman yang masih terutang. Penarikan pinjaman bukan pendapatan. Piutang adalah yang masih terutang klien."
       },
       contractValueHint: "Jumlah harga kontrak proyek.",
       spendingHint:
@@ -3725,6 +3768,73 @@ export const id = {
       statusPaid: "Dibayar",
       markPaid: "Tandai Dibayar",
       markPaidFailed: "Gagal menandai THR sebagai dibayar."
+    },
+    loans: {
+      title: "Pinjaman",
+      description:
+        "Daftarkan fasilitas bank dan pemegang saham, catat uang yang masuk, dan catat uang yang dikembalikan. Bunga adalah beban. Penarikan adalah pendanaan, bukan pendapatan proyek.",
+      register: "Daftarkan Pinjaman",
+      registerTitle: "Daftarkan Pinjaman",
+      registerDesc:
+        "Catat fasilitasnya dulu. Saat uang benar-benar masuk, catat penarikan agar laporan keuangan tahu dari mana kas itu berasal.",
+      registerConfirm: "Simpan Pinjaman",
+      saving: "Menyimpan…",
+      failed: "Tidak dapat menyimpan pinjaman ini.",
+      emptyTitle: "Belum Ada Pinjaman",
+      emptyDesc:
+        "Daftarkan fasilitas bank atau pinjaman pemegang saham, lalu catat penarikan dan pengembalian di sini.",
+      name: "Nama Pinjaman",
+      namePlaceholder: "mis. Fasilitas Standby BCA",
+      source: "Sumber Pinjaman",
+      lenderName: "Nama Pemberi Pinjaman",
+      lenderNameHint: "Bank atau pemegang saham tempat uang ini berasal.",
+      startDate: "Tanggal Mulai",
+      notes: "Catatan",
+      notesPlaceholder: "Catatan opsional",
+      recordInitialDraw: "Uang Sudah Diterima",
+      recordInitialDrawHint:
+        "Nyalakan jika bank atau pemegang saham sudah memasukkan uang ke rekening perusahaan.",
+      initialDrawAmount: "Jumlah Diterima",
+      initialDrawRequired: "Masukkan jumlah yang sudah diterima.",
+      bankAccount: "Rekening Bank Perusahaan",
+      bankAccountHint: "Rekening tempat uang masuk, atau tempat pembayaran keluar.",
+      statusActive: "Aktif",
+      statusClosed: "Ditutup",
+      outstanding: "Saldo Terutang",
+      unusedLimit: "Sisa Plafon",
+      drawn: "Ditarik",
+      returned: "Dikembalikan",
+      nextPayment: "Pembayaran Berikutnya",
+      recordDraw: "Catat Penarikan",
+      recordDrawTitle: "Catat Uang Yang Diambil",
+      recordDrawDesc:
+        "Bank atau pemegang saham memasukkan jumlah ini ke perusahaan. Ini pendanaan, bukan pendapatan.",
+      recordDrawConfirm: "Simpan Penarikan",
+      recordReturn: "Catat Pengembalian",
+      recordReturnTitle: "Catat Uang Yang Dikembalikan",
+      recordReturnDesc:
+        "Sistem menghitung bunga atau angsuran bulanan. Cocokkan dengan bank atau pemegang saham.",
+      recordReturnConfirm: "Simpan Pengembalian",
+      closeLoan: "Tutup Pinjaman",
+      closeLoanConfirm: "Tutup pinjaman ini? Pokok yang masih terutang harus nol.",
+      closeFailed: "Pinjaman ini masih memiliki pokok terutang.",
+      proof: "Advice / Bukti Pembayaran",
+      proofRequired: "Unggah advice bank atau bukti pembayaran.",
+      reference: "Referensi",
+      referencePlaceholder: "Nomor rekening pinjaman atau advice",
+      columns: {
+        name: "Pinjaman",
+        source: "Sumber",
+        lender: "Pemberi",
+        outstanding: "Terutang",
+        next: "Pembayaran Berikutnya",
+        status: "Status"
+      },
+      movementsTitle: "Penarikan Dan Pengembalian",
+      movementDraw: "Penarikan",
+      movementReturn: "Pengembalian",
+      noMovements: "Belum ada penarikan atau pengembalian.",
+      backToLoans: "Pinjaman"
     },
     pettyCash: {
       title: "Kas Kecil",
@@ -5493,6 +5603,7 @@ export const id = {
     invoicing: "Invoice & Penagihan",
     reconciliation: "Rekonsiliasi",
     purchaseInvoices: "Pengeluaran",
+    loans: "Pinjaman",
     sales: "Penjualan",
     taxInvoices: "Pajak",
     vendorPayments: "Pembayaran & Pelunasan",

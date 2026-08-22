@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import PurchaseInvoiceDetailClient from "@/components/billing/PurchaseInvoiceDetailClient";
@@ -88,6 +89,7 @@ export default async function PurchaseInvoiceDetailPage({
       project: { select: { id: true, name: true } },
       createdBy: { select: { name: true } },
       paidBy: { select: { name: true } },
+      loanFacility: { select: { id: true, name: true } },
       lines: {
         orderBy: { sortOrder: "asc" },
         include: {
@@ -563,6 +565,33 @@ export default async function PurchaseInvoiceDetailPage({
                     : formatPurchaseListedAmount(invoice)}
                 </td>
               </tr>
+              {invoice.purchaseCategory === "BANK_LOAN" && invoice.loanSource ? (
+                <tr className="border-b border-border">
+                  <th scope="row" className={metaLabelClassName}>
+                    {t("pages.billing.loanSource")}
+                  </th>
+                  <td className={metaValueClassName}>
+                    {invoice.loanSource === "SHAREHOLDER"
+                      ? t("pages.billing.loanSourceShareholder")
+                      : t("pages.billing.loanSourceBank")}
+                  </td>
+                </tr>
+              ) : null}
+              {invoice.loanFacility ? (
+                <tr className="border-b border-border">
+                  <th scope="row" className={metaLabelClassName}>
+                    {t("pages.billing.loanFacility")}
+                  </th>
+                  <td className={metaValueClassName}>
+                    <Link
+                      href={`/billing/loans/${invoice.loanFacility.id}`}
+                      className="text-primary hover:underline"
+                    >
+                      {invoice.loanFacility.name}
+                    </Link>
+                  </td>
+                </tr>
+              ) : null}
               {invoice.purchaseCategory === "BANK_LOAN" && invoice.bankLoanKind ? (
                 <tr className="border-b border-border">
                   <th scope="row" className={metaLabelClassName}>
@@ -572,6 +601,26 @@ export default async function PurchaseInvoiceDetailPage({
                     {invoice.bankLoanKind === "STANDBY"
                       ? t("pages.billing.bankLoanKindStandby")
                       : t("pages.billing.bankLoanKindTerm")}
+                  </td>
+                </tr>
+              ) : null}
+              {invoice.loanInterestAmount != null ? (
+                <tr className="border-b border-border">
+                  <th scope="row" className={metaLabelClassName}>
+                    {t("pages.billing.loanInterestPaid")}
+                  </th>
+                  <td className={`${metaValueClassName} tabular-nums`}>
+                    {money(decimalToNumber(invoice.loanInterestAmount))}
+                  </td>
+                </tr>
+              ) : null}
+              {invoice.loanPrincipalAmount != null ? (
+                <tr className="border-b border-border">
+                  <th scope="row" className={metaLabelClassName}>
+                    {t("pages.billing.loanPrincipalReturned")}
+                  </th>
+                  <td className={`${metaValueClassName} tabular-nums`}>
+                    {money(decimalToNumber(invoice.loanPrincipalAmount))}
                   </td>
                 </tr>
               ) : null}

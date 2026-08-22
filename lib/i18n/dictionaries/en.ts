@@ -180,6 +180,7 @@ export const en = {
       Tax: "Tax",
       Purchases: "Expenses",
       Expenses: "Expenses",
+      Loans: "Loans",
       Sales: "Sales",
       "Petty Cash": "Petty Cash",
       "Upload History": "Upload History",
@@ -2613,9 +2614,33 @@ export const en = {
       purchaseCategoryService: "Service",
       purchaseCategoryPettyCash: "Petty Cash",
       purchaseCategoryGovernment: "Government",
-      purchaseCategoryBankLoan: "Bank Loan",
+      purchaseCategoryBankLoan: "Loan",
       purchaseCategoryHint:
-        "A product becomes warehouse stock. A vehicle is bought locally and recorded under Inventory → Vehicles. Service, Petty Cash, Government, and Bank Loan are not stock.",
+        "A product becomes warehouse stock. A vehicle is bought locally and recorded under Inventory → Vehicles. Service, Petty Cash, Government, and Loan are not stock.",
+      loanSource: "Loan Source",
+      loanSourceBank: "Bank Loan",
+      loanSourceShareholder: "Shareholder Loan",
+      loanSourceHint:
+        "Bank Loan uses a registered bank facility. Shareholder Loan is money a shareholder put into the company.",
+      loanSourceRequired: "Choose Bank Loan or Shareholder Loan.",
+      loanFacility: "Registered Loan",
+      loanFacilityPlaceholder: "Select a registered loan",
+      loanFacilityRequired: "Select the registered loan this payment belongs to.",
+      loanFacilityEmpty:
+        "Register the loan under Finance → Loans first, then come back here to record a return.",
+      loanOutstanding: "Outstanding Principal",
+      loanInterestDue: "Interest Due This Payment",
+      loanPrincipalDue: "Principal In This Payment",
+      loanSuggestedPayment: "Amount The Bank Account Should Pay",
+      loanPaymentSplit:
+        "Interest {interest} is the expense. Principal {principal} reduces what we still owe. The bank account pays the total.",
+      loanChargesInterest: "Does The Shareholder Charge Interest?",
+      loanChargesInterestHint:
+        "If yes, the system calculates interest on the outstanding amount. The bank account pays exactly that figure, plus any principal you return.",
+      loanShareholderName: "Shareholder Name",
+      loanShareholderNameRequired: "Enter the shareholder name.",
+      loanInterestPaid: "Interest Paid",
+      loanPrincipalReturned: "Principal Returned",
       bankLoanKind: "Loan Type",
       bankLoanKindStandby: "Standby Facility",
       bankLoanKindTerm: "Term Loan",
@@ -3458,7 +3483,16 @@ export const en = {
       periodNet: "Period Profit",
       netPosition: "Net Position",
       netPositionHint:
-        "Period profit minus Accounts Payable — what is left after what we still owe.",
+        "Period profit minus Accounts Payable and loans still owed. Loan draws are funding, not revenue.",
+      loanFunding: "Loan And Shareholder Inflows",
+      loanFundingHint:
+        "Money taken from a registered bank or shareholder loan this period. Funding — not project revenue.",
+      loanPrincipalReturned: "Loan Principal Returned",
+      loanPrincipalReturnedHint:
+        "Principal paid back this period. This is a financing outflow, not an operating expense.",
+      loansPayable: "Loans Payable",
+      loansPayableHint:
+        "Outstanding principal still owed on bank and shareholder loans.",
       clientsStillOwe: "Accounts Receivable",
       weStillOweVendors: "Accounts Payable",
       bpjsKesehatan: "BPJS Kesehatan",
@@ -3539,6 +3573,15 @@ export const en = {
         depositsKept: "Employee Deposits Retained Detail",
         bpjsKesehatan: "BPJS Kesehatan Detail",
         bpjsKetenagakerjaan: "BPJS Ketenagakerjaan Detail",
+        loanFunding: "Loan And Shareholder Inflows Detail",
+        loanPrincipalReturned: "Loan Principal Returned Detail",
+        loansPayable: "Loans Payable Detail",
+        loanFundingHelp:
+          "Draws this period. The cash came from a bank or a shareholder. Do not treat this as project revenue.",
+        loanPrincipalReturnedHelp:
+          "Principal returned this period. Interest stays in Expenses. This card is the principal only.",
+        loansPayableHelp:
+          "What is still owed on registered facilities. Included in Net Position as real debt.",
         bpjsKesehatanHelp:
           "Company 4% of the capped wage. Employee 1% is already deducted on Internal Payroll. This card is the amount still owed to BPJS this month.",
         bpjsKetenagakerjaanHelp:
@@ -3564,7 +3607,7 @@ export const en = {
         depositsKeptHelp:
           "Head Office income when resignation is not according to procedure and the deposit is retained.",
         netPositionHelp:
-          "Period profit minus unpaid vendor bills. Accounts Receivable is what clients still owe."
+          "Period profit minus unpaid vendor bills and outstanding loans. Loan draws are not revenue. Accounts Receivable is what clients still owe."
       },
       contractValueHint: "Sum of project contract prices.",
       spendingHint: "Stock used on the job, project purchases, and Internal Payroll days clocked here.",
@@ -3685,6 +3728,73 @@ export const en = {
       statusPaid: "Paid",
       markPaid: "Mark Paid",
       markPaidFailed: "Failed to mark THR as paid."
+    },
+    loans: {
+      title: "Loans",
+      description:
+        "Register bank and shareholder facilities, record money taken in, and record money returned. Interest is the expense. The draw itself is funding, not project revenue.",
+      register: "Register Loan",
+      registerTitle: "Register A Loan",
+      registerDesc:
+        "Log the facility first. When money actually arrives, record a draw so the financial report knows where the cash came from.",
+      registerConfirm: "Save Loan",
+      saving: "Saving…",
+      failed: "Could not save this loan.",
+      emptyTitle: "No Loans Registered",
+      emptyDesc:
+        "Register a bank facility or a shareholder loan, then record draws and returns here.",
+      name: "Loan Name",
+      namePlaceholder: "e.g. BCA Standby Facility",
+      source: "Loan Source",
+      lenderName: "Lender Name",
+      lenderNameHint: "The bank or the shareholder this money comes from.",
+      startDate: "Start Date",
+      notes: "Notes",
+      notesPlaceholder: "Optional notes",
+      recordInitialDraw: "Money Already Received",
+      recordInitialDrawHint:
+        "Turn this on when the bank or shareholder has already put money into a company account.",
+      initialDrawAmount: "Amount Received",
+      initialDrawRequired: "Enter the amount already received.",
+      bankAccount: "Company Bank Account",
+      bankAccountHint: "The account the money went into, or is paid from.",
+      statusActive: "Active",
+      statusClosed: "Closed",
+      outstanding: "Outstanding",
+      unusedLimit: "Unused Limit",
+      drawn: "Drawn",
+      returned: "Returned",
+      nextPayment: "Next Payment",
+      recordDraw: "Record Draw",
+      recordDrawTitle: "Record Money Taken",
+      recordDrawDesc:
+        "The bank or shareholder put this amount into the company. This is funding, not revenue.",
+      recordDrawConfirm: "Save Draw",
+      recordReturn: "Record Return",
+      recordReturnTitle: "Record Money Returned",
+      recordReturnDesc:
+        "The system calculates interest or the monthly installment. Match this with the bank or shareholder.",
+      recordReturnConfirm: "Save Return",
+      closeLoan: "Close Loan",
+      closeLoanConfirm: "Close this loan? Outstanding principal must be zero.",
+      closeFailed: "This loan still has outstanding principal.",
+      proof: "Advice / Payment Proof",
+      proofRequired: "Upload the bank advice or payment proof.",
+      reference: "Reference",
+      referencePlaceholder: "Loan account or advice number",
+      columns: {
+        name: "Loan",
+        source: "Source",
+        lender: "Lender",
+        outstanding: "Outstanding",
+        next: "Next Payment",
+        status: "Status"
+      },
+      movementsTitle: "Draws And Returns",
+      movementDraw: "Draw",
+      movementReturn: "Return",
+      noMovements: "No draws or returns yet.",
+      backToLoans: "Loans"
     },
     pettyCash: {
       title: "Petty Cash",
@@ -5422,6 +5532,7 @@ export const en = {
     invoicing: "Invoice and Billing",
     reconciliation: "Reconciliation",
     purchaseInvoices: "Expenses",
+    loans: "Loans",
     sales: "Sales",
     taxInvoices: "Tax",
     vendorPayments: "Payment & Settlement",

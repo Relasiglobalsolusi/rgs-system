@@ -136,6 +136,14 @@ export async function unwindAndReversePurchaseInvoice(
     });
   }
 
+  await tx.loanMovement.updateMany({
+    where: {
+      purchaseInvoiceId: invoice.id,
+      reversedAt: null,
+    },
+    data: { reversedAt: new Date() },
+  });
+
   if (invoice.pettyCashEntry && invoice.pettyCashEntry.status !== "VOIDED") {
     await tx.pettyCashEntry.update({
       where: { id: invoice.pettyCashEntry.id },

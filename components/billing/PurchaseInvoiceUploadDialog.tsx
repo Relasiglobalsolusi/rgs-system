@@ -11,11 +11,10 @@ import {
 import CompanyBankAccountField from "@/components/company-details/CompanyBankAccountField";
 import type { CompanyBankAccountOption } from "@/lib/company-bank-accounts";
 import PurchaseCatalogItemPicker from "@/components/billing/PurchaseCatalogItemPicker";
-import PurchaseBankLoanFields, {
-  bankLoanSuggestedPayment,
-  emptyBankLoanDraft,
-  type PurchaseBankLoanDraft,
-} from "@/components/billing/PurchaseBankLoanFields";
+import PurchaseLoanFields, {
+  type PurchaseLoanFacilityOption,
+} from "@/components/billing/PurchaseLoanFields";
+import type { LoanSource } from "@/lib/loan-facility";
 import PurchaseVehicleLeaseFields, {
   emptyVehicleLeaseDraft,
   type PurchaseVehicleLeaseDraft,
@@ -164,12 +163,14 @@ type PurchaseInvoiceUploadDialogProps = {
   vendors: PurchaseInvoiceVendorOption[];
   catalogItems?: PurchaseCatalogItemOption[];
   projects?: PurchaseProjectOption[];
+  loanFacilities?: PurchaseLoanFacilityOption[];
 };
 
 export default function PurchaseInvoiceUploadDialog({
   vendors: vendorsProp,
   catalogItems: catalogItemsProp = [],
   projects = [],
+  loanFacilities = [],
 }: PurchaseInvoiceUploadDialogProps) {
   const { t } = useT();
   const router = useRouter();
@@ -221,9 +222,8 @@ export default function PurchaseInvoiceUploadDialog({
   const [vehicleLease, setVehicleLease] = useState<PurchaseVehicleLeaseDraft>(
     emptyVehicleLeaseDraft
   );
-  const [bankLoan, setBankLoan] = useState<PurchaseBankLoanDraft>(
-    emptyBankLoanDraft
-  );
+  const [loanSource, setLoanSource] = useState<LoanSource | "">("");
+  const [loanFacilityId, setLoanFacilityId] = useState("");
   const [transferFee, setTransferFee] = useState("");
   const [amountTouched, setAmountTouched] = useState(false);
   const [bankAccounts, setBankAccounts] = useState<CompanyBankAccountOption[]>(
@@ -510,7 +510,8 @@ export default function PurchaseInvoiceUploadDialog({
       setAmount("");
       setLines([newPurchaseLine()]);
       setVehicleLease(emptyVehicleLeaseDraft());
-      setBankLoan(emptyBankLoanDraft());
+      setLoanSource("");
+      setLoanFacilityId("");
       setTransferFee("");
       setAmountTouched(false);
       setVendorChoice("");
@@ -529,11 +530,17 @@ export default function PurchaseInvoiceUploadDialog({
     }
   }, [open]);
 
+  const selectedLoan = loanFacilities.find(
+    (row) => row.id === loanFacilityId
+  );
   useEffect(() => {
     if (!isBankLoan || amountTouched) return;
-    const suggested = bankLoanSuggestedPayment(bankLoan);
-    setAmount(suggested != null ? String(suggested) : "");
-  }, [isBankLoan, amountTouched, bankLoan]);
+    if (selectedLoan && selectedLoan.suggestedPayment > 0) {
+      setAmount(String(selectedLoan.suggestedPayment));
+      return;
+    }
+    setAmount("");
+  }, [isBankLoan, amountTouched, selectedLoan]);
 
   function handleDocumentPick(file: File | null) {
     setDocumentFile(file);
@@ -610,11 +617,14 @@ export default function PurchaseInvoiceUploadDialog({
       setIncludedTaxKind("");
       setTaxFile(null);
       setPaymentTermsDays(CASH_PAYMENT_TERMS_DAYS);
-      setBankLoan(emptyBankLoanDraft());
+      setLoanSource("");
+      setLoanFacilityId("");
+      setVendorChoice("");
       setAmountTouched(false);
     }
     if (value !== "BANK_LOAN") {
-      setBankLoan(emptyBankLoanDraft());
+      setLoanSource("");
+      setLoanFacilityId("");
       setAmountTouched(false);
     }
   }
@@ -824,14 +834,12 @@ export default function PurchaseInvoiceUploadDialog({
     }
 
     if (isBankLoan) {
-      if (!bankLoan.kind) {
-        setError(t("pages.billing.bankLoanKindRequired"));
+      if (!loanSource) {
+        setError(t("pages.billing.loanSourceRequired"));
         return;
       }
-      const vendorId = vendorChoice;
-      const vendor = supplierVendors.find((item) => item.id === vendorId);
-      if (!vendor) {
-        setError(t("pages.billing.purchaseVendorRequired"));
+      if (!loanFacilityId || !selectedLoan) {
+        setError(t("pages.billing.loanFacilityRequired"));
         return;
       }
       if (!amount.trim()) {
@@ -842,15 +850,10 @@ export default function PurchaseInvoiceUploadDialog({
         setError(t("pages.billing.governmentDocumentRequired"));
         return;
       }
-      formData.set("supplierName", vendor.name);
-      formData.set("vendorId", vendor.id);
+      formData.set("supplierName", selectedLoan.lenderName);
+      formData.set("loanFacilityId", selectedLoan.id);
+      formData.set("loanSource", selectedLoan.source);
       formData.set("amount", amount.trim());
-      formData.set("bankLoanKind", bankLoan.kind);
-      formData.set("bankLoanFacilityLimit", bankLoan.facilityLimit);
-      formData.set("bankLoanDrawnAmount", bankLoan.drawnAmount);
-      formData.set("bankLoanPrincipal", bankLoan.principal);
-      formData.set("bankLoanAnnualRatePercent", bankLoan.annualRatePercent);
-      formData.set("bankLoanTenorMonths", bankLoan.tenorMonths);
       formData.set("document", documentFile);
       setPending(true);
       try {
@@ -1209,8 +1212,8 @@ export default function PurchaseInvoiceUploadDialog({
                     : isBankLoan
                       ? !amount.trim() ||
                         !documentFile ||
-                        !bankLoan.kind ||
-                        !vendorChoice
+                        !loanSource ||
+                        !loanFacilityId
                       : (showInvoiceFields && !documentFile) ||
                         vendors.length === 0 ||
                         !vendorChoice ||
@@ -1614,10 +1617,17 @@ export default function PurchaseInvoiceUploadDialog({
             ) : null}
 
             {isBankLoan ? (
-              <PurchaseBankLoanFields
-                draft={bankLoan}
-                onChange={(next) => {
-                  setBankLoan(next);
+              <PurchaseLoanFields
+                source={loanSource}
+                facilityId={loanFacilityId}
+                facilities={loanFacilities}
+                onSourceChange={(value) => {
+                  setLoanSource(value);
+                  setLoanFacilityId("");
+                  setAmountTouched(false);
+                }}
+                onFacilityChange={(value) => {
+                  setLoanFacilityId(value);
                   setAmountTouched(false);
                 }}
                 disabled={busy}
@@ -1694,7 +1704,7 @@ export default function PurchaseInvoiceUploadDialog({
             </div>
             )}
 
-            {isPettyCash || isGovernment ? null : (
+            {isPettyCash || isGovernment || isBankLoan ? null : (
             <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
               <label
                 htmlFor="purchase-vendor"

@@ -25,6 +25,7 @@ import {
   formatContractPrice,
 } from "@/lib/project-billing";
 import { formatPurchaseListedAmount } from "@/lib/purchase-amount-display";
+import { listLoanFacilitySnapshots } from "@/lib/loan-facility-query";
 import { requireFinanceChild, toPermissionUser } from "@/lib/session";
 import { processScheduledPettyCashPays } from "@/lib/petty-cash";
 import { jakartaYearMonth, utcRangeForJakartaDate, utcRangeForJakartaMonth, daysInUtcMonth } from "@/lib/vat";
@@ -93,7 +94,7 @@ export default async function PurchaseInvoicesPage({
     canAccess(user, "purchaseInvoices") || canAccess(user, "projects");
   const canUpload = canManage && purchaseView !== "payments";
 
-  const [invoices, vendors, catalogItemsRaw, projectsRaw] = await Promise.all([
+  const [invoices, vendors, catalogItemsRaw, projectsRaw, loanFacilities] = await Promise.all([
     prisma.purchaseInvoice.findMany({
       where: {
         companyId: session.user.companyId,
@@ -140,6 +141,7 @@ export default async function PurchaseInvoicesPage({
       },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
+    listLoanFacilitySnapshots(session.user.companyId, { status: "ACTIVE" }),
   ]);
 
   const catalogItems = catalogItemsRaw.map((item) => ({
@@ -265,6 +267,7 @@ export default async function PurchaseInvoicesPage({
                 name: project.name,
                 clientName: project.client?.name ?? null,
               }))}
+              loanFacilities={loanFacilities}
             />
           ) : null}
         </div>

@@ -317,6 +317,21 @@ enum BankLoanKind {
   TERM
 }
 
+enum LoanSource {
+  BANK
+  SHAREHOLDER
+}
+
+enum LoanFacilityStatus {
+  ACTIVE
+  CLOSED
+}
+
+enum LoanMovementKind {
+  DRAW
+  REPAYMENT
+}
+
 /// What a government expense is settling (DJP / other state bills).
 enum GovernmentTaxKind {
   /// Monthly Value Added Tax payment (PPN Kurang Bayar).
@@ -479,6 +494,7 @@ model Company {
   websiteContent      WebsiteContent?
   operationsTeams     OperationsTeam[]
   pettyCashEntries    PettyCashEntry[]
+  loanFacilities      LoanFacility[]
   projectServiceAreas ProjectServiceAreaCatalog[]
 
   createdAt DateTime @default(now())
@@ -502,6 +518,8 @@ model CompanyBankAccount {
   invoicePeriods ProjectInvoicePeriod[]
   inventorySales InventorySale[]
   purchaseInvoices PurchaseInvoice[]
+  loanFacilities   LoanFacility[]
+  loanMovements    LoanMovement[]
 
   @@index([companyId, sortOrder])
 }
@@ -769,6 +787,8 @@ model User {
   leaveApprovalAcks     LeaveApprovalAck[]
   billingClientReviewEvents BillingClientReviewEvent[]
   createdPettyCashEntries   PettyCashEntry[] @relation("PettyCashEntryCreator")
+  createdLoanFacilities     LoanFacility[]   @relation("LoanFacilityCreator")
+  createdLoanMovements      LoanMovement[]   @relation("LoanMovementCreator")
   assignedDoubleShifts      DoubleShiftAssignment[] @relation("DoubleShiftAssignedBy")
   createdFactoryReturns     EquipmentFactoryReturn[] @relation("FactoryReturnCreator")
   closedFactoryReturns      EquipmentFactoryReturn[] @relation("FactoryReturnCloser")
@@ -916,6 +936,7 @@ model Vendor {
 
   purchaseInvoices     PurchaseInvoice[]
   handlingPurchaseInvoices PurchaseInvoice[] @relation("PurchaseHandlingVendor")
+  loanFacilities       LoanFacility[]
   inventoryPurchases   InventoryPurchase[]
   factoryReturns       EquipmentFactoryReturn[]
 
@@ -1315,6 +1336,13 @@ model PurchaseInvoice {
   bankLoanMonthlyInstallment Decimal? @db.Decimal(14, 2)
   /// Interbank transfer fee (SKN / BI-FAST / RTGS) booked with this payment.
   transferFeeIdr Decimal? @db.Decimal(14, 2)
+  loanFacilityId String?
+  loanFacility   LoanFacility? @relation(fields: [loanFacilityId], references: [id], onDelete: SetNull)
+  loanSource     LoanSource?
+  /// Principal portion of this loan repayment. Interest is loanInterestAmount.
+  loanPrincipalAmount Decimal? @db.Decimal(14, 2)
+  loanInterestAmount  Decimal? @db.Decimal(14, 2)
+  loanMovements  LoanMovement[]
 
   /// Number plate when this expense is a vehicle. Also used as the vehicle asset code.
   vehiclePlate String?
@@ -1352,6 +1380,7 @@ model PurchaseInvoice {
   @@index([companyId])
   @@index([companyId, invoiceDate])
   @@index([companyId, paidAt])
+  @@index([loanFacilityId])
   @@index([vendorId])
   @@index([taxInvoiceSerial])
   @@index([bankAccountId])
@@ -1359,6 +1388,80 @@ model PurchaseInvoice {
   @@index([taxInvoiceIssuedAt, amount])
   @@index([projectId])
   @@index([companyId, purpose])
+}
+
+/// Bank or shareholder facility. Draws are funding in. Returns reduce the payable.
+model LoanFacility {
+  id String @id @default(cuid())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  source LoanSource
+  kind   BankLoanKind
+  status LoanFacilityStatus @default(ACTIVE)
+
+  name       String
+  lenderName String
+  vendorId   String?
+  vendor     Vendor? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+
+  bankAccountId String?
+  bankAccount   CompanyBankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+
+  facilityLimit Decimal? @db.Decimal(14, 2)
+  principal     Decimal? @db.Decimal(14, 2)
+  chargesInterest Boolean @default(true)
+  annualRatePercent Decimal? @db.Decimal(6, 3)
+  tenorMonths Int?
+  monthlyInstallment Decimal? @db.Decimal(14, 2)
+  startDate DateTime @db.Date
+  notes     String?
+
+  createdById String?
+  createdBy   User? @relation("LoanFacilityCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  movements LoanMovement[]
+  purchaseInvoices PurchaseInvoice[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId, status])
+  @@index([companyId, source])
+}
+
+model LoanMovement {
+  id String @id @default(cuid())
+
+  facilityId String
+  facility   LoanFacility @relation(fields: [facilityId], references: [id], onDelete: Cascade)
+
+  kind         LoanMovementKind
+  movementDate DateTime @db.Date
+  amount       Decimal  @db.Decimal(14, 2)
+  principalAmount Decimal? @db.Decimal(14, 2)
+  interestAmount  Decimal? @db.Decimal(14, 2)
+  transferFeeIdr  Decimal? @db.Decimal(14, 2)
+
+  bankAccountId String?
+  bankAccount   CompanyBankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+
+  purchaseInvoiceId String?
+  purchaseInvoice   PurchaseInvoice? @relation(fields: [purchaseInvoiceId], references: [id], onDelete: SetNull)
+
+  notes    String?
+  filePath String?
+
+  reversedAt DateTime?
+
+  createdById String?
+  createdBy   User? @relation("LoanMovementCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([facilityId, movementDate])
+  @@index([purchaseInvoiceId])
 }
 
 /// Line items on a Finance purchase (catalog item + qty + unit cost).

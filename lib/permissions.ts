@@ -48,6 +48,8 @@ import {
 
   CircleDollarSign,
 
+  Landmark,
+
 } from "lucide-react";
 
 import type { EmployeeType, Placement, UserRole } from "@prisma/client";
@@ -114,6 +116,8 @@ export const MODULES = [
   "reconciliation",
 
   "purchaseInvoices",
+
+  "loans",
 
   "sales",
 
@@ -232,6 +236,7 @@ export const EXTRA_MENU_NAV_KEYS = [
   "thr",
   "vat",
   "pettyCash",
+  "loans",
 ] as const;
 
 /** Each Finance page is its own module — no parent group toggle. */
@@ -239,6 +244,7 @@ export const FINANCE_MODULE_KEYS = [
   "invoicing",
   "reconciliation",
   "purchaseInvoices",
+  "loans",
   "sales",
   "taxInvoices",
   "vendorPayments",
@@ -359,6 +365,13 @@ export const FINANCE_MENU_ITEMS: MenuItem[] = [
     navKey: "purchaseInvoices",
   },
   {
+    icon: Landmark,
+    label: "Loans",
+    href: "/billing/loans",
+    module: "loans",
+    navKey: "loans",
+  },
+  {
     icon: CircleDollarSign,
     label: "Sales",
     href: "/billing/sales",
@@ -439,6 +452,9 @@ export function resolveModuleOverride(
   if (!overrides) return null;
   // New Finance page: inherit Expenses until Sales is saved on the user.
   if (module === "sales" && !("sales" in overrides) && "purchaseInvoices" in overrides) {
+    return overrides.purchaseInvoices!;
+  }
+  if (module === "loans" && !("loans" in overrides) && "purchaseInvoices" in overrides) {
     return overrides.purchaseInvoices!;
   }
   if (module in overrides) return overrides[module]!;
@@ -570,6 +586,14 @@ export function getEmployeeModuleOverrides(
       !("sales" in rawAccess)
     ) {
       stored.sales = stored.purchaseInvoices === true;
+    }
+    if (
+      rawAccess &&
+      typeof rawAccess === "object" &&
+      !Array.isArray(rawAccess) &&
+      !("loans" in rawAccess)
+    ) {
+      stored.loans = stored.purchaseInvoices === true;
     }
     return stored;
   }
@@ -834,6 +858,7 @@ export const PORTAL_BLOCKED_MODULES: ModuleKey[] = [
   ...ADMIN_SCOPE_MODULES,
   "pettyCash",
   "purchaseInvoices",
+  "loans",
   "sales",
   "taxInvoices",
   "thr",
@@ -1060,6 +1085,8 @@ export const ROUTE_MODULE_MAP: Record<string, ModuleKey> = {
   "/billing/reconciliation": "reconciliation",
 
   "/billing/purchase-invoices": "purchaseInvoices",
+
+  "/billing/loans": "loans",
 
   "/billing/sales": "sales",
 

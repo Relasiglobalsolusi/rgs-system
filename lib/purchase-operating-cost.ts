@@ -12,6 +12,7 @@ export type PurchaseOperatingCostInput = {
   importValueIdr?: number | null;
   pph22AmountIdr?: number | null;
   transferFeeIdr?: number | null;
+  loanInterestAmount?: number | null;
 };
 
 /**
@@ -30,6 +31,15 @@ export function operatingPurchaseAmount(
     invoice.transferFeeIdr != null && Number.isFinite(invoice.transferFeeIdr)
       ? Math.max(0, invoice.transferFeeIdr)
       : 0;
+
+  if (invoice.purchaseCategory === "BANK_LOAN") {
+    const interest =
+      invoice.loanInterestAmount != null &&
+      Number.isFinite(invoice.loanInterestAmount)
+        ? Math.max(0, invoice.loanInterestAmount)
+        : amount;
+    return interest + transferFee;
+  }
 
   if (invoice.purchaseCategory === "GOVERNMENT") {
     const body = isGovernmentOperatingExpense(invoice.governmentTaxKind)

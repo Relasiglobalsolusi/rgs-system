@@ -27,6 +27,11 @@ import {
   type BpjsPayableProgram,
 } from "@/lib/financial-report-bpjs";
 import { listImportRateDifferences } from "@/lib/financial-report-overview";
+import {
+  listLoanFundingInRange,
+  listLoanPrincipalReturnedInRange,
+  listLoansPayableRows,
+} from "@/lib/loan-facility-query";
 import { formatDisplayDate } from "@/lib/format-date";
 import { formatHiredAtLabel, formatTenure } from "@/lib/format-tenure";
 import { getServerLocale } from "@/lib/i18n/locale";
@@ -56,6 +61,9 @@ const METRICS = [
   "depositsKept",
   "bpjsKesehatan",
   "bpjsKetenagakerjaan",
+  "loanFunding",
+  "loanPrincipalReturned",
+  "loansPayable",
 ] as const;
 
 type Metric = (typeof METRICS)[number];
@@ -135,7 +143,7 @@ export default async function FinancialReportDetailPage({
     metric === "depositsReturned" ||
     metric === "depositsKept";
 
-  const [arPeriods, apInvoices, heldDeposits, returnedDeposits, keptDeposits, bpjsEmployees, bpjsEmployee] =
+  const [arPeriods, apInvoices, heldDeposits, returnedDeposits, keptDeposits, bpjsEmployees, bpjsEmployee, loanFundingRows, loanReturnedRows, loansPayableRows] =
     await Promise.all([
     metric === "ar" || metric === "netPosition"
       ? prisma.projectInvoicePeriod.findMany({
@@ -193,6 +201,23 @@ export default async function FinancialReportDetailPage({
     bpjsProgram && employeeId
       ? getBpjsPayableEmployee(session.user.companyId, employeeId, bpjsProgram)
       : Promise.resolve(null),
+    metric === "loanFunding"
+      ? listLoanFundingInRange(
+          session.user.companyId,
+          calendar.from,
+          calendar.toExclusive
+        )
+      : Promise.resolve([]),
+    metric === "loanPrincipalReturned"
+      ? listLoanPrincipalReturnedInRange(
+          session.user.companyId,
+          calendar.from,
+          calendar.toExclusive
+        )
+      : Promise.resolve([]),
+    metric === "loansPayable" || metric === "netPosition"
+      ? listLoansPayableRows(session.user.companyId)
+      : Promise.resolve([]),
   ]);
 
   const titleKey = `pages.financialReport.detail.${metric}` as const;
@@ -285,7 +310,35 @@ export default async function FinancialReportDetailPage({
               title={t("pages.financialReport.weStillOweVendors")}
               value={formatContractPrice(company.vendorsOwe.unpaid)}
             />
+            <DirectoryStatCard
+              title={t("pages.financialReport.loansPayable")}
+              value={formatContractPrice(company.loansPayable)}
+              accent={company.loansPayable > 0 ? "warning" : "muted"}
+            />
           </>
+        ) : null}
+        {metric === "loanFunding" ? (
+          <DirectoryStatCard
+            title={t("pages.financialReport.loanFunding")}
+            value={formatContractPrice(company.loanFundingIn)}
+            subtitle={t("pages.financialReport.loanFundingHint")}
+            accent="info"
+          />
+        ) : null}
+        {metric === "loanPrincipalReturned" ? (
+          <DirectoryStatCard
+            title={t("pages.financialReport.loanPrincipalReturned")}
+            value={formatContractPrice(company.loanPrincipalReturned)}
+            subtitle={t("pages.financialReport.loanPrincipalReturnedHint")}
+          />
+        ) : null}
+        {metric === "loansPayable" ? (
+          <DirectoryStatCard
+            title={t("pages.financialReport.loansPayable")}
+            value={formatContractPrice(company.loansPayable)}
+            subtitle={t("pages.financialReport.loansPayableHint")}
+            accent={company.loansPayable > 0 ? "warning" : "muted"}
+          />
         ) : null}
         {metric === "ar" ? (
           <DirectoryStatCard
@@ -502,7 +555,10 @@ export default async function FinancialReportDetailPage({
       metric === "moneyIn" ||
       metric === "moneyOut" ||
       metric === "bpjsKesehatan" ||
-      metric === "bpjsKetenagakerjaan" ? (
+      metric === "bpjsKetenagakerjaan" ||
+      metric === "loanFunding" ||
+      metric === "loanPrincipalReturned" ||
+      metric === "loansPayable" ? (
         <SectionCard className="mt-4">
           <p className="text-sm text-subtle">
             {t(`pages.financialReport.detail.${metric}Help`)}
@@ -732,6 +788,89 @@ export default async function FinancialReportDetailPage({
               ))}
             </ul>
           )}
+        </SectionCard>
+      ) : null}
+
+      {loanFundingRows.length > 0 ? (
+        <SectionCard className="mt-4">
+          <h2 className="text-base font-semibold text-text">
+            {t("pages.financialReport.loanFunding")}
+          </h2>
+          <ul className="mt-3 divide-y divide-border">
+            {loanFundingRows.map((row) => (
+              <li
+                key={row.id}
+                className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
+              >
+                <Link
+                  href={`/billing/loans/${row.facilityId}`}
+                  className="text-text hover:underline"
+                >
+                  {row.facilityName}
+                  <span className="ml-2 text-subtle">{row.lenderName}</span>
+                </Link>
+                <span className="tabular-nums text-text">
+                  {formatContractPrice(row.amount)}
+                  {` · ${formatDisplayDate(row.movementDate, { timeZone: "UTC" })}`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </SectionCard>
+      ) : null}
+
+      {loanReturnedRows.length > 0 ? (
+        <SectionCard className="mt-4">
+          <h2 className="text-base font-semibold text-text">
+            {t("pages.financialReport.loanPrincipalReturned")}
+          </h2>
+          <ul className="mt-3 divide-y divide-border">
+            {loanReturnedRows.map((row) => (
+              <li
+                key={row.id}
+                className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
+              >
+                <Link
+                  href={`/billing/loans/${row.facilityId}`}
+                  className="text-text hover:underline"
+                >
+                  {row.facilityName}
+                  <span className="ml-2 text-subtle">{row.lenderName}</span>
+                </Link>
+                <span className="tabular-nums text-text">
+                  {formatContractPrice(row.amount)}
+                  {` · ${formatDisplayDate(row.movementDate, { timeZone: "UTC" })}`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </SectionCard>
+      ) : null}
+
+      {loansPayableRows.length > 0 ? (
+        <SectionCard className="mt-4">
+          <h2 className="text-base font-semibold text-text">
+            {t("pages.financialReport.loansPayable")}
+          </h2>
+          <ul className="mt-3 divide-y divide-border">
+            {loansPayableRows.map((row) => (
+              <li
+                key={row.id}
+                className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
+              >
+                <Link
+                  href={`/billing/loans/${row.id}`}
+                  className="text-text hover:underline"
+                >
+                  {row.name}
+                  <span className="ml-2 text-subtle">{row.lenderName}</span>
+                </Link>
+                <span className="tabular-nums text-text">
+                  {formatContractPrice(row.outstanding)}
+                </span>
+              </li>
+            ))}
+          </ul>
         </SectionCard>
       ) : null}
 
