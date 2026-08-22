@@ -34,11 +34,7 @@ import {
   type BpjsPayableTotals,
 } from "@/lib/financial-report-bpjs";
 import { operatingPurchaseAmount } from "@/lib/purchase-operating-cost";
-import {
-  sumLoanDrawsInRange,
-  sumLoanPrincipalReturnedInRange,
-  sumLoansPayable,
-} from "@/lib/loan-facility-query";
+import { sumLoanInterestDue } from "@/lib/loan-facility-query";
 
 export const FINANCIAL_REPORT_JOB_STATUSES = [
   "IN_PROGRESS",
@@ -79,12 +75,8 @@ export type FinancialReportOverview = {
   overhead: OverheadBreakdown;
   deposits: SecurityDepositSnapshot;
   bpjsPayable: BpjsPayableTotals;
-  /** Draws this period — funding, not project revenue. */
-  loanFundingIn: number;
-  /** Principal returned this period — financing outflow, not operating expense. */
-  loanPrincipalReturned: number;
-  /** Outstanding principal still owed on bank and shareholder loans. */
-  loansPayable: number;
+  /** Interest to pay this month on active loans. Shown as a reminder, not funding. */
+  loanInterestDue: number;
 };
 
 function pair(moneyIn: number, moneyOut: number): MoneyPair {
@@ -317,6 +309,7 @@ async function sumPurchases(
       amount: true,
       purchaseCategory: true,
       governmentTaxKind: true,
+      governmentOperatingAmount: true,
       origin: true,
       includesPpn: true,
       ppnRatePercent: true,
@@ -325,6 +318,9 @@ async function sumPurchases(
       pph22AmountIdr: true,
       transferFeeIdr: true,
       loanInterestAmount: true,
+      loanPenaltyAmount: true,
+      loanAdminFeeAmount: true,
+      loanProvisionAmount: true,
     },
   });
   return invoices.reduce((sum, invoice) => {
@@ -334,6 +330,9 @@ async function sumPurchases(
         amount: decimalToNumber(invoice.amount) ?? 0,
         purchaseCategory: invoice.purchaseCategory,
         governmentTaxKind: invoice.governmentTaxKind,
+        governmentOperatingAmount: decimalToNumber(
+          invoice.governmentOperatingAmount
+        ),
         origin: invoice.origin,
         includesPpn: invoice.includesPpn,
         ppnRatePercent: decimalToNumber(invoice.ppnRatePercent),
@@ -342,6 +341,9 @@ async function sumPurchases(
         pph22AmountIdr: decimalToNumber(invoice.pph22AmountIdr),
         transferFeeIdr: decimalToNumber(invoice.transferFeeIdr),
         loanInterestAmount: decimalToNumber(invoice.loanInterestAmount),
+        loanPenaltyAmount: decimalToNumber(invoice.loanPenaltyAmount),
+        loanAdminFeeAmount: decimalToNumber(invoice.loanAdminFeeAmount),
+        loanProvisionAmount: decimalToNumber(invoice.loanProvisionAmount),
       })
     );
   }, 0);
@@ -857,9 +859,7 @@ function emptyOverview(
       kesehatan: { companyTotal: 0, employeeCount: 0 },
       ketenagakerjaan: { companyTotal: 0, employeeCount: 0 },
     },
-    loanFundingIn: 0,
-    loanPrincipalReturned: 0,
-    loansPayable: 0,
+    loanInterestDue: 0,
     ...patch,
   };
 }
@@ -871,7 +871,6 @@ export async function getFinancialReportOverviewData(
   const calendar = financialReportCalendarRange(selection);
   const wage = financialReportWageRange(selection);
   const bank = selection.bank ?? FINANCIAL_REPORT_ALL_BANKS;
-
   const [
     period,
     clientsOwe,
@@ -879,9 +878,7 @@ export async function getFinancialReportOverviewData(
     warehouseStockValue,
     deposits,
     bpjsPayable,
-    loanFundingIn,
-    loanPrincipalReturned,
-    loansPayable,
+    loanInterestDue,
   ] =
     await Promise.all([
       periodPnl(
@@ -897,13 +894,7 @@ export async function getFinancialReportOverviewData(
       getWarehouseStockValue(companyId),
       getSecurityDepositSnapshot(companyId),
       getBpjsPayableTotals(companyId),
-      sumLoanDrawsInRange(companyId, calendar.from, calendar.toExclusive),
-      sumLoanPrincipalReturnedInRange(
-        companyId,
-        calendar.from,
-        calendar.toExclusive
-      ),
-      sumLoansPayable(companyId),
+      sumLoanInterestDue(companyId, calendar.from, calendar.toExclusive),
     ]);
 
   return {
@@ -911,14 +902,12 @@ export async function getFinancialReportOverviewData(
     period: period.pair,
     clientsOwe,
     vendorsOwe,
-    netPosition: period.pair.net - vendorsOwe.unpaid - loansPayable,
+    netPosition: period.pair.net - vendorsOwe.unpaid,
     warehouseStockValue,
     overhead: period.overhead,
     deposits,
     bpjsPayable,
-    loanFundingIn,
-    loanPrincipalReturned,
-    loansPayable,
+    loanInterestDue,
   };
 }
 
@@ -952,27 +941,14 @@ export async function getFinancialReportDetailOverview(
     const bpjsPayable = await getBpjsPayableTotals(companyId);
     return emptyOverview(selection, { bpjsPayable });
   }
-  if (
-    metric === "loanFunding" ||
-    metric === "loanPrincipalReturned" ||
-    metric === "loansPayable"
-  ) {
+  if (metric === "loanInterestDue") {
     const calendar = financialReportCalendarRange(selection);
-    const [loanFundingIn, loanPrincipalReturned, loansPayable] =
-      await Promise.all([
-        sumLoanDrawsInRange(companyId, calendar.from, calendar.toExclusive),
-        sumLoanPrincipalReturnedInRange(
-          companyId,
-          calendar.from,
-          calendar.toExclusive
-        ),
-        sumLoansPayable(companyId),
-      ]);
-    return emptyOverview(selection, {
-      loanFundingIn,
-      loanPrincipalReturned,
-      loansPayable,
-    });
+    const loanInterestDue = await sumLoanInterestDue(
+      companyId,
+      calendar.from,
+      calendar.toExclusive
+    );
+    return emptyOverview(selection, { loanInterestDue });
   }
   return getFinancialReportOverviewData(companyId, selection);
 }

@@ -7,18 +7,14 @@ import {
   BANK_LOAN_TENOR_MAX,
   BANK_LOAN_TENOR_MIN,
   parseBankLoanKind,
+  parseLoanInterestBasis,
 } from "@/lib/bank-loan";
-import {
-  listCompanyBankAccountOptions,
-  parseFormCompanyBankAccountId,
-} from "@/lib/company-bank-accounts";
-import {
-  listLoanFacilitySnapshots,
-  getLoanFacilitySnapshot,
-} from "@/lib/loan-facility-query";
-import { parseLoanSource } from "@/lib/loan-facility";
+import { parseFormCompanyBankAccountId } from "@/lib/company-bank-accounts";
+import { getLoanFacilitySnapshot } from "@/lib/loan-facility-query";
+import { parseLoanSource, shareholderLoanInvoiceRef } from "@/lib/loan-facility";
 import {
   createLoanDraw,
+  createLoanEarlySettlement,
   createLoanRepayment,
   defaultFacilityName,
   resolveFacilityMonthlyInstallment,
@@ -96,12 +92,12 @@ function parseOptionalMoney(raw: string): number | null {
 function parseAnnualRate(raw: string, required: boolean): Prisma.Decimal | null {
   const text = String(raw ?? "").trim().replace(",", ".");
   if (!text) {
-    if (required) throw new Error("Enter the annual interest rate.");
+    if (required) throw new Error("Enter the interest rate.");
     return null;
   }
   const value = Number(text);
   if (!Number.isFinite(value) || value < 0 || value > 100) {
-    throw new Error("Enter the annual interest rate.");
+    throw new Error("Enter the interest rate.");
   }
   return new Prisma.Decimal(value);
 }
@@ -113,28 +109,15 @@ function revalidateLoanPaths(facilityId?: string) {
   if (facilityId) revalidatePath(`/billing/loans/${facilityId}`);
 }
 
-export async function listLoanBankAccounts() {
-  const session = await requireLoansAccess();
-  return listCompanyBankAccountOptions(session.user.companyId);
-}
-
-export async function listLoanFacilitiesAction() {
-  const session = await requireLoansAccess();
-  return listLoanFacilitySnapshots(session.user.companyId);
-}
-
 export async function createLoanFacility(formData: FormData) {
   const session = await requireLoansAccess();
   const source = parseLoanSource(formData.get("loanSource"));
   if (!source) {
     throw new Error("Choose Bank Loan or Shareholder Loan.");
   }
-  const kind =
-    source === "SHAREHOLDER"
-      ? "STANDBY"
-      : parseBankLoanKind(formData.get("bankLoanKind"));
+  const kind = parseBankLoanKind(formData.get("bankLoanKind"));
   if (!kind) {
-    throw new Error("Choose Standby Facility or Term Loan.");
+    throw new Error("Choose Standby Loan or Term Loan.");
   }
   const startDate = parseRequiredDate(
     String(formData.get("startDate") ?? ""),
@@ -146,6 +129,12 @@ export async function createLoanFacility(formData: FormData) {
     formData.get("chargesInterest") === "on" ||
     formData.get("chargesInterest") === "true" ||
     formData.get("chargesInterest") === "Yes";
+  const interestRateBasis = chargesInterest
+    ? parseLoanInterestBasis(formData.get("interestRateBasis"))
+    : parseLoanInterestBasis(formData.get("interestRateBasis")) ?? "ANNUAL";
+  if (chargesInterest && !interestRateBasis) {
+    throw new Error("Choose Monthly Interest or Annual Interest.");
+  }
   const annualRate = parseAnnualRate(
     String(formData.get("annualRatePercent") ?? ""),
     chargesInterest
@@ -178,8 +167,11 @@ export async function createLoanFacility(formData: FormData) {
   let principal: Prisma.Decimal | null = null;
   let tenorMonths: number | null = null;
   if (kind === "STANDBY") {
-    const limit = parseOptionalMoney(String(formData.get("facilityLimit") ?? ""));
-    facilityLimit = limit != null ? new Prisma.Decimal(limit) : null;
+    const limit = parseMoney(
+      String(formData.get("facilityLimit") ?? ""),
+      "Enter the Plafon Kredit."
+    );
+    facilityLimit = new Prisma.Decimal(limit);
   } else {
     const principalNumber = parseMoney(
       String(formData.get("principal") ?? ""),
@@ -202,6 +194,7 @@ export async function createLoanFacility(formData: FormData) {
     principal: decimalToNumber(principal),
     annualPercent: decimalToNumber(annualRate),
     tenorMonths,
+    interestRateBasis,
   });
 
   const recordInitialDraw =
@@ -236,6 +229,7 @@ export async function createLoanFacility(formData: FormData) {
         facilityLimit,
         principal,
         chargesInterest,
+        interestRateBasis: interestRateBasis ?? "ANNUAL",
         annualRatePercent: annualRate,
         tenorMonths,
         monthlyInstallment:
@@ -345,19 +339,27 @@ export async function recordLoanRepaymentAction(formData: FormData) {
       requiredMessage: "Select the company bank account.",
     }
   );
-  const file = requireImageOrPdfUpload(formData.get("document"), {
-    requiredMessage: "Upload the bank advice or payment proof.",
-  });
   const snapshot = await getLoanFacilitySnapshot(
     session.user.companyId,
     facilityId
   );
   if (!snapshot) throw new Error("Register the loan under Finance → Loans first.");
+  if (snapshot.source === "BANK" && !invoiceRef) {
+    throw new Error("Enter the loan account or bank reference.");
+  }
+  const resolvedRef =
+    invoiceRef ||
+    (snapshot.source === "SHAREHOLDER"
+      ? shareholderLoanInvoiceRef(movementDate)
+      : snapshot.name);
+  const file = requireImageOrPdfUpload(formData.get("document"), {
+    requiredMessage: "Upload the payment proof.",
+  });
   const filePath = await saveUpload(file, "uploads/purchase-invoices", {
     fileBaseName: buildBillingDocumentFileBase({
       prefix: "Bank-Loan",
       clientName: snapshot.lenderName,
-      invoiceNumber: invoiceRef || snapshot.name,
+      invoiceNumber: resolvedRef,
     }),
   });
 
@@ -371,9 +373,10 @@ export async function recordLoanRepaymentAction(formData: FormData) {
       transferFeeIdr: transferFee,
       movementDate,
       bankAccountId,
-      invoiceRef: invoiceRef || snapshot.name,
+      invoiceRef: resolvedRef,
       filePath,
       notes,
+      standbyPayment: "PRINCIPAL",
     });
   });
 
@@ -389,6 +392,11 @@ export async function closeLoanFacilityAction(formData: FormData) {
     facilityId
   );
   if (!snapshot) throw new Error("Loan not found.");
+  if (snapshot.kind === "TERM") {
+    throw new Error(
+      "A Term Loan closes when the last installment is paid, or use Settle Early."
+    );
+  }
   if (snapshot.outstanding > 0) {
     throw new Error("This loan still has outstanding principal.");
   }
@@ -396,5 +404,78 @@ export async function closeLoanFacilityAction(formData: FormData) {
     where: { id: facilityId },
     data: { status: "CLOSED" },
   });
+  revalidateLoanPaths(facilityId);
+}
+
+export async function settleEarlyLoanAction(formData: FormData) {
+  const session = await requireLoansAccess();
+  const facilityId = String(formData.get("facilityId") ?? "").trim();
+  if (!facilityId) throw new Error("Select the registered loan.");
+  const movementDate = parseRequiredDate(
+    String(formData.get("movementDate") ?? ""),
+    "Date is required."
+  );
+  const invoiceRef = String(formData.get("invoiceRef") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+  const penaltyPercentRaw = String(formData.get("penaltyPercent") ?? "")
+    .trim()
+    .replace(",", ".");
+  const penaltyPercent = Number(penaltyPercentRaw || "0");
+  if (!Number.isFinite(penaltyPercent) || penaltyPercent < 0 || penaltyPercent > 20) {
+    throw new Error("Enter the early settlement penalty percent.");
+  }
+  const penaltyAmount = parseOptionalMoney(String(formData.get("penaltyAmount") ?? ""));
+  const adminFeeAmount = parseOptionalMoney(String(formData.get("adminFeeAmount") ?? ""));
+  const transferFee = parseOptionalMoney(String(formData.get("transferFeeIdr") ?? ""));
+  const bankAccountId = await parseFormCompanyBankAccountId(
+    formData,
+    session.user.companyId,
+    {
+      requiredWhenAccountsExist: true,
+      requiredMessage: "Select the company bank account.",
+    }
+  );
+  const snapshot = await getLoanFacilitySnapshot(
+    session.user.companyId,
+    facilityId
+  );
+  if (!snapshot) throw new Error("Register the loan under Finance → Loan first.");
+  if (snapshot.source === "BANK" && !invoiceRef) {
+    throw new Error("Enter the loan account or bank reference.");
+  }
+  const resolvedSettleRef =
+    invoiceRef ||
+    (snapshot.source === "SHAREHOLDER"
+      ? shareholderLoanInvoiceRef(movementDate)
+      : snapshot.name);
+  const file = requireImageOrPdfUpload(formData.get("document"), {
+    requiredMessage: "Upload the payment proof.",
+  });
+  const filePath = await saveUpload(file, "uploads/purchase-invoices", {
+    fileBaseName: buildBillingDocumentFileBase({
+      prefix: "Loan-Settle-Early",
+      clientName: snapshot.lenderName,
+      invoiceNumber: resolvedSettleRef,
+    }),
+  });
+
+  await prisma.$transaction(async (tx) => {
+    await createLoanEarlySettlement({
+      db: tx,
+      companyId: session.user.companyId,
+      userId: session.user.id,
+      facilityId,
+      movementDate,
+      penaltyPercent,
+      penaltyAmount,
+      adminFeeAmount,
+      transferFeeIdr: transferFee,
+      bankAccountId,
+      invoiceRef: resolvedSettleRef,
+      filePath,
+      notes,
+    });
+  });
+
   revalidateLoanPaths(facilityId);
 }

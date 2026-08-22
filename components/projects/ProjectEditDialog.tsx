@@ -84,6 +84,7 @@ import {
   DEFAULT_PROJECT_DURATION_DAYS,
   clampProjectDurationDays,
   daysBetweenDates,
+  isContractCycleSubCategory,
   isContractSubCategory,
   monthsBetweenDates,
   toDateInputValue,
@@ -663,7 +664,7 @@ export default function ProjectEditDialog({
       } else {
         formData.delete("otherTaxName");
       }
-      if (isContract || subCategory === "SECURITY") {
+      if (isContractCycleSubCategory(subCategory)) {
         formData.set("billingPeriodBasis", billingPeriodBasis);
       } else {
         formData.delete("billingPeriodBasis");
@@ -1003,7 +1004,7 @@ export default function ProjectEditDialog({
               </>
             ) : null}
 
-            {!isInternal && (isContract || subCategory === "SECURITY") ? (
+            {!isInternal && isContractCycleSubCategory(subCategory) ? (
               <BillingPeriodBasisFields
                 billingPeriodBasis={billingPeriodBasis}
                 onBillingPeriodBasisChange={setBillingPeriodBasis}

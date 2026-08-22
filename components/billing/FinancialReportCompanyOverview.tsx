@@ -113,31 +113,13 @@ export default function FinancialReportCompanyOverview({
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <DirectoryStatCard
-            title={t("pages.financialReport.loanFunding")}
-            value={formatContractPrice(company.loanFundingIn)}
-            subtitle={t("pages.financialReport.loanFundingHint")}
+            title={t("pages.financialReport.loanInterestDueThisPeriod")}
+            value={formatContractPrice(company.loanInterestDue)}
+            subtitle={t("pages.financialReport.loanInterestDueThisPeriodHint")}
             icon={<Landmark size={18} />}
-            accent="info"
-            href={detail("loanFunding")}
+            accent={company.loanInterestDue > 0 ? "warning" : "muted"}
+            href={detail("loanInterestDue")}
           />
-          <DirectoryStatCard
-            title={t("pages.financialReport.loanPrincipalReturned")}
-            value={formatContractPrice(company.loanPrincipalReturned)}
-            subtitle={t("pages.financialReport.loanPrincipalReturnedHint")}
-            icon={<TrendingDown size={18} />}
-            accent="muted"
-            href={detail("loanPrincipalReturned")}
-          />
-          <DirectoryStatCard
-            title={t("pages.financialReport.loansPayable")}
-            value={formatContractPrice(company.loansPayable)}
-            subtitle={t("pages.financialReport.loansPayableHint")}
-            icon={<Wallet size={18} />}
-            accent={company.loansPayable > 0 ? "warning" : "muted"}
-            href={detail("loansPayable")}
-          />
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <DirectoryStatCard
             title={t("pages.financialReport.stockInWarehouse")}
             value={formatContractPrice(company.warehouseStockValue)}

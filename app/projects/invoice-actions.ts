@@ -1683,6 +1683,7 @@ async function applyInvoicePeriodPaid(
     data: {
       status: "PAID",
       paidAt,
+      taxInvoiceRequired: true,
       ...(opts?.paymentManualReason
         ? { paymentManualReason: opts.paymentManualReason }
         : {}),

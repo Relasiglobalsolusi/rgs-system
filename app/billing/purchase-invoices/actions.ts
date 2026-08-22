@@ -63,9 +63,12 @@ import {
   type CommercialTaxKind,
 } from "@/lib/commercial-tax";
 import {
+  bpjsProgramFromGovernmentKind,
   governmentPayeeName,
+  isBpjsGovernmentKind,
   parseGovernmentTaxKind,
 } from "@/lib/government-tax";
+import { getBpjsFinancePeriod } from "@/lib/bpjs-finance";
 import { vendorMatchesPurchaseOrigin } from "@/lib/vendor-type";
 import {
   applyExclusiveVat,
@@ -74,7 +77,16 @@ import {
   parsePpnRatePercent,
   ppnRateFromPercent,
 } from "@/lib/vat";
-import { createLoanRepayment } from "@/lib/loan-facility-write";
+import {
+  createLoanFeePayment,
+  createLoanRepayment,
+  recordLoanInterestBillPaid,
+} from "@/lib/loan-facility-write";
+import {
+  isLoanFeePurpose,
+  parseLoanPaymentPurpose,
+  shareholderLoanInvoiceRef,
+} from "@/lib/loan-facility";
 import { getLoanFacilitySnapshot } from "@/lib/loan-facility-query";
 import {
   CASH_PAYMENT_TERMS_DAYS,
@@ -589,6 +601,18 @@ function parseBillingId(raw: string): string {
   throw new Error("Enter a valid DJP Billing ID.");
 }
 
+function parseVirtualAccount(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    throw new Error("Enter the virtual account number.");
+  }
+  const compact = trimmed.replace(/\s+/g, "");
+  if (compact.length < 8 || compact.length > 32) {
+    throw new Error("Enter a valid virtual account number.");
+  }
+  return compact;
+}
+
 function parseAmount(raw: string): Prisma.Decimal {
   const cleaned = raw.replace(/[^\d.,-]/g, "").trim();
   if (!cleaned) {
@@ -745,9 +769,12 @@ export async function createPurchaseInvoice(formData: FormData) {
     const governmentTaxKind = parseGovernmentTaxKind(
       formData.get("governmentTaxKind")
     );
-    const invoiceRef = parseBillingId(String(formData.get("invoiceRef") ?? ""));
+    const isBpjs = isBpjsGovernmentKind(governmentTaxKind);
+    const invoiceRef = isBpjs
+      ? parseVirtualAccount(String(formData.get("invoiceRef") ?? ""))
+      : parseBillingId(String(formData.get("invoiceRef") ?? ""));
     const notesRaw = String(formData.get("notes") ?? "").trim();
-    if (!notesRaw) {
+    if (!notesRaw && !isBpjs) {
       throw new Error("Describe what this government bill is for.");
     }
     const amount = parseAmount(String(formData.get("amount") ?? "").trim());
@@ -762,43 +789,108 @@ export async function createPurchaseInvoice(formData: FormData) {
     const invoiceDate = taxInvoiceDateToUtcDate(invoiceDateRaw);
     const supplierName = governmentPayeeName(governmentTaxKind);
     const file = requireImageOrPdfUpload(formData.get("document"), {
-      requiredMessage: "Upload the billing notice or payment invoice.",
+      requiredMessage: isBpjs
+        ? "Upload the payment proof."
+        : "Upload the billing notice or payment invoice.",
       sizeMessage: "File must be 10 MB or smaller.",
       typeMessage: "Upload an image or PDF.",
     });
     const filePath = await saveUpload(file, "uploads/purchase-invoices", {
       fileBaseName: buildBillingDocumentFileBase({
-        prefix: "Government-Billing",
+        prefix: isBpjs ? "BPJS" : "Government-Billing",
         clientName: supplierName,
         invoiceNumber: invoiceRef,
       }),
     });
 
-    await prisma.purchaseInvoice.create({
-      data: {
-        companyId: session.user.companyId,
-        supplierName,
-        vendorId: null,
-        invoiceRef,
-        invoiceDate,
-        amount,
-        filePath,
-        notes: notesRaw,
-        includesPpn: false,
-        purchaseCategory: "GOVERNMENT",
-        governmentTaxKind,
-        purpose: "INTERNAL",
-        origin: "LOCAL",
-        paidAt: new Date(),
-        bankAccountId,
-        createdById: session.user.id,
-        transferFeeIdr,
-      },
+    let governmentOperatingAmount: Prisma.Decimal | null = null;
+    let bpjsYear: number | null = null;
+    let bpjsMonth: number | null = null;
+    let bpjsCompanyShare = 0;
+    if (isBpjs) {
+      const year = Number(String(formData.get("bpjsYear") ?? "").trim());
+      const month = Number(String(formData.get("bpjsMonth") ?? "").trim());
+      if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+        throw new Error("Enter the contribution year.");
+      }
+      if (!Number.isInteger(month) || month < 1 || month > 12) {
+        throw new Error("Enter the contribution month.");
+      }
+      bpjsYear = year;
+      bpjsMonth = month;
+      const period = await getBpjsFinancePeriod(
+        session.user.companyId,
+        year,
+        month
+      );
+      const program = bpjsProgramFromGovernmentKind(governmentTaxKind);
+      const line = period.lines.find((row) => row.program === program);
+      if (!line) {
+        bpjsCompanyShare = invoiceAmount;
+      } else if (line.companyDue > 0) {
+        bpjsCompanyShare = Math.min(invoiceAmount, line.companyDue);
+      } else if (line.remaining > 0) {
+        bpjsCompanyShare = 0;
+      } else {
+        bpjsCompanyShare = invoiceAmount;
+      }
+      governmentOperatingAmount = new Prisma.Decimal(bpjsCompanyShare);
+    }
+
+    const notes =
+      notesRaw ||
+      (isBpjs && bpjsYear != null && bpjsMonth != null
+        ? `${supplierName} ${String(bpjsYear)}-${String(bpjsMonth).padStart(2, "0")}`
+        : notesRaw);
+
+    await prisma.$transaction(async (tx) => {
+      const invoice = await tx.purchaseInvoice.create({
+        data: {
+          companyId: session.user.companyId,
+          supplierName,
+          vendorId: null,
+          invoiceRef,
+          invoiceDate,
+          amount,
+          filePath,
+          notes,
+          includesPpn: false,
+          purchaseCategory: "GOVERNMENT",
+          governmentTaxKind,
+          governmentOperatingAmount,
+          purpose: "INTERNAL",
+          origin: "LOCAL",
+          paidAt: new Date(),
+          bankAccountId,
+          createdById: session.user.id,
+          transferFeeIdr,
+        },
+      });
+      if (isBpjs && bpjsYear != null && bpjsMonth != null) {
+        await tx.bpjsRemittance.create({
+          data: {
+            companyId: session.user.companyId,
+            year: bpjsYear,
+            month: bpjsMonth,
+            program: bpjsProgramFromGovernmentKind(governmentTaxKind),
+            amount,
+            paidAt: invoiceDate,
+            reference: invoiceRef,
+            notes,
+            createdById: session.user.id,
+            purchaseInvoiceId: invoice.id,
+            companyShareAmount: new Prisma.Decimal(bpjsCompanyShare),
+          },
+        });
+      }
     });
 
     revalidatePath("/billing/purchase-invoices");
     revalidatePath("/billing/tax-invoices");
     revalidatePath("/billing/financial-report");
+    revalidatePath("/billing/bpjs");
+    revalidatePath("/billing/bpjs/kesehatan");
+    revalidatePath("/billing/bpjs/ketenagakerjaan");
     return;
   }
 
@@ -817,8 +909,15 @@ export async function createPurchaseInvoice(formData: FormData) {
     if (!facility) {
       throw new Error("Register the loan under Finance → Loans first.");
     }
-    const invoiceRef = String(formData.get("invoiceRef") ?? "").trim();
-    if (!invoiceRef) {
+    const paymentPurpose = parseLoanPaymentPurpose(
+      formData.get("loanPaymentPurpose")
+    );
+    const invoiceRefRaw = String(formData.get("invoiceRef") ?? "").trim();
+    if (
+      facility.source === "BANK" &&
+      !invoiceRefRaw &&
+      !isLoanFeePurpose(paymentPurpose)
+    ) {
       throw new Error("Enter the loan account or bank reference.");
     }
     const notesRaw = String(formData.get("notes") ?? "").trim();
@@ -832,8 +931,13 @@ export async function createPurchaseInvoice(formData: FormData) {
       throw new Error("Date is required.");
     }
     const invoiceDate = taxInvoiceDateToUtcDate(invoiceDateRaw);
+    const invoiceRef =
+      invoiceRefRaw ||
+      (facility.source === "SHAREHOLDER"
+        ? shareholderLoanInvoiceRef(invoiceDate)
+        : invoiceRefRaw);
     const file = requireImageOrPdfUpload(formData.get("document"), {
-      requiredMessage: "Upload the bank advice or payment proof.",
+      requiredMessage: "Upload the payment proof.",
       sizeMessage: "File must be 10 MB or smaller.",
       typeMessage: "Upload an image or PDF.",
     });
@@ -841,24 +945,56 @@ export async function createPurchaseInvoice(formData: FormData) {
       fileBaseName: buildBillingDocumentFileBase({
         prefix: "Bank-Loan",
         clientName: facility.lenderName,
-        invoiceNumber: invoiceRef,
+        invoiceNumber: invoiceRef || facility.name,
       }),
     });
 
+    if (isLoanFeePurpose(paymentPurpose)) {
+      if (facility.source !== "BANK") {
+        throw new Error(
+          "Bank Provision and Bank Admin Fee are only for a Bank Loan."
+        );
+      }
+    } else if (facility.source === "BANK" && !paymentPurpose) {
+      throw new Error("Choose what this payment is for.");
+    } else if (paymentPurpose === "INTEREST" && facility.kind !== "STANDBY") {
+      throw new Error("Interest is for a Standby Loan.");
+    } else if (paymentPurpose === "INSTALLMENT" && facility.kind !== "TERM") {
+      throw new Error("Installment is for a Term Loan.");
+    }
+
     await prisma.$transaction(async (tx) => {
-      await createLoanRepayment({
-        db: tx,
-        companyId: session.user.companyId,
-        userId: session.user.id,
-        facilityId: facility.id,
-        amount: invoiceAmount,
-        transferFeeIdr: decimalToNumber(transferFeeIdr),
-        movementDate: invoiceDate,
-        bankAccountId,
-        invoiceRef,
-        filePath,
-        notes: notesRaw,
-      });
+      if (isLoanFeePurpose(paymentPurpose)) {
+        await createLoanFeePayment({
+          db: tx,
+          companyId: session.user.companyId,
+          userId: session.user.id,
+          facilityId: facility.id,
+          amount: invoiceAmount,
+          feeKind: paymentPurpose,
+          transferFeeIdr: decimalToNumber(transferFeeIdr),
+          movementDate: invoiceDate,
+          bankAccountId,
+          invoiceRef,
+          filePath,
+          notes: notesRaw,
+        });
+      } else {
+        await createLoanRepayment({
+          db: tx,
+          companyId: session.user.companyId,
+          userId: session.user.id,
+          facilityId: facility.id,
+          amount: invoiceAmount,
+          transferFeeIdr: decimalToNumber(transferFeeIdr),
+          movementDate: invoiceDate,
+          bankAccountId,
+          invoiceRef,
+          filePath,
+          notes: notesRaw,
+          standbyPayment: facility.kind === "STANDBY" ? "INTEREST" : null,
+        });
+      }
     });
 
     revalidatePath("/billing/purchase-invoices");
@@ -1969,6 +2105,9 @@ export async function markPurchaseInvoicePaid(formData: FormData) {
       insuranceIncludedInInvoice: true,
       insuranceRateToIdr: true,
       amount: true,
+      purchaseCategory: true,
+      loanFacilityId: true,
+      loanInterestPeriod: true,
     },
   });
 
@@ -2116,6 +2255,19 @@ export async function markPurchaseInvoicePaid(formData: FormData) {
     invoice.paymentProofPath !== paymentProofPath
   ) {
     await deleteLocalUpload(invoice.paymentProofPath);
+  }
+
+  if (invoice.purchaseCategory === "BANK_LOAN" && invoice.loanFacilityId) {
+    await recordLoanInterestBillPaid({
+      db: prisma,
+      invoiceId: invoice.id,
+      userId: session.user.id,
+      bankAccountId,
+      filePath: paymentProofPath,
+      paidAt,
+    });
+    revalidatePath("/billing/loans");
+    revalidatePath(`/billing/loans/${invoice.loanFacilityId}`);
   }
 
   revalidatePath("/billing/purchase-invoices");

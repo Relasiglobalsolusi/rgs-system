@@ -420,16 +420,18 @@ export default function ProjectTable({
       {
         key: "timeline",
         title: t("pages.projects.timeline"),
-        width: internalEqual?.width ?? "11rem",
-        share: internalEqual?.share ?? 1,
-        className: internalEqual?.className ?? "min-w-[11rem]",
+        width: isInternalTable ? "10rem" : internalEqual?.width ?? "11rem",
+        share: isInternalTable ? 0 : internalEqual?.share ?? 1,
+        className: isInternalTable
+          ? "min-w-[10rem] overflow-visible whitespace-nowrap"
+          : internalEqual?.className ?? "min-w-[11rem]",
         render: (row) => {
           const showOpsCounts =
             !isPlanningProjectStatus(row.project.status) &&
             !isDirectoryPeriodRow(row.rowKind);
           return (
-            <div className="min-w-0 text-left">
-              <p className="text-muted">{row.timeline}</p>
+            <div className="text-left">
+              <p className="whitespace-nowrap text-muted">{row.timeline}</p>
               {showOpsCounts ? (
                 canManage ? (
                   <p className="mt-0.5 text-sm text-subtle">

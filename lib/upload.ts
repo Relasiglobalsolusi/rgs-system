@@ -84,6 +84,8 @@ export function buildBillingDocumentFileBase(input: {
     | "Bank-Loan"
     | "Loan-Facility"
     | "Loan-Draw"
+    | "Loan-Settle-Early"
+    | "BPJS"
     | "Import-Duties"
     | "Import-Handling"
     | "Import-Handling-Tax";

@@ -9,7 +9,10 @@ import VatReportPanel, {
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
 import { prisma } from "@/lib/prisma";
-import { governmentTaxKindLabelKey } from "@/lib/government-tax";
+import {
+  governmentTaxKindLabelKey,
+  isGovernmentOperatingExpense,
+} from "@/lib/government-tax";
 import { purchaseImportInputVat } from "@/lib/import-landed-cost";
 import { decimalToNumber } from "@/lib/project-billing";
 import { requireFinanceChild } from "@/lib/session";
@@ -219,7 +222,16 @@ export default async function TaxInvoicesPage({
         reversedAt: null,
         purchaseCategory: "GOVERNMENT",
         governmentTaxKind: {
-          in: ["PPH_21", "PPH_23", "PPH_4_2", "STAMP_DUTY", "PBB", "OTHER"],
+          in: [
+            "PPH_21",
+            "PPH_23",
+            "PPH_4_2",
+            "STAMP_DUTY",
+            "PBB",
+            "OTHER",
+            "BPJS_KESEHATAN",
+            "BPJS_KETENAGAKERJAAN",
+          ],
         },
         invoiceDate: { gte: start, lt: endExclusive },
       },
@@ -413,13 +425,7 @@ export default async function TaxInvoicesPage({
     )
     .reduce((sum, row) => sum + (decimalToNumber(row.amount) ?? 0), 0);
   const otherExpenseTotal = otherPurchases
-    .filter(
-      (row) =>
-        row.governmentTaxKind === "PPH_4_2" ||
-        row.governmentTaxKind === "STAMP_DUTY" ||
-        row.governmentTaxKind === "PBB" ||
-        row.governmentTaxKind === "OTHER"
-    )
+    .filter((row) => isGovernmentOperatingExpense(row.governmentTaxKind))
     .reduce((sum, row) => sum + (decimalToNumber(row.amount) ?? 0), 0);
 
   return (

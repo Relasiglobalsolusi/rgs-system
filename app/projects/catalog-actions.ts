@@ -167,6 +167,52 @@ async function seedProjectServiceCatalog(
       });
     }
   }
+
+  const payrollArea = await catalog.area.findFirst({
+    where: { companyId, slug: "PAYROLL_MANAGEMENT", isSystem: true },
+    select: {
+      id: true,
+      nameEn: true,
+      nameId: true,
+      subcategories: {
+        select: {
+          id: true,
+          slug: true,
+          nameEn: true,
+          nameId: true,
+          _count: { select: { projects: true } },
+        },
+      },
+    },
+  });
+  if (payrollArea) {
+    if (
+      payrollArea.nameEn !== "Payroll Management" ||
+      payrollArea.nameId !== "Manajemen Payroll"
+    ) {
+      await catalog.area.update({
+        where: { id: payrollArea.id },
+        data: { nameEn: "Payroll Management", nameId: "Manajemen Payroll" },
+      });
+    }
+    for (const sub of payrollArea.subcategories) {
+      if (sub.slug === "PAYROLL_MANAGEMENT") {
+        if (
+          sub.nameEn !== "Payroll Management" ||
+          sub.nameId !== "Manajemen Payroll"
+        ) {
+          await catalog.sub.update({
+            where: { id: sub.id },
+            data: { nameEn: "Payroll Management", nameId: "Manajemen Payroll" },
+          });
+        }
+        continue;
+      }
+      if (sub.slug === "HR_MANAGEMENT" && sub._count.projects === 0) {
+        await catalog.sub.delete({ where: { id: sub.id } });
+      }
+    }
+  }
 }
 
 async function loadProjectServiceCatalog(

@@ -452,6 +452,12 @@ export default async function ProjectDetailPage({
     (period) => period.status === "PAID"
   ).length;
   const paymentsTotalCount = invoicePeriodsForDisplay.length;
+  const downPaymentPeriod = [...invoicePeriodsForDisplay]
+    .filter((period) => period.status === "PAID" && period.paidAt)
+    .sort(
+      (left, right) =>
+        (left.paidAt?.getTime() ?? 0) - (right.paidAt?.getTime() ?? 0)
+    )[0];
   const locale = await getServerLocale();
   const t = createTranslator(locale);
   const pageTitle = project.name;
@@ -1037,6 +1043,31 @@ export default async function ProjectDetailPage({
                 <h3 className={sectionTitleClassName}>
                   {t("pages.projects.detail.invoicesPayments")}
                 </h3>
+                <p className="w-full text-sm text-subtle sm:w-auto">
+                  {t("pages.projects.detail.downPaymentReceived")}:{" "}
+                  {downPaymentPeriod ? (
+                    <span className="font-medium text-text">
+                      {t("pages.projects.detail.downPaymentReceivedYes", {
+                        amount: formatContractPrice(
+                          decimalToNumber(
+                            downPaymentPeriod.revisedInvoiceAmount ??
+                              downPaymentPeriod.amount
+                          ) ?? 0
+                        ),
+                        date: downPaymentPeriod.paidAt
+                          ? formatDisplayDate(downPaymentPeriod.paidAt)
+                          : "—",
+                      })}
+                    </span>
+                  ) : (
+                    <span className="font-medium text-text">
+                      {t("pages.projects.detail.downPaymentReceivedNo")}
+                    </span>
+                  )}
+                </p>
+                <p className="w-full text-xs text-subtle sm:w-auto">
+                  {t("pages.projects.detail.downPaymentTaxInvoiceNote")}
+                </p>
                 {paymentsTotalCount > 0 ? (
                   <p className="text-sm text-subtle">
                     {t("pages.projects.detail.paymentsReceivedCount", {

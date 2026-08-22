@@ -2,14 +2,19 @@
  * Indonesian bank-loan helpers.
  *
  * Standby Facility (KRK / revolving): interest only on the amount drawn.
- * Monthly interest ≈ drawn × (annual percent / 12).
+ * Monthly interest = drawn × monthly rate.
  *
  * Term Loan (Kredit Angsuran): fixed monthly anuitas.
- * M = P × r × (1+r)^n / ((1+r)^n − 1) where r = annual/12 and n = tenor months.
+ * M = P × r × (1+r)^n / ((1+r)^n − 1) where r is the monthly rate.
+ *
+ * Rate quote: Monthly 1% = 1% this month. Annual 12% = 12% / 12 this month.
  */
 
 export const BANK_LOAN_KINDS = ["STANDBY", "TERM"] as const;
 export type BankLoanKind = (typeof BANK_LOAN_KINDS)[number];
+
+export const LOAN_INTEREST_BASES = ["MONTHLY", "ANNUAL"] as const;
+export type LoanInterestBasis = (typeof LOAN_INTEREST_BASES)[number];
 
 export const BANK_LOAN_TENOR_MIN = 1;
 export const BANK_LOAN_TENOR_MAX = 360;
@@ -33,95 +38,78 @@ export function parseBankLoanKind(
   return isBankLoanKind(raw) ? raw : null;
 }
 
-export function monthlyInterestRate(annualPercent: number): number {
-  return moneyOrZero(annualPercent) / 100 / 12;
+export function isLoanInterestBasis(
+  value: string | null | undefined
+): value is LoanInterestBasis {
+  return LOAN_INTEREST_BASES.includes(
+    String(value ?? "").trim().toUpperCase() as LoanInterestBasis
+  );
 }
 
-export function standbyMonthlyInterest(
-  drawnAmount: number,
-  annualPercent: number
+export function parseLoanInterestBasis(
+  value: FormDataEntryValue | string | null | undefined
+): LoanInterestBasis | null {
+  const raw = String(value ?? "").trim().toUpperCase();
+  return isLoanInterestBasis(raw) ? raw : null;
+}
+
+/** Decimal monthly rate from the quoted percent. */
+export function monthlyInterestRate(
+  ratePercent: number,
+  basis: LoanInterestBasis | null | undefined = "ANNUAL"
 ): number {
-  const drawn = moneyOrZero(drawnAmount);
-  if (drawn <= 0) return 0;
-  return roundIdr(drawn * monthlyInterestRate(annualPercent));
+  const percent = moneyOrZero(ratePercent);
+  if (basis === "MONTHLY") return percent / 100;
+  return percent / 100 / 12;
 }
 
 export function termMonthlyInstallment(
   principal: number,
-  annualPercent: number,
-  tenorMonths: number
+  ratePercent: number,
+  tenorMonths: number,
+  basis: LoanInterestBasis | null | undefined = "ANNUAL"
 ): number {
   const amount = moneyOrZero(principal);
   const months = Math.round(moneyOrZero(tenorMonths));
   if (amount <= 0 || months < BANK_LOAN_TENOR_MIN) return 0;
-  const rate = monthlyInterestRate(annualPercent);
+  const rate = monthlyInterestRate(ratePercent, basis);
   if (rate === 0) return roundIdr(amount / months);
   const factor = (1 + rate) ** months;
   return roundIdr((amount * rate * factor) / (factor - 1));
 }
 
-export function termFirstMonthSplit(
-  principal: number,
-  annualPercent: number,
-  tenorMonths: number
-): { installment: number; interest: number; principal: number } {
-  const installment = termMonthlyInstallment(
-    principal,
-    annualPercent,
-    tenorMonths
+/** Bunga berjalan on a fixed remaining principal: Actual/360 (or monthly ÷ days in month). */
+export function runningInterestToDate(input: {
+  outstanding: number;
+  ratePercent: number | null | undefined;
+  basis: LoanInterestBasis | null | undefined;
+  chargesInterest: boolean;
+  from: Date;
+  to: Date;
+}): number {
+  if (!input.chargesInterest) return 0;
+  const outstanding = moneyOrZero(input.outstanding);
+  if (outstanding <= 0) return 0;
+  const days = Math.max(
+    0,
+    Math.round((input.to.getTime() - input.from.getTime()) / 86_400_000)
   );
-  const interest = roundIdr(moneyOrZero(principal) * monthlyInterestRate(annualPercent));
-  return {
-    installment,
-    interest,
-    principal: Math.max(0, installment - interest),
-  };
+  if (days <= 0) return 0;
+  const to = input.to;
+  const daysInMonth = new Date(
+    Date.UTC(to.getUTCFullYear(), to.getUTCMonth() + 1, 0)
+  ).getUTCDate();
+  const daily =
+    input.basis === "MONTHLY"
+      ? moneyOrZero(input.ratePercent) / 100 / Math.max(1, daysInMonth)
+      : moneyOrZero(input.ratePercent) / 100 / 360;
+  return roundIdr(outstanding * daily * days);
 }
 
-export type BankLoanPreview = {
-  kind: BankLoanKind;
-  suggestedPayment: number;
-  monthlyInterest: number | null;
-  monthlyInstallment: number | null;
-  firstMonthInterest: number | null;
-  firstMonthPrincipal: number | null;
-};
-
-export function previewBankLoan(input: {
-  kind: BankLoanKind | "" | null;
-  drawnAmount?: number | null;
-  principal?: number | null;
-  annualPercent?: number | null;
-  tenorMonths?: number | null;
-}): BankLoanPreview | null {
-  if (input.kind === "STANDBY") {
-    const interest = standbyMonthlyInterest(
-      moneyOrZero(input.drawnAmount),
-      moneyOrZero(input.annualPercent)
-    );
-    return {
-      kind: "STANDBY",
-      suggestedPayment: interest,
-      monthlyInterest: interest,
-      monthlyInstallment: null,
-      firstMonthInterest: interest,
-      firstMonthPrincipal: null,
-    };
-  }
-  if (input.kind === "TERM") {
-    const split = termFirstMonthSplit(
-      moneyOrZero(input.principal),
-      moneyOrZero(input.annualPercent),
-      moneyOrZero(input.tenorMonths)
-    );
-    return {
-      kind: "TERM",
-      suggestedPayment: split.installment,
-      monthlyInterest: null,
-      monthlyInstallment: split.installment,
-      firstMonthInterest: split.interest,
-      firstMonthPrincipal: split.principal,
-    };
-  }
-  return null;
+export function earlySettlementPenalty(
+  remainingPrincipal: number,
+  penaltyPercent: number
+): number {
+  return roundIdr(moneyOrZero(remainingPrincipal) * (moneyOrZero(penaltyPercent) / 100));
 }
+

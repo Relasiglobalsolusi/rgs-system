@@ -2,8 +2,21 @@
 
 import Link from "next/link";
 
-import StatusBadge from "@/components/ui/StatusBadge";
+import StatusBadge, { outlineChipTones } from "@/components/ui/StatusBadge";
 import { useT } from "@/lib/i18n/use-t";
+import { cn } from "@/lib/utils";
+
+/** Type chips: compact pill, not the 2.75rem StatusBadge box. */
+const listTypeChipClassName =
+  "inline-flex h-7 min-h-7 w-auto min-w-0 shrink-0 items-center justify-center whitespace-nowrap rounded-md border px-2 text-[0.625rem] font-semibold uppercase leading-none tracking-[0.04em]";
+
+/** Status chips: between the original tiny pill and the 2.75rem box. */
+const listStatusChipClassName =
+  "h-8 min-h-8 w-auto min-w-[4.75rem] px-2.5 text-[0.6875rem]";
+
+/** Same title column on every row so type chips line up. */
+const expenseRowClassName =
+  "grid grid-cols-[20rem_max-content_minmax(0,1fr)_auto] items-center gap-x-10 px-4 py-2 transition hover:bg-card-hover/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan/40";
 
 export type PurchaseInvoiceTableRow = {
   id: string;
@@ -44,72 +57,80 @@ type Props = {
   rows: PurchaseInvoiceTableRow[];
 };
 
+function categoryChipLabels(
+  row: PurchaseInvoiceTableRow,
+  t: (key: string) => string
+): string[] {
+  const labels: string[] = [];
+  if (row.origin === "IMPORT") {
+    labels.push(t("pages.billing.purchaseOriginChipImport"));
+  }
+  if (row.purchaseCategory === "GOVERNMENT") {
+    labels.push(row.governmentTaxKindLabel ?? t("pages.billing.governmentChip"));
+  }
+  if (row.purchaseCategory === "VEHICLE") {
+    labels.push(t("pages.billing.purchaseCategoryVehicle"));
+  }
+  if (row.purchaseCategory === "BANK_LOAN") {
+    labels.push(t("pages.billing.purchaseCategoryBankLoan"));
+  }
+  if (row.freeOfCharge) {
+    labels.push(t("pages.billing.purchaseFreeOfChargeChip"));
+  }
+  return labels;
+}
+
+function recordChipLabel(
+  chip: NonNullable<PurchaseInvoiceTableRow["recordChips"]>[number],
+  t: (key: string) => string
+): string {
+  if (chip === "awaiting_import_duties") {
+    return t("pages.billing.purchaseStatusAwaitingImportDuties");
+  }
+  if (chip === "awaiting_vendor_payment") {
+    return t("pages.billing.purchaseStatusAwaitingVendorPayment");
+  }
+  if (chip === "awaiting_handling") {
+    return t("pages.billing.purchaseStatusAwaitingHandling");
+  }
+  if (chip === "awaiting_shipping") {
+    return t("pages.billing.purchaseStatusAwaitingShipping");
+  }
+  return t("pages.billing.purchaseStatusRecordNotCompleted");
+}
+
+function CategoryChip({ label }: { label: string }) {
+  return (
+    <span className={cn(listTypeChipClassName, outlineChipTones.cyan)}>
+      {label}
+    </span>
+  );
+}
+
 function PurchaseInvoiceCard({ row }: { row: PurchaseInvoiceTableRow }) {
   const { t } = useT();
   const isPaid = row.paymentStatus === "paid";
   const recordChips =
     row.origin === "IMPORT"
-      ? (row.recordChips?.length
-          ? row.recordChips
-          : row.recordStatus && row.recordStatus !== "complete"
-            ? [row.recordStatus]
-            : [])
+      ? row.recordChips?.length
+        ? row.recordChips
+        : row.recordStatus && row.recordStatus !== "complete"
+          ? [row.recordStatus]
+          : []
       : [];
+  const categoryLabels = categoryChipLabels(row, t);
 
   return (
-    <article className="overflow-hidden rounded-2xl border border-border-strong/65 bg-elevated shadow-[0_12px_28px_-20px_rgba(0,0,0,0.72)]">
+    <article className="rounded-xl border border-border bg-elevated">
       <Link
         href={`/billing/purchase-invoices/${row.id}`}
-        className="grid grid-cols-1 items-center gap-3 p-5 transition hover:bg-card-hover/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan/40 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-6"
+        className={expenseRowClassName}
       >
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="truncate text-base font-semibold tracking-tight text-text">
-              {row.supplierName}
-            </h3>
-            {row.origin === "IMPORT" ? (
-              <span className="shrink-0 rounded-md border border-accent-cyan/40 bg-card-tint-cyan px-2 py-0.5 text-[0.625rem] font-semibold uppercase tracking-[0.04em] text-accent-teal">
-                {t("pages.billing.purchaseOriginChipImport")}
-              </span>
-            ) : null}
-            {row.purchaseCategory === "GOVERNMENT" ? (
-              <span className="shrink-0 rounded-md border border-accent-cyan/40 bg-card-tint-cyan px-2 py-0.5 text-[0.625rem] font-semibold uppercase tracking-[0.04em] text-accent-teal">
-                {row.governmentTaxKindLabel ?? t("pages.billing.governmentChip")}
-              </span>
-            ) : null}
-            {row.purchaseCategory === "VEHICLE" ? (
-              <span className="shrink-0 rounded-md border border-accent-cyan/40 bg-card-tint-cyan px-2 py-0.5 text-[0.625rem] font-semibold uppercase tracking-[0.04em] text-accent-teal">
-                {t("pages.billing.purchaseCategoryVehicle")}
-              </span>
-            ) : null}
-            {row.purchaseCategory === "BANK_LOAN" ? (
-              <span className="shrink-0 rounded-md border border-accent-cyan/40 bg-card-tint-cyan px-2 py-0.5 text-[0.625rem] font-semibold uppercase tracking-[0.04em] text-accent-teal">
-                {t("pages.billing.purchaseCategoryBankLoan")}
-              </span>
-            ) : null}
-            {row.freeOfCharge ? (
-              <span className="shrink-0 rounded-md border border-accent-cyan/40 bg-card-tint-cyan px-2 py-0.5 text-[0.625rem] font-semibold uppercase tracking-[0.04em] text-accent-teal">
-                {t("pages.billing.purchaseFreeOfChargeChip")}
-              </span>
-            ) : null}
-            {recordChips.map((chip) => (
-              <span
-                key={chip}
-                className="shrink-0 rounded-md border border-amber-400/50 bg-amber-500/10 px-2 py-0.5 text-[0.625rem] font-semibold uppercase tracking-[0.04em] text-amber-700"
-              >
-                {chip === "awaiting_import_duties"
-                  ? t("pages.billing.purchaseStatusAwaitingImportDuties")
-                  : chip === "awaiting_vendor_payment"
-                    ? t("pages.billing.purchaseStatusAwaitingVendorPayment")
-                    : chip === "awaiting_handling"
-                      ? t("pages.billing.purchaseStatusAwaitingHandling")
-                      : chip === "awaiting_shipping"
-                        ? t("pages.billing.purchaseStatusAwaitingShipping")
-                        : t("pages.billing.purchaseStatusRecordNotCompleted")}
-              </span>
-            ))}
-          </div>
-          <p className="mt-1 text-sm text-subtle">
+          <h3 className="truncate text-sm font-semibold tracking-tight text-text">
+            {row.supplierName}
+          </h3>
+          <p className="mt-0.5 truncate text-xs text-subtle">
             {row.purchaseCategory === "GOVERNMENT"
               ? t("pages.billing.governmentBillingIdShort", {
                   ref: row.invoiceRef,
@@ -125,25 +146,43 @@ function PurchaseInvoiceCard({ row }: { row: PurchaseInvoiceTableRow }) {
             {row.invoiceDateLabel}
           </p>
         </div>
-        <div className="flex justify-start sm:justify-center">
-          {isPaid ? (
-            <StatusBadge status="success" compact>
-              {t("pages.billing.vendorStatusPaid")}
-            </StatusBadge>
-          ) : row.paymentStatus === "overdue" ? (
-            <StatusBadge status="danger" compact>
-              {t("pages.billing.vendorStatusOverdue")}
-            </StatusBadge>
-          ) : row.paymentStatus === "open" ? (
-            <StatusBadge status="info" compact>
-              {t("pages.billing.vendorStatusOpen")}
-            </StatusBadge>
-          ) : (
-            <span className="hidden sm:block sm:min-w-[7.5rem]" aria-hidden />
-          )}
+
+        <div className="flex items-center gap-1.5">
+          {categoryLabels.map((label) => (
+            <CategoryChip key={label} label={label} />
+          ))}
+          {recordChips.map((chip) => (
+            <span
+              key={chip}
+              className={cn(listTypeChipClassName, outlineChipTones.warning)}
+            >
+              {recordChipLabel(chip, t)}
+            </span>
+          ))}
         </div>
-        <div className="flex items-center justify-start sm:justify-end">
-          <p className="text-base font-semibold tabular-nums tracking-tight text-text">
+
+        <div aria-hidden />
+
+        <div className="flex shrink-0 items-center gap-2.5">
+          {row.paymentStatus ? (
+            <StatusBadge
+              status={
+                isPaid
+                  ? "success"
+                  : row.paymentStatus === "overdue"
+                    ? "danger"
+                    : "info"
+              }
+              className={listStatusChipClassName}
+            >
+              {isPaid
+                ? t("pages.billing.vendorStatusPaid")
+                : row.paymentStatus === "overdue"
+                  ? t("pages.billing.vendorStatusOverdue")
+                  : t("pages.billing.vendorStatusOpen")}
+            </StatusBadge>
+          ) : null}
+          <p className="min-w-[5.5rem] text-right text-sm font-semibold tabular-nums tracking-tight text-text">
             {row.amountLabel}
           </p>
         </div>
@@ -158,7 +197,7 @@ export default function PurchaseInvoiceTable({ rows }: Props) {
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-2">
       {rows.map((row) => (
         <PurchaseInvoiceCard key={row.id} row={row} />
       ))}

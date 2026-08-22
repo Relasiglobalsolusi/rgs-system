@@ -49,6 +49,8 @@ type DirectoryStatCardProps = {
   compact?: boolean;
   /** Larger type for the two top Financial Report cards. */
   featured?: boolean;
+  /** Center title, value, and icon. Used on Expenses. */
+  align?: "start" | "center";
 };
 
 export default function DirectoryStatCard({
@@ -63,6 +65,7 @@ export default function DirectoryStatCard({
   href,
   compact = false,
   featured = false,
+  align = "start",
 }: DirectoryStatCardProps) {
   const interactive = Boolean(onClick || href);
   const valueText = String(value);
@@ -91,7 +94,24 @@ export default function DirectoryStatCard({
       tabIndex={!href && interactive ? 0 : undefined}
       aria-pressed={!href && onClick ? selected : undefined}
     >
-      <div className="flex items-start justify-between gap-2.5">
+      <div
+        className={cn(
+          align === "center"
+            ? "flex flex-col items-center text-center"
+            : "flex items-start justify-between gap-2.5"
+        )}
+      >
+        {align === "center" && icon ? (
+          <div
+            className={cn(
+              "mb-2 flex shrink-0 items-center justify-center rounded-md",
+              compact ? "h-8 w-8" : featured ? "h-11 w-11" : "h-10 w-10",
+              accentIcon[accent]
+            )}
+          >
+            {icon}
+          </div>
+        ) : null}
         <div className="min-w-0 flex-1">
           <p
             className={cn(
@@ -129,7 +149,7 @@ export default function DirectoryStatCard({
             </p>
           ) : null}
         </div>
-        {icon ? (
+        {align !== "center" && icon ? (
           <div
             className={cn(
               "flex shrink-0 items-center justify-center rounded-md",

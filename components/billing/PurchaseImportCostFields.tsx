@@ -981,7 +981,6 @@ export default function PurchaseImportCostFields({
     handlingPpnShown;
   const pph22CreditShown =
     result && showCustomsCharges ? result.pph22AmountIdr : 0;
-  const taxCreditShown = vatCreditShown + pph22CreditShown;
   const shippingStockIdr = Math.max(0, extraStockCostIdr);
   const totalExpenseIdr = result
     ? vendorPaymentIdr +

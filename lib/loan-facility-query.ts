@@ -3,15 +3,27 @@ import type { Prisma } from "@prisma/client";
 import { decimalToNumber } from "@/lib/project-billing";
 import { prisma } from "@/lib/prisma";
 import {
-  nextLoanPayment,
+  groupInterestPaidByMonth,
+  lastRepaymentDate,
+  loanExpenseFeeKind,
   outstandingPrincipal,
   sumDraws,
   sumInterestPaid,
   sumPrincipalReturned,
   unusedFacility,
+  type InterestPaidMonth,
   type LoanSource,
 } from "@/lib/loan-facility";
-import type { BankLoanKind } from "@/lib/bank-loan";
+import type { BankLoanKind, LoanInterestBasis } from "@/lib/bank-loan";
+import {
+  buildStandbyUsageSlices,
+  englishMonthYearLabel,
+  yearMonthKey,
+  type LoanInterestMonthRow,
+  type StandbyUsageSlice,
+} from "@/lib/loan-interest";
+import { jakartaTodayAsUtcDateOnly } from "@/lib/leave-employment-status";
+import { jakartaYearMonth } from "@/lib/vat";
 
 const facilityInclude = {
   vendor: { select: { id: true, name: true } },
@@ -33,8 +45,28 @@ const facilityInclude = {
       purchaseInvoiceId: true,
       bankAccountId: true,
       createdAt: true,
+      purchaseInvoice: {
+        select: {
+          loanProvisionAmount: true,
+          loanAdminFeeAmount: true,
+          loanInterestAmount: true,
+          loanPrincipalAmount: true,
+        },
+      },
     },
     orderBy: [{ movementDate: "desc" as const }, { createdAt: "desc" as const }],
+  },
+  purchaseInvoices: {
+    where: { reversedAt: null, loanInterestPeriod: { not: null } },
+    select: {
+      id: true,
+      amount: true,
+      paidAt: true,
+      loanInterestPeriod: true,
+      loanInterestAmount: true,
+      invoiceRef: true,
+    },
+    orderBy: [{ invoiceDate: "asc" as const }],
   },
 } satisfies Prisma.LoanFacilityInclude;
 
@@ -51,6 +83,8 @@ export type LoanMovementRow = {
   reversedAt: Date | null;
   purchaseInvoiceId: string | null;
   bankAccountId: string | null;
+  createdAt: Date;
+  feeKind: "PROVISION" | "ADMIN_FEE" | null;
 };
 
 export type LoanFacilitySnapshot = {
@@ -63,8 +97,15 @@ export type LoanFacilitySnapshot = {
   vendorId: string | null;
   vendorName: string | null;
   bankAccountId: string | null;
+  bankAccountLabel: string | null;
   chargesInterest: boolean;
+  interestRateBasis: LoanInterestBasis;
   annualRatePercent: number | null;
+  interestPaidByMonth: InterestPaidMonth[];
+  interestMonths: LoanInterestMonthRow[];
+  usageSlices: StandbyUsageSlice[];
+  dayCountYear: number;
+  lastRepaymentDate: Date | null;
   facilityLimit: number | null;
   principal: number | null;
   tenorMonths: number | null;
@@ -77,8 +118,7 @@ export type LoanFacilitySnapshot = {
   interestPaid: number;
   unusedLimit: number | null;
   suggestedPayment: number;
-  interestDue: number;
-  principalDue: number;
+  interestPaidThisMonth: number;
   movements: LoanMovementRow[];
 };
 
@@ -114,19 +154,77 @@ export function snapshotLoanFacility(
     reversedAt: row.reversedAt,
     purchaseInvoiceId: row.purchaseInvoiceId,
     bankAccountId: row.bankAccountId,
+    createdAt: row.createdAt,
+    feeKind: row.purchaseInvoice
+      ? loanExpenseFeeKind({
+          loanProvisionAmount: decimalToNumber(
+            row.purchaseInvoice.loanProvisionAmount
+          ),
+          loanAdminFeeAmount: decimalToNumber(
+            row.purchaseInvoice.loanAdminFeeAmount
+          ),
+          loanInterestAmount: decimalToNumber(
+            row.purchaseInvoice.loanInterestAmount
+          ),
+          loanPrincipalAmount: decimalToNumber(
+            row.purchaseInvoice.loanPrincipalAmount
+          ),
+        })
+      : null,
   }));
   const likes = facility.movements.map(movementLike);
   const outstanding = outstandingPrincipal(likes);
   const annualRatePercent = decimalToNumber(facility.annualRatePercent);
   const monthlyInstallment = decimalToNumber(facility.monthlyInstallment);
-  const next = nextLoanPayment({
-    kind: facility.kind,
-    outstanding,
-    chargesInterest: facility.chargesInterest,
-    annualPercent: annualRatePercent,
-    tenorMonths: facility.tenorMonths,
-    monthlyInstallment,
-  });
+  const interestRateBasis = facility.interestRateBasis ?? "ANNUAL";
+  const interestPaidByMonth = groupInterestPaidByMonth(movements);
+  const interestMonths: LoanInterestMonthRow[] = interestPaidByMonth.map(
+    (row) => {
+      const [year, month] = row.yearMonth.split("-").map(Number);
+      const match = movements.find(
+        (movement) =>
+          movement.kind === "REPAYMENT" &&
+          movement.interestAmount > 0 &&
+          movement.reversedAt == null &&
+          yearMonthKey(
+            movement.movementDate.getUTCFullYear(),
+            movement.movementDate.getUTCMonth() + 1
+          ) === row.yearMonth
+      );
+      return {
+        yearMonth: row.yearMonth,
+        year,
+        month,
+        label: englishMonthYearLabel(year, month),
+        accrued: row.interest,
+        paid: row.interest,
+        due: 0,
+        invoiceId: match?.purchaseInvoiceId ?? null,
+        paidAt: match?.movementDate ?? null,
+      };
+    }
+  );
+  const dayCountYear = facility.dayCountYear === 365 ? 365 : 360;
+  const usageSlices =
+    facility.kind === "STANDBY"
+      ? buildStandbyUsageSlices({
+          movements,
+          today: jakartaTodayAsUtcDateOnly(),
+          ratePercent: annualRatePercent,
+          basis: interestRateBasis,
+          chargesInterest: facility.chargesInterest,
+          dayCountYear,
+        })
+      : [];
+  const suggestedPayment =
+    facility.status === "ACTIVE" && facility.kind === "TERM"
+      ? monthlyInstallment ?? 0
+      : 0;
+  const current = jakartaYearMonth();
+  const currentKey = yearMonthKey(current.year, current.month);
+  const interestPaidThisMonth =
+    interestPaidByMonth.find((row) => row.yearMonth === currentKey)?.interest ??
+    0;
   return {
     id: facility.id,
     name: facility.name,
@@ -137,8 +235,19 @@ export function snapshotLoanFacility(
     vendorId: facility.vendorId,
     vendorName: facility.vendor?.name ?? null,
     bankAccountId: facility.bankAccountId,
+    bankAccountLabel: facility.bankAccount
+      ? [facility.bankAccount.label, facility.bankAccount.bankName]
+          .filter(Boolean)
+          .join(" · ") || facility.bankAccount.accountNumber
+      : null,
     chargesInterest: facility.chargesInterest,
+    interestRateBasis,
     annualRatePercent,
+    interestPaidByMonth,
+    interestMonths,
+    usageSlices,
+    dayCountYear,
+    lastRepaymentDate: lastRepaymentDate(movements),
     facilityLimit: decimalToNumber(facility.facilityLimit),
     principal: decimalToNumber(facility.principal),
     tenorMonths: facility.tenorMonths,
@@ -154,9 +263,8 @@ export function snapshotLoanFacility(
       facilityLimit: decimalToNumber(facility.facilityLimit),
       outstanding,
     }),
-    suggestedPayment: next.suggestedPayment,
-    interestDue: next.interest,
-    principalDue: next.principal,
+    suggestedPayment,
+    interestPaidThisMonth,
     movements,
   };
 }
@@ -190,31 +298,15 @@ export async function getLoanFacilitySnapshot(
   return row ? snapshotLoanFacility(row) : null;
 }
 
-export async function sumLoanDrawsInRange(
+export async function sumLoanInterestDue(
   companyId: string,
   from?: Date,
   toExclusive?: Date
 ): Promise<number> {
-  const agg = await prisma.loanMovement.aggregate({
-    where: {
-      facility: { companyId },
-      kind: "DRAW",
-      reversedAt: null,
-      ...(from || toExclusive
-        ? {
-            movementDate: {
-              ...(from ? { gte: from } : {}),
-              ...(toExclusive ? { lt: toExclusive } : {}),
-            },
-          }
-        : {}),
-    },
-    _sum: { amount: true },
-  });
-  return decimalToNumber(agg._sum.amount) ?? 0;
+  return sumLoanInterestPaidInRange(companyId, from, toExclusive);
 }
 
-export async function sumLoanPrincipalReturnedInRange(
+export async function sumLoanInterestPaidInRange(
   companyId: string,
   from?: Date,
   toExclusive?: Date
@@ -233,89 +325,31 @@ export async function sumLoanPrincipalReturnedInRange(
           }
         : {}),
     },
-    _sum: { principalAmount: true },
+    _sum: { interestAmount: true },
   });
-  return decimalToNumber(agg._sum.principalAmount) ?? 0;
+  return decimalToNumber(agg._sum.interestAmount) ?? 0;
 }
 
-export async function sumLoansPayable(companyId: string): Promise<number> {
-  const snapshots = await listLoanFacilitySnapshots(companyId, {
-    status: "ALL",
-  });
-  return snapshots.reduce((sum, row) => sum + row.outstanding, 0);
-}
-
-export type LoanFundingRow = {
-  id: string;
-  facilityId: string;
-  facilityName: string;
-  source: LoanSource;
-  lenderName: string;
-  movementDate: Date;
-  amount: number;
-};
-
-export type LoanPayableRow = {
+export type LoanInterestDueRow = {
   id: string;
   name: string;
   source: LoanSource;
   lenderName: string;
+  interestDue: number;
   outstanding: number;
-  unusedLimit: number | null;
 };
 
-export async function listLoanFundingInRange(
+export async function listLoanInterestDueRows(
   companyId: string,
   from?: Date,
   toExclusive?: Date
-): Promise<LoanFundingRow[]> {
-  const rows = await prisma.loanMovement.findMany({
-    where: {
-      facility: { companyId },
-      kind: "DRAW",
-      reversedAt: null,
-      ...(from || toExclusive
-        ? {
-            movementDate: {
-              ...(from ? { gte: from } : {}),
-              ...(toExclusive ? { lt: toExclusive } : {}),
-            },
-          }
-        : {}),
-    },
-    select: {
-      id: true,
-      amount: true,
-      movementDate: true,
-      facilityId: true,
-      facility: {
-        select: { name: true, source: true, lenderName: true },
-      },
-    },
-    orderBy: [{ movementDate: "desc" }, { createdAt: "desc" }],
-    take: 80,
-  });
-  return rows.map((row) => ({
-    id: row.id,
-    facilityId: row.facilityId,
-    facilityName: row.facility.name,
-    source: row.facility.source,
-    lenderName: row.facility.lenderName,
-    movementDate: row.movementDate,
-    amount: decimalToNumber(row.amount) ?? 0,
-  }));
-}
-
-export async function listLoanPrincipalReturnedInRange(
-  companyId: string,
-  from?: Date,
-  toExclusive?: Date
-): Promise<LoanFundingRow[]> {
+): Promise<LoanInterestDueRow[]> {
   const rows = await prisma.loanMovement.findMany({
     where: {
       facility: { companyId },
       kind: "REPAYMENT",
       reversedAt: null,
+      interestAmount: { gt: 0 },
       ...(from || toExclusive
         ? {
             movementDate: {
@@ -326,42 +360,29 @@ export async function listLoanPrincipalReturnedInRange(
         : {}),
     },
     select: {
-      id: true,
-      principalAmount: true,
-      movementDate: true,
+      interestAmount: true,
       facilityId: true,
       facility: {
         select: { name: true, source: true, lenderName: true },
       },
     },
-    orderBy: [{ movementDate: "desc" }, { createdAt: "desc" }],
-    take: 80,
   });
-  return rows.map((row) => ({
-    id: row.id,
-    facilityId: row.facilityId,
-    facilityName: row.facility.name,
-    source: row.facility.source,
-    lenderName: row.facility.lenderName,
-    movementDate: row.movementDate,
-    amount: decimalToNumber(row.principalAmount) ?? 0,
-  }));
-}
-
-export async function listLoansPayableRows(
-  companyId: string
-): Promise<LoanPayableRow[]> {
-  const snapshots = await listLoanFacilitySnapshots(companyId, {
-    status: "ALL",
-  });
-  return snapshots
-    .filter((row) => row.outstanding > 0)
-    .map((row) => ({
-      id: row.id,
-      name: row.name,
-      source: row.source,
-      lenderName: row.lenderName,
-      outstanding: row.outstanding,
-      unusedLimit: row.unusedLimit,
-    }));
+  const byFacility = new Map<string, LoanInterestDueRow>();
+  for (const row of rows) {
+    const current = byFacility.get(row.facilityId);
+    const interest = decimalToNumber(row.interestAmount) ?? 0;
+    if (current) {
+      current.interestDue += interest;
+      continue;
+    }
+    byFacility.set(row.facilityId, {
+      id: row.facilityId,
+      name: row.facility.name,
+      source: row.facility.source,
+      lenderName: row.facility.lenderName,
+      interestDue: interest,
+      outstanding: 0,
+    });
+  }
+  return [...byFacility.values()].filter((row) => row.interestDue > 0);
 }

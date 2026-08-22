@@ -180,7 +180,9 @@ export const en = {
       Tax: "Tax",
       Purchases: "Expenses",
       Expenses: "Expenses",
-      Loans: "Loans",
+      Loans: "Loan",
+      Loan: "Loan",
+      BPJS: "BPJS",
       Sales: "Sales",
       "Petty Cash": "Petty Cash",
       "Upload History": "Upload History",
@@ -994,6 +996,11 @@ export const en = {
         cicoGpsEmptyView:
           "No GPS pin is set yet. Ask Head Office to configure the CICO site location on this project.",
         invoicesPayments: "Invoices & Payments",
+        downPaymentReceived: "Down Payment Received",
+        downPaymentReceivedYes: "Yes · {amount} · {date}",
+        downPaymentReceivedNo: "Not Received",
+        downPaymentTaxInvoiceNote:
+          "A Tax Invoice is required every time money comes in.",
         paymentsReceivedCount: "Payments received: {paid} of {total}",
         viewProgressReports: "View Progress / Reports",
         viewProgressReportsChip1: "View Progress",
@@ -2460,7 +2467,6 @@ export const en = {
       purchaseCardOverdueHint: "Vendor invoices past the due date",
       purchaseCardIncompleteImport: "Incomplete Imports",
       purchaseCardIncompleteImportHint: "Shipping, duties, or vendor payment still missing",
-      purchaseEmpty: "No Expenses Yet",
       purchaseEmptyPeriod: "No Expenses This Month",
       purchaseEmptyPeriodDesc:
         "No expenses have a date in the selected month. Try another period or add an expense.",
@@ -2621,64 +2627,80 @@ export const en = {
       loanSourceBank: "Bank Loan",
       loanSourceShareholder: "Shareholder Loan",
       loanSourceHint:
-        "Bank Loan uses a registered bank facility. Shareholder Loan is money a shareholder put into the company.",
+        "Choose who lent the money first. For a bank loan, choose what this payment is for. Then choose the registered loan.",
       loanSourceRequired: "Choose Bank Loan or Shareholder Loan.",
+      loanPaymentFor: "Payment For",
+      loanPaymentForInterest: "Interest",
+      loanPaymentForInstallment: "Installment",
+      loanPaymentForProvision: "Bank Provision",
+      loanPaymentForAdminFee: "Bank Admin Fee",
+      loanPaymentForHint:
+        "Interest and installment are the regular payment. Bank Provision and Bank Admin Fee attach to the registered loan you pick — they show on that loan’s page. The Financial Report treats them as bank fees, not interest, and not as a Standby versus Term split.",
+      loanPaymentForRequired: "Choose what this payment is for.",
+      loanExpenseProvisionHint:
+        "Type the provision the bank charged. This is an expense and does not change outstanding principal.",
+      loanExpenseAdminFeeHint:
+        "Type the admin fee the bank charged. This is an expense and does not change outstanding principal.",
+      loanPaymentThisMonthShouldBe: "Payment This Month Should Be",
+      loanProvisionPaid: "Bank Provision",
+      loanAdminFeePaid: "Bank Admin Fee",
       loanFacility: "Registered Loan",
       loanFacilityPlaceholder: "Select a registered loan",
       loanFacilityRequired: "Select the registered loan this payment belongs to.",
       loanFacilityEmpty:
         "Register the loan under Finance → Loans first, then come back here to record a return.",
+      loanExpenseStandbyHint:
+        "Type the interest the bank or shareholder charged. This does not change outstanding principal.",
+      loanExpenseTermHint:
+        "Type the amount paid this time. You can pay more or less than the usual installment.",
       loanOutstanding: "Outstanding Principal",
-      loanInterestDue: "Interest Due This Payment",
-      loanPrincipalDue: "Principal In This Payment",
-      loanSuggestedPayment: "Amount The Bank Account Should Pay",
-      loanPaymentSplit:
-        "Interest {interest} is the expense. Principal {principal} reduces what we still owe. The bank account pays the total.",
       loanChargesInterest: "Does The Shareholder Charge Interest?",
       loanChargesInterestHint:
-        "If yes, the system calculates interest on the outstanding amount. The bank account pays exactly that figure, plus any principal you return.",
+        "If yes, choose Monthly Interest or Annual Interest, then enter the rate. Daily outstanding is billed each month as an unpaid expense.",
+      loanInterestBasis: "Interest Quoted As",
+      loanInterestBasisMonthly: "Monthly Interest",
+      loanInterestBasisAnnual: "Annual Interest",
+      loanInterestBasisRequired: "Choose Monthly Interest or Annual Interest.",
+      loanInterestBasisHint:
+        "Choose how the rate is written. Then enter the percent. Banks accrue bunga harian on the amount actually out each day. Unused plafon does not accrue.",
+      loanMonthlyRate: "Monthly Interest Rate %",
+      loanMonthlyRateHint:
+        "Quoted per month. Daily interest uses this percent divided by the days in that calendar month.",
+      loanMonthlyRateRequired: "Enter the monthly interest rate.",
       loanShareholderName: "Shareholder Name",
-      loanShareholderNameRequired: "Enter the shareholder name.",
       loanInterestPaid: "Interest Paid",
       loanPrincipalReturned: "Principal Returned",
       bankLoanKind: "Loan Type",
-      bankLoanKindStandby: "Standby Facility",
+      bankLoanKindStandby: "Standby Loan",
       bankLoanKindTerm: "Term Loan",
       bankLoanKindHint:
-        "Standby Facility: interest only on the amount drawn. Term Loan: a fixed monthly anuitas installment.",
+        "Standby Loan: type the interest paid. Term Loan: type the installment paid this time.",
       bankLoanKindStandbyHint:
-        "Indonesian banks call this a Standby Facility or Kredit Rekening Koran. Interest is charged only on the drawn amount. The unused limit does not accrue interest.",
+        "Indonesian banks call this a Standby Loan or Kredit Rekening Koran. Interest is charged only on the drawn amount. The unused limit does not accrue interest.",
       bankLoanKindTermHint:
         "This is a Term Loan (Kredit Angsuran). Indonesian banks usually use anuitas: one fixed monthly amount that starts as mostly interest and later becomes mostly principal.",
-      bankLoanKindRequired: "Choose Standby Facility or Term Loan.",
-      bankLoanFacilityLimit: "Facility Limit",
+      bankLoanKindRequired: "Choose Standby Loan or Term Loan.",
+      bankLoanFacilityLimit: "Plafon Kredit",
       bankLoanFacilityLimitHint:
-        "The unused ceiling sitting at the bank. Interest is not charged on this unused amount.",
+        "The maximum you may draw on this standby facility. Indonesian banks call this Plafon Kredit. Interest is charged only on the amount drawn, not on the unused ceiling.",
+      bankLoanFacilityLimitRequired: "Enter the Plafon Kredit.",
       bankLoanDrawnAmount: "Amount Drawn",
-      bankLoanDrawnAmountHint:
-        "How much of the facility is in use. Monthly interest is calculated on this amount.",
-      bankLoanDrawnRequired: "Enter the amount currently drawn.",
       bankLoanPrincipal: "Loan Principal",
-      bankLoanPrincipalHint: "The amount borrowed that is repaid over the tenor.",
-      bankLoanPrincipalRequired: "Enter the loan principal.",
       bankLoanAnnualRate: "Annual Interest Rate %",
       bankLoanAnnualRateHint:
-        "Nominal yearly rate from the bank. Monthly interest uses this rate divided by 12.",
+        "Nominal yearly rate. Daily interest is outstanding × this rate / 360, the Indonesian KRK / rekening koran convention used by BCA and Mandiri.",
       bankLoanAnnualRateRequired: "Enter the annual interest rate.",
       bankLoanTenorMonths: "Tenor (Months)",
-      bankLoanTenorMonthsHint: "How many months the fixed installment runs.",
-      bankLoanTenorRequired: "Enter the tenor in months.",
-      bankLoanMonthlyInterest: "Estimated Monthly Interest",
       bankLoanMonthlyInstallment: "Estimated Monthly Installment",
-      bankLoanFirstMonthSplit:
-        "First month estimate: {interest} interest and {principal} principal. This payment is booked as a Head Office bank-loan cost so the bank statement matches.",
       bankLoanPaymentAmount: "Amount Paid This Time",
       bankLoanPaymentAmountHint:
         "Interest, the monthly installment, or another amount the bank actually debited. Do not enter the full unused facility.",
       bankLoanRef: "Loan Account / Reference",
       bankLoanRefPlaceholder: "Bank loan account or advice number",
       bankLoanRefHint: "The bank’s loan account or payment advice number.",
-      bankLoanDocument: "Bank Advice / Payment Proof",
+      bankLoanDocument: "Payment Proof",
+      purchasePaymentProof: "Payment Proof",
+      loanPaidDate: "Paid Date",
       purchaseTransferFee: "Bank Transfer Fee",
       purchaseTransferFeeHint:
         "Interbank fee charged on this transfer (SKN, BI-FAST, or RTGS). Leave 0 when the same bank is used or the fee is waived. Booking it keeps the ERP cash in line with the bank statement.",
@@ -2698,9 +2720,9 @@ export const en = {
       purchaseNoItemsForType: "No items of this type in Goods Catalog.",
       purchaseNoItemsMatchSearch: "No items match this search.",
       purchaseChangeItem: "Change",
-      governmentTaxType: "Tax Type",
+      governmentTaxType: "Payment Type",
       governmentTaxTypeHint:
-        "Choose the DJP account this Billing ID is paying. Value Added Tax is credited in the monthly VAT return. Corporate Income Tax Article 25 and 29 are credited when you file the annual company return.",
+        "Choose what this government payment is. BPJS is paid to a virtual account. Tax types use a DJP Billing ID. Value Added Tax is credited in the monthly VAT return. Corporate Income Tax Article 25 and 29 are credited when you file the annual company return.",
       governmentTaxKindPpn: "Value Added Tax",
       governmentTaxKindPph25: "Corporate Income Tax Installment",
       governmentTaxKindPph29: "Corporate Income Tax Settlement",
@@ -2711,6 +2733,23 @@ export const en = {
       governmentTaxKindPbb: "Land And Building Tax",
       governmentTaxKindPph22: "Income Tax Article 22",
       governmentTaxKindOther: "Other Government Charge",
+      governmentTaxKindBpjsKesehatan: "BPJS Kesehatan",
+      governmentTaxKindBpjsKetenagakerjaan: "BPJS Ketenagakerjaan",
+      governmentVirtualAccount: "Virtual Account Number",
+      governmentVirtualAccountPlaceholder: "BPJS virtual account number",
+      governmentVirtualAccountHint:
+        "The virtual account number on the BPJS billing or bank transfer.",
+      governmentBpjsPeriod: "Contribution Period",
+      governmentBpjsMonth: "Month",
+      governmentBpjsYear: "Year",
+      governmentBpjsPeriodHint:
+        "The month this iuran is for, not the day you paid.",
+      governmentBpjsPaymentHint:
+        "Pay the BPJS virtual account for this program. The company share is the expense.",
+      governmentBpjsAmount: "Amount Transferred",
+      governmentBpjsAmountHint:
+        "Type the amount sent to the virtual account. Company share is the expense.",
+      governmentBpjsDocument: "Payment Proof",
       commercialTaxKindPpn: "Value Added Tax",
       commercialTaxKindPph23: "Income Tax Article 23",
       commercialTaxKindPpnAndPph23: "Value Added Tax And Income Tax Article 23",
@@ -3483,16 +3522,10 @@ export const en = {
       periodNet: "Period Profit",
       netPosition: "Net Position",
       netPositionHint:
-        "Period profit minus Accounts Payable and loans still owed. Loan draws are funding, not revenue.",
-      loanFunding: "Loan And Shareholder Inflows",
-      loanFundingHint:
-        "Money taken from a registered bank or shareholder loan this period. Funding — not project revenue.",
-      loanPrincipalReturned: "Loan Principal Returned",
-      loanPrincipalReturnedHint:
-        "Principal paid back this period. This is a financing outflow, not an operating expense.",
-      loansPayable: "Loans Payable",
-      loansPayableHint:
-        "Outstanding principal still owed on bank and shareholder loans.",
+        "Period profit minus Accounts Payable. Loan draws stay on the Loan page. They are funding, not revenue.",
+      loanInterestDueThisPeriod: "Loan Interest Paid",
+      loanInterestDueThisPeriodHint:
+        "Interest you recorded on Loan this period. It is an expense. Draws stay on the Loan page.",
       clientsStillOwe: "Accounts Receivable",
       weStillOweVendors: "Accounts Payable",
       bpjsKesehatan: "BPJS Kesehatan",
@@ -3573,15 +3606,9 @@ export const en = {
         depositsKept: "Employee Deposits Retained Detail",
         bpjsKesehatan: "BPJS Kesehatan Detail",
         bpjsKetenagakerjaan: "BPJS Ketenagakerjaan Detail",
-        loanFunding: "Loan And Shareholder Inflows Detail",
-        loanPrincipalReturned: "Loan Principal Returned Detail",
-        loansPayable: "Loans Payable Detail",
-        loanFundingHelp:
-          "Draws this period. The cash came from a bank or a shareholder. Do not treat this as project revenue.",
-        loanPrincipalReturnedHelp:
-          "Principal returned this period. Interest stays in Expenses. This card is the principal only.",
-        loansPayableHelp:
-          "What is still owed on registered facilities. Included in Net Position as real debt.",
+        loanInterestDue: "Loan Interest Paid Detail",
+        loanInterestDueHelp:
+          "Interest you recorded on Loan this period. Each line opens that facility. This is expense, not project revenue.",
         bpjsKesehatanHelp:
           "Company 4% of the capped wage. Employee 1% is already deducted on Internal Payroll. This card is the amount still owed to BPJS this month.",
         bpjsKetenagakerjaanHelp:
@@ -3730,9 +3757,9 @@ export const en = {
       markPaidFailed: "Failed to mark THR as paid."
     },
     loans: {
-      title: "Loans",
+      title: "Loan",
       description:
-        "Register bank and shareholder facilities, record money taken in, and record money returned. Interest is the expense. The draw itself is funding, not project revenue.",
+        "A manual register. Record money taken, interest the bank charged, and principal returned. Those records link to Expenses and the Financial Report. Draws are funding, not revenue.",
       register: "Register Loan",
       registerTitle: "Register A Loan",
       registerDesc:
@@ -3744,7 +3771,7 @@ export const en = {
       emptyDesc:
         "Register a bank facility or a shareholder loan, then record draws and returns here.",
       name: "Loan Name",
-      namePlaceholder: "e.g. BCA Standby Facility",
+      namePlaceholder: "e.g. BCA Standby Loan",
       source: "Loan Source",
       lenderName: "Lender Name",
       lenderNameHint: "The bank or the shareholder this money comes from.",
@@ -3760,41 +3787,127 @@ export const en = {
       bankAccountHint: "The account the money went into, or is paid from.",
       statusActive: "Active",
       statusClosed: "Closed",
-      outstanding: "Outstanding",
-      unusedLimit: "Unused Limit",
-      drawn: "Drawn",
-      returned: "Returned",
-      nextPayment: "Next Payment",
+      outstandingPrincipal: "Outstanding Principal",
+      interestPaidThisMonth: "Interest Paid This Month",
+      unusedLimit: "Unused Credit Ceiling",
       recordDraw: "Record Draw",
       recordDrawTitle: "Record Money Taken",
       recordDrawDesc:
-        "The bank or shareholder put this amount into the company. This is funding, not revenue.",
+        "The bank or shareholder put this amount into the company on this date. This is funding, not revenue.",
       recordDrawConfirm: "Save Draw",
-      recordReturn: "Record Return",
-      recordReturnTitle: "Record Money Returned",
+      recordReturn: "Return Principal",
+      recordReturnTitle: "Return Principal",
       recordReturnDesc:
-        "The system calculates interest or the monthly installment. Match this with the bank or shareholder.",
+        "Type the principal you sent back. Outstanding goes down by that amount. This is not an expense.",
       recordReturnConfirm: "Save Return",
+      recordReturnSliceInterest: "Interest For This Slice",
+      recordReturnSliceHint:
+        "This interest is not billed here. Pay it under Expenses → Add Expense → Loan.",
+      recordReturnSliceRange: "From {from} To {to} ({days} Days)",
+      settleEarly: "Settle Early",
+      settleEarlyTitle: "Settle Early",
+      settleEarlyDesc:
+        "Pelunasan dipercepat. Remaining principal, running interest, early settlement penalty, and any admin fee. Penalty and interest are expense. The loan then closes.",
+      settleEarlyConfirm: "Settle And Close",
+      remainingPrincipal: "Remaining Principal",
+      runningInterest: "Running Interest",
+      penaltyPercent: "Early Settlement Penalty %",
+      penaltyAmount: "Early Settlement Penalty",
+      adminFee: "Admin / Other Bank Fee",
+      settleEarlyTotal: "Total To Pay",
+      interestByMonth: "Interest By Month",
+      usageSlicesTitle: "Usage By Date",
+      sliceFrom: "From",
+      sliceTo: "To",
+      sliceAmountUsed: "Amount Used",
+      sliceDays: "Days",
+      sliceInterest: "Interest",
+      sliceOpen: "Open",
+      sliceEmpty: "No draws yet. Usage slices appear after money is taken.",
+      standbySliceHint:
+        "Each row is the amount used from the previous event to this date, at the outstanding in force. Unused plafon does not accrue.",
+      dayCountActual: "Actual/{year}",
+      dayCountHint:
+        "Standby interest is Actual/360: each day’s outstanding × annual rate / 360. A draw on the 20th is charged only from the 20th. Monthly quotes use that month’s percent ÷ days in the month.",
       closeLoan: "Close Loan",
-      closeLoanConfirm: "Close this loan? Outstanding principal must be zero.",
+      closeLoanConfirm:
+        "Close this loan? Outstanding principal must be zero.",
       closeFailed: "This loan still has outstanding principal.",
-      proof: "Advice / Payment Proof",
-      proofRequired: "Upload the bank advice or payment proof.",
+      proof: "Payment Proof",
+      proofRequired: "Upload the payment proof.",
       reference: "Reference",
       referencePlaceholder: "Loan account or advice number",
       columns: {
         name: "Loan",
         source: "Source",
-        lender: "Lender",
         outstanding: "Outstanding",
         next: "Next Payment",
         status: "Status"
       },
       movementsTitle: "Draws And Returns",
       movementDraw: "Draw",
+      movementInterest: "Interest",
+      movementProvision: "Bank Provision",
+      movementAdminFee: "Bank Admin Fee",
       movementReturn: "Return",
       noMovements: "No draws or returns yet.",
-      backToLoans: "Loans"
+      backToLoans: "Loan"
+    },
+    bpjs: {
+      title: "BPJS",
+      description:
+        "Enrollment and payment record. Record the virtual-account payment in Expenses.",
+      alreadyPaid: "Already Paid",
+      stillToPay: "Still To Pay",
+      payInExpensesHint:
+        "Record BPJS payments in Expenses. This page is the enrollment list and the payments already booked.",
+      viewExpense: "Open Expense",
+      dueDateHint: "Due {date}",
+      overdue: "Overdue",
+      overdueHint: "Past the statutory due date",
+      notOverdueHint: "Not yet past the due date",
+      kesehatan: "BPJS Kesehatan",
+      ketenagakerjaan: "BPJS Ketenagakerjaan",
+      period: "Contribution Period",
+      enrolled: "{count} Enrolled Employees",
+      emptyTitle: "No BPJS Enrollment",
+      emptyDesc:
+        "Enroll full-time employees under Employees to see Kesehatan and Ketenagakerjaan here.",
+      backToBpjs: "BPJS",
+      detailDescription:
+        "Enrolled employees for this program. Payments are recorded in Expenses.",
+      employeesEmpty: "No enrolled employees for this program.",
+      employeeDetailDescription:
+        "This employee’s BPJS shares, wage base, and program lines for the selected month.",
+      hiredAt: "Joined",
+      tenure: "Tenure",
+      basePay: "Base Pay",
+      wageBase: "Wage Base",
+      componentsTitle: "Program Lines",
+      lineKesehatan: "Kesehatan",
+      lineJht: "JHT",
+      lineJp: "JP",
+      lineJkk: "JKK",
+      lineJkm: "JKM",
+      program: "Program",
+      amount: "Amount",
+      paidAt: "Paid Date",
+      reference: "Reference",
+      remittancesTitle: "Paid This Period",
+      remittancesEmpty: "No BPJS payment recorded in Expenses for this period yet.",
+      statusPaid: "Paid",
+      statusDue: "Due",
+      statusOverdue: "Overdue",
+      columns: {
+        program: "Program",
+        companyShare: "Company Share",
+        total: "Total",
+        paid: "Already Paid",
+        dueDate: "Due Date",
+        status: "Status",
+        employee: "Employee",
+        employeeShare: "Employee Share"
+      }
     },
     pettyCash: {
       title: "Petty Cash",
@@ -5532,7 +5645,8 @@ export const en = {
     invoicing: "Invoice and Billing",
     reconciliation: "Reconciliation",
     purchaseInvoices: "Expenses",
-    loans: "Loans",
+    loans: "Loan",
+    bpjs: "BPJS",
     sales: "Sales",
     taxInvoices: "Tax",
     vendorPayments: "Payment & Settlement",

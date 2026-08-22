@@ -5,6 +5,7 @@ export type PurchaseOperatingCostInput = {
   amount: number;
   purchaseCategory?: string | null;
   governmentTaxKind?: string | null;
+  governmentOperatingAmount?: number | null;
   origin?: "LOCAL" | "IMPORT" | null;
   includesPpn?: boolean;
   ppnRatePercent?: number | null;
@@ -13,6 +14,9 @@ export type PurchaseOperatingCostInput = {
   pph22AmountIdr?: number | null;
   transferFeeIdr?: number | null;
   loanInterestAmount?: number | null;
+  loanPenaltyAmount?: number | null;
+  loanAdminFeeAmount?: number | null;
+  loanProvisionAmount?: number | null;
 };
 
 /**
@@ -33,18 +37,48 @@ export function operatingPurchaseAmount(
       : 0;
 
   if (invoice.purchaseCategory === "BANK_LOAN") {
+    const penalty =
+      invoice.loanPenaltyAmount != null &&
+      Number.isFinite(invoice.loanPenaltyAmount)
+        ? Math.max(0, invoice.loanPenaltyAmount)
+        : 0;
+    const adminFee =
+      invoice.loanAdminFeeAmount != null &&
+      Number.isFinite(invoice.loanAdminFeeAmount)
+        ? Math.max(0, invoice.loanAdminFeeAmount)
+        : 0;
+    const provision =
+      invoice.loanProvisionAmount != null &&
+      Number.isFinite(invoice.loanProvisionAmount)
+        ? Math.max(0, invoice.loanProvisionAmount)
+        : 0;
+    const hasFeeOrSplit =
+      invoice.loanInterestAmount != null ||
+      provision > 0 ||
+      adminFee > 0 ||
+      penalty > 0;
     const interest =
       invoice.loanInterestAmount != null &&
       Number.isFinite(invoice.loanInterestAmount)
         ? Math.max(0, invoice.loanInterestAmount)
-        : amount;
-    return interest + transferFee;
+        : hasFeeOrSplit
+          ? 0
+          : amount;
+    return interest + penalty + adminFee + provision + transferFee;
   }
 
   if (invoice.purchaseCategory === "GOVERNMENT") {
-    const body = isGovernmentOperatingExpense(invoice.governmentTaxKind)
-      ? amount
-      : 0;
+    const override =
+      invoice.governmentOperatingAmount != null &&
+      Number.isFinite(invoice.governmentOperatingAmount)
+        ? Math.max(0, invoice.governmentOperatingAmount)
+        : null;
+    const body =
+      override != null
+        ? override
+        : isGovernmentOperatingExpense(invoice.governmentTaxKind)
+          ? amount
+          : 0;
     return body + transferFee;
   }
 

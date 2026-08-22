@@ -54,11 +54,11 @@ export default function Header({
   return (
     <header className="header-surface sticky top-0 z-40 w-full">
       {/*
-       * Mobile/tablet: greeting + actions only (no header brand lockup).
-       * Desktop (lg+): sidebar brand bar owns the mark.
+       * Mobile/tablet: action row first (menu | theme + language | name), then title.
+       * Desktop (lg+): sidebar brand bar owns the mark; title left, controls right.
        */}
       <div className="flex min-h-0 w-full flex-wrap items-center gap-x-3 gap-y-3 px-4 py-4 sm:gap-x-3.5 sm:px-7 sm:py-5 md:gap-x-4 md:px-9 lg:h-(--app-topbar-height) lg:min-h-(--app-topbar-height) lg:flex-nowrap lg:justify-between lg:gap-8 lg:px-10 lg:py-0 xl:px-12">
-        <div className="flex w-full min-w-0 flex-col justify-center gap-0.5 lg:w-auto lg:flex-1 lg:overflow-hidden lg:pr-3">
+        <div className="order-2 flex w-full min-w-0 flex-col justify-center gap-0.5 lg:order-1 lg:w-auto lg:flex-1 lg:overflow-hidden lg:pr-3">
           {welcomeMode ? (
             <>
               <h1 className="text-[0.9375rem] font-bold leading-snug tracking-tight text-text sm:text-base md:text-lg lg:truncate lg:text-xl lg:leading-tight">
@@ -84,40 +84,45 @@ export default function Header({
           )}
         </div>
 
-        <div className="header-controls-row flex w-full shrink-0 items-center justify-center gap-1.5 sm:gap-2 md:gap-2.5 lg:w-auto lg:justify-end lg:gap-3.5">
-          {!welcomeMode && (
-            <div className="header-date-module" aria-label={headerDateLong}>
-              <div className="header-date-module__icon" aria-hidden>
-                <CalendarDays size={15} strokeWidth={1.75} />
+        <div className="header-controls-row order-1 flex w-full shrink-0 items-center lg:order-2 lg:w-auto lg:justify-end lg:gap-3.5">
+          <div className="header-controls-row__menu shrink-0 lg:hidden">
+            <MobileNavDialog
+              triggerClassName="header-menu-trigger flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border-2 border-border bg-secondary text-text transition hover:border-accent-cyan/40 hover:bg-elevated hover:text-accent-cyan sm:h-10 sm:w-10"
+            />
+          </div>
+
+          <div className="header-controls-row__mid flex items-center gap-1.5 sm:gap-2 md:gap-2.5 lg:gap-3.5">
+            {!welcomeMode && (
+              <div className="header-date-module" aria-label={headerDateLong}>
+                <div className="header-date-module__icon" aria-hidden>
+                  <CalendarDays size={15} strokeWidth={1.75} />
+                </div>
+                <div className="min-w-0">
+                  <p className="header-date-module__label">{t("header.today")}</p>
+                  <p className="header-date-module__value">{headerDateLong}</p>
+                </div>
               </div>
-              <div className="min-w-0">
-                <p className="header-date-module__label">{t("header.today")}</p>
-                <p className="header-date-module__value">{headerDateLong}</p>
-              </div>
-            </div>
-          )}
+            )}
 
-          <HeaderThemeSwitcher />
-          <HeaderLanguageSwitcher />
+            <HeaderThemeSwitcher />
+            <HeaderLanguageSwitcher />
+          </div>
 
-          <MobileNavDialog
-            triggerClassName="header-menu-trigger flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border-2 border-border bg-secondary text-text transition hover:border-accent-cyan/40 hover:bg-elevated hover:text-accent-cyan sm:h-10 sm:w-10 lg:hidden"
-          />
-
-          {/* Avatar only below lg — full name/role live in the mobile drawer footer */}
           <div
-            className="header-profile-module max-lg:gap-0 max-lg:border-0 max-lg:bg-transparent max-lg:p-0 max-lg:shadow-none"
+            className="header-profile-module header-controls-row__profile"
             aria-label={`${session?.user?.name ?? t("header.user")}, ${profileLabel}`}
           >
             <div className="header-profile-module__avatar" aria-hidden>
               {initials ?? "U"}
             </div>
 
-            <div className="header-profile-module__meta max-lg:hidden">
+            <div className="header-profile-module__meta">
               <p className="header-profile-module__name">
                 {session?.user?.name ?? t("header.user")}
               </p>
-              <p className="header-profile-module__role">{profileLabel}</p>
+              <p className="header-profile-module__role max-lg:hidden">
+                {profileLabel}
+              </p>
             </div>
           </div>
         </div>

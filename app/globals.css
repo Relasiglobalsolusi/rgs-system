@@ -475,10 +475,37 @@ body {
     color var(--motion-duration) var(--motion-ease);
 }
 
-/* Mobile / tablet header controls — compact cluster, centered in Header.tsx */
+/* Mobile / tablet header: hamburger | theme + language | user name */
 @media (max-width: 1023px) {
+  .header-controls-row {
+    position: relative;
+    justify-content: space-between;
+    gap: 0.375rem;
+  }
+
+  .header-controls-row__mid {
+    position: absolute;
+    left: 50%;
+    z-index: 1;
+    transform: translateX(-50%);
+  }
+
+  .header-controls-row__profile {
+    z-index: 2;
+    min-width: 0;
+    max-width: 14rem;
+    flex-shrink: 0;
+    gap: 0.45rem;
+    padding: 0.25rem 0.55rem 0.25rem 0.25rem;
+  }
+
   .header-controls-row .header-lang-module {
     padding: 0.2rem 0.45rem 0.2rem 0;
+  }
+
+  .header-controls-row__mid .header-lang-module:last-of-type {
+    border-right: none;
+    padding-right: 0;
   }
 
   .header-controls-row .header-lang-module__trigger {
@@ -523,6 +550,10 @@ body {
     height: 2.25rem;
     width: 2.25rem;
     font-size: 0.6875rem;
+  }
+
+  .header-controls-row .header-profile-module__name {
+    font-size: 0.8125rem;
   }
 
   .header-controls-row .header-menu-trigger svg {
@@ -688,16 +719,14 @@ body {
 }
 
 .header-profile-module__meta {
-  display: none;
+  display: block;
   min-width: 0;
   padding: 0.1rem 0;
   text-align: left;
 }
 
-/* Name/role beside avatar only on desktop; mobile uses drawer footer (stacked). */
 @media (min-width: 1024px) {
   .header-profile-module__meta {
-    display: block;
     max-width: none;
     min-width: 8.75rem;
   }

@@ -14,7 +14,8 @@ import PurchaseCatalogItemPicker from "@/components/billing/PurchaseCatalogItemP
 import PurchaseLoanFields, {
   type PurchaseLoanFacilityOption,
 } from "@/components/billing/PurchaseLoanFields";
-import type { LoanSource } from "@/lib/loan-facility";
+import type { BankLoanKind } from "@/lib/bank-loan";
+import type { LoanPaymentPurpose, LoanSource } from "@/lib/loan-facility";
 import PurchaseVehicleLeaseFields, {
   emptyVehicleLeaseDraft,
   type PurchaseVehicleLeaseDraft,
@@ -101,6 +102,7 @@ import {
 import {
   governmentTaxKindLabelKey,
   governmentTaxKindPickerOptions,
+  isBpjsGovernmentKind,
   type GovernmentTaxKind,
 } from "@/lib/government-tax";
 
@@ -215,6 +217,12 @@ export default function PurchaseInvoiceUploadDialog({
   );
   const [invoiceDate, setInvoiceDate] = useState(todayDateInput);
   const [invoiceRef, setInvoiceRef] = useState("");
+  const [bpjsYear, setBpjsYear] = useState(() =>
+    Number(todayDateInput().slice(0, 4))
+  );
+  const [bpjsMonth, setBpjsMonth] = useState(() =>
+    Number(todayDateInput().slice(5, 7))
+  );
   const [amount, setAmount] = useState("");
   const [lines, setLines] = useState<PurchaseLineDraft[]>([newPurchaseLine()]);
   const catalogItems = catalogItemsProp;
@@ -223,9 +231,11 @@ export default function PurchaseInvoiceUploadDialog({
     emptyVehicleLeaseDraft
   );
   const [loanSource, setLoanSource] = useState<LoanSource | "">("");
+  const [loanKind, setLoanKind] = useState<BankLoanKind | "">("");
+  const [loanPaymentPurpose, setLoanPaymentPurpose] =
+    useState<LoanPaymentPurpose | "">("");
   const [loanFacilityId, setLoanFacilityId] = useState("");
   const [transferFee, setTransferFee] = useState("");
-  const [amountTouched, setAmountTouched] = useState(false);
   const [bankAccounts, setBankAccounts] = useState<CompanyBankAccountOption[]>(
     []
   );
@@ -254,6 +264,9 @@ export default function PurchaseInvoiceUploadDialog({
   const isService = purchaseCategory === "SERVICE";
   const isVehicle = purchaseCategory === "VEHICLE";
   const isBankLoan = purchaseCategory === "BANK_LOAN";
+  const isShareholderLoan = isBankLoan && loanSource === "SHAREHOLDER";
+  const isBpjsGovernment =
+    isGovernment && isBpjsGovernmentKind(governmentTaxKind);
   const isFreeOfCharge =
     freeOfCharge === "Yes" &&
     !isPettyCash &&
@@ -511,12 +524,15 @@ export default function PurchaseInvoiceUploadDialog({
       setLines([newPurchaseLine()]);
       setVehicleLease(emptyVehicleLeaseDraft());
       setLoanSource("");
+      setLoanKind("");
+      setLoanPaymentPurpose("");
       setLoanFacilityId("");
       setTransferFee("");
-      setAmountTouched(false);
       setVendorChoice("");
       setBankAccountId("");
       setGovernmentTaxKind("PPN");
+      setBpjsYear(Number(todayDateInput().slice(0, 4)));
+      setBpjsMonth(Number(todayDateInput().slice(5, 7)));
       setPaymentTermsDays(14);
       setImportFulfillment("INTERNAL");
       setImportDutiesBillingId("");
@@ -530,17 +546,8 @@ export default function PurchaseInvoiceUploadDialog({
     }
   }, [open]);
 
-  const selectedLoan = loanFacilities.find(
-    (row) => row.id === loanFacilityId
-  );
-  useEffect(() => {
-    if (!isBankLoan || amountTouched) return;
-    if (selectedLoan && selectedLoan.suggestedPayment > 0) {
-      setAmount(String(selectedLoan.suggestedPayment));
-      return;
-    }
-    setAmount("");
-  }, [isBankLoan, amountTouched, selectedLoan]);
+  const selectedLoan =
+    loanFacilities.find((row) => row.id === loanFacilityId) ?? null;
 
   function handleDocumentPick(file: File | null) {
     setDocumentFile(file);
@@ -618,14 +625,16 @@ export default function PurchaseInvoiceUploadDialog({
       setTaxFile(null);
       setPaymentTermsDays(CASH_PAYMENT_TERMS_DAYS);
       setLoanSource("");
+      setLoanKind("");
+      setLoanPaymentPurpose("");
       setLoanFacilityId("");
       setVendorChoice("");
-      setAmountTouched(false);
     }
     if (value !== "BANK_LOAN") {
       setLoanSource("");
+      setLoanKind("");
+      setLoanPaymentPurpose("");
       setLoanFacilityId("");
-      setAmountTouched(false);
     }
   }
 
@@ -808,8 +817,16 @@ export default function PurchaseInvoiceUploadDialog({
       if (isGovernment) {
         formData.set("governmentTaxKind", governmentTaxKind);
         formData.set("notes", String(formData.get("notes") ?? "").trim());
+        if (isBpjsGovernment) {
+          formData.set("bpjsYear", String(bpjsYear));
+          formData.set("bpjsMonth", String(bpjsMonth));
+        }
         if (!documentFile || documentFile.size === 0) {
-          setError(t("pages.billing.governmentDocumentRequired"));
+          setError(
+            isBpjsGovernment
+              ? t("pages.loans.proofRequired")
+              : t("pages.billing.governmentDocumentRequired")
+          );
           return;
         }
       }
@@ -838,7 +855,20 @@ export default function PurchaseInvoiceUploadDialog({
         setError(t("pages.billing.loanSourceRequired"));
         return;
       }
-      if (!loanFacilityId || !selectedLoan) {
+      if (loanSource === "BANK" && !loanPaymentPurpose) {
+        setError(t("pages.billing.loanPaymentForRequired"));
+        return;
+      }
+      if (!loanKind) {
+        setError(t("pages.billing.bankLoanKindRequired"));
+        return;
+      }
+      if (
+        !loanFacilityId ||
+        !selectedLoan ||
+        selectedLoan.source !== loanSource ||
+        selectedLoan.kind !== loanKind
+      ) {
         setError(t("pages.billing.loanFacilityRequired"));
         return;
       }
@@ -853,6 +883,9 @@ export default function PurchaseInvoiceUploadDialog({
       formData.set("supplierName", selectedLoan.lenderName);
       formData.set("loanFacilityId", selectedLoan.id);
       formData.set("loanSource", selectedLoan.source);
+      if (loanPaymentPurpose) {
+        formData.set("loanPaymentPurpose", loanPaymentPurpose);
+      }
       formData.set("amount", amount.trim());
       formData.set("document", documentFile);
       setPending(true);
@@ -1213,6 +1246,8 @@ export default function PurchaseInvoiceUploadDialog({
                       ? !amount.trim() ||
                         !documentFile ||
                         !loanSource ||
+                        (loanSource === "BANK" && !loanPaymentPurpose) ||
+                        !loanKind ||
                         !loanFacilityId
                       : (showInvoiceFields && !documentFile) ||
                         vendors.length === 0 ||
@@ -1261,36 +1296,12 @@ export default function PurchaseInvoiceUploadDialog({
                       "GOVERNMENT",
                       t("pages.billing.purchaseCategoryGovernment"),
                     ],
+                    ["BANK_LOAN", t("pages.billing.purchaseCategoryBankLoan")],
                     [
                       "PETTY_CASH",
                       t("pages.billing.purchaseCategoryPettyCash"),
                     ],
-                  ] as Array<[PurchaseCategoryChoice, string]>
-                ).map(([value, label]) => {
-                  const active = purchaseCategory === value;
-                  return (
-                    <button
-                      key={value}
-                      type="button"
-                      role="radio"
-                      aria-checked={active}
-                      disabled={busy}
-                      onClick={() => applyPurchaseCategory(value)}
-                      className={cn(
-                        "inline-flex min-h-8 w-full items-center justify-center rounded-xl px-3 py-1.5 text-xs font-semibold tracking-wide transition",
-                        active && outlineChipTones.emeraldInteractive,
-                        !active &&
-                          "border border-border bg-elevated text-muted hover:border-border-strong hover:bg-card-hover hover:text-text"
-                      )}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-                {(
-                  [
                     ["VEHICLE", t("pages.billing.purchaseCategoryVehicle")],
-                    ["BANK_LOAN", t("pages.billing.purchaseCategoryBankLoan")],
                   ] as Array<[PurchaseCategoryChoice, string]>
                 ).map(([value, label]) => {
                   const active = purchaseCategory === value;
@@ -1533,6 +1544,42 @@ export default function PurchaseInvoiceUploadDialog({
               />
             )}
 
+            {isBankLoan ? (
+              <PurchaseLoanFields
+                source={loanSource}
+                kind={loanKind}
+                paymentPurpose={loanPaymentPurpose}
+                facilityId={loanFacilityId}
+                facilities={loanFacilities}
+                onSourceChange={(value) => {
+                  setLoanSource(value);
+                  setLoanPaymentPurpose("");
+                  setLoanKind("");
+                  setLoanFacilityId("");
+                }}
+                onPaymentPurposeChange={(value) => {
+                  setLoanPaymentPurpose(value);
+                  if (value === "INTEREST") {
+                    if (loanKind !== "STANDBY") setLoanFacilityId("");
+                    setLoanKind("STANDBY");
+                  } else if (value === "INSTALLMENT") {
+                    if (loanKind !== "TERM") setLoanFacilityId("");
+                    setLoanKind("TERM");
+                  }
+                }}
+                onKindChange={(value) => {
+                  setLoanKind(value);
+                  setLoanFacilityId("");
+                }}
+                onFacilityChange={(id) => {
+                  setLoanFacilityId(id);
+                  const row = loanFacilities.find((item) => item.id === id);
+                  if (row) setLoanKind(row.kind);
+                }}
+                disabled={busy}
+              />
+            ) : null}
+
             <CompanyBankAccountField
               className="sm:col-span-2"
               accounts={bankAccounts}
@@ -1543,7 +1590,7 @@ export default function PurchaseInvoiceUploadDialog({
               disabled={busy}
             />
 
-            {usesImportFlow ? null : (
+            {usesImportFlow || isBpjsGovernment ? null : (
               <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
                 <label
                   htmlFor="purchase-transfer-fee"
@@ -1616,24 +1663,6 @@ export default function PurchaseInvoiceUploadDialog({
               </div>
             ) : null}
 
-            {isBankLoan ? (
-              <PurchaseLoanFields
-                source={loanSource}
-                facilityId={loanFacilityId}
-                facilities={loanFacilities}
-                onSourceChange={(value) => {
-                  setLoanSource(value);
-                  setLoanFacilityId("");
-                  setAmountTouched(false);
-                }}
-                onFacilityChange={(value) => {
-                  setLoanFacilityId(value);
-                  setAmountTouched(false);
-                }}
-                disabled={busy}
-              />
-            ) : null}
-
             {isGovernment ? (
               <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
                 <label
@@ -1678,20 +1707,179 @@ export default function PurchaseInvoiceUploadDialog({
                   </SelectContent>
                 </Select>
                 <p className={employeeDialogHintClass}>
-                  {t("pages.billing.governmentTaxTypeHint")}
+                  {isBpjsGovernment
+                    ? t("pages.billing.governmentBpjsPaymentHint")
+                    : t("pages.billing.governmentTaxTypeHint")}
                 </p>
               </div>
             ) : null}
 
-            {isPettyCash || !showInvoiceFields ? null : (
+            {isBpjsGovernment ? (
+              <>
+                <div className={employeeDialogFieldClass}>
+                  <label
+                    htmlFor="bpjs-expense-month"
+                    className={employeeDialogLabelClass}
+                  >
+                    {t("pages.billing.governmentBpjsMonth")}
+                    <span className="text-red-400"> *</span>
+                  </label>
+                  <Select
+                    value={String(bpjsMonth) || null}
+                    onValueChange={(value) => {
+                      const next = Number(value);
+                      if (next >= 1 && next <= 12) setBpjsMonth(next);
+                    }}
+                    disabled={busy}
+                  >
+                    <SelectTrigger
+                      id="bpjs-expense-month"
+                      className={cn(employeeSelectTriggerClass, "w-full")}
+                    >
+                      <SelectValue>
+                        {(value) =>
+                          value
+                            ? t(
+                                `pages.progress.months.${value as "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "10" | "11" | "12"}`
+                              )
+                            : t("pages.billing.governmentBpjsPeriod")
+                        }
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="z-[60]">
+                      {([
+                        "1",
+                        "2",
+                        "3",
+                        "4",
+                        "5",
+                        "6",
+                        "7",
+                        "8",
+                        "9",
+                        "10",
+                        "11",
+                        "12",
+                      ] as const).map((month) => (
+                        <SelectItem key={month} value={month}>
+                          {t(`pages.progress.months.${month}`)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className={employeeDialogFieldClass}>
+                  <label
+                    htmlFor="bpjs-expense-year"
+                    className={employeeDialogLabelClass}
+                  >
+                    {t("pages.billing.governmentBpjsYear")}
+                    <span className="text-red-400"> *</span>
+                  </label>
+                  <Input
+                    id="bpjs-expense-year"
+                    type="number"
+                    min={2000}
+                    max={2100}
+                    required
+                    disabled={busy}
+                    value={bpjsYear}
+                    onChange={(event) =>
+                      setBpjsYear(Number(event.target.value))
+                    }
+                    className={employeeInputClass}
+                  />
+                  <p className={employeeDialogHintClass}>
+                    {t("pages.billing.governmentBpjsPeriodHint")}
+                  </p>
+                </div>
+                <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+                  <label htmlFor="purchase-ref" className={employeeDialogLabelClass}>
+                    {t("pages.billing.governmentVirtualAccount")}
+                    <span className="text-red-400"> *</span>
+                  </label>
+                  <Input
+                    id="purchase-ref"
+                    name="invoiceRef"
+                    required
+                    disabled={busy}
+                    value={invoiceRef}
+                    onChange={(event) => setInvoiceRef(event.target.value)}
+                    placeholder={t(
+                      "pages.billing.governmentVirtualAccountPlaceholder"
+                    )}
+                    className={employeeInputClass}
+                  />
+                  <p className={employeeDialogHintClass}>
+                    {t("pages.billing.governmentVirtualAccountHint")}
+                  </p>
+                </div>
+                <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+                  <label
+                    htmlFor="purchase-amount"
+                    className={employeeDialogLabelClass}
+                  >
+                    {t("pages.billing.governmentBpjsAmount")}
+                    <span className="text-red-400"> *</span>
+                  </label>
+                  <Input
+                    id="purchase-amount"
+                    name="amount"
+                    required
+                    disabled={busy}
+                    inputMode="decimal"
+                    value={amount}
+                    onChange={(event) => setAmount(event.target.value)}
+                    placeholder={t("pages.billing.purchaseAmountPlaceholder")}
+                    className={employeeInputClass}
+                  />
+                  <p className={employeeDialogHintClass}>
+                    {t("pages.billing.governmentBpjsAmountHint")}
+                  </p>
+                </div>
+                <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+                  <label
+                    htmlFor="purchase-date"
+                    className={employeeDialogLabelClass}
+                  >
+                    {t("pages.billing.loanPaidDate")}
+                    <span className="text-red-400"> *</span>
+                  </label>
+                  <Input
+                    id="purchase-date"
+                    name="invoiceDate"
+                    type="date"
+                    required
+                    disabled={busy}
+                    value={invoiceDate}
+                    onChange={(event) => setInvoiceDate(event.target.value)}
+                    className={employeeInputClass}
+                  />
+                </div>
+                <div className="sm:col-span-2 space-y-2">
+                  <BillingDocumentFilePick
+                    id="purchase-document"
+                    label={t("pages.billing.governmentBpjsDocument")}
+                    required
+                    fileName={documentFile?.name ?? null}
+                    onPick={handleDocumentPick}
+                    disabled={busy}
+                  />
+                </div>
+              </>
+            ) : null}
+
+            {isPettyCash || !showInvoiceFields || isBpjsGovernment ? null : (
             <div className="sm:col-span-2 space-y-2">
               <BillingDocumentFilePick
                 id="purchase-document"
                 label={
-                  isGovernment
+                  isBpjsGovernment
+                    ? t("pages.billing.governmentBpjsDocument")
+                    : isGovernment
                     ? t("pages.billing.governmentDocument")
                     : isBankLoan
-                      ? t("pages.billing.bankLoanDocument")
+                      ? t("pages.billing.purchasePaymentProof")
                       : isImport
                         ? t("pages.billing.purchaseFactoryInvoice")
                         : t("pages.billing.purchaseDocument")
@@ -1769,10 +1957,15 @@ export default function PurchaseInvoiceUploadDialog({
             </div>
             )}
 
-            {isPettyCash || (!isGovernment && !showInvoiceFields) ? null : (
+            {isPettyCash ||
+            isShareholderLoan ||
+            isBpjsGovernment ||
+            (!isGovernment && !showInvoiceFields) ? null : (
             <div className={employeeDialogFieldClass}>
               <label htmlFor="purchase-ref" className={employeeDialogLabelClass}>
-                {isGovernment
+                {isBpjsGovernment
+                  ? t("pages.billing.governmentVirtualAccount")
+                  : isGovernment
                   ? t("pages.billing.governmentBillingId")
                   : isBankLoan
                     ? t("pages.billing.bankLoanRef")
@@ -1787,7 +1980,9 @@ export default function PurchaseInvoiceUploadDialog({
                 value={invoiceRef}
                 onChange={(event) => setInvoiceRef(event.target.value)}
                 placeholder={
-                  isGovernment
+                  isBpjsGovernment
+                    ? t("pages.billing.governmentVirtualAccountPlaceholder")
+                    : isGovernment
                     ? t("pages.billing.governmentBillingIdPlaceholder")
                     : isBankLoan
                       ? t("pages.billing.bankLoanRefPlaceholder")
@@ -1795,7 +1990,11 @@ export default function PurchaseInvoiceUploadDialog({
                 }
                 className={employeeInputClass}
               />
-              {isGovernment ? (
+              {isBpjsGovernment ? (
+                <p className={employeeDialogHintClass}>
+                  {t("pages.billing.governmentVirtualAccountHint")}
+                </p>
+              ) : isGovernment ? (
                 <p className={employeeDialogHintClass}>
                   {t("pages.billing.governmentBillingIdHint")}
                 </p>
@@ -1807,7 +2006,7 @@ export default function PurchaseInvoiceUploadDialog({
             </div>
             )}
 
-            {isPettyCash || showInvoiceFields ? (
+            {isBpjsGovernment ? null : isPettyCash || showInvoiceFields ? (
             <div
               className={cn(
                 employeeDialogFieldClass,
@@ -1819,9 +2018,11 @@ export default function PurchaseInvoiceUploadDialog({
                 htmlFor="purchase-date"
                 className={employeeDialogLabelClass}
               >
-                {isPettyCash
-                  ? t("pages.billing.purchaseDate")
-                  : t("pages.billing.purchaseInvoiceDate")}
+                {isShareholderLoan || isBpjsGovernment
+                  ? t("pages.billing.loanPaidDate")
+                  : isPettyCash
+                    ? t("pages.billing.purchaseDate")
+                    : t("pages.billing.purchaseInvoiceDate")}
                 <span className="text-red-400"> *</span>
               </label>
               <Input
@@ -2460,7 +2661,7 @@ export default function PurchaseInvoiceUploadDialog({
                   }}
                 />
               </div>
-            ) : (
+            ) : isBpjsGovernment ? null : (
               <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
                 <label
                   htmlFor="purchase-amount"
@@ -2487,7 +2688,6 @@ export default function PurchaseInvoiceUploadDialog({
                   inputMode="decimal"
                   value={amount}
                   onChange={(event) => {
-                    setAmountTouched(true);
                     setAmount(event.target.value);
                   }}
                   placeholder={t("pages.billing.purchaseAmountPlaceholder")}
@@ -2499,7 +2699,15 @@ export default function PurchaseInvoiceUploadDialog({
                   </p>
                 ) : isBankLoan ? (
                   <p className={employeeDialogHintClass}>
-                    {t("pages.billing.bankLoanPaymentAmountHint")}
+                    {loanPaymentPurpose === "PROVISION"
+                      ? t("pages.billing.loanExpenseProvisionHint")
+                      : loanPaymentPurpose === "ADMIN_FEE"
+                        ? t("pages.billing.loanExpenseAdminFeeHint")
+                        : loanKind === "STANDBY"
+                          ? t("pages.billing.loanExpenseStandbyHint")
+                          : loanKind === "TERM"
+                            ? t("pages.billing.loanExpenseTermHint")
+                            : t("pages.billing.bankLoanPaymentAmountHint")}
                   </p>
                 ) : null}
               </div>
@@ -3062,6 +3270,7 @@ export default function PurchaseInvoiceUploadDialog({
               </div>
             ) : null}
 
+            {isBpjsGovernment ? null : (
             <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
               <label
                 htmlFor="purchase-notes"
@@ -3070,12 +3279,14 @@ export default function PurchaseInvoiceUploadDialog({
                 {isGovernment
                   ? t("pages.billing.governmentDescription")
                   : t("pages.billing.purchaseNotes")}
-                {isGovernment ? <span className="text-red-400"> *</span> : null}
+                {isGovernment ? (
+                  <span className="text-red-400"> *</span>
+                ) : null}
               </label>
               <Textarea
                 id="purchase-notes"
                 name="notes"
-                required={isGovernment}
+                required={isGovernment && !isBpjsGovernment}
                 disabled={busy}
                 rows={2}
                 placeholder={
@@ -3086,6 +3297,7 @@ export default function PurchaseInvoiceUploadDialog({
                 className="min-h-[4.5rem] rounded-xl border border-border bg-elevated px-4 py-3 text-sm text-text shadow-none placeholder:text-subtle focus-visible:border-primary/45 focus-visible:ring-2 focus-visible:ring-primary/10"
               />
             </div>
+            )}
 
             {isService ? (
             <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>

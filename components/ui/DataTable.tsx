@@ -624,13 +624,13 @@ export default function DataTable<T>({
                           }
                           className={cn(
                             "align-middle whitespace-normal px-4 py-4",
+                            // Visible overflow of nowrap chips inflates
+                            // the scrollport even when <col> widths fit.
+                            "overflow-hidden",
                             column.className,
                             columnTrailingPadClass(column, isLastColumn),
                             // Wins over column.className so chips stay centered.
-                            columnAlignClass(cellAlign),
-                            // Visible overflow of nowrap chips inflates
-                            // the scrollport even when <col> widths fit.
-                            "overflow-hidden"
+                            columnAlignClass(cellAlign)
                           )}
                         >
                           {column.reorderColumn ? (

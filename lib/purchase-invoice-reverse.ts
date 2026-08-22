@@ -144,6 +144,10 @@ export async function unwindAndReversePurchaseInvoice(
     data: { reversedAt: new Date() },
   });
 
+  await tx.bpjsRemittance.deleteMany({
+    where: { purchaseInvoiceId: invoice.id },
+  });
+
   if (invoice.pettyCashEntry && invoice.pettyCashEntry.status !== "VOIDED") {
     await tx.pettyCashEntry.update({
       where: { id: invoice.pettyCashEntry.id },

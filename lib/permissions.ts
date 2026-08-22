@@ -50,6 +50,8 @@ import {
 
   Landmark,
 
+  ShieldPlus,
+
 } from "lucide-react";
 
 import type { EmployeeType, Placement, UserRole } from "@prisma/client";
@@ -118,6 +120,8 @@ export const MODULES = [
   "purchaseInvoices",
 
   "loans",
+
+  "bpjs",
 
   "sales",
 
@@ -237,6 +241,7 @@ export const EXTRA_MENU_NAV_KEYS = [
   "vat",
   "pettyCash",
   "loans",
+  "bpjs",
 ] as const;
 
 /** Each Finance page is its own module — no parent group toggle. */
@@ -245,6 +250,7 @@ export const FINANCE_MODULE_KEYS = [
   "reconciliation",
   "purchaseInvoices",
   "loans",
+  "bpjs",
   "sales",
   "taxInvoices",
   "vendorPayments",
@@ -366,10 +372,17 @@ export const FINANCE_MENU_ITEMS: MenuItem[] = [
   },
   {
     icon: Landmark,
-    label: "Loans",
+    label: "Loan",
     href: "/billing/loans",
     module: "loans",
     navKey: "loans",
+  },
+  {
+    icon: ShieldPlus,
+    label: "BPJS",
+    href: "/billing/bpjs",
+    module: "bpjs",
+    navKey: "bpjs",
   },
   {
     icon: CircleDollarSign,
@@ -455,6 +468,9 @@ export function resolveModuleOverride(
     return overrides.purchaseInvoices!;
   }
   if (module === "loans" && !("loans" in overrides) && "purchaseInvoices" in overrides) {
+    return overrides.purchaseInvoices!;
+  }
+  if (module === "bpjs" && !("bpjs" in overrides) && "purchaseInvoices" in overrides) {
     return overrides.purchaseInvoices!;
   }
   if (module in overrides) return overrides[module]!;
@@ -594,6 +610,14 @@ export function getEmployeeModuleOverrides(
       !("loans" in rawAccess)
     ) {
       stored.loans = stored.purchaseInvoices === true;
+    }
+    if (
+      rawAccess &&
+      typeof rawAccess === "object" &&
+      !Array.isArray(rawAccess) &&
+      !("bpjs" in rawAccess)
+    ) {
+      stored.bpjs = stored.purchaseInvoices === true;
     }
     return stored;
   }
@@ -859,6 +883,7 @@ export const PORTAL_BLOCKED_MODULES: ModuleKey[] = [
   "pettyCash",
   "purchaseInvoices",
   "loans",
+  "bpjs",
   "sales",
   "taxInvoices",
   "thr",
@@ -1087,6 +1112,8 @@ export const ROUTE_MODULE_MAP: Record<string, ModuleKey> = {
   "/billing/purchase-invoices": "purchaseInvoices",
 
   "/billing/loans": "loans",
+
+  "/billing/bpjs": "bpjs",
 
   "/billing/sales": "sales",
 

@@ -34,9 +34,14 @@ import { Textarea } from "@/components/ui/textarea";
 import YesNoChoiceCards, {
   type YesNoChoice,
 } from "@/components/ui/YesNoChoiceCards";
-import type { BankLoanKind } from "@/lib/bank-loan";
+import {
+  termMonthlyInstallment,
+  type BankLoanKind,
+  type LoanInterestBasis,
+} from "@/lib/bank-loan";
 import type { LoanSource } from "@/lib/loan-facility";
 import { useT } from "@/lib/i18n/use-t";
+import { formatContractPrice } from "@/lib/project-billing";
 import { todayDateInput } from "@/lib/project-contract";
 import { cn } from "@/lib/utils";
 import { outlineChipTones } from "@/components/ui/StatusBadge";
@@ -61,6 +66,9 @@ export default function LoanFacilityCreateDialog({
   const [lenderName, setLenderName] = useState("");
   const [vendorId, setVendorId] = useState("");
   const [chargesInterest, setChargesInterest] = useState<YesNoChoice>("Yes");
+  const [interestRateBasis, setInterestRateBasis] = useState<
+    LoanInterestBasis | ""
+  >("");
   const [annualRatePercent, setAnnualRatePercent] = useState("");
   const [facilityLimit, setFacilityLimit] = useState("");
   const [principal, setPrincipal] = useState("");
@@ -76,8 +84,26 @@ export default function LoanFacilityCreateDialog({
 
   const isBank = source === "BANK";
   const isShareholder = source === "SHAREHOLDER";
-  const showRate = isBank || (isShareholder && chargesInterest === "Yes");
-  const effectiveKind = isShareholder ? "STANDBY" : kind;
+  const effectiveKind = kind;
+  const requiresRate =
+    Boolean(effectiveKind) &&
+    (isBank || (isShareholder && chargesInterest === "Yes"));
+  const showRate = requiresRate;
+  const principalNumber = Number(principal.replace(/[^\d]/g, "")) || 0;
+  const tenorNumber = Number(tenorMonths) || 0;
+  const rateNumber = Number(annualRatePercent.replace(",", ".")) || 0;
+  const installmentPreview =
+    effectiveKind === "TERM" &&
+    principalNumber > 0 &&
+    tenorNumber > 0 &&
+    (showRate ? Boolean(interestRateBasis) : true)
+      ? termMonthlyInstallment(
+          principalNumber,
+          showRate ? rateNumber : 0,
+          tenorNumber,
+          interestRateBasis || "ANNUAL"
+        )
+      : 0;
 
   function reset() {
     setError(null);
@@ -87,6 +113,7 @@ export default function LoanFacilityCreateDialog({
     setLenderName("");
     setVendorId("");
     setChargesInterest("Yes");
+    setInterestRateBasis("");
     setAnnualRatePercent("");
     setFacilityLimit("");
     setPrincipal("");
@@ -105,14 +132,31 @@ export default function LoanFacilityCreateDialog({
       setError(t("pages.billing.loanSourceRequired"));
       return;
     }
-    if (isBank && !kind) {
+    if (!kind) {
       setError(t("pages.billing.bankLoanKindRequired"));
+      return;
+    }
+    if (effectiveKind === "STANDBY" && !facilityLimit.trim()) {
+      setError(t("pages.billing.bankLoanFacilityLimitRequired"));
+      return;
+    }
+    if (requiresRate && !interestRateBasis) {
+      setError(t("pages.billing.loanInterestBasisRequired"));
+      return;
+    }
+    if (requiresRate && !annualRatePercent.trim()) {
+      setError(
+        interestRateBasis === "MONTHLY"
+          ? t("pages.billing.loanMonthlyRateRequired")
+          : t("pages.billing.bankLoanAnnualRateRequired")
+      );
       return;
     }
     const formData = new FormData(event.currentTarget);
     formData.set("loanSource", source);
     formData.set("bankLoanKind", effectiveKind);
     formData.set("chargesInterest", chargesInterest === "Yes" ? "true" : "false");
+    if (interestRateBasis) formData.set("interestRateBasis", interestRateBasis);
     formData.set("recordInitialDraw", recordInitialDraw === "Yes" ? "true" : "false");
     formData.set("vendorId", vendorId);
     formData.set("bankAccountId", bankAccountId);
@@ -155,7 +199,14 @@ export default function LoanFacilityCreateDialog({
             <EmployeePrimaryButton
               type="submit"
               form="loan-facility-create-form"
-              disabled={pending || !source || (isBank && !kind)}
+              disabled={
+                pending ||
+                !source ||
+                !kind ||
+                (requiresRate &&
+                  (!interestRateBasis || !annualRatePercent.trim())) ||
+                (effectiveKind === "STANDBY" && !facilityLimit.trim())
+              }
             >
               {pending ? t("pages.loans.saving") : t("pages.loans.registerConfirm")}
             </EmployeePrimaryButton>
@@ -203,7 +254,6 @@ export default function LoanFacilityCreateDialog({
                     disabled={pending}
                     onClick={() => {
                       setSource(value);
-                      if (value === "SHAREHOLDER") setKind("STANDBY");
                     }}
                     className={cn(
                       "inline-flex min-h-8 w-full items-center justify-center rounded-xl px-3 py-1.5 text-xs font-semibold tracking-wide transition",
@@ -218,7 +268,7 @@ export default function LoanFacilityCreateDialog({
               </div>
             </div>
 
-            {isBank ? (
+            {source ? (
               <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
                 <label id="loan-create-kind" className={employeeDialogLabelClass}>
                   {t("pages.billing.bankLoanKind")}
@@ -361,13 +411,14 @@ export default function LoanFacilityCreateDialog({
               </div>
             ) : null}
 
-            {effectiveKind === "STANDBY" && isBank ? (
+            {effectiveKind === "STANDBY" ? (
               <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
                 <label
                   htmlFor="loan-limit"
                   className={employeeDialogLabelClass}
                 >
                   {t("pages.billing.bankLoanFacilityLimit")}
+                  <span className="text-red-400"> *</span>
                 </label>
                 <MoneyInput
                   id="loan-limit"
@@ -423,10 +474,57 @@ export default function LoanFacilityCreateDialog({
               </>
             ) : null}
 
+            {isBank || (isShareholder && chargesInterest === "Yes") ? (
+              <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+                <label
+                  id="loan-interest-basis"
+                  className={employeeDialogLabelClass}
+                >
+                  {t("pages.billing.loanInterestBasis")}
+                  <span className="text-red-400"> *</span>
+                </label>
+                <div
+                  role="radiogroup"
+                  aria-labelledby="loan-interest-basis"
+                  className="mt-2 grid grid-cols-2 gap-2"
+                >
+                  {(
+                    [
+                      ["MONTHLY", t("pages.billing.loanInterestBasisMonthly")],
+                      ["ANNUAL", t("pages.billing.loanInterestBasisAnnual")],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      role="radio"
+                      aria-checked={interestRateBasis === value}
+                      disabled={pending}
+                      onClick={() => setInterestRateBasis(value)}
+                      className={cn(
+                        "inline-flex min-h-8 w-full items-center justify-center rounded-xl px-3 py-1.5 text-xs font-semibold tracking-wide transition",
+                        interestRateBasis === value &&
+                          outlineChipTones.emeraldInteractive,
+                        interestRateBasis !== value &&
+                          "border border-border bg-elevated text-muted hover:border-border-strong hover:bg-card-hover hover:text-text"
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p className={employeeDialogHintClass}>
+                  {t("pages.billing.loanInterestBasisHint")}
+                </p>
+              </div>
+            ) : null}
+
             {showRate ? (
               <div className={employeeDialogFieldClass}>
                 <label htmlFor="loan-rate" className={employeeDialogLabelClass}>
-                  {t("pages.billing.bankLoanAnnualRate")}
+                  {interestRateBasis === "MONTHLY"
+                    ? t("pages.billing.loanMonthlyRate")
+                    : t("pages.billing.bankLoanAnnualRate")}
                   <span className="text-red-400"> *</span>
                 </label>
                 <Input
@@ -436,9 +534,28 @@ export default function LoanFacilityCreateDialog({
                   disabled={pending}
                   value={annualRatePercent}
                   onChange={(event) => setAnnualRatePercent(event.target.value)}
-                  placeholder="12"
+                  placeholder={interestRateBasis === "MONTHLY" ? "1" : "12"}
                   className={employeeInputClass}
                 />
+                <p className={employeeDialogHintClass}>
+                  {interestRateBasis === "MONTHLY"
+                    ? t("pages.billing.loanMonthlyRateHint")
+                    : t("pages.billing.bankLoanAnnualRateHint")}
+                </p>
+              </div>
+            ) : null}
+
+            {effectiveKind === "TERM" && installmentPreview > 0 ? (
+              <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+                <p className="text-sm text-text">
+                  {t("pages.billing.loanPaymentThisMonthShouldBe")}:{" "}
+                  <span className="font-semibold tabular-nums">
+                    {formatContractPrice(installmentPreview)}
+                  </span>
+                </p>
+                <p className={employeeDialogHintClass}>
+                  {t("pages.billing.bankLoanMonthlyInstallment")}
+                </p>
               </div>
             ) : null}
 

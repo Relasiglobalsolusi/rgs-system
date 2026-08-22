@@ -8,7 +8,7 @@ const globalForPrisma = globalThis as unknown as {
 function createPrismaClient() {
   return new PrismaClient({
     log:
-      process.env.NODE_ENV === "development"
+      process.env.PRISMA_LOG_QUERIES === "1"
         ? ["query", "error", "warn"]
         : ["error"],
   });

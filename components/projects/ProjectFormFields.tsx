@@ -60,6 +60,7 @@ import type { ProjectServiceAreaValue } from "@/lib/service-area";
 import {
   DEFAULT_CONTRACT_DURATION_MONTHS,
   DEFAULT_PROJECT_DURATION_DAYS,
+  isContractCycleSubCategory,
   isContractSubCategory,
   todayDateInput,
   usesMonthDurationTimeline,
@@ -457,7 +458,7 @@ export default function ProjectFormFields({
         value={subcategoryCatalogId}
       />
       <input type="hidden" name={nameOf("billingMode")} value={billingMode} />
-      {isContract || subCategory === "SECURITY" ? (
+      {isContractCycleSubCategory(subCategory) ? (
         <input
           type="hidden"
           name={nameOf("billingPeriodBasis")}
@@ -720,7 +721,7 @@ export default function ProjectFormFields({
         />
       ) : null}
 
-      {isContract || subCategory === "SECURITY" ? (
+      {isContractCycleSubCategory(subCategory) ? (
         <BillingPeriodBasisFields
           billingPeriodBasis={billingPeriodBasis}
           onBillingPeriodBasisChange={setBillingPeriodBasis}

@@ -604,7 +604,28 @@ export default async function PurchaseInvoiceDetailPage({
                   </td>
                 </tr>
               ) : null}
-              {invoice.loanInterestAmount != null ? (
+              {invoice.loanProvisionAmount != null ? (
+                <tr className="border-b border-border">
+                  <th scope="row" className={metaLabelClassName}>
+                    {t("pages.billing.loanProvisionPaid")}
+                  </th>
+                  <td className={`${metaValueClassName} tabular-nums`}>
+                    {money(decimalToNumber(invoice.loanProvisionAmount))}
+                  </td>
+                </tr>
+              ) : null}
+              {invoice.loanAdminFeeAmount != null ? (
+                <tr className="border-b border-border">
+                  <th scope="row" className={metaLabelClassName}>
+                    {t("pages.billing.loanAdminFeePaid")}
+                  </th>
+                  <td className={`${metaValueClassName} tabular-nums`}>
+                    {money(decimalToNumber(invoice.loanAdminFeeAmount))}
+                  </td>
+                </tr>
+              ) : null}
+              {invoice.loanInterestAmount != null &&
+              (decimalToNumber(invoice.loanInterestAmount) ?? 0) > 0 ? (
                 <tr className="border-b border-border">
                   <th scope="row" className={metaLabelClassName}>
                     {t("pages.billing.loanInterestPaid")}
@@ -614,7 +635,8 @@ export default async function PurchaseInvoiceDetailPage({
                   </td>
                 </tr>
               ) : null}
-              {invoice.loanPrincipalAmount != null ? (
+              {invoice.loanPrincipalAmount != null &&
+              (decimalToNumber(invoice.loanPrincipalAmount) ?? 0) > 0 ? (
                 <tr className="border-b border-border">
                   <th scope="row" className={metaLabelClassName}>
                     {t("pages.billing.loanPrincipalReturned")}

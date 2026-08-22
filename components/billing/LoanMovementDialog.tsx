@@ -27,13 +27,15 @@ import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { Textarea } from "@/components/ui/textarea";
+import { formatDisplayDate } from "@/lib/format-date";
 import type { LoanFacilitySnapshot } from "@/lib/loan-facility-query";
+import { closingStandbySlicePreview } from "@/lib/loan-interest";
 import { useT } from "@/lib/i18n/use-t";
 import { formatContractPrice } from "@/lib/project-billing";
 import { todayDateInput } from "@/lib/project-contract";
 import { cn } from "@/lib/utils";
 
-type Mode = "DRAW" | "REPAYMENT";
+type Mode = "DRAW" | "RETURN_PRINCIPAL";
 
 export default function LoanMovementDialog({
   mode,
@@ -50,9 +52,7 @@ export default function LoanMovementDialog({
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [amount, setAmount] = useState(
-    isDraw ? "" : facility.suggestedPayment > 0 ? String(facility.suggestedPayment) : ""
-  );
+  const [amount, setAmount] = useState("");
   const [movementDate, setMovementDate] = useState(todayDateInput);
   const [invoiceRef, setInvoiceRef] = useState("");
   const [notes, setNotes] = useState("");
@@ -61,16 +61,26 @@ export default function LoanMovementDialog({
     facility.bankAccountId ?? bankAccounts[0]?.id ?? ""
   );
   const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const closingSlice =
+    mode === "RETURN_PRINCIPAL" && facility.kind === "STANDBY"
+      ? closingStandbySlicePreview({
+          sliceFrom:
+            facility.usageSlices.find((row) => row.open)?.from ??
+            facility.startDate,
+          returnDate: /^\d{4}-\d{2}-\d{2}$/.test(movementDate)
+            ? movementDate
+            : facility.startDate,
+          outstanding: facility.outstanding,
+          ratePercent: facility.annualRatePercent,
+          basis: facility.interestRateBasis,
+          chargesInterest: facility.chargesInterest,
+          dayCountYear: facility.dayCountYear,
+        })
+      : null;
 
   function reset() {
     setError(null);
-    setAmount(
-      isDraw
-        ? ""
-        : facility.suggestedPayment > 0
-          ? String(facility.suggestedPayment)
-          : ""
-    );
+    setAmount("");
     setMovementDate(todayDateInput());
     setInvoiceRef("");
     setNotes("");
@@ -89,6 +99,9 @@ export default function LoanMovementDialog({
     const formData = new FormData(event.currentTarget);
     formData.set("facilityId", facility.id);
     formData.set("bankAccountId", bankAccountId);
+    if (mode === "RETURN_PRINCIPAL") {
+      formData.set("standbyPaymentKind", "PRINCIPAL");
+    }
     if (documentFile) formData.set("document", documentFile);
     setPending(true);
     try {
@@ -120,7 +133,9 @@ export default function LoanMovementDialog({
       <DialogTrigger asChild>
         <Button type="button" variant="permissionsBadge" size="badgeFlex">
           <Icon className="h-3.5 w-3.5" aria-hidden />
-          {isDraw ? t("pages.loans.recordDraw") : t("pages.loans.recordReturn")}
+          {isDraw
+            ? t("pages.loans.recordDraw")
+            : t("pages.loans.recordReturn")}
         </Button>
       </DialogTrigger>
       <EmployeeDialogShell
@@ -176,13 +191,29 @@ export default function LoanMovementDialog({
                   {formatContractPrice(facility.outstanding)}
                 </span>
               </p>
-              {!isDraw && facility.suggestedPayment > 0 ? (
-                <p className={cn(employeeDialogHintClass, "mt-1")}>
-                  {t("pages.billing.loanPaymentSplit", {
-                    interest: formatContractPrice(facility.interestDue),
-                    principal: formatContractPrice(facility.principalDue),
-                  })}
-                </p>
+              {closingSlice ? (
+                <div className="mt-2">
+                  <p className="text-sm text-text">
+                    {t("pages.loans.recordReturnSliceInterest")}:{" "}
+                    <span className="font-semibold tabular-nums">
+                      {formatContractPrice(closingSlice.interest)}
+                    </span>
+                  </p>
+                  <p className={cn(employeeDialogHintClass, "mt-1")}>
+                    {t("pages.loans.recordReturnSliceRange", {
+                      from: formatDisplayDate(closingSlice.from, {
+                        timeZone: "UTC",
+                      }),
+                      to: formatDisplayDate(closingSlice.to, {
+                        timeZone: "UTC",
+                      }),
+                      days: closingSlice.days,
+                    })}
+                  </p>
+                  <p className={cn(employeeDialogHintClass, "mt-1")}>
+                    {t("pages.loans.recordReturnSliceHint")}
+                  </p>
+                </div>
               ) : null}
             </div>
 
@@ -193,7 +224,7 @@ export default function LoanMovementDialog({
               >
                 {isDraw
                   ? t("pages.billing.bankLoanDrawnAmount")
-                  : t("pages.billing.loanSuggestedPayment")}
+                  : t("pages.billing.loanPrincipalReturned")}
                 <span className="text-red-400"> *</span>
               </label>
               <MoneyInput
@@ -226,7 +257,7 @@ export default function LoanMovementDialog({
               />
             </div>
 
-            {!isDraw ? (
+            {!isDraw && facility.source !== "SHAREHOLDER" ? (
               <div className={employeeDialogFieldClass}>
                 <label
                   htmlFor={`loan-ref-${mode}`}

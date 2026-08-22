@@ -77,6 +77,12 @@ enum ThrPaymentStatus {
   PAID
 }
 
+/// BPJS Kesehatan vs Ketenagakerjaan remittance line.
+enum BpjsProgram {
+  KESEHATAN
+  KETENAGAKERJAAN
+}
+
 /// Inventory stock ledger entry types.
 enum InventoryMovementType {
   PURCHASE
@@ -332,6 +338,12 @@ enum LoanMovementKind {
   REPAYMENT
 }
 
+/// How the stored interest percent is quoted. Monthly 1 = 1% this month. Annual 12 = 1% this month.
+enum LoanInterestBasis {
+  MONTHLY
+  ANNUAL
+}
+
 /// What a government expense is settling (DJP / other state bills).
 enum GovernmentTaxKind {
   /// Monthly Value Added Tax payment (PPN Kurang Bayar).
@@ -352,6 +364,10 @@ enum GovernmentTaxKind {
   STAMP_DUTY
   /// Land and Building Tax (PBB).
   PBB
+  /// BPJS Kesehatan remittance (virtual account).
+  BPJS_KESEHATAN
+  /// BPJS Ketenagakerjaan remittance (virtual account).
+  BPJS_KETENAGAKERJAAN
   OTHER
 }
 
@@ -495,6 +511,7 @@ model Company {
   operationsTeams     OperationsTeam[]
   pettyCashEntries    PettyCashEntry[]
   loanFacilities      LoanFacility[]
+  bpjsRemittances     BpjsRemittance[]
   projectServiceAreas ProjectServiceAreaCatalog[]
 
   createdAt DateTime @default(now())
@@ -789,6 +806,7 @@ model User {
   createdPettyCashEntries   PettyCashEntry[] @relation("PettyCashEntryCreator")
   createdLoanFacilities     LoanFacility[]   @relation("LoanFacilityCreator")
   createdLoanMovements      LoanMovement[]   @relation("LoanMovementCreator")
+  createdBpjsRemittances    BpjsRemittance[] @relation("BpjsRemittanceCreator")
   assignedDoubleShifts      DoubleShiftAssignment[] @relation("DoubleShiftAssignedBy")
   createdFactoryReturns     EquipmentFactoryReturn[] @relation("FactoryReturnCreator")
   closedFactoryReturns      EquipmentFactoryReturn[] @relation("FactoryReturnCloser")
@@ -1182,6 +1200,8 @@ model PurchaseInvoice {
   invoiceRef   String
   /// Set when purchaseCategory = GOVERNMENT.
   governmentTaxKind GovernmentTaxKind?
+  /// P&L slice when cash is bigger than the company cost (BPJS VA includes employee holding).
+  governmentOperatingAmount Decimal? @db.Decimal(14, 2)
   invoiceDate  DateTime @db.Date
   amount       Decimal  @db.Decimal(14, 2)
   /// Stored under /uploads/purchase-invoices.
@@ -1331,6 +1351,7 @@ model PurchaseInvoice {
   /// Standby facility ceiling (unused portion does not accrue interest).
   bankLoanFacilityLimit Decimal? @db.Decimal(14, 2)
   bankLoanAnnualRatePercent Decimal? @db.Decimal(6, 3)
+  bankLoanInterestRateBasis LoanInterestBasis?
   bankLoanTenorMonths Int?
   /// Computed anuitas installment for a term loan (reference, not the cash posting).
   bankLoanMonthlyInstallment Decimal? @db.Decimal(14, 2)
@@ -1342,6 +1363,14 @@ model PurchaseInvoice {
   /// Principal portion of this loan repayment. Interest is loanInterestAmount.
   loanPrincipalAmount Decimal? @db.Decimal(14, 2)
   loanInterestAmount  Decimal? @db.Decimal(14, 2)
+  /// Jakarta calendar month this unpaid/paid interest bill covers, e.g. 2026-06.
+  loanInterestPeriod String?
+  /// Early settlement penalty (denda pelunasan dipercepat). Expense, not principal.
+  loanPenaltyAmount Decimal? @db.Decimal(14, 2)
+  /// Bank admin / other fee. Expense, not principal or interest.
+  loanAdminFeeAmount Decimal? @db.Decimal(14, 2)
+  /// One-time bank provision (provisi). Expense, not principal or interest.
+  loanProvisionAmount Decimal? @db.Decimal(14, 2)
   loanMovements  LoanMovement[]
 
   /// Number plate when this expense is a vehicle. Also used as the vehicle asset code.
@@ -1369,6 +1398,7 @@ model PurchaseInvoice {
 
   lines PurchaseInvoiceLine[]
   pettyCashEntry PettyCashEntry?
+  bpjsRemittances BpjsRemittance[]
 
   reversedAt DateTime?
   reversedById String?
@@ -1381,6 +1411,7 @@ model PurchaseInvoice {
   @@index([companyId, invoiceDate])
   @@index([companyId, paidAt])
   @@index([loanFacilityId])
+  @@index([loanFacilityId, loanInterestPeriod])
   @@index([vendorId])
   @@index([taxInvoiceSerial])
   @@index([bankAccountId])
@@ -1412,7 +1443,11 @@ model LoanFacility {
   facilityLimit Decimal? @db.Decimal(14, 2)
   principal     Decimal? @db.Decimal(14, 2)
   chargesInterest Boolean @default(true)
+  interestRateBasis LoanInterestBasis @default(ANNUAL)
+  /// Quoted percent. Monthly 1 = 1% per month. Annual 12 = 12% per year.
   annualRatePercent Decimal? @db.Decimal(6, 3)
+  /// Standby Actual/360 (Mandiri/BNI default) or Actual/365.
+  dayCountYear Int @default(360)
   tenorMonths Int?
   monthlyInstallment Decimal? @db.Decimal(14, 2)
   startDate DateTime @db.Date
@@ -1607,6 +1642,8 @@ model PettyCashEntry {
   status PettyCashEntryStatus @default(POSTED)
   /// Always a positive IDR amount.
   amount Decimal @db.Decimal(14, 2)
+  /// Legacy OCR amount. Kept so local db push never drops existing rows.
+  extractedAmount Decimal? @db.Decimal(14, 2)
   entryDate DateTime @db.Date
   description String
 
@@ -2457,6 +2494,34 @@ model ThrPayment {
 
   @@unique([employeeId, year])
   @@index([companyId, year])
+}
+
+/// Money remitted to BPJS for a contribution month (employee holding + company share).
+model BpjsRemittance {
+  id        String @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  year    Int
+  month   Int
+  program BpjsProgram
+  amount  Decimal     @db.Decimal(14, 2)
+  paidAt  DateTime    @db.Date
+  reference String?
+  notes     String?
+
+  createdById String?
+  createdBy   User?   @relation("BpjsRemittanceCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  purchaseInvoiceId String?
+  purchaseInvoice   PurchaseInvoice? @relation(fields: [purchaseInvoiceId], references: [id], onDelete: SetNull)
+  /// Company-share portion of this remittance. Employee holding is not P&L.
+  companyShareAmount Decimal? @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now())
+
+  @@index([companyId, year, month, program])
+  @@index([purchaseInvoiceId])
 }
 
 model AuditLog {

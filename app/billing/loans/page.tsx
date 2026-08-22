@@ -1,12 +1,11 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import LoanFacilityCreateDialog from "@/components/billing/LoanFacilityCreateDialog";
+import LoanFacilityTable from "@/components/billing/LoanFacilityTable";
 import AppShell from "@/components/layout/AppShell";
 import PageIntro from "@/components/i18n/PageIntro";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
-import StatusBadge from "@/components/ui/StatusBadge";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import { listCompanyBankAccountOptions } from "@/lib/company-bank-accounts";
 import { getServerLocale } from "@/lib/i18n/locale";
@@ -35,10 +34,13 @@ export default async function LoansPage() {
     listCompanyBankAccountOptions(session.user.companyId),
   ]);
 
-  const outstanding = facilities.reduce((sum, row) => sum + row.outstanding, 0);
-  const nextPayment = facilities
+  const outstanding = facilities
     .filter((row) => row.status === "ACTIVE")
-    .reduce((sum, row) => sum + row.suggestedPayment, 0);
+    .reduce((sum, row) => sum + row.outstanding, 0);
+  const interestPaidThisMonth = facilities.reduce(
+    (sum, row) => sum + row.interestPaidThisMonth,
+    0
+  );
 
   return (
     <AppShell
@@ -59,15 +61,14 @@ export default async function LoansPage() {
       <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <DirectoryStatCard
           compact
-          title={t("pages.loans.outstanding")}
+          title={t("pages.loans.outstandingPrincipal")}
           value={formatContractPrice(outstanding)}
           accent={outstanding > 0 ? "warning" : "muted"}
         />
         <DirectoryStatCard
           compact
-          title={t("pages.loans.nextPayment")}
-          value={formatContractPrice(nextPayment)}
-          accent="info"
+          title={t("pages.loans.interestPaidThisMonth")}
+          value={formatContractPrice(interestPaidThisMonth)}
         />
       </div>
 
@@ -79,67 +80,18 @@ export default async function LoansPage() {
           />
         </SectionCard>
       ) : (
-        <SectionCard className="overflow-x-auto p-0">
-          <table className="min-w-full text-left text-sm">
-            <thead className="border-b border-border bg-elevated text-xs uppercase tracking-wide text-muted">
-              <tr>
-                <th className="px-4 py-3 font-semibold">
-                  {t("pages.loans.columns.name")}
-                </th>
-                <th className="px-4 py-3 font-semibold">
-                  {t("pages.loans.columns.source")}
-                </th>
-                <th className="px-4 py-3 font-semibold">
-                  {t("pages.loans.columns.lender")}
-                </th>
-                <th className="px-4 py-3 font-semibold">
-                  {t("pages.loans.columns.outstanding")}
-                </th>
-                <th className="px-4 py-3 font-semibold">
-                  {t("pages.loans.columns.next")}
-                </th>
-                <th className="px-4 py-3 font-semibold">
-                  {t("pages.loans.columns.status")}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {facilities.map((row) => (
-                <tr key={row.id} className="border-b border-border last:border-0">
-                  <td className="px-4 py-3">
-                    <Link
-                      href={`/billing/loans/${row.id}`}
-                      className="font-medium text-primary hover:underline"
-                    >
-                      {row.name}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-text">
-                    {row.source === "SHAREHOLDER"
-                      ? t("pages.billing.loanSourceShareholder")
-                      : t("pages.billing.loanSourceBank")}
-                  </td>
-                  <td className="px-4 py-3 text-text">{row.lenderName}</td>
-                  <td className="px-4 py-3 tabular-nums">
-                    {formatContractPrice(row.outstanding)}
-                  </td>
-                  <td className="px-4 py-3 tabular-nums">
-                    {formatContractPrice(row.suggestedPayment)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge
-                      status={row.status === "ACTIVE" ? "active" : "inactive"}
-                    >
-                      {row.status === "ACTIVE"
-                        ? t("pages.loans.statusActive")
-                        : t("pages.loans.statusClosed")}
-                    </StatusBadge>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </SectionCard>
+        <LoanFacilityTable
+          rows={facilities.map((row) => ({
+            id: row.id,
+            name: row.name,
+            source: row.source,
+            kind: row.kind,
+            lenderName: row.lenderName,
+            outstanding: row.outstanding,
+            suggestedPayment: row.suggestedPayment,
+            status: row.status,
+          }))}
+        />
       )}
     </AppShell>
   );
