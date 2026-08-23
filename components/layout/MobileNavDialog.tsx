@@ -37,7 +37,11 @@ export default function MobileNavDialog({
 
   function openRearrange() {
     setOpen(false);
-    setRearrangeOpen(true);
+    // Closing the drawer and opening Rearrange in the same tick
+    // dismisses the second dialog on Base UI. Wait for the close animation.
+    window.setTimeout(() => {
+      setRearrangeOpen(true);
+    }, 180);
   }
 
   const initials = session?.user?.name
