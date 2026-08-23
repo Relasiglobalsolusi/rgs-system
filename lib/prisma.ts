@@ -19,7 +19,8 @@ function hasCurrentModels(client: PrismaClient | undefined): client is PrismaCli
     client &&
       client.pettyCashEntry &&
       client.projectServiceAreaCatalog &&
-      client.projectSubcategoryCatalog
+      client.projectSubcategoryCatalog &&
+      client.bpjsRemittance
   );
 }
 
