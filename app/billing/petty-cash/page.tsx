@@ -9,6 +9,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import FinanceRecordRow, {
   financeListStatusChipClassName,
   financeListTypeChipClassName,
+  financeRecordListClassName,
 } from "@/components/ui/FinanceRecordRow";
 import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge, { outlineChipTones } from "@/components/ui/StatusBadge";
@@ -196,7 +197,7 @@ export default async function PettyCashPage() {
           />
         </SectionCard>
       ) : (
-        <div className="flex min-w-0 flex-col gap-2">
+        <div className={financeRecordListClassName}>
           {entries.map((entry) => (
             <FinanceRecordRow
               key={entry.id}

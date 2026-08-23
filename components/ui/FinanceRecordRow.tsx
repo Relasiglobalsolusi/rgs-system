@@ -4,22 +4,24 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 /**
- * Shared finance / directory card row.
+ * Shared finance card row.
  *
  * type chip | title | status chip | amount
  *
- * One CSS grid so every row’s chips line up in the same vertical columns.
- * Column gap is equal (type↔title === status↔amount). Do not cluster
- * status + amount in a flex pair.
+ * Tracks are fixed (except the title) so every card uses the same columns.
+ * Status chips fill that column and center their label — do not size the
+ * chip to the word (PAID vs OVERDUE) or pair status + amount in a flex.
  */
+export const financeRecordListClassName = "flex min-w-0 flex-col gap-2";
+
 export const financeRecordRowClassName =
-  "grid min-w-0 grid-cols-[minmax(4.5rem,max-content)_minmax(0,1fr)_minmax(5.25rem,5.75rem)_minmax(5.5rem,auto)] items-center gap-x-3 gap-y-1 px-3.5 py-2.5 md:gap-x-10 md:px-4 md:py-2";
+  "grid min-w-0 grid-cols-[4.5rem_minmax(0,1fr)_5.25rem_5.75rem] items-center gap-x-2 px-3 py-2.5 md:grid-cols-[6.25rem_minmax(0,1fr)_6.25rem_7.5rem] md:gap-x-8 md:px-4 md:py-2";
 
 export const financeListTypeChipClassName =
-  "inline-flex h-7 min-h-7 w-auto min-w-0 items-center justify-center whitespace-nowrap rounded-md border px-2 text-center text-[0.625rem] font-semibold uppercase leading-none tracking-[0.04em]";
+  "inline-flex min-h-7 w-full min-w-0 items-center justify-center whitespace-normal rounded-md border px-1 py-1 text-center text-[0.5625rem] font-semibold uppercase leading-[1.1] tracking-[0.04em] md:min-h-7 md:px-2 md:text-[0.625rem]";
 
 export const financeListStatusChipClassName =
-  "inline-flex h-8 max-h-8 min-h-8 w-auto min-w-[4.75rem] items-center justify-center px-2.5 py-0 text-center text-[0.6875rem] leading-none";
+  "box-border inline-flex h-8 max-h-8 min-h-8 w-full min-w-0 max-w-full items-center justify-center px-1 py-0 text-center text-[0.625rem] leading-none md:px-2 md:text-[0.6875rem]";
 
 export function FinanceRecordTypeCell({
   children,
@@ -31,7 +33,7 @@ export function FinanceRecordTypeCell({
   return (
     <div
       className={cn(
-        "flex min-w-0 flex-wrap items-center justify-center gap-1 text-center",
+        "flex h-full w-full min-w-0 flex-col flex-wrap items-center justify-center gap-1 text-center",
         className
       )}
     >
@@ -60,7 +62,7 @@ export function FinanceRecordStatusCell({
   return (
     <div
       className={cn(
-        "flex w-full items-center justify-center text-center",
+        "flex h-full w-full min-w-0 items-center justify-center text-center",
         className
       )}
     >
@@ -79,7 +81,7 @@ export function FinanceRecordAmountCell({
   return (
     <div
       className={cn(
-        "text-right text-sm font-semibold leading-none tabular-nums tracking-tight text-text",
+        "w-full min-w-0 text-right text-[0.8125rem] font-semibold leading-none tabular-nums tracking-tight text-text md:text-sm",
         className
       )}
     >

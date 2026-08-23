@@ -8,6 +8,7 @@ import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import EmptyState from "@/components/ui/EmptyState";
 import FinanceRecordRow, {
   financeListStatusChipClassName,
+  financeRecordListClassName,
 } from "@/components/ui/FinanceRecordRow";
 import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -264,7 +265,7 @@ export default async function SettlementsPage() {
               descriptionKey="pages.billing.settlementsArEmptyDesc"
             />
           ) : (
-            <div className="flex min-w-0 flex-col gap-2">
+            <div className={financeRecordListClassName}>
               {arRows.map((row) => (
                 <FinanceRecordRow
                   key={row.id}
@@ -338,7 +339,7 @@ export default async function SettlementsPage() {
                 descriptionKey="pages.billing.settlementsApEmptyDesc"
               />
             ) : (
-              <div className="flex min-w-0 flex-col gap-2">
+              <div className={financeRecordListClassName}>
                 {apRows.map((row) => (
                   <FinanceRecordRow
                     key={row.id}

@@ -4,6 +4,7 @@ import StatusBadge, { outlineChipTones } from "@/components/ui/StatusBadge";
 import FinanceRecordRow, {
   financeListStatusChipClassName,
   financeListTypeChipClassName,
+  financeRecordListClassName,
 } from "@/components/ui/FinanceRecordRow";
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
@@ -183,7 +184,7 @@ export default function PurchaseInvoiceTable({ rows }: Props) {
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-2">
+    <div className={financeRecordListClassName}>
       {rows.map((row) => (
         <PurchaseInvoiceCard key={row.id} row={row} />
       ))}
