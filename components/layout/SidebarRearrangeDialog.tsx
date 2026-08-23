@@ -224,7 +224,7 @@ function ChildSortableRow({
           );
         }}
         onDragEnd={() => setDragging(false)}
-        className="flex h-7 w-7 shrink-0 cursor-grab items-center justify-center rounded-md text-subtle active:cursor-grabbing"
+        className="flex h-10 w-10 shrink-0 cursor-grab items-center justify-center rounded-md text-subtle touch-none active:cursor-grabbing sm:h-7 sm:w-7"
       >
         <GripVertical size={14} aria-hidden />
       </button>
@@ -237,7 +237,7 @@ function ChildSortableRow({
           aria-label={t("nav.moveUp", { label })}
           disabled={!canMoveUp}
           onClick={() => onReorder(moduleKey, index, index - 1)}
-          className="flex h-7 w-7 items-center justify-center rounded-md text-subtle transition hover:bg-elevated hover:text-accent-cyan disabled:cursor-not-allowed disabled:opacity-30"
+          className="flex h-10 w-10 items-center justify-center rounded-md text-subtle transition hover:bg-elevated hover:text-accent-cyan disabled:cursor-not-allowed disabled:opacity-30 sm:h-7 sm:w-7"
         >
           <ChevronUp size={14} />
         </button>
@@ -246,7 +246,7 @@ function ChildSortableRow({
           aria-label={t("nav.moveDown", { label })}
           disabled={!canMoveDown}
           onClick={() => onReorder(moduleKey, index, index + 1)}
-          className="flex h-7 w-7 items-center justify-center rounded-md text-subtle transition hover:bg-elevated hover:text-accent-cyan disabled:cursor-not-allowed disabled:opacity-30"
+          className="flex h-10 w-10 items-center justify-center rounded-md text-subtle transition hover:bg-elevated hover:text-accent-cyan disabled:cursor-not-allowed disabled:opacity-30 sm:h-7 sm:w-7"
         >
           <ChevronDown size={14} />
         </button>
@@ -329,7 +329,7 @@ function SortableRow({
             );
           }}
           onDragEnd={() => setDragging(false)}
-          className="flex h-8 w-8 shrink-0 cursor-grab items-center justify-center rounded-lg text-subtle active:cursor-grabbing"
+          className="flex h-10 w-10 shrink-0 cursor-grab items-center justify-center rounded-lg text-subtle touch-none active:cursor-grabbing sm:h-8 sm:w-8"
         >
           <GripVertical size={16} aria-hidden />
         </button>
@@ -358,7 +358,7 @@ function SortableRow({
             aria-label={t("nav.moveUp", { label })}
             disabled={!canMoveUp}
             onClick={() => onReorder(sectionTitle, index, index - 1)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-subtle transition hover:bg-inset hover:text-accent-cyan disabled:cursor-not-allowed disabled:opacity-30"
+            className="flex h-10 w-10 items-center justify-center rounded-lg text-subtle transition hover:bg-inset hover:text-accent-cyan disabled:cursor-not-allowed disabled:opacity-30 sm:h-8 sm:w-8"
           >
             <ChevronUp size={16} />
           </button>
@@ -367,7 +367,7 @@ function SortableRow({
             aria-label={t("nav.moveDown", { label })}
             disabled={!canMoveDown}
             onClick={() => onReorder(sectionTitle, index, index + 1)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-subtle transition hover:bg-inset hover:text-accent-cyan disabled:cursor-not-allowed disabled:opacity-30"
+            className="flex h-10 w-10 items-center justify-center rounded-lg text-subtle transition hover:bg-inset hover:text-accent-cyan disabled:cursor-not-allowed disabled:opacity-30 sm:h-8 sm:w-8"
           >
             <ChevronDown size={16} />
           </button>
@@ -473,7 +473,7 @@ function SortableSection({
               );
             }}
             onDragEnd={() => setDragging(false)}
-            className="flex h-8 w-8 shrink-0 cursor-grab items-center justify-center rounded-lg text-subtle active:cursor-grabbing"
+            className="flex h-10 w-10 shrink-0 cursor-grab items-center justify-center rounded-lg text-subtle touch-none active:cursor-grabbing sm:h-8 sm:w-8"
           >
             <GripVertical size={16} aria-hidden />
           </button>
@@ -488,7 +488,7 @@ function SortableSection({
               aria-label={t("nav.moveUp", { label })}
               disabled={!canMoveUp}
               onClick={() => onReorderSection(index, index - 1)}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-subtle transition hover:bg-elevated hover:text-accent-cyan disabled:cursor-not-allowed disabled:opacity-30"
+              className="flex h-10 w-10 items-center justify-center rounded-lg text-subtle transition hover:bg-elevated hover:text-accent-cyan disabled:cursor-not-allowed disabled:opacity-30 sm:h-8 sm:w-8"
             >
               <ChevronUp size={16} />
             </button>
@@ -497,7 +497,7 @@ function SortableSection({
               aria-label={t("nav.moveDown", { label })}
               disabled={!canMoveDown}
               onClick={() => onReorderSection(index, index + 1)}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-subtle transition hover:bg-elevated hover:text-accent-cyan disabled:cursor-not-allowed disabled:opacity-30"
+              className="flex h-10 w-10 items-center justify-center rounded-lg text-subtle transition hover:bg-elevated hover:text-accent-cyan disabled:cursor-not-allowed disabled:opacity-30 sm:h-8 sm:w-8"
             >
               <ChevronDown size={16} />
             </button>
@@ -537,18 +537,33 @@ type Props = {
   triggerClassName?: string;
   /** Show a short text label next to the gear (header / wider footers). */
   showLabel?: boolean;
+  /** Hide the built-in trigger (use with controlled `open`). */
+  hideTrigger?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 };
 
 export default function SidebarRearrangeDialog({
   trigger,
   triggerClassName,
   showLabel = false,
+  hideTrigger = false,
+  open: openProp,
+  onOpenChange,
 }: Props) {
   const { t, locale } = useT();
   const { data: session, update, status } = useSession();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = openProp ?? internalOpen;
   const [draft, setDraft] = useState<MenuSection[]>([]);
   const [isPending, startTransition] = useTransition();
+
+  function setOpen(next: boolean) {
+    if (openProp === undefined) {
+      setInternalOpen(next);
+    }
+    onOpenChange?.(next);
+  }
 
   const baseMenu = useMemo(() => {
     if (!session?.user) return [];
@@ -563,9 +578,15 @@ export default function SidebarRearrangeDialog({
     });
   }, [session?.user]);
 
-  // If the dialog opened while the session was still loading, fill draft once ready.
+  // Seed when the dialog opens (including controlled mobile open). Clear on
+  // close so the next open does not keep a stale draft. If the session is
+  // still loading, fill once the menu arrives.
   useEffect(() => {
-    if (!open || baseMenu.length === 0) return;
+    if (!open) {
+      setDraft([]);
+      return;
+    }
+    if (baseMenu.length === 0) return;
     setDraft((current) =>
       current.length > 0
         ? current
@@ -649,9 +670,9 @@ export default function SidebarRearrangeDialog({
     </button>
   );
 
-  return (
-    <>
-      {trigger ? (
+  const triggerNode = hideTrigger
+    ? null
+    : trigger ? (
         <span
           role="button"
           tabIndex={0}
@@ -668,7 +689,11 @@ export default function SidebarRearrangeDialog({
         </span>
       ) : (
         defaultTrigger
-      )}
+      );
+
+  return (
+    <>
+      {triggerNode}
 
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <EmployeeDialogShell

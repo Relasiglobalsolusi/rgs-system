@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronLeft, LogOut, Menu } from "lucide-react";
+import { ChevronLeft, LogOut, Menu, Settings2 } from "lucide-react";
 import { Suspense, useState } from "react";
 import { useSession } from "next-auth/react";
 
 import SidebarNav, {
   SidebarNavFallback,
 } from "@/components/layout/SidebarNav";
+import SidebarRearrangeDialog from "@/components/layout/SidebarRearrangeDialog";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import {
   Dialog,
@@ -28,9 +29,15 @@ export default function MobileNavDialog({
   const { data: session } = useSession();
   const { locale, t } = useLocale();
   const [open, setOpen] = useState(false);
+  const [rearrangeOpen, setRearrangeOpen] = useState(false);
 
   function close() {
     setOpen(false);
+  }
+
+  function openRearrange() {
+    setOpen(false);
+    setRearrangeOpen(true);
   }
 
   const initials = session?.user?.name
@@ -119,6 +126,15 @@ export default function MobileNavDialog({
               </div>
             </div>
 
+            <button
+              type="button"
+              aria-label={t("nav.rearrange")}
+              onClick={openRearrange}
+              className="mb-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-accent-cyan/28 bg-elevated/80 px-3 text-sm font-medium text-accent-cyan transition hover:border-accent-cyan/50 hover:bg-[color-mix(in_srgb,var(--color-elevated),var(--color-accent-cyan)_8%)]"
+            >
+              <Settings2 size={16} aria-hidden />
+              {t("nav.rearrangeShort")}
+            </button>
             <Link
               href="/api/auth/signout"
               onClick={close}
@@ -130,6 +146,12 @@ export default function MobileNavDialog({
           </div>
         </DialogContent>
       </Dialog>
+
+      <SidebarRearrangeDialog
+        hideTrigger
+        open={rearrangeOpen}
+        onOpenChange={setRearrangeOpen}
+      />
     </>
   );
 }

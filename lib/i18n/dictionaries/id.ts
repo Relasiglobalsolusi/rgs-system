@@ -230,13 +230,13 @@ export const id = {
     menuTitle: "Navigasi",
     menuDescription:
       "Jelajahi bagian dan modul sidebar seperti Overview, Administrasi, Operasi, SDM, dan Keuangan.",
-    rearrange: "Susun ulang sidebar",
-    rearrangeTitle: "Susun ulang sidebar",
+    rearrange: "Susun Ulang Sidebar",
+    rearrangeTitle: "Susun Ulang Sidebar",
     rearrangeDescription:
       "Susun ulang kategori, modul, dan item bersarang dengan ↑ / ↓ atau seret, lalu Simpan. Hanya modul yang dapat Anda akses yang ditampilkan.",
-    rearrangeShort: "Susun ulang",
-    saveOrder: "Simpan urutan",
-    resetOrder: "Kembali ke bawaan",
+    rearrangeShort: "Susun Ulang",
+    saveOrder: "Simpan Urutan",
+    resetOrder: "Kembali Ke Bawaan",
     orderSaved: "Urutan sidebar disimpan",
     orderSaveFailed: "Gagal menyimpan urutan sidebar",
     dragToReorder: "Seret untuk menyusun ulang",
