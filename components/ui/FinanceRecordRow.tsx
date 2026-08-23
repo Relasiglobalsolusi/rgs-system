@@ -6,16 +6,15 @@ import { cn } from "@/lib/utils";
 /**
  * Shared finance card row.
  *
- * title (left) | type chip (centered) | status chip (centered) | amount
+ * title | type | leftover | status | amount
  *
- * Tracks are fixed (except the title) so every card uses the same columns.
- * Type and status chips fill their column and center — do not glue them
- * to the title or pair status + amount in a flex.
+ * Title↔type uses the same column-gap as status↔amount (`gap-x-2` / `md:gap-x-8`).
+ * Do not put `1fr` on the title — leftover space sits AFTER the type column.
  */
 export const financeRecordListClassName = "flex min-w-0 flex-col gap-2";
 
 export const financeRecordRowClassName =
-  "grid min-w-0 grid-cols-[minmax(0,1fr)_4.5rem_5.25rem_5.75rem] items-center gap-x-2 px-3 py-2.5 md:grid-cols-[minmax(0,1fr)_6.25rem_6.25rem_7.5rem] md:gap-x-8 md:px-4 md:py-2";
+  "grid min-w-0 grid-cols-[minmax(0,7.5rem)_5.75rem_minmax(0,1fr)_5.25rem_5.75rem] items-center gap-x-2 px-3 py-2.5 md:grid-cols-[minmax(0,20rem)_6.5rem_minmax(0,1fr)_6.25rem_7.5rem] md:gap-x-8 md:px-4 md:py-2";
 
 export const financeListTypeChipClassName =
   "inline-flex min-h-7 w-full min-w-0 items-center justify-center whitespace-normal rounded-md border px-1 py-1 text-center text-[0.5625rem] font-semibold uppercase leading-[1.1] tracking-[0.04em] md:min-h-7 md:px-2 md:text-[0.625rem]";
@@ -111,6 +110,7 @@ export default function FinanceRecordRow({
     <>
       <FinanceRecordTitleCell>{title}</FinanceRecordTitleCell>
       <FinanceRecordTypeCell>{type}</FinanceRecordTypeCell>
+      <div aria-hidden className="min-w-0" />
       <FinanceRecordStatusCell>{status}</FinanceRecordStatusCell>
       <FinanceRecordAmountCell>{amount}</FinanceRecordAmountCell>
     </>
