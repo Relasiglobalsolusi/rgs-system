@@ -216,7 +216,7 @@ export default async function PettyCashPage() {
               }
               title={
                 <>
-                  <h3 className="truncate text-sm font-semibold leading-none tracking-tight text-text">
+                  <h3 className="text-left text-sm font-semibold leading-snug tracking-tight text-text">
                     {entry.description}
                   </h3>
                   <p className="mt-1 truncate text-xs leading-none text-subtle">

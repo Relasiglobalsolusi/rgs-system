@@ -273,7 +273,7 @@ export default async function SettlementsPage() {
                   type={null}
                   title={
                     <>
-                      <p className="truncate font-medium leading-none text-text">
+                      <p className="text-left font-medium leading-snug text-text">
                         {row.label}
                       </p>
                       <p className="mt-1 truncate text-xs leading-none text-subtle">
@@ -346,7 +346,7 @@ export default async function SettlementsPage() {
                     type={null}
                     title={
                       <>
-                        <p className="truncate font-medium leading-none text-text">
+                        <p className="text-left font-medium leading-snug text-text">
                           {row.supplierName}
                         </p>
                         <p className="mt-1 truncate text-xs leading-none text-subtle">

@@ -6,16 +6,16 @@ import { cn } from "@/lib/utils";
 /**
  * Shared finance card row.
  *
- * type chip | title | status chip | amount
+ * title (left) | type chip (centered) | status chip (centered) | amount
  *
  * Tracks are fixed (except the title) so every card uses the same columns.
- * Status chips fill that column and center their label — do not size the
- * chip to the word (PAID vs OVERDUE) or pair status + amount in a flex.
+ * Type and status chips fill their column and center — do not glue them
+ * to the title or pair status + amount in a flex.
  */
 export const financeRecordListClassName = "flex min-w-0 flex-col gap-2";
 
 export const financeRecordRowClassName =
-  "grid min-w-0 grid-cols-[4.5rem_minmax(0,1fr)_5.25rem_5.75rem] items-center gap-x-2 px-3 py-2.5 md:grid-cols-[6.25rem_minmax(0,1fr)_6.25rem_7.5rem] md:gap-x-8 md:px-4 md:py-2";
+  "grid min-w-0 grid-cols-[minmax(0,1fr)_4.5rem_5.25rem_5.75rem] items-center gap-x-2 px-3 py-2.5 md:grid-cols-[minmax(0,1fr)_6.25rem_6.25rem_7.5rem] md:gap-x-8 md:px-4 md:py-2";
 
 export const financeListTypeChipClassName =
   "inline-flex min-h-7 w-full min-w-0 items-center justify-center whitespace-normal rounded-md border px-1 py-1 text-center text-[0.5625rem] font-semibold uppercase leading-[1.1] tracking-[0.04em] md:min-h-7 md:px-2 md:text-[0.625rem]";
@@ -49,7 +49,7 @@ export function FinanceRecordTitleCell({
   children: ReactNode;
   className?: string;
 }) {
-  return <div className={cn("min-w-0", className)}>{children}</div>;
+  return <div className={cn("min-w-0 text-left", className)}>{children}</div>;
 }
 
 export function FinanceRecordStatusCell({
@@ -109,8 +109,8 @@ export default function FinanceRecordRow({
 }: FinanceRecordRowProps) {
   const inner = (
     <>
-      <FinanceRecordTypeCell>{type}</FinanceRecordTypeCell>
       <FinanceRecordTitleCell>{title}</FinanceRecordTitleCell>
+      <FinanceRecordTypeCell>{type}</FinanceRecordTypeCell>
       <FinanceRecordStatusCell>{status}</FinanceRecordStatusCell>
       <FinanceRecordAmountCell>{amount}</FinanceRecordAmountCell>
     </>

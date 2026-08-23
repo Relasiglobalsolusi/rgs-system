@@ -131,7 +131,7 @@ function PurchaseInvoiceCard({ row }: { row: PurchaseInvoiceTableRow }) {
       }
       title={
         <>
-          <h3 className="truncate text-sm font-semibold leading-none tracking-tight text-text">
+          <h3 className="text-left text-sm font-semibold leading-snug tracking-tight text-text">
             {row.supplierName}
           </h3>
           <p className="mt-1 truncate text-xs leading-none text-subtle">

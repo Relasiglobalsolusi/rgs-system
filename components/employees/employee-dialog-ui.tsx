@@ -188,11 +188,6 @@ type EmployeeDialogShellProps = {
   children: ReactNode;
   footer: ReactNode;
   maxWidth?: "sm" | "md" | "lg" | "xl";
-  /**
-   * Keep the dark ERP modal (header, chips, Cancel) even when the page is
-   * in light theme — phones often have light saved while desktop is dark.
-   */
-  forceDark?: boolean;
   /** Icon + title on one row with the close X, matching the compact modal chrome. */
   compactHeader?: boolean;
 };
@@ -204,7 +199,6 @@ export function EmployeeDialogShell({
   children,
   footer,
   maxWidth = "xl",
-  forceDark = true,
   compactHeader = true,
 }: EmployeeDialogShellProps) {
   // sm/md stay compact for confirms; lg/xl are form create/edit panels.
@@ -226,7 +220,6 @@ export function EmployeeDialogShell({
       className={cn(
         // Header + footer stay put; only the body scrolls so the close X remains visible.
         "flex flex-col gap-0 overflow-hidden rounded-2xl border border-border bg-panel p-0 text-text ring-0",
-        forceDark && "dark rgs-force-dark",
         isFormPanel
           ? "max-h-[min(92dvh,72rem)]"
           : "max-h-[min(90dvh,64rem)]",

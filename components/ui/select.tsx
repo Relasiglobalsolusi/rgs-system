@@ -128,7 +128,7 @@ function SelectContent({
           data-slot="select-content"
           data-align-trigger={alignItemWithTrigger}
           className={cn(
-            "dark rgs-force-dark relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-(--anchor-width) origin-(--transform-origin)",
+            "relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-(--anchor-width) origin-(--transform-origin)",
             "overflow-x-hidden overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground",
             "shadow-[0_10px_28px_rgba(0,0,0,0.45)] ring-1 ring-black/25",
             "duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] data-[align-trigger=true]:animate-none",

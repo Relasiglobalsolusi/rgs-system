@@ -1233,7 +1233,6 @@ export default function PurchaseInvoiceUploadDialog({
         title={t("pages.billing.purchaseUploadTitle")}
         description={t("pages.billing.purchaseUploadDesc")}
         maxWidth="lg"
-        forceDark
         compactHeader
         footer={
           <div className="flex w-full flex-col gap-3">
