@@ -10,13 +10,14 @@ import { cn } from "@/lib/utils";
 const listTypeChipClassName =
   "inline-flex h-7 min-h-7 w-auto min-w-0 shrink-0 items-center justify-center whitespace-nowrap rounded-md border px-2 text-[0.625rem] font-semibold uppercase leading-none tracking-[0.04em]";
 
-/** Status chips: between the original tiny pill and the 2.75rem box. */
+/** Status chips: compact pill, label optically centered (not the 2.75rem box). */
 const listStatusChipClassName =
-  "h-8 min-h-8 w-auto min-w-[4.75rem] px-2.5 text-[0.6875rem]";
+  "inline-flex h-8 max-h-8 min-h-8 w-auto min-w-[4.75rem] items-center justify-center px-2.5 py-0 text-[0.6875rem] leading-none";
 
-/** Same title column on every row so type chips line up. */
+/** Desktop: same title column on every row so type chips line up.
+ * Phone: vendor + status/amount on one centered row so nothing clips. */
 const expenseRowClassName =
-  "grid grid-cols-[20rem_max-content_minmax(0,1fr)_auto] items-center gap-x-10 px-4 py-2 transition hover:bg-card-hover/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan/40";
+  "flex min-w-0 flex-col justify-center gap-2 px-3.5 py-2.5 transition hover:bg-card-hover/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan/40 md:grid md:grid-cols-[minmax(0,20rem)_max-content_minmax(0,1fr)_auto] md:items-center md:gap-x-10 md:px-4 md:py-2";
 
 export type PurchaseInvoiceTableRow = {
   id: string;
@@ -121,16 +122,16 @@ function PurchaseInvoiceCard({ row }: { row: PurchaseInvoiceTableRow }) {
   const categoryLabels = categoryChipLabels(row, t);
 
   return (
-    <article className="rounded-xl border border-border bg-elevated">
+    <article className="min-w-0 overflow-hidden rounded-xl border border-border bg-elevated">
       <Link
         href={`/billing/purchase-invoices/${row.id}`}
         className={expenseRowClassName}
       >
         <div className="min-w-0">
-          <h3 className="truncate text-sm font-semibold tracking-tight text-text">
+          <h3 className="truncate text-sm font-semibold leading-none tracking-tight text-text">
             {row.supplierName}
           </h3>
-          <p className="mt-0.5 truncate text-xs text-subtle">
+          <p className="mt-1 truncate text-xs leading-none text-subtle">
             {row.purchaseCategory === "GOVERNMENT"
               ? t("pages.billing.governmentBillingIdShort", {
                   ref: row.invoiceRef,
@@ -147,23 +148,27 @@ function PurchaseInvoiceCard({ row }: { row: PurchaseInvoiceTableRow }) {
           </p>
         </div>
 
-        <div className="flex items-center gap-1.5">
-          {categoryLabels.map((label) => (
-            <CategoryChip key={label} label={label} />
-          ))}
-          {recordChips.map((chip) => (
-            <span
-              key={chip}
-              className={cn(listTypeChipClassName, outlineChipTones.warning)}
-            >
-              {recordChipLabel(chip, t)}
-            </span>
-          ))}
-        </div>
+        {categoryLabels.length > 0 || recordChips.length > 0 ? (
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            {categoryLabels.map((label) => (
+              <CategoryChip key={label} label={label} />
+            ))}
+            {recordChips.map((chip) => (
+              <span
+                key={chip}
+                className={cn(listTypeChipClassName, outlineChipTones.warning)}
+              >
+                {recordChipLabel(chip, t)}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <div className="hidden md:block" aria-hidden />
+        )}
 
-        <div aria-hidden />
+        <div className="hidden md:block" aria-hidden />
 
-        <div className="flex shrink-0 items-center gap-2.5">
+        <div className="flex h-8 w-full items-center justify-between gap-2">
           {row.paymentStatus ? (
             <StatusBadge
               status={
@@ -175,14 +180,18 @@ function PurchaseInvoiceCard({ row }: { row: PurchaseInvoiceTableRow }) {
               }
               className={listStatusChipClassName}
             >
-              {isPaid
-                ? t("pages.billing.vendorStatusPaid")
-                : row.paymentStatus === "overdue"
-                  ? t("pages.billing.vendorStatusOverdue")
-                  : t("pages.billing.vendorStatusOpen")}
+              <span className="flex h-full w-full items-center justify-center leading-none">
+                {isPaid
+                  ? t("pages.billing.vendorStatusPaid")
+                  : row.paymentStatus === "overdue"
+                    ? t("pages.billing.vendorStatusOverdue")
+                    : t("pages.billing.vendorStatusOpen")}
+              </span>
             </StatusBadge>
-          ) : null}
-          <p className="min-w-[5.5rem] text-right text-sm font-semibold tabular-nums tracking-tight text-text">
+          ) : (
+            <span />
+          )}
+          <p className="flex h-8 items-center text-right text-sm font-semibold leading-none tabular-nums tracking-tight text-text">
             {row.amountLabel}
           </p>
         </div>
@@ -197,7 +206,7 @@ export default function PurchaseInvoiceTable({ rows }: Props) {
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex min-w-0 flex-col gap-2">
       {rows.map((row) => (
         <PurchaseInvoiceCard key={row.id} row={row} />
       ))}

@@ -53,8 +53,10 @@ export default async function AppShell({
               app-shell-surface
               w-full
               min-h-0
+              min-w-0
               flex-1
-              overflow-auto
+              overflow-x-hidden
+              overflow-y-auto
               px-4
               pt-7
               pb-4

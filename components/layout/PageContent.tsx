@@ -16,7 +16,7 @@ export default function PageContent({ children, className }: PageContentProps) {
   const pathname = usePathname();
 
   return (
-    <div key={pathname} className={className ?? "page-content-enter"}>
+    <div key={pathname} className={className ?? "page-content-enter min-w-0"}>
       {children}
     </div>
   );

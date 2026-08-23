@@ -81,7 +81,7 @@ export default function DirectoryStatCard({
   const card = (
     <div
       className={cn(
-        "rounded-2xl border border-border bg-card transition duration-300",
+        "min-w-0 overflow-hidden rounded-2xl border border-border bg-card transition duration-300",
         compact ? "px-3.5 py-2.5" : featured ? "px-6 py-5" : "px-5 py-4",
         interactive &&
           "motion-hover-lift cursor-pointer hover:border-border-strong hover:bg-card-hover",
@@ -126,12 +126,12 @@ export default function DirectoryStatCard({
           </p>
           <p
             className={cn(
-              "truncate font-bold tabular-nums tracking-tight text-text",
+              "font-bold tabular-nums tracking-tight break-words text-text",
               compact
-                ? "mt-1 text-lg leading-none sm:text-xl xl:text-2xl"
+                ? "mt-1 text-lg leading-tight sm:text-xl xl:text-2xl"
                 : featured
-                  ? "mt-2 text-2xl leading-none sm:text-3xl xl:text-4xl"
-                  : "mt-2 text-xl leading-none sm:text-2xl xl:text-3xl"
+                  ? "mt-2 text-2xl leading-tight sm:text-3xl xl:text-4xl"
+                  : "mt-2 text-xl leading-tight sm:text-2xl xl:text-3xl"
             )}
             title={valueText}
           >
@@ -140,10 +140,9 @@ export default function DirectoryStatCard({
           {subtitle ? (
             <p
               className={cn(
-                "truncate text-subtle",
-                compact ? "mt-0.5 text-xs leading-snug" : "mt-1 text-xs"
+                "text-pretty text-subtle",
+                compact ? "mt-0.5 text-xs leading-snug" : "mt-1 text-xs leading-snug"
               )}
-              title={subtitle}
             >
               {subtitle}
             </p>

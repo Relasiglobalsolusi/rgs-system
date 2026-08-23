@@ -274,7 +274,7 @@ export default async function PurchaseInvoicesPage({
       </div>
 
       {purchaseView ? null : (
-        <div className="mb-4 grid grid-cols-2 gap-2 xl:grid-cols-4">
+        <div className="mb-4 grid min-w-0 grid-cols-2 gap-2 xl:grid-cols-4">
           <DirectoryStatCard
             compact
             title={t("pages.billing.purchaseCardTotal")}

@@ -182,6 +182,13 @@ type EmployeeDialogShellProps = {
   children: ReactNode;
   footer: ReactNode;
   maxWidth?: "sm" | "md" | "lg" | "xl";
+  /**
+   * Keep the dark ERP modal (header, chips, Cancel) even when the page is
+   * in light theme — phones often have light saved while desktop is dark.
+   */
+  forceDark?: boolean;
+  /** Icon + title on one row with the close X, matching the compact modal chrome. */
+  compactHeader?: boolean;
 };
 
 export function EmployeeDialogShell({
@@ -191,6 +198,8 @@ export function EmployeeDialogShell({
   children,
   footer,
   maxWidth = "xl",
+  forceDark = false,
+  compactHeader = false,
 }: EmployeeDialogShellProps) {
   // sm/md stay compact for confirms; lg/xl are form create/edit panels.
   const widthClass =
@@ -211,10 +220,11 @@ export function EmployeeDialogShell({
       className={cn(
         // Header + footer stay put; only the body scrolls so the close X remains visible.
         "flex flex-col gap-0 overflow-hidden rounded-2xl border border-border bg-panel p-0 text-text ring-0",
+        forceDark && "dark rgs-force-dark",
         isFormPanel
-          ? "max-h-[min(96vh,72rem)]"
-          : "max-h-[min(94vh,64rem)]",
-        "w-[calc(100%-1.5rem)] min-w-[min(100%,20rem)] sm:w-full",
+          ? "max-h-[min(92dvh,72rem)]"
+          : "max-h-[min(90dvh,64rem)]",
+        "w-[calc(100%-2rem)] min-w-0 sm:w-full",
         isFormPanel
           ? maxWidth === "xl"
             ? "sm:min-w-[min(100%,64rem)]"
@@ -230,17 +240,35 @@ export function EmployeeDialogShell({
         )}
       >
         <DialogHeader className="gap-3 text-left">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-elevated ring-1 ring-border">
-            <Icon className="h-6 w-6 text-primary" />
-          </div>
+          {compactHeader ? (
+            <div className="flex items-start gap-3 pr-10">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-elevated ring-1 ring-border">
+                <Icon className="h-6 w-6 text-primary" />
+              </div>
+              <div className="min-w-0 flex-1 space-y-1.5">
+                <DialogTitle className="text-xl font-semibold text-text">
+                  {title}
+                </DialogTitle>
+                <DialogDescription className="text-sm text-muted">
+                  {description}
+                </DialogDescription>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-elevated ring-1 ring-border">
+                <Icon className="h-6 w-6 text-primary" />
+              </div>
 
-          <DialogTitle className="text-xl font-semibold text-text">
-            {title}
-          </DialogTitle>
+              <DialogTitle className="text-xl font-semibold text-text">
+                {title}
+              </DialogTitle>
 
-          <DialogDescription className="text-sm text-muted">
-            {description}
-          </DialogDescription>
+              <DialogDescription className="text-sm text-muted">
+                {description}
+              </DialogDescription>
+            </>
+          )}
         </DialogHeader>
       </div>
 
