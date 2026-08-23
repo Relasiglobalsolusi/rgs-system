@@ -6,8 +6,12 @@ import {
 import PettyCashSpendDialog from "@/components/billing/PettyCashSpendDialog";
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/ui/EmptyState";
+import FinanceRecordRow, {
+  financeListStatusChipClassName,
+  financeListTypeChipClassName,
+} from "@/components/ui/FinanceRecordRow";
 import SectionCard from "@/components/ui/SectionCard";
-import StatusBadge from "@/components/ui/StatusBadge";
+import StatusBadge, { outlineChipTones } from "@/components/ui/StatusBadge";
 import { formatDisplayDate } from "@/lib/format-date";
 import { localizeKnownKey } from "@/lib/i18n/labels";
 import { getServerLocale } from "@/lib/i18n/locale";
@@ -22,9 +26,15 @@ import { requirePettyCashAccess } from "@/lib/session";
 import { jakartaYearMonth, utcRangeForJakartaMonth } from "@/lib/vat";
 import { cn } from "@/lib/utils";
 
-function kindTone(kind: string): "active" | "warning" | "info" {
-  if (kind === "TOP_UP") return "active";
-  if (kind === "PART_TIME_PAY") return "info";
+function kindTone(kind: string) {
+  if (kind === "TOP_UP") return outlineChipTones.emerald;
+  if (kind === "PART_TIME_PAY") return outlineChipTones.cyan;
+  return outlineChipTones.warning;
+}
+
+function statusTone(status: string): "success" | "warning" | "danger" | "info" {
+  if (status === "POSTED") return "success";
+  if (status === "VOIDED") return "danger";
   return "warning";
 }
 
@@ -186,87 +196,76 @@ export default async function PettyCashPage() {
           />
         </SectionCard>
       ) : (
-        <SectionCard className="overflow-x-auto p-0">
-          <table className="min-w-full text-left text-sm">
-            <thead className="border-b border-border bg-strip text-xs uppercase tracking-wide text-muted">
-              <tr>
-                <th className="px-4 py-3 text-left font-semibold">
-                  {t("pages.pettyCash.columns.date")}
-                </th>
-                <th className="px-4 py-3 font-semibold">
-                  {t("pages.pettyCash.columns.kind")}
-                </th>
-                <th className="px-4 py-3 font-semibold">
-                  {t("pages.pettyCash.columns.description")}
-                </th>
-                <th className="px-4 py-3 font-semibold">
-                  {t("pages.pettyCash.columns.status")}
-                </th>
-                <th className="px-4 py-3 font-semibold text-right">
-                  {t("pages.pettyCash.columns.amount")}
-                </th>
-                <th className="px-4 py-3 font-semibold">
-                  {t("pages.pettyCash.columns.proof")}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map((entry) => (
-                <tr key={entry.id} className="border-b border-border last:border-0">
-                  <td className="px-4 py-3 tabular-nums text-text">
+        <div className="flex min-w-0 flex-col gap-2">
+          {entries.map((entry) => (
+            <FinanceRecordRow
+              key={entry.id}
+              type={
+                <span
+                  className={cn(
+                    financeListTypeChipClassName,
+                    kindTone(entry.kind)
+                  )}
+                >
+                  {localizeKnownKey(
+                    `pages.pettyCash.kind.${entry.kind}`,
+                    locale
+                  )}
+                </span>
+              }
+              title={
+                <>
+                  <h3 className="truncate text-sm font-semibold leading-none tracking-tight text-text">
+                    {entry.description}
+                  </h3>
+                  <p className="mt-1 truncate text-xs leading-none text-subtle">
                     {formatDisplayDate(entry.entryDate, { timeZone: "UTC" })}
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={kindTone(entry.kind)}>
-                      {localizeKnownKey(
-                        `pages.pettyCash.kind.${entry.kind}`,
-                        locale
-                      )}
-                    </StatusBadge>
-                  </td>
-                  <td className="px-4 py-3 text-text">
-                    <p>{entry.description}</p>
                     {entry.employee ? (
-                      <p className="mt-0.5 text-xs text-muted">
-                        {t("pages.pettyCash.billIsFor")}:{" "}
+                      <>
+                        <span className="mx-1.5 text-border-strong" aria-hidden>
+                          ·
+                        </span>
                         {formatEmployeeName(entry.employee)}
-                      </p>
+                      </>
                     ) : null}
                     {entry.project ? (
-                      <p className="mt-0.5 text-xs text-muted">
+                      <>
+                        <span className="mx-1.5 text-border-strong" aria-hidden>
+                          ·
+                        </span>
                         {entry.project.name}
-                      </p>
+                      </>
                     ) : null}
-                  </td>
-                  <td className="px-4 py-3 text-muted">
+                  </p>
+                  {entry.proofPath ? (
+                    <a
+                      href={entry.proofPath}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-1 inline-block text-xs font-medium text-primary-dark underline-offset-2 hover:underline"
+                    >
+                      {t("pages.pettyCash.viewProof")}
+                    </a>
+                  ) : null}
+                </>
+              }
+              status={
+                <StatusBadge
+                  status={statusTone(entry.status)}
+                  className={financeListStatusChipClassName}
+                >
+                  <span className="flex h-full w-full items-center justify-center text-center leading-none">
                     {localizeKnownKey(
                       `pages.pettyCash.status.${entry.status}`,
                       locale
                     )}
-                  </td>
-                  <td className="px-4 py-3 text-right font-medium tabular-nums text-text">
-                    {entry.kind === "TOP_UP" ? "+" : "−"}
-                    {formatContractPrice(decimalToNumber(entry.amount))}
-                  </td>
-                  <td className="px-4 py-3">
-                    {entry.proofPath ? (
-                      <a
-                        href={entry.proofPath}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-sm font-medium text-primary-dark underline-offset-2 hover:underline"
-                      >
-                        {t("pages.pettyCash.viewProof")}
-                      </a>
-                    ) : (
-                      <span className="text-muted">—</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </SectionCard>
+                  </span>
+                </StatusBadge>
+              }
+              amount={`${entry.kind === "TOP_UP" ? "+" : "−"}${formatContractPrice(decimalToNumber(entry.amount))}`}
+            />
+          ))}
+        </div>
       )}
     </AppShell>
   );

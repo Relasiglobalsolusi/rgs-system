@@ -1,5 +1,9 @@
 "use client";
 
+import {
+  employeeDialogChoiceChipClass,
+  employeeDialogChoiceGridClass,
+} from "@/components/employees/employee-dialog-ui";
 import { outlineChipTones } from "@/components/ui/StatusBadge";
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
@@ -38,7 +42,7 @@ export default function YesNoChoiceCards({
       id={id}
       role="radiogroup"
       aria-labelledby={labelledBy}
-      className={cn("grid grid-cols-2 gap-2", className)}
+      className={cn(employeeDialogChoiceGridClass, className)}
     >
       {(["Yes", "No"] as const).map((option) => {
         const active = value === option;
@@ -50,7 +54,8 @@ export default function YesNoChoiceCards({
             aria-checked={active}
             onClick={() => onChange(option)}
             className={cn(
-              "inline-flex min-h-8 w-full items-center justify-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold tracking-wide transition duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+              employeeDialogChoiceChipClass,
+              "gap-1.5 duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
               active && option === "Yes" && outlineChipTones.emeraldInteractive,
               active && option === "No" && outlineChipTones.dangerInteractive,
               !active &&

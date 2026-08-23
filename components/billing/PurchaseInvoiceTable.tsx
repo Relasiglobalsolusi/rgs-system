@@ -1,23 +1,12 @@
 "use client";
 
-import Link from "next/link";
-
 import StatusBadge, { outlineChipTones } from "@/components/ui/StatusBadge";
+import FinanceRecordRow, {
+  financeListStatusChipClassName,
+  financeListTypeChipClassName,
+} from "@/components/ui/FinanceRecordRow";
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
-
-/** Type chips: compact pill, not the 2.75rem StatusBadge box. */
-const listTypeChipClassName =
-  "inline-flex h-7 min-h-7 w-auto min-w-0 shrink-0 items-center justify-center whitespace-nowrap rounded-md border px-2 text-[0.625rem] font-semibold uppercase leading-none tracking-[0.04em]";
-
-/** Status chips: compact pill, label optically centered (not the 2.75rem box). */
-const listStatusChipClassName =
-  "inline-flex h-8 max-h-8 min-h-8 w-auto min-w-[4.75rem] items-center justify-center px-2.5 py-0 text-[0.6875rem] leading-none";
-
-/** Desktop: same title column on every row so type chips line up.
- * Phone: vendor + status/amount on one centered row so nothing clips. */
-const expenseRowClassName =
-  "flex min-w-0 flex-col justify-center gap-2 px-3.5 py-2.5 transition hover:bg-card-hover/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan/40 md:grid md:grid-cols-[minmax(0,20rem)_max-content_minmax(0,1fr)_auto] md:items-center md:gap-x-10 md:px-4 md:py-2";
 
 export type PurchaseInvoiceTableRow = {
   id: string;
@@ -100,14 +89,6 @@ function recordChipLabel(
   return t("pages.billing.purchaseStatusRecordNotCompleted");
 }
 
-function CategoryChip({ label }: { label: string }) {
-  return (
-    <span className={cn(listTypeChipClassName, outlineChipTones.cyan)}>
-      {label}
-    </span>
-  );
-}
-
 function PurchaseInvoiceCard({ row }: { row: PurchaseInvoiceTableRow }) {
   const { t } = useT();
   const isPaid = row.paymentStatus === "paid";
@@ -122,12 +103,33 @@ function PurchaseInvoiceCard({ row }: { row: PurchaseInvoiceTableRow }) {
   const categoryLabels = categoryChipLabels(row, t);
 
   return (
-    <article className="min-w-0 overflow-hidden rounded-xl border border-border bg-elevated">
-      <Link
-        href={`/billing/purchase-invoices/${row.id}`}
-        className={expenseRowClassName}
-      >
-        <div className="min-w-0">
+    <FinanceRecordRow
+      href={`/billing/purchase-invoices/${row.id}`}
+      type={
+        <>
+          {categoryLabels.map((label) => (
+            <span
+              key={label}
+              className={cn(financeListTypeChipClassName, outlineChipTones.cyan)}
+            >
+              {label}
+            </span>
+          ))}
+          {recordChips.map((chip) => (
+            <span
+              key={chip}
+              className={cn(
+                financeListTypeChipClassName,
+                outlineChipTones.warning
+              )}
+            >
+              {recordChipLabel(chip, t)}
+            </span>
+          ))}
+        </>
+      }
+      title={
+        <>
           <h3 className="truncate text-sm font-semibold leading-none tracking-tight text-text">
             {row.supplierName}
           </h3>
@@ -146,57 +148,32 @@ function PurchaseInvoiceCard({ row }: { row: PurchaseInvoiceTableRow }) {
             </span>
             {row.invoiceDateLabel}
           </p>
-        </div>
-
-        {categoryLabels.length > 0 || recordChips.length > 0 ? (
-          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            {categoryLabels.map((label) => (
-              <CategoryChip key={label} label={label} />
-            ))}
-            {recordChips.map((chip) => (
-              <span
-                key={chip}
-                className={cn(listTypeChipClassName, outlineChipTones.warning)}
-              >
-                {recordChipLabel(chip, t)}
-              </span>
-            ))}
-          </div>
-        ) : (
-          <div className="hidden md:block" aria-hidden />
-        )}
-
-        <div className="hidden md:block" aria-hidden />
-
-        <div className="flex h-8 w-full items-center justify-between gap-2">
-          {row.paymentStatus ? (
-            <StatusBadge
-              status={
-                isPaid
-                  ? "success"
-                  : row.paymentStatus === "overdue"
-                    ? "danger"
-                    : "info"
-              }
-              className={listStatusChipClassName}
-            >
-              <span className="flex h-full w-full items-center justify-center leading-none">
-                {isPaid
-                  ? t("pages.billing.vendorStatusPaid")
-                  : row.paymentStatus === "overdue"
-                    ? t("pages.billing.vendorStatusOverdue")
-                    : t("pages.billing.vendorStatusOpen")}
-              </span>
-            </StatusBadge>
-          ) : (
-            <span />
-          )}
-          <p className="flex h-8 items-center text-right text-sm font-semibold leading-none tabular-nums tracking-tight text-text">
-            {row.amountLabel}
-          </p>
-        </div>
-      </Link>
-    </article>
+        </>
+      }
+      status={
+        row.paymentStatus ? (
+          <StatusBadge
+            status={
+              isPaid
+                ? "success"
+                : row.paymentStatus === "overdue"
+                  ? "danger"
+                  : "info"
+            }
+            className={financeListStatusChipClassName}
+          >
+            <span className="flex h-full w-full items-center justify-center text-center leading-none">
+              {isPaid
+                ? t("pages.billing.vendorStatusPaid")
+                : row.paymentStatus === "overdue"
+                  ? t("pages.billing.vendorStatusOverdue")
+                  : t("pages.billing.vendorStatusOpen")}
+            </span>
+          </StatusBadge>
+        ) : null
+      }
+      amount={row.amountLabel}
+    />
   );
 }
 

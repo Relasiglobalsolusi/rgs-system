@@ -55,6 +55,12 @@ export const employeeDialogFieldClass = "flex flex-col gap-2.5";
 export const employeeDialogGridClass =
   "grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-x-8 sm:gap-y-5";
 
+/** Choice chips: each chip fills and centers in its grid cell. */
+export const employeeDialogChoiceGridClass = "grid grid-cols-2 gap-2";
+
+export const employeeDialogChoiceChipClass =
+  "inline-flex min-h-8 w-full items-center justify-center rounded-xl px-3 py-1.5 text-center text-xs font-semibold tracking-wide transition";
+
 /** Section title block used above field grids. */
 export const employeeDialogSectionHeadingClass =
   "flex flex-col gap-1.5 border-b border-border pb-4";
@@ -198,8 +204,8 @@ export function EmployeeDialogShell({
   children,
   footer,
   maxWidth = "xl",
-  forceDark = false,
-  compactHeader = false,
+  forceDark = true,
+  compactHeader = true,
 }: EmployeeDialogShellProps) {
   // sm/md stay compact for confirms; lg/xl are form create/edit panels.
   const widthClass =

@@ -42,6 +42,8 @@ import {
   EmployeeDialogShell,
   EmployeePrimaryButton,
   EmployeeSecondaryButton,
+  employeeDialogChoiceChipClass,
+  employeeDialogChoiceGridClass,
   employeeDialogFieldClass,
   employeeDialogFormClass,
   employeeDialogGridClass,
@@ -1288,7 +1290,7 @@ export default function PurchaseInvoiceUploadDialog({
                 id="purchase-category"
                 role="radiogroup"
                 aria-labelledby="purchase-category-label"
-                className="grid grid-cols-2 gap-2"
+                className={employeeDialogChoiceGridClass}
               >
                 {(
                   [
@@ -1316,7 +1318,7 @@ export default function PurchaseInvoiceUploadDialog({
                       disabled={busy}
                       onClick={() => applyPurchaseCategory(value)}
                       className={cn(
-                        "inline-flex min-h-8 w-full items-center justify-center rounded-xl px-3 py-1.5 text-xs font-semibold tracking-wide transition",
+                        employeeDialogChoiceChipClass,
                         active && outlineChipTones.emeraldInteractive,
                         !active &&
                           "border border-border bg-elevated text-muted hover:border-border-strong hover:bg-card-hover hover:text-text"
@@ -1345,7 +1347,7 @@ export default function PurchaseInvoiceUploadDialog({
                   id="purchase-origin"
                   role="radiogroup"
                   aria-labelledby="purchase-origin-label"
-                  className="grid grid-cols-2 gap-2"
+                  className={employeeDialogChoiceGridClass}
                 >
                   {(
                     [
@@ -1384,7 +1386,7 @@ export default function PurchaseInvoiceUploadDialog({
                           }
                         }}
                         className={cn(
-                          "inline-flex min-h-8 w-full items-center justify-center rounded-xl px-3 py-1.5 text-xs font-semibold tracking-wide transition",
+                          employeeDialogChoiceChipClass,
                           active && outlineChipTones.emeraldInteractive,
                           !active &&
                             "border border-border bg-elevated text-muted hover:border-border-strong hover:bg-card-hover hover:text-text"
@@ -1620,7 +1622,7 @@ export default function PurchaseInvoiceUploadDialog({
                 <label className={employeeDialogLabelClass}>
                   {t("pages.billing.importFulfillment")}
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className={employeeDialogChoiceGridClass}>
                   {(
                     [
                       ["INTERNAL", t("pages.billing.importHandledInternally")],
@@ -1641,7 +1643,7 @@ export default function PurchaseInvoiceUploadDialog({
                         }
                       }}
                       className={cn(
-                        "inline-flex min-h-8 w-full items-center justify-center rounded-xl px-3 py-1.5 text-xs font-semibold tracking-wide transition",
+                        employeeDialogChoiceChipClass,
                         importFulfillment === value &&
                           outlineChipTones.emeraldInteractive,
                         importFulfillment !== value &&
@@ -3002,7 +3004,7 @@ export default function PurchaseInvoiceUploadDialog({
                   <label className={employeeDialogLabelClass}>
                     {t("pages.billing.importFulfillment")}
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className={employeeDialogChoiceGridClass}>
                     {(
                       [
                         ["INTERNAL", t("pages.billing.importHandledInternally")],
@@ -3023,7 +3025,7 @@ export default function PurchaseInvoiceUploadDialog({
                           }
                         }}
                         className={cn(
-                          "inline-flex min-h-8 w-full items-center justify-center rounded-xl px-3 py-1.5 text-xs font-semibold tracking-wide transition",
+                          employeeDialogChoiceChipClass,
                           importFulfillment === value &&
                             outlineChipTones.emeraldInteractive,
                           importFulfillment !== value &&
@@ -3307,7 +3309,7 @@ export default function PurchaseInvoiceUploadDialog({
                 {t("pages.billing.purchasePurpose")}
                 <span className="text-red-400"> *</span>
               </label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className={employeeDialogChoiceGridClass}>
                 {(
                   [
                     ["PROJECT", t("pages.billing.purchasePurposeProject")],
@@ -3325,7 +3327,7 @@ export default function PurchaseInvoiceUploadDialog({
                         if (value !== "PROJECT") setProjectId("");
                       }}
                       className={cn(
-                        "inline-flex min-h-8 w-full items-center justify-center rounded-xl px-3 py-1.5 text-xs font-semibold tracking-wide transition",
+                        employeeDialogChoiceChipClass,
                         active && outlineChipTones.emeraldInteractive,
                         !active &&
                           "border border-border bg-elevated text-muted hover:border-border-strong hover:bg-card-hover hover:text-text"

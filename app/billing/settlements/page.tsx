@@ -6,6 +6,9 @@ import SettlementsApMarkPaidButton from "@/components/billing/SettlementsApMarkP
 import AppShell from "@/components/layout/AppShell";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import EmptyState from "@/components/ui/EmptyState";
+import FinanceRecordRow, {
+  financeListStatusChipClassName,
+} from "@/components/ui/FinanceRecordRow";
 import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { buttonVariants } from "@/components/ui/button";
@@ -261,37 +264,37 @@ export default async function SettlementsPage() {
               descriptionKey="pages.billing.settlementsArEmptyDesc"
             />
           ) : (
-            <ul className="divide-y divide-border rounded-xl border border-border">
+            <div className="flex min-w-0 flex-col gap-2">
               {arRows.map((row) => (
-                <li key={row.id}>
-                  <Link
-                    href={row.href}
-                    className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 transition hover:bg-elevated"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-medium text-text">{row.label}</p>
-                      <p className="mt-0.5 text-sm text-subtle">
+                <FinanceRecordRow
+                  key={row.id}
+                  href={row.href}
+                  type={null}
+                  title={
+                    <>
+                      <p className="truncate font-medium leading-none text-text">
+                        {row.label}
+                      </p>
+                      <p className="mt-1 truncate text-xs leading-none text-subtle">
                         {row.clientName}
+                        {row.dueLabel ? ` · ${row.dueLabel}` : ""}
                       </p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <p className="text-sm tabular-nums text-muted">
-                        {row.dueLabel}
-                      </p>
-                      <p className="text-sm font-medium tabular-nums text-text">
-                        {row.amountLabel}
-                      </p>
-                      <StatusBadge
-                        status={row.isLate ? "danger" : "warning"}
-                        compact
-                      >
+                    </>
+                  }
+                  status={
+                    <StatusBadge
+                      status={row.isLate ? "danger" : "warning"}
+                      className={financeListStatusChipClassName}
+                    >
+                      <span className="flex h-full w-full items-center justify-center text-center leading-none">
                         {localizeBillingStatus(row.statusKey, locale)}
-                      </StatusBadge>
-                    </div>
-                  </Link>
-                </li>
+                      </span>
+                    </StatusBadge>
+                  }
+                  amount={row.amountLabel}
+                />
               ))}
-            </ul>
+            </div>
           )}
         </SectionCard>
 
@@ -335,49 +338,52 @@ export default async function SettlementsPage() {
                 descriptionKey="pages.billing.settlementsApEmptyDesc"
               />
             ) : (
-              <ul className="divide-y divide-border rounded-xl border border-border">
+              <div className="flex min-w-0 flex-col gap-2">
                 {apRows.map((row) => (
-                  <li
+                  <FinanceRecordRow
                     key={row.id}
-                    className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-medium text-text">{row.supplierName}</p>
-                      <p className="mt-0.5 text-sm text-subtle">
-                        {row.invoiceRef}
-                        {row.termsLabel ? ` · ${row.termsLabel}` : ""}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <p className="text-sm tabular-nums text-muted">
-                        {row.dueLabel}
-                      </p>
-                      <p className="text-sm font-medium tabular-nums text-text">
-                        {row.amountLabel}
-                      </p>
+                    type={null}
+                    title={
+                      <>
+                        <p className="truncate font-medium leading-none text-text">
+                          {row.supplierName}
+                        </p>
+                        <p className="mt-1 truncate text-xs leading-none text-subtle">
+                          {row.invoiceRef}
+                          {row.termsLabel ? ` · ${row.termsLabel}` : ""}
+                          {row.dueLabel ? ` · ${row.dueLabel}` : ""}
+                        </p>
+                        {canMarkApPaid ? (
+                          <div className="mt-2">
+                            <SettlementsApMarkPaidButton
+                              purchaseInvoiceId={row.id}
+                              supplierName={row.supplierName}
+                              invoiceRef={row.invoiceRef}
+                              needsImportBankRate={row.needsImportBankRate}
+                              invoiceCurrency={row.invoiceCurrency}
+                              invoiceForeignAmount={row.invoiceForeignAmount}
+                              bookingRate={row.bookingRate}
+                            />
+                          </div>
+                        ) : null}
+                      </>
+                    }
+                    status={
                       <StatusBadge
                         status={row.isOverdue ? "danger" : "info"}
-                        compact
+                        className={financeListStatusChipClassName}
                       >
-                        {row.isOverdue
-                          ? t("pages.billing.vendorStatusOverdue")
-                          : t("pages.billing.vendorStatusOpen")}
+                        <span className="flex h-full w-full items-center justify-center text-center leading-none">
+                          {row.isOverdue
+                            ? t("pages.billing.vendorStatusOverdue")
+                            : t("pages.billing.vendorStatusOpen")}
+                        </span>
                       </StatusBadge>
-                      {canMarkApPaid ? (
-                        <SettlementsApMarkPaidButton
-                          purchaseInvoiceId={row.id}
-                          supplierName={row.supplierName}
-                          invoiceRef={row.invoiceRef}
-                          needsImportBankRate={row.needsImportBankRate}
-                          invoiceCurrency={row.invoiceCurrency}
-                          invoiceForeignAmount={row.invoiceForeignAmount}
-                          bookingRate={row.bookingRate}
-                        />
-                      ) : null}
-                    </div>
-                  </li>
+                    }
+                    amount={row.amountLabel}
+                  />
                 ))}
-              </ul>
+              </div>
             )}
           </SectionCard>
         ) : null}
