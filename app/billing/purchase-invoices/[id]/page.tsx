@@ -325,6 +325,23 @@ export default async function PurchaseInvoiceDetailPage({
         : t("pages.billing.purchaseOriginLocal"),
   ].join(" · ");
 
+  const paymentForLabel =
+    invoice.purchaseCategory === "GOVERNMENT"
+      ? invoice.governmentTaxKind
+        ? t(governmentTaxKindLabelKey(invoice.governmentTaxKind))
+        : t("pages.billing.governmentChip")
+      : invoice.purchaseCategory === "BANK_LOAN"
+        ? invoice.bankLoanKind === "STANDBY"
+          ? t("pages.billing.bankLoanKindStandby")
+          : invoice.bankLoanKind === "TERM"
+            ? t("pages.billing.bankLoanKindTerm")
+            : t("pages.billing.purchaseCategoryBankLoan")
+        : isImport
+          ? t("pages.billing.purchaseOriginChipImport")
+          : invoice.purchaseCategory === "VEHICLE"
+            ? t("pages.billing.purchaseCategoryVehicle")
+            : null;
+
   return (
     <AppShell title={invoice.supplierName} description={pageDescription}>
       <div className="mb-4">
@@ -357,42 +374,18 @@ export default async function PurchaseInvoiceDetailPage({
                 {t("pages.billing.vendorStatusOpen")}
               </StatusBadge>
             )}
-            {invoice.purchaseCategory === "GOVERNMENT" ? (
-              <StatusBadge status="info">
-                {invoice.governmentTaxKind
-                  ? t(governmentTaxKindLabelKey(invoice.governmentTaxKind))
-                  : t("pages.billing.governmentChip")}
-              </StatusBadge>
-            ) : invoice.purchaseCategory === "BANK_LOAN" ? (
-              <StatusBadge status="info">
-                {invoice.bankLoanKind === "STANDBY"
-                  ? t("pages.billing.bankLoanKindStandby")
-                  : invoice.bankLoanKind === "TERM"
-                    ? t("pages.billing.bankLoanKindTerm")
-                    : t("pages.billing.purchaseCategoryBankLoan")}
-              </StatusBadge>
-            ) : taxIncomplete ? (
+            {paymentForLabel ? (
+              <StatusBadge
+                status="info"
+                lines={[
+                  t("pages.billing.purchasePaymentForChip"),
+                  paymentForLabel,
+                ]}
+              />
+            ) : null}
+            {taxIncomplete ? (
               <StatusBadge status="pending">
                 {t("pages.billing.vendorStatusTaxMissing")}
-              </StatusBadge>
-            ) : invoice.includedTaxKind ? (
-              <StatusBadge status="success">
-                {invoice.includedTaxKind === "OTHER" && invoice.otherTaxName
-                  ? invoice.otherTaxName
-                  : t(commercialTaxKindLabelKey(invoice.includedTaxKind))}
-              </StatusBadge>
-            ) : invoice.includesPpn ? (
-              <StatusBadge status="success">
-                {t("pages.billing.purchaseIncludesPpnChip")}
-              </StatusBadge>
-            ) : (
-              <StatusBadge status="inactive">
-                {t("pages.billing.purchaseNoPpnChip")}
-              </StatusBadge>
-            )}
-            {isImport ? (
-              <StatusBadge status="info">
-                {t("pages.billing.purchaseOriginChipImport")}
               </StatusBadge>
             ) : null}
             {!invoice.reversedAt && !recordStatus.complete ? (

@@ -2614,6 +2614,7 @@ export const en = {
       purchaseProject: "Project",
       purchaseProjectPlaceholder: "Select a project",
       purchaseProjectRequired: "Select the project this purchase is for.",
+      purchasePaymentForChip: "Payment For",
       purchaseCategory: "Expense Type",
       purchaseCategoryProduct: "Product",
       purchaseCategoryVehicle: "Vehicle",

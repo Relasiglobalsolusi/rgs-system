@@ -2642,6 +2642,7 @@ export const id = {
       purchaseProject: "Proyek",
       purchaseProjectPlaceholder: "Pilih proyek",
       purchaseProjectRequired: "Pilih proyek untuk pembelian ini.",
+      purchasePaymentForChip: "Pembayaran Untuk",
       purchaseCategory: "Jenis Pengeluaran",
       purchaseCategoryProduct: "Produk",
       purchaseCategoryVehicle: "Kendaraan",

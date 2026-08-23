@@ -29,7 +29,6 @@ import { listLoanFacilitySnapshots } from "@/lib/loan-facility-query";
 import { requireFinanceChild, toPermissionUser } from "@/lib/session";
 import { processScheduledPettyCashPays } from "@/lib/petty-cash";
 import { jakartaYearMonth, utcRangeForJakartaDate, utcRangeForJakartaMonth, daysInUtcMonth } from "@/lib/vat";
-import { governmentTaxKindLabelKey } from "@/lib/government-tax";
 
 /** AP list view filters for HO Finance. */
 const PURCHASE_VIEWS = ["tax", "payments"] as const;
@@ -187,9 +186,6 @@ export default async function PurchaseInvoicesPage({
       amountLabel: formatPurchaseListedAmount(invoice),
       origin: invoice.origin,
       purchaseCategory: invoice.purchaseCategory,
-      governmentTaxKindLabel: invoice.governmentTaxKind
-        ? t(governmentTaxKindLabelKey(invoice.governmentTaxKind))
-        : null,
       freeOfCharge: invoice.freeOfCharge,
       hasInvoice: invoice.hasInvoice,
       paymentStatus: invoice.freeOfCharge

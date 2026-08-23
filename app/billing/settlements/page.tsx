@@ -270,7 +270,6 @@ export default async function SettlementsPage() {
                 <FinanceRecordRow
                   key={row.id}
                   href={row.href}
-                  type={null}
                   title={
                     <>
                       <p className="text-left font-medium leading-snug text-text">
@@ -343,7 +342,6 @@ export default async function SettlementsPage() {
                 {apRows.map((row) => (
                   <FinanceRecordRow
                     key={row.id}
-                    type={null}
                     title={
                       <>
                         <p className="text-left font-medium leading-snug text-text">

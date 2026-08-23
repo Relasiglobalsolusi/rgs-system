@@ -8,11 +8,10 @@ import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/ui/EmptyState";
 import FinanceRecordRow, {
   financeListStatusChipClassName,
-  financeListTypeChipClassName,
   financeRecordListClassName,
 } from "@/components/ui/FinanceRecordRow";
 import SectionCard from "@/components/ui/SectionCard";
-import StatusBadge, { outlineChipTones } from "@/components/ui/StatusBadge";
+import StatusBadge from "@/components/ui/StatusBadge";
 import { formatDisplayDate } from "@/lib/format-date";
 import { localizeKnownKey } from "@/lib/i18n/labels";
 import { getServerLocale } from "@/lib/i18n/locale";
@@ -27,11 +26,6 @@ import { requirePettyCashAccess } from "@/lib/session";
 import { jakartaYearMonth, utcRangeForJakartaMonth } from "@/lib/vat";
 import { cn } from "@/lib/utils";
 
-function kindTone(kind: string) {
-  if (kind === "TOP_UP") return outlineChipTones.emerald;
-  if (kind === "PART_TIME_PAY") return outlineChipTones.cyan;
-  return outlineChipTones.warning;
-}
 
 function statusTone(status: string): "success" | "warning" | "danger" | "info" {
   if (status === "POSTED") return "success";
@@ -201,19 +195,6 @@ export default async function PettyCashPage() {
           {entries.map((entry) => (
             <FinanceRecordRow
               key={entry.id}
-              type={
-                <span
-                  className={cn(
-                    financeListTypeChipClassName,
-                    kindTone(entry.kind)
-                  )}
-                >
-                  {localizeKnownKey(
-                    `pages.pettyCash.kind.${entry.kind}`,
-                    locale
-                  )}
-                </span>
-              }
               title={
                 <>
                   <h3 className="text-left text-sm font-semibold leading-snug tracking-tight text-text">
