@@ -109,11 +109,6 @@ function LoginContent() {
         <section className="auth-form-panel flex min-h-screen items-center border-r px-6 py-12 sm:px-10 lg:px-14 xl:px-20">
           <div className="mx-auto w-full max-w-[31.875rem]">
             <div className="mb-10">
-              <div className="auth-lang-bar">
-                <AuthThemeSwitcher />
-                <AuthLanguageSwitcher />
-              </div>
-
               <AuthLogo variant="hero" />
 
               <div className="mt-5 flex items-center gap-4">
@@ -130,6 +125,11 @@ function LoginContent() {
             </div>
 
             <div className="mb-8">
+              <div className="auth-lang-bar">
+                <AuthThemeSwitcher />
+                <AuthLanguageSwitcher />
+              </div>
+
               <h1 className="text-4xl font-semibold tracking-tight">
                 {t("auth.welcomeBack")}
               </h1>

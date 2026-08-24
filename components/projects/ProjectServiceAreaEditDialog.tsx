@@ -1,7 +1,7 @@
 "use client";
 
 import { showRejectionFromError } from "@/components/ui/rejection-notice";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Layers } from "lucide-react";
 
 import { updateProjectServiceArea } from "@/app/projects/catalog-actions";
@@ -10,12 +10,18 @@ import {
   EmployeePrimaryButton,
   employeeDialogFieldClass,
   employeeDialogFormClass,
+  employeeDialogHintClass,
+  employeeDialogLabelClass,
   employeeInputClass,
 } from "@/components/employees/employee-dialog-ui";
 import { Input } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
+import YesNoChoiceCards, {
+  type YesNoChoice,
+} from "@/components/ui/YesNoChoiceCards";
 import { useT } from "@/lib/i18n/use-t";
 import {
+  areaOneTimeIsLocked,
   catalogDisplayName,
   type ProjectCatalogAreaDTO,
 } from "@/lib/project-service-catalog";
@@ -33,6 +39,10 @@ export default function ProjectServiceAreaEditDialog({
 }) {
   const { t, locale } = useT();
   const [pending, startTransition] = useTransition();
+  const oneTimeLocked = areaOneTimeIsLocked(area);
+  const [allowsOneTime, setAllowsOneTime] = useState<YesNoChoice>(
+    area.allowsOneTime && !oneTimeLocked ? "Yes" : "No"
+  );
 
   function submit(formData: FormData) {
     startTransition(async () => {
@@ -94,6 +104,32 @@ export default function ProjectServiceAreaEditDialog({
                 defaultValue={area.nameId}
                 className={employeeInputClass}
               />
+            </div>
+            <div className={employeeDialogFieldClass}>
+              <label
+                id="edit-service-area-one-time-label"
+                htmlFor="edit-service-area-one-time"
+                className={employeeDialogLabelClass}
+              >
+                {t("pages.projects.oneTime")}
+              </label>
+              <YesNoChoiceCards
+                id="edit-service-area-one-time"
+                labelledBy="edit-service-area-one-time-label"
+                value={allowsOneTime}
+                onChange={setAllowsOneTime}
+                disabled={oneTimeLocked}
+              />
+              <input
+                type="hidden"
+                name="allowsOneTime"
+                value={allowsOneTime === "Yes" ? "yes" : "no"}
+              />
+              <p className={employeeDialogHintClass}>
+                {oneTimeLocked
+                  ? t("pages.projects.catalogOneTimeLockedAreaHint")
+                  : t("pages.projects.catalogEnableOneTimeHint")}
+              </p>
             </div>
             <p className="text-xs text-subtle">
               {catalogDisplayName(area, locale)}

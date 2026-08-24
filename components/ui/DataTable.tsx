@@ -519,7 +519,7 @@ export default function DataTable<T>({
                     onClick={isGutter ? stopGutterCellClick : undefined}
                     onPointerDown={isGutter ? stopGutterCellClick : undefined}
                     className={cn(
-                      "min-h-12 bg-elevated px-3 py-3 align-middle text-[11px] font-semibold uppercase tracking-[0.06em] text-subtle whitespace-normal",
+                      "min-h-12 bg-elevated px-3 py-3 align-middle text-[11px] font-semibold text-subtle whitespace-normal",
                       column.headerClassName,
                       columnTrailingPadClass(column, isLastColumn),
                       // Chip / actions: center title over the chip. Money: right.

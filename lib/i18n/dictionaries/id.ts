@@ -585,9 +585,9 @@ export const id = {
       manageServiceAreas: "Kelola Area Layanan",
       manageServiceAreasTitle: "Area Layanan",
       manageServiceAreasDescription:
-        "Tambah, ubah nama, atau hapus area layanan. Klik area layanan untuk mengelola subkategorinya.",
+        "Tambah, ubah, atau hapus area layanan. Klik area layanan untuk mengelola subkategorinya.",
       manageSubcategoriesDescription:
-        "Tambah, ubah nama, atau hapus subkategori untuk area layanan ini.",
+        "Tambah, ubah nama, atau hapus subkategori untuk area layanan ini. Ubah dipakai untuk area layanan ini, termasuk Satu Kali.",
       serviceAreaCount: "{count} area layanan",
       serviceAreaCountOne: "{count} area layanan",
       subcategoryManageCount: "{count} subkategori",
@@ -600,12 +600,18 @@ export const id = {
       catalogEnableOneTimeHint:
         "Ya memungkinkan proyek sekali jalan untuk area layanan ini.",
       catalogProjects: "Proyek",
-      catalogEditAreaTitle: "Ubah Nama Area Layanan",
+      catalogEditAreaTitle: "Ubah Area Layanan",
       catalogEditAreaDescription:
-        "Perbarui nama area layanan yang tampil di Tambah Proyek.",
-      catalogEditSubTitle: "Ubah Nama Subkategori",
+        "Perbarui nama area layanan dan apakah area ini dapat memiliki proyek Satu Kali.",
+      catalogEditSubTitle: "Ubah Subkategori",
       catalogEditSubDescription:
-        "Perbarui nama subkategori yang tampil di Tambah Proyek.",
+        "Perbarui nama subkategori dan apakah subkategori ini Satu Kali.",
+      catalogSubOneTimeHint:
+        "Ya menjadikan subkategori ini Satu Kali di Tambah Proyek.",
+      catalogOneTimeLockedAreaHint:
+        "Parking dan Manajemen Payroll tetap kontrak saja.",
+      catalogOneTimeLockedSubHint:
+        "Subkategori ini tidak dapat dijadikan Satu Kali.",
       catalogDeleteAreaTitle: "Hapus Area Layanan?",
       catalogDeleteAreaConfirm: "Hapus Area Layanan",
       catalogDeleteAreaDescEmpty:
@@ -912,7 +918,7 @@ export const id = {
       removeBackupSaving: "Melepas…",
       clearHistory: "Hapus semua yang selesai",
       timeline: "Linimasa",
-      cleaningType: "Jenis pembersihan",
+      cleaningType: "Jenis Pembersihan",
       due: "Jatuh tempo",
       paid: "Lunas",
       /** Internal HO/Warehouse sites with no commercial start/end dates. */
@@ -4905,7 +4911,7 @@ export const id = {
       columns: {
         item: "Item",
         sku: "SKU",
-        qty: "Qty diminta",
+        qty: "Kuantitas Diminta",
         onHand: "Stok Gudang",
         availability: "Ketersediaan",
         requester: "Pemohon",
@@ -5395,7 +5401,7 @@ export const id = {
         actions: "Aksi",
         date: "Tanggal",
         vendor: "Pemasok",
-        qty: "Qty",
+        qty: "Kuantitas",
         unitPrice: "Harga Satuan",
         total: "Total",
         invoice: "Invoice",
@@ -5806,7 +5812,7 @@ export const id = {
     sendResetLink: "Kirim tautan reset",
     updatePassword: "Perbarui kata sandi",
     backToLogin: "Kembali ke masuk",
-    welcomeBack: "Selamat datang kembali",
+    welcomeBack: "Selamat Datang Kembali",
     signInSubtitle:
       "Masuk untuk mengelola ruang kerja, proyek, dan operasi bisnis Anda.",
     username: "Nama pengguna",

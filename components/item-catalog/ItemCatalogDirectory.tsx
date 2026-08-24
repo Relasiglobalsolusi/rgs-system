@@ -296,7 +296,7 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
           {INVENTORY_CATEGORY_DISPLAY_ORDER.map((key) =>
             categorized[key].length > 0 ? (
               <div key={key} className="space-y-2">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-subtle">
+                <p className="text-xs font-semibold text-subtle">
                   {t(INVENTORY_CATEGORY_TITLE_KEY[key])}
                 </p>
                 <DataTable

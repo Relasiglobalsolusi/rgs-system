@@ -17,6 +17,7 @@ type Props = {
   /** Optional id of the visible question label for aria-labelledby. */
   labelledBy?: string;
   className?: string;
+  disabled?: boolean;
 };
 
 /**
@@ -30,6 +31,7 @@ export default function YesNoChoiceCards({
   onChange,
   labelledBy,
   className,
+  disabled = false,
 }: Props) {
   const { t } = useT();
   const labels: Record<YesNoChoice, string> = {
@@ -52,14 +54,19 @@ export default function YesNoChoiceCards({
             type="button"
             role="radio"
             aria-checked={active}
-            onClick={() => onChange(option)}
+            aria-disabled={disabled || undefined}
+            disabled={disabled}
+            onClick={() => {
+              if (!disabled) onChange(option);
+            }}
             className={cn(
               employeeDialogChoiceChipClass,
               "gap-1.5 duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
               active && option === "Yes" && outlineChipTones.emeraldInteractive,
               active && option === "No" && outlineChipTones.dangerInteractive,
               !active &&
-                "border border-border bg-elevated text-muted hover:border-border-strong hover:bg-card-hover hover:text-text"
+                "border border-border bg-elevated text-muted hover:border-border-strong hover:bg-card-hover hover:text-text",
+              disabled && "cursor-not-allowed opacity-60"
             )}
           >
             {labels[option]}

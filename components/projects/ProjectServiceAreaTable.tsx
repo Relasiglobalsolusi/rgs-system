@@ -27,6 +27,10 @@ type Props = {
   onSelectedAreaIdChange: (id: string | null) => void;
 };
 
+/** Same box as Add Subcategory — do not size these with the dialog wrapper. */
+const catalogToolbarPairClass =
+  "box-border h-[2.75rem] min-h-[2.75rem] w-[12.75rem] min-w-[12.75rem] max-w-[12.75rem]";
+
 function CatalogRowActions({
   onEdit,
   onDelete,
@@ -113,14 +117,14 @@ export default function ProjectServiceAreaTable({
       },
       {
         key: "billingKind",
-        title: t("pages.projects.catalogBillingKind"),
-        width: "8rem",
-        className: "min-w-[8rem] whitespace-nowrap",
+        title: t("pages.projects.oneTime"),
+        width: "7rem",
+        className: "min-w-[7rem] whitespace-nowrap",
         render: (sub) => (
           <span className="text-muted">
             {sub.billingKind === "ONE_TIME"
-              ? t("pages.projects.catalogBillingOneTime")
-              : t("pages.projects.catalogBillingContract")}
+              ? t("common.actions.yes")
+              : t("common.actions.no")}
           </span>
         ),
       },
@@ -176,11 +180,12 @@ export default function ProjectServiceAreaTable({
               </span>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2">
             <Button
               type="button"
               variant="mutedBadge"
               size="badgeFlex"
+              className={catalogToolbarPairClass}
               onClick={() => setEditArea(selectedArea)}
             >
               {t("common.actions.edit")}
@@ -189,6 +194,7 @@ export default function ProjectServiceAreaTable({
               areaId={selectedArea.id}
               allowsOneTime={allowsCustomOneTimeSubcategory(selectedArea)}
               onCreated={refresh}
+              triggerClassName={catalogToolbarPairClass}
             />
           </div>
         </div>
@@ -215,6 +221,7 @@ export default function ProjectServiceAreaTable({
         {editSub ? (
           <ProjectSubcategoryEditDialog
             key={editSub.id}
+            area={selectedArea}
             subcategory={editSub}
             open
             onOpenChange={(open) => {
@@ -262,6 +269,19 @@ export default function ProjectServiceAreaTable({
           </div>
           <ChevronRight className="h-4 w-4 shrink-0 text-subtle" />
         </div>
+      ),
+    },
+    {
+      key: "oneTime",
+      title: t("pages.projects.oneTime"),
+      width: "7rem",
+      className: "min-w-[7rem] whitespace-nowrap",
+      render: (area) => (
+        <span className="text-muted">
+          {area.allowsOneTime
+            ? t("common.actions.yes")
+            : t("common.actions.no")}
+        </span>
       ),
     },
     {

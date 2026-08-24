@@ -22,6 +22,7 @@ import { formatDisplayDate } from "@/lib/format-date";
 import {
   localizeBillingChipLines,
   localizeSubCategory,
+  localizeSubCategoryChipLines,
   localizeWorkflowChipLines,
   localizeWorkflowStatus,
 } from "@/lib/i18n/labels";
@@ -141,6 +142,14 @@ export type ProjectTableRow = {
   /** Catalog or localized type name (keeps Regular / General / Internal truthful). */
   typeLabel?: string;
 };
+
+function chipLinesFromLabel(
+  label: string | null | undefined
+): readonly [string, string] | null {
+  const parts = label?.trim().split(/\s+/).filter(Boolean) ?? [];
+  if (parts.length < 2) return null;
+  return [parts[0], parts.slice(1).join(" ")];
+}
 
 type Props = {
   rows: ProjectTableRow[];
@@ -462,11 +471,24 @@ export default function ProjectTable({
         share: isInternalTable ? 0 : 1,
         cellAlign: "center",
         className: "min-w-[10rem] overflow-visible whitespace-nowrap",
-        render: (row) => (
-          <StatusBadge status="success" compact>
-            {row.typeLabel ?? localizeSubCategory(row.project.subCategory, locale)}
-          </StatusBadge>
-        ),
+        render: (row) => {
+          const typeLines =
+            localizeSubCategoryChipLines(row.project.subCategory, locale) ??
+            chipLinesFromLabel(row.typeLabel);
+          return (
+            <StatusBadge
+              status="success"
+              compact
+              lines={typeLines ?? undefined}
+              className="!w-[7.5rem] !min-w-[7.5rem] !max-w-[7.5rem]"
+            >
+              {typeLines
+                ? undefined
+                : (row.typeLabel ??
+                  localizeSubCategory(row.project.subCategory, locale))}
+            </StatusBadge>
+          );
+        },
       },
       {
         key: "status",

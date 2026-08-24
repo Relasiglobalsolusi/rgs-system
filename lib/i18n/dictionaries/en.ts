@@ -571,9 +571,9 @@ export const en = {
       manageServiceAreas: "Manage Service Areas",
       manageServiceAreasTitle: "Service Areas",
       manageServiceAreasDescription:
-        "Add, rename, or delete service areas. Click a service area to manage its subcategories.",
+        "Add, edit, or delete service areas. Click a service area to manage its subcategories.",
       manageSubcategoriesDescription:
-        "Add, rename, or delete subcategories for this service area.",
+        "Add, rename, or delete subcategories for this service area. Edit changes this service area, including One Time.",
       serviceAreaCount: "{count} service areas",
       serviceAreaCountOne: "{count} service area",
       subcategoryManageCount: "{count} subcategories",
@@ -585,12 +585,18 @@ export const en = {
       catalogEnableOneTimeHint:
         "Yes allows one-shot projects for this service area.",
       catalogProjects: "Projects",
-      catalogEditAreaTitle: "Rename Service Area",
+      catalogEditAreaTitle: "Edit Service Area",
       catalogEditAreaDescription:
-        "Update the service area name shown on Add Project.",
-      catalogEditSubTitle: "Rename Subcategory",
+        "Update the service area name and whether it can have One Time projects.",
+      catalogEditSubTitle: "Edit Subcategory",
       catalogEditSubDescription:
-        "Update the subcategory name shown on Add Project.",
+        "Update the subcategory name and whether it is One Time.",
+      catalogSubOneTimeHint:
+        "Yes makes this subcategory One Time on Add Project.",
+      catalogOneTimeLockedAreaHint:
+        "Parking and Payroll Management stay contract only.",
+      catalogOneTimeLockedSubHint:
+        "This subcategory cannot be set as One Time.",
       catalogDeleteAreaTitle: "Delete Service Area?",
       catalogDeleteAreaConfirm: "Delete Service Area",
       catalogDeleteAreaDescEmpty:
@@ -894,7 +900,7 @@ export const en = {
       removeBackupSaving: "Removing…",
       clearHistory: "Clear all completed",
       timeline: "Timeline",
-      cleaningType: "Cleaning type",
+      cleaningType: "Cleaning Type",
       due: "Due",
       paid: "Paid",
       /** Internal HO/Warehouse sites with no commercial start/end dates. */
@@ -4853,7 +4859,7 @@ export const en = {
       columns: {
         item: "Item",
         sku: "SKU",
-        qty: "Qty requested",
+        qty: "Quantity Requested",
         onHand: "On Hand",
         availability: "Availability",
         requester: "Requester",
@@ -5330,7 +5336,7 @@ export const en = {
         actions: "Actions",
         date: "Date",
         vendor: "Vendor",
-        qty: "Qty",
+        qty: "Quantity",
         unitPrice: "Unit Price",
         total: "Total",
         invoice: "Invoice",
@@ -5736,7 +5742,7 @@ export const en = {
     sendResetLink: "Send reset link",
     updatePassword: "Update password",
     backToLogin: "Back to login",
-    welcomeBack: "Welcome back",
+    welcomeBack: "Welcome Back",
     signInSubtitle:
       "Sign in to manage your workspace, projects, and business operations.",
     username: "Username",

@@ -45,16 +45,26 @@ export function isVirtualCatalogRow(id: string): boolean {
   return id.startsWith("virtual:");
 }
 
+/** Parking / Payroll stay contract-only. */
+export function areaOneTimeIsLocked(area: { systemArea: ServiceArea }): boolean {
+  return (
+    area.systemArea === "PARKING" || area.systemArea === "PAYROLL_MANAGEMENT"
+  );
+}
+
 /** Parking / Payroll stay contract-only. Cleaning One Time stays General | Facade. */
+export function subcategoryOneTimeIsLocked(area: {
+  systemArea: ServiceArea;
+}): boolean {
+  return area.systemArea === "CLEANING" || areaOneTimeIsLocked(area);
+}
+
 export function allowsCustomOneTimeSubcategory(area: {
   allowsOneTime: boolean;
   systemArea: ServiceArea;
 }): boolean {
   if (!area.allowsOneTime) return false;
-  if (area.systemArea === "CLEANING") return false;
-  if (area.systemArea === "PARKING") return false;
-  if (area.systemArea === "PAYROLL_MANAGEMENT") return false;
-  return true;
+  return !subcategoryOneTimeIsLocked(area);
 }
 
 export function catalogAreaUsageCount(area: ProjectCatalogAreaDTO): number {

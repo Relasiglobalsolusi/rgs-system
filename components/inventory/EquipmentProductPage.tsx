@@ -583,7 +583,7 @@ export default function EquipmentProductPage({
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-border bg-card px-3 py-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-subtle">
+      <p className="text-xs font-semibold text-subtle">
         {label}
       </p>
       <p className="mt-1 text-lg font-semibold text-text">{value}</p>

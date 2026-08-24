@@ -201,7 +201,7 @@ export default function InventoryProjectIssues({
     if (rows.length === 0) return null;
     return (
       <div className="space-y-2">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-subtle">
+        <p className="text-xs font-semibold text-subtle">
           {title}
         </p>
         <DataTable

@@ -321,8 +321,7 @@ body {
   margin: 0;
   font-size: 0.625rem;
   font-weight: 600;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
   color: var(--color-subtle);
 }
 
@@ -425,8 +424,7 @@ body {
   margin: 0;
   font-size: 0.625rem;
   font-weight: 600;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
   color: var(--color-subtle);
   line-height: 1.2;
 }
@@ -1676,6 +1674,14 @@ html:not(.dark) .auth-lang-module__trigger[data-popup-open] {
   border-color: var(--auth-link);
   background-color: color-mix(in srgb, var(--auth-field-bg) 90%, var(--auth-link));
   box-shadow: 0 2px 8px 0 rgba(15, 35, 55, 0.1);
+}
+
+/* Next.js 16 still paints an Issues chip over Sign Out when the flag is ignored. */
+nextjs-portal,
+[data-next-badge-root],
+[data-next-mark-loading],
+#nextjs-dev-indicator {
+  display: none !important;
 }
 
 @media print {

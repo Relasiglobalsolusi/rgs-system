@@ -115,10 +115,8 @@ export default function DirectoryStatCard({
         <div className="min-w-0 flex-1">
           <p
             className={cn(
-              "truncate font-semibold uppercase text-subtle",
-              compact
-                ? "text-xs tracking-[0.12em]"
-                : "text-[11px] tracking-[0.16em]"
+              "truncate font-semibold text-subtle",
+              compact ? "text-xs" : "text-[11px]"
             )}
             title={title}
           >

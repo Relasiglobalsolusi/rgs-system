@@ -178,7 +178,7 @@ export default function InventoryAssetList({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-end justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-subtle">
+        <p className="text-xs font-semibold text-subtle">
           {t("pages.inventory.overview.categoryEquipment")}
         </p>
         <p className="text-xs text-muted">

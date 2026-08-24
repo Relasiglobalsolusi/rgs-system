@@ -13,12 +13,14 @@ import { requireModule, toPermissionUser } from "@/lib/session";
 import { canManageProjects } from "@/lib/project-access";
 import {
   allowsCustomOneTimeSubcategory,
+  areaOneTimeIsLocked,
   CATALOG_ENDED_PROJECT_STATUSES,
   DEFAULT_ONE_TIME_SUB_NAMES,
   isReservedSubcategorySlug,
   isRetiredDemoServiceArea,
   isVirtualCatalogRow,
   slugFromName,
+  subcategoryOneTimeIsLocked,
   SYSTEM_AREA_SEEDS,
   titleCaseCatalogName,
   type ProjectCatalogAreaDTO,
@@ -358,13 +360,7 @@ export async function createProjectServiceArea(formData: FormData) {
     throw new Error("Pest Control is not a service area.");
   }
 
-  const allowsOneTimeRaw = String(formData.get("allowsOneTime") ?? "")
-    .trim()
-    .toLowerCase();
-  const allowsOneTime =
-    allowsOneTimeRaw === "yes" ||
-    allowsOneTimeRaw === "true" ||
-    allowsOneTimeRaw === "1";
+  const allowsOneTime = parseYesFlag(formData.get("allowsOneTime")) ?? false;
 
   const slug = await uniqueAreaSlug(companyId, nameEn);
   const last = await prisma.projectServiceAreaCatalog.findFirst({
@@ -387,19 +383,7 @@ export async function createProjectServiceArea(formData: FormData) {
   });
 
   if (allowsOneTime) {
-    const oneTimeSlug = await uniqueSubSlug(area.id, DEFAULT_ONE_TIME_SUB_NAMES.nameEn);
-    await prisma.projectSubcategoryCatalog.create({
-      data: {
-        areaId: area.id,
-        slug: oneTimeSlug,
-        nameEn: DEFAULT_ONE_TIME_SUB_NAMES.nameEn,
-        nameId: DEFAULT_ONE_TIME_SUB_NAMES.nameId,
-        sortOrder: 20,
-        isSystem: false,
-        systemSubCategory: null as ProjectSubCategory | null,
-        billingKind: "ONE_TIME",
-      },
-    });
+    await ensureDefaultOneTimeSubcategory(area.id);
   }
 
   revalidatePath("/projects");
@@ -476,6 +460,40 @@ function parseCatalogNames(formData: FormData, requiredLabel: string) {
   return { nameEn, nameId };
 }
 
+function parseYesFlag(value: FormDataEntryValue | null): boolean | null {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (raw === "yes" || raw === "true" || raw === "1") return true;
+  if (raw === "no" || raw === "false" || raw === "0") return false;
+  return null;
+}
+
+async function ensureDefaultOneTimeSubcategory(areaId: string) {
+  const existing = await prisma.projectSubcategoryCatalog.findFirst({
+    where: { areaId, billingKind: "ONE_TIME" },
+    select: { id: true },
+  });
+  if (existing) return;
+
+  const oneTimeSlug = await uniqueSubSlug(areaId, DEFAULT_ONE_TIME_SUB_NAMES.nameEn);
+  const last = await prisma.projectSubcategoryCatalog.findFirst({
+    where: { areaId },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true },
+  });
+  await prisma.projectSubcategoryCatalog.create({
+    data: {
+      areaId,
+      slug: oneTimeSlug,
+      nameEn: DEFAULT_ONE_TIME_SUB_NAMES.nameEn,
+      nameId: DEFAULT_ONE_TIME_SUB_NAMES.nameId,
+      sortOrder: (last?.sortOrder ?? 20) + 10,
+      isSystem: false,
+      systemSubCategory: null as ProjectSubCategory | null,
+      billingKind: "ONE_TIME",
+    },
+  });
+}
+
 export async function updateProjectServiceArea(id: string, formData: FormData) {
   const session = await requireProjectManager();
   const companyId = session.user.companyId;
@@ -487,10 +505,23 @@ export async function updateProjectServiceArea(id: string, formData: FormData) {
   if (!area) throw new Error("Service area was not found.");
 
   const { nameEn, nameId } = parseCatalogNames(formData, "Service area name");
+  const requestedOneTime = parseYesFlag(formData.get("allowsOneTime"));
+  let allowsOneTime = area.allowsOneTime;
+  if (requestedOneTime != null) {
+    if (requestedOneTime && areaOneTimeIsLocked(area)) {
+      throw new Error("This service area cannot have One Time.");
+    }
+    allowsOneTime = requestedOneTime;
+  }
+
   await prisma.projectServiceAreaCatalog.update({
     where: { id: area.id },
-    data: { nameEn, nameId },
+    data: { nameEn, nameId, allowsOneTime },
   });
+
+  if (allowsOneTime && !area.allowsOneTime && !subcategoryOneTimeIsLocked(area)) {
+    await ensureDefaultOneTimeSubcategory(area.id);
+  }
 
   revalidatePath("/projects");
   revalidatePath("/teams");
@@ -533,10 +564,36 @@ export async function updateProjectSubcategory(id: string, formData: FormData) {
   if (!sub) throw new Error("Subcategory was not found.");
 
   const { nameEn, nameId } = parseCatalogNames(formData, "Subcategory name");
+  const area = await prisma.projectServiceAreaCatalog.findFirst({
+    where: { id: sub.areaId, companyId },
+  });
+  if (!area) throw new Error("Service area was not found.");
+
+  const requestedOneTime = parseYesFlag(formData.get("allowsOneTime"));
+  let billingKind = sub.billingKind;
+  if (requestedOneTime != null) {
+    if (requestedOneTime && subcategoryOneTimeIsLocked(area)) {
+      if (area.systemArea === "CLEANING") {
+        throw new Error(
+          "Cleaning One Time types are General Cleaning and Facade Cleaning only."
+        );
+      }
+      throw new Error("This service area cannot have One Time.");
+    }
+    billingKind = requestedOneTime ? "ONE_TIME" : "CONTRACT";
+  }
+
   await prisma.projectSubcategoryCatalog.update({
     where: { id: sub.id },
-    data: { nameEn, nameId },
+    data: { nameEn, nameId, billingKind },
   });
+
+  if (billingKind === "ONE_TIME" && !area.allowsOneTime) {
+    await prisma.projectServiceAreaCatalog.update({
+      where: { id: area.id },
+      data: { allowsOneTime: true },
+    });
+  }
 
   revalidatePath("/projects");
   revalidatePath("/teams");

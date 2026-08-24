@@ -22,12 +22,14 @@ type Props = {
   areaId: string;
   allowsOneTime: boolean;
   onCreated?: () => void;
+  triggerClassName?: string;
 };
 
 export default function ProjectSubcategoryDialog({
   areaId,
   allowsOneTime,
   onCreated,
+  triggerClassName,
 }: Props) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
@@ -60,7 +62,11 @@ export default function ProjectSubcategoryDialog({
       disablePointerDismissal
     >
       <DialogTrigger asChild>
-        <Button variant="successBadge" size="badgeFlex">
+        <Button
+          variant="successBadge"
+          size="badgeFlex"
+          className={triggerClassName}
+        >
           {t("pages.projects.addSubcategory")}
         </Button>
       </DialogTrigger>
