@@ -40,6 +40,7 @@ export default function ProjectSubmitForApprovalButton({
     });
   }
 
+  const isBar = size === "bar";
   const buttonSize = size === "badge" ? "badge" : "lg";
 
   return (
@@ -47,17 +48,21 @@ export default function ProjectSubmitForApprovalButton({
       type="button"
       variant="warningBadge"
       size={buttonSize}
-      className={size === "bar" ? detailActionBarButtonClassName : undefined}
+      className={isBar ? detailActionBarButtonClassName : undefined}
       onClick={handleSubmit}
       disabled={pending}
       aria-label={t("pages.projects.submitForApproval.button")}
     >
-      <StackedChipLabel
-        lines={[
-          t("pages.projects.submitForApproval.chip1"),
-          t("pages.projects.submitForApproval.chip2"),
-        ]}
-      />
+      {isBar ? (
+        t("pages.projects.submitForApproval.button")
+      ) : (
+        <StackedChipLabel
+          lines={[
+            t("pages.projects.submitForApproval.chip1"),
+            t("pages.projects.submitForApproval.chip2"),
+          ]}
+        />
+      )}
     </Button>
   );
 }
