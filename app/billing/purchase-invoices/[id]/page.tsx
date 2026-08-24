@@ -316,15 +316,6 @@ export default async function PurchaseInvoiceDetailPage({
     invoice.purchaseCategory === "BANK_LOAN";
   const showLineWarehouseCosts =
     !hideServiceBreakdown && (!isImport || warehouseReady);
-  const pageDescription = [
-    invoice.invoiceRef,
-    invoice.purchaseCategory === "VEHICLE"
-      ? t("pages.billing.purchaseVehicleBought")
-      : isImport
-        ? t("pages.billing.purchaseOriginImport")
-        : t("pages.billing.purchaseOriginLocal"),
-  ].join(" · ");
-
   const paymentForLabel =
     invoice.purchaseCategory === "GOVERNMENT"
       ? invoice.governmentTaxKind
@@ -343,7 +334,7 @@ export default async function PurchaseInvoiceDetailPage({
             : null;
 
   return (
-    <AppShell title={invoice.supplierName} description={pageDescription}>
+    <AppShell title={invoice.supplierName}>
       <div className="mb-4">
         <BackLink href="/billing/purchase-invoices">
           {t("pages.billing.purchaseBackToExpenses")}

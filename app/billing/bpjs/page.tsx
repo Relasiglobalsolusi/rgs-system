@@ -62,7 +62,6 @@ export default async function BpjsPage({
   return (
     <AppShell
       titleKey="pages.bpjs.title"
-      descriptionKey="pages.bpjs.description"
     >
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <PageIntro

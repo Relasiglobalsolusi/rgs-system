@@ -43,7 +43,6 @@ export default async function ShiftsPage({
   return (
     <AppShell
       titleKey="pages.shifts.title"
-      descriptionKey="pages.shifts.description"
     >
       <ShiftsBreadcrumbs items={[{ labelKey: "pages.shifts.title" }]} />
       <ShiftsClientDirectory

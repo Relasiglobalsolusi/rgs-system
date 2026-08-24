@@ -16,7 +16,6 @@ export default async function VendorsPage() {
     return (
       <AppShell
         titleKey="pages.vendors.title"
-        descriptionKey="pages.vendors.description"
       >
         <p className="rounded-3xl border border-border bg-elevated p-8 text-text">
           <T k="pages.vendors.companyNotFound" />
@@ -27,17 +26,12 @@ export default async function VendorsPage() {
 
   const vendors = await prisma.vendor.findMany({
     where: { companyId: company.id },
-    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    orderBy: [{ shortCode: "asc" }, { name: "asc" }],
   });
 
   return (
     <AppShell
       titleKey="pages.vendors.title"
-      descriptionKey={
-        canManage
-          ? "pages.vendors.descriptionManage"
-          : "pages.vendors.descriptionReadonly"
-      }
     >
       <PageIntro
         titleKey="pages.vendors.directoryTitle"

@@ -78,6 +78,7 @@ export default function LoanFacilityCreateDialog({
   const [recordInitialDraw, setRecordInitialDraw] =
     useState<YesNoChoice>("No");
   const [initialDrawAmount, setInitialDrawAmount] = useState("");
+  const [initialDrawDate, setInitialDrawDate] = useState("");
   const [bankAccountId, setBankAccountId] = useState(
     bankAccounts[0]?.id ?? ""
   );
@@ -122,6 +123,7 @@ export default function LoanFacilityCreateDialog({
     setNotes("");
     setRecordInitialDraw("No");
     setInitialDrawAmount("");
+    setInitialDrawDate("");
     setBankAccountId(bankAccounts[0]?.id ?? "");
   }
 
@@ -205,7 +207,11 @@ export default function LoanFacilityCreateDialog({
                 !kind ||
                 (requiresRate &&
                   (!interestRateBasis || !annualRatePercent.trim())) ||
-                (effectiveKind === "STANDBY" && !facilityLimit.trim())
+                (effectiveKind === "STANDBY" && !facilityLimit.trim()) ||
+                (recordInitialDraw === "Yes" &&
+                  (!initialDrawAmount.trim() ||
+                    !initialDrawDate.trim() ||
+                    !bankAccountId))
               }
             >
               {pending ? t("pages.loans.saving") : t("pages.loans.registerConfirm")}
@@ -294,6 +300,7 @@ export default function LoanFacilityCreateDialog({
                       onClick={() => {
                         setKind(value);
                         if (value === "TERM") setRecordInitialDraw("Yes");
+                        if (value === "STANDBY") setRecordInitialDraw("No");
                       }}
                       className={cn(
                         "inline-flex min-h-8 w-full items-center justify-center rounded-xl px-3 py-1.5 text-xs font-semibold tracking-wide transition",
@@ -554,7 +561,7 @@ export default function LoanFacilityCreateDialog({
                   </span>
                 </p>
                 <p className={employeeDialogHintClass}>
-                  {t("pages.billing.bankLoanMonthlyInstallment")}
+                  {t("pages.billing.bankLoanAnuitasHint")}
                 </p>
               </div>
             ) : null}
@@ -581,49 +588,85 @@ export default function LoanFacilityCreateDialog({
                 id="loan-initial-draw"
                 className={employeeDialogLabelClass}
               >
-                {t("pages.loans.recordInitialDraw")}
+                {effectiveKind === "STANDBY"
+                  ? t("pages.loans.hasMoneyBeenDrawn")
+                  : t("pages.loans.recordInitialDraw")}
               </label>
               <YesNoChoiceCards
                 id="loan-initial-draw"
                 labelledBy="loan-initial-draw"
                 value={recordInitialDraw}
-                onChange={setRecordInitialDraw}
+                onChange={(value) => {
+                  setRecordInitialDraw(value);
+                  if (value === "No") {
+                    setInitialDrawAmount("");
+                    setInitialDrawDate("");
+                    setBankAccountId("");
+                  }
+                }}
               />
               <p className={employeeDialogHintClass}>
-                {t("pages.loans.recordInitialDrawHint")}
+                {effectiveKind === "STANDBY"
+                  ? t("pages.loans.hasMoneyBeenDrawnHint")
+                  : t("pages.loans.recordInitialDrawHint")}
               </p>
             </div>
 
             {recordInitialDraw === "Yes" ? (
-              <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
-                <label
-                  htmlFor="loan-initial-amount"
-                  className={employeeDialogLabelClass}
-                >
-                  {t("pages.loans.initialDrawAmount")}
-                  <span className="text-red-400"> *</span>
-                </label>
-                <MoneyInput
-                  id="loan-initial-amount"
-                  name="initialDrawAmount"
+              <>
+                <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+                  <label
+                    htmlFor="loan-initial-amount"
+                    className={employeeDialogLabelClass}
+                  >
+                    {effectiveKind === "STANDBY"
+                      ? t("pages.loans.moneyDrawn")
+                      : t("pages.loans.initialDrawAmount")}
+                    <span className="text-red-400"> *</span>
+                  </label>
+                  <MoneyInput
+                    id="loan-initial-amount"
+                    name="initialDrawAmount"
+                    disabled={pending}
+                    value={initialDrawAmount}
+                    onValueChange={setInitialDrawAmount}
+                    className={employeeInputClass}
+                  />
+                </div>
+                <div className={employeeDialogFieldClass}>
+                  <label
+                    htmlFor="loan-initial-draw-date"
+                    className={employeeDialogLabelClass}
+                  >
+                    {t("pages.loans.initialDrawDate")}
+                    <span className="text-red-400"> *</span>
+                  </label>
+                  <Input
+                    id="loan-initial-draw-date"
+                    name="initialDrawDate"
+                    type="date"
+                    required
+                    disabled={pending}
+                    value={initialDrawDate}
+                    onChange={(event) => setInitialDrawDate(event.target.value)}
+                    className={employeeInputClass}
+                  />
+                  <p className={employeeDialogHintClass}>
+                    {t("pages.loans.initialDrawDateHint")}
+                  </p>
+                </div>
+                <CompanyBankAccountField
+                  className="sm:col-span-2"
+                  accounts={bankAccounts}
+                  value={bankAccountId}
+                  onChange={setBankAccountId}
+                  label={t("pages.loans.bankAccount")}
+                  hint={t("pages.loans.bankAccountDrawnHint")}
                   disabled={pending}
-                  value={initialDrawAmount}
-                  onValueChange={setInitialDrawAmount}
-                  className={employeeInputClass}
+                  required
                 />
-              </div>
+              </>
             ) : null}
-
-            <CompanyBankAccountField
-              className="sm:col-span-2"
-              accounts={bankAccounts}
-              value={bankAccountId}
-              onChange={setBankAccountId}
-              label={t("pages.loans.bankAccount")}
-              hint={t("pages.loans.bankAccountHint")}
-              disabled={pending}
-              required={recordInitialDraw === "Yes"}
-            />
 
             <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
               <label htmlFor="loan-notes" className={employeeDialogLabelClass}>

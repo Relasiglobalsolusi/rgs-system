@@ -114,7 +114,6 @@ export default async function PurchaseTaxDetailPage({
   return (
     <AppShell
       title={t("pages.vat.taxDetail")}
-      description={t("pages.vat.taxDetailCreditDesc")}
     >
       <div className="mb-4">
         <BackLink href="/billing/tax-invoices?view=input">

@@ -49,7 +49,6 @@ export default async function EmployeesPage() {
     return (
       <AppShell
         titleKey="pages.employees.title"
-        descriptionKey="pages.employees.description"
       >
         <p className="rounded-2xl border border-border bg-elevated p-8 text-text">
           <T k="pages.employees.companyNotFound" />
@@ -84,7 +83,7 @@ export default async function EmployeesPage() {
           },
         },
         projectAssignments: {
-          include: {
+          select: {
             project: {
               select: {
                 id: true,
@@ -219,11 +218,6 @@ export default async function EmployeesPage() {
   return (
     <AppShell
       titleKey="pages.employees.title"
-      descriptionKey={
-        canManage
-          ? "pages.employees.descriptionManage"
-          : "pages.employees.descriptionReadonly"
-      }
     >
       <PageIntro
         titleKey="pages.employees.directoryTitle"

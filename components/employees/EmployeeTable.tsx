@@ -65,6 +65,7 @@ type Employee = {
     | "RESIGNED";
   depositHeldAmount?: number | null;
   depositStatus?: "NONE" | "HELD" | "RETURNED" | "KEPT_BY_COMPANY";
+  securityDepositRequired?: boolean;
   lastWorkingDay?: Date | string | null;
   resignAccordingToProcedure?: boolean | null;
   hasPendingLeaveRequest?: boolean;
@@ -231,13 +232,18 @@ export default function EmployeeTable({
         key: "leaveStatus",
         title: t("pages.employees.columns.status"),
         cellAlign: "center",
-        width: "8.5rem",
-        className: "min-w-[8.5rem]",
+        width: "6rem",
+        className: "min-w-[6rem]",
         render: (employee) => {
+          const leaveChipClassName = "min-w-0 w-fit px-1.5 [&>span]:w-auto";
           if (employee.status === "RESIGNED") {
             return (
               <div className="flex justify-center">
-                <StatusBadge status="danger" compact>
+                <StatusBadge
+                  status="danger"
+                  compact
+                  className={leaveChipClassName}
+                >
                   {t("pages.employees.resign")}
                 </StatusBadge>
               </div>
@@ -249,6 +255,7 @@ export default function EmployeeTable({
                 <StatusBadge
                   status="info"
                   compact
+                  className={leaveChipClassName}
                   lines={[
                     t("pages.employees.onLeaveChipLine1"),
                     t("pages.employees.onLeaveChipLine2"),
@@ -263,6 +270,7 @@ export default function EmployeeTable({
                 <StatusBadge
                   status="warning"
                   compact
+                  className={leaveChipClassName}
                   lines={[
                     t("pages.employees.leavePendingChipLine1"),
                     t("pages.employees.leavePendingChipLine2"),
@@ -271,7 +279,33 @@ export default function EmployeeTable({
               </div>
             );
           }
-          return <span className="text-muted">—</span>;
+          if (
+            employee.status === "INACTIVE" ||
+            employee.status === "TERMINATED"
+          ) {
+            return (
+              <div className="flex justify-center">
+                <StatusBadge
+                  status="inactive"
+                  compact
+                  className={leaveChipClassName}
+                >
+                  {t("common.labels.inactive")}
+                </StatusBadge>
+              </div>
+            );
+          }
+          return (
+            <div className="flex justify-center">
+              <StatusBadge
+                status="active"
+                compact
+                className={leaveChipClassName}
+              >
+                {t("pages.employees.active")}
+              </StatusBadge>
+            </div>
+          );
         },
       },
       {
@@ -315,6 +349,8 @@ export default function EmployeeTable({
       {
         key: "employmentType",
         title: t("pages.employees.columns.employmentType"),
+        width: "9.5rem",
+        className: "min-w-[9.5rem]",
         cellAlign: "center",
         render: (employee) => (
           <StatusBadge
@@ -339,10 +375,18 @@ export default function EmployeeTable({
       {
         key: "securityDeposit",
         title: t("pages.employees.columns.securityDeposit"),
+        width: "9.5rem",
+        className: "min-w-[9.5rem]",
         render: (employee) => {
           const status = employee.depositStatus ?? "NONE";
           if (status === "NONE") {
-            return <span className="text-muted">—</span>;
+            return (
+              <span className="text-muted">
+                {employee.securityDepositRequired
+                  ? t("pages.employees.depositStatusNotHeld")
+                  : t("pages.employees.depositStatusNotRequired")}
+              </span>
+            );
           }
           const label =
             status === "HELD"
@@ -365,6 +409,8 @@ export default function EmployeeTable({
       {
         key: "portal",
         title: t("pages.employees.columns.portalLogin"),
+        width: "8rem",
+        className: "min-w-[8rem]",
         cellAlign: "center",
         render: (employee) => {
           const portalStatus = getEmployeePortalLoginStatus(employee);

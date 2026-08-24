@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { ChevronLeft, LogOut, Menu, Settings2 } from "lucide-react";
 import { Suspense, useState } from "react";
 import { useSession } from "next-auth/react";
 
+import SignOutConfirmDialog from "@/components/auth/SignOutConfirmDialog";
 import SidebarNav, {
   SidebarNavFallback,
 } from "@/components/layout/SidebarNav";
@@ -30,6 +30,7 @@ export default function MobileNavDialog({
   const { locale, t } = useLocale();
   const [open, setOpen] = useState(false);
   const [rearrangeOpen, setRearrangeOpen] = useState(false);
+  const [signOutOpen, setSignOutOpen] = useState(false);
 
   function close() {
     setOpen(false);
@@ -37,10 +38,15 @@ export default function MobileNavDialog({
 
   function openRearrange() {
     setOpen(false);
-    // Closing the drawer and opening Rearrange in the same tick
-    // dismisses the second dialog on Base UI. Wait for the close animation.
     window.setTimeout(() => {
       setRearrangeOpen(true);
+    }, 180);
+  }
+
+  function openSignOut() {
+    setOpen(false);
+    window.setTimeout(() => {
+      setSignOutOpen(true);
     }, 180);
   }
 
@@ -107,46 +113,40 @@ export default function MobileNavDialog({
             />
           </Suspense>
 
-          {/* Footer: avatar row 1, name/role row 2 + sign out */}
-          <div className="shrink-0 border-t border-border bg-strip/80 px-4 py-3.5">
-            <div className="mb-3 flex flex-col items-center gap-2 text-center">
-              <div
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-bold tracking-wide text-[#e8eef5] shadow-[0_0_0_1px_rgba(107,184,200,0.28),0_0_0_3px_rgba(12,20,32,0.8)]"
-                style={{
-                  background:
-                    "linear-gradient(155deg, #2a3d54 0%, #172636 55%, #121c2a 100%)",
-                }}
-                aria-hidden
-              >
+          <div className="shrink-0 border-t border-border/50 px-4 py-3">
+            <div className="flex flex-col items-center gap-2 text-center">
+              <div className="sidebar-account-avatar" aria-hidden>
                 {initials ?? "U"}
               </div>
-              <div className="min-w-0 w-full px-1">
-                <p className="break-words text-sm font-semibold leading-snug text-text">
+              <div className="min-w-0 w-full">
+                <p className="truncate text-sm font-semibold leading-tight text-text">
                   {displayName}
                 </p>
-                <p className="mt-0.5 break-words text-[11px] font-semibold uppercase tracking-[0.08em] text-accent-cyan/85">
+                <p className="mt-0.5 truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-accent-cyan/85">
                   {profileLabel}
                 </p>
               </div>
             </div>
 
-            <button
-              type="button"
-              aria-label={t("nav.rearrange")}
-              onClick={openRearrange}
-              className="mb-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-accent-cyan/28 bg-elevated/80 px-3 text-sm font-medium text-accent-cyan transition hover:border-accent-cyan/50 hover:bg-[color-mix(in_srgb,var(--color-elevated),var(--color-accent-cyan)_8%)]"
-            >
-              <Settings2 size={16} aria-hidden />
-              {t("nav.rearrangeShort")}
-            </button>
-            <Link
-              href="/api/auth/signout"
-              onClick={close}
-              className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-red-500/25 bg-card-tint-red/90 px-3 text-sm font-medium text-danger transition hover:bg-[color-mix(in_srgb,var(--color-card-tint-red),var(--color-card-hover)_30%)]"
-            >
-              <LogOut size={16} />
-              {t("header.signOut")}
-            </Link>
+            <div className="mt-2.5 flex flex-col gap-1.5">
+              <button
+                type="button"
+                aria-label={t("nav.rearrange")}
+                onClick={openRearrange}
+                className="flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-accent-cyan/28 bg-transparent text-sm font-medium text-accent-cyan transition hover:border-accent-cyan/50 hover:bg-elevated"
+              >
+                <Settings2 size={15} aria-hidden />
+                {t("nav.rearrangeShort")}
+              </button>
+              <button
+                type="button"
+                onClick={openSignOut}
+                className="flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-red-500/25 bg-transparent text-sm font-medium text-danger transition hover:bg-card-tint-red/70"
+              >
+                <LogOut size={15} />
+                {t("header.signOut")}
+              </button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -156,6 +156,7 @@ export default function MobileNavDialog({
         open={rearrangeOpen}
         onOpenChange={setRearrangeOpen}
       />
+      <SignOutConfirmDialog open={signOutOpen} onOpenChange={setSignOutOpen} />
     </>
   );
 }

@@ -83,7 +83,6 @@ export default async function BillingProjectPage({
     return (
       <AppShell
         title={pageTitle}
-        description={`${localizeSubCategory(project.subCategory, locale)} · ${project.client.name}`}
       >
         <BillingBreadcrumbs
           items={[
@@ -126,7 +125,6 @@ export default async function BillingProjectPage({
     return (
       <AppShell
         title={pageTitle}
-        description={`${localizeSubCategory(project.subCategory, locale)} · ${project.client.name}`}
       >
         <BillingBreadcrumbs
           items={[
@@ -307,7 +305,6 @@ export default async function BillingProjectPage({
   return (
     <AppShell
       title={billingTitle}
-      description={`${localizeSubCategory(project.subCategory, locale)} · ${project.client.name}`}
     >
       <BillingBreadcrumbs
         items={[

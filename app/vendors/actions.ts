@@ -13,10 +13,7 @@ import {
   ensureVendorLoginsStayInactive,
   softDeactivateVendorLogins,
 } from "@/lib/linked-login-lifecycle";
-import {
-  nextCompanyScopedSortOrder,
-  persistCompanyScopedReorder,
-} from "@/lib/persist-reorder";
+import { nextCompanyScopedSortOrder } from "@/lib/persist-reorder";
 import { prisma } from "@/lib/prisma";
 import { toActionError } from "@/lib/prisma-errors";
 import { parseRequiredClientNpwpValue } from "@/lib/npwp";
@@ -411,31 +408,6 @@ export async function createVendorsInBulk(formData: FormData) {
     throw toActionError(
       error,
       translate(locale, "pages.vendors.createFailed")
-    );
-  }
-}
-
-export async function reorderVendors(ids: string[]) {
-  const locale = await getServerLocale();
-  try {
-    await assertCanManageVendors(locale);
-
-    const company = await prisma.company.findFirst({ select: { id: true } });
-    if (!company) {
-      throw new Error(translate(locale, "pages.vendors.companyNotFound"));
-    }
-
-    await persistCompanyScopedReorder("vendor", {
-      companyId: company.id,
-      ids,
-      mismatchError: translate(locale, "pages.vendors.reorderInvalid"),
-    });
-
-    revalidatePath("/vendors");
-  } catch (error) {
-    throw toActionError(
-      error,
-      translate(locale, "pages.vendors.reorderFailed")
     );
   }
 }

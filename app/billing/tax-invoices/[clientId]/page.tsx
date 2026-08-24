@@ -180,7 +180,6 @@ export default async function TaxInvoiceClientPage({
   return (
     <AppShell
       title={clientName}
-      descriptionKey="pages.billing.taxInvoiceClientDesc"
     >
       <SectionCard>
         <div className="mb-5 flex flex-wrap items-end justify-between gap-3">

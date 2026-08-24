@@ -814,6 +814,7 @@ export default function ProjectEditDialog({
                   handleServiceAreaChange(value as ProjectServiceAreaValue);
                 }}
                 columns={2}
+                spanLastWhenOdd
               />
             ) : null}
 
@@ -1036,7 +1037,7 @@ export default function ProjectEditDialog({
               />
             ) : null}
 
-            {!isInternal ? (
+            {!isInternal && subCategory !== "PARKING" ? (
               <PaymentTermsField
                 defaultValue={project.paymentTermsDays ?? 14}
               />

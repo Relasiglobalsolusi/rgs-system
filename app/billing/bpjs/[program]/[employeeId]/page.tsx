@@ -84,7 +84,6 @@ export default async function BpjsEmployeeDetailPage({
   return (
     <AppShell
       title={employee.name}
-      descriptionKey="pages.bpjs.employeeDetailDescription"
     >
       <BillingBreadcrumbs
         items={[

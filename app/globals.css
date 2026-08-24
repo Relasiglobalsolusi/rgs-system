@@ -493,8 +493,8 @@ body {
   .header-controls-row__profile {
     z-index: 2;
     min-width: 0;
-    max-width: 14rem;
-    flex-shrink: 0;
+    max-width: 9.5rem;
+    flex-shrink: 1;
     gap: 0.45rem;
     padding: 0.25rem 0.55rem 0.25rem 0.25rem;
   }
@@ -559,6 +559,23 @@ body {
   .header-controls-row .header-menu-trigger svg {
     width: 20px;
     height: 20px;
+  }
+}
+
+@media (max-width: 479px) {
+  .header-controls-row .header-lang-module__copy {
+    display: none;
+  }
+
+  .header-controls-row .header-profile-module__meta {
+    display: none;
+  }
+
+  .header-controls-row__profile {
+    max-width: none;
+    gap: 0;
+    padding: 0.2rem;
+    border-radius: 9999px;
   }
 }
 
@@ -757,31 +774,15 @@ body {
   color: color-mix(in srgb, var(--color-accent-cyan) 88%, var(--color-subtle));
 }
 
-/* Sidebar account footer — same plaque language as header profile */
-.sidebar-account-card {
-  border-radius: 0.75rem;
-  border: 1px solid rgba(107, 184, 200, 0.12);
-  background:
-    linear-gradient(
-      160deg,
-      rgba(28, 40, 58, 0.48) 0%,
-      rgba(14, 22, 34, 0.22) 100%
-    );
-  box-shadow:
-    inset 0 1px 0 0 rgba(245, 247, 250, 0.035),
-    0 1px 2px 0 rgba(0, 0, 0, 0.12);
-  padding: 1rem;
-}
-
-.sidebar-account-card__avatar {
+.sidebar-account-avatar {
   display: flex;
-  height: 2.6rem;
-  width: 2.6rem;
+  height: 2rem;
+  width: 2rem;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
   border-radius: 9999px;
-  font-size: 0.8125rem;
+  font-size: 0.6875rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   color: #e8eef5;
@@ -794,33 +795,7 @@ body {
     );
   box-shadow:
     0 0 0 1px rgba(107, 184, 200, 0.28),
-    0 0 0 3px rgba(12, 20, 32, 0.8),
     inset 0 1px 0 0 rgba(245, 247, 250, 0.1);
-}
-
-.sidebar-account-card__name {
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.875rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  line-height: 1.25;
-  color: var(--color-text);
-}
-
-.sidebar-account-card__role {
-  margin: 0.25rem 0 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.625rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  line-height: 1.2;
-  text-transform: uppercase;
-  color: color-mix(in srgb, var(--color-accent-cyan) 88%, var(--color-subtle));
 }
 
 button {
@@ -866,8 +841,6 @@ a,
 .transition,
 .transition-all,
 .transition-colors,
-.transition-opacity,
-.transition-shadow,
 .transition-transform {
   transition-timing-function: var(--motion-ease);
 }
@@ -1715,24 +1688,10 @@ html:not(.dark) .header-profile-module:hover {
 }
 
 html:not(.dark) .header-profile-module__avatar,
-html:not(.dark) .sidebar-account-card__avatar {
+html:not(.dark) .sidebar-account-avatar {
   box-shadow:
     0 0 0 1px rgba(47, 158, 144, 0.35),
-    0 0 0 3px rgba(238, 242, 245, 0.95),
     inset 0 1px 0 0 rgba(255, 255, 255, 0.25);
-}
-
-html:not(.dark) .sidebar-account-card {
-  border-color: rgba(15, 45, 65, 0.16);
-  background:
-    linear-gradient(
-      160deg,
-      rgba(255, 255, 255, 0.95) 0%,
-      rgba(232, 238, 243, 0.7) 100%
-    );
-  box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.9),
-    0 1px 2px 0 rgba(15, 35, 55, 0.06);
 }
 
 html:not(.dark) .auth-surface {

@@ -715,6 +715,7 @@ model Employee {
   user   User?   @relation(fields: [userId], references: [id])
 
   projectAssignments ProjectAssignment[]
+  visitAssignments   ProjectVisitAssignment[]
   coveredBackupAssignments ProjectAssignment[] @relation("BackupCoveredEmployee")
   doubleShiftAssignments DoubleShiftAssignment[]
   coveredDoubleShifts DoubleShiftAssignment[] @relation("DoubleShiftCoveredEmployee")
@@ -1688,6 +1689,7 @@ model OperationsTeam {
 
   members      OperationsTeamMember[]
   projectLinks OperationsTeamProject[]
+  visitAssignments ProjectVisitAssignment[]
 
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
@@ -1709,7 +1711,7 @@ model OperationsTeamMember {
   @@index([teamId])
 }
 
-/// Team deployed to a General / Facade job. Same teams persist across visits.
+/// Team deployed to a General / Facade job. Multi-visit jobs also use ProjectVisitAssignment.
 model OperationsTeamProject {
   id        String         @id @default(cuid())
   teamId    String
@@ -1733,12 +1735,31 @@ model ProjectVisit {
   amount    Decimal? @db.Decimal(14, 2)
   invoicePeriodId String? @unique
   invoicePeriod   ProjectInvoicePeriod? @relation(fields: [invoicePeriodId], references: [id], onDelete: SetNull)
+  assignments ProjectVisitAssignment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([projectId, visitIndex])
   @@index([projectId])
+}
+
+/// One crew unit for a visit: a team or a single employee, never both.
+model ProjectVisitAssignment {
+  id      String       @id @default(cuid())
+  visitId String       @unique
+  visit   ProjectVisit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  teamId     String?
+  team       OperationsTeam? @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([teamId])
 }
 
 /// Staff stage / progress report with photo documentation for cleaning projects.

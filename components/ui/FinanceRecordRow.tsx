@@ -9,11 +9,11 @@ import { cn } from "@/lib/utils";
  */
 export const financeRecordListClassName = "flex min-w-0 flex-col gap-2";
 
-export const financeRecordRowClassName =
-  "grid min-w-0 grid-cols-[minmax(0,1fr)_5.25rem_5.75rem] items-center gap-x-2 px-3 py-2.5 md:grid-cols-[minmax(0,1fr)_6.25rem_7.5rem] md:gap-x-8 md:px-4 md:py-2";
+const financeRecordRowClassName =
+  "grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-3 py-2.5 md:grid-cols-[minmax(0,1fr)_8.75rem_7.5rem] md:gap-x-8 md:px-4 md:py-2";
 
 export const financeListStatusChipClassName =
-  "box-border inline-flex h-8 max-h-8 min-h-8 w-full min-w-0 max-w-full items-center justify-center px-1 py-0 text-center text-[0.625rem] leading-none md:px-2 md:text-[0.6875rem]";
+  "box-border inline-flex h-auto min-h-8 w-full min-w-0 max-w-full items-center justify-center px-2.5 py-1.5 text-center text-[0.625rem] leading-none md:min-w-[7.5rem] md:px-3 md:text-[0.6875rem]";
 
 export function FinanceRecordTitleCell({
   children,
@@ -22,7 +22,11 @@ export function FinanceRecordTitleCell({
   children: ReactNode;
   className?: string;
 }) {
-  return <div className={cn("min-w-0 text-left", className)}>{children}</div>;
+  return (
+    <div className={cn("col-start-1 row-start-1 min-w-0 text-left", className)}>
+      {children}
+    </div>
+  );
 }
 
 export function FinanceRecordStatusCell({
@@ -35,7 +39,7 @@ export function FinanceRecordStatusCell({
   return (
     <div
       className={cn(
-        "flex h-full w-full min-w-0 items-center justify-center text-center",
+        "col-span-2 row-start-2 flex h-full w-full min-w-0 items-center justify-start text-center md:col-span-1 md:col-start-2 md:row-start-1 md:justify-center",
         className
       )}
     >
@@ -54,7 +58,7 @@ export function FinanceRecordAmountCell({
   return (
     <div
       className={cn(
-        "w-full min-w-0 text-right text-[0.8125rem] font-semibold leading-none tabular-nums tracking-tight text-text md:text-sm",
+        "col-start-2 row-start-1 w-full min-w-0 text-right text-[0.8125rem] font-semibold leading-none tabular-nums tracking-tight text-text md:col-start-3 md:text-sm",
         className
       )}
     >

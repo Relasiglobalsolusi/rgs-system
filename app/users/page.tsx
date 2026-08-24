@@ -31,7 +31,6 @@ export default async function UsersPage({ searchParams }: Props) {
     return (
       <AppShell
         titleKey="pages.users.title"
-        descriptionKey="pages.users.description"
       >
         <p className="rounded-3xl border border-border bg-elevated p-8 text-text">
           <T k="pages.users.companyNotFound" />
@@ -165,7 +164,6 @@ export default async function UsersPage({ searchParams }: Props) {
   return (
     <AppShell
       titleKey="pages.users.title"
-      descriptionKey="pages.users.description"
     >
       <PageIntro
         titleKey="pages.users.directoryTitle"

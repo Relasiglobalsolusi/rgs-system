@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { LogOut } from "lucide-react";
-import { Suspense } from "react";
+import { LogOut, Settings2 } from "lucide-react";
+import { Suspense, useState } from "react";
 
 import { changeMultiProjectSecurityCode } from "@/app/multi-project-unlock/actions";
+import SignOutConfirmDialog from "@/components/auth/SignOutConfirmDialog";
 import BrandLogo from "@/components/brand/BrandLogo";
 import BrandSlogan from "@/components/brand/BrandSlogan";
 import SidebarNav, {
@@ -25,6 +26,8 @@ export default function Sidebar({
 }: SidebarProps) {
   const { data: session } = useSession();
   const { locale, t } = useLocale();
+  const [rearrangeOpen, setRearrangeOpen] = useState(false);
+  const [signOutOpen, setSignOutOpen] = useState(false);
 
   const initials = session?.user?.name
     ?.split(" ")
@@ -34,7 +37,7 @@ export default function Sidebar({
     .toUpperCase();
 
   return (
-    <aside className="sidebar-surface max-lg:hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:max-h-screen lg:w-(--app-sidebar-width) lg:flex-col lg:overflow-hidden">
+    <aside className="sidebar-surface max-lg:hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:max-h-screen lg:w-(--app-sidebar-width) lg:min-w-(--app-sidebar-width) lg:flex-none lg:flex-col lg:overflow-hidden [overflow-anchor:none]">
       <div className="sidebar-brand-bar flex h-(--app-topbar-height) shrink-0 items-center justify-center px-4 py-3">
         <Link
           href="/dashboard"
@@ -56,52 +59,61 @@ export default function Sidebar({
         <SidebarNav />
       </Suspense>
 
-      <div className="shrink-0 border-t border-border/70 p-4">
-        <div className="sidebar-account-card">
-          <div className="flex items-center gap-3.5">
-            <div className="sidebar-account-card__avatar" aria-hidden>
-              {initials ?? "U"}
-            </div>
-
-            <div className="sidebar-account-card__meta min-w-0 flex-1">
-              <p className="sidebar-account-card__name">
-                {session?.user?.name ?? t("header.user")}
-              </p>
-              <p className="sidebar-account-card__role">
-                {session?.user
-                  ? getSessionProfileLabel(session.user, locale)
-                  : t("header.guest")}
-              </p>
-            </div>
+      <div className="relative z-10 shrink-0 border-t border-border/50 px-4 pb-3 pt-3">
+        <div className="flex flex-col items-center gap-2 text-center">
+          <div className="sidebar-account-avatar" aria-hidden>
+            {initials ?? "U"}
           </div>
-
-          <div className="mt-3.5">
-            <SidebarRearrangeDialog
-              showLabel
-              triggerClassName="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-accent-cyan/28 bg-elevated/80 text-sm font-medium text-accent-cyan transition hover:border-accent-cyan/50 hover:bg-[color-mix(in_srgb,var(--color-elevated),var(--color-accent-cyan)_8%)]"
-            />
+          <div className="min-w-0 w-full">
+            <p className="truncate text-sm font-semibold leading-tight text-text">
+              {session?.user?.name ?? t("header.user")}
+            </p>
+            <p className="mt-0.5 truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-accent-cyan/85">
+              {session?.user
+                ? getSessionProfileLabel(session.user, locale)
+                : t("header.guest")}
+            </p>
           </div>
+        </div>
+
+        <div className="mt-2.5 flex flex-col gap-1.5">
+          <button
+            type="button"
+            aria-label={t("nav.rearrange")}
+            onClick={() => setRearrangeOpen(true)}
+            className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-accent-cyan/28 bg-elevated/80 text-sm font-medium text-accent-cyan transition hover:border-accent-cyan/50 hover:bg-[color-mix(in_srgb,var(--color-elevated),var(--color-accent-cyan)_8%)]"
+          >
+            <Settings2 size={16} aria-hidden />
+            {t("nav.rearrangeShort")}
+          </button>
 
           {showChangeSecurityCode ? (
-            <form action={changeMultiProjectSecurityCode} className="mt-2">
+            <form action={changeMultiProjectSecurityCode}>
               <button
                 type="submit"
-                className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-elevated/80 py-2.5 text-sm font-medium text-text transition hover:bg-card"
+                className="flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-transparent text-sm font-medium text-text transition hover:bg-elevated"
               >
                 {t("pages.multiProjectUnlock.changeCode")}
               </button>
             </form>
           ) : null}
 
-          <Link
-            href="/api/auth/signout"
-            className="mt-2 flex items-center justify-center gap-2 rounded-lg border border-red-500/25 bg-card-tint-red/90 py-2.5 text-sm font-medium text-danger transition hover:bg-[color-mix(in_srgb,var(--color-card-tint-red),var(--color-card-hover)_30%)]"
+          <button
+            type="button"
+            onClick={() => setSignOutOpen(true)}
+            className="relative z-10 flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-red-500/25 bg-transparent text-sm font-medium text-danger transition hover:bg-card-tint-red/70"
           >
-            <LogOut size={16} />
+            <LogOut size={15} />
             {t("header.signOut")}
-          </Link>
+          </button>
         </div>
       </div>
+      <SidebarRearrangeDialog
+        hideTrigger
+        open={rearrangeOpen}
+        onOpenChange={setRearrangeOpen}
+      />
+      <SignOutConfirmDialog open={signOutOpen} onOpenChange={setSignOutOpen} />
     </aside>
   );
 }

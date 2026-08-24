@@ -93,7 +93,6 @@ export default async function OutputTaxDetailPage({
   return (
     <AppShell
       title={t("pages.vat.taxDetail")}
-      description={t("pages.vat.taxDetailOutputDesc")}
     >
       <div className="mb-4">
         <BackLink href="/billing/tax-invoices?view=output">

@@ -53,7 +53,6 @@ export default async function CicoPage() {
     return (
       <AppShell
         titleKey="pages.cico.title"
-        descriptionKey="pages.cico.description"
       >
         <SectionCard>
           <p className="text-subtle">{t("pages.cico.employeeOnly")}</p>
@@ -279,11 +278,6 @@ export default async function CicoPage() {
     return (
       <AppShell
         titleKey="pages.cico.title"
-        descriptionKey={
-          adminFieldMode
-            ? "pages.cico.adminPreview.fieldPageDescription"
-            : "pages.cico.adminPreview.pageDescription"
-        }
       >
         <CicoAdminPreview
           attendanceRows={attendanceRows}
@@ -306,7 +300,6 @@ export default async function CicoPage() {
     return (
       <AppShell
         titleKey="pages.cico.title"
-        descriptionKey="pages.cico.description"
       >
         <SectionCard>
           <p className="text-subtle">{t("pages.cico.noEmployeeProfile")}</p>
@@ -320,7 +313,6 @@ export default async function CicoPage() {
       return (
         <AppShell
           titleKey="pages.cico.title"
-          descriptionKey="pages.cico.description"
         >
           <div className="mx-auto w-full max-w-2xl">
             <SectionCard>
@@ -336,7 +328,6 @@ export default async function CicoPage() {
     return (
       <AppShell
         titleKey="pages.cico.title"
-        descriptionKey="pages.cico.description"
       >
         <div className="mx-auto w-full max-w-2xl">
           <SectionCard>
@@ -465,11 +456,6 @@ export default async function CicoPage() {
   return (
     <AppShell
       titleKey="pages.cico.title"
-      descriptionKey={
-        officeMode && assignments.length === 0
-          ? "pages.cico.officeDescription"
-          : "pages.cico.descriptionDetail"
-      }
     >
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-8 pb-8">
         <SectionCard className="px-6 py-7 sm:px-8 sm:py-8">

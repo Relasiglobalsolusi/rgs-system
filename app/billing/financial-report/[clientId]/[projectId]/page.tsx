@@ -43,9 +43,6 @@ export default async function FinancialReportProjectPage({
   return (
     <AppShell
       title={detail.projectName}
-      description={t("pages.financialReport.projectDetailDesc", {
-        client: detail.clientName,
-      })}
     >
       <BillingBreadcrumbs
         items={[

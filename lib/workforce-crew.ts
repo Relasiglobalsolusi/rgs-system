@@ -186,6 +186,11 @@ export function assignableProjectCrewOrWhere(
         some: { projectId: options.includeAssignedToProjectId },
       },
     });
+    branches.push({
+      visitAssignments: {
+        some: { visit: { projectId: options.includeAssignedToProjectId } },
+      },
+    });
   }
   return branches;
 }
@@ -264,7 +269,9 @@ export type OtherProjectAssignmentConflict = {
 type ProjectAssignmentDb = Pick<
   Prisma.TransactionClient,
   "projectAssignment" | "employee"
->;
+> & {
+  projectVisitAssignment?: Prisma.TransactionClient["projectVisitAssignment"];
+};
 
 /**
  * Crew already linked to a different Planning / In Progress project.
@@ -320,6 +327,55 @@ export async function findEmployeesOnOtherOpenProjects(
       projectName: row.project.name,
     });
   }
+
+  const visitRows =
+    typeof db.projectVisitAssignment?.findMany === "function"
+      ? await db.projectVisitAssignment.findMany({
+          where: {
+            OR: [
+              { employeeId: { in: crewIds } },
+              { team: { members: { some: { employeeId: { in: crewIds } } } } },
+            ],
+            visit: {
+              project: {
+                companyId,
+                status: { in: OPEN_PROJECT_ASSIGNMENT_STATUSES },
+                ...(excludeProjectId ? { id: { not: excludeProjectId } } : {}),
+              },
+            },
+          },
+          select: {
+            employeeId: true,
+            team: {
+              select: {
+                members: { select: { employeeId: true } },
+              },
+            },
+            visit: {
+              select: {
+                projectId: true,
+                project: { select: { name: true } },
+              },
+            },
+          },
+        })
+      : [];
+
+  for (const row of visitRows) {
+    const employeeIds = row.employeeId
+      ? [row.employeeId]
+      : row.team?.members.map((member) => member.employeeId) ?? [];
+    for (const employeeId of employeeIds) {
+      if (!crewIds.includes(employeeId) || seen.has(employeeId)) continue;
+      seen.add(employeeId);
+      conflicts.push({
+        employeeId,
+        projectId: row.visit.projectId,
+        projectName: row.visit.project.name,
+      });
+    }
+  }
+
   return conflicts;
 }
 
@@ -380,24 +436,16 @@ const employeeReleaseSelect = {
 } as const;
 
 /**
- * Drop project assignments for the given employees and release to AVAILABLE
- * (Unassigned) + Portal 2A sync when they have no remaining project links.
- * Same placement/portal outcome as Employees → Release.
+ * If these employees have no remaining project assignments, put them back
+ * in the Available (Unassigned) pool — same as Employees → Release.
+ * In-House Cleaning Staff return to Head Office instead.
  */
-export async function releaseEmployeesFromProject(
+export async function releaseIdleEmployeesToUnassignedPool(
   db: Prisma.TransactionClient,
-  projectId: string,
   employeeIds: string[]
 ) {
   const uniqueIds = [...new Set(employeeIds.filter(Boolean))];
   if (uniqueIds.length === 0) return;
-
-  const { voidScheduledPartTimePays } = await import("@/lib/petty-cash");
-  await voidScheduledPartTimePays(db, { projectId, employeeIds: uniqueIds });
-
-  await db.projectAssignment.deleteMany({
-    where: { projectId, employeeId: { in: uniqueIds } },
-  });
 
   const employees = await db.employee.findMany({
     where: { id: { in: uniqueIds } },
@@ -410,7 +458,6 @@ export async function releaseEmployeesFromProject(
     });
     if (remaining > 0) continue;
 
-    // In-House Cleaning → HEAD_OFFICE desk pool; Ops crew → AVAILABLE.
     const placement = isInHouseCleaningStaffPosition(employee.jobPosition ?? {})
       ? ("HEAD_OFFICE" as const)
       : ("AVAILABLE" as const);
@@ -438,6 +485,29 @@ export async function releaseEmployeesFromProject(
       employeeType,
     });
   }
+}
+
+/**
+ * Drop project assignments for the given employees and release to AVAILABLE
+ * (Unassigned) + Portal 2A sync when they have no remaining project links.
+ * Same placement/portal outcome as Employees → Release.
+ */
+export async function releaseEmployeesFromProject(
+  db: Prisma.TransactionClient,
+  projectId: string,
+  employeeIds: string[]
+) {
+  const uniqueIds = [...new Set(employeeIds.filter(Boolean))];
+  if (uniqueIds.length === 0) return;
+
+  const { voidScheduledPartTimePays } = await import("@/lib/petty-cash");
+  await voidScheduledPartTimePays(db, { projectId, employeeIds: uniqueIds });
+
+  await db.projectAssignment.deleteMany({
+    where: { projectId, employeeId: { in: uniqueIds } },
+  });
+
+  await releaseIdleEmployeesToUnassignedPool(db, uniqueIds);
 }
 
 /**

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { ShoppingBag, CircleDollarSign, Wallet, AlertTriangle, Ship } from "lucide-react";
 
+import ExpenseReportDownloadButton from "@/components/billing/ExpenseReportDownloadButton";
 import PurchaseInvoicePeriodControl from "@/components/billing/PurchaseInvoicePeriodControl";
 import PurchaseInvoiceTable, {
   type PurchaseInvoiceTableRow,
@@ -28,7 +29,7 @@ import { formatPurchaseListedAmount } from "@/lib/purchase-amount-display";
 import { listLoanFacilitySnapshots } from "@/lib/loan-facility-query";
 import { requireFinanceChild, toPermissionUser } from "@/lib/session";
 import { processScheduledPettyCashPays } from "@/lib/petty-cash";
-import { jakartaYearMonth, utcRangeForJakartaDate, utcRangeForJakartaMonth, daysInUtcMonth } from "@/lib/vat";
+import { financePeriodRange, parseFinancePeriod } from "@/lib/finance-period";
 
 /** AP list view filters for HO Finance. */
 const PURCHASE_VIEWS = ["tax", "payments"] as const;
@@ -68,25 +69,8 @@ export default async function PurchaseInvoicesPage({
   const purchaseView =
     params.view && isPurchaseView(params.view) ? params.view : null;
 
-  const nowYm = jakartaYearMonth();
-  const year = Math.max(
-    2000,
-    Math.min(2100, Number(params.year) || nowYm.year)
-  );
-  const month = Math.max(
-    1,
-    Math.min(12, Number(params.month) || nowYm.month)
-  );
-  const maxDay = daysInUtcMonth(year, month);
-  const parsedDay = Number(params.day);
-  const day =
-    Number.isFinite(parsedDay) && parsedDay >= 1 && parsedDay <= maxDay
-      ? parsedDay
-      : null;
-  const { start, endExclusive } =
-    day != null
-      ? utcRangeForJakartaDate(year, month, day)
-      : utcRangeForJakartaMonth(year, month);
+  const { year, month, day } = parseFinancePeriod(params);
+  const { start, endExclusive } = financePeriodRange({ year, month, day });
 
   const user = toPermissionUser(session);
   const canManage =
@@ -228,7 +212,7 @@ export default async function PurchaseInvoicesPage({
   ).length;
 
   return (
-    <AppShell titleKey={titleKey} descriptionKey={descriptionKey}>
+    <AppShell titleKey={titleKey}>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2.5">
@@ -249,6 +233,12 @@ export default async function PurchaseInvoicesPage({
 
         <div className="flex flex-wrap items-end gap-3">
           <PurchaseInvoicePeriodControl
+            year={year}
+            month={month}
+            day={day}
+            view={purchaseView}
+          />
+          <ExpenseReportDownloadButton
             year={year}
             month={month}
             day={day}

@@ -30,7 +30,6 @@ export default async function TransferOrdersClientPage({ params }: Props) {
   return (
     <AppShell
       title={clientLabel}
-      descriptionKey="pages.transferOrders.clientProjectsDesc"
     >
       <TransferOrderBreadcrumbs
         items={[

@@ -87,7 +87,6 @@ export default async function MaterialRequestsPage() {
   return (
     <AppShell
       titleKey="pages.materialRequests.title"
-      descriptionKey="pages.materialRequests.description"
     >
       <div className="space-y-6">
         <SectionCard className="p-5 sm:p-6">

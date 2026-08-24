@@ -46,7 +46,6 @@ export default async function ShiftsProjectPage({ params }: Props) {
     return (
       <AppShell
         title={t("pages.shifts.title")}
-        description={t("pages.shifts.description")}
       >
         <ShiftsBreadcrumbs
           items={[
@@ -71,10 +70,6 @@ export default async function ShiftsProjectPage({ params }: Props) {
   return (
     <AppShell
       title={board.project.name}
-      description={
-        [clientLabel, board.project.location].filter(Boolean).join(" · ") ||
-        t("pages.shifts.description")
-      }
     >
       <ShiftsBreadcrumbs
         items={[

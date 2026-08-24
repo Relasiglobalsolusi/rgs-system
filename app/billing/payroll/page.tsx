@@ -55,7 +55,6 @@ export default async function PayrollPage({
   return (
     <AppShell
       titleKey="pages.payroll.title"
-      descriptionKey="pages.payroll.description"
     >
       <PageIntro
         titleKey="pages.payroll.directoryTitle"

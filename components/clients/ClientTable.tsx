@@ -1,10 +1,7 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { useMemo, useState } from "react";
 
-import { reorderClients } from "@/app/clients/actions";
 import ClientDeleteDialog from "@/components/clients/ClientDeleteDialog";
 import ClientEditDialog from "@/components/clients/ClientEditDialog";
 import ClientPermanentDeleteDialog from "@/components/clients/ClientPermanentDeleteDialog";
@@ -22,6 +19,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { formatHiredAtLabel, formatTenure } from "@/lib/format-tenure";
 import { formatContactPersonName } from "@/lib/contact-person";
+import { localizeJobTitle } from "@/lib/i18n/labels";
+import type { AppLocale } from "@/lib/i18n/locale";
 import { useT } from "@/lib/i18n/use-t";
 import { formatPhoneForDisplay } from "@/lib/phone";
 
@@ -67,10 +66,11 @@ function getClientPortalLoginStatus(
 function formatContactPersonLabel(
   firstName: string | null,
   lastName: string | null,
-  position: string | null
+  position: string | null,
+  locale: AppLocale
 ): string | null {
   const name = formatContactPersonName(firstName, lastName);
-  const trimmedPosition = position?.trim();
+  const trimmedPosition = localizeJobTitle(position, locale);
 
   if (name && trimmedPosition) {
     return `${name} · ${trimmedPosition}`;
@@ -112,7 +112,7 @@ function ClientRowActions({
   client: ClientRow;
   directoryView: DirectoryView;
 }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [permanentDeleteOpen, setPermanentDeleteOpen] = useState(false);
   const [restoreOpen, setRestoreOpen] = useState(false);
@@ -204,27 +204,8 @@ export default function ClientTable({
   someVisibleSelected = false,
   selectableIds,
 }: Props) {
-  const { t } = useT();
-  const router = useRouter();
-  const [, startTransition] = useTransition();
+  const { t, locale } = useT();
   const [editClient, setEditClient] = useState<ClientRow | null>(null);
-
-  function handleReorder(orderedIds: string[]) {
-    if (!canManage) return;
-    startTransition(async () => {
-      try {
-        await reorderClients(orderedIds);
-        router.refresh();
-      } catch (error) {
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : t("pages.clients.reorderFailed")
-        );
-        router.refresh();
-      }
-    });
-  }
 
   const columns = useMemo(() => {
     const cols: DataTableColumn<ClientRow>[] = [];
@@ -321,7 +302,8 @@ export default function ClientTable({
           const contactPersonLabel = formatContactPersonLabel(
             client.contactPersonFirstName,
             client.contactPersonLastName,
-            client.contactPersonPosition
+            client.contactPersonPosition,
+            locale
           );
 
           if (!contactPersonLabel && !primaryContact) {
@@ -449,8 +431,6 @@ export default function ClientTable({
         getRowKey={(client) => client.id}
         onRowClick={canManage ? setEditClient : undefined}
         isRowSelected={(client) => selectedIds?.has(client.id) ?? false}
-        reorderable={canManage}
-        onReorder={canManage ? handleReorder : undefined}
         emptyMessage={t("pages.clients.emptyActiveListDesc")}
       />
 

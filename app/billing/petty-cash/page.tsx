@@ -139,7 +139,6 @@ export default async function PettyCashPage() {
   return (
     <AppShell
       titleKey="pages.pettyCash.title"
-      descriptionKey="pages.pettyCash.description"
     >
       <div className="mb-5 flex flex-wrap items-end justify-end gap-3">
         <PettyCashSpendDialog

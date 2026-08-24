@@ -111,9 +111,6 @@ export default function ServiceCommercialFields({
             defaultValue={moneyDefault(defaults?.monthlyClientFee)}
             className={employeeInputClass}
           />
-          <p className={employeeDialogHintClass}>
-            {t("pages.projects.serviceCommercial.monthlyClientFeeHint")}
-          </p>
         </div>
         <div className={employeeDialogFieldClass}>
           <label className="text-sm font-medium text-text">

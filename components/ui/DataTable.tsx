@@ -519,17 +519,18 @@ export default function DataTable<T>({
                     onClick={isGutter ? stopGutterCellClick : undefined}
                     onPointerDown={isGutter ? stopGutterCellClick : undefined}
                     className={cn(
-                      "h-12 bg-elevated px-4 py-3 align-middle text-[11px] font-semibold uppercase tracking-[0.14em] text-subtle",
+                      "min-h-12 bg-elevated px-3 py-3 align-middle text-[11px] font-semibold uppercase tracking-[0.06em] text-subtle whitespace-normal",
                       column.headerClassName,
                       columnTrailingPadClass(column, isLastColumn),
                       // Chip / actions: center title over the chip. Money: right.
                       columnAlignClass(headerAlign),
-                      "overflow-hidden"
+                      "overflow-visible"
                     )}
                   >
                     <span
                       className={cn(
-                        "inline-flex min-h-6 w-full items-center",
+                        "inline-flex min-h-6 w-full items-center px-[0.08em] leading-snug",
+                        "whitespace-normal break-words",
                         columnHeaderJustifyClass(headerAlign),
                         columnAlignClass(headerAlign)
                       )}

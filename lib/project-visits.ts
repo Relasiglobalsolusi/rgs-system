@@ -1,5 +1,32 @@
 import { toUtcDateOnly } from "@/lib/invoice-period";
 
+/** Inclusive calendar-day overlap in UTC date-only values. */
+export function visitDateRangesOverlap(
+  aStart: Date,
+  aEnd: Date,
+  bStart: Date,
+  bEnd: Date
+): boolean {
+  const aS = toUtcDateOnly(aStart).getTime();
+  const aE = toUtcDateOnly(aEnd).getTime();
+  const bS = toUtcDateOnly(bStart).getTime();
+  const bE = toUtcDateOnly(bEnd).getTime();
+  return aS <= bE && bS <= aE;
+}
+
+/** Open-ended project windows: missing start/end still count as occupying. */
+export function occupancyRangeOverlapsVisit(
+  occupancyStart: Date | null | undefined,
+  occupancyEnd: Date | null | undefined,
+  visitStart: Date,
+  visitEnd: Date
+): boolean {
+  if (!occupancyStart && !occupancyEnd) return true;
+  const start = occupancyStart ?? new Date(Date.UTC(1970, 0, 1));
+  const end = occupancyEnd ?? new Date(Date.UTC(9999, 11, 31));
+  return visitDateRangesOverlap(start, end, visitStart, visitEnd);
+}
+
 function parseVisitDate(raw: string, label: string): Date | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;

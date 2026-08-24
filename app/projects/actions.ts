@@ -122,6 +122,11 @@ import {
 } from "@/lib/petty-cash";
 import { parseProjectVisitsFromForm } from "@/lib/project-visits";
 import {
+  clearProjectVisitAssignmentRow,
+  replaceProjectVisitAssignment,
+  syncVisitCrewOccupancy,
+} from "@/lib/project-visit-crew";
+import {
   finalizePendingEarlyEndIfDue,
 } from "@/lib/project-early-end";
 
@@ -964,7 +969,10 @@ export async function createProject(formData: FormData) {
       pphRatePercent,
       otherTaxName,
     } = parseProjectChargedTax(formData);
-    const paymentTermsDays = parseProjectPaymentTermsDays(formData, 14);
+    const paymentTermsDays =
+      subCategory === "PARKING"
+        ? null
+        : parseProjectPaymentTermsDays(formData, 14);
     const bankAccountId = await parseFormCompanyBankAccountId(
       formData,
       company.id,
@@ -1109,7 +1117,8 @@ export async function createProject(formData: FormData) {
       }
 
       // Planning: assign staff only when moving to In Progress (not at create).
-      if (!isPlanning) {
+      // Multiple visits: crew is assigned per visit on the project page.
+      if (!isPlanning && billingMode !== "MULTI_VISIT") {
         const nextIds = await nextCrewIdsWithTeams(tx, {
           companyId: company.id,
           projectId: created.id,
@@ -1537,10 +1546,13 @@ export async function updateProject(id: string, formData: FormData) {
       otherTaxName,
     } = parseProjectChargedTax(formData);
 
-    const paymentTermsDays = parseProjectPaymentTermsDays(
-      formData,
-      existing.paymentTermsDays ?? 14
-    );
+    const paymentTermsDays =
+      subCategory === "PARKING"
+        ? null
+        : parseProjectPaymentTermsDays(
+            formData,
+            existing.paymentTermsDays ?? 14
+          );
     const bankAccountId = await parseFormCompanyBankAccountId(
       formData,
       companyId,
@@ -2213,7 +2225,9 @@ export async function startProject(
   const isMonthTimeline = usesMonthDurationTimeline(project.subCategory);
   const { startDate, endDate: formEndDate } = parseProjectDateRange(formData);
   const formDurationDays = parseDurationDays(formData);
+  const isMultiVisit = project.billingMode === "MULTI_VISIT";
   const assignStaffLater =
+    isMultiVisit ||
     String(formData.get("assignStaffLater") ?? "").trim() === "true";
   const employeeIds = [
     ...new Set(formData.getAll("employeeIds").map(String).filter(Boolean)),
@@ -2387,6 +2401,13 @@ export async function startProject(
         subCategory: project.subCategory,
       });
     }
+
+    if (isMultiVisit) {
+      await syncVisitCrewOccupancy(tx, {
+        companyId,
+        projectId: id,
+      });
+    }
   });
 
   revalidateAfterProjectLifecycle({
@@ -2396,6 +2417,8 @@ export async function startProject(
   revalidatePath("/employees");
   revalidatePath("/users");
   revalidatePath("/shifts", "layout");
+  revalidatePath("/teams");
+  revalidatePath("/teams/availability");
 }
 
 /**
@@ -3296,31 +3319,33 @@ export async function redoProjectJob(id: string, formData: FormData) {
 
     await releaseAllProjectCrew(tx, id);
 
-    const nextIds = await nextCrewIdsWithTeams(tx, {
-      companyId: project.companyId,
-      projectId: id,
-      subCategory: project.subCategory,
-      areaCatalogId: project.areaCatalogId,
-      serviceArea: project.serviceArea,
-      formData,
-      extraEmployeeIds: extras,
-    });
-    if (nextIds.length > 0) {
-      await assertProjectStaffAssignable(tx, project.companyId, nextIds, {
-        excludeProjectId: id,
-        ...staffAssignableOptions(project.subCategory),
-      });
-      await tx.projectAssignment.createMany({
-        data: nextIds.map((employeeId) => ({
-          projectId: id,
-          employeeId,
-        })),
-      });
-      await markEmployeesOnProject(tx, nextIds, project.companyId);
-      await stampEmployeeDepositSourceProject(tx, nextIds, {
-        id,
+    if (project.billingMode !== "MULTI_VISIT") {
+      const nextIds = await nextCrewIdsWithTeams(tx, {
+        companyId: project.companyId,
+        projectId: id,
         subCategory: project.subCategory,
+        areaCatalogId: project.areaCatalogId,
+        serviceArea: project.serviceArea,
+        formData,
+        extraEmployeeIds: extras,
       });
+      if (nextIds.length > 0) {
+        await assertProjectStaffAssignable(tx, project.companyId, nextIds, {
+          excludeProjectId: id,
+          ...staffAssignableOptions(project.subCategory),
+        });
+        await tx.projectAssignment.createMany({
+          data: nextIds.map((employeeId) => ({
+            projectId: id,
+            employeeId,
+          })),
+        });
+        await markEmployeesOnProject(tx, nextIds, project.companyId);
+        await stampEmployeeDepositSourceProject(tx, nextIds, {
+          id,
+          subCategory: project.subCategory,
+        });
+      }
     }
   });
 
@@ -3706,4 +3731,90 @@ export async function unassignDoubleShift(formData: FormData) {
   await requireSiteCoverAccess(existing.projectId);
   await prisma.doubleShiftAssignment.delete({ where: { id: existing.id } });
   revalidateSiteCoverPaths(existing.projectId);
+}
+
+export async function saveProjectVisitAssignment(formData: FormData) {
+  const session = await requireModule("projects");
+  if (session.user.clientId || session.user.vendorId) {
+    throw new Error("Permission denied.");
+  }
+  if (!canManageProjects(toPermissionUser(session))) {
+    throw new Error("Permission denied.");
+  }
+  const companyId = session.user.companyId;
+  if (!companyId) throw new Error("Company not found.");
+
+  const visitId = String(formData.get("visitId") ?? "").trim();
+  const employeeId = String(formData.get("employeeId") ?? "").trim();
+  const teamId = String(formData.get("teamId") ?? "").trim();
+  if (!visitId) throw new Error("Visit not found.");
+
+  const locale = await getServerLocale();
+  const visit = await prisma.projectVisit.findFirst({
+    where: { id: visitId, project: { companyId } },
+    select: { projectId: true, project: { select: { clientId: true, serviceArea: true } } },
+  });
+  if (!visit) throw new Error("Visit not found.");
+  await assertSessionCanWriteProject(session, {
+    id: visit.projectId,
+    serviceArea: visit.project.serviceArea,
+  });
+
+  await prisma.$transaction(async (tx) => {
+    await replaceProjectVisitAssignment(tx, {
+      companyId,
+      visitId,
+      employeeId: employeeId || null,
+      teamId: teamId || null,
+      locale,
+    });
+  });
+
+  revalidateAfterProjectLifecycle({
+    projectId: visit.projectId,
+    clientId: visit.project.clientId,
+  });
+  revalidatePath("/teams");
+  revalidatePath("/teams/availability");
+}
+
+export async function clearProjectVisitAssignment(formData: FormData) {
+  const session = await requireModule("projects");
+  if (session.user.clientId || session.user.vendorId) {
+    throw new Error("Permission denied.");
+  }
+  if (!canManageProjects(toPermissionUser(session))) {
+    throw new Error("Permission denied.");
+  }
+  const companyId = session.user.companyId;
+  if (!companyId) throw new Error("Company not found.");
+
+  const visitId = String(formData.get("visitId") ?? "").trim();
+  if (!visitId) throw new Error("Visit not found.");
+
+  const locale = await getServerLocale();
+  const visit = await prisma.projectVisit.findFirst({
+    where: { id: visitId, project: { companyId } },
+    select: { projectId: true, project: { select: { clientId: true, serviceArea: true } } },
+  });
+  if (!visit) throw new Error("Visit not found.");
+  await assertSessionCanWriteProject(session, {
+    id: visit.projectId,
+    serviceArea: visit.project.serviceArea,
+  });
+
+  await prisma.$transaction(async (tx) => {
+    await clearProjectVisitAssignmentRow(tx, {
+      companyId,
+      visitId,
+      locale,
+    });
+  });
+
+  revalidateAfterProjectLifecycle({
+    projectId: visit.projectId,
+    clientId: visit.project.clientId,
+  });
+  revalidatePath("/teams");
+  revalidatePath("/teams/availability");
 }

@@ -2,11 +2,34 @@
 
 import { revalidatePath } from "next/cache";
 
+import { Prisma } from "@prisma/client";
+
 import { prisma } from "@/lib/prisma";
+import { parsePositionDefaultModuleAccess } from "@/lib/permissions";
 import { canManageEmployees } from "@/lib/project-access";
 import { positionSlugFromName } from "@/lib/positions";
 import { requireSession, toPermissionUser } from "@/lib/session";
 import { titleCaseWords } from "@/lib/text-case";
+
+function readDefaultModuleAccess(
+  formData: FormData
+): Prisma.InputJsonValue {
+  const raw = String(formData.get("defaultModuleAccess") ?? "").trim();
+  if (!raw) {
+    throw new Error("Default module access is required.");
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("Default module access is invalid.");
+  }
+  const normalized = parsePositionDefaultModuleAccess(parsed);
+  if (!normalized) {
+    throw new Error("Default module access is invalid.");
+  }
+  return normalized;
+}
 
 async function assertCanManage() {
   const session = await requireSession();
@@ -58,6 +81,7 @@ export async function createPosition(formData: FormData) {
       name,
       slug,
       description,
+      defaultModuleAccess: readDefaultModuleAccess(formData),
       sortOrder: (top?.sortOrder ?? 0) + 10,
       active: true,
     },
@@ -91,6 +115,7 @@ export async function updatePosition(id: string, formData: FormData) {
       name,
       description,
       active,
+      defaultModuleAccess: readDefaultModuleAccess(formData),
     },
   });
 

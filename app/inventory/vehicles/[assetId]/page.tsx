@@ -46,7 +46,6 @@ export default async function InventoryVehiclePage({
   return (
     <AppShell
       title={asset.assetCode}
-      descriptionKey="pages.inventory.vehicles.detailDescription"
     >
       <VehicleDetailPage
         canManage={canManageInventory(permissionUser)}

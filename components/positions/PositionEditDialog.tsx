@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { BriefcaseBusiness } from "lucide-react";
 import { updatePosition } from "@/app/positions/actions";
 import PositionDeleteDialog from "@/components/positions/PositionDeleteDialog";
+import PositionModuleAccessFields from "@/components/positions/PositionModuleAccessFields";
 import {
   EmployeeDialogShell,
   EmployeePrimaryButton,
@@ -16,15 +17,21 @@ import { Input } from "@/components/ui/input";
 import { showRejectionFromError } from "@/components/ui/rejection-notice";
 import { localizeDepartmentLabel } from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
+import {
+  getEmployeeModuleOverrides,
+  type ModuleKey,
+} from "@/lib/permissions";
 import { titleCaseWords } from "@/lib/text-case";
 
 export type PositionRow = {
   id: string;
   categoryId: string;
+  slug?: string | null;
   name: string;
   description: string | null;
   active: boolean;
   sortOrder: number;
+  defaultModuleAccess?: unknown;
   category: {
     name: string;
     prefix: string;
@@ -33,6 +40,18 @@ export type PositionRow = {
   };
   _count: { employees: number };
 };
+
+function positionDefaultModuleAccess(
+  position: PositionRow
+): Record<ModuleKey, boolean> {
+  return getEmployeeModuleOverrides({
+    jobPosition: {
+      slug: position.slug,
+      name: position.name,
+      defaultModuleAccess: position.defaultModuleAccess,
+    },
+  });
+}
 
 export default function PositionEditDialog({
   position,
@@ -49,6 +68,9 @@ export default function PositionEditDialog({
 }) {
   const { t, locale } = useT();
   const [active, setActive] = useState(position.active);
+  const [moduleAccess, setModuleAccess] = useState<Record<ModuleKey, boolean>>(
+    () => positionDefaultModuleAccess(position)
+  );
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -87,7 +109,10 @@ export default function PositionEditDialog({
         open={open}
         onOpenChange={(nextOpen) => {
           onOpenChange(nextOpen);
-          if (nextOpen) setActive(position.active);
+          if (nextOpen) {
+            setActive(position.active);
+            setModuleAccess(positionDefaultModuleAccess(position));
+          }
         }}
         disablePointerDismissal
       >
@@ -148,6 +173,11 @@ export default function PositionEditDialog({
               <p className="text-xs text-subtle">
                 {t(employeeCountKey, { count: position._count.employees })}
               </p>
+              <PositionModuleAccessFields
+                value={moduleAccess}
+                onChange={setModuleAccess}
+                disabled={pending}
+              />
             </div>
           </form>
         </EmployeeDialogShell>

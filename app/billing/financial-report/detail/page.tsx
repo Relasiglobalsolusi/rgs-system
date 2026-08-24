@@ -211,7 +211,6 @@ export default async function FinancialReportDetailPage({
   return (
     <AppShell
       title={t(titleKey)}
-      descriptionKey="pages.financialReport.detailDescription"
     >
       <BillingBreadcrumbs
         items={[

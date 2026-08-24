@@ -34,9 +34,23 @@ import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
 import type { EmployeeCreateActorTier } from "@/lib/employee-create-hierarchy";
+import { localizeDepartmentLabel } from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
+import { titleCaseWords } from "@/lib/text-case";
 import { isRosterActiveEmployeeStatus } from "@/lib/user-directory-status";
 import type { EmploymentType, Placement, ServiceArea } from "@prisma/client";
+
+const ALL_DEPARTMENTS = "all";
+
+function isFilterableDepartment(category: EmployeeCategoryOption): boolean {
+  return (
+    category.active &&
+    category.slug?.toLowerCase() !== "una" &&
+    category.slug?.toLowerCase() !== "finance" &&
+    category.prefix.toUpperCase() !== "UNA" &&
+    category.prefix.toUpperCase() !== "FIN"
+  );
+}
 
 type Employee = {
   id: string;
@@ -117,11 +131,12 @@ export default function EmployeeDirectory({
   canArchive = false,
   createActorTier = "OTHER",
 }: Props) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const [tab, setTab] = useState<EmployeeDirectoryView>("allEmployees");
   const [unassignedSegment, setUnassignedSegment] =
     useState<UnassignedSegment>("FULL_TIME");
   const [statusSegment, setStatusSegment] = useState<StatusSegment>("all");
+  const [departmentFilter, setDepartmentFilter] = useState(ALL_DEPARTMENTS);
   const [query, setQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
@@ -200,20 +215,48 @@ export default function EmployeeDirectory({
               : unassignedPartTime
             : trash;
 
+  const departmentOptions = useMemo(
+    () =>
+      [...categories]
+        .filter(isFilterableDepartment)
+        .sort((left, right) => {
+          if (left.sortOrder !== right.sortOrder) {
+            return left.sortOrder - right.sortOrder;
+          }
+          return left.name.localeCompare(right.name);
+        }),
+    [categories]
+  );
+
+  const departmentFiltered = useMemo(
+    () =>
+      departmentFilter === ALL_DEPARTMENTS
+        ? selected
+        : selected.filter((employee) => employee.categoryId === departmentFilter),
+    [selected, departmentFilter]
+  );
+
+  const selectedDepartment = useMemo(
+    () =>
+      departmentOptions.find((category) => category.id === departmentFilter) ??
+      null,
+    [departmentOptions, departmentFilter]
+  );
+
   const onLeaveInCard = useMemo(
     () =>
       tab === "trash"
         ? []
-        : selected.filter((employee) => employee.status === "ON_LEAVE"),
-    [selected, tab]
+        : departmentFiltered.filter((employee) => employee.status === "ON_LEAVE"),
+    [departmentFiltered, tab]
   );
 
   const leavePendingInCard = useMemo(
     () =>
       tab === "trash"
         ? []
-        : selected.filter((employee) => employee.hasPendingLeaveRequest),
-    [selected, tab]
+        : departmentFiltered.filter((employee) => employee.hasPendingLeaveRequest),
+    [departmentFiltered, tab]
   );
 
   const statusFiltered =
@@ -221,7 +264,7 @@ export default function EmployeeDirectory({
       ? onLeaveInCard
       : tab !== "trash" && statusSegment === "leavePending"
         ? leavePendingInCard
-        : selected;
+        : departmentFiltered;
 
   const visible = useMemo(
     () =>
@@ -321,6 +364,17 @@ export default function EmployeeDirectory({
     clearSelection();
   }
 
+  function selectDepartment(next: string) {
+    setDepartmentFilter(next);
+    clearSelection();
+  }
+
+  function departmentLabel(category: EmployeeCategoryOption): string {
+    return titleCaseWords(
+      localizeDepartmentLabel(category.slug, category.name, locale)
+    );
+  }
+
   function handleSearchChange(value: string) {
     setQuery(value);
     clearSelection();
@@ -351,6 +405,11 @@ export default function EmployeeDirectory({
       ? t("pages.employees.emptyOnLeave")
       : tab !== "trash" && statusSegment === "leavePending"
         ? t("pages.employees.emptyLeavePending")
+        : selectedDepartment
+          ? t("pages.employees.emptyDepartment", {
+              name: departmentLabel(selectedDepartment),
+              prefix: selectedDepartment.prefix,
+            })
         : tab === "allEmployees"
         ? t("pages.employees.emptyActiveList")
         : tab === "fullTime"
@@ -369,6 +428,8 @@ export default function EmployeeDirectory({
       ? t("pages.employees.emptyOnLeaveDesc")
       : tab !== "trash" && statusSegment === "leavePending"
         ? t("pages.employees.emptyLeavePendingDesc")
+        : selectedDepartment
+          ? t("pages.employees.emptyDepartmentDesc")
         : tab === "allEmployees"
         ? t("pages.employees.emptyActiveListDesc")
         : tab === "fullTime"
@@ -457,12 +518,44 @@ export default function EmployeeDirectory({
         </div>
       ) : null}
 
+      {departmentOptions.length > 0 ? (
+        <div
+          className="mb-3 flex flex-wrap items-center gap-2"
+          role="group"
+          aria-label={t("pages.employees.filterDepartment")}
+        >
+          <DirectoryFilterTab
+            size="sm"
+            active={departmentFilter === ALL_DEPARTMENTS}
+            count={selected.length}
+            onClick={() => selectDepartment(ALL_DEPARTMENTS)}
+          >
+            {t("pages.employees.statusFilterAll")}
+          </DirectoryFilterTab>
+          {departmentOptions.map((category) => (
+            <DirectoryFilterTab
+              key={category.id}
+              size="sm"
+              active={departmentFilter === category.id}
+              count={
+                selected.filter(
+                  (employee) => employee.categoryId === category.id
+                ).length
+              }
+              onClick={() => selectDepartment(category.id)}
+            >
+              {departmentLabel(category)}
+            </DirectoryFilterTab>
+          ))}
+        </div>
+      ) : null}
+
       {tab !== "trash" ? (
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <DirectoryFilterTab
             size="sm"
             active={statusSegment === "all"}
-            count={selected.length}
+            count={departmentFiltered.length}
             onClick={() => selectStatusSegment("all")}
           >
             {t("pages.employees.statusFilterAll")}

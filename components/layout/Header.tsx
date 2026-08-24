@@ -5,7 +5,6 @@ import { CalendarDays } from "lucide-react";
 import HeaderLanguageSwitcher from "@/components/layout/HeaderLanguageSwitcher";
 import HeaderThemeSwitcher from "@/components/layout/HeaderThemeSwitcher";
 import MobileNavDialog from "@/components/layout/MobileNavDialog";
-import SidebarRearrangeDialog from "@/components/layout/SidebarRearrangeDialog";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { formatHeaderDate } from "@/lib/format-date";
 import type { MessageKey } from "@/lib/i18n/messages";
@@ -14,8 +13,6 @@ import { getSessionProfileLabel } from "@/lib/permissions";
 type HeaderProps = {
   title?: string;
   titleKey?: MessageKey | string;
-  description?: string;
-  descriptionKey?: MessageKey | string;
   /** When set, shows a personalized greeting with integrated date on the left. */
   greetingName?: string;
 };
@@ -53,13 +50,13 @@ export default function Header({
   const timeGreeting = t(getTimeGreetingKey(today.getHours()));
 
   return (
-    <header className="header-surface sticky top-0 z-40 w-full">
+    <header className="header-surface sticky top-0 z-40 w-full shrink-0">
       {/*
        * Mobile/tablet: action row first (menu | theme + language | name), then title.
        * Desktop (lg+): sidebar brand bar owns the mark; title left, controls right.
        */}
       <div className="flex min-h-0 w-full flex-wrap items-center gap-x-3 gap-y-3 px-4 py-4 sm:gap-x-3.5 sm:px-7 sm:py-5 md:gap-x-4 md:px-9 lg:h-(--app-topbar-height) lg:min-h-(--app-topbar-height) lg:flex-nowrap lg:justify-between lg:gap-8 lg:px-10 lg:py-0 xl:px-12">
-        <div className="order-2 flex w-full min-w-0 items-center justify-between gap-3 lg:order-1 lg:w-auto lg:flex-1 lg:overflow-hidden lg:pr-3">
+        <div className="order-2 flex w-full min-w-0 items-center lg:order-1 lg:w-auto lg:flex-1 lg:overflow-hidden lg:pr-3">
           <div className="min-w-0 flex-1">
             {welcomeMode ? (
               <>
@@ -82,12 +79,6 @@ export default function Header({
                 {resolvedTitle}
               </h1>
             )}
-          </div>
-          <div className="shrink-0 lg:hidden">
-            <SidebarRearrangeDialog
-              showLabel
-              triggerClassName="flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-accent-cyan/28 bg-elevated/80 px-3 text-sm font-medium text-accent-cyan transition hover:border-accent-cyan/50 hover:bg-[color-mix(in_srgb,var(--color-elevated),var(--color-accent-cyan)_8%)]"
-            />
           </div>
         </div>
 
@@ -124,7 +115,7 @@ export default function Header({
             </div>
 
             <div className="header-profile-module__meta">
-              <p className="header-profile-module__name">
+              <p className="header-profile-module__name truncate">
                 {session?.user?.name ?? t("header.user")}
               </p>
               <p className="header-profile-module__role max-lg:hidden">

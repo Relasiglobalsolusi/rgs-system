@@ -187,7 +187,6 @@ export default async function SettlementsPage() {
   return (
     <AppShell
       titleKey="pages.billing.settlementsTitle"
-      descriptionKey="pages.billing.settlementsDesc"
     >
       <div className="space-y-6">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -282,14 +281,23 @@ export default async function SettlementsPage() {
                     </>
                   }
                   status={
-                    <StatusBadge
-                      status={row.isLate ? "danger" : "warning"}
-                      className={financeListStatusChipClassName}
-                    >
-                      <span className="flex h-full w-full items-center justify-center text-center leading-none">
+                    row.statusKey === "AWAITING_PAYMENT" ? (
+                      <StatusBadge
+                        status={row.isLate ? "danger" : "warning"}
+                        className={financeListStatusChipClassName}
+                        lines={[
+                          t("status.billingChip.awaitingPayment1"),
+                          t("status.billingChip.awaitingPayment2"),
+                        ]}
+                      />
+                    ) : (
+                      <StatusBadge
+                        status={row.isLate ? "danger" : "warning"}
+                        className={financeListStatusChipClassName}
+                      >
                         {localizeBillingStatus(row.statusKey, locale)}
-                      </span>
-                    </StatusBadge>
+                      </StatusBadge>
+                    )
                   }
                   amount={row.amountLabel}
                 />
@@ -352,32 +360,30 @@ export default async function SettlementsPage() {
                           {row.termsLabel ? ` · ${row.termsLabel}` : ""}
                           {row.dueLabel ? ` · ${row.dueLabel}` : ""}
                         </p>
-                        {canMarkApPaid ? (
-                          <div className="mt-2">
-                            <SettlementsApMarkPaidButton
-                              purchaseInvoiceId={row.id}
-                              supplierName={row.supplierName}
-                              invoiceRef={row.invoiceRef}
-                              needsImportBankRate={row.needsImportBankRate}
-                              invoiceCurrency={row.invoiceCurrency}
-                              invoiceForeignAmount={row.invoiceForeignAmount}
-                              bookingRate={row.bookingRate}
-                            />
-                          </div>
-                        ) : null}
                       </>
                     }
                     status={
-                      <StatusBadge
-                        status={row.isOverdue ? "danger" : "info"}
-                        className={financeListStatusChipClassName}
-                      >
-                        <span className="flex h-full w-full items-center justify-center text-center leading-none">
+                      <div className="flex w-full flex-col items-stretch gap-1.5">
+                        <StatusBadge
+                          status={row.isOverdue ? "danger" : "info"}
+                          className={financeListStatusChipClassName}
+                        >
                           {row.isOverdue
                             ? t("pages.billing.vendorStatusOverdue")
                             : t("pages.billing.vendorStatusOpen")}
-                        </span>
-                      </StatusBadge>
+                        </StatusBadge>
+                        {canMarkApPaid ? (
+                          <SettlementsApMarkPaidButton
+                            purchaseInvoiceId={row.id}
+                            supplierName={row.supplierName}
+                            invoiceRef={row.invoiceRef}
+                            needsImportBankRate={row.needsImportBankRate}
+                            invoiceCurrency={row.invoiceCurrency}
+                            invoiceForeignAmount={row.invoiceForeignAmount}
+                            bookingRate={row.bookingRate}
+                          />
+                        ) : null}
+                      </div>
                     }
                     amount={row.amountLabel}
                   />

@@ -55,7 +55,6 @@ export default async function FinancialReportClientPage({
   return (
     <AppShell
       title={data.clientName}
-      descriptionKey="pages.financialReport.clientProjectsDesc"
     >
       <BillingBreadcrumbs
         items={[

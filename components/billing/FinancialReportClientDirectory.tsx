@@ -2,14 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, TrendingUp, Wallet } from "lucide-react";
 
 import type { FinancialReportClientRow } from "@/app/billing/financial-report/actions";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import DirectorySearchInput, {
   matchesDirectorySearch,
 } from "@/components/ui/DirectorySearchInput";
-import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import EmptyState from "@/components/ui/EmptyState";
 import { useT } from "@/lib/i18n/use-t";
 import { formatContractPrice } from "@/lib/project-billing";
@@ -26,15 +24,6 @@ export default function FinancialReportClientDirectory({
   const { t } = useT();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
-
-  const stats = useMemo(() => {
-    return {
-      clients: clients.length,
-      contractValue: clients.reduce((sum, c) => sum + c.totalContractValue, 0),
-      spending: clients.reduce((sum, c) => sum + c.totalSpending, 0),
-      profit: clients.reduce((sum, c) => sum + c.profit, 0),
-    };
-  }, [clients]);
 
   const visible = useMemo(
     () =>
@@ -120,30 +109,6 @@ export default function FinancialReportClientDirectory({
 
   return (
     <>
-      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <DirectoryStatCard
-          title={t("pages.financialReport.totalClients")}
-          value={stats.clients}
-          subtitle={t("pages.financialReport.withProjects")}
-          icon={<Building2 size={18} />}
-          accent="primary"
-        />
-        <DirectoryStatCard
-          title={t("pages.financialReport.totalContractValue")}
-          value={formatContractPrice(stats.contractValue)}
-          subtitle={t("pages.financialReport.acrossClients")}
-          icon={<Wallet size={18} />}
-          accent="info"
-        />
-        <DirectoryStatCard
-          title={t("pages.financialReport.totalProfit")}
-          value={formatContractPrice(stats.profit)}
-          subtitle={t("pages.financialReport.profitHint")}
-          icon={<TrendingUp size={18} />}
-          accent={stats.profit < 0 ? "danger" : "success"}
-        />
-      </div>
-
       <div className="mb-4">
         <h2 className="text-base font-semibold text-text">
           {t("pages.financialReport.jobHistoryTitle")}

@@ -9,6 +9,8 @@ const brandAssetGlobs = [
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
+  // Default badge sits on the sidebar account block and gets stuck on "Rendering…".
+  devIndicators: false,
   async redirects() {
     return [
       { source: "/website", destination: "/dashboard", permanent: false },

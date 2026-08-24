@@ -223,6 +223,7 @@ export default function ProjectDetailActionBar({
                     (assignment) => assignment.employeeId
                   )}
                   assignedTeamIds={assignedTeamIds}
+                  billingMode={editProject.billingMode}
                   size="bar"
                 />
               ) : null}
@@ -356,6 +357,7 @@ export default function ProjectDetailActionBar({
                 serviceArea={editProject.serviceArea}
                 employees={employees}
                 teams={teams}
+                billingMode={editProject.billingMode}
                 size="bar"
               />
             ) : null}

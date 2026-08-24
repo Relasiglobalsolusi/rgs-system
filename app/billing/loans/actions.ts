@@ -8,6 +8,7 @@ import {
   BANK_LOAN_TENOR_MIN,
   parseBankLoanKind,
   parseLoanInterestBasis,
+  remainingTenorMonths,
 } from "@/lib/bank-loan";
 import { parseFormCompanyBankAccountId } from "@/lib/company-bank-accounts";
 import { getLoanFacilitySnapshot } from "@/lib/loan-facility-query";
@@ -169,7 +170,7 @@ export async function createLoanFacility(formData: FormData) {
   if (kind === "STANDBY") {
     const limit = parseMoney(
       String(formData.get("facilityLimit") ?? ""),
-      "Enter the Plafon Kredit."
+      "Enter the Credit Ceiling."
     );
     facilityLimit = new Prisma.Decimal(limit);
   } else {
@@ -204,7 +205,13 @@ export async function createLoanFacility(formData: FormData) {
   const initialDrawAmount = recordInitialDraw
     ? parseMoney(
         String(formData.get("initialDrawAmount") ?? ""),
-        "Enter the amount already received."
+        "Enter the amount drawn."
+      )
+    : null;
+  const initialDrawDate = recordInitialDraw
+    ? parseRequiredDate(
+        String(formData.get("initialDrawDate") ?? ""),
+        "Enter the date the money was drawn."
       )
     : null;
   const drawBankAccountId = recordInitialDraw
@@ -212,9 +219,7 @@ export async function createLoanFacility(formData: FormData) {
         requiredWhenAccountsExist: true,
         requiredMessage: "Select the company bank account.",
       })
-    : await parseFormCompanyBankAccountId(formData, session.user.companyId, {
-        requiredWhenAccountsExist: false,
-      });
+    : null;
 
   const facility = await prisma.$transaction(async (tx) => {
     const created = await tx.loanFacility.create({
@@ -242,14 +247,14 @@ export async function createLoanFacility(formData: FormData) {
       },
       select: { id: true },
     });
-    if (initialDrawAmount != null) {
+    if (initialDrawAmount != null && initialDrawDate != null) {
       await createLoanDraw({
         db: tx,
         companyId: session.user.companyId,
         userId: session.user.id,
         facilityId: created.id,
         amount: initialDrawAmount,
-        movementDate: startDate,
+        movementDate: initialDrawDate,
         bankAccountId: drawBankAccountId,
         notes: "Initial draw",
       });
@@ -383,7 +388,7 @@ export async function recordLoanRepaymentAction(formData: FormData) {
   revalidateLoanPaths(facilityId);
 }
 
-export async function closeLoanFacilityAction(formData: FormData) {
+export async function extendLoanFacilityAction(formData: FormData) {
   const session = await requireLoansAccess();
   const facilityId = String(formData.get("facilityId") ?? "").trim();
   if (!facilityId) throw new Error("Select the registered loan.");
@@ -392,17 +397,52 @@ export async function closeLoanFacilityAction(formData: FormData) {
     facilityId
   );
   if (!snapshot) throw new Error("Loan not found.");
-  if (snapshot.kind === "TERM") {
-    throw new Error(
-      "A Term Loan closes when the last installment is paid, or use Settle Early."
+  if (snapshot.status !== "ACTIVE") {
+    throw new Error("This loan is already closed.");
+  }
+
+  if (snapshot.kind === "STANDBY") {
+    const limit = parseMoney(
+      String(formData.get("facilityLimit") ?? ""),
+      "Enter the new credit ceiling."
     );
+    if (limit < snapshot.outstanding) {
+      throw new Error(
+        "The new credit ceiling cannot be below outstanding principal."
+      );
+    }
+    await prisma.loanFacility.update({
+      where: { id: facilityId },
+      data: { facilityLimit: new Prisma.Decimal(limit) },
+    });
+    revalidateLoanPaths(facilityId);
+    return;
   }
-  if (snapshot.outstanding > 0) {
-    throw new Error("This loan still has outstanding principal.");
-  }
+
+  const annualRate = parseAnnualRate(
+    String(formData.get("annualRatePercent") ?? ""),
+    snapshot.chargesInterest
+  );
+  const remainingMonths = remainingTenorMonths(
+    snapshot.startDate,
+    snapshot.tenorMonths ?? 0
+  );
+  const monthlyInstallment = resolveFacilityMonthlyInstallment({
+    kind: "TERM",
+    principal: snapshot.outstanding,
+    annualPercent: decimalToNumber(annualRate),
+    tenorMonths: remainingMonths,
+    interestRateBasis: snapshot.interestRateBasis,
+  });
   await prisma.loanFacility.update({
     where: { id: facilityId },
-    data: { status: "CLOSED" },
+    data: {
+      annualRatePercent: annualRate,
+      monthlyInstallment:
+        monthlyInstallment != null
+          ? new Prisma.Decimal(monthlyInstallment)
+          : null,
+    },
   });
   revalidateLoanPaths(facilityId);
 }

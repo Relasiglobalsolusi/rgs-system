@@ -40,14 +40,26 @@ export default function VendorDirectory({
   const [bulkDialogMode, setBulkDialogMode] =
     useState<BulkDialogMode>("deactivate");
 
-  const activeVendors = useMemo(
-    () => vendors.filter((vendor) => vendor.active),
+  const orderedVendors = useMemo(
+    () =>
+      [...vendors].sort((left, right) => {
+        const byId = left.shortCode.localeCompare(right.shortCode, undefined, {
+          numeric: true,
+          sensitivity: "base",
+        });
+        return byId !== 0 ? byId : left.name.localeCompare(right.name);
+      }),
     [vendors]
   );
 
+  const activeVendors = useMemo(
+    () => orderedVendors.filter((vendor) => vendor.active),
+    [orderedVendors]
+  );
+
   const trashVendors = useMemo(
-    () => vendors.filter((vendor) => !vendor.active),
-    [vendors]
+    () => orderedVendors.filter((vendor) => !vendor.active),
+    [orderedVendors]
   );
 
   const stats = useMemo(() => {

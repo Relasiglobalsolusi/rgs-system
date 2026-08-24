@@ -32,7 +32,6 @@ export default async function ProgressClientPage({ params }: Props) {
   return (
     <AppShell
       title={clientLabel}
-      descriptionKey="pages.progress.clientProjectsDesc"
     >
       <ProgressBreadcrumbs
         items={[

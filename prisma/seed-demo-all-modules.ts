@@ -74,7 +74,6 @@ import {
   retireFinanceDepartments,
 } from "../lib/positions";
 import {
-  billingSubCategoryForCatalog,
   SYSTEM_AREA_SEEDS,
 } from "../lib/project-service-catalog";
 import {
@@ -161,66 +160,6 @@ async function ensureCatalog(prisma: Db, companyId: string) {
       });
     }
   }
-
-  const pest = await prisma.projectServiceAreaCatalog.upsert({
-    where: { companyId_slug: { companyId, slug: "PEST_CONTROL" } },
-    update: {
-      nameEn: "Pest Control",
-      nameId: "Pengendalian Hama",
-      isSystem: false,
-      systemArea: ServiceArea.OTHER,
-      allowsOneTime: true,
-      sortOrder: 80,
-    },
-    create: {
-      companyId,
-      slug: "PEST_CONTROL",
-      nameEn: "Pest Control",
-      nameId: "Pengendalian Hama",
-      sortOrder: 80,
-      isSystem: false,
-      systemArea: ServiceArea.OTHER,
-      allowsOneTime: true,
-    },
-  });
-  await prisma.projectSubcategoryCatalog.upsert({
-    where: { areaId_slug: { areaId: pest.id, slug: "REGULAR" } },
-    update: {
-      nameEn: "Regular",
-      nameId: "Rutin",
-      billingKind: "CONTRACT",
-      isSystem: false,
-      sortOrder: 10,
-    },
-    create: {
-      areaId: pest.id,
-      slug: "REGULAR",
-      nameEn: "Regular",
-      nameId: "Rutin",
-      billingKind: "CONTRACT",
-      isSystem: false,
-      sortOrder: 10,
-    },
-  });
-  await prisma.projectSubcategoryCatalog.upsert({
-    where: { areaId_slug: { areaId: pest.id, slug: "ONE_TIME" } },
-    update: {
-      nameEn: "One Time",
-      nameId: "Satu Kali",
-      billingKind: "ONE_TIME",
-      isSystem: false,
-      sortOrder: 20,
-    },
-    create: {
-      areaId: pest.id,
-      slug: "ONE_TIME",
-      nameEn: "One Time",
-      nameId: "Satu Kali",
-      billingKind: "ONE_TIME",
-      isSystem: false,
-      sortOrder: 20,
-    },
-  });
 }
 
 async function catalogMap(prisma: Db, companyId: string) {
@@ -1525,24 +1464,6 @@ export async function seedDemoAllModules(prisma: Db) {
     bpjs: true,
     securityDepositRequired: true,
   });
-  const empPest = await ensureEmployee(prisma, {
-    employeeNo: "OPR-019",
-    firstName: "Bayu",
-    lastName: "Hama",
-    email: null,
-    phone: "+62 812 0000 0024",
-    companyId: company.id,
-    categoryId: categories.operations.id,
-    position: pos("operations", "cleaning-staff"),
-    employmentType: EmploymentType.FULL_TIME,
-    employeeType: EmployeeType.PROJECT_SITE,
-    placement: Placement.ON_PROJECT,
-    userId: null,
-    portalAccessRequested: false,
-    basePay: 4_550_000,
-    bpjs: true,
-    securityDepositRequired: true,
-  });
 
   const internals = await ensureInternalAttendanceSites(company.id);
   const hoProjectId = internals.sites.find((s) => s.kind === "HEAD_OFFICE")?.projectId;
@@ -1557,8 +1478,6 @@ export async function seedDemoAllModules(prisma: Db) {
   const secOt = sub("SECURITY", "ONE_TIME_SECURITY");
   const parkCat = sub("PARKING", "PARKING");
   const payCat = sub("PAYROLL_MANAGEMENT", "PAYROLL_MANAGEMENT");
-  const pestReg = sub("PEST_CONTROL", "REGULAR");
-  const pestOt = sub("PEST_CONTROL", "ONE_TIME");
 
   const periodProject = await ensureProject(prisma, {
     id: "project-demo-mod-period-rows",
@@ -1793,52 +1712,6 @@ export async function seedDemoAllModules(prisma: Db) {
     payrollCutoffEndDay: 20,
     payrollTaxPercent: 11,
   });
-  const pPestReg = await ensureProject(prisma, {
-    id: "project-demo-mod-pest-regular",
-    companyId: company.id,
-    clientId: plazaClient.id,
-    name: "Demo — Plaza Pest Control",
-    description: "Custom Pest Control area — regular monthly treatment",
-    location: "Plaza Hijau service floors",
-    latitude: -6.1952,
-    longitude: 106.8228,
-    status: ProjectStatus.IN_PROGRESS,
-    subCategory: billingSubCategoryForCatalog({
-      systemArea: ServiceArea.OTHER,
-      billingKind: "CONTRACT",
-    }),
-    serviceArea: ServiceArea.OTHER,
-    areaCatalogId: pestReg.area.id,
-    subcategoryCatalogId: pestReg.sub.id,
-    billingMode: BillingMode.MONTHLY,
-    contractPrice: 7_500_000,
-    requiresTaxInvoice: true,
-    chargedTaxKind: CommercialTaxKind.PPN,
-    startDate: utcDate(2026, 6, 1),
-    endDate: utcDate(2027, 5, 31),
-  });
-  const pPestOt = await ensureProject(prisma, {
-    id: "project-demo-mod-pest-onetime",
-    companyId: company.id,
-    clientId: sariClient.id,
-    name: "Demo — Sari Termite Treatment",
-    description: "Custom Pest Control — One Time enabled",
-    location: "Jl. Kemang Raya No. 12",
-    latitude: -6.2602,
-    longitude: 106.8134,
-    status: ProjectStatus.PLANNED,
-    subCategory: billingSubCategoryForCatalog({
-      systemArea: ServiceArea.OTHER,
-      billingKind: "ONE_TIME",
-    }),
-    serviceArea: ServiceArea.OTHER,
-    areaCatalogId: pestOt.area.id,
-    subcategoryCatalogId: pestOt.sub.id,
-    billingMode: BillingMode.ON_COMPLETION,
-    contractPrice: 4_200_000,
-    estimatedStartDate: utcDate(2026, 9, 1),
-    startDate: null,
-  });
 
   const shift1 = await ensureShift(prisma, periodProject.id, 1, "07:00", "16:00");
   const shift2 = await ensureShift(prisma, periodProject.id, 2, "13:00", "22:00");
@@ -1904,12 +1777,6 @@ export async function seedDemoAllModules(prisma: Db) {
     employeeId: empPark.id,
     shiftStart: "07:00",
     shiftEnd: "16:00",
-  });
-  await ensureAssignment(prisma, {
-    projectId: pPestReg.id,
-    employeeId: empPest.id,
-    shiftStart: "08:00",
-    shiftEnd: "17:00",
   });
   await ensureAssignment(prisma, {
     projectId: pGcContract.id,
@@ -2049,14 +1916,6 @@ export async function seedDemoAllModules(prisma: Db) {
     memberIds: [empSec.id],
     projectIds: [pSec.id, pSecOt.id],
   });
-  await ensureTeam({
-    id: "demo-mod-team-pest",
-    name: "Pest Control Squad",
-    kind: null,
-    areaId: pestReg.area.id,
-    memberIds: [empPest.id],
-    projectIds: [pPestReg.id, pPestOt.id],
-  });
 
   const dueSoon = utcDate(2026, 8, 27);
   const dueLater = utcDate(2026, 9, 10);
@@ -2183,15 +2042,6 @@ export async function seedDemoAllModules(prisma: Db) {
     dueAt: dueSoon,
     taxInvoiceRequired: true,
   });
-  await ensurePeriod(prisma, {
-    projectId: pPestReg.id,
-    periodStart: utcDate(2026, 7, 1),
-    periodEnd: utcDate(2026, 7, 31),
-    label: "July 2026",
-    status: InvoicePeriodStatus.ONGOING,
-    amount: 7_500_000,
-  });
-
   await prisma.parkingMonthlyLog.upsert({
     where: {
       projectId_year_month: { projectId: pPark.id, year: 2026, month: 6 },

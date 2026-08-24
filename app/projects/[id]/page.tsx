@@ -11,6 +11,16 @@ import {
   releaseExpiredBackupCrew,
 } from "@/lib/workforce-crew";
 import { mapProjectTeamOption } from "@/lib/operations-teams";
+import { teamsForProjectServiceArea } from "@/lib/operations-team-kind";
+import {
+  syncVisitCrewOccupancy,
+  visitCrewBusyMapsForWindow,
+  visitCrewConflictLabel,
+  visitOccupiesToday,
+} from "@/lib/project-visit-crew";
+import ProjectVisitCrewSection, {
+  type VisitCrewRow,
+} from "@/components/projects/ProjectVisitCrewSection";
 import {
   isBackupAssignmentOccupyingProject,
   processScheduledPettyCashPays,
@@ -146,6 +156,69 @@ function statusTone(
   }
 }
 
+async function listProjectVisitsForDetail(projectId: string) {
+  try {
+    return await prisma.projectVisit.findMany({
+      where: { projectId },
+      orderBy: { visitIndex: "asc" },
+      include: {
+        assignments: {
+          include: {
+            employee: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                employeeNo: true,
+              },
+            },
+            team: {
+              select: {
+                id: true,
+                name: true,
+                members: {
+                  include: {
+                    employee: {
+                      select: { firstName: true, lastName: true },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+  } catch {
+    return [];
+  }
+}
+
+async function listCoveredEmployeesForAssignments(
+  assignments: Array<{ coveredEmployeeId?: string | null } | object>
+) {
+  const ids = [
+    ...new Set(
+      assignments
+        .map(
+          (row) =>
+            (row as { coveredEmployeeId?: string | null }).coveredEmployeeId
+        )
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
+  if (ids.length === 0) return new Map<string, { firstName: string; lastName: string }>();
+  try {
+    const people = await prisma.employee.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, firstName: true, lastName: true },
+    });
+    return new Map(people.map((person) => [person.id, person]));
+  } catch {
+    return new Map<string, { firstName: string; lastName: string }>();
+  }
+}
+
 export default async function ProjectDetailPage({
   params,
   searchParams,
@@ -179,9 +252,6 @@ export default async function ProjectDetailPage({
       assignments: {
         include: {
           employee: true,
-          coveredEmployee: {
-            select: { firstName: true, lastName: true },
-          },
           shift: {
             select: {
               id: true,
@@ -218,7 +288,22 @@ export default async function ProjectDetailPage({
   // Missing, deleted, or out of scope — send to the list instead of a bare 404.
   if (!allowed) redirect(PROJECT_LIST_VIEW_PATHS.all);
 
-  const project = allowed;
+  const [visitRows, coveredPeople] = await Promise.all([
+    listProjectVisitsForDetail(id),
+    listCoveredEmployeesForAssignments(allowed.assignments),
+  ]);
+  const project = {
+    ...allowed,
+    visits: visitRows,
+    assignments: allowed.assignments.map((assignment) => ({
+      ...assignment,
+      coveredEmployee:
+        coveredPeople.get(
+          (assignment as { coveredEmployeeId?: string | null }).coveredEmployeeId ??
+            ""
+        ) ?? null,
+    })),
+  };
   const canAssignCover = await canAssignSiteCover({
     userId: session.user.id,
     username: session.user.username,
@@ -319,26 +404,61 @@ export default async function ProjectDetailPage({
     await processScheduledPettyCashPays(prisma, project.companyId);
   }
   await releaseExpiredBackupCrew(prisma as never, project.companyId);
+  if (canManage && project.billingMode === "MULTI_VISIT") {
+    await prisma.$transaction((tx) =>
+      syncVisitCrewOccupancy(tx, {
+        companyId: project.companyId,
+        projectId: project.id,
+      })
+    );
+  }
 
   const liveFrom = jakartaTodayAsUtcDateOnly();
   const liveStaffAssignments = project.assignments.filter((assignment) =>
     isBackupAssignmentOccupyingProject(assignment)
   );
-  const doubleShifts = await prisma.doubleShiftAssignment.findMany({
-    where: { projectId: project.id, date: { gte: liveFrom } },
-    select: {
-      id: true,
-      employeeId: true,
-      date: true,
-      coveringShift: {
-        select: { number: true, startTime: true, endTime: true },
+  const doubleShifts = await prisma.doubleShiftAssignment
+    .findMany({
+      where: { projectId: project.id, date: { gte: liveFrom } },
+      select: {
+        id: true,
+        employeeId: true,
+        date: true,
+        coveringShift: {
+          select: { number: true, startTime: true, endTime: true },
+        },
+        coveredEmployee: {
+          select: { firstName: true, lastName: true },
+        },
       },
-      coveredEmployee: {
-        select: { firstName: true, lastName: true },
-      },
-    },
-    orderBy: { date: "asc" },
-  });
+      orderBy: { date: "asc" },
+    })
+    .catch(() =>
+      prisma.doubleShiftAssignment.findMany({
+        where: { projectId: project.id, date: { gte: liveFrom } },
+        select: {
+          id: true,
+          employeeId: true,
+          date: true,
+          coveringShift: {
+            select: { number: true, startTime: true, endTime: true },
+          },
+        },
+        orderBy: { date: "asc" },
+      })
+    )
+    .then((rows) =>
+      rows.map((row) => ({
+        ...row,
+        coveredEmployee:
+          "coveredEmployee" in row
+            ? (row.coveredEmployee as {
+                firstName: string;
+                lastName: string;
+              } | null)
+            : null,
+      }))
+    );
 
   // Equipment issue/release/demob keep Inventory ↔ Projects in sync.
   // Never mint/assign on page load (caused ghost units like EQP-*-A6).
@@ -460,6 +580,89 @@ export default async function ProjectDetailPage({
     )[0];
   const locale = await getServerLocale();
   const t = createTranslator(locale);
+  const displayLocale = locale === "id" ? "id-ID" : "en-GB";
+  const isMultiVisit = project.billingMode === "MULTI_VISIT";
+  const visitCrewTeams = teamsForProjectServiceArea(teamOptions, {
+    areaCatalogId: project.areaCatalogId,
+    serviceArea: project.serviceArea,
+    subCategory: project.subCategory,
+  });
+  const visitCrewRows: VisitCrewRow[] = isMultiVisit
+    ? await Promise.all(
+        project.visits.map(async (visit) => {
+          const busy = await visitCrewBusyMapsForWindow(
+            prisma,
+            project.companyId,
+            { start: visit.startDate, end: visit.endDate },
+            visit.id
+          );
+          const assignment = visit.assignments[0] ?? null;
+          const employeeConflicts: Record<string, string> = {};
+          for (const employee of employees) {
+            const conflict = busy.employees.get(employee.id);
+            if (conflict) {
+              employeeConflicts[employee.id] = visitCrewConflictLabel(
+                conflict,
+                locale
+              );
+            }
+          }
+          const teamConflicts: Record<string, string> = {};
+          for (const team of visitCrewTeams) {
+            const conflict =
+              busy.teams.get(team.id) ??
+              team.memberIds
+                .map((memberId) => busy.employees.get(memberId))
+                .find(Boolean);
+            if (conflict) {
+              teamConflicts[team.id] = visitCrewConflictLabel(conflict, locale);
+            }
+          }
+          return {
+            id: visit.id,
+            visitIndex: visit.visitIndex,
+            startLabel: formatDisplayDate(visit.startDate, undefined, displayLocale),
+            endLabel: formatDisplayDate(visit.endDate, undefined, displayLocale),
+            amountLabel:
+              decimalToNumber(visit.amount) != null
+                ? formatContractPrice(decimalToNumber(visit.amount))
+                : null,
+            current: visitOccupiesToday({
+              startDate: visit.startDate,
+              endDate: visit.endDate,
+              projectStatus: project.status,
+            }),
+            assignment: assignment?.team
+              ? {
+                  kind: "team",
+                  teamId: assignment.team.id,
+                  teamName: assignment.team.name,
+                  memberNames: assignment.team.members.map(
+                    (member) =>
+                      `${member.employee.firstName} ${member.employee.lastName}`.trim()
+                  ),
+                }
+              : assignment?.employee
+                ? {
+                    kind: "employee",
+                    employeeId: assignment.employee.id,
+                    employeeName:
+                      `${assignment.employee.firstName} ${assignment.employee.lastName}`.trim(),
+                    employeeNo: assignment.employee.employeeNo,
+                  }
+                : null,
+            employeeConflicts,
+            teamConflicts,
+          };
+        })
+      )
+    : [];
+  const canAssignVisitCrew =
+    canManage &&
+    (project.status === "PLANNED" ||
+      project.status === "IN_PROGRESS" ||
+      project.status === "WAITING_FOR_APPROVAL" ||
+      project.status === "ON_HOLD");
   const pageTitle = project.name;
   const modeLabel = localizeBillingMode(project.billingMode, locale);
   const timeline = inPlanning
@@ -494,9 +697,6 @@ export default async function ProjectDetailPage({
   const statusLines = localizeWorkflowChipLines(workflowStatus, locale);
   const typeLabel = localizeSubCategory(project.subCategory, locale);
   const typeLines = localizeSubCategoryChipLines(project.subCategory, locale);
-  const pageDescription = isInternal
-    ? typeLabel
-    : [project.client?.name, typeLabel].filter(Boolean).join(" · ");
   const opensBillingPeriods = usesInvoicePeriods(project.subCategory);
   const billingSubtext = !opensBillingPeriods
     ? t("pages.projects.detail.serviceBillingNote")
@@ -516,7 +716,7 @@ export default async function ProjectDetailPage({
     : null;
 
   return (
-    <AppShell title={pageTitle} description={pageDescription || undefined}>
+    <AppShell title={pageTitle}>
       <ScrollToInvoicePeriod periodId={focusPeriodId} />
       <div className="mb-4">
         <BackLink href={listBackHref}>{listBackLabel}</BackLink>
@@ -940,7 +1140,7 @@ export default async function ProjectDetailPage({
                     </tr>
                   </>
                 ) : null}
-                {!isInternal ? (
+                {!isInternal && project.subCategory !== "PARKING" ? (
                   <tr className="border-b border-border">
                     <th scope="row" className={metaLabelClassName}>
                       {t("pages.projects.serviceCommercial.paymentTermsDays")}
@@ -1231,7 +1431,25 @@ export default async function ProjectDetailPage({
             </SectionCard>
           ) : null}
 
-          {!inPlanning ? (
+          {isMultiVisit ? (
+            <SectionCard className={sectionCardClassName}>
+              <ProjectVisitCrewSection
+                visits={visitCrewRows}
+                employees={employees.map((employee) => ({
+                  id: employee.id,
+                  firstName: employee.firstName,
+                  lastName: employee.lastName,
+                  employeeNo: employee.employeeNo,
+                }))}
+                teams={visitCrewTeams.map((team) => ({
+                  id: team.id,
+                  name: team.name,
+                  memberNames: team.memberNames,
+                }))}
+                canAssign={canAssignVisitCrew}
+              />
+            </SectionCard>
+          ) : !inPlanning ? (
             <SectionCard className={sectionCardClassName}>
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <h3 className={sectionTitleClassName}>

@@ -26,11 +26,6 @@ export default async function LeavesPage() {
   return (
     <AppShell
       titleKey="pages.leaves.title"
-      descriptionKey={
-        hasEmployeeProfile
-          ? "pages.leaves.descriptionEmployee"
-          : "pages.leaves.descriptionManager"
-      }
     >
       <LeaveDirectory
         data={leaves.map((leave) => ({

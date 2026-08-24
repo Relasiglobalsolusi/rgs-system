@@ -15,6 +15,7 @@ import {
 } from "@/components/employees/employee-dialog-ui";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/MoneyInput";
 import SearchableProjectSelect from "@/components/ui/SearchableProjectSelect";
 import {
   Select,
@@ -212,13 +213,10 @@ export default function PayrollDeductionDialog({
             <label className="text-sm font-semibold text-text">
               {t("pages.payroll.deductionAmount")}
             </label>
-            <Input
+            <MoneyInput
               className={employeeInputClass}
-              inputMode="numeric"
               value={amount}
-              onChange={(event) =>
-                setAmount(event.target.value.replace(/[^\d]/g, ""))
-              }
+              onValueChange={setAmount}
               placeholder="0"
             />
             <p className={employeeDialogHintClass}>

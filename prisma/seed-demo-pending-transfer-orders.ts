@@ -52,7 +52,7 @@ const ORDER_SPECS: OrderSpec[] = [
   {
     key: "ftl",
     hints: ["Ftl Kebon Sirih", "Kebon Sirih"],
-    fallbackProjectId: "project-demo-mod-pest-regular",
+    fallbackProjectId: "project-demo-mod-gc-contract",
     status: TransferOrderStatus.PENDING_SEND,
     notes: "Approved — waiting warehouse send (lobby mop + chemical top-up)",
     createdAt: utcDate(2026, 8, 18),

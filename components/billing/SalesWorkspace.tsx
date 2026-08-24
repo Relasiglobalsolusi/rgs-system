@@ -10,6 +10,7 @@ import {
 
 import { searchInventorySoldOffs } from "@/app/inventory/actions";
 import SalesPeriodControl from "@/components/billing/SalesPeriodControl";
+import SalesReportDownloadButton from "@/components/billing/SalesReportDownloadButton";
 import InventoryReverseSoldOffDialog from "@/components/inventory/InventoryReverseSoldOffDialog";
 import InventorySoldOffDialog from "@/components/inventory/InventorySoldOffDialog";
 import InventorySoldOffTables from "@/components/inventory/InventorySoldOffTables";
@@ -37,7 +38,7 @@ export type SalesWorkspaceTotals = {
 
 type Props = {
   year: number;
-  month: number;
+  month: number | null;
   day?: number | null;
   soldOffs: InventorySoldOffRow[];
   items: InventoryCatalogItem[];
@@ -96,7 +97,10 @@ export default function SalesWorkspace({
   return (
     <>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <SalesPeriodControl year={year} month={month} day={day} />
+        <div className="flex flex-wrap items-end gap-2">
+          <SalesPeriodControl year={year} month={month} day={day} />
+          <SalesReportDownloadButton year={year} month={month} day={day} />
+        </div>
         {canManage ? (
           <DirectoryAddButton
             label={t("pages.sales.addSale")}

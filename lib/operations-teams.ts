@@ -27,7 +27,7 @@ export {
 };
 export type { OperationsTeamKindValue };
 
-const OPEN_TEAM_PROJECT_STATUSES = [
+export const OPEN_TEAM_PROJECT_STATUSES = [
   "PLANNED",
   "IN_PROGRESS",
   "WAITING_FOR_APPROVAL",
@@ -63,6 +63,7 @@ export function occupancyWindowsFromLinks(
       id: string;
       name: string;
       status: string;
+      billingMode?: string | null;
       startDate: Date | null;
       estimatedStartDate: Date | null;
       endDate: Date | null;
@@ -75,6 +76,7 @@ export function occupancyWindowsFromLinks(
         link.project.status
       )
     )
+    .filter((link) => link.project.billingMode !== "MULTI_VISIT")
     .map((link) => ({
       projectId: link.project.id,
       projectName: link.project.name,
@@ -82,6 +84,64 @@ export function occupancyWindowsFromLinks(
       end: link.project.endDate,
       status: link.project.status,
     }));
+}
+
+export function occupancyWindowsFromVisitAssignments(
+  assignments: Array<{
+    visit: {
+      startDate: Date;
+      endDate: Date;
+      project: {
+        id: string;
+        name: string;
+        status: string;
+      };
+    };
+  }>
+): TeamOccupancyWindow[] {
+  return assignments
+    .filter((row) =>
+      (OPEN_TEAM_PROJECT_STATUSES as readonly string[]).includes(
+        row.visit.project.status
+      )
+    )
+    .map((row) => ({
+      projectId: row.visit.project.id,
+      projectName: row.visit.project.name,
+      start: row.visit.startDate,
+      end: row.visit.endDate,
+      status: row.visit.project.status,
+    }));
+}
+
+export function occupancyWindowsForTeam(opts: {
+  projectLinks: Array<{
+    project: {
+      id: string;
+      name: string;
+      status: string;
+      billingMode?: string | null;
+      startDate: Date | null;
+      estimatedStartDate: Date | null;
+      endDate: Date | null;
+    };
+  }>;
+  visitAssignments?: Array<{
+    visit: {
+      startDate: Date;
+      endDate: Date;
+      project: {
+        id: string;
+        name: string;
+        status: string;
+      };
+    };
+  }>;
+}): TeamOccupancyWindow[] {
+  return [
+    ...occupancyWindowsFromLinks(opts.projectLinks),
+    ...occupancyWindowsFromVisitAssignments(opts.visitAssignments ?? []),
+  ];
 }
 
 export function currentOccupiedProjectName(
@@ -136,10 +196,41 @@ export async function syncTeamMemberOntoOpenJobs(
         status: { in: [...OPEN_PROJECT_ASSIGNMENT_STATUSES] },
       },
     },
-    select: { projectId: true },
+    select: {
+      projectId: true,
+      project: { select: { billingMode: true } },
+    },
   });
 
+  const { visitOccupiesToday } = await import("@/lib/project-visit-crew");
+  const { jakartaTodayAsUtcDateOnly } = await import(
+    "@/lib/leave-employment-status"
+  );
+  const today = jakartaTodayAsUtcDateOnly();
+
   for (const link of links) {
+    if (link.project.billingMode === "MULTI_VISIT") {
+      const liveVisit = await db.projectVisit.findFirst({
+        where: {
+          projectId: link.projectId,
+          assignments: { some: { teamId } },
+        },
+        select: {
+          startDate: true,
+          endDate: true,
+          project: { select: { status: true } },
+        },
+      });
+      const occupies = liveVisit
+        ? visitOccupiesToday({
+            startDate: liveVisit.startDate,
+            endDate: liveVisit.endDate,
+            projectStatus: liveVisit.project.status,
+            today,
+          })
+        : false;
+      if (!occupies) continue;
+    }
     await assertEmployeesNotOnOtherProject(db, companyId, [employeeId], {
       excludeProjectId: link.projectId,
     });

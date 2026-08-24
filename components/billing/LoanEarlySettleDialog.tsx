@@ -253,19 +253,22 @@ export default function LoanEarlySettleDialog({
               >
                 {t("pages.loans.penaltyPercent")}
               </label>
-              <Input
-                id="loan-settle-penalty-pct"
-                name="penaltyPercent"
-                inputMode="decimal"
-                disabled={pending}
-                value={penaltyPercent}
-                onChange={(event) => {
-                  setPenaltyPercent(event.target.value);
-                  setPenaltyAmount("");
-                }}
-                className={employeeInputClass}
-              />
-            </div>
+                <Input
+                  id="loan-settle-penalty-pct"
+                  name="penaltyPercent"
+                  inputMode="decimal"
+                  disabled={pending}
+                  value={penaltyPercent}
+                  onChange={(event) => {
+                    setPenaltyPercent(event.target.value);
+                    setPenaltyAmount("");
+                  }}
+                  className={employeeInputClass}
+                />
+                <p className={employeeDialogHintClass}>
+                  {t("pages.loans.penaltyPercentHint")}
+                </p>
+              </div>
 
             <div className={employeeDialogFieldClass}>
               <label

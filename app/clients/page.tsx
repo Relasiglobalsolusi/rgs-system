@@ -16,7 +16,6 @@ export default async function ClientsPage() {
     return (
       <AppShell
         titleKey="pages.clients.title"
-        descriptionKey="pages.clients.description"
       >
         <p className="rounded-3xl border border-border bg-elevated p-8 text-text">
           <T k="pages.clients.companyNotFound" />
@@ -38,17 +37,12 @@ export default async function ClientsPage() {
         orderBy: { username: "asc" },
       },
     },
-    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    orderBy: [{ shortCode: "asc" }, { name: "asc" }],
   });
 
   return (
     <AppShell
       titleKey="pages.clients.title"
-      descriptionKey={
-        canManage
-          ? "pages.clients.descriptionManage"
-          : "pages.clients.descriptionReadonly"
-      }
     >
       <PageIntro
         titleKey="pages.clients.directoryTitle"

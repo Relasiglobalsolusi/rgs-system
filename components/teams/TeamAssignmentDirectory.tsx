@@ -13,6 +13,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/button";
+import { ACTIONS_TRIPLE_CHIP_COLUMN_WIDTH } from "@/components/ui/trash-action-buttons";
 import TeamDeleteDialog from "@/components/teams/TeamDeleteDialog";
 import TeamFormDialog, {
   type TeamTypeOption,
@@ -33,6 +34,7 @@ export type TeamAssignmentRow = {
   serviceAreaCatalogId: string | null;
   memberCount: number;
   occupiedProjectName: string | null;
+  isOnJob: boolean;
   members: TeamMemberRow[];
 };
 
@@ -107,24 +109,50 @@ export default function TeamAssignmentDirectory({
     {
       key: "status",
       title: t("pages.teams.columns.status"),
-      align: "center",
-      render: (team) =>
-        team.occupiedProjectName ? (
-          <StatusBadge status="warning" compact>
-            {t("pages.teams.onSiteAt", { project: team.occupiedProjectName })}
-          </StatusBadge>
-        ) : (
-          <StatusBadge status="active" compact>
-            {t("pages.teams.statusAvailable")}
-          </StatusBadge>
-        ),
+      cellAlign: "center",
+      share: 2,
+      width: "14rem",
+      className: "min-w-[14rem]",
+      render: (team) => {
+        if (!team.occupiedProjectName) {
+          return (
+            <div className="flex justify-center">
+              <StatusBadge
+                status="active"
+                compact
+                className="min-w-0 w-fit px-1.5"
+              >
+                {t("pages.teams.statusAvailable")}
+              </StatusBadge>
+            </div>
+          );
+        }
+        return (
+          <div className="flex w-full min-w-0 justify-center">
+            <StatusBadge
+              status="warning"
+              compact
+              className="h-auto min-h-[2.75rem] w-full max-w-full min-w-0 shrink whitespace-normal px-2.5 py-1.5 leading-snug"
+            >
+              <span className="flex min-w-0 max-w-full flex-col items-center justify-center gap-0.5 text-center">
+                <span>{t("pages.teams.statusOnSite")}</span>
+                <span className="max-w-full break-words leading-snug">
+                  {team.occupiedProjectName}
+                </span>
+              </span>
+            </StatusBadge>
+          </div>
+        );
+      },
     },
     ...(canManage
       ? [
           {
             key: "actions",
             title: t("pages.teams.columns.actions"),
-            align: "center" as const,
+            cellAlign: "center" as const,
+            width: ACTIONS_TRIPLE_CHIP_COLUMN_WIDTH,
+            className: "min-w-[34rem] overflow-visible whitespace-nowrap",
             render: (team: TeamAssignmentRow) => (
               <div className="flex justify-center gap-1.5">
                 <Button
@@ -149,7 +177,16 @@ export default function TeamAssignmentDirectory({
                   type="button"
                   variant="destructiveBadge"
                   size="badgeFlex"
-                  onClick={() => setDeleteTeamId(team.id)}
+                  disabled={team.isOnJob}
+                  title={
+                    team.isOnJob
+                      ? t("pages.teams.deleteBlockedOnJob")
+                      : undefined
+                  }
+                  onClick={() => {
+                    if (team.isOnJob) return;
+                    setDeleteTeamId(team.id);
+                  }}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                   {t("common.actions.delete")}

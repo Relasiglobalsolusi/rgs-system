@@ -45,7 +45,6 @@ export default async function LoansPage() {
   return (
     <AppShell
       titleKey="pages.loans.title"
-      descriptionKey="pages.loans.description"
     >
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <PageIntro

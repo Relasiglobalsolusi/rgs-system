@@ -112,7 +112,6 @@ export default async function ApprovalsPage() {
   return (
     <AppShell
       titleKey="pages.approvals.title"
-      descriptionKey="pages.approvals.description"
     >
       <div className="min-w-0 max-w-full space-y-6">
         <SectionCard className="min-w-0 max-w-full p-5 sm:p-6">

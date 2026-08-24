@@ -10,7 +10,8 @@ import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/project-billing";
 import { listCompanyBankAccountOptions } from "@/lib/company-bank-accounts";
 import { requireFinanceChild } from "@/lib/session";
-import { jakartaYearMonth, utcRangeForJakartaDate, utcRangeForJakartaMonth, utcRangeForJakartaYear, daysInUtcMonth } from "@/lib/vat";
+import { financePeriodRange, parseFinancePeriod } from "@/lib/finance-period";
+import { utcRangeForJakartaYear } from "@/lib/vat";
 
 type SearchParams = Promise<{
   year?: string;
@@ -46,25 +47,8 @@ export default async function SalesPage({
   }
 
   const params = searchParams ? await searchParams : {};
-  const nowYm = jakartaYearMonth();
-  const year = Math.max(
-    2000,
-    Math.min(2100, Number(params.year) || nowYm.year)
-  );
-  const month = Math.max(
-    1,
-    Math.min(12, Number(params.month) || nowYm.month)
-  );
-  const maxDay = daysInUtcMonth(year, month);
-  const parsedDay = Number(params.day);
-  const day =
-    Number.isFinite(parsedDay) && parsedDay >= 1 && parsedDay <= maxDay
-      ? parsedDay
-      : null;
-  const { start, endExclusive } =
-    day != null
-      ? utcRangeForJakartaDate(year, month, day)
-      : utcRangeForJakartaMonth(year, month);
+  const { year, month, day } = parseFinancePeriod(params);
+  const { start, endExclusive } = financePeriodRange({ year, month, day });
   const yearRange = utcRangeForJakartaYear(year);
 
   const [monthSales, yearSales, items, assetRows, bankAccounts] = await Promise.all([
@@ -144,7 +128,6 @@ export default async function SalesPage({
   return (
     <AppShell
       titleKey="pages.sales.title"
-      descriptionKey="pages.sales.description"
     >
       <SalesWorkspace
         year={year}

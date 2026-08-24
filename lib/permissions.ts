@@ -532,6 +532,13 @@ type EmployeeModulePresetOptions = {
   } | null;
 };
 
+/** Stored position `defaultModuleAccess` JSON → full module flag map. */
+export function parsePositionDefaultModuleAccess(
+  raw: unknown
+): Record<ModuleKey, boolean> | null {
+  return normalizeModuleAccessMap(raw);
+}
+
 function normalizeModuleAccessMap(
   raw: unknown
 ): Record<ModuleKey, boolean> | null {

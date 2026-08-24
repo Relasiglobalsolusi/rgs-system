@@ -431,7 +431,6 @@ export default async function TaxInvoicesPage({
   return (
     <AppShell
       titleKey="pages.billing.taxInvoice"
-      descriptionKey="pages.billing.taxInvoiceDescription"
     >
       <BillingBreadcrumbs
         items={[{ label: t("pages.billing.taxInvoice") }]}

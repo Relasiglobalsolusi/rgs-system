@@ -38,7 +38,6 @@ export default async function InventoryPage() {
     return (
       <AppShell
         titleKey="pages.inventory.title"
-        descriptionKey="pages.inventory.description"
       >
         <p className="rounded-3xl border border-border bg-elevated p-8 text-text">
           <T k="pages.inventory.companyNotFound" />
@@ -271,11 +270,6 @@ export default async function InventoryPage() {
   return (
     <AppShell
       titleKey="pages.inventory.title"
-      descriptionKey={
-        canManage
-          ? "pages.inventory.descriptionManage"
-          : "pages.inventory.descriptionReadonly"
-      }
     >
       <InventoryWorkspace
         canManage={canManage}

@@ -41,6 +41,7 @@ type Props = {
   serviceArea?: string | null;
   employees: ProjectStaffEmployee[];
   teams?: ProjectTeamOption[];
+  billingMode?: string | null;
   size?: "default" | "lg" | "bar";
 };
 
@@ -51,6 +52,7 @@ export default function ProjectRedoJobButton({
   serviceArea,
   employees,
   teams = [],
+  billingMode = null,
   size = "lg",
 }: Props) {
   const { t } = useT();
@@ -156,14 +158,22 @@ export default function ProjectRedoJobButton({
               required
               accept="image/*,.pdf,application/pdf"
             />
-            <ProjectTeamPicker
-              teams={teamsForProjectServiceArea(teams, {
-                areaCatalogId,
-                serviceArea,
-                subCategory,
-              })}
-            />
-            <ProjectStaffPicker employees={employees} />
+            {billingMode === "MULTI_VISIT" ? (
+              <p className="text-xs text-subtle">
+                {t("pages.projects.moveDialogVisitCrewHelp")}
+              </p>
+            ) : (
+              <>
+                <ProjectTeamPicker
+                  teams={teamsForProjectServiceArea(teams, {
+                    areaCatalogId,
+                    serviceArea,
+                    subCategory,
+                  })}
+                />
+                <ProjectStaffPicker employees={employees} />
+              </>
+            )}
           </form>
         </EmployeeDialogShell>
       </Dialog>

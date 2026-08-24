@@ -559,6 +559,7 @@ export default function ProjectFormFields({
           handleServiceAreaChange(value as ProjectServiceAreaValue);
         }}
         columns={2}
+        spanLastWhenOdd
       />
 
       {serviceArea === "CLEANING" ? (
@@ -761,11 +762,13 @@ export default function ProjectFormFields({
         />
       ) : null}
 
-      <PaymentTermsField
-        name={nameOf("paymentTermsDays")}
-        id={idOf("payment-terms")}
-        defaultValue={14}
-      />
+      {subCategory !== "PARKING" ? (
+        <PaymentTermsField
+          name={nameOf("paymentTermsDays")}
+          id={idOf("payment-terms")}
+          defaultValue={14}
+        />
+      ) : null}
 
       <CompanyBankAccountField
         name={nameOf("bankAccountId")}
@@ -942,18 +945,26 @@ export default function ProjectFormFields({
               {t("pages.projects.contractProofHint")}
             </p>
           </div>
-          <ProjectTeamPicker
-            teams={teamsForProjectServiceArea(teams, {
-              areaCatalogId,
-              serviceArea,
-              subCategory,
-            })}
-            namePrefix={namePrefix}
-          />
-          <ProjectStaffPicker
-            employees={employees}
-            namePrefix={namePrefix}
-          />
+          {billingMode !== "MULTI_VISIT" ? (
+            <>
+              <ProjectTeamPicker
+                teams={teamsForProjectServiceArea(teams, {
+                  areaCatalogId,
+                  serviceArea,
+                  subCategory,
+                })}
+                namePrefix={namePrefix}
+              />
+              <ProjectStaffPicker
+                employees={employees}
+                namePrefix={namePrefix}
+              />
+            </>
+          ) : (
+            <p className="text-xs text-subtle">
+              {t("pages.projects.moveDialogVisitCrewHelp")}
+            </p>
+          )}
         </>
       ) : null}
     </div>

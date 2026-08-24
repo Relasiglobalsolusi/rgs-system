@@ -7,7 +7,8 @@ import { ensureTeamServiceAreas } from "@/lib/operations-team-catalog";
 import {
   currentOccupiedProjectName,
   eligibleTeamMemberWhere,
-  occupancyWindowsFromLinks,
+  occupancyWindowsForTeam,
+  OPEN_TEAM_PROJECT_STATUSES,
 } from "@/lib/operations-teams";
 import { prisma } from "@/lib/prisma";
 import { canManageTeams } from "@/lib/project-access";
@@ -22,7 +23,6 @@ export default async function TeamsAssignmentPage() {
     return (
       <AppShell
         titleKey="pages.teams.assignmentTitle"
-        descriptionKey="pages.teams.assignmentDescription"
       >
         <TeamAssignmentDirectory
           teams={[]}
@@ -61,9 +61,27 @@ export default async function TeamsAssignmentPage() {
                 id: true,
                 name: true,
                 status: true,
+                billingMode: true,
                 startDate: true,
                 estimatedStartDate: true,
                 endDate: true,
+              },
+            },
+          },
+        },
+        visitAssignments: {
+          select: {
+            visit: {
+              select: {
+                startDate: true,
+                endDate: true,
+                project: {
+                  select: {
+                    id: true,
+                    name: true,
+                    status: true,
+                  },
+                },
               },
             },
           },
@@ -83,28 +101,45 @@ export default async function TeamsAssignmentPage() {
     }),
   ]);
 
-  const rows: TeamAssignmentRow[] = teams.map((team) => ({
-    id: team.id,
-    name: team.name,
-    kind: team.kind as TeamAssignmentRow["kind"],
-    serviceAreaCatalogId: team.serviceAreaCatalogId,
-    memberCount: team.members.length,
-    occupiedProjectName: currentOccupiedProjectName(
-      occupancyWindowsFromLinks(team.projectLinks),
+  const rows: TeamAssignmentRow[] = teams.map((team) => {
+    const occupiedProjectName = currentOccupiedProjectName(
+      occupancyWindowsForTeam({
+        projectLinks: team.projectLinks,
+        visitAssignments: team.visitAssignments,
+      }),
       today
-    ),
-    members: team.members.map((member) => ({
-      employeeId: member.employee.id,
-      firstName: member.employee.firstName,
-      lastName: member.employee.lastName,
-      employeeNo: member.employee.employeeNo,
-    })),
-  }));
+    );
+    const linkedToOpenJob =
+      team.projectLinks.some((link) =>
+        (OPEN_TEAM_PROJECT_STATUSES as readonly string[]).includes(
+          link.project.status
+        )
+      ) ||
+      team.visitAssignments.some((row) =>
+        (OPEN_TEAM_PROJECT_STATUSES as readonly string[]).includes(
+          row.visit.project.status
+        )
+      );
+    return {
+      id: team.id,
+      name: team.name,
+      kind: team.kind as TeamAssignmentRow["kind"],
+      serviceAreaCatalogId: team.serviceAreaCatalogId,
+      memberCount: team.members.length,
+      occupiedProjectName,
+      isOnJob: Boolean(occupiedProjectName) || linkedToOpenJob,
+      members: team.members.map((member) => ({
+        employeeId: member.employee.id,
+        firstName: member.employee.firstName,
+        lastName: member.employee.lastName,
+        employeeNo: member.employee.employeeNo,
+      })),
+    };
+  });
 
   return (
     <AppShell
       titleKey="pages.teams.assignmentTitle"
-      descriptionKey="pages.teams.assignmentDescription"
     >
       <TeamAssignmentDirectory
         teams={rows}

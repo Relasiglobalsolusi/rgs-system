@@ -1,10 +1,7 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { useMemo, useState } from "react";
 
-import { reorderVendors } from "@/app/vendors/actions";
 import VendorDeleteDialog from "@/components/vendors/VendorDeleteDialog";
 import VendorEditDialog from "@/components/vendors/VendorEditDialog";
 import VendorPermanentDeleteDialog from "@/components/vendors/VendorPermanentDeleteDialog";
@@ -20,6 +17,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { formatHiredAtLabel, formatTenure } from "@/lib/format-tenure";
 import { formatContactPersonName } from "@/lib/contact-person";
+import { localizeJobTitle } from "@/lib/i18n/labels";
+import type { AppLocale } from "@/lib/i18n/locale";
 import { useT } from "@/lib/i18n/use-t";
 import { formatPhoneForDisplay } from "@/lib/phone";
 import type { VendorTypeValue } from "@/lib/vendor-type";
@@ -46,10 +45,11 @@ export type VendorRow = {
 function formatContactPersonLabel(
   firstName: string | null,
   lastName: string | null,
-  position: string | null
+  position: string | null,
+  locale: AppLocale
 ): string | null {
   const name = formatContactPersonName(firstName, lastName);
-  const trimmedPosition = position?.trim();
+  const trimmedPosition = localizeJobTitle(position, locale);
 
   if (name && trimmedPosition) {
     return `${name} · ${trimmedPosition}`;
@@ -91,7 +91,7 @@ function VendorRowActions({
   vendor: VendorRow;
   directoryView: DirectoryView;
 }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [permanentDeleteOpen, setPermanentDeleteOpen] = useState(false);
   const [restoreOpen, setRestoreOpen] = useState(false);
@@ -183,27 +183,8 @@ export default function VendorTable({
   someVisibleSelected = false,
   selectableIds,
 }: Props) {
-  const { t } = useT();
-  const router = useRouter();
-  const [, startTransition] = useTransition();
+  const { t, locale } = useT();
   const [editVendor, setEditVendor] = useState<VendorRow | null>(null);
-
-  function handleReorder(orderedIds: string[]) {
-    if (!canManage) return;
-    startTransition(async () => {
-      try {
-        await reorderVendors(orderedIds);
-        router.refresh();
-      } catch (error) {
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : t("pages.vendors.reorderFailed")
-        );
-        router.refresh();
-      }
-    });
-  }
 
   const columns = useMemo(() => {
     const cols: DataTableColumn<VendorRow>[] = [];
@@ -299,7 +280,8 @@ export default function VendorTable({
           const contactPersonLabel = formatContactPersonLabel(
             vendor.contactPersonFirstName,
             vendor.contactPersonLastName,
-            vendor.contactPersonPosition
+            vendor.contactPersonPosition,
+            locale
           );
 
           if (!contactPersonLabel && !primaryContact) {
@@ -386,8 +368,6 @@ export default function VendorTable({
         getRowKey={(vendor) => vendor.id}
         onRowClick={canManage ? setEditVendor : undefined}
         isRowSelected={(vendor) => selectedIds?.has(vendor.id) ?? false}
-        reorderable={canManage}
-        onReorder={canManage ? handleReorder : undefined}
         emptyMessage={t("pages.vendors.emptyActiveListDesc")}
       />
 

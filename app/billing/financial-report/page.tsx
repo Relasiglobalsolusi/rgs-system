@@ -38,7 +38,6 @@ export default async function FinancialReportPage({
   return (
     <AppShell
       titleKey="pages.financialReport.title"
-      descriptionKey="pages.financialReport.description"
     >
       <BillingBreadcrumbs
         items={[{ label: t("pages.financialReport.title") }]}
@@ -52,6 +51,7 @@ export default async function FinancialReportPage({
       <FinancialReportCompanyOverview
         company={company}
         queryString={queryString}
+        clients={clients}
       />
       <FinancialReportClientDirectory
         clients={clients}

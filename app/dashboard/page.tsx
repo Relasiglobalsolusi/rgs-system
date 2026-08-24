@@ -246,7 +246,6 @@ export default async function DashboardPage() {
       <AppShell
         titleKey="pages.dashboard.title"
         greetingName={session.user.name?.split(" ")[0] ?? guestName}
-        descriptionKey="pages.dashboard.descriptionEmployee"
       >
         {canViewLeaves && employee && (
           <LeaveApprovedNotification approvals={approvedLeaveNotices} />
@@ -427,7 +426,6 @@ export default async function DashboardPage() {
       <AppShell
         titleKey="pages.dashboard.title"
         greetingName={session.user.name?.split(" ")[0] ?? guestName}
-        descriptionKey="pages.dashboard.descriptionClient"
       >
         {clientStatCards.length > 0 && (
           <>
@@ -488,7 +486,6 @@ export default async function DashboardPage() {
         <AppShell
           titleKey="pages.dashboard.title"
           greetingName={session.user.name?.split(" ")[0] ?? guestName}
-          descriptionKey="pages.dashboard.descriptionVendor"
         >
           {null}
         </AppShell>
@@ -572,7 +569,6 @@ export default async function DashboardPage() {
       <AppShell
         titleKey="pages.dashboard.title"
         greetingName={session.user.name?.split(" ")[0] ?? guestName}
-        descriptionKey="pages.dashboard.descriptionVendor"
       >
         <DashboardSectionLabel
           titleKey="pages.dashboard.yourBilling"
@@ -840,7 +836,6 @@ export default async function DashboardPage() {
     <AppShell
       titleKey="pages.dashboard.title"
       greetingName={session.user.name?.split(" ")[0] ?? guestName}
-      descriptionKey="pages.dashboard.descriptionAdmin"
     >
       {adminStatCards.length > 0 && (
         <>

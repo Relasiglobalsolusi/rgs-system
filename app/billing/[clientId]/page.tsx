@@ -104,7 +104,6 @@ export default async function BillingClientPage({
   return (
     <AppShell
       title={client.name}
-      descriptionKey="pages.billing.clientProjectsDesc"
     >
       <BillingBreadcrumbs
         items={[

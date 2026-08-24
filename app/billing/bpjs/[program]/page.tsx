@@ -69,7 +69,7 @@ export default async function BpjsProgramDetailPage({
   }).format(new Date(Date.UTC(year, month - 1, 1)));
 
   return (
-    <AppShell title={title} descriptionKey="pages.bpjs.detailDescription">
+    <AppShell title={title}>
       <BillingBreadcrumbs
         items={[
           {

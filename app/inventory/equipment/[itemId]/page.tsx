@@ -127,7 +127,7 @@ export default async function EquipmentItemPage({
     }));
 
   return (
-    <AppShell title={item.name} descriptionKey="pages.inventory.product.description">
+    <AppShell title={item.name}>
       <EquipmentProductPage
         item={{
           id: item.id,

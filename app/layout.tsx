@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import { Source_Sans_3 } from "next/font/google";
 
+import AppChrome from "@/components/layout/AppChrome";
 import { Providers } from "@/components/providers/Providers";
 import { getCurrentSession } from "@/lib/auth";
 import { getServerLocale } from "@/lib/i18n/locale";
+import { resolveMultiProjectAccessActive } from "@/lib/multi-project-access";
 import { rgsMetadata } from "@/lib/product-metadata";
 
 import "./globals.css";
@@ -34,6 +36,9 @@ export default async function RootLayout({
     getCurrentSession(),
     getServerLocale(),
   ]);
+  const showChangeSecurityCode = await resolveMultiProjectAccessActive(
+    session?.user?.clientId
+  );
 
   return (
     <html
@@ -43,7 +48,9 @@ export default async function RootLayout({
     >
       <body className="min-h-screen bg-background font-sans antialiased text-foreground">
         <Providers session={session} initialLocale={initialLocale}>
-          {children}
+          <AppChrome showChangeSecurityCode={showChangeSecurityCode}>
+            {children}
+          </AppChrome>
         </Providers>
       </body>
     </html>

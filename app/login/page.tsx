@@ -45,6 +45,7 @@ function LoginContent() {
 
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
   const resetSuccess = searchParams.get("reset") === "success";
+  const authError = searchParams.get("error");
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -143,6 +144,14 @@ function LoginContent() {
                 {resetSuccess && (
                   <div role="status" className="auth-alert-success rounded-xl px-4 py-3 text-sm">
                     {t("auth.passwordUpdated")}
+                  </div>
+                )}
+
+                {authError && !errorMessage && (
+                  <div role="alert" className="auth-alert-error rounded-xl px-4 py-3 text-sm">
+                    {authError === "CredentialsSignin"
+                      ? t("auth.invalidCredentials")
+                      : t("auth.signInFailed")}
                   </div>
                 )}
 

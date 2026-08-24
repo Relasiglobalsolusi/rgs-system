@@ -40,7 +40,6 @@ export default async function TransferOrdersProjectQueuePage({
   return (
     <AppShell
       title={data.project.name}
-      descriptionKey="pages.transferOrders.queueDesc"
     >
       <TransferOrderBreadcrumbs
         items={[

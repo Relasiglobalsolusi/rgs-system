@@ -68,7 +68,6 @@ export default async function ThrPage() {
   return (
     <AppShell
       titleKey="pages.thr.title"
-      descriptionKey="pages.thr.description"
     >
       <PageIntro
         titleKey="pages.thr.directoryTitle"

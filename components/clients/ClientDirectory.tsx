@@ -40,14 +40,26 @@ export default function ClientDirectory({
   const [bulkDialogMode, setBulkDialogMode] =
     useState<BulkDialogMode>("deactivate");
 
-  const activeClients = useMemo(
-    () => clients.filter((client) => client.active),
+  const orderedClients = useMemo(
+    () =>
+      [...clients].sort((left, right) => {
+        const byId = left.shortCode.localeCompare(right.shortCode, undefined, {
+          numeric: true,
+          sensitivity: "base",
+        });
+        return byId !== 0 ? byId : left.name.localeCompare(right.name);
+      }),
     [clients]
   );
 
+  const activeClients = useMemo(
+    () => orderedClients.filter((client) => client.active),
+    [orderedClients]
+  );
+
   const trashClients = useMemo(
-    () => clients.filter((client) => !client.active),
-    [clients]
+    () => orderedClients.filter((client) => !client.active),
+    [orderedClients]
   );
 
   const stats = useMemo(() => {

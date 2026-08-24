@@ -38,7 +38,6 @@ export default async function ShiftsClientPage({ params }: Props) {
   return (
     <AppShell
       title={clientLabel}
-      descriptionKey="pages.shifts.clientProjectsDesc"
     >
       <ShiftsBreadcrumbs
         items={[

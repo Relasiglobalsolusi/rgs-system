@@ -148,7 +148,6 @@ export default async function ReconciliationPage({
   return (
     <AppShell
       title={t("pages.reconciliation.title")}
-      description={t("pages.reconciliation.description")}
     >
       <div className="space-y-6">
         {!isClient ? (

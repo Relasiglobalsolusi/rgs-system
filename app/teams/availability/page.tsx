@@ -12,7 +12,7 @@ import {
 import { ensureTeamServiceAreas } from "@/lib/operations-team-catalog";
 import {
   currentOccupiedProjectName,
-  occupancyWindowsFromLinks,
+  occupancyWindowsForTeam,
   windowCoversDay,
 } from "@/lib/operations-teams";
 import { catalogDisplayName } from "@/lib/project-service-catalog";
@@ -51,9 +51,27 @@ export default async function TeamAvailabilityPage({
                   id: true,
                   name: true,
                   status: true,
+                  billingMode: true,
                   startDate: true,
                   estimatedStartDate: true,
                   endDate: true,
+                },
+              },
+            },
+          },
+          visitAssignments: {
+            select: {
+              visit: {
+                select: {
+                  startDate: true,
+                  endDate: true,
+                  project: {
+                    select: {
+                      id: true,
+                      name: true,
+                      status: true,
+                    },
+                  },
                 },
               },
             },
@@ -64,7 +82,10 @@ export default async function TeamAvailabilityPage({
     : [];
 
   const rows: TeamAvailabilityRow[] = teams.map((team) => {
-    const windows = occupancyWindowsFromLinks(team.projectLinks);
+    const windows = occupancyWindowsForTeam({
+      projectLinks: team.projectLinks,
+      visitAssignments: team.visitAssignments,
+    });
     const catalogArea =
       team.serviceAreaCatalog ??
       catalog.find((area) => area.id === team.serviceAreaCatalogId) ??
@@ -85,7 +106,6 @@ export default async function TeamAvailabilityPage({
   return (
     <AppShell
       titleKey="pages.teams.availabilityTitle"
-      descriptionKey="pages.teams.availabilityDescription"
     >
       <TeamAvailabilityBoard
         year={year}

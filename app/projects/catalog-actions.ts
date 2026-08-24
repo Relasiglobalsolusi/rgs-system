@@ -16,6 +16,7 @@ import {
   CATALOG_ENDED_PROJECT_STATUSES,
   DEFAULT_ONE_TIME_SUB_NAMES,
   isReservedSubcategorySlug,
+  isRetiredDemoServiceArea,
   isVirtualCatalogRow,
   slugFromName,
   SYSTEM_AREA_SEEDS,
@@ -101,6 +102,11 @@ export async function ensureProjectServiceCatalog(
     if (!seededCompanyIds.has(companyId)) {
       await seedProjectServiceCatalog(companyId, catalog);
       seededCompanyIds.add(companyId);
+    }
+    try {
+      await removeRetiredPestControlDemo(companyId);
+    } catch {
+      // Filter still hides Pest Control if a related row cannot be deleted.
     }
     return await loadProjectServiceCatalog(companyId);
   } catch {
@@ -241,7 +247,7 @@ async function loadProjectServiceCatalog(
     orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }],
   });
 
-  return rows.map((area) => ({
+  return rows.filter((area) => !isRetiredDemoServiceArea(area)).map((area) => ({
     id: area.id,
     slug: area.slug,
     nameEn: area.nameEn,
@@ -264,6 +270,49 @@ async function loadProjectServiceCatalog(
       projectCount: sub._count.projects,
     })),
   }));
+}
+
+const DEMO_PEST_PROJECT_IDS = [
+  "project-demo-mod-pest-regular",
+  "project-demo-mod-pest-onetime",
+] as const;
+const DEMO_PEST_TEAM_IDS = ["demo-mod-team-pest"] as const;
+
+async function removeRetiredPestControlDemo(companyId: string) {
+  const areas = await prisma.projectServiceAreaCatalog.findMany({
+    where: { companyId },
+    select: { id: true, slug: true, nameEn: true, nameId: true },
+  });
+  const retired = areas.filter((area) => isRetiredDemoServiceArea(area));
+  if (retired.length === 0) return;
+
+  const areaIds = retired.map((area) => area.id);
+
+  await prisma.operationsTeam.deleteMany({
+    where: {
+      companyId,
+      OR: [
+        { id: { in: [...DEMO_PEST_TEAM_IDS] } },
+        { serviceAreaCatalogId: { in: areaIds } },
+        { name: { equals: "Pest Control Squad" } },
+      ],
+    },
+  });
+
+  await prisma.project.deleteMany({
+    where: {
+      companyId,
+      OR: [
+        { id: { in: [...DEMO_PEST_PROJECT_IDS] } },
+        { areaCatalogId: { in: areaIds } },
+        { subcategoryCatalog: { areaId: { in: areaIds } } },
+      ],
+    },
+  });
+
+  await prisma.projectServiceAreaCatalog.deleteMany({
+    where: { id: { in: areaIds } },
+  });
 }
 
 async function uniqueAreaSlug(companyId: string, name: string): Promise<string> {
@@ -305,6 +354,9 @@ export async function createProjectServiceArea(formData: FormData) {
   const nameIdRaw = String(formData.get("nameId") ?? "").trim();
   const nameId = nameIdRaw ? titleCaseCatalogName(nameIdRaw) : nameEn;
   if (!nameEn) throw new Error("Service area name is required.");
+  if (isRetiredDemoServiceArea({ slug: slugFromName(nameEn), nameEn, nameId })) {
+    throw new Error("Pest Control is not a service area.");
+  }
 
   const allowsOneTimeRaw = String(formData.get("allowsOneTime") ?? "")
     .trim()

@@ -5,7 +5,9 @@ import { Banknote } from "lucide-react";
 
 import PurchaseMarkPaidDialog from "@/components/billing/PurchaseMarkPaidDialog";
 import { Button } from "@/components/ui/button";
+import { financeListStatusChipClassName } from "@/components/ui/FinanceRecordRow";
 import { useT } from "@/lib/i18n/use-t";
+import { cn } from "@/lib/utils";
 
 type Props = {
   purchaseInvoiceId: string;
@@ -33,9 +35,8 @@ export default function SettlementsApMarkPaidButton({
     <>
       <Button
         type="button"
-        variant="outline"
-        size="sm"
-        className="h-8 gap-1.5"
+        variant="success"
+        className={cn(financeListStatusChipClassName, "gap-1.5")}
         onClick={() => setOpen(true)}
       >
         <Banknote className="h-3.5 w-3.5" aria-hidden />

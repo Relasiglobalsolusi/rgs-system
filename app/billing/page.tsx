@@ -116,7 +116,6 @@ export default async function BillingPage() {
   return (
     <AppShell
       titleKey="pages.billing.title"
-      descriptionKey="pages.billing.description"
     >
       <BillingBreadcrumbs items={[{ label: t("pages.billing.title") }]} />
 

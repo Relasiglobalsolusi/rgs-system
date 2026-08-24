@@ -65,6 +65,7 @@ type StartArgs = {
   teams?: ProjectTeamOption[];
   assignedEmployeeIds?: string[];
   assignedTeamIds?: string[];
+  billingMode?: string | null;
 };
 
 function initialDurationDays(args: {
@@ -101,6 +102,7 @@ function useProjectStartAction({
   teams = [],
   assignedEmployeeIds = [],
   assignedTeamIds = [],
+  billingMode = null,
 }: StartArgs) {
   const { t } = useT();
   const router = useRouter();
@@ -114,6 +116,7 @@ function useProjectStartAction({
     usesMonthDurationTimeline(subCategory) ||
     isServiceProjectSubCategory(subCategory);
 
+  const isMultiVisit = billingMode === "MULTI_VISIT";
   const defaultStart =
     toDateInputValue(startDate) ||
     toDateInputValue(estimatedStartDate) ||
@@ -176,8 +179,9 @@ function useProjectStartAction({
       : new FormData();
     formData.set("startDate", realStartDate);
 
-    if (assignStaffLater) {
+    if (assignStaffLater || isMultiVisit) {
       formData.delete("employeeIds");
+      formData.delete("teamIds");
       formData.set("assignStaffLater", "true");
     } else {
       formData.delete("assignStaffLater");
@@ -221,14 +225,16 @@ function useProjectStartAction({
             >
               {t("common.actions.cancel")}
             </EmployeeSecondaryButton>
-            <EmployeePrimaryButton
-              type="button"
-              variant="muted"
-              disabled={pending}
-              onClick={() => submit(true)}
-            >
-              {t("pages.projects.assignStaffLater")}
-            </EmployeePrimaryButton>
+            {isMultiVisit ? null : (
+              <EmployeePrimaryButton
+                type="button"
+                variant="muted"
+                disabled={pending}
+                onClick={() => submit(true)}
+              >
+                {t("pages.projects.assignStaffLater")}
+              </EmployeePrimaryButton>
+            )}
             <EmployeePrimaryButton
               type="button"
               disabled={pending}
@@ -297,21 +303,27 @@ function useProjectStartAction({
 
           <div className="space-y-2 border-t border-border pt-4">
             <p className="text-xs text-subtle">
-              {t("pages.projects.moveDialogStaffHelp")}
+              {isMultiVisit
+                ? t("pages.projects.moveDialogVisitCrewHelp")
+                : t("pages.projects.moveDialogStaffHelp")}
             </p>
-            <ProjectTeamPicker
-              teams={teamsForProjectServiceArea(teams, {
-                areaCatalogId,
-                serviceArea,
-                subCategory,
-              })}
-              defaultCheckedIds={assignedTeamIds}
-            />
-            <ProjectStaffPicker
-              key={pickerKey}
-              employees={employees}
-              defaultCheckedIds={assignedEmployeeIds}
-            />
+            {isMultiVisit ? null : (
+              <>
+                <ProjectTeamPicker
+                  teams={teamsForProjectServiceArea(teams, {
+                    areaCatalogId,
+                    serviceArea,
+                    subCategory,
+                  })}
+                  defaultCheckedIds={assignedTeamIds}
+                />
+                <ProjectStaffPicker
+                  key={pickerKey}
+                  employees={employees}
+                  defaultCheckedIds={assignedEmployeeIds}
+                />
+              </>
+            )}
           </div>
         </form>
       </EmployeeDialogShell>
@@ -382,6 +394,7 @@ export default function ProjectStartButton({
   teams,
   assignedEmployeeIds,
   assignedTeamIds,
+  billingMode,
   size = "sm",
 }: StartButtonProps) {
   const { t } = useT();
@@ -399,6 +412,7 @@ export default function ProjectStartButton({
     teams,
     assignedEmployeeIds,
     assignedTeamIds,
+    billingMode,
   });
   const isBadge = size === "badge";
   const isBar = size === "bar";

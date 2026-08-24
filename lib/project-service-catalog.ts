@@ -263,6 +263,20 @@ export function isReservedSubcategorySlug(slug: string): boolean {
   return RESERVED_SUB_SLUGS.has(slug.trim().toUpperCase());
 }
 
+/** Demo-only Pest Control area — not a real RGS service. */
+export function isRetiredDemoServiceArea(area: {
+  slug?: string | null;
+  nameEn?: string | null;
+  nameId?: string | null;
+}): boolean {
+  const slug = (area.slug ?? "").trim().toUpperCase();
+  if (slug === "PEST_CONTROL") return true;
+  const name = `${area.nameEn ?? ""} ${area.nameId ?? ""}`.toLowerCase();
+  return (
+    name.includes("pest control") || name.includes("pengendalian hama")
+  );
+}
+
 /** Map a custom catalog row to the stored billing enum (existing paths only). */
 export function billingSubCategoryForCatalog(opts: {
   systemArea: ServiceArea;

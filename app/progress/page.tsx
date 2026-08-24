@@ -141,7 +141,6 @@ export default async function ProgressPage({
         return (
           <AppShell
             titleKey="pages.progress.title"
-            descriptionKey="pages.progress.description"
           >
             <EmptyState
               titleKey="pages.progress.emptyTitle"
@@ -256,11 +255,6 @@ export default async function ProgressPage({
       return (
         <AppShell
           titleKey="pages.progress.title"
-          descriptionKey={
-            isClient
-              ? "pages.progress.clientFeedDescription"
-              : "pages.progress.feedDescription"
-          }
         >
           <ProgressProjectFeed
             project={{ id: project.id, name: project.name }}
@@ -295,7 +289,6 @@ export default async function ProgressPage({
       return (
         <AppShell
           titleKey="pages.progress.title"
-          descriptionKey="pages.progress.clientFeedDescription"
         >
           <div className="mb-5">
             <h2 className="text-lg font-semibold text-text">
@@ -315,7 +308,6 @@ export default async function ProgressPage({
     return (
       <AppShell
         titleKey="pages.progress.title"
-        descriptionKey="pages.progress.chooseClientHint"
       >
         <ProgressClientDirectory
           clients={directory.clients}
@@ -485,7 +477,6 @@ export default async function ProgressPage({
   return (
     <AppShell
       titleKey="pages.progress.title"
-      descriptionKey="pages.progress.description"
     >
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>

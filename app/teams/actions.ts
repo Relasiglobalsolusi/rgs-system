@@ -6,18 +6,14 @@ import type { OperationsTeamKind } from "@prisma/client";
 import {
   eligibleTeamMemberWhere,
   legacyKindForCatalogArea,
+  OPEN_TEAM_PROJECT_STATUSES,
   releaseTeamMemberFromOpenJobs,
   syncTeamMemberOntoOpenJobs,
 } from "@/lib/operations-teams";
+import { releaseIdleEmployeesToUnassignedPool } from "@/lib/workforce-crew";
 import { prisma } from "@/lib/prisma";
 import { canManageTeams } from "@/lib/project-access";
 import { requireModule, toPermissionUser } from "@/lib/session";
-
-const OPEN_TEAM_PROJECT_STATUSES = [
-  "PLANNED",
-  "IN_PROGRESS",
-  "WAITING_FOR_APPROVAL",
-] as const;
 
 async function requireTeamManager() {
   const session = await requireModule("teams");
@@ -120,22 +116,51 @@ export async function deleteOperationsTeam(formData: FormData) {
   const teamId = String(formData.get("teamId") ?? "").trim();
   if (!teamId) throw new Error("Team not found.");
 
-  const openLinks = await prisma.operationsTeamProject.count({
+  const team = await prisma.operationsTeam.findFirst({
+    where: { id: teamId, companyId },
+    select: { id: true },
+  });
+  if (!team) throw new Error("Team not found.");
+
+  const openJobs = await prisma.operationsTeamProject.count({
     where: {
       teamId,
       team: { companyId },
       project: { status: { in: [...OPEN_TEAM_PROJECT_STATUSES] } },
     },
   });
-  if (openLinks > 0) {
-    throw new Error("Remove this team from open jobs before deleting it.");
+  const openVisitJobs = await prisma.projectVisitAssignment.count({
+    where: {
+      teamId,
+      visit: {
+        project: {
+          companyId,
+          status: { in: [...OPEN_TEAM_PROJECT_STATUSES] },
+        },
+      },
+    },
+  });
+  if (openJobs > 0 || openVisitJobs > 0) {
+    throw new Error(
+      "This team is on a job. Take it off the job before deleting it."
+    );
   }
 
-  await prisma.operationsTeam.deleteMany({
-    where: { id: teamId, companyId },
+  await prisma.$transaction(async (tx) => {
+    const members = await tx.operationsTeamMember.findMany({
+      where: { teamId },
+      select: { employeeId: true },
+    });
+    await tx.operationsTeam.delete({ where: { id: teamId } });
+    await releaseIdleEmployeesToUnassignedPool(
+      tx,
+      members.map((member) => member.employeeId)
+    );
   });
   revalidatePath("/teams");
   revalidatePath("/teams/availability");
+  revalidatePath("/employees");
+  revalidatePath("/projects");
 }
 
 export async function addOperationsTeamMember(formData: FormData) {
@@ -201,9 +226,12 @@ export async function removeOperationsTeamMember(formData: FormData) {
 
   await prisma.$transaction(async (tx) => {
     await releaseTeamMemberFromOpenJobs(tx, teamId, employeeId);
+    await releaseIdleEmployeesToUnassignedPool(tx, [employeeId]);
     await tx.operationsTeamMember.delete({ where: { id: membership.id } });
   });
 
   revalidatePath("/teams");
   revalidatePath("/teams/availability");
+  revalidatePath("/employees");
+  revalidatePath("/projects");
 }

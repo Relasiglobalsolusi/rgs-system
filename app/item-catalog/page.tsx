@@ -18,7 +18,6 @@ export default async function ItemCatalogPage() {
     return (
       <AppShell
         titleKey="pages.itemCatalog.title"
-        descriptionKey="pages.itemCatalog.description"
       >
         <p className="rounded-3xl border border-border bg-elevated p-8 text-text">
           <T k="pages.itemCatalog.companyNotFound" />
@@ -49,11 +48,6 @@ export default async function ItemCatalogPage() {
   return (
     <AppShell
       titleKey="pages.itemCatalog.title"
-      descriptionKey={
-        canManage
-          ? "pages.itemCatalog.descriptionManage"
-          : "pages.itemCatalog.descriptionReadonly"
-      }
     >
       <PageIntro
         titleKey="pages.itemCatalog.directoryTitle"

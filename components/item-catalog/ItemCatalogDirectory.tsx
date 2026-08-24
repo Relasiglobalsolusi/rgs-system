@@ -225,25 +225,6 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
       : []),
   ];
 
-  function renderCategoryTable(
-    title: string,
-    rows: InventoryCatalogItem[]
-  ) {
-    if (rows.length === 0) return null;
-    return (
-      <div className="space-y-2">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-subtle">
-          {title}
-        </p>
-        <DataTable
-          columns={columns}
-          data={rows}
-          getRowKey={(row) => row.id}
-        />
-      </div>
-    );
-  }
-
   return (
     <>
       <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -313,12 +294,18 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
       ) : (
         <div className="space-y-8">
           {INVENTORY_CATEGORY_DISPLAY_ORDER.map((key) =>
-            categorized[key].length > 0
-              ? renderCategoryTable(
-                  t(INVENTORY_CATEGORY_TITLE_KEY[key]),
-                  categorized[key]
-                )
-              : null
+            categorized[key].length > 0 ? (
+              <div key={key} className="space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-subtle">
+                  {t(INVENTORY_CATEGORY_TITLE_KEY[key])}
+                </p>
+                <DataTable
+                  columns={columns}
+                  data={categorized[key]}
+                  getRowKey={(row) => row.id}
+                />
+              </div>
+            ) : null
           )}
         </div>
       )}

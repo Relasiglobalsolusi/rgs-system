@@ -109,13 +109,24 @@ export default function TeamAvailabilityBoard({
                   <p className="text-sm text-muted">{team.typeLabel}</p>
                 </div>
                 {team.occupiedProjectName ? (
-                  <StatusBadge status="warning" compact>
-                    {t("pages.teams.onSiteAt", {
-                      project: team.occupiedProjectName,
-                    })}
+                  <StatusBadge
+                    status="warning"
+                    compact
+                    className="h-auto min-h-[2.75rem] w-auto max-w-[16rem] min-w-0 shrink whitespace-normal px-2.5 py-1.5 leading-snug"
+                  >
+                    <span className="flex min-w-0 max-w-full flex-col items-center justify-center gap-0.5 text-center">
+                      <span>{t("pages.teams.statusOnSite")}</span>
+                      <span className="max-w-full break-words leading-snug">
+                        {team.occupiedProjectName}
+                      </span>
+                    </span>
                   </StatusBadge>
                 ) : (
-                  <StatusBadge status="active" compact>
+                  <StatusBadge
+                    status="active"
+                    compact
+                    className="min-w-0 w-fit px-1.5"
+                  >
                     {t("pages.teams.statusAvailable")}
                   </StatusBadge>
                 )}

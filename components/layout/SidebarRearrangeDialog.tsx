@@ -594,10 +594,6 @@ export default function SidebarRearrangeDialog({
     );
   }, [open, baseMenu, session?.user?.sidebarOrder]);
 
-  if (status === "unauthenticated") {
-    return null;
-  }
-
   function openDialog() {
     setDraft(
       applySidebarOrder(baseMenu, session?.user?.sidebarOrder ?? null)

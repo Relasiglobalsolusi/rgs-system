@@ -6,9 +6,13 @@
  *
  * Term Loan (Kredit Angsuran): fixed monthly anuitas.
  * M = P × r × (1+r)^n / ((1+r)^n − 1) where r is the monthly rate.
+ * That is the usual Indonesian bank method. Flat and sliding-effective exist,
+ * but this ERP uses anuitas so the installment matches a typical bank schedule.
  *
  * Rate quote: Monthly 1% = 1% this month. Annual 12% = 12% / 12 this month.
  */
+
+import { jakartaYearMonth } from "@/lib/vat";
 
 export const BANK_LOAN_KINDS = ["STANDBY", "TERM"] as const;
 export type BankLoanKind = (typeof BANK_LOAN_KINDS)[number];
@@ -76,6 +80,21 @@ export function termMonthlyInstallment(
   if (rate === 0) return roundIdr(amount / months);
   const factor = (1 + rate) ** months;
   return roundIdr((amount * rate * factor) / (factor - 1));
+}
+
+/** Months left on a term loan, counting from the facility start month. */
+export function remainingTenorMonths(
+  startDate: Date,
+  tenorMonths: number,
+  asOf: Date = new Date()
+): number {
+  const months = Math.round(moneyOrZero(tenorMonths));
+  if (months < BANK_LOAN_TENOR_MIN) return 0;
+  const asOfYm = jakartaYearMonth(asOf);
+  const elapsed =
+    (asOfYm.year - startDate.getUTCFullYear()) * 12 +
+    (asOfYm.month - (startDate.getUTCMonth() + 1));
+  return Math.max(1, months - Math.max(0, elapsed));
 }
 
 /** Bunga berjalan on a fixed remaining principal: Actual/360 (or monthly ÷ days in month). */

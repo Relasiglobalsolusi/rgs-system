@@ -10,7 +10,7 @@ import type { LoanSource } from "@/lib/loan-facility";
 import { useT } from "@/lib/i18n/use-t";
 import { formatContractPrice } from "@/lib/project-billing";
 
-export type LoanFacilityTableRow = {
+type LoanFacilityTableRow = {
   id: string;
   name: string;
   source: LoanSource;

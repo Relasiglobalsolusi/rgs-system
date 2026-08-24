@@ -154,11 +154,6 @@ export default async function ProjectPeriodPage({
     (period.taxInvoiceRequired || issuedInvoice) && !period.taxInvoiceDoneAt;
   const typeLabel = localizeSubCategory(project.subCategory, locale);
   const modeLabel = localizeBillingMode(project.billingMode, locale);
-  const pageDescription = isInternal
-    ? typeLabel
-    : [project.name, project.client?.name, typeLabel]
-        .filter(Boolean)
-        .join(" · ");
   const billingHref =
     !isInternal && project.clientId != null
       ? projectBillingHref(project.clientId, project.id, period.id)
@@ -288,7 +283,7 @@ export default async function ProjectPeriodPage({
         : undefined;
 
   return (
-    <AppShell title={periodLabel} description={pageDescription || undefined}>
+    <AppShell title={periodLabel}>
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <BackLink href={projectDetailHref(project.id)}>
           {t("pages.projects.periodPage.backToProject")}

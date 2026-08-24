@@ -14,7 +14,6 @@ export default async function CompanyDetailsPage() {
     return (
       <AppShell
         titleKey="pages.companyDetails.title"
-        descriptionKey="pages.companyDetails.description"
       >
         <p className="rounded-3xl border border-border bg-elevated p-8 text-text">
           <T k="pages.companyDetails.permissionDenied" />
@@ -32,7 +31,6 @@ export default async function CompanyDetailsPage() {
     return (
       <AppShell
         titleKey="pages.companyDetails.title"
-        descriptionKey="pages.companyDetails.description"
       >
         <p className="rounded-3xl border border-border bg-elevated p-8 text-text">
           <T k="pages.companyDetails.companyNotFound" />
@@ -46,7 +44,6 @@ export default async function CompanyDetailsPage() {
   return (
     <AppShell
       titleKey="pages.companyDetails.title"
-      descriptionKey="pages.companyDetails.description"
     >
       <PageIntro
         titleKey="pages.companyDetails.directoryTitle"

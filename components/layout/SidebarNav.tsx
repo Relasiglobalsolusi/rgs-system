@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { localizeNavLabel } from "@/lib/i18n/labels";
@@ -21,6 +21,11 @@ import {
   setSidebarItemExpanded,
   setSidebarSectionExpanded,
 } from "@/lib/sidebar-collapse";
+import {
+  persistSidebarNavScrollFrom,
+  readSidebarNavScroll,
+  writeSidebarNavScroll,
+} from "@/lib/sidebar-scroll";
 import { applySidebarOrder } from "@/lib/sidebar-order";
 import type { EmployeeType, UserRole } from "@prisma/client";
 
@@ -130,27 +135,17 @@ function isChildActive(
 
 function usePersistedExpanded(
   storageKey: string,
-  active: boolean,
   getSaved: (key: string) => boolean | null,
   setSaved: (key: string, expanded: boolean) => void
 ) {
   // Default expanded; hydrate saved preference after mount (avoid SSR mismatch).
   const [expanded, setExpanded] = useState(true);
-  const [wasActive, setWasActive] = useState(active);
 
   useEffect(() => {
     const saved = getSaved(storageKey);
-    // No saved state → expanded. Active route under this group → expanded.
-    setExpanded(active || saved === null ? true : saved);
-    // Intentionally omit `active`: route changes use the sync below so a
-    // manual collapse while still active is not overwritten.
+    if (saved !== null) setExpanded(saved);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate per key
   }, [storageKey, getSaved]);
-
-  if (active !== wasActive) {
-    setWasActive(active);
-    if (active) setExpanded(true);
-  }
 
   function toggleExpanded() {
     setExpanded((value) => {
@@ -185,7 +180,10 @@ function MenuChildLink({
     <div className={isPrimary ? undefined : "ml-2"}>
       <Link
         href={child.href}
-        onClick={onNavigate}
+        onClick={(event) => {
+          persistSidebarNavScrollFrom(event.currentTarget);
+          onNavigate?.();
+        }}
         className={`block rounded-lg transition duration-300 ${
           isPrimary
             ? `px-3 text-sm font-semibold ${
@@ -242,7 +240,6 @@ function MenuItemRow({
   const active = pathActive || childActive;
   const { expanded, toggleExpanded } = usePersistedExpanded(
     navKey,
-    active,
     getSidebarItemExpanded,
     setSidebarItemExpanded
   );
@@ -260,7 +257,10 @@ function MenuItemRow({
       >
         <Link
           href={item.href}
-          onClick={onNavigate}
+          onClick={(event) => {
+            persistSidebarNavScrollFrom(event.currentTarget);
+            onNavigate?.();
+          }}
           className={`flex min-w-0 flex-1 items-center ${mobile ? "gap-3" : "gap-3.5"}`}
         >
           <div
@@ -344,28 +344,6 @@ function MenuItemRow({
   );
 }
 
-function isSectionActive(
-  section: MenuSection,
-  pathname: string,
-  searchParams: URLSearchParams,
-  allItemHrefs: string[]
-) {
-  return section.items.some((item) => {
-    const pathActive = isMenuItemActive(
-      item.href,
-      pathname,
-      searchParams,
-      allItemHrefs
-    );
-    const childActive =
-      Boolean(item.children?.length) &&
-      item.children!.some((child) =>
-        isChildActive(child.href, pathname, searchParams)
-      );
-    return pathActive || childActive;
-  });
-}
-
 function MenuSectionBlock({
   section,
   allItemHrefs,
@@ -377,19 +355,10 @@ function MenuSectionBlock({
   onNavigate?: () => void;
   mobile?: boolean;
 }) {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const { locale, t } = useLocale();
   const title = localizeNavLabel(section.title, locale);
-  const active = isSectionActive(
-    section,
-    pathname,
-    searchParams,
-    allItemHrefs
-  );
   const { expanded, toggleExpanded } = usePersistedExpanded(
     section.title,
-    active,
     getSidebarSectionExpanded,
     setSidebarSectionExpanded
   );
@@ -462,7 +431,7 @@ export function SidebarNavFallback({
 
 export default function SidebarNav({
   onNavigate,
-  className = "min-h-0 flex-1 overflow-y-auto px-4 py-5",
+  className = "min-h-0 flex-1 overflow-y-auto px-4 py-5 [overflow-anchor:none]",
   variant = "desktop",
 }: SidebarNavProps) {
   const { data: session } = useSession();
@@ -486,9 +455,31 @@ export default function SidebarNav({
   const allItemHrefs = menu.flatMap((section) =>
     section.items.map((item) => item.href)
   );
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = readSidebarNavScroll();
+  }, []);
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const persist = () => writeSidebarNavScroll(el.scrollTop);
+    el.addEventListener("scroll", persist, { passive: true });
+    return () => {
+      persist();
+      el.removeEventListener("scroll", persist);
+    };
+  }, []);
 
   return (
-    <div className={className}>
+    <div
+      ref={scrollRef}
+      data-sidebar-nav-scroll
+      className={className}
+    >
       {menu.map((section) => (
         <MenuSectionBlock
           key={section.title}
