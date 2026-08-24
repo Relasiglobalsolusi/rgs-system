@@ -995,7 +995,7 @@ export const en = {
       detail: {
         staff: "Assigned staff",
         billing: "Billing",
-        projectType: "Project type",
+        projectType: "Project Type",
         projectControls: "Project controls",
         client: "Client",
         bankAccount: "Bank Account",
@@ -1046,7 +1046,7 @@ export const en = {
         downPaymentTaxInvoiceNote:
           "A Tax Invoice is required every time money comes in.",
         paymentsReceivedCount: "Payments received: {paid} of {total}",
-        viewProgressReports: "View Progress / Reports",
+        viewProgressReports: "View Progress Reports",
         viewProgressReportsChip1: "View Progress",
         viewProgressReportsChip2: "Reports",
         period: "Period",

@@ -83,6 +83,8 @@ import {
 } from "../lib/vat";
 import { getNextVendorShortCode } from "../lib/vendor-short-code";
 
+import { termMonthlyInstallment } from "../lib/bank-loan";
+
 import { seedDemoImportEquipment } from "./seed-demo-import-equipment";
 import { seedDemoPendingTransferOrders } from "./seed-demo-pending-transfer-orders";
 import { seedSampleVendors } from "./seed-vendors";
@@ -835,8 +837,6 @@ export async function seedDemoAllModules(prisma: Db) {
       bankName: "Bank Central Asia",
       bankAccountNumber: "0888123456",
       bankAccountName: "PT Relasi Global Solusi",
-      cashAtBankOpening: toDecimal(250_000_000),
-      cashAtBankOpeningAsOf: utcDate(2026, 1, 1),
     },
     create: {
       id: "rgs-company",
@@ -1004,6 +1004,17 @@ export async function seedDemoAllModules(prisma: Db) {
     contactPersonFirstName: "Li",
     contactPersonLastName: "Wei",
     contactPersonPosition: "Export Manager",
+  });
+  const vendorBank = await ensureVendor(prisma, company.id, {
+    name: "PT Bank Central Asia Tbk",
+    vendorType: VendorType.COMPANY,
+    email: "corporate@bca.co.id",
+    phone: "+62 21 2358 8000",
+    address: "Menara BCA, Jl. MH Thamrin No. 1, Jakarta",
+    npwp: "013280091032000",
+    contactPersonFirstName: "Andi",
+    contactPersonLastName: "Kredit",
+    contactPersonPosition: "Relationship Manager",
   });
 
   const clientOverrides = getClientModuleOverrides();
@@ -1712,6 +1723,28 @@ export async function seedDemoAllModules(prisma: Db) {
     payrollCutoffEndDay: 20,
     payrollTaxPercent: 11,
   });
+  const pGcMulti = await ensureProject(prisma, {
+    id: "project-demo-mod-gc-multivisit",
+    companyId: company.id,
+    clientId: plazaClient.id,
+    name: "Demo — Plaza Lobby Recurring Visits",
+    description: "Multiple visits general cleaning — crew assigned per visit",
+    location: "Plaza Hijau lobby, Jakarta Pusat",
+    latitude: -6.1952,
+    longitude: 106.8232,
+    status: ProjectStatus.IN_PROGRESS,
+    subCategory: ProjectSubCategory.GENERAL_CLEANING,
+    serviceArea: ServiceArea.CLEANING,
+    areaCatalogId: cleaningGc.area.id,
+    subcategoryCatalogId: cleaningGc.sub.id,
+    billingMode: BillingMode.MULTI_VISIT,
+    contractPrice: 12_000_000,
+    requiresTaxInvoice: true,
+    chargedTaxKind: CommercialTaxKind.PPN,
+    startDate: utcDate(2026, 8, 10),
+    endDate: utcDate(2026, 9, 3),
+    progress: 55,
+  });
 
   const shift1 = await ensureShift(prisma, periodProject.id, 1, "07:00", "16:00");
   const shift2 = await ensureShift(prisma, periodProject.id, 2, "13:00", "22:00");
@@ -1890,7 +1923,7 @@ export async function seedDemoAllModules(prisma: Db) {
     kind: OperationsTeamKind.GENERAL_CLEANING,
     areaId: cleaningGc.area.id,
     memberIds: [empSite2.id],
-    projectIds: [pGcContract.id, pGcOne.id],
+    projectIds: [pGcContract.id, pGcOne.id, pGcMulti.id],
   });
   await ensureTeam({
     id: "demo-mod-team-facade",
@@ -2980,6 +3013,333 @@ export async function seedDemoAllModules(prisma: Db) {
     },
   });
 
+  const extensionProof = await writeUpload(
+    "contracts",
+    "demo-mod-period-extension.pdf"
+  );
+  await prisma.clientContractExtension.upsert({
+    where: { id: "demo-mod-ext-period" },
+    update: {},
+    create: {
+      id: "demo-mod-ext-period",
+      projectId: periodProject.id,
+      extendedOn: utcDate(2026, 7, 1),
+      previousEndDate: utcDate(2026, 9, 15),
+      newEndDate: utcDate(2027, 3, 15),
+      proofUrl: extensionProof,
+      notes: "Client renewed the tower contract through March 2027.",
+    },
+  });
+
+  const visitSpecs = [
+    {
+      id: "demo-mod-visit-gc-1",
+      visitIndex: 1,
+      startDate: utcDate(2026, 8, 10),
+      endDate: utcDate(2026, 8, 12),
+      amount: 4_000_000,
+      teamId: "demo-mod-team-gc",
+    },
+    {
+      id: "demo-mod-visit-gc-2",
+      visitIndex: 2,
+      startDate: utcDate(2026, 8, 18),
+      endDate: utcDate(2026, 8, 19),
+      amount: 4_000_000,
+      employeeId: empSite2.id,
+    },
+    {
+      id: "demo-mod-visit-gc-3",
+      visitIndex: 3,
+      startDate: utcDate(2026, 9, 2),
+      endDate: utcDate(2026, 9, 3),
+      amount: 4_000_000,
+    },
+  ] as const;
+  for (const spec of visitSpecs) {
+    const visit = await prisma.projectVisit.upsert({
+      where: {
+        projectId_visitIndex: {
+          projectId: pGcMulti.id,
+          visitIndex: spec.visitIndex,
+        },
+      },
+      update: {
+        startDate: spec.startDate,
+        endDate: spec.endDate,
+        amount: toDecimal(spec.amount),
+      },
+      create: {
+        id: spec.id,
+        projectId: pGcMulti.id,
+        visitIndex: spec.visitIndex,
+        startDate: spec.startDate,
+        endDate: spec.endDate,
+        amount: toDecimal(spec.amount),
+      },
+    });
+    const teamId = "teamId" in spec ? spec.teamId : undefined;
+    const employeeId = "employeeId" in spec ? spec.employeeId : undefined;
+    if (teamId || employeeId) {
+      await prisma.projectVisitAssignment.upsert({
+        where: { visitId: visit.id },
+        update: {
+          teamId: teamId ?? null,
+          employeeId: employeeId ?? null,
+        },
+        create: {
+          id: `${spec.id}-crew`,
+          visitId: visit.id,
+          teamId: teamId ?? null,
+          employeeId: employeeId ?? null,
+        },
+      });
+    }
+  }
+  await prisma.progressReport.upsert({
+    where: { id: "demo-mod-progress-multivisit-1" },
+    update: {},
+    create: {
+      id: "demo-mod-progress-multivisit-1",
+      projectId: pGcMulti.id,
+      employeeId: empSite2.id,
+      reportDate: utcDate(2026, 8, 11),
+      stageLabel: "Main lobby and reception",
+      notes: "Visit 1 deep clean of the lobby floor and glass doors.",
+      status: ProgressReportStatus.SUBMITTED,
+    },
+  });
+  await prisma.progressReport.upsert({
+    where: { id: "demo-mod-progress-multivisit-2" },
+    update: {},
+    create: {
+      id: "demo-mod-progress-multivisit-2",
+      projectId: pGcMulti.id,
+      employeeId: empSite2.id,
+      reportDate: utcDate(2026, 8, 18),
+      stageLabel: "Lift lobby and washrooms",
+      notes: "Visit 2 washroom restock and lift-lobby wipe-down.",
+      status: ProgressReportStatus.SUBMITTED,
+    },
+  });
+
+  await prisma.bpjsRemittance.upsert({
+    where: { id: "demo-mod-bpjs-kes-202607" },
+    update: {},
+    create: {
+      id: "demo-mod-bpjs-kes-202607",
+      companyId: company.id,
+      year: 2026,
+      month: 7,
+      program: "KESEHATAN",
+      amount: toDecimal(8_400_000),
+      companyShareAmount: toDecimal(6_720_000),
+      paidAt: utcDate(2026, 8, 10),
+      reference: "VA-KES-202607",
+      notes: "Demo July Kesehatan remittance",
+      createdById: vicko.id,
+    },
+  });
+  await prisma.bpjsRemittance.upsert({
+    where: { id: "demo-mod-bpjs-tk-202607" },
+    update: {},
+    create: {
+      id: "demo-mod-bpjs-tk-202607",
+      companyId: company.id,
+      year: 2026,
+      month: 7,
+      program: "KETENAGAKERJAAN",
+      amount: toDecimal(11_250_000),
+      companyShareAmount: toDecimal(7_875_000),
+      paidAt: utcDate(2026, 8, 11),
+      reference: "VA-TK-202607",
+      notes: "Demo July Ketenagakerjaan remittance",
+      createdById: vicko.id,
+    },
+  });
+
+  let operatingBank = await prisma.companyBankAccount.findFirst({
+    where: { companyId: company.id },
+    orderBy: { sortOrder: "asc" },
+  });
+  if (!operatingBank) {
+    operatingBank = await prisma.companyBankAccount.create({
+      data: {
+        id: "demo-mod-bank-bca",
+        companyId: company.id,
+        bankName: "BCA",
+        accountNumber: "0888123456",
+        accountHolder: "PT Relasi Global Solusi",
+        label: "Operating",
+        sortOrder: 0,
+      },
+    });
+  }
+  const loanProof = await writeUpload(
+    "purchase-invoices",
+    "demo-mod-loan-proof.pdf"
+  );
+  const termInstallment = termMonthlyInstallment(
+    2_400_000_000,
+    12,
+    36,
+    "ANNUAL"
+  );
+  const shareholderInstallment = termMonthlyInstallment(
+    500_000_000,
+    0,
+    24,
+    "ANNUAL"
+  );
+  const existingStandby = await prisma.loanFacility.findUnique({
+    where: { id: "demo-mod-loan-standby" },
+    select: { id: true },
+  });
+  if (!existingStandby) {
+    await prisma.loanFacility.create({
+      data: {
+        id: "demo-mod-loan-standby",
+        companyId: company.id,
+        source: "BANK",
+        kind: "STANDBY",
+        name: "Demo — BCA Standby Facility",
+        lenderName: vendorBank.name,
+        vendorId: vendorBank.id,
+        bankAccountId: operatingBank.id,
+        facilityLimit: toDecimal(10_000_000_000),
+        chargesInterest: true,
+        interestRateBasis: "ANNUAL",
+        annualRatePercent: toDecimal(12),
+        startDate: utcDate(2026, 6, 1),
+        notes: "Demo KRK-style standby. Daily outstanding, Actual/360.",
+        createdById: vicko.id,
+        movements: {
+          create: [
+            {
+              id: "demo-mod-loan-standby-draw-1",
+              kind: "DRAW",
+              movementDate: utcDate(2026, 6, 1),
+              amount: toDecimal(1_000_000_000),
+              principalAmount: toDecimal(1_000_000_000),
+              interestAmount: toDecimal(0),
+              bankAccountId: operatingBank.id,
+              notes: "First draw — 1 June",
+              filePath: loanProof,
+              createdById: vicko.id,
+            },
+            {
+              id: "demo-mod-loan-standby-draw-2",
+              kind: "DRAW",
+              movementDate: utcDate(2026, 6, 20),
+              amount: toDecimal(3_000_000_000),
+              principalAmount: toDecimal(3_000_000_000),
+              interestAmount: toDecimal(0),
+              bankAccountId: operatingBank.id,
+              notes: "Second draw — 20 June",
+              filePath: loanProof,
+              createdById: vicko.id,
+            },
+          ],
+        },
+      },
+    });
+  }
+  const existingTerm = await prisma.loanFacility.findUnique({
+    where: { id: "demo-mod-loan-term" },
+    select: { id: true },
+  });
+  if (!existingTerm) {
+    await prisma.loanFacility.create({
+      data: {
+        id: "demo-mod-loan-term",
+        companyId: company.id,
+        source: "BANK",
+        kind: "TERM",
+        name: "Demo — Mandiri Term Loan",
+        lenderName: vendorBank.name,
+        vendorId: vendorBank.id,
+        bankAccountId: operatingBank.id,
+        principal: toDecimal(2_400_000_000),
+        chargesInterest: true,
+        interestRateBasis: "ANNUAL",
+        annualRatePercent: toDecimal(12),
+        tenorMonths: 36,
+        monthlyInstallment: toDecimal(termInstallment),
+        startDate: utcDate(2026, 5, 1),
+        notes: "Demo term loan. Pay installment or Settle Early.",
+        createdById: vicko.id,
+        movements: {
+          create: {
+            id: "demo-mod-loan-term-draw",
+            kind: "DRAW",
+            movementDate: utcDate(2026, 5, 1),
+            amount: toDecimal(2_400_000_000),
+            principalAmount: toDecimal(2_400_000_000),
+            interestAmount: toDecimal(0),
+            bankAccountId: operatingBank.id,
+            notes: "Initial term draw",
+            filePath: loanProof,
+            createdById: vicko.id,
+          },
+        },
+      },
+    });
+  }
+  const existingShareholder = await prisma.loanFacility.findUnique({
+    where: { id: "demo-mod-loan-shareholder" },
+    select: { id: true },
+  });
+  if (!existingShareholder) {
+    await prisma.loanFacility.create({
+      data: {
+        id: "demo-mod-loan-shareholder",
+        companyId: company.id,
+        source: "SHAREHOLDER",
+        kind: "TERM",
+        name: "Demo — Shareholder Advance",
+        lenderName: "Shareholder — Family Advance",
+        bankAccountId: operatingBank.id,
+        principal: toDecimal(500_000_000),
+        chargesInterest: false,
+        interestRateBasis: "ANNUAL",
+        annualRatePercent: toDecimal(0),
+        tenorMonths: 24,
+        monthlyInstallment: toDecimal(shareholderInstallment),
+        startDate: utcDate(2026, 4, 1),
+        notes: "Demo interest-free shareholder term advance.",
+        createdById: vicko.id,
+        movements: {
+          create: [
+            {
+              id: "demo-mod-loan-shareholder-draw",
+              kind: "DRAW",
+              movementDate: utcDate(2026, 4, 1),
+              amount: toDecimal(500_000_000),
+              principalAmount: toDecimal(500_000_000),
+              interestAmount: toDecimal(0),
+              bankAccountId: operatingBank.id,
+              notes: "Shareholder cash in",
+              filePath: loanProof,
+              createdById: vicko.id,
+            },
+            {
+              id: "demo-mod-loan-shareholder-repay",
+              kind: "REPAYMENT",
+              movementDate: utcDate(2026, 7, 1),
+              amount: toDecimal(shareholderInstallment),
+              principalAmount: toDecimal(shareholderInstallment),
+              interestAmount: toDecimal(0),
+              bankAccountId: operatingBank.id,
+              notes: "July installment return",
+              filePath: loanProof,
+              createdById: vicko.id,
+            },
+          ],
+        },
+      },
+    });
+  }
+
   await seedDemoImportEquipment(prisma);
   await seedDemoPendingTransferOrders(prisma);
 
@@ -2993,6 +3353,7 @@ export async function seedDemoAllModules(prisma: Db) {
   console.log("Period-row project: Demo — Twin Period Tower");
   console.log("  • 2× Pending Approval (Awaiting Client + Client Revised)");
   console.log("  • 2× Payment Due");
+  console.log("Newer modules: loans (bank + shareholder), multi-visit crew, BPJS remittances");
   console.log("Re-run: npx tsx prisma/seed-demo-all-modules.ts");
 }
 

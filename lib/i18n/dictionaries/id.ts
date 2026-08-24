@@ -1014,7 +1014,7 @@ export const id = {
       detail: {
         staff: "Staf ditugaskan",
         billing: "Penagihan",
-        projectType: "Jenis proyek",
+        projectType: "Jenis Proyek",
         projectControls: "Kontrol proyek",
         client: "Klien",
         bankAccount: "Rekening Bank",
@@ -1065,7 +1065,7 @@ export const id = {
         downPaymentTaxInvoiceNote:
           "Faktur Pajak wajib setiap kali uang masuk.",
         paymentsReceivedCount: "Pembayaran diterima: {paid} dari {total}",
-        viewProgressReports: "Lihat Progress / Laporan",
+        viewProgressReports: "Lihat Laporan Progress",
         viewProgressReportsChip1: "Lihat Progress",
         viewProgressReportsChip2: "Laporan",
         period: "Periode",

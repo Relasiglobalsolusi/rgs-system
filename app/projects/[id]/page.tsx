@@ -114,9 +114,7 @@ import BackLink from "@/components/ui/BackLink";
 import { buttonVariants } from "@/components/ui/button";
 import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge, {
-  largeStackedChipLabelClassName,
   outlineChipTones,
-  StackedChipLabel,
 } from "@/components/ui/StatusBadge";
 import { cn } from "@/lib/utils";
 
@@ -812,49 +810,47 @@ export default async function ProjectDetailPage({
       >
         <div className="space-y-5">
           <SectionCard className="overflow-hidden p-0">
-            <div className="flex flex-wrap items-center gap-x-8 gap-y-2 border-b border-border px-4 py-3.5 sm:px-5">
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-subtle">
-                  {t("pages.projects.detail.status")}
-                </span>
-                <StatusBadge
-                  size="lg"
-                  status={statusTone(project.status)}
-                  lines={statusLines ?? undefined}
-                >
-                  {statusLines ? undefined : statusLabel}
-                </StatusBadge>
+            <div className="space-y-3 border-b border-border px-4 py-3.5 sm:px-5">
+              <div className="grid grid-cols-1 gap-3 sm:flex sm:flex-wrap sm:items-center sm:gap-x-8 sm:gap-y-2">
+                <div className="flex items-center justify-between gap-3 sm:justify-start sm:gap-4">
+                  <span className="text-xs font-semibold text-subtle">
+                    {t("pages.projects.detail.status")}
+                  </span>
+                  <StatusBadge
+                    size="lg"
+                    status={statusTone(project.status)}
+                    lines={statusLines ?? undefined}
+                    className="!w-[9.75rem] !min-w-[9.75rem] !max-w-[9.75rem]"
+                  >
+                    {statusLines ? undefined : statusLabel}
+                  </StatusBadge>
+                </div>
+                <div className="flex items-center justify-between gap-3 sm:justify-start sm:gap-4">
+                  <span className="text-xs font-semibold text-subtle">
+                    {t("pages.projects.detail.projectType")}
+                  </span>
+                  <StatusBadge
+                    size="lg"
+                    status="info"
+                    lines={typeLines ?? undefined}
+                    className="!w-[9.75rem] !min-w-[9.75rem] !max-w-[9.75rem]"
+                  >
+                    {typeLines ? undefined : typeLabel}
+                  </StatusBadge>
+                </div>
+                {!inPlanning ? (
+                  <Link
+                    href={`/progress?projectId=${project.id}`}
+                    className={cn(
+                      buttonVariants({ variant: "infoBadge", size: "badgeLg" }),
+                      "w-full whitespace-nowrap sm:ml-auto sm:w-auto"
+                    )}
+                    aria-label={t("pages.projects.detail.viewProgressReports")}
+                  >
+                    {t("pages.projects.detail.viewProgressReports")}
+                  </Link>
+                ) : null}
               </div>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-subtle">
-                  {t("pages.projects.detail.projectType")}
-                </span>
-                <StatusBadge
-                  size="lg"
-                  status="info"
-                  lines={typeLines ?? undefined}
-                >
-                  {typeLines ? undefined : typeLabel}
-                </StatusBadge>
-              </div>
-              {!inPlanning ? (
-                <Link
-                  href={`/progress?projectId=${project.id}`}
-                  className={cn(
-                    buttonVariants({ variant: "infoBadge", size: "badgeLg" }),
-                    "ml-auto"
-                  )}
-                  aria-label={t("pages.projects.detail.viewProgressReports")}
-                >
-                  <StackedChipLabel
-                    lines={[
-                      t("pages.projects.detail.viewProgressReportsChip1"),
-                      t("pages.projects.detail.viewProgressReportsChip2"),
-                    ]}
-                    className={largeStackedChipLabelClassName}
-                  />
-                </Link>
-              ) : null}
             </div>
 
             <table className="w-full text-sm">
