@@ -646,12 +646,12 @@ export const en = {
         "Set up Security, Parking, or Payroll Management with the commercial terms for this client.",
       serviceCommercial: {
         monthlyFee: "Monthly Fee",
-        monthlyFeeHint: "Monthly security service fee the client pays RGS (IDR).",
+        monthlyFeeHint: "Price Exclude Tax. The invoice adds the tax you chose on this project.",
         setupCost: "Initial Setup Cost",
         setupCostHint: "One-time parking setup cost (IDR).",
         profitSharePercent: "Client Profit Share %",
         profitSharePercentHint:
-          "Percentage of profit shared with the client. 0 means no profit sharing — after setup fee / monthly fees we pay them, everything is for RGS.",
+          "Percentage of profit shared with the client. 0 means no profit sharing.",
         monthlyClientFee: "Monthly Client Fee",
         memberParkingUnitFee: "Member Parking Fee Per Car",
         memberParkingUnitFeeHint:
@@ -1005,12 +1005,12 @@ export const en = {
         contractPeriod: "Contract period",
         planningEstimate: "Planning estimate",
         contractStarted: "Contract start",
-        contractPrice: "Contract price",
+        contractPrice: "Contract Price (Exclude Tax)",
         anniversaryInvoiceDay:
           "Anniversary invoice day {day} (day after each cycle ends)",
         serviceBillingNote:
           "Commercial terms are stored on the project. Parking and Payroll Management do not use monthly invoice periods here.",
-        contractPriceAndInvoices: "Contract price and invoices",
+        contractPriceAndInvoices: "Invoice and Billing",
         estStart: "Est. start {date}",
         estimateTbd: "Estimate TBD",
         fullBilling: "Full Billing",
@@ -3333,12 +3333,15 @@ export const en = {
         "Keep the contract price, or adjust the invoice amount for this period (Operations Manager or Area Manager approval required to adjust).",
       confirmReconcileKeep: "Reconcile & Send",
       confirmReconcileAdjust: "Adjust & Send",
-      contractPrice: "Contract price",
+      invoiceAndBilling: "Invoice and Billing",
+      priceExcludeTax: "Price Exclude Tax",
+      contractPrice: "Contract Price",
       savedPrice: "Saved: {price}",
+      invoiceTotalWithTax: "Invoice Total With Tax: {amount}",
       contractPriceMonthlyHint:
-        "Used as the invoice amount when compiling periods (unless a period already has its own amount).",
+        "Type the price exclude tax. The invoice adds the tax you chose on this project.",
       contractPriceMilestoneHint:
-        "Changing the contract price recalculates remaining unpaid milestone invoices from what is still owed (paid amounts stay as paid). Issued unpaid PDFs may need regeneration.",
+        "Type the price exclude tax. Changing it recalculates remaining unpaid invoices from what is still owed, then adds the project tax. Paid amounts stay as paid.",
       periods: "Periods",
       invoicedThrough: "Invoiced through {percent}%",
       setPriceBeforeMilestone:

@@ -9,7 +9,6 @@ import {
   Fragment,
   useState,
   useTransition,
-  useEffect,
   useMemo,
   type DragEvent,
 } from "react";
@@ -19,7 +18,6 @@ import {
   rejectInvoicePaymentVerification,
   sendAdHocMilestoneForClientReview,
   submitInvoicePaymentForVerification,
-  updateProjectContractPrice,
 } from "@/app/projects/invoice-actions";
 import { sendProgressForClientReview } from "@/app/billing/reconciliation/actions";
 import ClientBillingReviewActions from "@/components/billing/ClientBillingReviewActions";
@@ -36,7 +34,7 @@ import { ChipCell } from "@/components/ui/DataTable";
 import StatusBadge, { StackedChipLabel } from "@/components/ui/StatusBadge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { preventBrowserFileNavigation } from "@/components/ui/FileDropField";
-import { MoneyInput } from "@/components/ui/MoneyInput";
+import ContractPriceEditor from "@/components/billing/ContractPriceEditor";
 import { flexibleBadgeChipClassName } from "@/components/ui/trash-action-buttons";
 import { cn } from "@/lib/utils";
 import {
@@ -56,6 +54,7 @@ import {
   dedupeOnCompletionPeriods,
   maxMilestonePercent,
 } from "@/lib/project-billing";
+import type { CommercialTaxKind } from "@/lib/commercial-tax";
 import { formatDisplayDate } from "@/lib/format-date";
 import {
   localizeBillingChipLines,
@@ -108,6 +107,9 @@ type Props = {
   billingCycleStartDay?: number | null;
   billingCycleEndDay?: number | null;
   contractPrice: number | null;
+  chargedTaxKind?: CommercialTaxKind | "" | null;
+  requiresTaxInvoice?: boolean | null;
+  pphRatePercent?: number | null;
   invoicingDay: number;
   /** Real contract start (ISO) — drives Regular Cleaning anniversary cycles. */
   startDate?: string | null;
@@ -128,11 +130,6 @@ function toDate(value: string | null): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-function priceToInput(value: number | null): string {
-  if (value == null) return "";
-  return String(Math.round(value));
-}
-
 export default function ProjectBillingPanel({
   projectId,
   projectName,
@@ -142,6 +139,9 @@ export default function ProjectBillingPanel({
   billingCycleStartDay = null,
   billingCycleEndDay = null,
   contractPrice,
+  chargedTaxKind = null,
+  requiresTaxInvoice = null,
+  pphRatePercent = null,
   invoicingDay,
   startDate,
   paymentTermsDays,
@@ -162,7 +162,6 @@ export default function ProjectBillingPanel({
   >(null);
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [priceInput, setPriceInput] = useState(priceToInput(contractPrice));
   const isMonthly = billingMode === "MONTHLY";
   const isMilestone = billingMode === "MILESTONE";
   const price = contractPrice;
@@ -184,10 +183,6 @@ export default function ProjectBillingPanel({
       )
     ).length;
   }, [isMonthly, periods]);
-
-  useEffect(() => {
-    setPriceInput(priceToInput(contractPrice));
-  }, [contractPrice]);
 
   const priorMax = maxMilestonePercent(
     periods.map((p) => ({
@@ -227,16 +222,6 @@ export default function ProjectBillingPanel({
         showRejectionFromError(error, errorLabel);
       }
     });
-  }
-
-  function saveContractPrice() {
-    const formData = new FormData();
-    formData.set("projectId", projectId);
-    formData.set("contractPrice", priceInput);
-    run(
-      () => updateProjectContractPrice(formData),
-      t("pages.billing.saveContractPriceFailed")
-    );
   }
 
   function invoiceNextMilestone() {
@@ -379,57 +364,15 @@ export default function ProjectBillingPanel({
             </p>
           ) : null}
         </div>
-        <div className="rounded-xl border border-border bg-elevated px-4 py-3">
-          <p className="text-xs uppercase tracking-wider text-subtle">
-            {t("pages.billing.contractPrice")}
-          </p>
-          {canManage ? (
-            <div className="mt-2 space-y-2">
-              <MoneyInput
-                value={priceInput}
-                onValueChange={setPriceInput}
-                placeholder={t("pages.billing.amountExampleLarge")}
-                className="h-9 border-border bg-elevated text-text"
-              />
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  size="badge"
-                  variant="successBadge"
-                  className={flexibleBadgeChipClassName}
-                  disabled={pending || !priceInput.trim()}
-                  onClick={saveContractPrice}
-                >
-                  {pending
-                    ? t("common.actions.saving")
-                    : price == null
-                      ? t("common.actions.save")
-                      : t("common.actions.update")}
-                </Button>
-                {price != null && (
-                  <p className="text-xs text-subtle">
-                    {t("pages.billing.savedPrice", {
-                      price: formatContractPrice(price),
-                    })}
-                  </p>
-                )}
-              </div>
-              {!isMilestone && (
-                <p className="text-xs text-subtle">
-                  {t("pages.billing.contractPriceMonthlyHint")}
-                </p>
-              )}
-              {isMilestone && (
-                <p className="text-xs text-subtle">
-                  {t("pages.billing.contractPriceMilestoneHint")}
-                </p>
-              )}
-            </div>
-          ) : (
-            <p className="mt-1 text-lg font-semibold text-text">
-              {formatContractPrice(price)}
-            </p>
-          )}
-        </div>
+        <ContractPriceEditor
+          projectId={projectId}
+          contractPrice={contractPrice}
+          chargedTaxKind={chargedTaxKind}
+          requiresTaxInvoice={requiresTaxInvoice}
+          pphRatePercent={pphRatePercent}
+          canManage={canManage}
+          milestone={isMilestone}
+        />
         <div className="rounded-xl border border-border bg-elevated px-4 py-3">
           <p className="text-xs uppercase tracking-wider text-subtle">
             {t("pages.billing.periods")}

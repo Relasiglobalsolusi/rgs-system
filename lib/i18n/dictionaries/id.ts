@@ -661,13 +661,14 @@ export const id = {
         "Siapkan Security, Parking, atau Manajemen Payroll dengan syarat komersial untuk klien ini.",
       serviceCommercial: {
         monthlyFee: "Biaya Bulanan",
-        monthlyFeeHint: "Biaya layanan security bulanan yang dibayar klien ke RGS (IDR).",
+        monthlyFeeHint:
+          "Harga Tidak Termasuk Pajak. Invoice menambahkan pajak yang dipilih pada proyek ini.",
         setupCost: "Biaya Setup Awal",
         setupCostHint: "Biaya setup parking sekali bayar (IDR).",
         profitSharePercent: "% Bagian Laba Klien",
         profitSharePercentHint:
-          "Persentase laba yang dibagi ke klien. 0 berarti tidak ada bagi hasil — setelah biaya setup / biaya bulanan yang kami bayar ke klien, semuanya untuk RGS.",
-        monthlyClientFee: "Biaya Bulanan ke Klien",
+          "Persentase laba yang dibagi ke klien. 0 berarti tidak ada bagi hasil.",
+        monthlyClientFee: "Biaya Klien Bulanan",
         memberParkingUnitFee: "Biaya Member Parkir Per Mobil",
         memberParkingUnitFeeHint:
           "Biaya bulanan tetap per mobil member. Jumlah ini tidak dikenai pajak.",
@@ -1024,12 +1025,12 @@ export const id = {
         contractPeriod: "Periode kontrak",
         planningEstimate: "Estimasi perencanaan",
         contractStarted: "Mulai kontrak",
-        contractPrice: "Harga kontrak",
+        contractPrice: "Harga Kontrak (Tidak Termasuk Pajak)",
         anniversaryInvoiceDay:
           "Invoice anniversary hari ke-{day} (sehari setelah setiap siklus berakhir)",
         serviceBillingNote:
           "Syarat komersial disimpan di proyek. Parking dan Manajemen Payroll tidak memakai periode invoice bulanan di sini.",
-        contractPriceAndInvoices: "Harga kontrak dan invoice",
+        contractPriceAndInvoices: "Invoice dan Penagihan",
         estStart: "Est. mulai {date}",
         estimateTbd: "Estimasi belum ditentukan",
         fullBilling: "Penagihan lengkap",
@@ -3366,12 +3367,15 @@ export const id = {
       confirmReconcileAdjust: "Sesuaikan & Kirim",
       reconcileDialogTitle: "Rekonsiliasi Periode",
       cycleFrom: " · siklus dari {date}",
-      contractPrice: "Harga kontrak",
+      invoiceAndBilling: "Invoice dan Penagihan",
+      priceExcludeTax: "Harga Tidak Termasuk Pajak",
+      contractPrice: "Harga Kontrak",
       savedPrice: "Tersimpan: {price}",
+      invoiceTotalWithTax: "Total Invoice Termasuk Pajak: {amount}",
       contractPriceMonthlyHint:
-        "Dipakai sebagai jumlah invoice saat mengompilasi periode (kecuali periode sudah punya jumlah sendiri).",
+        "Ketik harga tidak termasuk pajak. Invoice menambahkan pajak yang dipilih pada proyek ini.",
       contractPriceMilestoneHint:
-        "Mengubah harga kontrak menghitung ulang invoice bertahap yang belum dibayar dari sisa kewajiban (jumlah yang sudah dibayar tetap). PDF yang sudah diterbitkan mungkin perlu dibuat ulang.",
+        "Ketik harga tidak termasuk pajak. Mengubahnya menghitung ulang invoice yang belum dibayar dari sisa kewajiban, lalu menambahkan pajak proyek. Jumlah yang sudah dibayar tetap.",
       periods: "Periode",
       invoicedThrough: "Sudah ditagih hingga {percent}%",
       setPriceBeforeMilestone:

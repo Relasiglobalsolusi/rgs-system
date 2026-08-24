@@ -1,8 +1,10 @@
 /**
  * VAT / PPN helpers for Finance → VAT.
  *
- * Commercial amounts in this ERP are treated as **tax-inclusive** when PPN applies.
- * DPP and PPN are derived with the standard inclusive split.
+ * Project contract prices and typed invoice amounts are **exclude tax**.
+ * Billing adds the project’s charged tax (Value Added Tax / final / other).
+ * Stored invoice period amounts are the billed gross. Finance still splits
+ * those gross receipts into DPP + PPN when a VAT rate is present.
  */
 
 /** Inclusive PPN rate used when faktur DPP/PPN amounts are not stored. */

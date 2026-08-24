@@ -219,6 +219,9 @@ export default async function BillingProjectPage({
                       billingCycleStartDay={project.billingCycleStartDay}
                       billingCycleEndDay={project.billingCycleEndDay}
                       contractPrice={decimalToNumber(project.contractPrice)}
+                      chargedTaxKind={project.chargedTaxKind}
+                      requiresTaxInvoice={project.requiresTaxInvoice}
+                      pphRatePercent={decimalToNumber(project.pphRatePercent)}
                       invoicingDay={project.invoicingDay}
                       startDate={project.startDate?.toISOString() ?? null}
                       paymentTermsDays={project.paymentTermsDays}
@@ -342,6 +345,9 @@ export default async function BillingProjectPage({
             refreshedProject?.billingCycleEndDay ?? project.billingCycleEndDay
           }
           contractPrice={contractPriceNum}
+          chargedTaxKind={project.chargedTaxKind}
+          requiresTaxInvoice={project.requiresTaxInvoice}
+          pphRatePercent={decimalToNumber(project.pphRatePercent)}
           invoicingDay={invoicingDay}
           startDate={startDateIso}
           paymentTermsDays={project.paymentTermsDays}

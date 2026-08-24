@@ -76,8 +76,10 @@ import {
 } from "@/lib/i18n/labels";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
+import ContractPriceEditor from "@/components/billing/ContractPriceEditor";
 import {
   commercialTaxKindLabelKey,
+  invoiceGrossFromExclusivePrice,
   projectChargedTaxKindFromRecord,
 } from "@/lib/commercial-tax";
 import {
@@ -1288,6 +1290,18 @@ export default async function ProjectDetailPage({
                 ) : null}
               </div>
 
+              <div className="mb-4">
+                <ContractPriceEditor
+                  projectId={project.id}
+                  contractPrice={contractPriceNum}
+                  chargedTaxKind={chargedTaxKind}
+                  requiresTaxInvoice={project.requiresTaxInvoice}
+                  pphRatePercent={decimalToNumber(project.pphRatePercent)}
+                  canManage={canManage}
+                  milestone={project.billingMode === "MILESTONE"}
+                />
+              </div>
+
               {invoicePeriodsForDisplay.length === 0 ? (
                 <p className="text-sm text-subtle">
                   {t("pages.projects.detail.noInvoicePeriods")}
@@ -1324,7 +1338,14 @@ export default async function ProjectDetailPage({
                           paymentTermsDays: project.paymentTermsDays,
                         });
                         const amount =
-                          decimalToNumber(period.amount) ?? contractPriceNum;
+                          decimalToNumber(period.amount) ??
+                          invoiceGrossFromExclusivePrice(contractPriceNum, {
+                            chargedTaxKind: project.chargedTaxKind,
+                            requiresTaxInvoice: project.requiresTaxInvoice,
+                            pphRatePercent: decimalToNumber(
+                              project.pphRatePercent
+                            ),
+                          });
                         const statusChipLines = display.chipLines
                           ? localizeBillingChipLines(
                               display.key === "LATE"

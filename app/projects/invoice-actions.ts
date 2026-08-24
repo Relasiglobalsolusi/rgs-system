@@ -13,6 +13,7 @@ import { COMPANY_IDENTITY_SELECT } from "@/lib/company-for-pdf";
 import { generateInvoicePeriodPdf } from "@/lib/progress-report-pdf";
 import { overlayInvoiceCompanyBank } from "@/lib/company-bank-accounts";
 import { DEFAULT_PRODUCT_PPN_RATE_PERCENT } from "@/lib/vat";
+import { invoiceGrossFromExclusivePrice } from "@/lib/commercial-tax";
 import {
   COMPLETION_INVOICE_LABEL,
   decimalToNumber,
@@ -672,7 +673,14 @@ async function compileInvoicePeriodInner(
     const revisedAmount = decimalToNumber(period.revisedInvoiceAmount);
     const periodAmount = decimalToNumber(period.amount);
     const contractPrice = decimalToNumber(period.project.contractPrice);
-    const invoiceAmount = revisedAmount ?? periodAmount ?? contractPrice;
+    const invoiceAmount =
+      revisedAmount ??
+      periodAmount ??
+      invoiceGrossFromExclusivePrice(contractPrice, {
+        chargedTaxKind: period.project.chargedTaxKind,
+        requiresTaxInvoice: period.project.requiresTaxInvoice,
+        pphRatePercent: decimalToNumber(period.project.pphRatePercent),
+      }, decimalToNumber(period.ppnRatePercent));
     const amountLabel =
       invoiceAmount != null ? formatContractPrice(invoiceAmount) : null;
     const invoiceNumber =
@@ -864,6 +872,9 @@ export async function updateProjectContractPrice(formData: FormData) {
       billingMode: true,
       subCategory: true,
       serviceArea: true,
+      chargedTaxKind: true,
+      requiresTaxInvoice: true,
+      pphRatePercent: true,
       invoicePeriods: {
         where: { milestonePercent: { not: null } },
         orderBy: { milestonePercent: "asc" },
@@ -899,6 +910,12 @@ export async function updateProjectContractPrice(formData: FormData) {
       isMilestoneSubCategory(project.subCategory) &&
       project.invoicePeriods.length > 0
     ) {
+      const billedTotal =
+        invoiceGrossFromExclusivePrice(contractPrice, {
+          chargedTaxKind: project.chargedTaxKind,
+          requiresTaxInvoice: project.requiresTaxInvoice,
+          pphRatePercent: decimalToNumber(project.pphRatePercent),
+        }) ?? contractPrice;
       const revisions = recalculateUnpaidMilestoneAmounts(
         project.invoicePeriods.map((p) => ({
           id: p.id,
@@ -907,7 +924,7 @@ export async function updateProjectContractPrice(formData: FormData) {
           status: p.status,
           compileNote: p.compileNote,
         })),
-        contractPrice
+        billedTotal
       );
 
       for (const rev of revisions) {
@@ -1058,7 +1075,14 @@ async function issueMilestonePeriodInner(
     );
   }
   if (amount == null || amount < 0) {
-    amount = Math.round(((contractPrice * slicePercent) / 100) * 100) / 100;
+    const exclusiveSlice =
+      Math.round(((contractPrice * slicePercent) / 100) * 100) / 100;
+    amount =
+      invoiceGrossFromExclusivePrice(exclusiveSlice, {
+        chargedTaxKind: project.chargedTaxKind,
+        requiresTaxInvoice: project.requiresTaxInvoice,
+        pphRatePercent: decimalToNumber(project.pphRatePercent),
+      }) ?? exclusiveSlice;
   } else {
     amount = Math.round(amount * 100) / 100;
   }
@@ -1340,7 +1364,8 @@ async function ensureAdHocMilestonePeriod(
   }
 
   const slicePercent = milestonePercent - priorMax;
-  let amount = (contractPrice * slicePercent) / 100;
+  const exclusiveSlice = (contractPrice * slicePercent) / 100;
+  let amount = exclusiveSlice;
 
   if (amountOverrideRaw) {
     const override = Number(amountOverrideRaw.replace(/[^\d.]/g, ""));
@@ -1350,7 +1375,12 @@ async function ensureAdHocMilestonePeriod(
     amount = override;
   }
 
-  amount = Math.round(amount * 100) / 100;
+  amount =
+    invoiceGrossFromExclusivePrice(amount, {
+      chargedTaxKind: project.chargedTaxKind,
+      requiresTaxInvoice: project.requiresTaxInvoice,
+      pphRatePercent: decimalToNumber(project.pphRatePercent),
+    }) ?? Math.round(amount * 100) / 100;
 
   const today = toUtcDateOnly(new Date());
   const lastDelivered = project.invoicePeriods
@@ -2197,6 +2227,9 @@ export async function reconcileInvoicePeriod(formData: FormData) {
           status: true,
           serviceArea: true,
           contractPrice: true,
+          chargedTaxKind: true,
+          requiresTaxInvoice: true,
+          pphRatePercent: true,
         },
       },
     },
@@ -2241,9 +2274,23 @@ export async function reconcileInvoicePeriod(formData: FormData) {
       projectServiceArea: period.project.serviceArea,
       projectId: period.project.id,
     });
-    amountUpdate = { amount: adjusted };
+    amountUpdate = {
+      amount:
+        invoiceGrossFromExclusivePrice(adjusted, {
+          chargedTaxKind: period.project.chargedTaxKind,
+          requiresTaxInvoice: period.project.requiresTaxInvoice,
+          pphRatePercent: decimalToNumber(period.project.pphRatePercent),
+        }) ?? adjusted,
+    };
   } else if (decimalToNumber(period.amount) == null) {
-    const fallback = decimalToNumber(period.project.contractPrice);
+    const fallback = invoiceGrossFromExclusivePrice(
+      decimalToNumber(period.project.contractPrice),
+      {
+        chargedTaxKind: period.project.chargedTaxKind,
+        requiresTaxInvoice: period.project.requiresTaxInvoice,
+        pphRatePercent: decimalToNumber(period.project.pphRatePercent),
+      }
+    );
     if (fallback != null && fallback > 0) {
       amountUpdate = { amount: fallback };
     }
