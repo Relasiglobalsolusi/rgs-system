@@ -139,6 +139,8 @@ export const en = {
       bulkFailed: "Bulk action failed. Please try again."
     },
     confirm: {
+      title: "Confirm",
+      openBilling: "Open Billing",
       cannotUndo: "This action cannot be undone.",
       unsavedTitle: "Unsaved Changes",
       unsavedDescription:
@@ -3417,7 +3419,8 @@ export const en = {
       vatPaid: "VAT Paid",
       vatPaidHint: "Government Billing ID payments this month",
       vatRemaining: "VAT Still To Pay",
-      vatRemainingHint: "Amount still owed after Billing ID payments",
+      vatRemainingHint:
+        "PPN still owed to the government this month, after Billing ID payments already made.",
       tabs: {
         output: "Output VAT",
         input: "Input VAT",

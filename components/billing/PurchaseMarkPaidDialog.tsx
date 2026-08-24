@@ -51,7 +51,6 @@ export default function PurchaseMarkPaidDialog({
   const { t } = useT();
   const router = useRouter();
   const [proofFile, setProofFile] = useState<File | null>(null);
-  const [reason, setReason] = useState("");
   const [bankAccounts, setBankAccounts] = useState<CompanyBankAccountOption[]>(
     []
   );
@@ -66,7 +65,6 @@ export default function PurchaseMarkPaidDialog({
   useEffect(() => {
     if (!open) {
       setProofFile(null);
-      setReason("");
       setBankAccountId("");
       setImportBankRate("");
       setImportBankCharge("");
@@ -95,7 +93,6 @@ export default function PurchaseMarkPaidDialog({
   const canSubmit = Boolean(
     proofFile &&
       proofFile.size > 0 &&
-      reason.trim() &&
       (bankAccounts.length === 0 || bankAccountId) &&
       (!needsImportBankRate || (bankRateNumber != null && bankRateNumber > 0))
   );
@@ -120,7 +117,6 @@ export default function PurchaseMarkPaidDialog({
     const formData = new FormData();
     formData.set("purchaseInvoiceId", purchaseInvoiceId);
     formData.set("paymentProof", proofFile);
-    formData.set("manualReason", reason);
     formData.set("bankAccountId", bankAccountId);
     if (needsImportBankRate) {
       formData.set("importBankRate", importBankRate.trim());
@@ -173,14 +169,7 @@ export default function PurchaseMarkPaidDialog({
       fileLabel={t("pages.billing.proofOfPayment")}
       fileName={proofFile?.name ?? null}
       onFilePick={setProofFile}
-      requireReason
-      reasonValue={reason}
-      onReasonChange={setReason}
-      callout={
-        needsImportBankRate
-          ? t("pages.billing.purchaseMarkPaidBankRateHint")
-          : t("pages.billing.purchaseMarkPaidHint")
-      }
+      showServerBanner={false}
       error={error}
       pending={pending}
       canSubmit={canSubmit}

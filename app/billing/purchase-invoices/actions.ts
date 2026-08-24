@@ -42,7 +42,10 @@ import {
   normalizeInventoryUnit,
   stockQuantityFromPurchase,
 } from "@/lib/inventory-units";
-import { parseManualVerifyReason } from "@/lib/in-house-document-verify";
+import {
+  parseManualVerifyReason,
+  parseOptionalManualVerifyReason,
+} from "@/lib/in-house-document-verify";
 import {
   assertPurchasePurposeProject,
   parsePurchaseCategory,
@@ -2226,7 +2229,7 @@ export async function markPurchaseInvoicePaid(formData: FormData) {
         paymentProofPath,
         paidById: session.user.id,
         bankAccountId,
-        paymentManualReason: parseManualVerifyReason(
+        paymentManualReason: parseOptionalManualVerifyReason(
           formData.get("manualReason")
         ),
         ...(invoice.origin === "IMPORT"

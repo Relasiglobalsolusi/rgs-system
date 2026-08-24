@@ -29,6 +29,7 @@ import ProjectTeamPicker, {
 } from "@/components/projects/ProjectTeamPicker";
 import { teamsForProjectServiceArea } from "@/lib/operations-team-kind";
 import ProjectTimelineFields from "@/components/projects/ProjectTimelineFields";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { FileDropField } from "@/components/ui/FileDropField";
@@ -344,6 +345,7 @@ function useProjectReturnToPlanningAction({
   projectName,
 }: ReturnArgs) {
   const { t } = useT();
+  const confirm = useConfirm();
   const pathname = usePathname();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -351,10 +353,15 @@ function useProjectReturnToPlanningAction({
     pathname === `/projects/${projectId}` ||
     pathname.startsWith(`/projects/${projectId}/`);
 
-  function moveBackToPlanning() {
-    const confirmed = window.confirm(
-      t("pages.projects.backToPlanningConfirm", { name: projectName })
-    );
+  async function moveBackToPlanning() {
+    const confirmed = await confirm({
+      title: t("pages.projects.backToPlanning"),
+      description: t("pages.projects.backToPlanningConfirm", {
+        name: projectName,
+      }),
+      confirmLabel: t("pages.projects.backToPlanning"),
+      tone: "danger",
+    });
     if (!confirmed) return;
 
     startTransition(async () => {

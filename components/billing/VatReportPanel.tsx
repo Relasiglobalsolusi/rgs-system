@@ -295,7 +295,7 @@ export default function VatReportPanel({
         </div>
         <p className="max-w-xl text-sm text-subtle">
           {isIncome
-            ? t("pages.vat.incomeHint")
+            ? t("pages.vat.incomeDesc")
             : isOther
               ? t("pages.vat.otherDesc")
               : t("pages.vat.rateHint", { rate: ratePct })}

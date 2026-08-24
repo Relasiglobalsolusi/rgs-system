@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import YesNoChoiceCards, {
   type YesNoChoice,
 } from "@/components/ui/YesNoChoiceCards";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { showRejectionFromError } from "@/components/ui/rejection-notice";
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
@@ -85,6 +86,7 @@ export default function ClientMultiProjectPanel({
   formId,
 }: Props) {
   const { t } = useT();
+  const confirm = useConfirm();
   const [pending, startTransition] = useTransition();
   const [state, setState] = useState<AdminState | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -121,16 +123,19 @@ export default function ClientMultiProjectPanel({
     );
   }
 
-  function runGenerateCode(options: {
+  async function runGenerateCode(options: {
     kind: "MASTER" | "GROUP";
     groupId?: string;
     replaceExisting: boolean;
   }) {
-    if (
-      options.replaceExisting &&
-      !window.confirm(t("pages.clients.multiProject.regenerateCodeConfirm"))
-    ) {
-      return;
+    if (options.replaceExisting) {
+      const confirmed = await confirm({
+        title: t("pages.clients.multiProject.regenerateCode"),
+        description: t("pages.clients.multiProject.regenerateCodeConfirm"),
+        confirmLabel: t("pages.clients.multiProject.regenerateCode"),
+        tone: "danger",
+      });
+      if (!confirmed) return;
     }
     startTransition(async () => {
       try {

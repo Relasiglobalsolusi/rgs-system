@@ -151,6 +151,8 @@ export const id = {
       bulkFailed: "Aksi massal gagal. Silakan coba lagi."
     },
     confirm: {
+      title: "Konfirmasi",
+      openBilling: "Buka Billing",
       cannotUndo: "Tindakan ini tidak dapat dibatalkan.",
       unsavedTitle: "Perubahan belum disimpan",
       unsavedDescription:
@@ -3450,7 +3452,8 @@ export const id = {
       vatPaid: "PPN Dibayar",
       vatPaidHint: "Pembayaran ID Billing pemerintah bulan ini",
       vatRemaining: "PPN Masih Harus Dibayar",
-      vatRemainingHint: "Sisa yang masih harus dibayar setelah pembayaran ID Billing",
+      vatRemainingHint:
+        "PPN yang masih harus dibayar ke pemerintah bulan ini, setelah pembayaran ID Billing yang sudah dibuat.",
       tabs: {
         output: "PPN Keluaran",
         input: "PPN Masukan",

@@ -30,6 +30,7 @@ import ProjectTimelineFields from "@/components/projects/ProjectTimelineFields";
 import PaymentTermsField from "@/components/billing/PaymentTermsField";
 import CompanyBankAccountField from "@/components/company-details/CompanyBankAccountField";
 import type { CompanyBankAccountOption } from "@/lib/company-bank-accounts";
+import ExclusiveContractPriceField from "@/components/projects/ExclusiveContractPriceField";
 import ServiceCommercialFields from "@/components/projects/ServiceCommercialFields";
 import {
   captureHtmlFormBaseline,
@@ -1133,6 +1134,13 @@ export default function ProjectEditDialog({
                     : t("pages.projects.pphRatePercentHint")}
                 </p>
               </div>
+            ) : null}
+
+            {!isInternal && !isService ? (
+              <ExclusiveContractPriceField
+                id={`edit-project-contract-price-${project.id}`}
+                defaultValue={project.contractPrice}
+              />
             ) : null}
 
             {!isInternal ? (

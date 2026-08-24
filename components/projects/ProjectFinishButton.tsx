@@ -20,6 +20,7 @@ import {
   employeeDialogHintClass,
   employeeInputClass,
 } from "@/components/employees/employee-dialog-ui";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -54,6 +55,7 @@ export function useProjectLifecycleActions({
   plannedEndDate = null,
 }: LifecycleArgs) {
   const { t } = useT();
+  const confirm = useConfirm();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [lastDayOpen, setLastDayOpen] = useState(false);
@@ -65,7 +67,7 @@ export function useProjectLifecycleActions({
   });
   const [lastMonth, setLastMonth] = useState(() => lastDay.slice(0, 7));
 
-  function handleInvoiceError(
+  async function handleInvoiceError(
     result: Awaited<ReturnType<typeof finishProject>>,
     finishedLabel: string
   ) {
@@ -75,13 +77,15 @@ export function useProjectLifecycleActions({
           path: result.invoice.billingPath,
         })
       : t("pages.projects.finish.billingHintGeneric");
-    const goBilling = window.confirm(
-      t("pages.projects.finish.invoiceErrorOpenBilling", {
+    const goBilling = await confirm({
+      title: t("common.confirm.openBilling"),
+      description: t("pages.projects.finish.invoiceErrorOpenBilling", {
         finishedLabel,
         error: result.invoice.error,
         billingHint,
-      })
-    );
+      }),
+      confirmLabel: t("common.confirm.openBilling"),
+    });
     if (goBilling && result.invoice.billingPath) {
       router.push(result.invoice.billingPath);
       return true;
@@ -89,10 +93,14 @@ export function useProjectLifecycleActions({
     return false;
   }
 
-  function reconcileThisMonth() {
-    const confirmed = window.confirm(
-      t("pages.projects.finish.confirmReconcileCycle", { name: projectName })
-    );
+  async function reconcileThisMonth() {
+    const confirmed = await confirm({
+      title: t("pages.projects.finish.reconcile"),
+      description: t("pages.projects.finish.confirmReconcileCycle", {
+        name: projectName,
+      }),
+      confirmLabel: t("pages.projects.finish.reconcile"),
+    });
     if (!confirmed) return;
 
     startTransition(async () => {
@@ -104,9 +112,11 @@ export function useProjectLifecycleActions({
                 path: result.reconcile.billingPath,
               })
             : t("pages.projects.finish.billingHintGeneric");
-          const goBilling = window.confirm(
-            `${result.reconcile.error}${billingHint}\n\n${t("pages.projects.finish.openBillingNow")}`
-          );
+          const goBilling = await confirm({
+            title: t("common.confirm.openBilling"),
+            description: `${result.reconcile.error}${billingHint}\n\n${t("pages.projects.finish.openBillingNow")}`,
+            confirmLabel: t("common.confirm.openBilling"),
+          });
           if (goBilling && result.reconcile.billingPath) {
             router.push(result.reconcile.billingPath);
             return;
@@ -121,16 +131,20 @@ export function useProjectLifecycleActions({
     });
   }
 
-  function invoiceThisMonth() {
-    const confirmed = window.confirm(
-      t("pages.projects.finish.confirmInvoiceCycle", { name: projectName })
-    );
+  async function invoiceThisMonth() {
+    const confirmed = await confirm({
+      title: t("pages.projects.finish.requestInvoice"),
+      description: t("pages.projects.finish.confirmInvoiceCycle", {
+        name: projectName,
+      }),
+      confirmLabel: t("pages.projects.finish.requestInvoice"),
+    });
     if (!confirmed) return;
 
     startTransition(async () => {
       try {
         const result = await invoiceCurrentMonth(projectId);
-        if (handleInvoiceError(result, t("pages.projects.finish.invoiceRequested"))) {
+        if (await handleInvoiceError(result, t("pages.projects.finish.invoiceRequested"))) {
           return;
         }
         if (result.invoice.compiled === 0 && !result.invoice.error) {
@@ -151,7 +165,7 @@ export function useProjectLifecycleActions({
       try {
         const result = await finishProject(projectId, formData);
         if (
-          handleInvoiceError(
+          await handleInvoiceError(
             result,
             isRegularContract
               ? t("pages.projects.finish.contractEnded")
@@ -186,12 +200,19 @@ export function useProjectLifecycleActions({
     });
   }
 
-  function endOrFinish() {
-    const confirmed = window.confirm(
-      isRegularContract
+  async function endOrFinish() {
+    const confirmed = await confirm({
+      title: isRegularContract
+        ? t("pages.projects.finish.endContract")
+        : t("pages.projects.finish.finishProject"),
+      description: isRegularContract
         ? t("pages.projects.finish.confirmEndContract", { name: projectName })
-        : t("pages.projects.finish.confirmFinishNamed", { name: projectName })
-    );
+        : t("pages.projects.finish.confirmFinishNamed", { name: projectName }),
+      confirmLabel: isRegularContract
+        ? t("pages.projects.finish.endContract")
+        : t("pages.projects.finish.finishProject"),
+      tone: "danger",
+    });
     if (!confirmed) return;
     if (requiresLastMonth || requiresLastDay) {
       setLastDayOpen(true);

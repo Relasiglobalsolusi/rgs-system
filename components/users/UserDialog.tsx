@@ -30,6 +30,7 @@ import {
   useHtmlFormDirty,
   type HtmlFormDirtyBaseline,
 } from "@/components/employees/employee-dialog-ui";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import {
@@ -94,6 +95,7 @@ function formatEmployeeLinkLabel(
 
 export default function UserDialog(props: Props) {
   const { t, locale } = useT();
+  const confirm = useConfirm();
   const router = useRouter();
   const showTrigger = props.showTrigger ?? true;
   const canEditUsername = props.canEditUsername ?? true;
@@ -205,12 +207,15 @@ export default function UserDialog(props: Props) {
     setBaseline(null);
   }
 
-  function handleResetAccount() {
-    const confirmed = window.confirm(
-      t("pages.users.form.resetAccountConfirm", {
+  async function handleResetAccount() {
+    const confirmed = await confirm({
+      title: t("pages.users.form.resetAccount"),
+      description: t("pages.users.form.resetAccountConfirm", {
         username: props.user.username,
-      })
-    );
+      }),
+      confirmLabel: t("pages.users.form.resetAccount"),
+      tone: "danger",
+    });
     if (!confirmed) return;
 
     startResetTransition(async () => {

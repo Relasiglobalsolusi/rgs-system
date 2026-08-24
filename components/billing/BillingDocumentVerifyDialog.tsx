@@ -90,6 +90,8 @@ type Props = {
   calloutIcon?: LucideIcon;
   /** Extra fields between file pick and callout (e.g. editable PPN rate). */
   children?: ReactNode;
+  /** Hide the Relasi Global Solusi server banner. */
+  showServerBanner?: boolean;
   error: string | null;
   pending: boolean;
   canSubmit: boolean;
@@ -122,6 +124,7 @@ export default function BillingDocumentVerifyDialog({
   callout,
   calloutIcon,
   children,
+  showServerBanner = true,
   error,
   pending,
   canSubmit,
@@ -204,9 +207,11 @@ export default function BillingDocumentVerifyDialog({
               </div>
             ) : null}
 
-            <DocumentCallout>
-              {t("pages.billing.inHouseVerifyBanner")}
-            </DocumentCallout>
+            {showServerBanner ? (
+              <DocumentCallout>
+                {t("pages.billing.inHouseVerifyBanner")}
+              </DocumentCallout>
+            ) : null}
 
             {callout ? (
               <DocumentCallout icon={calloutIcon}>{callout}</DocumentCallout>

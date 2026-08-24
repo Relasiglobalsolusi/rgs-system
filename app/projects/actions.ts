@@ -573,7 +573,7 @@ function parseRequiredMoneyField(
   label: string
 ): number {
   const amount = parseOptionalMoneyField(formData, key);
-  if (amount == null || amount < 0) {
+  if (amount == null || amount <= 0) {
     throw new Error(`${label} is required.`);
   }
   return amount;
@@ -985,6 +985,13 @@ export async function createProject(formData: FormData) {
     const serviceFields = isService
       ? parseServiceCommercialFields(formData, subCategory)
       : null;
+    const contractPrice = isService
+      ? serviceFields?.contractPrice ?? null
+      : parseRequiredMoneyField(
+          formData,
+          "contractPrice",
+          "Contract price"
+        );
     if (subCategory === "PAYROLL_MANAGEMENT" && endDate) {
       const cutoff = serviceFields?.payrollCutoffEndDay;
       if (cutoff != null) {
@@ -1011,9 +1018,7 @@ export async function createProject(formData: FormData) {
           billingPeriodBasis,
           billingCycleStartDay,
           billingCycleEndDay,
-          // Cleaning contract price is set later in Invoice and Billing.
-          // Security / Parking / Payroll store commercial terms at create.
-          contractPrice: serviceFields?.contractPrice ?? null,
+          contractPrice,
           setupCost: serviceFields?.setupCost ?? null,
           profitSharePercent: serviceFields?.profitSharePercent ?? null,
           monthlyClientFee: serviceFields?.monthlyClientFee ?? null,
@@ -1059,7 +1064,7 @@ export async function createProject(formData: FormData) {
           // Prefer real start; fall back to estimate for schedule anchoring.
           startDate: startDate ?? estimatedStartDate,
           installmentPercents: milestoneInstallments,
-          contractPrice: null,
+          contractPrice,
           bankAccountId,
         });
       }
@@ -1565,6 +1570,13 @@ export async function updateProject(id: string, formData: FormData) {
     const serviceFields = isService
       ? parseServiceCommercialFields(formData, subCategory)
       : null;
+    const contractPrice = isService
+      ? serviceFields?.contractPrice ?? null
+      : parseRequiredMoneyField(
+          formData,
+          "contractPrice",
+          "Contract price"
+        );
     if (subCategory === "PAYROLL_MANAGEMENT" && endDate) {
       const cutoff = serviceFields?.payrollCutoffEndDay;
       if (cutoff != null) {
@@ -1608,11 +1620,9 @@ export async function updateProject(id: string, formData: FormData) {
           chargedTaxKind,
           pphRatePercent,
           otherTaxName,
-          // Milestone: preserve price set in billing. Service: persist form terms.
-          // Cleaning non-milestone: clear contract price.
+          contractPrice,
           ...(isService
             ? {
-                contractPrice: serviceFields?.contractPrice ?? null,
                 setupCost: serviceFields?.setupCost ?? null,
                 profitSharePercent: serviceFields?.profitSharePercent ?? null,
                 monthlyClientFee: serviceFields?.monthlyClientFee ?? null,
@@ -1627,32 +1637,18 @@ export async function updateProject(id: string, formData: FormData) {
                 payrollCutoffEndDay: serviceFields?.payrollCutoffEndDay ?? null,
                 payrollTaxPercent: serviceFields?.payrollTaxPercent ?? null,
               }
-            : isMilestoneSubCategory(subCategory)
-              ? {
-                  setupCost: null,
-                  profitSharePercent: null,
-                  monthlyClientFee: null,
-                  memberParkingUnitFee: null,
-                  memberParkingUnitCount: null,
-                  parkingTaxPercent: null,
-                  serviceFeePercent: null,
-                  payrollCutoffStartDay: null,
-                  payrollCutoffEndDay: null,
-                  payrollTaxPercent: null,
-                }
-              : {
-                  contractPrice: null,
-                  setupCost: null,
-                  profitSharePercent: null,
-                  monthlyClientFee: null,
-                  memberParkingUnitFee: null,
-                  memberParkingUnitCount: null,
-                  parkingTaxPercent: null,
-                  serviceFeePercent: null,
-                  payrollCutoffStartDay: null,
-                  payrollCutoffEndDay: null,
-                  payrollTaxPercent: null,
-                }),
+            : {
+                setupCost: null,
+                profitSharePercent: null,
+                monthlyClientFee: null,
+                memberParkingUnitFee: null,
+                memberParkingUnitCount: null,
+                parkingTaxPercent: null,
+                serviceFeePercent: null,
+                payrollCutoffStartDay: null,
+                payrollCutoffEndDay: null,
+                payrollTaxPercent: null,
+              }),
           paymentTermsDays,
           bankAccountId,
           clientId: clientId || null,

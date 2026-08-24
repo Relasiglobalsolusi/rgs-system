@@ -12,6 +12,7 @@ import {
   clientReviseBillingReview,
 } from "@/app/billing/reconciliation/actions";
 import ProofLightbox from "@/components/ui/ProofLightbox";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { FileDropField } from "@/components/ui/FileDropField";
 import { useT } from "@/lib/i18n/use-t";
@@ -34,6 +35,7 @@ export default function ClientBillingReviewActions({
   showHoRejection,
 }: Props) {
   const { t } = useT();
+  const confirm = useConfirm();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [reviseOpen, setReviseOpen] = useState(false);
@@ -41,14 +43,13 @@ export default function ClientBillingReviewActions({
   const [proof, setProof] = useState<File | null>(null);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
-  function approve() {
-    if (
-      !confirm(
-        t("pages.reconciliation.confirmClientApprove")
-      )
-    ) {
-      return;
-    }
+  async function approve() {
+    const confirmed = await confirm({
+      title: t("pages.reconciliation.approve"),
+      description: t("pages.reconciliation.confirmClientApprove"),
+      confirmLabel: t("pages.reconciliation.approve"),
+    });
+    if (!confirmed) return;
     startTransition(async () => {
       try {
         await clientApproveBillingReview(periodId);

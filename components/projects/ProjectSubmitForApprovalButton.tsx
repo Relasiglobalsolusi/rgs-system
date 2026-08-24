@@ -2,6 +2,7 @@
 
 import { useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { StackedChipLabel } from "@/components/ui/StatusBadge";
 import { detailActionBarButtonClassName } from "@/components/projects/detail-action-bar";
 import { useT } from "@/lib/i18n/use-t";
@@ -20,12 +21,17 @@ export default function ProjectSubmitForApprovalButton({
   size = "bar",
 }: Props) {
   const { t } = useT();
+  const confirm = useConfirm();
   const [pending, startTransition] = useTransition();
 
-  function handleSubmit() {
-    const confirmed = window.confirm(
-      `${t("pages.projects.submitForApproval.confirmTitle")}\n\n${t("pages.projects.submitForApproval.confirmDesc").replace("{name}", projectName)}`
-    );
+  async function handleSubmit() {
+    const confirmed = await confirm({
+      title: t("pages.projects.submitForApproval.confirmTitle"),
+      description: t("pages.projects.submitForApproval.confirmDesc", {
+        name: projectName,
+      }),
+      confirmLabel: t("pages.projects.submitForApproval.confirm"),
+    });
     if (!confirmed) return;
 
     startTransition(async () => {

@@ -21,6 +21,7 @@ import ProjectTimelineFields from "@/components/projects/ProjectTimelineFields";
 import PaymentTermsField from "@/components/billing/PaymentTermsField";
 import CompanyBankAccountField from "@/components/company-details/CompanyBankAccountField";
 import type { CompanyBankAccountOption } from "@/lib/company-bank-accounts";
+import ExclusiveContractPriceField from "@/components/projects/ExclusiveContractPriceField";
 import ServiceCommercialFields from "@/components/projects/ServiceCommercialFields";
 import {
   employeeDialogFieldClass,
@@ -853,6 +854,13 @@ export default function ProjectFormFields({
               : t("pages.projects.pphRatePercentHint")}
           </p>
         </div>
+      ) : null}
+
+      {!isService ? (
+        <ExclusiveContractPriceField
+          id={idOf("contract-price")}
+          name={nameOf("contractPrice")}
+        />
       ) : null}
 
       <div className={employeeDialogFieldClass}>

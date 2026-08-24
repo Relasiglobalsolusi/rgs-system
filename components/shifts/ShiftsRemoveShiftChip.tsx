@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { removeProjectShift } from "@/app/shifts/actions";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { showRejectionFromError } from "@/components/ui/rejection-notice";
 import { useT } from "@/lib/i18n/use-t";
@@ -21,15 +22,19 @@ export default function ShiftsRemoveShiftChip({
   endTime?: string | null;
 }) {
   const { t } = useT();
+  const confirm = useConfirm();
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const label = formatProjectShiftLabel({ number, startTime, endTime });
 
   async function handleClick() {
     if (pending) return;
-    const confirmed = window.confirm(
-      t("pages.shifts.removeShiftConfirm", { shift: label })
-    );
+    const confirmed = await confirm({
+      title: t("pages.shifts.removeShift"),
+      description: t("pages.shifts.removeShiftConfirm", { shift: label }),
+      confirmLabel: t("pages.shifts.remove"),
+      tone: "danger",
+    });
     if (!confirmed) return;
     const formData = new FormData();
     formData.set("shiftId", shiftId);

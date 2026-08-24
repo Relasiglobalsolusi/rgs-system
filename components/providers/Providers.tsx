@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { LocaleProvider } from "@/components/providers/LocaleProvider";
 import { SessionProvider } from "@/components/providers/SessionProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
+import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 import { RejectionNoticeHost } from "@/components/ui/rejection-notice";
 import { Toaster } from "@/components/ui/sonner";
 import type { AppLocale } from "@/lib/i18n/locale";
@@ -23,9 +24,11 @@ export function Providers({
     <SessionProvider session={session}>
       <ThemeProvider>
         <LocaleProvider initialLocale={initialLocale}>
-          {children}
-          <RejectionNoticeHost />
-          <Toaster />
+          <ConfirmProvider>
+            {children}
+            <RejectionNoticeHost />
+            <Toaster />
+          </ConfirmProvider>
         </LocaleProvider>
       </ThemeProvider>
     </SessionProvider>

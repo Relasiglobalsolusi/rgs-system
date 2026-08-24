@@ -37,6 +37,7 @@ import {
   STATUS_COLUMN_WIDTH,
   trashActionChipClassName,
 } from "@/components/ui/trash-action-buttons";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { localizeInventoryItemType } from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
@@ -49,6 +50,7 @@ type Props = {
 
 export default function ItemCatalogDirectory({ canManage, items }: Props) {
   const { t, locale } = useT();
+  const confirm = useConfirm();
   const [searchQuery, setSearchQuery] = useState("");
   const [createItemOpen, setCreateItemOpen] = useState(false);
   const [bulkCreateOpen, setBulkCreateOpen] = useState(false);
@@ -110,14 +112,14 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
     });
   }
 
-  function deleteItem(item: InventoryCatalogItem) {
-    if (
-      !window.confirm(
-        t("pages.itemCatalog.deleteConfirm", { name: item.name })
-      )
-    ) {
-      return;
-    }
+  async function deleteItem(item: InventoryCatalogItem) {
+    const confirmed = await confirm({
+      title: t("pages.itemCatalog.delete"),
+      description: t("pages.itemCatalog.deleteConfirm", { name: item.name }),
+      confirmLabel: t("common.actions.delete"),
+      tone: "danger",
+    });
+    if (!confirmed) return;
     const formData = new FormData();
     formData.set("id", item.id);
     startTransition(async () => {

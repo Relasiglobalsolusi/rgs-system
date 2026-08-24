@@ -32,6 +32,7 @@ import { findPriorOpenPeriodWarning } from "@/lib/billing";
 import { isContractCycleSubCategory } from "@/lib/project-contract";
 import { ChipCell } from "@/components/ui/DataTable";
 import StatusBadge, { StackedChipLabel } from "@/components/ui/StatusBadge";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { preventBrowserFileNavigation } from "@/components/ui/FileDropField";
 import ContractPriceEditor from "@/components/billing/ContractPriceEditor";
@@ -152,6 +153,7 @@ export default function ProjectBillingPanel({
   contractExtensions = [],
 }: Props) {
   const { t, locale } = useT();
+  const confirm = useConfirm();
   const showExtensions = isContractCycleSubCategory(subCategory);
   const showPeriodBasisUi = isContractCycleSubCategory(subCategory);
   const [paymentDialogPeriodId, setPaymentDialogPeriodId] = useState<
@@ -243,7 +245,7 @@ export default function ProjectBillingPanel({
     );
   }
 
-  function confirmDeletePeriod(period: BillingPeriodRow) {
+  async function confirmDeletePeriod(period: BillingPeriodRow) {
     const label =
       formatInvoicePeriodLabel(period, { projectName, billingMode, locale }) ||
       period.label ||
@@ -262,7 +264,13 @@ export default function ProjectBillingPanel({
       ? t("pages.billing.deleteIssuedInvoiceConfirm", { label })
       : t("pages.billing.deletePeriodConfirm", { label });
 
-    if (!window.confirm(message)) return;
+    const confirmed = await confirm({
+      title: t("common.actions.delete"),
+      description: message,
+      confirmLabel: t("common.actions.delete"),
+      tone: "danger",
+    });
+    if (!confirmed) return;
 
     run(async () => {
       await deleteInvoicePeriod(period.id);
@@ -288,10 +296,14 @@ export default function ProjectBillingPanel({
     setVerifyDialogPeriodId(periodId);
   }
 
-  function rejectPayment(periodId: string) {
-    if (!window.confirm(t("pages.billing.rejectPaymentConfirm"))) {
-      return;
-    }
+  async function rejectPayment(periodId: string) {
+    const confirmed = await confirm({
+      title: t("pages.billing.rejectPayment"),
+      description: t("pages.billing.rejectPaymentConfirm"),
+      confirmLabel: t("pages.billing.rejectPayment"),
+      tone: "danger",
+    });
+    if (!confirmed) return;
     run(async () => {
       await rejectInvoicePaymentVerification(periodId);
       router.refresh();
