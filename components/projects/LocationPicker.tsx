@@ -14,7 +14,11 @@ import {
   normalizeGoogleMapsUrl,
 } from "@/lib/google-maps-url";
 import { employeeInputClass } from "@/components/employees/employee-dialog-ui";
-import { DEFAULT_LOCATION_RADIUS_METERS } from "@/lib/geo";
+import {
+  CICO_GEOFENCE_RADIUS_METERS,
+  DEFAULT_LOCATION_RADIUS_METERS,
+  MIN_LOCATION_RADIUS_METERS,
+} from "@/lib/geo";
 import { useT } from "@/lib/i18n/use-t";
 import { fixLeafletIcons } from "@/lib/leaflet-map";
 import { cn } from "@/lib/utils";
@@ -546,8 +550,8 @@ export default function LocationPicker({
           </label>
           <Input
             type="number"
-            min={25}
-            max={2000}
+            min={MIN_LOCATION_RADIUS_METERS}
+            max={CICO_GEOFENCE_RADIUS_METERS}
             value={value.locationRadiusMeters}
             onChange={(event) =>
               onChange({

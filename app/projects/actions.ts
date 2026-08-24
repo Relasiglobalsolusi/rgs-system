@@ -108,7 +108,10 @@ import {
   lineFormDataFromPrefix,
   parseBulkLineCount,
 } from "@/lib/bulk-create";
-import { DEFAULT_LOCATION_RADIUS_METERS } from "@/lib/geo";
+import {
+  clampLocationRadiusMeters,
+  DEFAULT_LOCATION_RADIUS_METERS,
+} from "@/lib/geo";
 import { resolveProjectSiteCoordinates } from "@/lib/project-site-location";
 import {
   applyOperationsTeamAssignments,
@@ -340,8 +343,9 @@ async function parseLocationFields(formData: FormData) {
 
   const formLatitude = latitudeRaw ? Number(latitudeRaw) : null;
   const formLongitude = longitudeRaw ? Number(longitudeRaw) : null;
-  const locationRadiusMeters =
-    Number(radiusRaw) || DEFAULT_LOCATION_RADIUS_METERS;
+  const locationRadiusMeters = clampLocationRadiusMeters(
+    Number(radiusRaw) || DEFAULT_LOCATION_RADIUS_METERS
+  );
 
   if (!location) throw new Error("Location address is required.");
 
