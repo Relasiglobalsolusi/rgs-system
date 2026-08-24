@@ -149,7 +149,7 @@ type Props<T> = {
 /** Selection gutter width (matches `<col>`). */
 const SELECTION_COLUMN_WIDTH = "3.5rem";
 /** Drag-handle gutter width (matches `<col>`). */
-export const REORDER_COLUMN_WIDTH = "2.75rem";
+const REORDER_COLUMN_WIDTH = "2.75rem";
 /**
  * Floor for left-aligned columns without an explicit rem `width`.
  * Kept modest so directories with many columns still fit a wide window;

@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import type { DataTableColumn } from "@/components/ui/DataTable";
 
 /** Shared gutter column: fixed width, right border, centered checkboxes. */
-export const SELECTION_COLUMN_CLASS =
+const SELECTION_COLUMN_CLASS =
   "w-14 min-w-[3.5rem] border-r border-border/60 px-2 py-2.5 align-middle text-center [&:has([role=checkbox])]:!pr-2";
 
 type CreateSelectionColumnOptions<T> = {

@@ -156,7 +156,7 @@ export const en = {
 
   nav: {
     sections: {
-      Overview: "Overview",
+      Dashboard: "Dashboard",
       Administration: "Administration",
       Operations: "Operations",
       "Human Resources": "Human Resources",
@@ -221,7 +221,7 @@ export const en = {
     closeMenu: "Close Navigation",
     menuTitle: "Navigation",
     menuDescription:
-      "Browse sidebar sections and modules such as Overview, Administration, Operations, HR, and Finance.",
+      "Browse sidebar sections and modules such as Administration, Operations, HR, and Finance.",
     rearrange: "Rearrange Sidebar",
     rearrangeTitle: "Rearrange Sidebar",
     rearrangeDescription:
@@ -423,10 +423,6 @@ export const en = {
   pages: {
     dashboard: {
       title: "Dashboard",
-      descriptionAdmin: "Operations, projects, and team at a glance.",
-      descriptionEmployee: "Your day at a glance.",
-      descriptionClient: "Your projects and site activity at a glance.",
-      descriptionVendor: "Your invoices, tax uploads, and payment status at a glance.",
       yourBilling: "Your Billing",
       yourBillingDesc: "Metrics for your vendor account only — no company-wide data.",
       vendorInvoices: "Your invoices",
@@ -651,8 +647,6 @@ export const en = {
         profitSharePercentHint:
           "Percentage of profit shared with the client. 0 means no profit sharing — after setup fee / monthly fees we pay them, everything is for RGS.",
         monthlyClientFee: "Monthly Client Fee",
-        monthlyClientFeeHint:
-          "Monthly fees RGS pays the client for parking management (IDR).",
         memberParkingUnitFee: "Member Parking Fee Per Car",
         memberParkingUnitFeeHint:
           "Fixed monthly fee per member car. This amount is not taxed.",
@@ -1284,10 +1278,7 @@ export const en = {
     },
     clients: {
       title: "Clients",
-      description: "Manage client organizations.",
       descriptionAdmin: "Add a client organization.",
-      descriptionManage: "Manage client organizations.",
-      descriptionReadonly: "View client organizations (read-only).",
       directoryTitle: "Client Directory",
       directoryDesc:
         "Organization records, project assignments, and contact details.",
@@ -1561,10 +1552,7 @@ export const en = {
     },
     vendors: {
       title: "Vendors",
-      description: "Manage vendor and supplier organizations.",
       descriptionAdmin: "Manage vendor and supplier organizations.",
-      descriptionManage: "Manage vendor and supplier organizations.",
-      descriptionReadonly: "View vendor organizations (read-only).",
       directoryTitle: "Vendor Directory",
       directoryDesc:
         "Supplier organization records, contact details, and payment terms. Vendors are Head Office managed only — there is no vendor portal.",
@@ -1735,11 +1723,7 @@ export const en = {
     },
     employees: {
       title: "Employees",
-      description: "Manage employees across your organization.",
       descriptionAdmin: "Manage head-office and field staff records.",
-      descriptionManage:
-        "Manage employee records, departments, site assignments and employment information.",
-      descriptionReadonly: "View employee directory (read-only).",
       directoryTitle: "Employee Directory",
       directoryDesc:
         "Staff records, department assignments, and site placements. Portal login access is optional on create and managed in Users.",
@@ -2415,7 +2399,6 @@ export const en = {
         usernameTaken: "Username already in use.",
         recoveryEmailRequired: "Recovery email is required.",
         recoveryEmailTaken: "Recovery email already in use.",
-        passwordMinLength: "Password must be at least 6 characters.",
         userNotFound: "User not found.",
         companyNotFound: "Company not found.",
         reorderInvalid: "One or more users are invalid for reorder.",
@@ -2441,8 +2424,6 @@ export const en = {
           "Restore the linked client first, then use Restore Access.",
         restoreVendorFirst:
           "Restore the linked vendor first, then use Restore Access.",
-        warehouseStaffNoPortal:
-          "Warehouse Staff start without portal login. Head Office can generate a login in Users.",
         partTimeRestoreOnProjectOnly:
           "Part Time portal access is only available while assigned to a project.",
         onlyDeactivatedPermanentDelete:
@@ -2458,11 +2439,7 @@ export const en = {
     },
     billing: {
       title: "Invoice and Billing",
-      description: "Track client invoices, due dates, and payment history.",
       taxInvoice: "Tax",
-      taxInvoiceDescription:
-        "Value Added Tax, Income Tax credits, and other tax paid or withheld. Output VAT is what you charge clients. Input VAT and prepaid Income Tax are credits you use later.",
-      taxInvoiceClientDesc: "Tax invoices for this client.",
       ppnKeluaran: "Output VAT",
       purchase: "Expenses",
       purchaseDescription:
@@ -2474,8 +2451,6 @@ export const en = {
         "Due dates and open/overdue status for vendor bills (from vendor payment terms).",
       vendorPaymentsTitle: "Payment & Settlement",
       settlementsTitle: "Payment & Settlement",
-      settlementsDesc:
-        "Collections from clients and payables to vendors — due and unpaid status.",
       settlementsCollections: "Collections (AR)",
       settlementsCollectionsDesc:
         "Client invoices awaiting payment or verification.",
@@ -2504,8 +2479,6 @@ export const en = {
       vendorStatusPaid: "Paid",
       purchaseCount: "{count} purchase invoice(s)",
       purchasePeriod: "Period",
-      purchaseAllDays: "Whole Month",
-      purchaseDayOption: "{day}",
       expenseReportDownload: "Download Expense Report",
       expenseReportTitle: "Expense Report",
       expenseReportHint: "Expenses by invoice date for the selected period.",
@@ -3141,7 +3114,6 @@ export const en = {
       openInProgress: "Open In Progress",
       searchClients: "Search clients...",
       searchProjects: "Search projects...",
-      clientProjectsDesc: "Ongoing projects with billing for this client.",
       awaitingOrLate: "Awaiting Payment or late",
       noTaxPending: "No Tax Invoices pending",
       noTaxPendingDesc:
@@ -3496,8 +3468,6 @@ export const en = {
       openTaxInvoices: "Open Tax Invoice",
       openPurchases: "Open Purchases",
       taxDetail: "Tax Details",
-      taxDetailOutputDesc: "Output Value Added Tax on this invoice period.",
-      taxDetailCreditDesc: "Tax on this expense — credits, withholdings, and documents.",
       backToTax: "Back To Tax",
       relatedExpense: "This Expense",
       relatedBilling: "Project Billing",
@@ -3520,8 +3490,6 @@ export const en = {
       permissionDenied: "You do not have permission to record sales.",
       loadFailed: "Could not load sales.",
       period: "Sale Period",
-      allDays: "Whole Month",
-      dayOption: "{day}",
       salesReportDownload: "Download Sales Report",
       salesReportTitle: "Sales Report",
       salesReportHint: "Sales by sale date for the selected period.",
@@ -3587,9 +3555,6 @@ export const en = {
       filterBank: "Bank Account",
       filterBankAll: "All Banks",
       filterBankUnassigned: "Unassigned",
-      receiptsByBank: "Receipts By Bank",
-      receiptsByBankHint:
-        "Client invoice payments and sale receipts grouped by the account they were paid to.",
       rangeHint:
         "Income uses the calendar period. Wages use the 16th–15th payroll window for that same month or year. Unpaid vendor bills are Accounts Payable, not expenses.",
       periodNet: "Period Profit",
@@ -3602,11 +3567,7 @@ export const en = {
       clientsStillOwe: "Accounts Receivable",
       weStillOweVendors: "Accounts Payable",
       bpjsKesehatan: "BPJS Kesehatan",
-      bpjsKesehatanHint:
-        "This month’s company contribution for enrolled employees. Statutory payable — not yet matched to a payment.",
       bpjsKetenagakerjaan: "BPJS Ketenagakerjaan",
-      bpjsKetenagakerjaanHint:
-        "This month’s company contribution for JHT, JP, JKK, and JKM. Statutory payable — not yet matched to a payment.",
       bpjsEmployeeCount: "{count} enrolled employees",
       bpjsEmployeesTitle: "Enrolled Employees",
       bpjsEmployeeDetailTitle: "Employee Contribution",
@@ -3656,15 +3617,11 @@ export const en = {
       sameDaySplitNote:
         "Worked {count} sites today — day's pay split equally.",
       doubleShiftNote: "Double shift — two daily rates for this day.",
-      clientProjectsDesc: "Project financial summary for this client.",
-      projectDetailDesc: "P&L for {client}.",
       totalClients: "Total Clients",
       withProjects: "With Projects",
       totalContractValue: "Total Contract Value",
       acrossClients: "Across Clients",
       totalProfit: "Total Profit",
-      detailDescription:
-        "A closer look at the number you clicked. Change the period above to refresh these figures.",
       detail: {
         periodNet: "Period Profit Detail",
         netPosition: "Net Position Detail",
@@ -3859,7 +3816,6 @@ export const en = {
         "Banks usually hold a standby facility in a dedicated account. Choose Yes only after money was withdrawn into a company bank account.",
       moneyDrawn: "Money Drawn",
       initialDrawAmount: "Amount Received",
-      initialDrawRequired: "Enter the amount already received.",
       initialDrawDate: "Draw Date",
       initialDrawDateHint:
         "The date the money actually entered the company account. This can be after the loan start date.",
@@ -3973,11 +3929,7 @@ export const en = {
       emptyDesc:
         "Enroll full-time employees under Employees to see Kesehatan and Ketenagakerjaan here.",
       backToBpjs: "BPJS",
-      detailDescription:
-        "Enrolled employees for this program. Payments are recorded in Expenses.",
       employeesEmpty: "No enrolled employees for this program.",
-      employeeDetailDescription:
-        "This employee’s BPJS shares, wage base, and program lines for the selected month.",
       hiredAt: "Joined",
       tenure: "Tenure",
       basePay: "Base Pay",
@@ -4268,12 +4220,6 @@ export const en = {
       title: "Progress Report",
       description:
         "Site photo reports for cleaning staff (Cleaning Staff, GC Staff, In-House Cleaning). Upload while on shift — check-out is blocked until at least one report is submitted for the project.",
-      feedDescription:
-        "Open a project, choose a day, then filter by employee. Download a monthly report after the month ends.",
-      clientFeedDescription:
-        "Open a project to view notes and photos for your sites. Download a monthly report after the month ends.",
-      chooseClientHint:
-        "Select a client, then a project. Search clients, then search projects.",
       chooseProject: "Choose Project",
       chooseProjectHint:
         "View-only feed — open a project to monitor reports as photos are uploaded.",
@@ -4286,7 +4232,6 @@ export const en = {
       internalSection: "Internal",
       internalSectionDesc: "Head Office and Warehouse.",
       internalSiteHint: "Internal Site",
-      clientProjectsDesc: "Choose a project to view the Progress Report.",
       noClients: "No Clients",
       noClientsDesc: "No clients with accessible projects were found.",
       noClientsMatch: "No clients match your search.",
@@ -4449,10 +4394,6 @@ export const en = {
         "CICO is only available for Active staff. Contact Head Office if your status should be updated.",
       onProjectOnlyMessage:
         "Field CICO is available while you are On Project and assigned to a cleaning site. In-House Cleaning Staff: assign them to the Internal Head Office or Warehouse project first. Warehouse Supervisor and Corporate desk staff use office CICO.",
-      descriptionDetail:
-        "Check-In / Check-Out at your assigned cleaning project site using GPS and on-site photos.",
-      officeDescription:
-        "Office clock at Head Office or Warehouse. GPS and photo required. Hours 09:00–17:00 (15 min late grace).",
       errors: {
         notAssigned: "You are not assigned to this project.",
         backupWindow:
@@ -4562,10 +4503,6 @@ export const en = {
         checkOut: "Check-Out"
       },
       adminPreview: {
-        pageDescription:
-          "Preview the field check-in flow and monitor today's site CICO activity.",
-        fieldPageDescription:
-          "Use field CICO as if assigned to a project and monitor today's site activity.",
         bannerTitle: "Preview Mode — Check-In Disabled",
         bannerBody:
           "Head Office accounts can review today's CICO activity and the field worker layout here. Operational check-in and check-out remain for Active On Project cleaning staff only.",
@@ -4616,8 +4553,6 @@ export const en = {
       title: "Shifts",
       description:
         "Choose a client, then a project site. Add named shifts, assign staff, assign each person to Shift 1–4, or assign a double shift or backup. Check-in and check-out still record actual punch times.",
-      clientProjectsDesc:
-        "Choose a project site to manage shifts and assign staff.",
       breadcrumbAria: "Shifts Navigation",
       searchClients: "Search Clients",
       searchProjects: "Search Projects",
@@ -4694,8 +4629,6 @@ export const en = {
       assignmentDescription:
         "Create teams by service area, then add permanent employees to each roster.",
       availabilityTitle: "Team Availability",
-      availabilityDescription:
-        "See which teams are available and which are on a site this month.",
       addTeam: "Add Team",
       editTeam: "Edit Team",
       deleteTeam: "Delete Team",
@@ -4718,7 +4651,6 @@ export const en = {
       memberCountOne: "1 member",
       statusAvailable: "Available",
       statusOnSite: "On Site",
-      onSiteAt: "On Site · {project}",
       createFailed: "Could not create the team.",
       updateFailed: "Could not update the team.",
       deleteFailed: "Could not delete the team.",
@@ -4745,8 +4677,6 @@ export const en = {
     },
     leaves: {
       title: "Leave & Sick",
-      descriptionEmployee: "Submit and track your permission and sick leave requests.",
-      descriptionManager: "View leave and sick requests for your team.",
       submitRequest: "Submit Request",
       newRequest: "New Request",
       filterAll: "All",
@@ -4946,8 +4876,6 @@ export const en = {
       directoryTitle: "Clients & Sites",
       directoryDesc:
         "Browse clients and internal sites. Open a project for its warehouse queue and transfer-order history.",
-      clientProjectsDesc:
-        "Choose a project to open its warehouse queue and transfer-order history.",
       breadcrumbAria: "Transfer orders navigation",
       searchClients: "Search clients...",
       searchProjects: "Search projects...",
@@ -5056,10 +4984,6 @@ export const en = {
     },
     inventory: {
       title: "Inventory",
-      description: "Stock levels, stock receipts, and project issues.",
-      descriptionManage:
-        "Record stock receipts and issue items to projects.",
-      descriptionReadonly: "View stock levels, stock receipts, and project issues.",
       companyNotFound: "Company not found.",
       permissionDenied: "You do not have permission to manage inventory.",
       assignPermissionDenied:
@@ -5321,7 +5245,6 @@ export const en = {
       vehicles: {
         clickHint: "Click a vehicle to see and edit its plate, year, and details.",
         back: "Back To Inventory",
-        detailDescription: "Plate, year, date bought, and vehicle details.",
         locationCompany: "Company",
         updated: "Vehicle updated.",
         updateFailed: "Could not update this vehicle.",
@@ -5605,10 +5528,6 @@ export const en = {
     },
     itemCatalog: {
       title: "Goods Catalog",
-      description: "Master list of goods types: stock, equipment, and vehicles.",
-      descriptionManage:
-        "Create and maintain goods types before recording expenses or stock receipts.",
-      descriptionReadonly: "View the goods catalog.",
       directoryTitle: "Goods Catalog",
       directoryDesc:
         "Define goods types and SKUs used by Inventory and expenses.",

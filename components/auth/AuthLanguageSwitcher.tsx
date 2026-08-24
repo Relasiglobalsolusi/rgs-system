@@ -13,17 +13,10 @@ import { cn } from "@/lib/utils";
 
 const OPTIONS: {
   value: AppLocale;
-  short: string;
-  compact: string;
   labelKey: "header.english" | "header.bahasaIndonesia";
 }[] = [
-  { value: "en", short: "EN", compact: "English", labelKey: "header.english" },
-  {
-    value: "id",
-    short: "ID",
-    compact: "Bahasa Indonesia",
-    labelKey: "header.bahasaIndonesia",
-  },
+  { value: "en", labelKey: "header.english" },
+  { value: "id", labelKey: "header.bahasaIndonesia" },
 ];
 
 export default function AuthLanguageSwitcher() {
@@ -40,28 +33,19 @@ export default function AuthLanguageSwitcher() {
             className="auth-lang-module__trigger"
             aria-label={`${t("header.language")}: ${currentLabel}`}
           >
-            <span className="auth-lang-module__icon" aria-hidden>
-              <Languages size={15} strokeWidth={1.75} />
-            </span>
-            <span className="auth-lang-module__copy">
+            <Languages size={16} strokeWidth={2} aria-hidden />
+            <span className="auth-lang-module__text">
               <span className="auth-lang-module__label">
                 {t("header.language")}
               </span>
-              <span className="auth-lang-module__value">
-                <span className="auth-lang-module__value-short">
-                  {current.short}
-                </span>
-                <span className="auth-lang-module__value-full">
-                  {current.compact}
-                </span>
-                <ChevronDown
-                  className="auth-lang-module__chevron"
-                  size={13}
-                  strokeWidth={2}
-                  aria-hidden
-                />
-              </span>
+              <span className="auth-lang-module__value">{currentLabel}</span>
             </span>
+            <ChevronDown
+              className="auth-lang-module__chevron"
+              size={16}
+              strokeWidth={2.25}
+              aria-hidden
+            />
           </button>
         </MenuTrigger>
 
@@ -84,10 +68,7 @@ export default function AuthLanguageSwitcher() {
                   if (!selected) setLocale(option.value);
                 }}
               >
-                <span className="auth-lang-menu__meta">
-                  <span className="auth-lang-menu__code">{option.short}</span>
-                  <span className="auth-lang-menu__name">{fullLabel}</span>
-                </span>
+                <span className="auth-lang-menu__name">{fullLabel}</span>
                 <Check
                   className={cn(
                     "auth-lang-menu__check",

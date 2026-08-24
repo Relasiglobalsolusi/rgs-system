@@ -136,10 +136,11 @@ function isChildActive(
 function usePersistedExpanded(
   storageKey: string,
   getSaved: (key: string) => boolean | null,
-  setSaved: (key: string, expanded: boolean) => void
+  setSaved: (key: string, expanded: boolean) => void,
+  defaultExpanded: boolean
 ) {
-  // Default expanded; hydrate saved preference after mount (avoid SSR mismatch).
-  const [expanded, setExpanded] = useState(true);
+  // Hydrate saved preference after mount (avoid SSR mismatch).
+  const [expanded, setExpanded] = useState(defaultExpanded);
 
   useEffect(() => {
     const saved = getSaved(storageKey);
@@ -241,7 +242,8 @@ function MenuItemRow({
   const { expanded, toggleExpanded } = usePersistedExpanded(
     navKey,
     getSidebarItemExpanded,
-    setSidebarItemExpanded
+    setSidebarItemExpanded,
+    true
   );
 
   return (
@@ -294,7 +296,7 @@ function MenuItemRow({
                 ? t("nav.collapse", { label })
                 : t("nav.expand", { label })
             }
-            aria-expanded={expanded}
+            aria-expanded={expanded ? "true" : "false"}
             onClick={toggleExpanded}
             className={`ml-1 rounded-lg transition duration-300 ${
               mobile ? "flex h-10 w-10 items-center justify-center" : "p-1"
@@ -344,7 +346,67 @@ function MenuItemRow({
   );
 }
 
+function BareMenuSection({
+  section,
+  allItemHrefs,
+  onNavigate,
+  mobile,
+}: {
+  section: MenuSection;
+  allItemHrefs: string[];
+  onNavigate?: () => void;
+  mobile?: boolean;
+}) {
+  return (
+    <div className={mobile ? "mb-4" : "mb-5"}>
+      <div className={mobile ? "space-y-0.5" : "space-y-1"}>
+        {section.items.map((item) => (
+          <MenuItemRow
+            key={getMenuItemNavKey(item)}
+            item={item}
+            allItemHrefs={allItemHrefs}
+            onNavigate={onNavigate}
+            mobile={mobile}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function MenuSectionBlock({
+  section,
+  allItemHrefs,
+  onNavigate,
+  mobile,
+}: {
+  section: MenuSection;
+  allItemHrefs: string[];
+  onNavigate?: () => void;
+  mobile?: boolean;
+}) {
+  if (section.bare) {
+    return (
+      <BareMenuSection
+        section={section}
+        allItemHrefs={allItemHrefs}
+        onNavigate={onNavigate}
+        mobile={mobile}
+      />
+    );
+  }
+
+  return (
+    <CollapsibleMenuSection
+      section={section}
+      allItemHrefs={allItemHrefs}
+      onNavigate={onNavigate}
+      mobile={mobile}
+    />
+  );
+}
+
+function CollapsibleMenuSection({
   section,
   allItemHrefs,
   onNavigate,
@@ -360,7 +422,8 @@ function MenuSectionBlock({
   const { expanded, toggleExpanded } = usePersistedExpanded(
     section.title,
     getSidebarSectionExpanded,
-    setSidebarSectionExpanded
+    setSidebarSectionExpanded,
+    false
   );
 
   return (
@@ -372,7 +435,7 @@ function MenuSectionBlock({
             ? t("nav.collapse", { label: title })
             : t("nav.expand", { label: title })
         }
-        aria-expanded={expanded}
+        aria-expanded={expanded ? "true" : "false"}
         onClick={toggleExpanded}
         className={`group mb-2 flex w-full items-center justify-between gap-2 rounded-lg px-3 transition duration-300 hover:bg-elevated/60 ${
           mobile ? "min-h-9 py-1.5" : "mb-2.5 py-1"

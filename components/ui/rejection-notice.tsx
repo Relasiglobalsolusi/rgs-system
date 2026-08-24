@@ -27,7 +27,7 @@ function errorMessageText(error: unknown): string {
   return "";
 }
 
-export function isNetworkFetchError(error: unknown): boolean {
+function isNetworkFetchError(error: unknown): boolean {
   const message = errorMessageText(error).toLowerCase();
   if (!message) return false;
   return (
@@ -124,7 +124,7 @@ export function showRejectionFromError(
   });
 }
 
-export function closeRejectionNotice() {
+function closeRejectionNotice() {
   if (!noticeState.open) return;
   noticeState = EMPTY;
   emit();

@@ -14,12 +14,10 @@ import { cn } from "@/lib/utils";
 
 const OPTIONS: {
   value: AppTheme;
-  short: string;
-  compact: string;
   labelKey: "header.light" | "header.dark";
 }[] = [
-  { value: "light", short: "LT", compact: "Light", labelKey: "header.light" },
-  { value: "dark", short: "DK", compact: "Dark", labelKey: "header.dark" },
+  { value: "light", labelKey: "header.light" },
+  { value: "dark", labelKey: "header.dark" },
 ];
 
 export default function AuthThemeSwitcher() {
@@ -38,28 +36,19 @@ export default function AuthThemeSwitcher() {
             className="auth-lang-module__trigger"
             aria-label={`${t("header.theme")}: ${currentLabel}`}
           >
-            <span className="auth-lang-module__icon" aria-hidden>
-              <ThemeIcon size={15} strokeWidth={1.75} />
-            </span>
-            <span className="auth-lang-module__copy">
+            <ThemeIcon size={16} strokeWidth={2} aria-hidden />
+            <span className="auth-lang-module__text">
               <span className="auth-lang-module__label">
                 {t("header.theme")}
               </span>
-              <span className="auth-lang-module__value">
-                <span className="auth-lang-module__value-short">
-                  {current.short}
-                </span>
-                <span className="auth-lang-module__value-full">
-                  {currentLabel}
-                </span>
-                <ChevronDown
-                  className="auth-lang-module__chevron"
-                  size={13}
-                  strokeWidth={2}
-                  aria-hidden
-                />
-              </span>
+              <span className="auth-lang-module__value">{currentLabel}</span>
             </span>
+            <ChevronDown
+              className="auth-lang-module__chevron"
+              size={16}
+              strokeWidth={2.25}
+              aria-hidden
+            />
           </button>
         </MenuTrigger>
 
@@ -82,10 +71,7 @@ export default function AuthThemeSwitcher() {
                   if (!selected) setTheme(option.value);
                 }}
               >
-                <span className="auth-lang-menu__meta">
-                  <span className="auth-lang-menu__code">{option.short}</span>
-                  <span className="auth-lang-menu__name">{fullLabel}</span>
-                </span>
+                <span className="auth-lang-menu__name">{fullLabel}</span>
                 <Check
                   className={cn(
                     "auth-lang-menu__check",

@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 export const DOCUMENT_FILE_ACCEPT =
   "image/jpeg,image/png,image/webp,image/gif,application/pdf,image/*,.pdf";
 
-export function isFileDrag(event: { dataTransfer?: DataTransfer | null }) {
+function isFileDrag(event: { dataTransfer?: DataTransfer | null }) {
   const types = event.dataTransfer?.types;
   if (!types) return false;
   return Array.from(types).includes("Files");
@@ -28,7 +28,7 @@ export function preventBrowserFileNavigation(event: DragEvent) {
   event.preventDefault();
 }
 
-export function fileMatchesAccept(file: File, accept: string) {
+function fileMatchesAccept(file: File, accept: string) {
   const tokens = accept
     .split(",")
     .map((token) => token.trim().toLowerCase())

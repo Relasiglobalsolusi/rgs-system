@@ -12,7 +12,7 @@ import {
  *
  * New shape:
  *   {
- *     sectionOrder: ["Overview", "Administration", …],
+ *     sectionOrder: ["Dashboard", "Administration", …],
  *     sections: { "Operations": ["projects", …] },
  *     children: { projects: ["/projects", …] }
  *   }
@@ -24,7 +24,7 @@ import {
  * items share a module — e.g. `taxInvoices`).
  */
 export type SidebarOrder = {
-  /** Ordered section titles (Overview, Administration, …). */
+  /** Ordered section titles (Dashboard, Administration, …). */
   sectionOrder: string[];
   sections: Record<string, string[]>;
   /** Nav/module key → ordered child hrefs within that parent. */
@@ -46,6 +46,9 @@ const ADMIN_NAV_KEYS = new Set(["itemCatalog", "settings"]);
 
 /** Nav keys that moved from Human Resources → Operations. */
 const OPS_FROM_HR_NAV_KEYS = new Set(["approvals"]);
+
+const LEGACY_OVERVIEW_TITLE = "Overview";
+const DASHBOARD_SECTION_TITLE = "Dashboard";
 
 const NAV_KEY_SET = new Set<string>([...MODULES, ...EXTRA_MENU_NAV_KEYS]);
 
@@ -168,6 +171,45 @@ function cleanHrefList(keys: unknown): string[] {
   return cleaned;
 }
 
+function renameSectionKey(
+  sections: Record<string, string[]>,
+  from: string,
+  to: string
+): Record<string, string[]> {
+  if (!(from in sections) || from === to) return sections;
+  const next = { ...sections };
+  const incoming = next[from] ?? [];
+  delete next[from];
+  const existing = next[to] ?? [];
+  const seen = new Set(existing);
+  const merged = [...existing];
+  for (const key of incoming) {
+    if (!seen.has(key)) {
+      merged.push(key);
+      seen.add(key);
+    }
+  }
+  if (merged.length > 0) next[to] = merged;
+  return next;
+}
+
+function migrateOverviewSectionTitle(titles: unknown): unknown {
+  if (!Array.isArray(titles)) return titles;
+  return titles.map((title) =>
+    title === LEGACY_OVERVIEW_TITLE ? DASHBOARD_SECTION_TITLE : title
+  );
+}
+
+function pinBareSections(sections: MenuSection[]): MenuSection[] {
+  const bare: MenuSection[] = [];
+  const rest: MenuSection[] = [];
+  for (const section of sections) {
+    if (section.bare) bare.push(section);
+    else rest.push(section);
+  }
+  return [...bare, ...rest];
+}
+
 function cleanSectionTitles(titles: unknown): string[] {
   if (!Array.isArray(titles)) return [];
   const seen = new Set<string>();
@@ -208,7 +250,12 @@ export function parseSidebarOrder(value: unknown): SidebarOrder | null {
       if (cleaned.length > 0) sections[section] = cleaned;
     }
     if (Object.keys(sections).length === 0) return null;
-    let migrated = migrateHrSectionItems(sections);
+    let migrated = renameSectionKey(
+      sections,
+      LEGACY_OVERVIEW_TITLE,
+      DASHBOARD_SECTION_TITLE
+    );
+    migrated = migrateHrSectionItems(migrated);
     migrated = migrateCatalogToAdmin(migrated);
     migrated = migrateApprovalsToOps(migrated);
     return {
@@ -220,7 +267,9 @@ export function parseSidebarOrder(value: unknown): SidebarOrder | null {
 
   const sectionsRaw = value.sections;
   const childrenRaw = value.children;
-  const sectionOrder = cleanSectionTitles(value.sectionOrder);
+  const sectionOrder = cleanSectionTitles(
+    migrateOverviewSectionTitle(value.sectionOrder)
+  );
   let sections: Record<string, string[]> = {};
   const children: Record<string, string[]> = {};
 
@@ -231,6 +280,11 @@ export function parseSidebarOrder(value: unknown): SidebarOrder | null {
     }
   }
 
+  sections = renameSectionKey(
+    sections,
+    LEGACY_OVERVIEW_TITLE,
+    DASHBOARD_SECTION_TITLE
+  );
   sections = migrateHrSectionItems(sections);
   sections = migrateCatalogToAdmin(sections);
   sections = migrateApprovalsToOps(sections);
@@ -378,7 +432,9 @@ export function applySidebarOrder(
     return { ...section, items };
   });
 
-  return reorderSections(withOrderedItems, order.sectionOrder);
+  return pinBareSections(
+    reorderSections(withOrderedItems, order.sectionOrder)
+  );
 }
 
 /** Single DB round-trip for JWT refresh (moduleOverrides + sidebarOrder). */

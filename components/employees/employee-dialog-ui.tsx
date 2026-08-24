@@ -103,7 +103,7 @@ export type HtmlFormDirtyBaseline = {
   controlled: string;
 };
 
-export function serializeHtmlForm(form: HTMLFormElement): string {
+function serializeHtmlForm(form: HTMLFormElement): string {
   const entries: [string, string][] = [];
   const formData = new FormData(form);
 
@@ -398,7 +398,7 @@ function readFormField(form: HTMLFormElement, name: string): string {
   return "";
 }
 
-export function captureEmployeeFormSnapshot(
+function captureEmployeeFormSnapshot(
   form: HTMLFormElement | null,
   controlled: EmployeeControlledFormState
 ): EmployeeFormSnapshot | null {
@@ -428,7 +428,7 @@ export function captureEmployeeFormSnapshot(
   };
 }
 
-export function areEmployeeFormSnapshotsEqual(
+function areEmployeeFormSnapshotsEqual(
   left: EmployeeFormSnapshot,
   right: EmployeeFormSnapshot
 ): boolean {

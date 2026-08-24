@@ -65,6 +65,9 @@ function reorderSections(
   if (fromIndex < 0 || toIndex < 0 || toIndex >= sections.length) {
     return sections;
   }
+  if (sections[fromIndex]?.bare || sections[toIndex]?.bare) {
+    return sections;
+  }
   const next = [...sections];
   const [moved] = next.splice(fromIndex, 1);
   if (!moved) return sections;
@@ -404,6 +407,8 @@ function SortableSection({
   locale,
   t,
   canReorderSections,
+  canMoveUp,
+  canMoveDown,
   onReorderSection,
   onReorderItem,
   onReorderChildren,
@@ -414,14 +419,15 @@ function SortableSection({
   locale: AppLocale;
   t: (key: string, params?: Record<string, string | number>) => string;
   canReorderSections: boolean;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
   onReorderSection: (from: number, to: number) => void;
   onReorderItem: (sectionTitle: string, from: number, to: number) => void;
   onReorderChildren: (moduleKey: string, from: number, to: number) => void;
 }) {
   const [dragging, setDragging] = useState(false);
-  const canMoveUp = index > 0;
-  const canMoveDown = index < total - 1;
   const label = localizeNavLabel(section.title, locale);
+  const hideCategoryChrome = Boolean(section.bare);
   const onlyLockedItem =
     section.items.length <= 1 &&
     !(
@@ -454,56 +460,58 @@ function SortableSection({
           : "border-border/70 bg-inset/20"
       }`}
     >
-      <div className="mb-2.5 flex items-center gap-1.5">
-        {canReorderSections ? (
-          <button
-            type="button"
-            draggable
-            aria-label={t("nav.dragCategory", { label })}
-            title={t("nav.dragToReorder")}
-            onDragStart={(event) => {
-              setDragging(true);
-              event.dataTransfer.effectAllowed = "move";
-              event.dataTransfer.setData(
-                "text/plain",
-                JSON.stringify({
-                  kind: "section",
-                  index,
-                } satisfies SectionDragPayload)
-              );
-            }}
-            onDragEnd={() => setDragging(false)}
-            className="flex h-10 w-10 shrink-0 cursor-grab items-center justify-center rounded-lg text-subtle touch-none active:cursor-grabbing sm:h-8 sm:w-8"
-          >
-            <GripVertical size={16} aria-hidden />
-          </button>
-        ) : null}
-        <p className="min-w-0 flex-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-accent-blue/70">
-          {label}
-        </p>
-        {canReorderSections ? (
-          <div className="flex shrink-0 items-center gap-0.5">
+      {hideCategoryChrome ? null : (
+        <div className="mb-2.5 flex items-center gap-1.5">
+          {canReorderSections ? (
             <button
               type="button"
-              aria-label={t("nav.moveUp", { label })}
-              disabled={!canMoveUp}
-              onClick={() => onReorderSection(index, index - 1)}
-              className="flex h-10 w-10 items-center justify-center rounded-lg text-subtle transition hover:bg-elevated hover:text-accent-cyan disabled:cursor-not-allowed disabled:opacity-30 sm:h-8 sm:w-8"
+              draggable
+              aria-label={t("nav.dragCategory", { label })}
+              title={t("nav.dragToReorder")}
+              onDragStart={(event) => {
+                setDragging(true);
+                event.dataTransfer.effectAllowed = "move";
+                event.dataTransfer.setData(
+                  "text/plain",
+                  JSON.stringify({
+                    kind: "section",
+                    index,
+                  } satisfies SectionDragPayload)
+                );
+              }}
+              onDragEnd={() => setDragging(false)}
+              className="flex h-10 w-10 shrink-0 cursor-grab items-center justify-center rounded-lg text-subtle touch-none active:cursor-grabbing sm:h-8 sm:w-8"
             >
-              <ChevronUp size={16} />
+              <GripVertical size={16} aria-hidden />
             </button>
-            <button
-              type="button"
-              aria-label={t("nav.moveDown", { label })}
-              disabled={!canMoveDown}
-              onClick={() => onReorderSection(index, index + 1)}
-              className="flex h-10 w-10 items-center justify-center rounded-lg text-subtle transition hover:bg-elevated hover:text-accent-cyan disabled:cursor-not-allowed disabled:opacity-30 sm:h-8 sm:w-8"
-            >
-              <ChevronDown size={16} />
-            </button>
-          </div>
-        ) : null}
-      </div>
+          ) : null}
+          <p className="min-w-0 flex-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-accent-blue/70">
+            {label}
+          </p>
+          {canReorderSections ? (
+            <div className="flex shrink-0 items-center gap-0.5">
+              <button
+                type="button"
+                aria-label={t("nav.moveUp", { label })}
+                disabled={!canMoveUp}
+                onClick={() => onReorderSection(index, index - 1)}
+                className="flex h-10 w-10 items-center justify-center rounded-lg text-subtle transition hover:bg-elevated hover:text-accent-cyan disabled:cursor-not-allowed disabled:opacity-30 sm:h-8 sm:w-8"
+              >
+                <ChevronUp size={16} />
+              </button>
+              <button
+                type="button"
+                aria-label={t("nav.moveDown", { label })}
+                disabled={!canMoveDown}
+                onClick={() => onReorderSection(index, index + 1)}
+                className="flex h-10 w-10 items-center justify-center rounded-lg text-subtle transition hover:bg-elevated hover:text-accent-cyan disabled:cursor-not-allowed disabled:opacity-30 sm:h-8 sm:w-8"
+              >
+                <ChevronDown size={16} />
+              </button>
+            </div>
+          ) : null}
+        </div>
+      )}
 
       {onlyLockedItem ? (
         section.items[0] ? (
@@ -734,7 +742,13 @@ export default function SidebarRearrangeDialog({
                   total={draft.length}
                   locale={locale}
                   t={t}
-                  canReorderSections={canReorderSections}
+                  canReorderSections={canReorderSections && !section.bare}
+                  canMoveUp={
+                    index > 0 &&
+                    !section.bare &&
+                    !draft[index - 1]?.bare
+                  }
+                  canMoveDown={index < draft.length - 1 && !section.bare}
                   onReorderSection={handleReorderSection}
                   onReorderItem={handleReorder}
                   onReorderChildren={handleReorderChildren}

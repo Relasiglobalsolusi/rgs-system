@@ -15,7 +15,7 @@ const financeRecordRowClassName =
 export const financeListStatusChipClassName =
   "box-border inline-flex h-auto min-h-8 w-full min-w-0 max-w-full items-center justify-center px-2.5 py-1.5 text-center text-[0.625rem] leading-none md:min-w-[7.5rem] md:px-3 md:text-[0.6875rem]";
 
-export function FinanceRecordTitleCell({
+function FinanceRecordTitleCell({
   children,
   className,
 }: {
@@ -29,7 +29,7 @@ export function FinanceRecordTitleCell({
   );
 }
 
-export function FinanceRecordStatusCell({
+function FinanceRecordStatusCell({
   children,
   className,
 }: {
@@ -48,7 +48,7 @@ export function FinanceRecordStatusCell({
   );
 }
 
-export function FinanceRecordAmountCell({
+function FinanceRecordAmountCell({
   children,
   className,
 }: {

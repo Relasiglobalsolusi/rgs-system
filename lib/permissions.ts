@@ -273,6 +273,9 @@ export type MenuSection = {
 
   items: MenuItem[];
 
+  /** No section heading — items sit as top-level links (Dashboard). */
+  bare?: boolean;
+
 };
 
 
@@ -1204,7 +1207,9 @@ export const menu: MenuSection[] = [
 
   {
 
-    title: "Overview",
+    title: "Dashboard",
+
+    bare: true,
 
     items: [
 

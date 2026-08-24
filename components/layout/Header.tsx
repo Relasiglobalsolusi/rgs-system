@@ -8,6 +8,7 @@ import MobileNavDialog from "@/components/layout/MobileNavDialog";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { formatHeaderDate } from "@/lib/format-date";
 import type { MessageKey } from "@/lib/i18n/messages";
+import { appMinutesOfDay } from "@/lib/operating-hours";
 import { getSessionProfileLabel } from "@/lib/permissions";
 
 type HeaderProps = {
@@ -17,9 +18,11 @@ type HeaderProps = {
   greetingName?: string;
 };
 
-function getTimeGreetingKey(hour: number) {
+/** Asia/Jakarta: morning midnight–noon, afternoon noon–6 PM, evening 6 PM–midnight. */
+function getTimeGreetingKey(now: Date) {
+  const hour = Math.floor(appMinutesOfDay(now) / 60);
   if (hour < 12) return "header.goodMorning" as const;
-  if (hour < 17) return "header.goodAfternoon" as const;
+  if (hour < 18) return "header.goodAfternoon" as const;
   return "header.goodEvening" as const;
 }
 
@@ -47,7 +50,7 @@ export default function Header({
   const today = new Date();
   const greetingDate = formatHeaderDate(today, bcp47);
   const headerDateLong = formatHeaderDate(today, bcp47);
-  const timeGreeting = t(getTimeGreetingKey(today.getHours()));
+  const timeGreeting = t(getTimeGreetingKey(today));
 
   return (
     <header className="header-surface sticky top-0 z-40 w-full shrink-0">

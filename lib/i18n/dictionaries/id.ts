@@ -168,7 +168,7 @@ export const id = {
 
   nav: {
     sections: {
-      Overview: "Ringkasan",
+      Dashboard: "Dasbor",
       Administration: "Administrasi",
       Operations: "Operasional",
       "Human Resources": "Sumber Daya Manusia",
@@ -233,7 +233,7 @@ export const id = {
     closeMenu: "Tutup Navigasi",
     menuTitle: "Navigasi",
     menuDescription:
-      "Jelajahi bagian dan modul sidebar seperti Overview, Administrasi, Operasi, SDM, dan Keuangan.",
+      "Jelajahi bagian dan modul sidebar seperti Administrasi, Operasi, SDM, dan Keuangan.",
     rearrange: "Susun Ulang Sidebar",
     rearrangeTitle: "Susun Ulang Sidebar",
     rearrangeDescription:
@@ -435,11 +435,6 @@ export const id = {
   pages: {
     dashboard: {
       title: "Dasbor",
-      descriptionAdmin: "Operasional, proyek, dan tim dalam satu pandangan.",
-      descriptionEmployee: "Ringkasan hari Anda.",
-      descriptionClient: "Proyek dan aktivitas lokasi Anda dalam satu pandangan.",
-      descriptionVendor:
-        "Invoice, unggahan pajak, dan status pembayaran Anda dalam satu pandangan.",
       yourBilling: "Penagihan Anda",
       yourBillingDesc:
         "Metrik hanya untuk akun pemasok Anda — tanpa data seluruh perusahaan.",
@@ -667,8 +662,6 @@ export const id = {
         profitSharePercentHint:
           "Persentase laba yang dibagi ke klien. 0 berarti tidak ada bagi hasil — setelah biaya setup / biaya bulanan yang kami bayar ke klien, semuanya untuk RGS.",
         monthlyClientFee: "Biaya Bulanan ke Klien",
-        monthlyClientFeeHint:
-          "Biaya bulanan yang RGS bayar ke klien untuk pengelolaan parking (IDR).",
         memberParkingUnitFee: "Biaya Member Parkir Per Mobil",
         memberParkingUnitFeeHint:
           "Biaya bulanan tetap per mobil member. Jumlah ini tidak dikenai pajak.",
@@ -1305,10 +1298,7 @@ export const id = {
     },
     clients: {
       title: "Klien",
-      description: "Kelola organisasi klien.",
       descriptionAdmin: "Tambah organisasi klien.",
-      descriptionManage: "Kelola organisasi klien.",
-      descriptionReadonly: "Lihat organisasi klien (hanya baca).",
       directoryTitle: "Direktori Klien",
       directoryDesc: "Data organisasi, penugasan proyek, dan kontak.",
       companyNotFound: "Perusahaan tidak ditemukan.",
@@ -1582,10 +1572,7 @@ export const id = {
     },
     vendors: {
       title: "Pemasok",
-      description: "Kelola organisasi vendor dan pemasok.",
       descriptionAdmin: "Kelola organisasi vendor dan pemasok.",
-      descriptionManage: "Kelola organisasi vendor dan pemasok.",
-      descriptionReadonly: "Lihat organisasi pemasok (hanya baca).",
       directoryTitle: "Direktori Pemasok",
       directoryDesc:
         "Data organisasi pemasok, kontak, dan syarat pembayaran. Pemasok dikelola Head Office saja — tidak ada portal vendor.",
@@ -1755,11 +1742,7 @@ export const id = {
     },
     employees: {
       title: "Karyawan",
-      description: "Kelola karyawan di seluruh organisasi Anda.",
       descriptionAdmin: "Kelola data staf kantor pusat dan lapangan.",
-      descriptionManage:
-        "Kelola data karyawan, departemen, penugasan lokasi, dan informasi kepegawaian.",
-      descriptionReadonly: "Lihat direktori karyawan (hanya baca).",
       directoryTitle: "Direktori Karyawan",
       directoryDesc:
         "Data staf, penugasan departemen, dan penempatan lokasi. Akses login portal opsional saat membuat dan dikelola di Pengguna.",
@@ -2444,7 +2427,6 @@ export const id = {
         usernameTaken: "Nama pengguna sudah digunakan.",
         recoveryEmailRequired: "Email pemulihan wajib diisi.",
         recoveryEmailTaken: "Email pemulihan sudah digunakan.",
-        passwordMinLength: "Kata sandi minimal 6 karakter.",
         userNotFound: "Pengguna tidak ditemukan.",
         companyNotFound: "Perusahaan tidak ditemukan.",
         reorderInvalid: "Satu atau lebih pengguna tidak valid untuk diurutkan ulang.",
@@ -2470,8 +2452,6 @@ export const id = {
           "Pulihkan klien terkait dulu, lalu gunakan Pulihkan Akses.",
         restoreVendorFirst:
           "Pulihkan pemasok terkait dulu, lalu gunakan Pulihkan Akses.",
-        warehouseStaffNoPortal:
-          "Warehouse Staff mulai tanpa login portal. Head Office dapat membuat login di Users.",
         partTimeRestoreOnProjectOnly:
           "Akses portal Paruh Waktu hanya tersedia saat ditugaskan ke proyek.",
         onlyDeactivatedPermanentDelete:
@@ -2487,11 +2467,7 @@ export const id = {
     },
     billing: {
       title: "Invoice & Penagihan",
-      description: "Lacak invoice klien, jatuh tempo, dan riwayat pembayaran.",
       taxInvoice: "Pajak",
-      taxInvoiceDescription:
-        "PPN, kredit PPh, dan pajak lain yang dibayar atau dipotong. PPN Keluaran adalah yang ditagih ke klien. PPN Masukan dan PPh dibayar di muka adalah kredit yang dipakai nanti.",
-      taxInvoiceClientDesc: "Faktur pajak untuk klien ini.",
       ppnKeluaran: "PPN Pengeluaran",
       purchase: "Pengeluaran",
       purchaseDescription:
@@ -2503,8 +2479,6 @@ export const id = {
         "Jatuh tempo dan status terbuka/terlambat untuk tagihan pemasok (dari syarat pembayaran).",
       vendorPaymentsTitle: "Pembayaran & Pelunasan",
       settlementsTitle: "Pembayaran & Pelunasan",
-      settlementsDesc:
-        "Penagihan dari klien dan utang ke pemasok — status jatuh tempo dan belum lunas.",
       settlementsCollections: "Penagihan (AR)",
       settlementsCollectionsDesc:
         "Invoice klien yang menunggu pembayaran atau verifikasi.",
@@ -2533,8 +2507,6 @@ export const id = {
       vendorStatusPaid: "Lunas",
       purchaseCount: "{count} faktur pembelian",
       purchasePeriod: "Periode",
-      purchaseAllDays: "Satu Bulan",
-      purchaseDayOption: "{day}",
       expenseReportDownload: "Unduh Laporan Pengeluaran",
       expenseReportTitle: "Laporan Pengeluaran",
       expenseReportHint: "Pengeluaran menurut tanggal faktur untuk periode yang dipilih.",
@@ -3173,7 +3145,6 @@ export const id = {
       openInProgress: "Buka yang Berjalan",
       searchClients: "Cari klien…",
       searchProjects: "Cari proyek…",
-      clientProjectsDesc: "Proyek berjalan dengan penagihan untuk klien ini.",
       awaitingOrLate: "Menunggu pembayaran atau terlambat",
       noTaxPending: "Tidak ada Faktur Pajak menunggu",
       noTaxPendingDesc:
@@ -3517,9 +3488,6 @@ export const id = {
       openTaxInvoices: "Buka Faktur Pajak",
       openPurchases: "Buka Pembelian",
       taxDetail: "Rincian Pajak",
-      taxDetailOutputDesc: "PPN Keluaran pada periode invoice ini.",
-      taxDetailCreditDesc:
-        "Pajak pada pengeluaran ini — kredit, potongan, dan dokumen.",
       backToTax: "Kembali Ke Pajak",
       relatedExpense: "Pengeluaran Ini",
       relatedBilling: "Penagihan Proyek",
@@ -3554,8 +3522,6 @@ export const id = {
       permissionDenied: "Anda tidak punya izin untuk mencatat penjualan.",
       loadFailed: "Tidak dapat memuat penjualan.",
       period: "Periode Penjualan",
-      allDays: "Satu Bulan",
-      dayOption: "{day}",
       salesReportDownload: "Unduh Laporan Penjualan",
       salesReportTitle: "Laporan Penjualan",
       salesReportHint: "Penjualan menurut tanggal jual untuk periode yang dipilih.",
@@ -3623,9 +3589,6 @@ export const id = {
       filterBank: "Rekening Bank",
       filterBankAll: "Semua Bank",
       filterBankUnassigned: "Belum Ditentukan",
-      receiptsByBank: "Penerimaan Per Bank",
-      receiptsByBankHint:
-        "Pembayaran invoice klien dan penerimaan penjualan, dikelompokkan menurut rekening tujuan.",
       rangeHint:
         "Pendapatan memakai periode kalender. Upah memakai jendela 16–15 untuk bulan atau tahun yang sama. Tagihan pemasok yang belum dibayar adalah Utang Usaha, bukan beban.",
       periodNet: "Laba Periode",
@@ -3638,11 +3601,7 @@ export const id = {
       clientsStillOwe: "Piutang Usaha",
       weStillOweVendors: "Utang Usaha",
       bpjsKesehatan: "BPJS Kesehatan",
-      bpjsKesehatanHint:
-        "Iuran perusahaan bulan ini untuk karyawan terdaftar. Utang kepada negara — belum dicocokkan dengan pembayaran.",
       bpjsKetenagakerjaan: "BPJS Ketenagakerjaan",
-      bpjsKetenagakerjaanHint:
-        "Iuran perusahaan bulan ini untuk JHT, JP, JKK, dan JKM. Utang kepada negara — belum dicocokkan dengan pembayaran.",
       bpjsEmployeeCount: "{count} karyawan terdaftar",
       bpjsEmployeesTitle: "Karyawan Terdaftar",
       bpjsEmployeeDetailTitle: "Iuran Karyawan",
@@ -3692,15 +3651,11 @@ export const id = {
       sameDaySplitNote:
         "Bekerja di {count} lokasi hari ini — gaji harian dibagi merata.",
       doubleShiftNote: "Shift ganda — dua tarif harian untuk hari ini.",
-      clientProjectsDesc: "Ringkasan keuangan proyek untuk klien ini.",
-      projectDetailDesc: "Laba rugi untuk {client}.",
       totalClients: "Total Klien",
       withProjects: "Dengan Proyek",
       totalContractValue: "Total Nilai Kontrak",
       acrossClients: "Lintas Klien",
       totalProfit: "Total Laba",
-      detailDescription:
-        "Rincian angka yang Anda klik. Ubah periode di atas untuk memperbarui angka.",
       detail: {
         periodNet: "Rincian Laba Periode",
         netPosition: "Rincian Posisi Bersih",
@@ -3900,7 +3855,6 @@ export const id = {
         "Bank biasanya menahan fasilitas standby di rekening khusus. Pilih Ya hanya setelah uang ditarik ke rekening bank perusahaan.",
       moneyDrawn: "Uang Ditarik",
       initialDrawAmount: "Jumlah Diterima",
-      initialDrawRequired: "Masukkan jumlah yang sudah diterima.",
       initialDrawDate: "Tanggal Penarikan",
       initialDrawDateHint:
         "Tanggal uang benar-benar masuk ke rekening perusahaan. Boleh setelah tanggal mulai pinjaman.",
@@ -4014,11 +3968,7 @@ export const id = {
       emptyDesc:
         "Daftarkan karyawan penuh waktu di Karyawan agar Kesehatan dan Ketenagakerjaan tampil di sini.",
       backToBpjs: "BPJS",
-      detailDescription:
-        "Karyawan terdaftar untuk program ini. Pembayaran dicatat di Biaya.",
       employeesEmpty: "Tidak ada karyawan terdaftar untuk program ini.",
-      employeeDetailDescription:
-        "Bagian BPJS karyawan ini, dasar upah, dan rincian program untuk bulan yang dipilih.",
       hiredAt: "Bergabung",
       tenure: "Masa Kerja",
       basePay: "Gaji Pokok",
@@ -4315,12 +4265,6 @@ export const id = {
       title: "Laporan Progress",
       description:
         "Laporan foto lokasi untuk staf cleaning (Cleaning Staff, GC Staff, In-House Cleaning). Unggah selama shift — check-out diblokir sampai minimal satu laporan dikirim untuk proyek.",
-      feedDescription:
-        "Buka proyek, pilih hari, lalu filter menurut karyawan. Unduh laporan bulanan setelah bulan berakhir.",
-      clientFeedDescription:
-        "Buka proyek untuk melihat catatan dan foto lokasi Anda. Unduh laporan bulanan setelah bulan berakhir.",
-      chooseClientHint:
-        "Pilih klien, lalu proyek. Cari klien, lalu cari proyek.",
       chooseProject: "Pilih Proyek",
       chooseProjectHint:
         "Umpan hanya lihat — buka proyek untuk memantau laporan saat foto diunggah.",
@@ -4333,7 +4277,6 @@ export const id = {
       internalSection: "Internal",
       internalSectionDesc: "Kantor Pusat dan Gudang.",
       internalSiteHint: "Situs Internal",
-      clientProjectsDesc: "Pilih proyek untuk melihat Laporan Progress.",
       noClients: "Tidak Ada Klien",
       noClientsDesc: "Tidak ada klien dengan proyek yang dapat diakses.",
       noClientsMatch: "Tidak ada klien yang cocok dengan pencarian Anda.",
@@ -4497,10 +4440,6 @@ export const id = {
         "CICO hanya tersedia untuk staf Aktif. Hubungi Kantor Pusat jika status Anda perlu diperbarui.",
       onProjectOnlyMessage:
         "CICO lapangan tersedia saat Anda Di Proyek dan ditugaskan ke lokasi cleaning. In-House Cleaning Staff: tugaskan dulu ke proyek Internal Head Office atau Warehouse. Warehouse Supervisor dan staf meja Corporate memakai CICO kantor.",
-      descriptionDetail:
-        "Check-In / Check-Out di lokasi proyek cleaning yang ditugaskan menggunakan GPS dan foto di lokasi.",
-      officeDescription:
-        "Clock kantor di Head Office atau Warehouse. GPS dan foto wajib. Jam 09:00–17:00 (toleransi terlambat 15 menit).",
       errors: {
         notAssigned: "Anda tidak ditugaskan ke proyek ini.",
         backupWindow:
@@ -4611,10 +4550,6 @@ export const id = {
         checkOut: "Check-Out"
       },
       adminPreview: {
-        pageDescription:
-          "Pratinjau alur check-in lapangan dan pantau aktivitas CICO situs hari ini.",
-        fieldPageDescription:
-          "Gunakan CICO lapangan seolah ditugaskan ke proyek dan pantau aktivitas situs hari ini.",
         bannerTitle: "Mode Pratinjau — Check-In Dinonaktifkan",
         bannerBody:
           "Akun Kantor Pusat dapat meninjau aktivitas CICO hari ini dan tampilan staf lapangan di sini. Check-in dan check-out operasional tetap hanya untuk staf cleaning Aktif Di Proyek.",
@@ -4665,8 +4600,6 @@ export const id = {
       title: "Shift",
       description:
         "Pilih klien, lalu situs proyek. Tambah shift bernama, tugaskan staf, tugaskan masing-masing ke Shift 1–4, atau tugaskan shift ganda atau cadangan. Check-in dan check-out tetap mencatat waktu absensi aktual.",
-      clientProjectsDesc:
-        "Pilih situs proyek untuk mengelola shift dan menugaskan staf.",
       breadcrumbAria: "Navigasi Shift",
       searchClients: "Cari Klien",
       searchProjects: "Cari Proyek",
@@ -4743,8 +4676,6 @@ export const id = {
       assignmentDescription:
         "Buat tim berdasarkan area layanan, lalu masukkan karyawan tetap ke setiap roster.",
       availabilityTitle: "Ketersediaan Tim",
-      availabilityDescription:
-        "Lihat tim mana yang tersedia dan tim mana yang sedang di lokasi bulan ini.",
       addTeam: "Tambah Tim",
       editTeam: "Ubah Tim",
       deleteTeam: "Hapus Tim",
@@ -4767,7 +4698,6 @@ export const id = {
       memberCountOne: "1 anggota",
       statusAvailable: "Tersedia",
       statusOnSite: "Di Lokasi",
-      onSiteAt: "Di Lokasi · {project}",
       createFailed: "Gagal membuat tim.",
       updateFailed: "Gagal mengubah tim.",
       deleteFailed: "Gagal menghapus tim.",
@@ -4794,8 +4724,6 @@ export const id = {
     },
     leaves: {
       title: "Izin & Sakit",
-      descriptionEmployee: "Ajukan dan lacak permintaan izin serta cuti sakit Anda.",
-      descriptionManager: "Lihat permintaan izin dan sakit untuk tim Anda.",
       submitRequest: "Kirim Permintaan",
       newRequest: "Permintaan Baru",
       filterAll: "Semua",
@@ -5000,8 +4928,6 @@ export const id = {
       directoryTitle: "Klien & Lokasi",
       directoryDesc:
         "Telusuri klien dan lokasi internal. Buka proyek untuk antrian gudang dan riwayat transfer order.",
-      clientProjectsDesc:
-        "Pilih proyek untuk membuka antrian gudang dan riwayat transfer order.",
       breadcrumbAria: "Navigasi transfer barang",
       searchClients: "Cari klien...",
       searchProjects: "Cari proyek...",
@@ -5111,11 +5037,6 @@ export const id = {
     },
     inventory: {
       title: "Inventaris",
-      description: "Tingkat stok, penerimaan stok, dan pengeluaran ke proyek.",
-      descriptionManage:
-        "Catat penerimaan stok dan keluarkan item ke proyek.",
-      descriptionReadonly:
-        "Lihat tingkat stok, penerimaan stok, dan pengeluaran ke proyek.",
       companyNotFound: "Perusahaan tidak ditemukan.",
       permissionDenied: "Anda tidak memiliki izin untuk mengelola inventaris.",
       assignPermissionDenied:
@@ -5383,7 +5304,6 @@ export const id = {
         clickHint:
           "Klik kendaraan untuk melihat dan mengedit plat, tahun, dan detailnya.",
         back: "Kembali Ke Inventaris",
-        detailDescription: "Plat, tahun, tanggal beli, dan detail kendaraan.",
         locationCompany: "Perusahaan",
         updated: "Kendaraan diperbarui.",
         updateFailed: "Tidak dapat memperbarui kendaraan ini.",
@@ -5673,10 +5593,6 @@ export const id = {
     },
     itemCatalog: {
       title: "Katalog Barang",
-      description: "Daftar master tipe barang: stok, peralatan, dan kendaraan.",
-      descriptionManage:
-        "Buat dan kelola tipe barang sebelum mencatat pengeluaran atau penerimaan stok.",
-      descriptionReadonly: "Lihat katalog barang.",
       directoryTitle: "Katalog Barang",
       directoryDesc:
         "Tetapkan tipe barang dan SKU yang dipakai Inventaris dan pengeluaran.",
