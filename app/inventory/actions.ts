@@ -55,7 +55,11 @@ import type { AppLocale } from "@/lib/i18n/locale";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
 import {
+  DJP_PLACEHOLDER_NPWP,
+  isPlaceholderNpwp,
+  isValidNik,
   isValidNpwp,
+  isValidPassportNumber,
   normalizeNpwp,
   npwpDigitCount,
   npwpInvalidMessage,
@@ -82,6 +86,10 @@ import {
   parsePpnRatePercent,
   ppnRateFromPercent,
 } from "@/lib/vat";
+import {
+  dueAtFromPaymentTerms,
+  normalizePaymentTermsDays,
+} from "@/lib/invoice-period";
 
 async function assertCanManageInventory(locale?: AppLocale) {
   const session = await requireModule("inventory");
@@ -319,6 +327,29 @@ export async function createInventoryItem(formData: FormData) {
         );
 
     await prisma.$transaction(async (tx) => {
+      const returning = await tx.inventoryItem.findFirst({
+        where: {
+          companyId: company.id,
+          deletedAt: { not: null },
+          itemType,
+          name: { equals: name, mode: "insensitive" },
+        },
+        select: { id: true },
+      });
+      if (returning) {
+        await tx.inventoryItem.update({
+          where: { id: returning.id },
+          data: {
+            deletedAt: null,
+            active: true,
+            description: description || null,
+            unit,
+            minStock: toDecimal(isVehicleItemType(itemType) ? 0 : minStock),
+            tracksStock: !isVehicleItemType(itemType),
+          },
+        });
+        return;
+      }
       const sku = await getNextInventorySku(company.id, itemType, tx);
       await tx.inventoryItem.create({
         data: {
@@ -1395,6 +1426,8 @@ async function persistGeneratedSaleInvoice(options: {
   taxRatePercent: number | null;
   totalPrice: number;
   notes: string | null;
+  paymentTermsDays?: number | null;
+  dueAt?: Date | null;
 }): Promise<string> {
   const loaded =
     (await loadCompanyForPdf(options.companyId)) ?? { name: "" };
@@ -1419,6 +1452,8 @@ async function persistGeneratedSaleInvoice(options: {
     totalPrice: options.totalPrice,
     notes: options.notes,
     company,
+    paymentTermsDays: options.paymentTermsDays,
+    dueAt: options.dueAt,
   });
 }
 
@@ -1482,37 +1517,28 @@ export async function createInventorySoldOff(formData: FormData) {
 
     let buyerTaxId: string | null = null;
     let buyerIdNumber: string | null = null;
-    if (buyerType === "COMPANY") {
-      if (!buyerTaxIdRaw) {
-        throw new Error(translate(locale, "pages.inventory.buyerTaxIdRequired"));
-      }
-      if (!isValidNpwp(buyerTaxIdRaw)) {
+    const taxIdRaw = buyerTaxIdRaw || DJP_PLACEHOLDER_NPWP;
+    if (!isValidNpwp(taxIdRaw)) {
+      throw new Error(
+        npwpInvalidMessage(locale, npwpDigitCount(taxIdRaw), "company")
+      );
+    }
+    buyerTaxId = normalizeNpwp(taxIdRaw);
+    if (isPlaceholderNpwp(taxIdRaw) && !buyerIdNumberRaw) {
+      throw new Error(
+        translate(locale, "pages.inventory.buyerIdNumberRequiredWhenNoNpwp")
+      );
+    }
+    if (buyerIdNumberRaw) {
+      if (
+        !isValidNik(buyerIdNumberRaw) &&
+        !isValidPassportNumber(buyerIdNumberRaw)
+      ) {
         throw new Error(
-          npwpInvalidMessage(locale, npwpDigitCount(buyerTaxIdRaw), "company")
+          translate(locale, "pages.inventory.buyerIdNumberInvalid")
         );
       }
-      buyerTaxId = normalizeNpwp(buyerTaxIdRaw);
-    } else {
-      // INDIVIDUAL — at least one of Tax ID (NPWP) or National ID (KTP) is required.
-      if (!buyerTaxIdRaw && !buyerIdNumberRaw) {
-        throw new Error(translate(locale, "validation.npwpOrNikRequired"));
-      }
-      if (buyerTaxIdRaw) {
-        if (!isValidNpwp(buyerTaxIdRaw)) {
-          throw new Error(
-            npwpInvalidMessage(locale, npwpDigitCount(buyerTaxIdRaw), "client")
-          );
-        }
-        buyerTaxId = normalizeNpwp(buyerTaxIdRaw);
-      }
-      if (buyerIdNumberRaw) {
-        if (!isValidNpwp(buyerIdNumberRaw)) {
-          throw new Error(
-            npwpInvalidMessage(locale, npwpDigitCount(buyerIdNumberRaw), "client")
-          );
-        }
-        buyerIdNumber = normalizeNpwp(buyerIdNumberRaw);
-      }
+      buyerIdNumber = buyerIdNumberRaw.trim().toUpperCase();
     }
 
     const taxRatePercent =
@@ -1534,6 +1560,10 @@ export async function createInventorySoldOff(formData: FormData) {
       parseFormDateInput(formData.get("soldAt"), {
         fieldLabel: translate(locale, "pages.inventory.form.saleDate"),
       }) ?? new Date();
+    const paymentTermsDays = normalizePaymentTermsDays(
+      Number(String(formData.get("paymentTermsDays") ?? "").trim())
+    );
+    const dueAt = dueAtFromPaymentTerms(soldAt, paymentTermsDays);
 
     const assetIds = formData
       .getAll("assetIds")
@@ -1600,21 +1630,16 @@ export async function createInventorySoldOff(formData: FormData) {
       throw new Error(translate(locale, "pages.inventory.itemNotFound"));
     }
 
-    // Tax invoice (Faktur Pajak) is only required — and only collected — for COMPANY buyers.
-    // Individuals cannot legally be issued a company tax invoice.
-    let buyerIdentityDocUrl: string | null = null;
-    if (buyerType === "COMPANY") {
-      buyerIdentityDocUrl =
-        (await saveReceipt(formData, {
-          sku: item.sku,
-          fieldName: "buyerIdentityDoc",
-          filePrefix: "SALE_TAX_INVOICE",
-        })) ?? null;
-      if (!buyerIdentityDocUrl) {
-        throw new Error(
-          translate(locale, "pages.inventory.buyerIdentityDocRequired")
-        );
-      }
+    const buyerIdentityDocUrl =
+      (await saveReceipt(formData, {
+        sku: item.sku,
+        fieldName: "buyerIdentityDoc",
+        filePrefix: "SALE_TAX_INVOICE",
+      })) ?? null;
+    if (!buyerIdentityDocUrl) {
+      throw new Error(
+        translate(locale, "pages.inventory.buyerIdentityDocRequired")
+      );
     }
 
     const paymentProofUrl =
@@ -1645,11 +1670,15 @@ export async function createInventorySoldOff(formData: FormData) {
     const saleNoteParts = [`Buyer: ${buyer}`, notes].filter(Boolean);
     const movementNotes = saleNoteParts.join(" — ") || null;
     const soldFromProjectIds: string[] = [];
-    const invoiceNumber = saleInvoiceNumber(
+    const invoiceSequence =
+      (await prisma.inventorySale.count({
+        where: { companyId: company.id },
+      })) + 1;
+    const invoiceNumber = saleInvoiceNumber({
+      sequence: invoiceSequence,
       soldAt,
-      item.sku,
-      `${item.sku}-${Date.now().toString(36)}`
-    );
+      itemType: item.itemType,
+    });
     let invoiceUrl: string;
     try {
       invoiceUrl = await persistGeneratedSaleInvoice({
@@ -1673,6 +1702,8 @@ export async function createInventorySoldOff(formData: FormData) {
         taxRatePercent,
         totalPrice: totalSalePrice,
         notes,
+        paymentTermsDays,
+        dueAt,
       });
     } catch {
       throw new Error(translate(locale, "pages.sales.invoiceGenerateFailed"));
@@ -2138,6 +2169,7 @@ export async function attachInventorySaleDocuments(formData: FormData) {
       },
       select: {
         id: true,
+        createdAt: true,
         soldAt: true,
         quantity: true,
         unitPrice: true,
@@ -2157,7 +2189,7 @@ export async function attachInventorySaleDocuments(formData: FormData) {
         buyerIdentityDocUrl: true,
         paidAt: true,
         bankAccountId: true,
-        item: { select: { sku: true, name: true, unit: true } },
+        item: { select: { sku: true, name: true, unit: true, itemType: true } },
       },
     });
     if (!sale) {
@@ -2174,7 +2206,17 @@ export async function attachInventorySaleDocuments(formData: FormData) {
         nextInvoiceUrl = await persistGeneratedSaleInvoice({
           companyId: company.id,
           bankAccount,
-          invoiceNumber: saleInvoiceNumber(sale.soldAt, sku, sale.id),
+          invoiceNumber: saleInvoiceNumber({
+            sequence:
+              (await prisma.inventorySale.count({
+                where: {
+                  companyId: company.id,
+                  createdAt: { lte: sale.createdAt },
+                },
+              })) || 1,
+            soldAt: sale.soldAt,
+            itemType: sale.item.itemType,
+          }),
           soldAt: sale.soldAt,
           buyer: sale.buyer ?? "",
           buyerType: sale.buyerType,

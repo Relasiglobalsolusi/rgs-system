@@ -23,7 +23,12 @@ export default async function CompanyDetailsPage() {
   }
 
   const company = await prisma.company.findFirst({
-    select: { id: true, ...COMPANY_IDENTITY_SELECT },
+    select: {
+      id: true,
+      ...COMPANY_IDENTITY_SELECT,
+      bpjsKesehatanVirtualAccount: true,
+      bpjsKetenagakerjaanVirtualAccount: true,
+    },
     orderBy: { createdAt: "asc" },
   });
 
@@ -57,6 +62,9 @@ export default async function CompanyDetailsPage() {
           phone: company.phone ?? "",
           email: company.email ?? "",
           npwp: company.npwp ?? "",
+          bpjsKesehatanVirtualAccount: company.bpjsKesehatanVirtualAccount ?? "",
+          bpjsKetenagakerjaanVirtualAccount:
+            company.bpjsKetenagakerjaanVirtualAccount ?? "",
         }}
         bankAccounts={bankAccounts}
       />

@@ -119,6 +119,45 @@ export function commercialTaxRequiresTaxInvoice(
   return commercialTaxIncludesVat(kind);
 }
 
+/** Project form: Charge VAT? + Charge PPh? → stored chargedTaxKind. */
+export type ProjectPphKind = "PPH_23" | "PPH_4_2" | "PPH_21" | "PPH_22";
+
+export function isProjectPphKind(
+  value: string | null | undefined
+): value is ProjectPphKind {
+  return (
+    value === "PPH_23" ||
+    value === "PPH_4_2" ||
+    value === "PPH_21" ||
+    value === "PPH_22"
+  );
+}
+
+export function chargedTaxKindFromVatPph(input: {
+  chargeVat: boolean;
+  chargePph: boolean;
+  pphKind?: string | null;
+}): CommercialTaxKind | "" {
+  const pph = isProjectPphKind(input.pphKind) ? input.pphKind : "PPH_23";
+  if (input.chargeVat && input.chargePph) {
+    return pph === "PPH_4_2" ? "PPN_AND_PPH_4_2" : "PPN_AND_PPH_23";
+  }
+  if (input.chargeVat) return "PPN";
+  if (input.chargePph) return pph;
+  return "";
+}
+
+export function vatPphFromChargedTaxKind(kind: CommercialTaxKind | "" | null) {
+  const resolved = kind || null;
+  const chargeVat = commercialTaxIncludesVat(resolved);
+  const chargePph = commercialTaxIncludesIncomeTax(resolved);
+  let pphKind: ProjectPphKind = "PPH_23";
+  if (kind === "PPH_4_2" || kind === "PPN_AND_PPH_4_2") pphKind = "PPH_4_2";
+  else if (kind === "PPH_21") pphKind = "PPH_21";
+  else if (kind === "PPH_22") pphKind = "PPH_22";
+  return { chargeVat, chargePph, pphKind };
+}
+
 export function defaultCommercialNonVatRatePercent(
   kind: CommercialTaxKind | null | undefined
 ): number | null {
@@ -226,12 +265,31 @@ export type ExclusiveChargedTaxBreakdown = {
  * Contract / invoice typed amounts are exclusive of tax.
  * Add Value Added Tax and final / other charged tax. Withholding is not added.
  */
+export function projectWithholdingCreditIdr(input: {
+  dpp: number;
+  chargedTaxKind?: CommercialTaxKind | "" | null;
+  pphRatePercent?: number | null;
+}): number {
+  const kind = isCommercialTaxKind(input.chargedTaxKind)
+    ? input.chargedTaxKind
+    : null;
+  if (!kind || !commercialTaxIncludesWithholding(kind)) return 0;
+  const rate = input.pphRatePercent;
+  if (rate == null || rate <= 0) {
+    const fallback = defaultCommercialNonVatRatePercent(kind);
+    if (fallback == null || fallback <= 0) return 0;
+    return Math.round(input.dpp * (fallback / 100));
+  }
+  return Math.round(input.dpp * (rate / 100));
+}
+
 export function exclusivePricePlusChargedTax(input: {
   exclusiveAmount: number;
   chargedTaxKind?: CommercialTaxKind | "" | null;
   requiresTaxInvoice?: boolean | null;
   ppnRatePercent?: number | null;
   pphRatePercent?: number | null;
+  isGovernmentContract?: boolean | null;
 }): ExclusiveChargedTaxBreakdown {
   const exclusive = Math.max(0, Math.round(input.exclusiveAmount));
   if (exclusive <= 0) {
@@ -247,7 +305,7 @@ export function exclusivePricePlusChargedTax(input: {
     }) || null;
 
   let taxAmount = 0;
-  if (commercialTaxIncludesVat(kind)) {
+  if (commercialTaxIncludesVat(kind) && !input.isGovernmentContract) {
     const vatRate =
       input.ppnRatePercent != null && input.ppnRatePercent > 0
         ? input.ppnRatePercent
@@ -257,10 +315,15 @@ export function exclusivePricePlusChargedTax(input: {
   if (
     kind === "PPH_4_2" ||
     kind === "PPN_AND_PPH_4_2" ||
+    kind === "PPH_23" ||
+    kind === "PPN_AND_PPH_23" ||
     kind === "OTHER"
   ) {
-    const rate = input.pphRatePercent;
-    if (rate != null && rate > 0) {
+    const rate =
+      input.pphRatePercent != null && input.pphRatePercent > 0
+        ? input.pphRatePercent
+        : defaultCommercialNonVatRatePercent(kind) ?? 0;
+    if (rate > 0) {
       taxAmount += Math.round(exclusive * (rate / 100));
     }
   }
@@ -278,6 +341,7 @@ export function invoiceGrossFromExclusivePrice(
     chargedTaxKind?: CommercialTaxKind | "" | null;
     requiresTaxInvoice?: boolean | null;
     pphRatePercent?: number | null;
+    isGovernmentContract?: boolean | null;
   },
   ppnRatePercent?: number | null
 ): number | null {
@@ -290,5 +354,6 @@ export function invoiceGrossFromExclusivePrice(
     requiresTaxInvoice: project.requiresTaxInvoice,
     ppnRatePercent,
     pphRatePercent: project.pphRatePercent,
+    isGovernmentContract: project.isGovernmentContract,
   }).gross;
 }

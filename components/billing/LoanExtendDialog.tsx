@@ -25,6 +25,9 @@ import {
   termMonthlyInstallment,
 } from "@/lib/bank-loan";
 import type { LoanFacilitySnapshot } from "@/lib/loan-facility-query";
+import YesNoChoiceCards, {
+  type YesNoChoice,
+} from "@/components/ui/YesNoChoiceCards";
 import { useT } from "@/lib/i18n/use-t";
 import { formatContractPrice } from "@/lib/project-billing";
 import { cn } from "@/lib/utils";
@@ -46,6 +49,7 @@ export default function LoanExtendDialog({
   const [annualRatePercent, setAnnualRatePercent] = useState(
     facility.annualRatePercent != null ? String(facility.annualRatePercent) : ""
   );
+  const [termsChanged, setTermsChanged] = useState<YesNoChoice>("No");
 
   const remainingMonths =
     facility.tenorMonths != null
@@ -155,7 +159,21 @@ export default function LoanExtendDialog({
           onSubmit={handleSubmit}
         >
           <div className={employeeDialogGridClass}>
-            {isStandby ? (
+            <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+              <label id="loan-extend-terms-changed" className={employeeDialogLabelClass}>
+                {t("pages.loans.extendTermsChanged")}
+              </label>
+              <YesNoChoiceCards
+                id="loan-extend-terms-changed"
+                labelledBy="loan-extend-terms-changed"
+                value={termsChanged}
+                onChange={setTermsChanged}
+              />
+              <p className={employeeDialogHintClass}>
+                {t("pages.loans.extendTermsChangedHint")}
+              </p>
+            </div>
+            {termsChanged === "Yes" && isStandby ? (
               <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
                 <label htmlFor="loan-extend-ceiling" className={employeeDialogLabelClass}>
                   {t("pages.loans.newCeiling")}
@@ -173,7 +191,7 @@ export default function LoanExtendDialog({
                   {t("pages.loans.newCeilingHint")}
                 </p>
               </div>
-            ) : (
+            ) : termsChanged === "Yes" ? (
               <>
                 <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
                   <label htmlFor="loan-extend-rate" className={employeeDialogLabelClass}>
@@ -210,6 +228,18 @@ export default function LoanExtendDialog({
                     </p>
                   </div>
                 ) : null}
+              </>
+            ) : (
+              <>
+                <input type="hidden" name="facilityLimit" value={facilityLimit} />
+                <input
+                  type="hidden"
+                  name="annualRatePercent"
+                  value={annualRatePercent}
+                />
+                <p className={cn(employeeDialogHintClass, "sm:col-span-2")}>
+                  {t("pages.loans.extendTermsUnchanged")}
+                </p>
               </>
             )}
           </div>

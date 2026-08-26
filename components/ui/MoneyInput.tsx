@@ -48,6 +48,7 @@ export function MoneyInput({
         autoComplete="off"
         disabled={disabled}
         required={required}
+        data-required-nonzero={required ? "true" : undefined}
         placeholder={placeholder}
         value={formatIdrInput(digits)}
         onChange={(event) => {

@@ -1,6 +1,22 @@
 import type { AppLocale } from "@/lib/i18n/locale";
 import { DEFAULT_LOCALE } from "@/lib/i18n/locale";
 
+/** DJP placeholder when the buyer has no NPWP (still requires NIK or passport). */
+export const DJP_PLACEHOLDER_NPWP = "00.000.000.0-000.000";
+
+export function isPlaceholderNpwp(value: string | null | undefined): boolean {
+  return stripNpwpDigits(String(value ?? "")) === "000000000000000";
+}
+
+export function isValidNik(value: string | null | undefined): boolean {
+  return stripNpwpDigits(String(value ?? "")).length === 16;
+}
+
+export function isValidPassportNumber(value: string | null | undefined): boolean {
+  const raw = String(value ?? "").trim().toUpperCase();
+  return /^[A-Z0-9]{6,12}$/.test(raw);
+}
+
 /** Classic NPWP length (still in use). */
 export const NPWP_MIN_DIGITS = 15;
 /** NIK-based / newer NPWP length. */

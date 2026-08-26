@@ -32,6 +32,12 @@ import {
   toPermissionUser,
 } from "@/lib/session";
 import { saveUpload } from "@/lib/upload";
+import {
+  clearPeriodReviewAmounts,
+  loadPeriodReviewAmounts,
+  setPeriodClientRequestedAmount,
+  setPeriodHoProposedAmount,
+} from "@/lib/review-amount-fields";
 const COMPANY_BANK_SELECT = COMPANY_IDENTITY_SELECT;
 
 function revalidateReviewPaths(opts: {
@@ -334,6 +340,7 @@ export async function sendPeriodForClientReview(
           : period.reportCount,
     },
   });
+  await clearPeriodReviewAmounts(periodId);
 
   await logReviewEvent({
     invoicePeriodId: periodId,
@@ -347,16 +354,6 @@ export async function sendPeriodForClientReview(
     projectId: project.id,
     clientId: project.clientId,
   });
-
-  // Review is period-level only. The job stays In Progress so CICO / progress
-  // continue. Leftover Pending Approval rows are put back to In Progress.
-  if (project.status === "WAITING_FOR_APPROVAL") {
-    await prisma.project.update({
-      where: { id: project.id },
-      data: { status: "IN_PROGRESS" },
-    });
-    revalidatePath("/projects");
-  }
 
   return { periodId, reviewReportPdfPath };
 }
@@ -415,11 +412,17 @@ export async function clientApproveBillingReview(periodId: string) {
     throw new Error("This review is not open for approval.");
   }
 
+  const { hoProposedAmount: proposedAmount } =
+    await loadPeriodReviewAmounts(periodId);
+
   await prisma.projectInvoicePeriod.update({
     where: { id: periodId },
     data: {
       clientReviewStatus: "CLIENT_APPROVED",
       clientReviewedAt: new Date(),
+      ...(proposedAmount != null && proposedAmount > 0
+        ? { amount: proposedAmount, revisedInvoiceAmount: proposedAmount }
+        : {}),
     },
   });
 
@@ -491,15 +494,21 @@ export async function clientApproveBillingReview(periodId: string) {
   return { periodId, invoiced: true };
 }
 
-/** Client portal: revise with note + optional proof → HO Revised queue. */
+/** Client portal: revise with note + required adjusted amount + optional proof → HO Revised queue. */
 export async function clientReviseBillingReview(formData: FormData) {
   const session = await requireClientPortal();
   const periodId = String(formData.get("periodId") ?? "").trim();
   const note = String(formData.get("note") ?? "").trim();
+  const requestedAmount = parseContractPrice(
+    String(formData.get("clientRequestedAmount") ?? "")
+  );
   const proof = requireProofFile(formData.get("proof"), { required: false });
 
   if (!periodId) throw new Error("Period is required.");
   if (!note) throw new Error("Please explain what is wrong or inaccurate.");
+  if (requestedAmount == null || requestedAmount <= 0) {
+    throw new Error("Enter the adjusted amount the client is requesting.");
+  }
 
   const period = await prisma.projectInvoicePeriod.findUnique({
     where: { id: periodId },
@@ -518,6 +527,17 @@ export async function clientReviseBillingReview(formData: FormData) {
   if (!isAwaitingClientAction(period.clientReviewStatus)) {
     throw new Error("This review is not open for revision.");
   }
+  const currentAmounts = await loadPeriodReviewAmounts(periodId);
+  const proposedBaseline =
+    currentAmounts.hoProposedAmount ?? decimalToNumber(period.amount);
+  if (
+    proposedBaseline != null &&
+    Math.round(proposedBaseline) === Math.round(requestedAmount)
+  ) {
+    throw new Error(
+      "A revision must use a different amount. If the number is unchanged, choose Approve."
+    );
+  }
 
   let proofPath: string | null = null;
   if (proof) {
@@ -535,6 +555,7 @@ export async function clientReviseBillingReview(formData: FormData) {
       clientRevisionProofPath: proofPath,
     },
   });
+  await setPeriodClientRequestedAmount(periodId, requestedAmount);
 
   await logReviewEvent({
     invoicePeriodId: periodId,
@@ -561,7 +582,6 @@ export async function hoApproveClientRevision(formData: FormData) {
   const session = await requireHoFinanceAccess();
   const periodId = String(formData.get("periodId") ?? "").trim();
   const amountRaw = String(formData.get("revisedAmount") ?? "").trim();
-  const invoiceNumber = String(formData.get("revisedInvoiceNumber") ?? "").trim();
 
   if (!periodId) throw new Error("Period is required.");
 
@@ -613,7 +633,6 @@ export async function hoApproveClientRevision(formData: FormData) {
       hoReviewedAt: new Date(),
       hoReviewedById: session.user.id,
       ...(revisedAmount != null ? { revisedInvoiceAmount: revisedAmount, amount: revisedAmount } : {}),
-      ...(invoiceNumber ? { revisedInvoiceNumber: invoiceNumber } : {}),
     },
   });
 
@@ -622,11 +641,7 @@ export async function hoApproveClientRevision(formData: FormData) {
     actorRole: "HO",
     userId: session.user.id,
     action: "HO_APPROVED",
-    note: invoiceNumber
-      ? `Revised invoice ${invoiceNumber}${revisedAmount != null ? ` · ${formatContractPrice(revisedAmount)}` : ""}`
-      : revisedAmount != null
-        ? formatContractPrice(revisedAmount)
-        : null,
+    note: revisedAmount != null ? formatContractPrice(revisedAmount) : null,
     statusAfter: "HO_APPROVED_REVISION",
   });
 
@@ -669,10 +684,16 @@ export async function hoRejectClientRevision(formData: FormData) {
   const session = await requireHoFinanceAccess();
   const periodId = String(formData.get("periodId") ?? "").trim();
   const note = String(formData.get("note") ?? "").trim();
+  const proposedAmount = parseContractPrice(
+    String(formData.get("hoProposedAmount") ?? "")
+  );
   const proof = requireProofFile(formData.get("proof"), { required: false });
 
   if (!periodId) throw new Error("Period is required.");
   if (!note) throw new Error("Please explain why the revision is rejected.");
+  if (proposedAmount == null || proposedAmount <= 0) {
+    throw new Error("Enter the amount Head Office is proposing.");
+  }
 
   const period = await prisma.projectInvoicePeriod.findUnique({
     where: { id: periodId },
@@ -687,6 +708,17 @@ export async function hoRejectClientRevision(formData: FormData) {
   }
   if (!isInHoRevisedQueue(period.clientReviewStatus)) {
     throw new Error("This period is not in the revised queue.");
+  }
+  const hoAmounts = await loadPeriodReviewAmounts(periodId);
+  const hoBaseline =
+    hoAmounts.clientRequestedAmount ?? decimalToNumber(period.amount);
+  if (
+    hoBaseline != null &&
+    Math.round(hoBaseline) === Math.round(proposedAmount)
+  ) {
+    throw new Error(
+      "A revision must use a different amount. If the number is unchanged, choose Approve."
+    );
   }
 
   let proofPath: string | null = null;
@@ -707,6 +739,7 @@ export async function hoRejectClientRevision(formData: FormData) {
       clientReviewedAt: null,
     },
   });
+  await setPeriodHoProposedAmount(periodId, proposedAmount);
 
   await logReviewEvent({
     invoicePeriodId: periodId,
@@ -806,4 +839,103 @@ async function issueMilestonePeriodAfterReview(periodId: string) {
  */
 export async function sendProgressForClientReview(periodId: string) {
   return sendPeriodForClientReview(periodId, "PROGRESS");
+}
+
+/**
+ * No-portal clients: HO records the real-world approve/revise, then invoices.
+ * There is no ERP back-and-forth — that already happened outside the system.
+ */
+export async function hoRecordOfflineClientReview(formData: FormData) {
+  const session = await requireHoFinanceAccess();
+  const periodId = String(formData.get("periodId") ?? "").trim();
+  const decision = String(formData.get("decision") ?? "").trim().toLowerCase();
+  const note = String(formData.get("note") ?? "").trim();
+  const revisedAmount = parseContractPrice(
+    String(formData.get("revisedAmount") ?? "")
+  );
+
+  if (!periodId) throw new Error("Period is required.");
+  if (decision !== "approve" && decision !== "revise") {
+    throw new Error("Choose Approved or Revised.");
+  }
+
+  const period = await prisma.projectInvoicePeriod.findUnique({
+    where: { id: periodId },
+    include: {
+      project: {
+        select: {
+          id: true,
+          clientId: true,
+          billingMode: true,
+          subCategory: true,
+          endDate: true,
+          client: { select: { hasPortalAccess: true } },
+        },
+      },
+    },
+  });
+
+  if (!period) throw new Error("Billing period not found.");
+  if (period.project.client?.hasPortalAccess !== false) {
+    throw new Error("This client uses the portal review flow.");
+  }
+  if (period.status !== "AWAITING_CLIENT_REVIEW") {
+    throw new Error("This period is not waiting for a client response.");
+  }
+  if (!isAwaitingClientAction(period.clientReviewStatus)) {
+    throw new Error("This review is not open.");
+  }
+
+  const original = decimalToNumber(period.amount);
+  if (decision === "revise") {
+    if (!note) {
+      throw new Error("Explain why the amount was revised.");
+    }
+    if (revisedAmount == null || revisedAmount <= 0) {
+      throw new Error("Enter the revised invoice amount.");
+    }
+    if (original != null && Math.round(original) === Math.round(revisedAmount)) {
+      throw new Error(
+        "A revision must use a different amount. If the number is unchanged, choose Approve."
+      );
+    }
+  }
+
+  await prisma.projectInvoicePeriod.update({
+    where: { id: periodId },
+    data: {
+      clientReviewStatus: "CLIENT_APPROVED",
+      clientReviewedAt: new Date(),
+      hoReviewedAt: new Date(),
+      hoReviewedById: session.user.id,
+      ...(decision === "revise"
+        ? {
+            clientRevisionNote: note,
+            amount: revisedAmount,
+            revisedInvoiceAmount: revisedAmount,
+          }
+        : {}),
+    },
+  });
+  if (decision === "revise" && revisedAmount != null) {
+    await setPeriodClientRequestedAmount(periodId, revisedAmount);
+  }
+
+  await logReviewEvent({
+    invoicePeriodId: periodId,
+    actorRole: "HO",
+    userId: session.user.id,
+    action: decision === "revise" ? "HO_APPROVED" : "CLIENT_APPROVED",
+    note: decision === "revise" ? note : "Offline client approval recorded.",
+    statusAfter: "CLIENT_APPROVED",
+  });
+
+  await issueInvoiceAfterClientApproval(periodId, session.user.id);
+
+  revalidateReviewPaths({
+    projectId: period.projectId,
+    clientId: period.project.clientId,
+  });
+
+  return { periodId, invoiced: true };
 }

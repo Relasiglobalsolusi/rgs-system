@@ -41,6 +41,7 @@ import DirectoryAddButton from "@/components/ui/DirectoryAddButton";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
+import StatusBadge from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog } from "@/components/ui/dialog";
@@ -182,14 +183,28 @@ export default function EquipmentProductPage({
       key: "status",
       title: t("pages.inventory.columns.status"),
       width: "10rem",
+      cellAlign: "center",
+      className: "min-w-[10rem] overflow-visible",
       render: (row) => {
         if (row.kind === "uncoded") {
-          return t("pages.inventory.product.newNoCode");
+          return (
+            <StatusBadge status="info" compact>
+              {t("pages.inventory.product.newNoCode")}
+            </StatusBadge>
+          );
         }
         if (row.kind === "soldNew") {
-          return t("pages.inventory.product.soldNewNoCode");
+          return (
+            <StatusBadge status="inactive" compact>
+              {t("pages.inventory.product.soldNewNoCode")}
+            </StatusBadge>
+          );
         }
-        return statusLabel(row.asset, t);
+        return (
+          <StatusBadge status={assetStatusTone(row.asset)} compact>
+            {statusLabel(row.asset, t)}
+          </StatusBadge>
+        );
       },
     },
     {
@@ -261,21 +276,49 @@ export default function EquipmentProductPage({
       key: "intent",
       title: t("pages.inventory.factoryReturn.intent"),
       width: "8rem",
-      render: (row) =>
-        localizeKnownKey(
-          `pages.inventory.factoryReturn.intents.${row.originalIntent}`,
-          locale
-        ),
+      cellAlign: "center",
+      className: "min-w-[8rem] overflow-visible",
+      render: (row) => (
+        <StatusBadge
+          status={
+            row.originalIntent === "REFUND"
+              ? "warning"
+              : row.originalIntent === "REPLACE"
+                ? "info"
+                : "success"
+          }
+          compact
+        >
+          {localizeKnownKey(
+            `pages.inventory.factoryReturn.intents.${row.originalIntent}`,
+            locale
+          )}
+        </StatusBadge>
+      ),
     },
     {
       key: "status",
       title: t("pages.inventory.columns.status"),
-      width: "9rem",
-      render: (row) =>
-        localizeKnownKey(
-          `pages.inventory.factoryReturn.statuses.${row.status}`,
-          locale
-        ),
+      width: "10rem",
+      cellAlign: "center",
+      className: "min-w-[10rem] overflow-visible",
+      render: (row) => (
+        <StatusBadge
+          status={
+            row.status === "WAITING"
+              ? "warning"
+              : row.status === "REFUNDED"
+                ? "inactive"
+                : "success"
+          }
+          compact
+        >
+          {localizeKnownKey(
+            `pages.inventory.factoryReturn.statuses.${row.status}`,
+            locale
+          )}
+        </StatusBadge>
+      ),
     },
     {
       key: "refund",
@@ -533,6 +576,7 @@ export default function EquipmentProductPage({
           footer={
             <>
               <EmployeeSecondaryButton
+                closesDialog={false}
                 onClick={() => {
                   setRefundTargetId(null);
                   setRefundAmount("");
@@ -589,6 +633,17 @@ function Stat({ label, value }: { label: string; value: string }) {
       <p className="mt-1 text-lg font-semibold text-text">{value}</p>
     </div>
   );
+}
+
+function assetStatusTone(
+  row: InventoryOverviewAssetRow
+): "success" | "info" | "warning" | "inactive" | "danger" {
+  if (row.status === "AVAILABLE") return "success";
+  if (row.status === "ON_PROJECT") return "info";
+  if (row.status === "IN_TRANSIT" || row.status === "AT_FACTORY") {
+    return "warning";
+  }
+  return equipmentRetirementKind(row) === "sold" ? "inactive" : "danger";
 }
 
 function statusLabel(

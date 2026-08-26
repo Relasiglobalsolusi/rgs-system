@@ -1,7 +1,36 @@
 import type { Prisma } from "@prisma/client";
 
 import { isHoAdminAccount, type PermissionUser } from "@/lib/permissions";
+import {
+  nextPayrollPeriod,
+  upcomingWagePayrollPeriod,
+  type PayrollPeriod,
+} from "@/lib/internal-payroll-period";
 import { prisma } from "@/lib/prisma";
+
+type HeldSnapshotRow = {
+  employeeId?: string;
+  bpjsShareHeldBefore?: number;
+  bpjsShareHeldAfter?: number;
+};
+
+async function applyBpjsHeldFromSnapshot(
+  snapshot: unknown,
+  field: "bpjsShareHeldBefore" | "bpjsShareHeldAfter"
+) {
+  if (!Array.isArray(snapshot)) return;
+  const updates = (snapshot as HeldSnapshotRow[])
+    .filter((row) => row?.employeeId && typeof row[field] === "number")
+    .map((row) =>
+      prisma.employee.update({
+        where: { id: row.employeeId! },
+        data: { bpjsShareHeldIdr: row[field] as number },
+      })
+    );
+  if (updates.length > 0) {
+    await prisma.$transaction(updates);
+  }
+}
 
 export type InternalPayrollLockState = {
   locked: boolean;
@@ -26,6 +55,29 @@ function emptyLockState(): InternalPayrollLockState {
     unlockedByName: null,
     unlockReason: null,
   };
+}
+
+/** Closest unlocked Internal Payroll month (this calendar month, or the next open one). */
+export async function nextOpenWagePayrollPeriod(
+  companyId: string,
+  now?: Date
+): Promise<PayrollPeriod> {
+  let period = upcomingWagePayrollPeriod(now);
+  for (let i = 0; i < 24; i += 1) {
+    const row = await prisma.internalPayrollLock.findUnique({
+      where: {
+        companyId_year_month: {
+          companyId,
+          year: period.year,
+          month: period.month,
+        },
+      },
+      select: { locked: true },
+    });
+    if (!row?.locked) return period;
+    period = nextPayrollPeriod(period);
+  }
+  return period;
 }
 
 function toLockState(row: {
@@ -153,6 +205,7 @@ export async function lockInternalPayrollPeriod(options: {
       snapshot: options.snapshot as unknown as Prisma.InputJsonValue,
     },
   });
+  await applyBpjsHeldFromSnapshot(options.snapshot, "bpjsShareHeldAfter");
   return toLockState(row);
 }
 
@@ -164,6 +217,17 @@ export async function unlockInternalPayrollPeriod(options: {
   reason: string;
 }): Promise<InternalPayrollLockState> {
   const now = new Date();
+  const existing = await prisma.internalPayrollLock.findUnique({
+    where: {
+      companyId_year_month: {
+        companyId: options.companyId,
+        year: options.year,
+        month: options.month,
+      },
+    },
+    select: { snapshot: true },
+  });
+  await applyBpjsHeldFromSnapshot(existing?.snapshot, "bpjsShareHeldBefore");
   const row = await prisma.internalPayrollLock.upsert({
     where: {
       companyId_year_month: {

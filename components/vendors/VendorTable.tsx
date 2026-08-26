@@ -12,7 +12,6 @@ import {
   ACTIONS_SINGLE_CHIP_COLUMN_WIDTH,
   TrashPermanentDeleteChip,
   TrashRestoreChip,
-  TRASH_ACTIONS_COLUMN_WIDTH,
 } from "@/components/ui/trash-action-buttons";
 import { Button } from "@/components/ui/button";
 import { formatHiredAtLabel, formatTenure } from "@/lib/format-tenure";
@@ -40,6 +39,12 @@ export type VendorRow = {
   contactPersonPhone: string | null;
   vendorSince: Date | string;
   active: boolean;
+  bankAccounts?: Array<{
+    bankName: string;
+    accountNumber: string;
+    accountHolder: string;
+    label?: string | null;
+  }>;
 };
 
 function formatContactPersonLabel(
@@ -107,7 +112,7 @@ function VendorRowActions({
 
   return (
     <>
-      <div className="flex shrink-0 items-center justify-center gap-2 whitespace-nowrap">
+      <div className="flex flex-col items-stretch justify-center gap-2">
         {showTrashActions ? (
           <TrashRestoreChip
             onClick={(event) => {
@@ -324,18 +329,12 @@ export default function VendorTable({
     );
 
     if (canManage) {
-      const isTrashActions =
-        directoryView === "trash" || directoryView === "all";
       cols.push({
         key: "actions",
         title: t("pages.vendors.columns.actions"),
-        width: isTrashActions
-          ? TRASH_ACTIONS_COLUMN_WIDTH
-          : ACTIONS_SINGLE_CHIP_COLUMN_WIDTH,
+        width: ACTIONS_SINGLE_CHIP_COLUMN_WIDTH,
         cellAlign: "center",
-        className: isTrashActions
-          ? "min-w-[22rem] overflow-visible whitespace-nowrap"
-          : "min-w-[12.5rem] overflow-visible whitespace-nowrap",
+        className: "min-w-[12.5rem] overflow-visible",
         render: (vendor) => (
           <VendorRowActions vendor={vendor} directoryView={directoryView} />
         ),

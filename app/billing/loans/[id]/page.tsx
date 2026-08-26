@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import LoanEarlySettleDialog from "@/components/billing/LoanEarlySettleDialog";
 import LoanExtendDialog from "@/components/billing/LoanExtendDialog";
 import LoanFacilityOverview from "@/components/billing/LoanFacilityOverview";
+import LoanFacilityVariablesDialog from "@/components/billing/LoanFacilityVariablesDialog";
 import LoanMovementDialog from "@/components/billing/LoanMovementDialog";
 import AppShell from "@/components/layout/AppShell";
 import BillingBreadcrumbs from "@/components/billing/BillingBreadcrumbs";
@@ -41,7 +42,13 @@ export default async function LoanFacilityDetailPage({
   const isTerm = facility.kind === "TERM";
   const showUnused = isStandby && facility.unusedLimit != null;
   const showInstallment = isTerm && facility.monthlyInstallment != null;
-  const cardCount = 2 + (showUnused ? 1 : 0) + (showInstallment ? 1 : 0);
+  const showCommitment =
+    isStandby && facility.commitmentFeeApplies;
+  const cardCount =
+    2 +
+    (showUnused ? 1 : 0) +
+    (showInstallment ? 1 : 0) +
+    (showCommitment ? 1 : 0);
 
   return (
     <AppShell title={facility.name}>
@@ -60,6 +67,7 @@ export default async function LoanFacilityDetailPage({
             active ? (
               isStandby ? (
                 <>
+                  <LoanFacilityVariablesDialog facility={facility} />
                   <LoanMovementDialog
                     mode="DRAW"
                     facility={facility}
@@ -74,13 +82,16 @@ export default async function LoanFacilityDetailPage({
                 </>
               ) : isTerm ? (
                 <>
+                  <LoanFacilityVariablesDialog facility={facility} />
                   <LoanExtendDialog facility={facility} />
                   <LoanEarlySettleDialog
                     facility={facility}
                     bankAccounts={bankAccounts}
                   />
                 </>
-              ) : null
+              ) : (
+                <LoanFacilityVariablesDialog facility={facility} />
+              )
             ) : null
           }
         />
@@ -106,6 +117,14 @@ export default async function LoanFacilityDetailPage({
               compact
               title={t("pages.loans.unusedLimit")}
               value={formatContractPrice(facility.unusedLimit ?? 0)}
+            />
+          ) : null}
+          {showCommitment ? (
+            <DirectoryStatCard
+              compact
+              title={t("pages.loans.commitmentFeeThisMonth")}
+              value={formatContractPrice(facility.commitmentFeeThisMonth)}
+              accent="info"
             />
           ) : null}
           {showInstallment ? (

@@ -14,6 +14,7 @@ import {
   formatInvoicePeriodLabel,
   formatProjectTitle,
 } from "@/lib/project-billing";
+import { commercialTaxIncludesIncomeTax } from "@/lib/commercial-tax";
 import { getInvoicePaymentDisplay } from "@/lib/invoice-period";
 import { canAccess } from "@/lib/permissions";
 import { getServerLocale } from "@/lib/i18n/locale";
@@ -96,6 +97,7 @@ export default async function TaxInvoiceClientPage({
           clientId: true,
           billingMode: true,
           paymentTermsDays: true,
+          chargedTaxKind: true,
           client: { select: { id: true, name: true } },
         },
       },
@@ -174,6 +176,9 @@ export default async function TaxInvoiceClientPage({
       periodLabel,
       paymentKey: paymentDisplay.key,
       isPending,
+      showWithholdingSlip: commercialTaxIncludesIncomeTax(
+        project.chargedTaxKind
+      ),
     };
   });
 

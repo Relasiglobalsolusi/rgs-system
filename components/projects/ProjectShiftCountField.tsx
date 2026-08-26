@@ -110,52 +110,54 @@ export default function ProjectShiftCountField({
         </p>
       </div>
 
-      {windows.map((window) => (
-        <div key={window.number} className={employeeDialogFieldClass}>
-          <input
-            type="hidden"
-            name={fieldName(`shiftStart.${window.number}`)}
-            value={window.startTime}
-          />
-          <input
-            type="hidden"
-            name={fieldName(`shiftEnd.${window.number}`)}
-            value={window.endTime}
-          />
-          <label className="text-sm font-medium text-text">
-            {t("pages.projects.shiftWindowLabel", { number: window.number })}
-          </label>
-          <div className="flex flex-wrap items-center gap-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {windows.map((window) => (
+          <div key={window.number} className={employeeDialogFieldClass}>
             <input
-              type="time"
-              required
-              disabled={disabled}
+              type="hidden"
+              name={fieldName(`shiftStart.${window.number}`)}
               value={window.startTime}
-              onChange={(event) =>
-                setWindowTime(window.number, "startTime", event.target.value)
-              }
-              className={employeeInputClass}
-              aria-label={t("pages.projects.shiftWindowStart", {
-                number: window.number,
-              })}
             />
-            <span className="text-muted">–</span>
             <input
-              type="time"
-              required
-              disabled={disabled}
+              type="hidden"
+              name={fieldName(`shiftEnd.${window.number}`)}
               value={window.endTime}
-              onChange={(event) =>
-                setWindowTime(window.number, "endTime", event.target.value)
-              }
-              className={employeeInputClass}
-              aria-label={t("pages.projects.shiftWindowEnd", {
-                number: window.number,
-              })}
             />
+            <label className="text-sm font-medium text-text">
+              {t("pages.projects.shiftWindowLabel", { number: window.number })}
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="time"
+                required
+                disabled={disabled}
+                value={window.startTime}
+                onChange={(event) =>
+                  setWindowTime(window.number, "startTime", event.target.value)
+                }
+                className={employeeInputClass}
+                aria-label={t("pages.projects.shiftWindowStart", {
+                  number: window.number,
+                })}
+              />
+              <span className="text-muted">–</span>
+              <input
+                type="time"
+                required
+                disabled={disabled}
+                value={window.endTime}
+                onChange={(event) =>
+                  setWindowTime(window.number, "endTime", event.target.value)
+                }
+                className={employeeInputClass}
+                aria-label={t("pages.projects.shiftWindowEnd", {
+                  number: window.number,
+                })}
+              />
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }

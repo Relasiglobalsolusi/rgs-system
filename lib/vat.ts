@@ -163,3 +163,54 @@ export function isDateInJakartaMonth(
   const [y, m] = key.split("-").map(Number);
   return y === year && m === month;
 }
+
+export function isDateInJakartaYear(
+  date: Date | null | undefined,
+  year: number
+): boolean {
+  if (!date) return false;
+  return jakartaYearMonth(date).year === year;
+}
+
+/**
+ * Unused input VAT still available at the start of `asOf` month.
+ * Each earlier month applies input − output against the running credit;
+ * a month that still owes VAT after using the credit is remitted, so the
+ * credit cannot go below zero.
+ */
+export function broughtForwardVatCredit(
+  outputRows: Array<{ date: string | null; ppn: number }>,
+  inputRows: Array<{ date: string | null; ppn: number }>,
+  asOfYear: number,
+  asOfMonth: number
+): number {
+  const cutoff = asOfYear * 12 + asOfMonth;
+  const buckets = new Map<number, { output: number; input: number }>();
+
+  function add(
+    rows: Array<{ date: string | null; ppn: number }>,
+    kind: "output" | "input"
+  ) {
+    for (const row of rows) {
+      if (!row.date || !Number.isFinite(row.ppn) || row.ppn === 0) continue;
+      const ym = jakartaYearMonth(new Date(row.date));
+      if (!Number.isFinite(ym.year) || !Number.isFinite(ym.month)) continue;
+      const key = ym.year * 12 + ym.month;
+      if (key >= cutoff) continue;
+      const bucket = buckets.get(key) ?? { output: 0, input: 0 };
+      bucket[kind] += row.ppn;
+      buckets.set(key, bucket);
+    }
+  }
+
+  add(outputRows, "output");
+  add(inputRows, "input");
+
+  let credit = 0;
+  for (const key of [...buckets.keys()].sort((a, b) => a - b)) {
+    const bucket = buckets.get(key);
+    if (!bucket) continue;
+    credit = Math.max(0, credit + bucket.input - bucket.output);
+  }
+  return Math.round(credit);
+}

@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useTransition } from "react";
+import { useMemo, useTransition, type ReactNode } from "react";
+
+import { FinancePeriodToolbar } from "@/components/billing/finance-toolbar";
 
 import { employeeSelectTriggerClass } from "@/components/employees/employee-dialog-ui";
 import {
@@ -22,6 +24,7 @@ type Props = {
   idPrefix: string;
   periodLabel: string;
   onNavigate: (next: FinancePeriod) => void;
+  action?: ReactNode;
 };
 
 export default function FinancePeriodControl({
@@ -31,6 +34,7 @@ export default function FinancePeriodControl({
   idPrefix,
   periodLabel,
   onNavigate,
+  action,
 }: Props) {
   const { t } = useT();
   const [pending, startTransition] = useTransition();
@@ -65,15 +69,11 @@ export default function FinancePeriodControl({
   }
 
   return (
-    <div
-      className={cn(
-        "flex flex-wrap items-end gap-2",
-        pending && "pointer-events-none opacity-70"
-      )}
+    <FinancePeriodToolbar
+      label={periodLabel}
+      action={action}
+      className={cn(pending && "pointer-events-none opacity-70")}
     >
-      <div className="space-y-1.5">
-        <p className="text-xs font-medium text-subtle">{periodLabel}</p>
-        <div className="flex flex-wrap gap-2">
           <Select
             value={day == null || wholeYear ? "all" : String(day)}
             disabled={wholeYear}
@@ -91,7 +91,7 @@ export default function FinancePeriodControl({
               aria-label={t("common.labels.dates")}
               className={cn(
                 employeeSelectTriggerClass,
-                "w-auto min-w-[11.5rem] shrink-0 *:data-[slot=select-value]:overflow-visible"
+                "w-full min-w-0 sm:w-auto sm:min-w-[11.5rem] *:data-[slot=select-value]:overflow-visible"
               )}
             >
               <SelectValue>
@@ -136,7 +136,7 @@ export default function FinancePeriodControl({
               aria-label={t("common.labels.month")}
               className={cn(
                 employeeSelectTriggerClass,
-                "w-auto min-w-[12rem] shrink-0 *:data-[slot=select-value]:overflow-visible"
+                "w-full min-w-0 sm:w-auto sm:min-w-[12rem] *:data-[slot=select-value]:overflow-visible"
               )}
             >
               <SelectValue>
@@ -179,7 +179,7 @@ export default function FinancePeriodControl({
               aria-label={t("common.labels.year")}
               className={cn(
                 employeeSelectTriggerClass,
-                "w-auto min-w-[6.75rem] shrink-0 *:data-[slot=select-value]:overflow-visible"
+                "w-full min-w-0 sm:w-auto sm:min-w-[6.75rem] *:data-[slot=select-value]:overflow-visible"
               )}
             >
               <SelectValue>
@@ -194,8 +194,6 @@ export default function FinancePeriodControl({
               ))}
             </SelectContent>
           </Select>
-        </div>
-      </div>
-    </div>
+    </FinancePeriodToolbar>
   );
 }

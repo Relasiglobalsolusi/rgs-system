@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
 
 import ProjectOptionPills from "@/components/projects/ProjectOptionPills";
 import { Input } from "@/components/ui/input";
@@ -28,6 +29,13 @@ import {
   type VendorTypeValue,
 } from "@/lib/vendor-type";
 
+export type VendorBankAccountDefault = {
+  bankName: string;
+  accountNumber: string;
+  accountHolder: string;
+  label?: string | null;
+};
+
 export type VendorFormDefaults = {
   name?: string;
   /** Auto-assigned short code (read-only; create shows preview). */
@@ -44,6 +52,7 @@ export type VendorFormDefaults = {
   contactPersonEmail?: string;
   contactPersonPhone?: string;
   vendorType?: VendorTypeValue;
+  bankAccounts?: VendorBankAccountDefault[];
 };
 
 type Props = {
@@ -120,6 +129,23 @@ export default function VendorFormFields({
   const [selectedTaxIdFileName, setSelectedTaxIdFileName] = useState<
     string | null
   >(null);
+  const [bankAccounts, setBankAccounts] = useState<
+    Array<{
+      bankName: string;
+      accountNumber: string;
+      accountHolder: string;
+      label: string;
+    }>
+  >(() =>
+    defaults?.bankAccounts?.length
+      ? defaults.bankAccounts.map((row) => ({
+          bankName: row.bankName,
+          accountNumber: row.accountNumber,
+          accountHolder: row.accountHolder,
+          label: row.label ?? "",
+        }))
+      : [{ bankName: "", accountNumber: "", accountHolder: "", label: "" }]
+  );
 
   const isIndividual = vendorType === "INDIVIDUAL";
   const isOverseas = vendorType === "OVERSEAS";
@@ -594,6 +620,170 @@ export default function VendorFormFields({
           </div>
         </div>
       ) : null}
+
+      <div className={employeeDialogSectionClass}>
+        <SectionHeading
+          title={t("pages.vendors.form.bankAccounts")}
+          description={t("pages.vendors.form.bankAccountsDesc")}
+        />
+        <div className="space-y-4">
+          {bankAccounts.map((account, index) => (
+            <div
+              key={`${index}`}
+              className="rounded-2xl border border-border bg-elevated/30 p-4"
+            >
+              <div className={employeeDialogGridClass}>
+                <div className={employeeDialogFieldClass}>
+                  <label
+                    htmlFor={idOf(`vendor-bank-${index}-name`)}
+                    className={employeeDialogLabelClass}
+                  >
+                    {t("pages.vendors.form.bankName")}
+                    <span className="text-red-400"> *</span>
+                  </label>
+                  <input
+                    type="hidden"
+                    id={idOf(`vendor-bank-${index}-name`)}
+                    name={nameOf(`vendorBank.${index}.bankName`)}
+                    value={account.bankName}
+                    required
+                    data-required-label={t("pages.vendors.form.bankName")}
+                  />
+                  <Input
+                    value={account.bankName}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setBankAccounts((current) =>
+                        current.map((row, rowIndex) =>
+                          rowIndex === index ? { ...row, bankName: value } : row
+                        )
+                      );
+                      onFormValuesChange?.();
+                    }}
+                    className={employeeInputClass}
+                  />
+                </div>
+                <div className={employeeDialogFieldClass}>
+                  <label
+                    htmlFor={idOf(`vendor-bank-${index}-number`)}
+                    className={employeeDialogLabelClass}
+                  >
+                    {t("pages.vendors.form.accountNumber")}
+                    <span className="text-red-400"> *</span>
+                  </label>
+                  <input
+                    type="hidden"
+                    id={idOf(`vendor-bank-${index}-number`)}
+                    name={nameOf(`vendorBank.${index}.accountNumber`)}
+                    value={account.accountNumber}
+                    required
+                    data-required-label={t("pages.vendors.form.accountNumber")}
+                  />
+                  <Input
+                    value={account.accountNumber}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setBankAccounts((current) =>
+                        current.map((row, rowIndex) =>
+                          rowIndex === index
+                            ? { ...row, accountNumber: value }
+                            : row
+                        )
+                      );
+                      onFormValuesChange?.();
+                    }}
+                    className={employeeInputClass}
+                  />
+                </div>
+                <div className={employeeDialogFieldClass}>
+                  <label
+                    htmlFor={idOf(`vendor-bank-${index}-holder`)}
+                    className={employeeDialogLabelClass}
+                  >
+                    {t("pages.vendors.form.accountHolder")}
+                    <span className="text-red-400"> *</span>
+                  </label>
+                  <input
+                    type="hidden"
+                    id={idOf(`vendor-bank-${index}-holder`)}
+                    name={nameOf(`vendorBank.${index}.accountHolder`)}
+                    value={account.accountHolder}
+                    required
+                    data-required-label={t("pages.vendors.form.accountHolder")}
+                  />
+                  <Input
+                    value={account.accountHolder}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setBankAccounts((current) =>
+                        current.map((row, rowIndex) =>
+                          rowIndex === index
+                            ? { ...row, accountHolder: value }
+                            : row
+                        )
+                      );
+                      onFormValuesChange?.();
+                    }}
+                    className={employeeInputClass}
+                  />
+                </div>
+                <div className={employeeDialogFieldClass}>
+                  <label className={employeeDialogLabelClass}>
+                    {t("pages.vendors.form.accountLabel")}
+                  </label>
+                  <input
+                    type="hidden"
+                    name={nameOf(`vendorBank.${index}.label`)}
+                    value={account.label}
+                  />
+                  <Input
+                    value={account.label}
+                    placeholder={t("pages.vendors.form.accountLabelPlaceholder")}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setBankAccounts((current) =>
+                        current.map((row, rowIndex) =>
+                          rowIndex === index ? { ...row, label: value } : row
+                        )
+                      );
+                      onFormValuesChange?.();
+                    }}
+                    className={employeeInputClass}
+                  />
+                </div>
+              </div>
+              {bankAccounts.length > 1 ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="mt-3"
+                  onClick={() => {
+                    setBankAccounts((current) =>
+                      current.filter((_, rowIndex) => rowIndex !== index)
+                    );
+                    onFormValuesChange?.();
+                  }}
+                >
+                  {t("pages.vendors.form.removeBankAccount")}
+                </Button>
+              ) : null}
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              setBankAccounts((current) => [
+                ...current,
+                { bankName: "", accountNumber: "", accountHolder: "", label: "" },
+              ]);
+              onFormValuesChange?.();
+            }}
+          >
+            {t("pages.vendors.form.addBankAccount")}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

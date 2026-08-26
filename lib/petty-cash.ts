@@ -401,6 +401,19 @@ async function sumPosted(
   return decimalToNumber(agg._sum.amount) ?? 0;
 }
 
+/** Posted top-ups minus spends as of the period end. Live when the end is still open. */
+export async function getPettyCashBalanceAsOf(
+  db: PettyCashDb,
+  companyId: string,
+  toExclusive?: Date
+): Promise<number> {
+  const [inflow, outflow] = await Promise.all([
+    sumPosted(db, companyId, INFLOW_KINDS, undefined, toExclusive),
+    sumPosted(db, companyId, OUTFLOW_KINDS, undefined, toExclusive),
+  ]);
+  return inflow - outflow;
+}
+
 export async function getPettyCashTotals(
   db: PettyCashDb,
   companyId: string,
@@ -472,6 +485,43 @@ export async function getProjectPettyCashOutflowsByProjectIds(
   for (const row of groups) {
     if (!row.projectId) continue;
     totals.set(row.projectId, decimalToNumber(row._sum.amount) ?? 0);
+  }
+  return totals;
+}
+
+export async function getClientPettyCashOutflowsByClientIds(
+  db: PettyCashDb,
+  companyId: string,
+  clientIds: string[],
+  from?: Date,
+  toExclusive?: Date
+): Promise<Map<string, number>> {
+  const totals = new Map<string, number>();
+  if (clientIds.length === 0) return totals;
+  const entries = pettyCashDelegate(db);
+  if (!entries) return totals;
+  const groups = await entries.groupBy({
+    by: ["clientId"],
+    where: {
+      companyId,
+      clientId: { in: clientIds },
+      projectId: null,
+      status: "POSTED",
+      kind: { in: [...OUTFLOW_KINDS] },
+      ...(from || toExclusive
+        ? {
+            entryDate: {
+              ...(from ? { gte: from } : {}),
+              ...(toExclusive ? { lt: toExclusive } : {}),
+            },
+          }
+        : {}),
+    },
+    _sum: { amount: true },
+  });
+  for (const row of groups) {
+    if (!row.clientId) continue;
+    totals.set(row.clientId, decimalToNumber(row._sum.amount) ?? 0);
   }
   return totals;
 }

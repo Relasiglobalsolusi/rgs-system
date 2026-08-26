@@ -12,8 +12,15 @@ import {
 import { COMPANY_IDENTITY_SELECT } from "@/lib/company-for-pdf";
 import { generateInvoicePeriodPdf } from "@/lib/progress-report-pdf";
 import { overlayInvoiceCompanyBank } from "@/lib/company-bank-accounts";
+import {
+  parseRequiredTaxInvoiceSerial,
+  requireTaxInvoiceSerialVerified,
+} from "@/lib/tax-invoice-serial";
 import { DEFAULT_PRODUCT_PPN_RATE_PERCENT } from "@/lib/vat";
-import { invoiceGrossFromExclusivePrice } from "@/lib/commercial-tax";
+import {
+  commercialTaxIncludesIncomeTax,
+  invoiceGrossFromExclusivePrice,
+} from "@/lib/commercial-tax";
 import {
   COMPLETION_INVOICE_LABEL,
   decimalToNumber,
@@ -57,7 +64,10 @@ import {
   canIssueCommercialInvoiceForProject,
   canIssueInvoiceAfterReview,
 } from "@/lib/client-billing-review";
-import { parseManualVerifyReason } from "@/lib/in-house-document-verify";
+import {
+  parseManualVerifyReason,
+  parseOptionalManualVerifyReason,
+} from "@/lib/in-house-document-verify";
 
 const COMPANY_BANK_SELECT = COMPANY_IDENTITY_SELECT;
 
@@ -142,6 +152,22 @@ async function requireInvoiceManageAccess(opts?: {
   }
   const user = toPermissionUser(session);
   if (!canAccess(user, "projects") && !canAccess(user, "invoicing")) {
+    redirect("/dashboard");
+  }
+  return session;
+}
+
+async function requireTaxDocumentManageAccess() {
+  const session = await requireSession();
+  if (session.user.clientId || session.user.vendorId) {
+    redirect("/dashboard");
+  }
+  const user = toPermissionUser(session);
+  if (
+    !canAccess(user, "projects") &&
+    !canAccess(user, "invoicing") &&
+    !canAccess(user, "taxInvoices")
+  ) {
     redirect("/dashboard");
   }
   return session;
@@ -680,6 +706,7 @@ async function compileInvoicePeriodInner(
         chargedTaxKind: period.project.chargedTaxKind,
         requiresTaxInvoice: period.project.requiresTaxInvoice,
         pphRatePercent: decimalToNumber(period.project.pphRatePercent),
+        isGovernmentContract: period.project.isGovernmentContract,
       }, decimalToNumber(period.ppnRatePercent));
     const amountLabel =
       invoiceAmount != null ? formatContractPrice(invoiceAmount) : null;
@@ -718,6 +745,7 @@ async function compileInvoicePeriodInner(
       dueAt,
       paymentTermsDays: period.project.paymentTermsDays,
       invoiceNumber,
+      isGovernmentContract: period.project.isGovernmentContract,
       company: invoiceBank.company,
       title:
         period.project.subCategory === "PAYROLL_MANAGEMENT"
@@ -875,6 +903,7 @@ export async function updateProjectContractPrice(formData: FormData) {
       chargedTaxKind: true,
       requiresTaxInvoice: true,
       pphRatePercent: true,
+      isGovernmentContract: true,
       invoicePeriods: {
         where: { milestonePercent: { not: null } },
         orderBy: { milestonePercent: "asc" },
@@ -915,6 +944,7 @@ export async function updateProjectContractPrice(formData: FormData) {
           chargedTaxKind: project.chargedTaxKind,
           requiresTaxInvoice: project.requiresTaxInvoice,
           pphRatePercent: decimalToNumber(project.pphRatePercent),
+          isGovernmentContract: project.isGovernmentContract,
         }) ?? contractPrice;
       const revisions = recalculateUnpaidMilestoneAmounts(
         project.invoicePeriods.map((p) => ({
@@ -1082,6 +1112,7 @@ async function issueMilestonePeriodInner(
         chargedTaxKind: project.chargedTaxKind,
         requiresTaxInvoice: project.requiresTaxInvoice,
         pphRatePercent: decimalToNumber(project.pphRatePercent),
+        isGovernmentContract: project.isGovernmentContract,
       }) ?? exclusiveSlice;
   } else {
     amount = Math.round(amount * 100) / 100;
@@ -1182,6 +1213,7 @@ async function issueMilestonePeriodInner(
       dueAt,
       paymentTermsDays: project.paymentTermsDays,
       invoiceNumber,
+      isGovernmentContract: project.isGovernmentContract,
       company: invoiceBank.company,
       title: "Payment Milestone Invoice",
     });
@@ -1380,6 +1412,7 @@ async function ensureAdHocMilestonePeriod(
       chargedTaxKind: project.chargedTaxKind,
       requiresTaxInvoice: project.requiresTaxInvoice,
       pphRatePercent: decimalToNumber(project.pphRatePercent),
+      isGovernmentContract: project.isGovernmentContract,
     }) ?? Math.round(amount * 100) / 100;
 
   const today = toUtcDateOnly(new Date());
@@ -1564,6 +1597,7 @@ async function createMilestoneInvoice(formData: FormData) {
     dueAt,
     paymentTermsDays: project.paymentTermsDays,
     invoiceNumber,
+    isGovernmentContract: project.isGovernmentContract,
     company: invoiceBank.company,
     title: "Payment Milestone Invoice",
   });
@@ -1624,10 +1658,9 @@ async function createMilestoneInvoice(formData: FormData) {
 }
 
 /**
- * Delete an unused or unpaid invoice period.
- * Allows ONGOING / COMPILING / AWAITING_PAYMENT / OVERDUE / PENDING_VERIFICATION.
- * Blocks PAID. Removes the period row and any local invoice PDF / payment proof.
- * Linked progress reports are unlinked (SetNull), not deleted.
+ * Void an unpaid invoice period and reopen Reconcile / Submit for Approval.
+ * Unused ONGOING periods with no files are removed. PAID stays blocked.
+ * Amount and progress links stay.
  */
 export async function deleteInvoicePeriod(periodId: string) {
   await requireInvoiceManageAccess();
@@ -1637,9 +1670,15 @@ export async function deleteInvoicePeriod(periodId: string) {
     select: {
       id: true,
       status: true,
+      reconciledAt: true,
       invoicePdfPath: true,
       paymentProofPath: true,
       taxInvoiceDocumentPath: true,
+      reviewReportPdfPath: true,
+      clientRevisionProofPath: true,
+      hoReviewProofPath: true,
+      submittedAt: true,
+      reviewSentToClientAt: true,
       projectId: true,
       project: { select: { clientId: true } },
     },
@@ -1657,14 +1696,73 @@ export async function deleteInvoicePeriod(periodId: string) {
     throw new Error("This invoice period cannot be deleted.");
   }
 
-  const pdfPath = period.invoicePdfPath;
-  const proofPath = period.paymentProofPath;
-  const taxDocPath = period.taxInvoiceDocumentPath;
+  const neverStarted =
+    period.status === "ONGOING" &&
+    !period.reconciledAt &&
+    !period.invoicePdfPath &&
+    !period.submittedAt &&
+    !period.reviewSentToClientAt &&
+    !period.paymentProofPath &&
+    !period.taxInvoiceDocumentPath;
 
-  await prisma.projectInvoicePeriod.delete({ where: { id: periodId } });
-  await deleteLocalUpload(pdfPath);
-  await deleteLocalUpload(proofPath);
-  await deleteLocalUpload(taxDocPath);
+  const filePaths = [
+    period.invoicePdfPath,
+    period.paymentProofPath,
+    period.taxInvoiceDocumentPath,
+    period.reviewReportPdfPath,
+    period.clientRevisionProofPath,
+    period.hoReviewProofPath,
+  ];
+
+  if (neverStarted) {
+    await prisma.projectInvoicePeriod.delete({ where: { id: periodId } });
+  } else {
+    await prisma.projectInvoicePeriod.update({
+      where: { id: periodId },
+      data: {
+        status: "ONGOING",
+        reconciledAt: null,
+        reconciledById: null,
+        clientReviewKind: null,
+        clientReviewStatus: "NONE",
+        reviewReportPdfPath: null,
+        reviewSentToClientAt: null,
+        clientReviewedAt: null,
+        clientRevisionNote: null,
+        clientRevisionProofPath: null,
+        hoReviewNote: null,
+        hoReviewProofPath: null,
+        hoReviewedAt: null,
+        hoReviewedById: null,
+        revisedInvoiceAmount: null,
+        revisedInvoiceNumber: null,
+        invoicePdfPath: null,
+        submittedAt: null,
+        dueAt: null,
+        paidAt: null,
+        compileNote: null,
+        compiledById: null,
+        paymentProofPath: null,
+        paymentProofUploadedAt: null,
+        paymentVerifiedAt: null,
+        paymentVerifiedById: null,
+        paymentManualReason: null,
+        taxInvoiceManualReason: null,
+        taxInvoiceRequired: false,
+        taxInvoiceDocumentPath: null,
+        taxInvoiceDocumentUploadedAt: null,
+        taxInvoiceSerial: null,
+        taxInvoiceIssuedAt: null,
+        taxInvoiceDocumentHash: null,
+        taxInvoiceDoneAt: null,
+        taxInvoiceDoneById: null,
+      },
+    });
+  }
+
+  for (const path of filePaths) {
+    await deleteLocalUpload(path);
+  }
 
   revalidateBillingPaths({
     projectId: period.projectId,
@@ -2059,8 +2157,8 @@ export async function rejectInvoicePaymentVerification(periodId: string) {
  * Independent of payment received — can happen before or after PAID.
  */
 export async function markTaxInvoiceDone(formData: FormData) {
-  const session = await requireInvoiceManageAccess();
-  const reason = parseManualVerifyReason(formData.get("manualReason"));
+  const session = await requireTaxDocumentManageAccess();
+  const reason = parseOptionalManualVerifyReason(formData.get("manualReason"));
 
   const periodId = String(formData.get("periodId") ?? "").trim();
   if (!periodId) throw new Error("Invoice period is required.");
@@ -2084,6 +2182,7 @@ export async function markTaxInvoiceDone(formData: FormData) {
           id: true,
           clientId: true,
           contractPrice: true,
+          chargedTaxKind: true,
           client: { select: { name: true, shortCode: true, npwp: true } },
           company: { select: { name: true } },
         },
@@ -2101,6 +2200,10 @@ export async function markTaxInvoiceDone(formData: FormData) {
   if (ppnRatePercent == null) {
     throw new Error("Enter a valid output PPN rate percent.");
   }
+  requireTaxInvoiceSerialVerified(formData.get("taxInvoiceSerialVerified"));
+  const taxInvoiceSerial = parseRequiredTaxInvoiceSerial(
+    formData.get("taxInvoiceSerial")
+  );
 
   const previousTaxDoc = period.taxInvoiceDocumentPath;
   const uploadedAt = new Date();
@@ -2123,9 +2226,41 @@ export async function markTaxInvoiceDone(formData: FormData) {
     data: {
       taxInvoiceDocumentPath,
       taxInvoiceDocumentUploadedAt: uploadedAt,
+      taxInvoiceSerial,
       ppnRatePercent,
     },
   });
+
+  const withholdingFile = formData.get("withholdingSlip");
+  if (
+    withholdingFile instanceof File &&
+    withholdingFile.size > 0 &&
+    !commercialTaxIncludesIncomeTax(period.project.chargedTaxKind)
+  ) {
+    throw new Error("This project does not charge income tax.");
+  }
+  if (withholdingFile instanceof File && withholdingFile.size > 0) {
+    const slip = requireImageOrPdfUpload(withholdingFile, {
+      requiredMessage: "Please upload the withholding tax slip (bukti potong).",
+      sizeMessage: "Withholding tax slip must be 10 MB or smaller.",
+      typeMessage:
+        "Withholding tax slip must be an image (JPEG, PNG, WebP, GIF) or PDF.",
+    });
+    const withholdingSlipPath = await saveUpload(slip, "uploads/tax-invoices", {
+      fileBaseName: buildBillingDocumentFileBase({
+        prefix: "Withholding-Slip",
+        clientShortCode: period.project.client?.shortCode,
+        clientName: period.project.client?.name,
+        invoiceNumber: commercialInvoiceNumber(period),
+      }),
+    });
+    await prisma.$executeRaw`
+      UPDATE "ProjectInvoicePeriod"
+      SET "withholdingSlipPath" = ${withholdingSlipPath},
+          "withholdingSlipUploadedAt" = ${uploadedAt}
+      WHERE id = ${periodId}
+    `;
+  }
 
   if (previousTaxDoc && previousTaxDoc !== taxInvoiceDocumentPath) {
     await deleteLocalUpload(previousTaxDoc);
@@ -2148,6 +2283,74 @@ export async function markTaxInvoiceDone(formData: FormData) {
   });
 
   await tryCompleteSettledProject(period.projectId);
+}
+
+export async function uploadPeriodWithholdingSlip(formData: FormData) {
+  const session = await requireTaxDocumentManageAccess();
+  const periodId = String(formData.get("periodId") ?? "").trim();
+  if (!periodId) throw new Error("Invoice period is required.");
+
+  const slip = requireImageOrPdfUpload(formData.get("withholdingSlip"), {
+    requiredMessage: "Please upload the withholding tax slip (bukti potong).",
+    sizeMessage: "Withholding tax slip must be 10 MB or smaller.",
+    typeMessage:
+      "Withholding tax slip must be an image (JPEG, PNG, WebP, GIF) or PDF.",
+  });
+
+  const period = await prisma.projectInvoicePeriod.findFirst({
+    where: {
+      id: periodId,
+      project: { companyId: session.user.companyId },
+    },
+    select: {
+      id: true,
+      periodStart: true,
+      milestonePercent: true,
+      withholdingSlipPath: true,
+      project: {
+        select: {
+          id: true,
+          clientId: true,
+          chargedTaxKind: true,
+          client: { select: { name: true, shortCode: true } },
+        },
+      },
+    },
+  });
+  if (!period) throw new Error("Invoice period not found.");
+  if (!commercialTaxIncludesIncomeTax(period.project.chargedTaxKind)) {
+    throw new Error("This project does not charge income tax.");
+  }
+  if (period.withholdingSlipPath) {
+    throw new Error("Withholding tax slip already uploaded.");
+  }
+
+  const withholdingSlipPath = await saveUpload(slip, "uploads/tax-invoices", {
+    fileBaseName: buildBillingDocumentFileBase({
+      prefix: "Withholding-Slip",
+      clientShortCode: period.project.client?.shortCode,
+      clientName: period.project.client?.name,
+      invoiceNumber: commercialInvoiceNumber(period),
+    }),
+  });
+
+  try {
+    await prisma.projectInvoicePeriod.update({
+      where: { id: period.id },
+      data: {
+        withholdingSlipPath,
+        withholdingSlipUploadedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    await deleteLocalUpload(withholdingSlipPath);
+    throw error;
+  }
+
+  revalidateBillingPaths({
+    projectId: period.project.id,
+    clientId: period.project.clientId,
+  });
 }
 
 async function tryCompleteSettledProject(projectId: string) {
@@ -2230,6 +2433,7 @@ export async function reconcileInvoicePeriod(formData: FormData) {
           chargedTaxKind: true,
           requiresTaxInvoice: true,
           pphRatePercent: true,
+          isGovernmentContract: true,
         },
       },
     },
@@ -2280,6 +2484,7 @@ export async function reconcileInvoicePeriod(formData: FormData) {
           chargedTaxKind: period.project.chargedTaxKind,
           requiresTaxInvoice: period.project.requiresTaxInvoice,
           pphRatePercent: decimalToNumber(period.project.pphRatePercent),
+          isGovernmentContract: period.project.isGovernmentContract,
         }) ?? adjusted,
     };
   } else if (decimalToNumber(period.amount) == null) {
@@ -2289,6 +2494,7 @@ export async function reconcileInvoicePeriod(formData: FormData) {
         chargedTaxKind: period.project.chargedTaxKind,
         requiresTaxInvoice: period.project.requiresTaxInvoice,
         pphRatePercent: decimalToNumber(period.project.pphRatePercent),
+        isGovernmentContract: period.project.isGovernmentContract,
       }
     );
     if (fallback != null && fallback > 0) {

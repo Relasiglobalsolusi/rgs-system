@@ -1,9 +1,11 @@
 "use client";
 
 import {
+  showMissingRequiredFields,
   showRejection,
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Truck } from "lucide-react";
 import { toast } from "sonner";
@@ -50,6 +52,12 @@ type Vendor = {
   contactPersonPhone: string | null;
   vendorSince: Date | string;
   active: boolean;
+  bankAccounts?: Array<{
+    bankName: string;
+    accountNumber: string;
+    accountHolder: string;
+    label?: string | null;
+  }>;
 };
 
 type Props = {
@@ -65,6 +73,7 @@ export default function VendorEditDialog({
   showTrigger = true,
 }: Props) {
   const { t } = useT();
+  const router = useRouter();
   const formId = `edit-vendor-form-${vendor.id}`;
   const { open, setOpen } = useDirectoryDialogOpen(controlledOpen, onOpenChange);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
@@ -123,6 +132,14 @@ export default function VendorEditDialog({
   }, [open, formId, vendor.id]);
 
   async function submit(formData: FormData) {
+    const form = document.getElementById(formId);
+    if (
+      showMissingRequiredFields(
+        form instanceof HTMLFormElement ? form : null
+      )
+    ) {
+      return;
+    }
     const vendorType = String(formData.get("vendorType") ?? "");
     const npwpRaw = String(formData.get("npwp") ?? "").trim();
     const isIndividual =
@@ -159,6 +176,7 @@ export default function VendorEditDialog({
         setExitConfirmOpen(false);
         setOpen(false);
         setBaseline(null);
+        router.refresh();
       } catch (error) {
         showRejectionFromError(error, t("pages.vendors.updateFailed"));
       }
@@ -214,6 +232,7 @@ export default function VendorEditDialog({
             id={formId}
             key={`${vendor.id}-${open ? "open" : "closed"}`}
             action={submit}
+            noValidate
             onInput={handleFormInput}
           >
             <VendorFormFields
@@ -233,6 +252,7 @@ export default function VendorEditDialog({
                 contactPersonEmail: vendor.contactPersonEmail ?? "",
                 contactPersonPhone: vendor.contactPersonPhone ?? "",
                 vendorType: vendor.vendorType ?? "COMPANY",
+                bankAccounts: vendor.bankAccounts ?? [],
               }}
               onFormValuesChange={handleFormInput}
             />

@@ -107,6 +107,138 @@ export function showRejection(options: ShowRejectionOptions) {
 }
 
 /** Convenience for `catch` blocks that currently used `showRejection({ reasons: error.message })`. */
+function fieldRequiredLabel(form: HTMLFormElement, element: Element): string {
+  const labelled =
+    element instanceof HTMLElement && element.id
+      ? form.querySelector(`label[for="${CSS.escape(element.id)}"]`)
+      : null;
+  const wrapping = element.closest("label");
+  return (
+    element.getAttribute("data-required-label") ??
+    labelled?.textContent ??
+    wrapping?.textContent ??
+    element.getAttribute("aria-label") ??
+    (element instanceof HTMLInputElement ||
+    element instanceof HTMLSelectElement ||
+    element instanceof HTMLTextAreaElement
+      ? element.name
+      : "") ??
+    ""
+  )
+    .replace(/\*/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isEmptyRequiredControl(
+  element: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+): boolean {
+  if (element instanceof HTMLInputElement && element.type === "file") {
+    return !element.files || element.files.length === 0;
+  }
+  if (element instanceof HTMLInputElement && element.type === "checkbox") {
+    return !element.checked;
+  }
+  const raw = String(element.value ?? "").trim();
+  if (!raw) return true;
+  if (element.getAttribute("data-required-nonzero") === "true") {
+    const digits = raw.replace(/\D/g, "");
+    return digits.length === 0 || /^0+$/.test(digits);
+  }
+  return false;
+}
+
+export function missingRequiredFieldLabels(form: HTMLFormElement): string[] {
+  const labels: string[] = [];
+  const seen = new Set<Element>();
+
+  function consider(element: Element) {
+    if (seen.has(element)) return;
+    if (
+      !(
+        element instanceof HTMLInputElement ||
+        element instanceof HTMLSelectElement ||
+        element instanceof HTMLTextAreaElement
+      )
+    ) {
+      return;
+    }
+    seen.add(element);
+    const requiredLabel = element.getAttribute("data-required-label");
+    const treatHidden = element.type === "hidden" && Boolean(requiredLabel);
+    if (
+      element.disabled ||
+      element.type === "submit" ||
+      element.type === "button"
+    ) {
+      return;
+    }
+    const ariaRequired = element.getAttribute("aria-required") === "true";
+    if (!element.required && !treatHidden && !ariaRequired) {
+      return;
+    }
+    if (element.type === "hidden" && !treatHidden) return;
+    if (!isEmptyRequiredControl(element)) return;
+    const text = fieldRequiredLabel(form, element);
+    if (text) labels.push(text);
+  }
+
+  for (const element of Array.from(form.elements)) {
+    consider(element);
+  }
+  for (const element of Array.from(
+    form.querySelectorAll(
+      "[required], [aria-required='true'], [data-required-label]"
+    )
+  )) {
+    consider(element);
+  }
+
+  for (const label of Array.from(form.querySelectorAll("label"))) {
+    if (!/\*/.test(label.textContent ?? "")) continue;
+    const forId = label.getAttribute("for");
+    const control = forId
+      ? form.querySelector(`#${CSS.escape(forId)}`)
+      : label.querySelector("input, select, textarea");
+    if (
+      !(
+        control instanceof HTMLInputElement ||
+        control instanceof HTMLSelectElement ||
+        control instanceof HTMLTextAreaElement
+      )
+    ) {
+      continue;
+    }
+    if (control.disabled) continue;
+    if (!isEmptyRequiredControl(control)) continue;
+    const text = (label.textContent ?? "")
+      .replace(/\*/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (text) labels.push(text);
+  }
+
+  return [...new Set(labels)];
+}
+
+export function showMissingRequiredFields(
+  form: HTMLFormElement | null,
+  extraFields: string[] = []
+): boolean {
+  const fields = [
+    ...(form ? missingRequiredFieldLabels(form) : []),
+    ...extraFields.filter((field) => field.trim().length > 0),
+  ];
+  const unique = [...new Set(fields)];
+  if (unique.length === 0) return false;
+  showRejection({
+    reasons: translate(getLocale(), "ui.rejectionNotice.fieldsStillMissing", {
+      fields: unique.join(", "),
+    }),
+  });
+  return true;
+}
+
 export function showRejectionFromError(
   error: unknown,
   fallback: string,
@@ -134,6 +266,13 @@ function closeRejectionNotice() {
  * Host dialog — mount once under app Providers.
  * Uses a high z-index so it can appear above other ERP dialogs.
  */
+function markFormsNoValidate(root: ParentNode) {
+  root.querySelectorAll("form").forEach((form) => {
+    if (form.dataset.allowNativeRequired === "true") return;
+    form.noValidate = true;
+  });
+}
+
 export function RejectionNoticeHost() {
   const { t } = useT();
   const [state, setState] = useState<RejectionNoticeState>(noticeState);
@@ -147,12 +286,46 @@ export function RejectionNoticeHost() {
     };
   }, []);
 
+  useEffect(() => {
+    markFormsNoValidate(document);
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        for (const node of mutation.addedNodes) {
+          if (node instanceof HTMLFormElement) {
+            if (node.dataset.allowNativeRequired !== "true") {
+              node.noValidate = true;
+            }
+          } else if (node instanceof HTMLElement) {
+            markFormsNoValidate(node);
+          }
+        }
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    function onSubmit(event: SubmitEvent) {
+      const form = event.target;
+      if (!(form instanceof HTMLFormElement)) return;
+      if (form.dataset.skipRequiredPopup === "true") return;
+      if (showMissingRequiredFields(form)) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    }
+    document.addEventListener("submit", onSubmit, true);
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("submit", onSubmit, true);
+    };
+  }, []);
+
   const title = state.title ?? t("ui.rejectionNotice.title");
   const description =
     state.description ?? t("ui.rejectionNotice.description");
 
   return (
     <Dialog
+      skipUnsavedGuard
       open={state.open}
       onOpenChange={(open) => {
         if (!open) closeRejectionNotice();

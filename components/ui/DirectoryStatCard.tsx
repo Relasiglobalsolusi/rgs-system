@@ -3,33 +3,15 @@
 import type { KeyboardEvent, ReactNode } from "react";
 import Link from "next/link";
 
+import {
+  cardTintIcon,
+  cardTintWash,
+  cardTintWashSelected,
+  type CardTintAccent,
+} from "@/components/ui/card-tint";
 import { cn } from "@/lib/utils";
 
-type DirectoryStatAccent =
-  | "primary"
-  | "success"
-  | "warning"
-  | "danger"
-  | "info"
-  | "muted";
-
-const accentIcon: Record<DirectoryStatAccent, string> = {
-  primary: "bg-elevated text-primary",
-  success: "bg-elevated text-primary",
-  warning: "bg-elevated text-warning",
-  danger: "bg-elevated text-danger",
-  info: "bg-elevated text-accent-teal",
-  muted: "bg-elevated text-accent-slate",
-};
-
-const accentSelected: Record<DirectoryStatAccent, string> = {
-  primary: "border-primary/35 bg-card-tint-emerald",
-  success: "border-primary/35 bg-card-tint-emerald",
-  warning: "border-warning/40 bg-card-tint-amber",
-  danger: "border-danger/40 bg-card-tint-red",
-  info: "border-accent-cyan/40 bg-card-tint-cyan",
-  muted: "border-accent-slate/40 bg-card-tint-slate",
-};
+type DirectoryStatAccent = CardTintAccent;
 
 type DirectoryStatCardProps = {
   title: string;
@@ -51,6 +33,8 @@ type DirectoryStatCardProps = {
   featured?: boolean;
   /** Center title, value, and icon. Used on Expenses. */
   align?: "start" | "center";
+  /** Soft tint at the Goods Catalog level. On by default so every page matches. */
+  tinted?: boolean;
 };
 
 export default function DirectoryStatCard({
@@ -66,6 +50,7 @@ export default function DirectoryStatCard({
   compact = false,
   featured = false,
   align = "start",
+  tinted = true,
 }: DirectoryStatCardProps) {
   const interactive = Boolean(onClick || href);
   const valueText = String(value);
@@ -85,7 +70,8 @@ export default function DirectoryStatCard({
         compact ? "px-3.5 py-2.5" : featured ? "px-6 py-5" : "px-5 py-4",
         interactive &&
           "motion-hover-lift cursor-pointer hover:border-border-strong hover:bg-card-hover",
-        selected && accentSelected[accent],
+        tinted &&
+          (selected ? cardTintWashSelected[accent] : cardTintWash[accent]),
         className
       )}
       onClick={href ? undefined : onClick}
@@ -106,7 +92,7 @@ export default function DirectoryStatCard({
             className={cn(
               "mb-2 flex shrink-0 items-center justify-center rounded-md",
               compact ? "h-8 w-8" : featured ? "h-11 w-11" : "h-10 w-10",
-              accentIcon[accent]
+              cardTintIcon[accent]
             )}
           >
             {icon}
@@ -124,7 +110,8 @@ export default function DirectoryStatCard({
           </p>
           <p
             className={cn(
-              "font-bold tabular-nums tracking-tight break-words text-text",
+              "font-bold tabular-nums tracking-tight break-words",
+              "text-text",
               compact
                 ? "mt-1 text-lg leading-tight sm:text-xl xl:text-2xl"
                 : featured
@@ -151,7 +138,7 @@ export default function DirectoryStatCard({
             className={cn(
               "flex shrink-0 items-center justify-center rounded-md",
               compact ? "h-8 w-8" : featured ? "h-11 w-11" : "h-10 w-10",
-              accentIcon[accent]
+              cardTintIcon[accent]
             )}
           >
             {icon}

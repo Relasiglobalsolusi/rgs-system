@@ -57,6 +57,7 @@ export type TransferOrderClientRow = {
   projectCount: number;
   pendingSendCount: number;
   inTransitCount: number;
+  completedCount: number;
 };
 
 export type TransferOrderProjectRow = {
@@ -67,11 +68,13 @@ export type TransferOrderProjectRow = {
   serviceArea: string;
   pendingSendCount: number;
   inTransitCount: number;
+  completedCount: number;
 };
 
 export type TransferOrderInternalSiteRow = EnsuredInternalSiteRow & {
   pendingSendCount: number;
   inTransitCount: number;
+  completedCount: number;
 };
 
 export type TransferOrderDirectory = {

@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { parseTimeToMinutes } from "@/lib/operating-hours";
 
+/** Named-shift jobs keep 1–4 shifts. One-time jobs store 0. */
 export const MIN_PROJECT_SHIFTS = 1;
 export const MAX_PROJECT_SHIFTS = 4;
 export const DEFAULT_NEW_PROJECT_SHIFTS = 2;
@@ -49,14 +50,23 @@ export function parseShiftCount(
 ): number {
   const text = String(raw ?? "").trim();
   const value = text ? Number(text) : fallback;
-  if (
-    !Number.isInteger(value) ||
-    value < MIN_PROJECT_SHIFTS ||
-    value > MAX_PROJECT_SHIFTS
-  ) {
-    throw new Error("Choose how many shifts this project runs (1 to 4).");
+  if (!Number.isInteger(value) || value < 0 || value > MAX_PROJECT_SHIFTS) {
+    throw new Error("Choose how many shifts this project runs (0 to 4).");
   }
   return value;
+}
+
+export function parseOptionalNamedShiftCount(
+  raw: FormDataEntryValue | null,
+  usesNamedShifts: boolean,
+  fallback = DEFAULT_NEW_PROJECT_SHIFTS
+): number {
+  if (!usesNamedShifts) return 0;
+  const count = parseShiftCount(raw, fallback);
+  if (count < MIN_PROJECT_SHIFTS) {
+    throw new Error("Choose how many shifts this project runs (1 to 4).");
+  }
+  return count;
 }
 
 export function parseShiftTime(raw: FormDataEntryValue | string | null): string {
@@ -185,6 +195,37 @@ export async function syncProjectShifts(
   windows?: ProjectShiftWindow[]
 ) {
   const count = parseShiftCount(String(shiftCount), shiftCount);
+  if (count === 0) {
+    const existing = await db.projectShift.findMany({
+      where: { projectId },
+      select: {
+        id: true,
+        number: true,
+        _count: {
+          select: { assignments: true, coveringDoubleShifts: true },
+        },
+      },
+    });
+    const blocked = existing.find(
+      (row) =>
+        row._count.assignments > 0 || row._count.coveringDoubleShifts > 0
+    );
+    if (blocked) {
+      throw new Error(
+        `Unassign staff and double shifts from Shift ${blocked.number} before removing shifts.`
+      );
+    }
+    if (existing.length > 0) {
+      await db.projectShift.deleteMany({
+        where: { id: { in: existing.map((row) => row.id) } },
+      });
+    }
+    await db.project.update({
+      where: { id: projectId },
+      data: { shiftCount: 0 },
+    });
+    return;
+  }
   const existing = await db.projectShift.findMany({
     where: { projectId },
     select: {

@@ -7,7 +7,9 @@ import { Eye, Upload } from "lucide-react";
 import {
   markImportDutiesPaid,
   reversePurchaseInvoice,
+  uploadPurchaseTaxDocument,
 } from "@/app/billing/purchase-invoices/actions";
+import TaxSupportingDocumentDialog from "@/components/billing/TaxSupportingDocumentDialog";
 import PurchaseImportCostFields, {
   importDraftToInput,
   purchaseImportDraftFromRecord,
@@ -21,8 +23,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import ProofLightbox from "@/components/ui/ProofLightbox";
 import { showRejectionFromError } from "@/components/ui/rejection-notice";
+import { MoneyInput } from "@/components/ui/MoneyInput";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useT } from "@/lib/i18n/use-t";
 import type { PurchaseDocumentSlot } from "@/lib/purchase-invoice-documents";
+import { vendorMatchesPurchaseOrigin } from "@/lib/vendor-type";
 
 type Props = {
   purchaseInvoiceId: string;
@@ -41,6 +52,13 @@ type Props = {
   invoiceForeignAmount?: number | null;
   bookingRate?: number | null;
   importArrival?: PurchaseImportArrivalRecord;
+  needsHandlingWithDuties?: boolean;
+  handlingVendors?: Array<{
+    id: string;
+    name: string;
+    vendorType?: string | null;
+  }>;
+  showWithholdingSlip?: boolean;
 };
 
 export default function PurchaseInvoiceDetailClient({
@@ -60,6 +78,9 @@ export default function PurchaseInvoiceDetailClient({
   invoiceForeignAmount = null,
   bookingRate = null,
   importArrival,
+  needsHandlingWithDuties = false,
+  handlingVendors = [],
+  showWithholdingSlip = false,
 }: Props) {
   const { t } = useT();
   const router = useRouter();
@@ -68,6 +89,7 @@ export default function PurchaseInvoiceDetailClient({
     null
   );
   const [taxUpload, setTaxUpload] = useState(false);
+  const [withholdingUpload, setWithholdingUpload] = useState(false);
   const [markPaid, setMarkPaid] = useState(false);
   const [dutiesOpen, setDutiesOpen] = useState(false);
   const [dutiesBillingId, setDutiesBillingId] = useState(
@@ -78,6 +100,12 @@ export default function PurchaseInvoiceDetailClient({
     purchaseImportDraftFromRecord(importArrival ?? {})
   );
   const [dutiesError, setDutiesError] = useState<string | null>(null);
+  const [handlingVendorId, setHandlingVendorId] = useState("");
+  const [handlingFeeIdr, setHandlingFeeIdr] = useState("");
+  const [handlingFeeFile, setHandlingFeeFile] = useState<File | null>(null);
+  const localHandlingVendors = handlingVendors.filter((vendor) =>
+    vendorMatchesPurchaseOrigin(vendor.vendorType, "LOCAL")
+  );
 
   useEffect(() => {
     if (!dutiesOpen) return;
@@ -132,11 +160,20 @@ export default function PurchaseInvoiceDetailClient({
                   <Upload className="h-3.5 w-3.5" aria-hidden />
                   {t("pages.billing.purchaseUploadTaxInvoiceAction")}
                 </Button>
-              ) : (
-                <span className="inline-flex h-8 items-center text-xs text-subtle">
-                  {t("pages.billing.purchaseNoTaxInvoice")}
-                </span>
-              )}
+              ) : doc.kind === "withholding" &&
+                showWithholdingSlip &&
+                canManage ? (
+                <Button
+                  type="button"
+                  variant="accent"
+                  size="sm"
+                  className="h-8 shrink-0 gap-1.5"
+                  onClick={() => setWithholdingUpload(true)}
+                >
+                  <Upload className="h-3.5 w-3.5" aria-hidden />
+                  {t("common.actions.upload")}
+                </Button>
+              ) : null}
             </div>
           );
         })}
@@ -219,8 +256,26 @@ export default function PurchaseInvoiceDetailClient({
           purchaseInvoiceId={purchaseInvoiceId}
           supplierName={supplierName}
           invoiceRef={invoiceRef}
+          showWithholdingSlip={showWithholdingSlip}
         />
       ) : null}
+      <TaxSupportingDocumentDialog
+        open={withholdingUpload}
+        onOpenChange={setWithholdingUpload}
+        title={t("pages.billing.withholdingSlipUploadTitle")}
+        description={t("pages.billing.withholdingSlipUploadDesc")}
+        fileLabel={t("pages.billing.withholdingSlip")}
+        contextValue={`${supplierName} · ${invoiceRef}`}
+        confirmLabel={t("common.actions.upload")}
+        onUpload={async (file) => {
+          const formData = new FormData();
+          formData.set("purchaseInvoiceId", purchaseInvoiceId);
+          formData.set("slot", "withholding");
+          formData.set("document", file);
+          await uploadPurchaseTaxDocument(formData);
+          router.refresh();
+        }}
+      />
       {markPaid ? (
         <PurchaseMarkPaidDialog
           open
@@ -275,6 +330,58 @@ export default function PurchaseInvoiceDetailClient({
                     onPick={setDutiesFile}
                     disabled={pending}
                   />
+                  {needsHandlingWithDuties ? (
+                    <>
+                      <p className="text-sm text-subtle">
+                        {t("pages.billing.handlingDueWithDuties")}
+                      </p>
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-subtle">
+                          {t("pages.billing.handlingVendor")}
+                        </label>
+                        <Select
+                          value={handlingVendorId || null}
+                          onValueChange={(value) =>
+                            setHandlingVendorId(value ?? "")
+                          }
+                          disabled={pending}
+                        >
+                          <SelectTrigger>
+                            <SelectValue
+                              placeholder={t(
+                                "pages.billing.handlingVendorPlaceholder"
+                              )}
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {localHandlingVendors.map((vendor) => (
+                              <SelectItem key={vendor.id} value={vendor.id}>
+                                {vendor.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-subtle">
+                          {t("pages.billing.handlingFee")}
+                        </label>
+                        <MoneyInput
+                          value={handlingFeeIdr}
+                          onValueChange={setHandlingFeeIdr}
+                          disabled={pending}
+                        />
+                      </div>
+                      <BillingDocumentFilePick
+                        id="complete-handling-fee-invoice"
+                        label={t("pages.billing.handlingFeeInvoice")}
+                        required
+                        fileName={handlingFeeFile?.name ?? null}
+                        onPick={setHandlingFeeFile}
+                        disabled={pending}
+                      />
+                    </>
+                  ) : null}
                 </>
               }
             />
@@ -303,6 +410,13 @@ export default function PurchaseInvoiceDetailClient({
                 formData.set("importJson", JSON.stringify(importInput));
                 if (dutiesFile && dutiesFile.size > 0) {
                   formData.set("importDutiesDocument", dutiesFile);
+                }
+                if (needsHandlingWithDuties) {
+                  formData.set("handlingVendorId", handlingVendorId);
+                  formData.set("handlingFeeIdr", handlingFeeIdr);
+                  if (handlingFeeFile && handlingFeeFile.size > 0) {
+                    formData.set("handlingFeeDocument", handlingFeeFile);
+                  }
                 }
                 startTransition(async () => {
                   try {

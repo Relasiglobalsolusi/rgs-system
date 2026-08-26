@@ -102,6 +102,12 @@ function emptyOpenCounts(): OpenOrderCounts {
   return { pendingSend: 0, inTransit: 0 };
 }
 
+function completedCountMap(
+  rows: Array<{ projectId: string; _count: { _all: number } }>
+): Map<string, number> {
+  return new Map(rows.map((row) => [row.projectId, row._count._all]));
+}
+
 function mapPendingTransferOrder(order: {
   id: string;
   status: TransferOrderStatus;
@@ -189,6 +195,7 @@ export async function getTransferOrderDirectory(): Promise<TransferOrderDirector
       ...site,
       pendingSendCount: 0,
       inTransitCount: 0,
+      completedCount: 0,
     }));
   }
 
@@ -199,7 +206,7 @@ export async function getTransferOrderDirectory(): Promise<TransferOrderDirector
     username: session.user.username,
   });
 
-  const [clientsRaw, openOrders] = await Promise.all([
+  const [clientsRaw, openOrders, receivedRows] = await Promise.all([
     prisma.client.findMany({
       where: {
         companyId,
@@ -264,9 +271,19 @@ export async function getTransferOrderDirectory(): Promise<TransferOrderDirector
       },
       orderBy: { createdAt: "asc" },
     }),
+    prisma.transferOrder.groupBy({
+      by: ["projectId"],
+      where: {
+        companyId,
+        status: "RECEIVED",
+        project: projectWhere,
+      },
+      _count: { _all: true },
+    }),
   ]);
 
   const { byProject, totals } = accumulateOpenOrderCounts(openOrders);
+  const completedByProject = completedCountMap(receivedRows);
 
   const internalSites = ensuredSites
     .map((site) => {
@@ -275,6 +292,7 @@ export async function getTransferOrderDirectory(): Promise<TransferOrderDirector
         ...site,
         pendingSendCount: counts.pendingSend,
         inTransitCount: counts.inTransit,
+        completedCount: completedByProject.get(site.projectId) ?? 0,
       };
     })
     .sort(
@@ -293,11 +311,14 @@ export async function getTransferOrderDirectory(): Promise<TransferOrderDirector
 
       let pendingSendCount = 0;
       let inTransitCount = 0;
+      let completedCount = 0;
       for (const project of commercial) {
         const counts = byProject.get(project.id);
-        if (!counts) continue;
-        pendingSendCount += counts.pendingSend;
-        inTransitCount += counts.inTransit;
+        if (counts) {
+          pendingSendCount += counts.pendingSend;
+          inTransitCount += counts.inTransit;
+        }
+        completedCount += completedByProject.get(project.id) ?? 0;
       }
 
       return {
@@ -306,6 +327,7 @@ export async function getTransferOrderDirectory(): Promise<TransferOrderDirector
         projectCount: commercial.length,
         pendingSendCount,
         inTransitCount,
+        completedCount,
       };
     })
     .filter((row): row is TransferOrderClientRow => row != null)
@@ -365,7 +387,7 @@ export async function getTransferOrderProjectsForClient(
     const ensured = await ensureInternalAttendanceSites(companyId);
     const siteIds = ensured.sites.map((site) => site.projectId);
 
-    const [projectsRaw, openOrders] = await Promise.all([
+    const [projectsRaw, openOrders, receivedRows] = await Promise.all([
       prisma.project.findMany({
         where: { id: { in: siteIds }, ...projectWhere },
         select: {
@@ -384,9 +406,19 @@ export async function getTransferOrderProjectsForClient(
         },
         select: { status: true, projectId: true },
       }),
+      prisma.transferOrder.groupBy({
+        by: ["projectId"],
+        where: {
+          companyId,
+          status: "RECEIVED",
+          projectId: { in: siteIds },
+        },
+        _count: { _all: true },
+      }),
     ]);
 
     const { byProject } = accumulateOpenOrderCounts(openOrders);
+    const completedByProject = completedCountMap(receivedRows);
     const byId = new Map(projectsRaw.map((project) => [project.id, project]));
 
     const projects = ensured.sites
@@ -402,6 +434,7 @@ export async function getTransferOrderProjectsForClient(
           serviceArea: project.serviceArea,
           pendingSendCount: counts.pendingSend,
           inTransitCount: counts.inTransit,
+          completedCount: completedByProject.get(project.id) ?? 0,
         };
       })
       .filter((row): row is TransferOrderProjectRow => row != null)
@@ -422,7 +455,7 @@ export async function getTransferOrderProjectsForClient(
     };
   }
 
-  const [client, openOrders] = await Promise.all([
+  const [client, openOrders, receivedRows] = await Promise.all([
     prisma.client.findFirst({
       where: { id: clientId, companyId, active: true },
       include: {
@@ -450,11 +483,21 @@ export async function getTransferOrderProjectsForClient(
       },
       select: { status: true, projectId: true },
     }),
+    prisma.transferOrder.groupBy({
+      by: ["projectId"],
+      where: {
+        companyId,
+        status: "RECEIVED",
+        project: { ...projectWhere, clientId },
+      },
+      _count: { _all: true },
+    }),
   ]);
 
   if (!client) return null;
 
   const { byProject } = accumulateOpenOrderCounts(openOrders);
+  const completedByProject = completedCountMap(receivedRows);
   const projects = client.projects
     .filter((project) => !isAttendanceInternalProject(project))
     .map((project): TransferOrderProjectRow => {
@@ -467,6 +510,7 @@ export async function getTransferOrderProjectsForClient(
         serviceArea: project.serviceArea,
         pendingSendCount: counts.pendingSend,
         inTransitCount: counts.inTransit,
+        completedCount: completedByProject.get(project.id) ?? 0,
       };
     })
     .sort(

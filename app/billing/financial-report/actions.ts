@@ -40,7 +40,10 @@ import {
   computeParkingProjectTotals,
   getProjectPurchaseOutflowsByProjectIds,
 } from "@/lib/parking-economics";
-import { getProjectPettyCashOutflowsByProjectIds } from "@/lib/petty-cash";
+import {
+  getClientPettyCashOutflowsByClientIds,
+  getProjectPettyCashOutflowsByProjectIds,
+} from "@/lib/petty-cash";
 import {
   excludeEquipmentFromProjectInventoryCost,
   getProjectInventoryCost,
@@ -338,6 +341,7 @@ export async function getFinancialReportClients(
     soldOffByClient,
     adjustmentsByProject,
     owedByClient,
+    pettyByClient,
   ] = await Promise.all([
     inventoryCostByProjectIds(
       companyId,
@@ -381,13 +385,20 @@ export async function getFinancialReportClients(
       toExclusive: calendar.toExclusive,
     }),
     getClientsOwedByClientIds(companyId, clientIds),
+    getClientPettyCashOutflowsByClientIds(
+      prisma,
+      companyId,
+      clientIds,
+      calendar.from,
+      calendar.toExclusive
+    ).catch(() => new Map<string, number>()),
   ]);
 
   return clients
     .map((client) => {
       let totalContractValue = 0;
       let totalMoneyIn = soldOffByClient.get(client.id) ?? 0;
-      let totalSpending = 0;
+      let totalSpending = pettyByClient.get(client.id) ?? 0;
 
       for (const project of client.projects) {
         totalContractValue += decimalToNumber(project.contractPrice) ?? 0;
@@ -524,6 +535,7 @@ export async function getFinancialReportClientProjects(
     adjustmentsByProject,
     clientsOwe,
     vendorsOwe,
+    clientPetty,
   ] = await Promise.all([
     inventoryCostByProjectIds(
       companyId,
@@ -567,11 +579,18 @@ export async function getFinancialReportClientProjects(
     }),
     getClientsOwed(companyId, clientId),
     getVendorsOwed(companyId, clientId),
+    getClientPettyCashOutflowsByClientIds(
+      prisma,
+      companyId,
+      [clientId],
+      calendar.from,
+      calendar.toExclusive
+    ).catch(() => new Map<string, number>()),
   ]);
 
   let totalContractValue = 0;
   let totalMoneyIn = clientSoldOff;
-  let totalSpending = 0;
+  let totalSpending = clientPetty.get(clientId) ?? 0;
 
   const projects: FinancialReportProjectRow[] = client.projects.map(
     (project) => {

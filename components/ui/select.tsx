@@ -128,7 +128,7 @@ function SelectContent({
           data-slot="select-content"
           data-align-trigger={alignItemWithTrigger}
           className={cn(
-            "relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-(--anchor-width) origin-(--transform-origin)",
+            "relative isolate z-50 max-h-(--available-height) w-max min-w-(--anchor-width) max-w-[min(36rem,var(--available-width))] origin-(--transform-origin)",
             "overflow-x-hidden overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground",
             "shadow-[0_10px_28px_rgba(0,0,0,0.45)] ring-1 ring-black/25",
             "duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] data-[align-trigger=true]:animate-none",
@@ -170,7 +170,7 @@ function SelectItem({
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        "relative flex w-full cursor-default items-center gap-2 rounded-md px-2.5 py-2 text-sm outline-hidden select-none",
+        "relative flex w-full cursor-default items-center gap-2 rounded-md px-2.5 py-2 text-sm whitespace-nowrap outline-hidden select-none",
         "text-popover-foreground transition-colors",
         "data-highlighted:bg-elevated data-highlighted:text-text",
         "data-selected:bg-card-tint-emerald data-selected:text-text",

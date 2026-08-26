@@ -14,7 +14,7 @@ type Props<T extends string> = {
   value: T;
   options: readonly Option<T>[];
   onChange: (value: T) => void;
-  columns?: 2 | 3 | 5;
+  columns?: 2 | 3 | 4 | 5;
   /** Fill the last row when a 2-column grid has an odd count. */
   spanLastWhenOdd?: boolean;
   /** When true, pills are display-only (e.g. tax mode derived from client). */
@@ -26,16 +26,18 @@ export default function ProjectOptionPills<T extends string>({
   value,
   options,
   onChange,
-  columns = 3,
-  spanLastWhenOdd = false,
+  columns,
+  spanLastWhenOdd = true,
   disabled = false,
 }: Props<T>) {
+  const count = options.length;
   const gridClass =
-    columns === 2
-      ? "grid-cols-2"
-      : columns === 5
-        ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5"
-        : "grid-cols-1 sm:grid-cols-3";
+    count <= 1
+      ? "grid-cols-1"
+      : count === 3
+        ? "grid-cols-1 sm:grid-cols-3"
+        : "grid-cols-1 sm:grid-cols-2";
+  void columns;
 
   return (
     <div className={cn(employeeDialogFieldClass, "gap-3")}>
@@ -45,9 +47,9 @@ export default function ProjectOptionPills<T extends string>({
           const selected = value === option.value;
           const spanFull =
             spanLastWhenOdd &&
-            columns === 2 &&
-            options.length % 2 === 1 &&
-            index === options.length - 1;
+            count !== 3 &&
+            count % 2 === 1 &&
+            index === count - 1;
           return (
             <button
               key={option.value}

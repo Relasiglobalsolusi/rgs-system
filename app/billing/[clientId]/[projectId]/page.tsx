@@ -61,7 +61,7 @@ export default async function BillingProjectPage({
       clientId: session.user.clientId ?? clientId,
     },
     include: {
-      client: { select: { id: true, name: true } },
+      client: { select: { id: true, name: true, hasPortalAccess: true } },
       invoicePeriods: {
         orderBy: { periodStart: "desc" },
       },
@@ -222,6 +222,8 @@ export default async function BillingProjectPage({
                       chargedTaxKind={project.chargedTaxKind}
                       requiresTaxInvoice={project.requiresTaxInvoice}
                       pphRatePercent={decimalToNumber(project.pphRatePercent)}
+                      isGovernmentContract={project.isGovernmentContract}
+                      hasPortalAccess={project.client?.hasPortalAccess !== false}
                       invoicingDay={project.invoicingDay}
                       startDate={project.startDate?.toISOString() ?? null}
                       paymentTermsDays={project.paymentTermsDays}
@@ -348,6 +350,8 @@ export default async function BillingProjectPage({
           chargedTaxKind={project.chargedTaxKind}
           requiresTaxInvoice={project.requiresTaxInvoice}
           pphRatePercent={decimalToNumber(project.pphRatePercent)}
+          isGovernmentContract={project.isGovernmentContract}
+          hasPortalAccess={project.client?.hasPortalAccess !== false}
           invoicingDay={invoicingDay}
           startDate={startDateIso}
           paymentTermsDays={project.paymentTermsDays}

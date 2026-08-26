@@ -178,13 +178,19 @@ export function getVisibleModules(): ModuleKey[] {
 
 
 export type PermissionUser = {
-
   role: UserRole;
-
   employeeType?: EmployeeType | null;
-
   moduleOverrides?: Record<string, boolean> | null;
-
+  username?: string;
+  clientId?: string | null;
+  client?: { id: string; name?: string } | null;
+  vendorId?: string | null;
+  vendor?: { id: string; name?: string } | null;
+  employee?: {
+    employeeNo: string;
+    employeeType?: EmployeeType | null;
+    jobPosition?: { slug?: string | null; name?: string | null } | null;
+  } | null;
 };
 
 
@@ -237,11 +243,13 @@ export const EXTRA_MENU_NAV_KEYS = [
   "reconciliation",
   "financialReport",
   "payroll",
+  "payslips",
   "thr",
   "vat",
   "pettyCash",
   "loans",
   "bpjs",
+  "sales",
 ] as const;
 
 /** Each Finance page is its own module — no parent group toggle. */
@@ -421,6 +429,13 @@ export const FINANCE_MENU_ITEMS: MenuItem[] = [
     href: "/billing/payroll",
     module: "payroll",
     navKey: "payroll",
+  },
+  {
+    icon: FileText,
+    label: "Payslips",
+    href: "/payslips",
+    module: "payroll",
+    navKey: "payslips",
   },
   {
     icon: PieChart,
@@ -1134,6 +1149,7 @@ export const ROUTE_MODULE_MAP: Record<string, ModuleKey> = {
   "/billing/thr": "thr",
 
   "/billing/payroll": "payroll",
+  "/payslips": "payroll",
 
   "/billing/financial-report": "financialReport",
 
@@ -1196,6 +1212,15 @@ export function canAccessRoute(
   const moduleKey = getModuleForPath(pathname);
 
   if (!moduleKey) return true;
+
+  if (
+    pathname === "/payslips" ||
+    pathname.startsWith("/payslips/")
+  ) {
+    if (user.clientId || user.vendorId) return false;
+    if (canAccess(user, "payroll")) return true;
+    return Boolean(user.employee);
+  }
 
   return canAccess(user, moduleKey);
 
@@ -1456,7 +1481,7 @@ export const menu: MenuSection[] = [
 
         icon: Coins,
 
-        label: "Petty Cash",
+        label: "Advance Cash",
 
         href: "/billing/petty-cash",
 
@@ -1608,7 +1633,31 @@ export function getMenuForUser(
           ),
       };
     })
-    .filter((section) => section.items.length > 0);
+    .filter((section) => section.items.length > 0)
+    .map((section) => {
+      const isEmployeeAccount =
+        Boolean(user.employee) && !user.clientId && !user.vendorId;
+      if (
+        section.title === "Dashboard" &&
+        isEmployeeAccount &&
+        !accessible.has("payroll")
+      ) {
+        return {
+          ...section,
+          items: [
+            ...section.items,
+            {
+              icon: FileText,
+              label: "Payslips",
+              href: "/payslips",
+              module: "dashboard" as const,
+              navKey: "payslips",
+            },
+          ],
+        };
+      }
+      return section;
+    });
 }
 
 

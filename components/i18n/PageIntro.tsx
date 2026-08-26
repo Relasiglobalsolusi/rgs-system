@@ -12,9 +12,9 @@ export default function PageIntro({
 }) {
   const { t } = useT();
   return (
-    <div className="mb-6">
-      <h2 className="text-xl font-semibold text-text">{t(titleKey)}</h2>
-      <p className="mt-1 text-sm text-muted">{t(descriptionKey)}</p>
+    <div className="mb-6 min-w-0">
+      <h2 className="text-xl font-semibold break-words text-text">{t(titleKey)}</h2>
+      <p className="mt-1 text-sm break-words text-muted">{t(descriptionKey)}</p>
     </div>
   );
 }

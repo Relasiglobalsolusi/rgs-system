@@ -43,31 +43,8 @@ export const permissionsChipTextClassName = "!text-[10px]";
  */
 export const STATUS_COLUMN_WIDTH = "10rem";
 
-/** One action chip (Delete / Assign) + pl-4 + pr-10 edge gap. */
+/** Stacked action chips (Delete / Restore / Permissions) + cell pad. */
 export const ACTIONS_SINGLE_CHIP_COLUMN_WIDTH = "12.5rem";
-
-/**
- * Two chips side-by-side (Assign+Delete, Permissions+Delete) + gap-2 + edge pad.
- * 7.5 + 7.5 + 0.5 + 1 + 2.5 = 19rem; 24rem keeps them off the previous column.
- */
-export const ACTIONS_DUAL_CHIP_COLUMN_WIDTH = "24rem";
-
-/**
- * Three chips side-by-side (Permissions+Revoke Access+Delete) + gaps + edge pad.
- * 7.5×3 + 0.5×2 + 1 + 2.5 = 27rem; 34rem parks Actions further right.
- */
-export const ACTIONS_TRIPLE_CHIP_COLUMN_WIDTH = "34rem";
-
-/**
- * Actions column: Restore + Permanently Delete + gap-2 + edge pad.
- * 7.5 + 7.5 + 0.5 + 1 + 2.5 = 19rem; 22rem leaves edge breathing room.
- */
-export const TRASH_ACTIONS_COLUMN_WIDTH = "22rem";
-
-/**
- * Users trash: Permissions + Restore + Permanently Delete + edge pad.
- */
-export const TRASH_ACTIONS_WITH_PERMISSIONS_COLUMN_WIDTH = "36rem";
 
 type ChipButtonProps = Omit<
   ComponentProps<typeof Button>,

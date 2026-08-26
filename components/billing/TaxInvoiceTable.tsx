@@ -23,6 +23,7 @@ export type TaxInvoiceTableRow = {
   periodLabel: string;
   paymentKey: string;
   isPending: boolean;
+  showWithholdingSlip?: boolean;
 };
 
 type Props = {
@@ -133,6 +134,7 @@ export default function TaxInvoiceTable({
               periodId={row.id}
               projectName={row.displayTitle}
               periodLabel={row.periodLabel}
+              showWithholdingSlip={row.showWithholdingSlip}
             />
           </div>
         ),

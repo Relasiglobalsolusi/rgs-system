@@ -144,6 +144,22 @@ export function currentPayrollPeriod(now: Date = new Date()): PayrollPeriod {
 }
 
 /**
+ * Next wage month for cash-advance / payroll deductions.
+ * Take an advance on the 1st or the 24th — both hit this calendar month's pay
+ * unless that month is already locked.
+ */
+export function upcomingWagePayrollPeriod(now: Date = new Date()): PayrollPeriod {
+  const { year, month } = jakartaYearMonthDay(now);
+  return { year, month };
+}
+
+/** Next calendar payroll period after `period`. */
+export function nextPayrollPeriod(period: PayrollPeriod): PayrollPeriod {
+  if (period.month === 12) return { year: period.year + 1, month: 1 };
+  return { year: period.year, month: period.month + 1 };
+}
+
+/**
  * History options through the current cycle (newest first).
  * Always includes `selected` when it falls outside the default window.
  */

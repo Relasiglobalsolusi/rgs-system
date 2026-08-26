@@ -30,6 +30,7 @@ export type EmployeeFinanceDefaults = {
   jkkPercent?: number | null;
   depositStatus?: "NONE" | "HELD" | "RETURNED" | "KEPT_BY_COMPANY" | null;
   depositHeldAmount?: number | null;
+  amountOwedToCompany?: number | null;
   securityDepositRequired?: boolean;
   cicoExempt?: boolean;
   progressExempt?: boolean;
@@ -258,6 +259,20 @@ export default function EmployeeFinancesFields({
         {t("pages.employees.form.progressExemptHint")}
       </p>
 
+      {(defaults?.amountOwedToCompany ?? 0) > 0 ? (
+        <div className="rounded-lg border border-danger/30 bg-elevated px-3 py-2 text-sm text-text">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+            {t("pages.payroll.employeeBalanceWithCompany")}
+          </p>
+          <p className="mt-1 font-medium text-danger">
+            {formatContractPrice(defaults?.amountOwedToCompany ?? 0)}
+          </p>
+          <p className="mt-1 text-xs text-subtle">
+            {t("pages.payroll.balanceDueToCompanyHint")}
+          </p>
+        </div>
+      ) : null}
+
       {defaults?.depositStatus && defaults.depositStatus !== "NONE" ? (
         <div className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">
@@ -281,12 +296,14 @@ export default function EmployeeFinancesFields({
       <div className={employeeDialogFieldClass}>
         <label htmlFor={idOf("employee-bank-name")} className="text-sm font-medium text-text">
           {t("pages.employees.form.bankName")}
+          <span className="text-red-400"> *</span>
         </label>
         <Input
           id={idOf("employee-bank-name")}
           name={nameOf("bankName")}
           defaultValue={defaults?.bankName ?? ""}
           placeholder="Mandiri"
+          required
           className={employeeInputClass}
           onChange={bump}
         />
@@ -297,12 +314,14 @@ export default function EmployeeFinancesFields({
           className="text-sm font-medium text-text"
         >
           {t("pages.employees.form.bankAccountName")}
+          <span className="text-red-400"> *</span>
         </label>
         <Input
           id={idOf("employee-bank-account-name")}
           name={nameOf("bankAccountName")}
           defaultValue={defaults?.bankAccountName ?? ""}
           placeholder="Nama sesuai buku tabungan"
+          required
           className={employeeInputClass}
           onChange={bump}
         />
@@ -313,12 +332,14 @@ export default function EmployeeFinancesFields({
           className="text-sm font-medium text-text"
         >
           {t("pages.employees.form.bankAccountNumber")}
+          <span className="text-red-400"> *</span>
         </label>
         <Input
           id={idOf("employee-bank-account")}
           name={nameOf("bankAccountNumber")}
           defaultValue={defaults?.bankAccountNumber ?? ""}
           placeholder="1234567890"
+          required
           className={employeeInputClass}
           onChange={bump}
         />

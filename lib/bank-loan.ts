@@ -20,6 +20,10 @@ export type BankLoanKind = (typeof BANK_LOAN_KINDS)[number];
 export const LOAN_INTEREST_BASES = ["MONTHLY", "ANNUAL"] as const;
 export type LoanInterestBasis = (typeof LOAN_INTEREST_BASES)[number];
 
+/** Indonesian term-loan methods. Annuity matches OCBC / BCA / Mandiri anuitas. */
+export const LOAN_CALCULATION_METHODS = ["FLAT", "EFFECTIVE", "ANNUITY"] as const;
+export type LoanCalculationMethod = (typeof LOAN_CALCULATION_METHODS)[number];
+
 export const BANK_LOAN_TENOR_MIN = 1;
 export const BANK_LOAN_TENOR_MAX = 360;
 
@@ -57,6 +61,21 @@ export function parseLoanInterestBasis(
   return isLoanInterestBasis(raw) ? raw : null;
 }
 
+export function isLoanCalculationMethod(
+  value: string | null | undefined
+): value is LoanCalculationMethod {
+  return LOAN_CALCULATION_METHODS.includes(
+    String(value ?? "").trim().toUpperCase() as LoanCalculationMethod
+  );
+}
+
+export function parseLoanCalculationMethod(
+  value: FormDataEntryValue | string | null | undefined
+): LoanCalculationMethod | null {
+  const raw = String(value ?? "").trim().toUpperCase();
+  return isLoanCalculationMethod(raw) ? raw : null;
+}
+
 /** Decimal monthly rate from the quoted percent. */
 export function monthlyInterestRate(
   ratePercent: number,
@@ -71,15 +90,66 @@ export function termMonthlyInstallment(
   principal: number,
   ratePercent: number,
   tenorMonths: number,
-  basis: LoanInterestBasis | null | undefined = "ANNUAL"
+  basis: LoanInterestBasis | null | undefined = "ANNUAL",
+  method: LoanCalculationMethod | null | undefined = "ANNUITY"
 ): number {
   const amount = moneyOrZero(principal);
   const months = Math.round(moneyOrZero(tenorMonths));
   if (amount <= 0 || months < BANK_LOAN_TENOR_MIN) return 0;
   const rate = monthlyInterestRate(ratePercent, basis);
   if (rate === 0) return roundIdr(amount / months);
+
+  if (method === "FLAT") {
+    const years = months / 12;
+    const annual =
+      basis === "MONTHLY" ? moneyOrZero(ratePercent) * 12 : moneyOrZero(ratePercent);
+    const totalInterest = amount * (annual / 100) * years;
+    return roundIdr((amount + totalInterest) / months);
+  }
+
+  if (method === "EFFECTIVE") {
+    const principalPart = amount / months;
+    return roundIdr(principalPart + amount * rate);
+  }
+
   const factor = (1 + rate) ** months;
   return roundIdr((amount * rate * factor) / (factor - 1));
+}
+
+/**
+ * Indonesian standby commitment fee (Actual/360).
+ * Fee = unused ceiling × annual rate × days / 360
+ *
+ * OCBC / BCA / Mandiri charge this on the undisbursed plafon for the
+ * exact reserved days, using a 360-day year — not months / 12.
+ *
+ * Check: unused 6_000_000_000, 0.5% p.a., 90 days
+ *   = 6_000_000_000 × 0.005 × (90 / 360) = 7_500_000
+ */
+export const COMMITMENT_FEE_DAY_COUNT_YEAR = 360;
+
+export function standbyCommitmentFeeIdr(input: {
+  facilityLimit?: number;
+  drawn?: number;
+  unused?: number;
+  annualRatePercent: number;
+  days: number;
+  dayCountYear?: number;
+}): number {
+  const unused =
+    input.unused != null
+      ? moneyOrZero(input.unused)
+      : Math.max(
+          0,
+          moneyOrZero(input.facilityLimit) - moneyOrZero(input.drawn)
+        );
+  const days = Math.max(0, Math.round(input.days));
+  const year =
+    input.dayCountYear === 365 ? 365 : COMMITMENT_FEE_DAY_COUNT_YEAR;
+  const ratePercent = moneyOrZero(input.annualRatePercent);
+  if (unused <= 0 || days <= 0 || ratePercent <= 0) return 0;
+  // One multiply: unused × % × days / (100 × 360). Matches bank statements.
+  return roundIdr((unused * ratePercent * days) / (100 * year));
 }
 
 /** Months left on a term loan, counting from the facility start month. */

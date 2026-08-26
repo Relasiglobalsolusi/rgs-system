@@ -107,12 +107,13 @@ export default async function MaterialRequestsPage() {
               unit: item.unit,
               itemType: item.itemType,
               available: inventoryQtyFromDecimal(item.currentStock) > 0,
+              currentStock: inventoryQtyFromDecimal(item.currentStock),
             }))}
           />
         </SectionCard>
 
-        <SectionCard className="p-5 sm:p-6">
-          <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
               <h2 className="text-base font-semibold text-text">
                 {t("pages.materialRequests.myRequests")}
@@ -130,55 +131,55 @@ export default async function MaterialRequestsPage() {
             ) : null}
           </div>
           {myRequests.length === 0 ? (
-            <EmptyState
-              titleKey="pages.materialRequests.emptyTitle"
-              descriptionKey="pages.materialRequests.emptyDescription"
-            />
+            <SectionCard className="p-5 sm:p-6">
+              <EmptyState
+                titleKey="pages.materialRequests.emptyTitle"
+                descriptionKey="pages.materialRequests.emptyDescription"
+              />
+            </SectionCard>
           ) : (
-            <div className="space-y-4">
-              {myRequests.map((request) => (
-                <MaterialRequestDetailCard
-                  key={request.id}
-                  request={{
-                    id: request.id,
-                    status: request.status,
-                    notes: request.notes,
-                    reviewNote: request.reviewNote,
-                    createdAt: request.createdAt,
-                    reviewedAt: request.reviewedAt,
-                    project: request.project,
-                    reviewedByName:
-                      request.reviewedBy?.name ||
-                      request.reviewedBy?.username ||
-                      null,
-                    lines: request.lines.map((line) => ({
-                      id: line.id,
-                      quantity: inventoryQtyFromDecimal(line.quantity),
-                      item: {
-                        sku: line.item.sku,
-                        name: line.item.name,
-                        unit: line.item.unit,
-                      },
-                    })),
-                    transferOrder: request.transferOrder,
-                  }}
-                  actions={
-                    <>
-                      {request.status === "REQUESTED" ? (
-                        <CancelMaterialRequestButton id={request.id} />
-                      ) : null}
-                      {request.transferOrder?.status === "SENT" ? (
-                        <SiteTransferReceiveActions
-                          id={request.transferOrder.id}
-                        />
-                      ) : null}
-                    </>
-                  }
-                />
-              ))}
-            </div>
+            myRequests.map((request) => (
+              <MaterialRequestDetailCard
+                key={request.id}
+                request={{
+                  id: request.id,
+                  status: request.status,
+                  notes: request.notes,
+                  reviewNote: request.reviewNote,
+                  createdAt: request.createdAt,
+                  reviewedAt: request.reviewedAt,
+                  project: request.project,
+                  reviewedByName:
+                    request.reviewedBy?.name ||
+                    request.reviewedBy?.username ||
+                    null,
+                  lines: request.lines.map((line) => ({
+                    id: line.id,
+                    quantity: inventoryQtyFromDecimal(line.quantity),
+                    item: {
+                      sku: line.item.sku,
+                      name: line.item.name,
+                      unit: line.item.unit,
+                    },
+                  })),
+                  transferOrder: request.transferOrder,
+                }}
+                actions={
+                  <>
+                    {request.status === "REQUESTED" ? (
+                      <CancelMaterialRequestButton id={request.id} />
+                    ) : null}
+                    {request.transferOrder?.status === "SENT" ? (
+                      <SiteTransferReceiveActions
+                        id={request.transferOrder.id}
+                      />
+                    ) : null}
+                  </>
+                }
+              />
+            ))
           )}
-        </SectionCard>
+        </div>
       </div>
     </AppShell>
   );

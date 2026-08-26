@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useTransition } from "react";
-import { ArrowDownLeft, ArrowUpRight, Scale } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Scale, Wallet } from "lucide-react";
+
+import { FinancePeriodToolbar } from "@/components/billing/finance-toolbar";
+import TaxReportDownloadButton from "@/components/billing/TaxReportDownloadButton";
 
 import { employeeSelectTriggerClass } from "@/components/employees/employee-dialog-ui";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
@@ -20,44 +23,31 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { financePeriodSearchParams } from "@/lib/finance-period";
 import { formatDisplayDate } from "@/lib/format-date";
 import { localeToBcp47 } from "@/lib/i18n/locale";
 import { useT } from "@/lib/i18n/use-t";
 import { formatContractPrice } from "@/lib/project-billing";
+import { formatTaxInvoiceSerial } from "@/lib/tax-invoice-serial";
 import { cn } from "@/lib/utils";
 import { DEFAULT_INCLUSIVE_PPN_RATE } from "@/lib/vat";
+import type {
+  IncomeTaxCreditRow,
+  VatLedgerRow,
+} from "@/lib/vat-ledger";
 
-export type VatLedgerRow = {
-  id: string;
-  partyName: string;
-  detail: string;
-  date: string | null;
-  gross: number;
-  dpp: number;
-  ppn: number;
-  fakturReady: boolean;
-  href: string;
-};
-
-export type IncomeTaxCreditRow = {
-  id: string;
-  source: string;
-  detail: string;
-  date: string | null;
-  amount: number;
-  href: string;
-};
+export type { IncomeTaxCreditRow, VatLedgerRow };
 
 type TaxReportView = "output" | "input" | "income" | "other";
 
 type Props = {
   year: number;
-  month: number;
+  month: number | null;
   view: TaxReportView;
   outputTotal: number;
   inputTotal: number;
   net: number;
-  vatPaid?: number;
+  creditBroughtForward?: number;
   outputRows: VatLedgerRow[];
   inputRows: VatLedgerRow[];
   outputPending: number;
@@ -85,7 +75,7 @@ export default function VatReportPanel({
   inputRows,
   outputPending,
   inputPending,
-  vatPaid = 0,
+  creditBroughtForward = 0,
   incomeRows = [],
   incomeImportTotal = 0,
   incomeInstallmentTotal = 0,
@@ -101,10 +91,9 @@ export default function VatReportPanel({
   const bcp47 = localeToBcp47(locale);
   const rows = view === "output" ? outputRows : inputRows;
   const incomeCreditTotal = incomeImportTotal + incomeInstallmentTotal;
-  const vatRemaining = Math.max(0, -net - vatPaid);
   const isIncome = view === "income";
   const isOther = view === "other";
-  const usesYearOnly = isIncome;
+  const wholeYear = month == null;
   const ratePct = Math.round(DEFAULT_INCLUSIVE_PPN_RATE * 100);
   const monthOptions = useMemo(
     () => Array.from({ length: 12 }, (_, index) => index + 1),
@@ -117,12 +106,22 @@ export default function VatReportPanel({
     );
   }, [year]);
 
-  function navigatePeriod(nextYear: number, nextMonth: number) {
+  function navigatePeriod(nextYear: number, nextMonth: number | null) {
     startTransition(() => {
       router.push(
-        `${basePath}?year=${nextYear}&month=${nextMonth}&view=${view}`
+        `${basePath}?${financePeriodSearchParams(
+          { year: nextYear, month: nextMonth, day: null },
+          { view }
+        ).toString()}`
       );
     });
+  }
+
+  function periodHref(nextView: TaxReportView) {
+    return `${basePath}?${financePeriodSearchParams(
+      { year, month, day: null },
+      { view: nextView }
+    ).toString()}`;
   }
 
   const columns: DataTableColumn<VatLedgerRow>[] = [
@@ -177,6 +176,16 @@ export default function VatReportPanel({
       render: (row) => formatContractPrice(row.ppn),
     },
     {
+      key: "taxInvoiceNumber",
+      title: t("pages.vat.columns.taxInvoiceNumber"),
+      width: "12rem",
+      className: "min-w-[12rem] tabular-nums",
+      render: (row) =>
+        row.taxInvoiceSerial
+          ? formatTaxInvoiceSerial(row.taxInvoiceSerial)
+          : "—",
+    },
+    {
       key: "status",
       title: t("pages.vat.columns.faktur"),
       width: "9rem",
@@ -226,26 +235,39 @@ export default function VatReportPanel({
       className: "min-w-[10rem] tabular-nums font-medium text-text",
       render: (row) => formatContractPrice(row.amount),
     },
+    {
+      key: "status",
+      title: t("pages.vat.columns.faktur"),
+      width: "9rem",
+      cellAlign: "center",
+      className: "min-w-[9rem]",
+      render: (row) => (
+        <StatusBadge status={row.documentReady ? "success" : "pending"}>
+          {row.documentReady
+            ? t("pages.vat.fakturReady")
+            : t("pages.vat.fakturPending")}
+        </StatusBadge>
+      ),
+    },
   ];
 
   return (
     <div className="space-y-6">
-      <div
-        className={cn(
-          "flex flex-wrap items-end justify-between gap-4",
-          pending && "pointer-events-none opacity-70"
-        )}
-      >
-        <div className="space-y-1.5">
-          <p className="text-xs font-medium text-subtle">
-            {t("pages.vat.period")}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {usesYearOnly ? null : (
+      <div className="space-y-3">
+        <FinancePeriodToolbar
+          label={t("pages.vat.period")}
+          action={<TaxReportDownloadButton year={year} month={month} />}
+          className={cn(pending && "pointer-events-none opacity-70")}
+        >
             <Select
-              value={String(month)}
+              value={month == null ? "all" : String(month)}
               onValueChange={(value) => {
-                if (value != null) navigatePeriod(year, Number(value));
+                if (value == null) return;
+                if (value === "all") {
+                  navigatePeriod(year, null);
+                  return;
+                }
+                navigatePeriod(year, Number(value));
               }}
             >
               <SelectTrigger
@@ -254,13 +276,16 @@ export default function VatReportPanel({
               >
                 <SelectValue>
                   {(value) =>
-                    value
-                      ? t(`pages.reports.months.${value}`)
-                      : t("common.labels.month")
+                    !value || value === "all"
+                      ? t("common.labels.wholeYear")
+                      : t(`pages.reports.months.${value}`)
                   }
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="all">
+                  {t("common.labels.wholeYear")}
+                </SelectItem>
                 {monthOptions.map((option) => (
                   <SelectItem key={option} value={String(option)}>
                     {t(`pages.reports.months.${option}`)}
@@ -268,7 +293,6 @@ export default function VatReportPanel({
                 ))}
               </SelectContent>
             </Select>
-            )}
             <Select
               value={String(year)}
               onValueChange={(value) => {
@@ -291,8 +315,7 @@ export default function VatReportPanel({
                 ))}
               </SelectContent>
             </Select>
-          </div>
-        </div>
+        </FinancePeriodToolbar>
         <p className="max-w-xl text-sm text-subtle">
           {isIncome
             ? t("pages.vat.incomeDesc")
@@ -351,45 +374,57 @@ export default function VatReportPanel({
           />
         </div>
       ) : (
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <DirectoryStatCard
           title={t("pages.vat.outputTotal")}
           value={formatContractPrice(outputTotal)}
-          subtitle={t("pages.vat.outputTotalHint")}
+          subtitle={
+            wholeYear
+              ? t("pages.vat.outputTotalYearHint")
+              : t("pages.vat.outputTotalHint")
+          }
           icon={<ArrowUpRight size={18} />}
           accent="warning"
         />
         <DirectoryStatCard
           title={t("pages.vat.inputTotal")}
           value={formatContractPrice(inputTotal)}
-          subtitle={t("pages.vat.inputTotalHint")}
+          subtitle={
+            wholeYear
+              ? t("pages.vat.inputTotalYearHint")
+              : t("pages.vat.inputTotalHint")
+          }
           icon={<ArrowDownLeft size={18} />}
           accent="success"
         />
         <DirectoryStatCard
           title={t("pages.vat.netPayable")}
           value={formatContractPrice(net)}
-          subtitle={t("pages.vat.netPayableHint")}
+          subtitle={
+            wholeYear
+              ? t("pages.vat.netYearHint")
+              : t("pages.vat.netPayableHint")
+          }
           icon={<Scale size={18} />}
           accent={net > 0 ? "success" : net < 0 ? "warning" : "primary"}
         />
         <DirectoryStatCard
-          title={vatRemaining > 0 ? t("pages.vat.vatRemaining") : t("pages.vat.vatPaid")}
-          value={formatContractPrice(vatRemaining > 0 ? vatRemaining : vatPaid)}
+          title={t("pages.vat.creditBroughtForward")}
+          value={formatContractPrice(creditBroughtForward)}
           subtitle={
-            vatRemaining > 0
-              ? t("pages.vat.vatRemainingHint")
-              : t("pages.vat.vatPaidHint")
+            wholeYear
+              ? t("pages.vat.creditBroughtForwardYearHint")
+              : t("pages.vat.creditBroughtForwardHint")
           }
-          icon={<Scale size={18} />}
-          accent={vatRemaining > 0 ? "warning" : "success"}
+          icon={<Wallet size={18} />}
+          accent={creditBroughtForward > 0 ? "success" : "primary"}
         />
       </div>
       )}
 
       <div className="flex flex-wrap gap-2">
         <DirectoryFilterTab
-          href={`${basePath}?year=${year}&month=${month}&view=output`}
+          href={periodHref("output")}
           active={view === "output"}
           count={outputRows.length}
         >
@@ -399,7 +434,7 @@ export default function VatReportPanel({
             : null}
         </DirectoryFilterTab>
         <DirectoryFilterTab
-          href={`${basePath}?year=${year}&month=${month}&view=input`}
+          href={periodHref("input")}
           active={view === "input"}
           count={inputRows.length}
         >
@@ -409,14 +444,14 @@ export default function VatReportPanel({
             : null}
         </DirectoryFilterTab>
         <DirectoryFilterTab
-          href={`${basePath}?year=${year}&month=${month}&view=income`}
+          href={periodHref("income")}
           active={view === "income"}
           count={incomeRows.length}
         >
           {t("pages.vat.tabs.income")}
         </DirectoryFilterTab>
         <DirectoryFilterTab
-          href={`${basePath}?year=${year}&month=${month}&view=other`}
+          href={periodHref("other")}
           active={view === "other"}
           count={otherRows.length}
         >

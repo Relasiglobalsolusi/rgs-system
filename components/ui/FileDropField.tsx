@@ -202,6 +202,7 @@ export function FileDropField({
 
   return (
     <div
+      data-slot="file-drop"
       className="space-y-2"
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
@@ -250,12 +251,15 @@ export function FileDropField({
       <input
         ref={inputRef}
         id={id}
-        name={name}
+        name={name ?? id}
         type="file"
         accept={accept}
         multiple={multiple}
         capture={capture}
-        required={Boolean(required && name && !displayName)}
+        required={Boolean(required && !displayName)}
+        data-required-label={
+          typeof label === "string" && label.trim() ? label.trim() : undefined
+        }
         className="sr-only"
         disabled={disabled}
         onChange={(event) => {

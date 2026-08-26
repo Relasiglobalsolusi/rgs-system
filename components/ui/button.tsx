@@ -67,7 +67,7 @@ const buttonVariants = cva(
         // Same chip chrome as badge, but no min-width lock (icon+label CTAs).
         // Prefer over size="badge" + width overrides; twMerge fights w-* utilities.
         badgeFlex:
-          "box-border h-[2.75rem] min-h-[2.75rem] w-auto min-w-0 max-w-none justify-center gap-1.5 overflow-hidden whitespace-nowrap rounded-md px-3.5 py-0 text-xs font-semibold leading-none tracking-normal shadow-none in-data-[slot=button-group]:rounded-md [&_svg]:size-3.5",
+          "box-border h-[2.75rem] min-h-[2.75rem] w-auto min-w-0 max-w-none justify-center gap-1.5 overflow-hidden whitespace-nowrap rounded-md px-3.5 py-0 text-xs font-bold leading-none tracking-normal shadow-none in-data-[slot=button-group]:rounded-md [&_svg]:size-3.5",
         lg: "h-9 gap-1.5 px-2.5 text-sm has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
         icon: "size-8 text-sm",
         "icon-xs":

@@ -192,6 +192,10 @@ export function projectWhereForDirectoryChips(
     return {};
   }
 
+  if (chips.area === "INTERNAL") {
+    return { clientId: null };
+  }
+
   const customSubId = chips.sub ? customChipId(chips.sub) : null;
   if (customSubId) {
     return { subcategoryCatalogId: customSubId };
@@ -287,11 +291,15 @@ export const DIRECTORY_ALL_SECTION_ORDER: DirectorySectionKey[] = [
 
 export function directorySectionForProject(opts: {
   subCategory: ProjectSubCategory | string;
+  clientId?: string | null;
   areaCatalogId?: string | null;
   subcategoryCatalogIsSystem?: boolean | null;
   subcategoryBillingKind?: "CONTRACT" | "ONE_TIME" | null;
   areaSystemArea?: string | null;
 }): DirectorySectionKey {
+  if (opts.clientId == null || opts.subCategory === "INTERNAL") {
+    return "INTERNAL";
+  }
   const customArea = opts.areaCatalogId && opts.areaSystemArea === "OTHER";
   if (customArea && opts.areaCatalogId) {
     return toCustomChip(opts.areaCatalogId);

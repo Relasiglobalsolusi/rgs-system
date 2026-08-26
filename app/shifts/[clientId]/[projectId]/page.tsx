@@ -89,6 +89,7 @@ export default async function ShiftsProjectPage({ params }: Props) {
         backups={board.backups}
         doubleShifts={board.doubleShifts}
         canAssignCover={board.canAssignCover}
+        usesNamedShifts={board.usesNamedShifts}
         toolbar={
           <>
             {board.canAddShift ? (
@@ -112,10 +113,12 @@ export default async function ShiftsProjectPage({ params }: Props) {
             ) : null}
             {board.canAssignCover ? (
               <>
-                <ProjectAssignDoubleShiftChip
-                  projectId={board.project.id}
-                  employees={board.regularCoverEmployees}
-                />
+                {board.usesNamedShifts ? (
+                  <ProjectAssignDoubleShiftChip
+                    projectId={board.project.id}
+                    employees={board.regularCoverEmployees}
+                  />
+                ) : null}
                 <ProjectAssignBackupChip
                   projectId={board.project.id}
                   employees={board.backupEmployees}

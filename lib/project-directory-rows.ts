@@ -215,8 +215,8 @@ function kindForProjectStatus(status: string): ProjectDirectoryRowKind {
  * - In Progress / live contract: one row per project (full contract dates).
  * - Pending Approval: one row per real period awaiting approval.
  * - Payment Due: one row per real unpaid issued period.
- * Same project may appear in all three at once. One Time / Internal stay one
- * row unless they already have a matching period record.
+ * Same project may appear in those three *tabs* at once. All Projects stays
+ * one row per project — queue period rows do not stack under it.
  */
 export function buildProjectDirectoryItems<P extends DirectoryProjectBase>(
   projects: P[],
@@ -297,23 +297,30 @@ export function buildProjectDirectoryItems<P extends DirectoryProjectBase>(
       kind: kindForProjectStatus(project.status),
       focusPeriod: null,
     });
-    for (const period of pending) {
-      items.push({
-        key: `${project.id}:pending:${period.id}`,
-        project,
-        kind: "pending-approval",
-        focusPeriod: period,
-      });
-    }
-    for (const period of paymentDue) {
-      items.push({
-        key: `${project.id}:due:${period.id}`,
-        project,
-        kind: "payment-due",
-        focusPeriod: period,
-      });
-    }
   }
 
-  return items;
+  return itemsForDirectoryView(items, view);
+}
+
+/** Drop leaked queue / live-contract rows when the sidebar view is locked. */
+export function itemsForDirectoryView<T extends { kind: ProjectDirectoryRowKind }>(
+  items: T[],
+  view: ProjectDirectoryView
+): T[] {
+  if (view === "pending-approval") {
+    return items.filter((item) => item.kind === "pending-approval");
+  }
+  if (view === "payment-due") {
+    return items.filter((item) => item.kind === "payment-due");
+  }
+  if (view === "in-progress") {
+    return items.filter((item) => item.kind === "in-progress");
+  }
+  if (view === "planning") {
+    return items.filter((item) => item.kind === "planning");
+  }
+  if (view === "completed") {
+    return items.filter((item) => item.kind === "completed");
+  }
+  return items.filter((item) => !isDirectoryPeriodRow(item.kind));
 }

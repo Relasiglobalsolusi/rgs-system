@@ -13,12 +13,14 @@ type Props = {
   periodId: string;
   projectName: string;
   periodLabel: string;
+  showWithholdingSlip?: boolean;
 };
 
 export default function TaxInvoiceDoneButton({
   periodId,
   projectName,
   periodLabel,
+  showWithholdingSlip,
 }: Props) {
   const { t } = useT();
   const router = useRouter();
@@ -41,6 +43,7 @@ export default function TaxInvoiceDoneButton({
         periodId={periodId}
         projectName={projectName}
         periodLabel={periodLabel}
+        showWithholdingSlip={showWithholdingSlip}
         onSuccess={() => router.refresh()}
       />
     </>

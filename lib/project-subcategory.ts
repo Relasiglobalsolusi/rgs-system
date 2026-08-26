@@ -124,6 +124,17 @@ export function isInternalProjectSubCategory(
   return value === "INTERNAL";
 }
 
+/** RGS Internal work: no billed client. Legacy rows also used subcategory INTERNAL. */
+export function isRgsInternalProject(project: {
+  clientId?: string | null;
+  subCategory?: string | null;
+}): boolean {
+  return (
+    project.clientId == null ||
+    isInternalProjectSubCategory(project.subCategory)
+  );
+}
+
 export function isClientProjectSubCategory(
   value: ProjectSubCategory | string | null | undefined
 ): value is ProjectSubCategory {
@@ -219,6 +230,27 @@ export function serviceAreaForSubCategory(
     default:
       return "CLEANING";
   }
+}
+
+/**
+ * Regular ongoing jobs use named shifts. One-time / internal jobs use a
+ * team + backup only — staff work the job, not a rostered shift.
+ */
+export const NAMED_SHIFT_PROJECT_SUB_CATEGORIES = [
+  "REGULAR_CLEANING",
+  "REGULAR_LANDSCAPING",
+  "SECURITY",
+  "PARKING",
+  "PAYROLL_MANAGEMENT",
+] as const satisfies readonly ProjectSubCategory[];
+
+export function projectUsesNamedShifts(
+  value: ProjectSubCategory | string | null | undefined
+): boolean {
+  return (
+    typeof value === "string" &&
+    (NAMED_SHIFT_PROJECT_SUB_CATEGORIES as readonly string[]).includes(value)
+  );
 }
 
 /** Select value for "All Projects" in project/subcategory filter dropdowns. */

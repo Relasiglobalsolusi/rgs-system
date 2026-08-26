@@ -51,7 +51,7 @@ export default function ProjectsListHeader({
         );
 
   return (
-    <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+    <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
         <h2 className="text-lg font-semibold text-text">{title}</h2>
         <p className="mt-1 text-xs text-muted">
@@ -70,7 +70,11 @@ export default function ProjectsListHeader({
           ) : null}
         </p>
       </div>
-      {actions}
+      {actions ? (
+        <div className="flex flex-wrap items-center justify-end gap-4">
+          {actions}
+        </div>
+      ) : null}
     </div>
   );
 }

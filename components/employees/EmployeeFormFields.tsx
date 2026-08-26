@@ -713,6 +713,7 @@ export default function EmployeeFormFields({
             className="text-sm font-medium text-text"
           >
             {t("pages.employees.form.startDate")}
+            <span className="text-red-400"> *</span>
           </label>
           <p className="text-xs text-muted">
             {t("pages.employees.form.startDateHint")}
@@ -721,6 +722,7 @@ export default function EmployeeFormFields({
             id={idOf("employee-hired-at")}
             name={nameOf("hiredAt")}
             type="date"
+            required
             defaultValue={
               formatDateForInput(defaults?.hiredAt) ||
               (mode === "create" ? todayDateInput() : "")
@@ -747,13 +749,20 @@ export default function EmployeeFormFields({
             className={employeeInputClass}
           />
         </div>
-        <PhoneInput
-          name={nameOf("phone")}
-          defaultValue={defaults?.phone ?? ""}
-          onValueChange={() => onFormValuesChange?.()}
-          inputClassName={employeeInputClass}
-          selectClassName={cn(employeeSelectTriggerClass, "w-[5.5rem] px-3")}
-        />
+        <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+          <label className="text-sm font-medium text-text">
+            {t("pages.employees.form.phone")}
+            <span className="text-red-400"> *</span>
+          </label>
+          <PhoneInput
+            name={nameOf("phone")}
+            defaultValue={defaults?.phone ?? ""}
+            required
+            onValueChange={() => onFormValuesChange?.()}
+            inputClassName={employeeInputClass}
+            selectClassName={cn(employeeSelectTriggerClass, "w-[5.5rem] px-3")}
+          />
+        </div>
           </>
         )}
 
@@ -811,6 +820,7 @@ export default function EmployeeFormFields({
           id={idOf("employee-id-document")}
           name={nameOf("idDocument")}
           fileName={idDocumentName}
+          required={mode === "create" || !defaults?.idDocumentUrl}
           onPick={(file) => {
             setIdDocumentName(file?.name ?? null);
             onFormValuesChange?.();

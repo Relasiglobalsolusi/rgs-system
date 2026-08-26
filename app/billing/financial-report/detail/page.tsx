@@ -177,6 +177,24 @@ export default async function FinancialReportDetailPage({
             invoiceRef: true,
             amount: true,
             invoiceDate: true,
+            purchaseCategory: true,
+            bankAccount: {
+              select: {
+                bankName: true,
+                accountNumber: true,
+                accountHolder: true,
+                label: true,
+                sortOrder: true,
+              },
+            },
+            vendorBankAccount: {
+              select: {
+                bankName: true,
+                accountNumber: true,
+                accountHolder: true,
+                label: true,
+              },
+            },
           },
           orderBy: [{ invoiceDate: "desc" }],
           take: 80,
@@ -792,13 +810,15 @@ export default async function FinancialReportDetailPage({
                 key={invoice.id}
                 className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
               >
-                <Link
-                  href={`/billing/purchase-invoices/${invoice.id}`}
-                  className="text-text hover:underline"
-                >
-                  {invoice.supplierName}
-                  <span className="ml-2 text-subtle">{invoice.invoiceRef}</span>
-                </Link>
+                <div>
+                  <Link
+                    href={`/billing/purchase-invoices/${invoice.id}`}
+                    className="text-text hover:underline"
+                  >
+                    {invoice.supplierName}
+                    <span className="ml-2 text-subtle">{invoice.invoiceRef}</span>
+                  </Link>
+                </div>
                 <span className="tabular-nums text-text">
                   {formatContractPrice(decimalToNumber(invoice.amount))}
                   {` · ${formatDisplayDate(invoice.invoiceDate, {

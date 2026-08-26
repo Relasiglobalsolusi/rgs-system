@@ -5,6 +5,15 @@
 
 export const ATTENDANCE_INTERNAL_CLIENT_NAME = "RGS Internal";
 
+/** Form sentinel — not a Client row. Internal projects stay `clientId: null`. */
+export const RGS_INTERNAL_CLIENT_FORM_VALUE = "__rgs_internal__";
+
+export function isRgsInternalClientFormValue(
+  clientId: string | null | undefined
+): boolean {
+  return clientId === RGS_INTERNAL_CLIENT_FORM_VALUE;
+}
+
 /** URL segment for Internal projects with null clientId: /attendance/internal/:projectId */
 export const ATTENDANCE_INTERNAL_ROUTE_CLIENT_ID = "internal";
 

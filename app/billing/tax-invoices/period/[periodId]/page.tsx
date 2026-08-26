@@ -4,6 +4,7 @@ import Link from "next/link";
 import TaxPeriodDocumentsClient from "@/components/billing/TaxPeriodDocumentsClient";
 import AppShell from "@/components/layout/AppShell";
 import BackLink from "@/components/ui/BackLink";
+import { PageDocumentActions } from "@/components/ui/PageDocumentActions";
 import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { formatDisplayDate } from "@/lib/format-date";
@@ -17,6 +18,11 @@ import {
   formatInvoicePeriodLabel,
 } from "@/lib/project-billing";
 import { requireFinanceChild, toPermissionUser } from "@/lib/session";
+import {
+  commercialTaxIncludesIncomeTax,
+  commercialTaxIncludesVat,
+} from "@/lib/commercial-tax";
+import { formatTaxInvoiceSerial } from "@/lib/tax-invoice-serial";
 import {
   DEFAULT_INCLUSIVE_PPN_RATE,
   ppnRateFromPercent,
@@ -34,13 +40,20 @@ function money(value: number | null | undefined): string {
 
 export default async function OutputTaxDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ periodId: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   const session = await requireFinanceChild("taxInvoices");
   const locale = await getServerLocale();
   const t = createTranslator(locale);
   const { periodId } = await params;
+  const query = await searchParams;
+  const backView =
+    query.from === "income" || query.from === "other" || query.from === "input"
+      ? query.from
+      : "output";
 
   if (session.user.clientId || session.user.vendorId) {
     redirect("/billing");
@@ -56,6 +69,8 @@ export default async function OutputTaxDetailPage({
           billingMode: true,
           clientId: true,
           client: { select: { id: true, name: true } },
+          chargedTaxKind: true,
+          isGovernmentContract: true,
         },
       },
       taxInvoiceDoneBy: { select: { name: true } },
@@ -85,19 +100,60 @@ export default async function OutputTaxDetailPage({
     locale,
   });
   const taxPath = period.taxInvoiceDocumentPath?.trim() || null;
+  const showWithholdingSlip = commercialTaxIncludesIncomeTax(
+    period.project.chargedTaxKind
+  );
+  const showVatInvoice =
+    commercialTaxIncludesVat(period.project.chargedTaxKind) ||
+    period.taxInvoiceRequired ||
+    Boolean(taxPath);
+  const withholdingPath = period.withholdingSlipPath?.trim() || null;
   const billingHref = period.project.clientId
     ? `/billing/${period.project.clientId}/${period.project.id}`
     : null;
   const sent = Boolean(period.taxInvoiceDoneAt);
+  const taxFiles = [
+    ...(showVatInvoice
+      ? [
+          {
+            id: "output-tax",
+            title: t("pages.billing.taxInvoiceDocument"),
+            href: taxPath,
+          },
+        ]
+      : []),
+    ...(showWithholdingSlip || withholdingPath
+      ? [
+          {
+            id: "withholding-slip",
+            title: t("pages.billing.withholdingSlip"),
+            hint: t("pages.billing.withholdingSlipHint"),
+            href: withholdingPath,
+          },
+        ]
+      : []),
+  ];
+  const readyDocuments = taxFiles.flatMap((file) =>
+    file.href
+      ? [
+          {
+            href: file.href,
+            label: file.title,
+            icon: "download" as const,
+          },
+        ]
+      : []
+  );
 
   return (
     <AppShell
       title={t("pages.vat.taxDetail")}
     >
-      <div className="mb-4">
-        <BackLink href="/billing/tax-invoices?view=output">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <BackLink href={`/billing/tax-invoices?view=${backView}`}>
           {t("pages.vat.backToTax")}
         </BackLink>
+        <PageDocumentActions documents={readyDocuments} />
       </div>
 
       <div className="space-y-5">
@@ -124,6 +180,11 @@ export default async function OutputTaxDetailPage({
                 </th>
                 <td className={`${metaValueClassName} font-medium`}>
                   {period.project.client?.name ?? t("pages.billing.noClient")}
+                  {period.project.isGovernmentContract ? (
+                    <span className="mt-1 block text-xs font-medium text-muted">
+                      {t("pages.vat.governmentClient")}
+                    </span>
+                  ) : null}
                 </td>
               </tr>
               <tr className="border-b border-border">
@@ -148,6 +209,18 @@ export default async function OutputTaxDetailPage({
                   )}
                 </td>
               </tr>
+              {showVatInvoice || period.taxInvoiceSerial ? (
+                <tr className="border-b border-border">
+                  <th scope="row" className={metaLabelClassName}>
+                    {t("pages.vat.columns.taxInvoiceNumber")}
+                  </th>
+                  <td className={`${metaValueClassName} tabular-nums`}>
+                    {period.taxInvoiceSerial
+                      ? formatTaxInvoiceSerial(period.taxInvoiceSerial)
+                      : "—"}
+                  </td>
+                </tr>
+              ) : null}
               <tr className="border-b border-border">
                 <th scope="row" className={metaLabelClassName}>
                   {t("pages.vat.columns.gross")}
@@ -189,6 +262,17 @@ export default async function OutputTaxDetailPage({
           </table>
         </SectionCard>
 
+        {period.project.isGovernmentContract ? (
+          <SectionCard className="p-5 sm:p-6">
+            <h3 className={sectionTitleClassName}>
+              {t("pages.vat.governmentPaidDirectlyTitle")}
+            </h3>
+            <p className="mt-2 text-sm text-muted">
+              {t("pages.vat.governmentPaidDirectly")}
+            </p>
+          </SectionCard>
+        ) : null}
+
         <SectionCard className="p-5 sm:p-6">
           <h3 className={sectionTitleClassName}>
             {t("pages.vat.taxDocuments")}
@@ -199,14 +283,11 @@ export default async function OutputTaxDetailPage({
               projectName={period.project.name}
               periodLabel={periodLabel}
               defaultPpnRatePercent={storedRatePercent}
-              canUpload={canManage && !taxPath}
-              files={[
-                {
-                  id: "output-tax",
-                  title: t("pages.billing.purchaseTaxInvoice"),
-                  href: taxPath,
-                },
-              ]}
+              canUpload={canManage}
+              showWithholdingSlip={
+                showWithholdingSlip && !withholdingPath
+              }
+              files={taxFiles}
             />
           </div>
           {billingHref ? (

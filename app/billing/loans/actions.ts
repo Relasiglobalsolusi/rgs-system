@@ -7,6 +7,7 @@ import {
   BANK_LOAN_TENOR_MAX,
   BANK_LOAN_TENOR_MIN,
   parseBankLoanKind,
+  parseLoanCalculationMethod,
   parseLoanInterestBasis,
   remainingTenorMonths,
 } from "@/lib/bank-loan";
@@ -190,27 +191,54 @@ export async function createLoanFacility(formData: FormData) {
     }
   }
 
+  const calculationMethod =
+    kind === "TERM"
+      ? parseLoanCalculationMethod(formData.get("calculationMethod")) ?? "ANNUITY"
+      : null;
+  if (kind === "TERM" && !calculationMethod) {
+    throw new Error("Choose Flat, Effective, or Annuity.");
+  }
+  const commitmentFeeApplies =
+    kind === "STANDBY" &&
+    (formData.get("commitmentFeeApplies") === "true" ||
+      formData.get("commitmentFeeApplies") === "Yes");
+  const commitmentFeeRate = commitmentFeeApplies
+    ? parseAnnualRate(
+        String(formData.get("commitmentFeeRatePercent") ?? ""),
+        true
+      )
+    : null;
+  const dayCountYear =
+    Number(String(formData.get("dayCountYear") ?? "").trim()) === 365
+      ? 365
+      : 360;
+
   const monthlyInstallment = resolveFacilityMonthlyInstallment({
     kind,
     principal: decimalToNumber(principal),
     annualPercent: decimalToNumber(annualRate),
     tenorMonths,
     interestRateBasis,
+    calculationMethod,
   });
 
   const recordInitialDraw =
+    kind === "TERM" ||
     formData.get("recordInitialDraw") === "on" ||
     formData.get("recordInitialDraw") === "true" ||
     formData.get("recordInitialDraw") === "Yes";
   const initialDrawAmount = recordInitialDraw
-    ? parseMoney(
-        String(formData.get("initialDrawAmount") ?? ""),
-        "Enter the amount drawn."
-      )
+    ? kind === "TERM"
+      ? decimalToNumber(principal)
+      : parseMoney(
+          String(formData.get("initialDrawAmount") ?? ""),
+          "Enter the amount drawn."
+        )
     : null;
   const initialDrawDate = recordInitialDraw
     ? parseRequiredDate(
-        String(formData.get("initialDrawDate") ?? ""),
+        String(formData.get("initialDrawDate") ?? "") ||
+          String(formData.get("startDate") ?? ""),
         "Enter the date the money was drawn."
       )
     : null;
@@ -237,6 +265,10 @@ export async function createLoanFacility(formData: FormData) {
         interestRateBasis: interestRateBasis ?? "ANNUAL",
         annualRatePercent: annualRate,
         tenorMonths,
+        calculationMethod,
+        commitmentFeeApplies,
+        commitmentFeeRatePercent: commitmentFeeRate,
+        dayCountYear,
         monthlyInstallment:
           monthlyInstallment != null
             ? new Prisma.Decimal(monthlyInstallment)
@@ -385,6 +417,95 @@ export async function recordLoanRepaymentAction(formData: FormData) {
     });
   });
 
+  revalidateLoanPaths(facilityId);
+}
+
+export async function updateLoanFacilityVariables(formData: FormData) {
+  const session = await requireLoansAccess();
+  const facilityId = String(formData.get("facilityId") ?? "").trim();
+  if (!facilityId) throw new Error("Select the registered loan.");
+  const snapshot = await getLoanFacilitySnapshot(
+    session.user.companyId,
+    facilityId
+  );
+  if (!snapshot) throw new Error("Loan not found.");
+  if (snapshot.status !== "ACTIVE") {
+    throw new Error("This loan is already closed.");
+  }
+
+  const dayCountYear =
+    Number(String(formData.get("dayCountYear") ?? "").trim()) === 365
+      ? 365
+      : 360;
+  const interestRateBasis = snapshot.chargesInterest
+    ? parseLoanInterestBasis(formData.get("interestRateBasis"))
+    : parseLoanInterestBasis(formData.get("interestRateBasis")) ??
+      snapshot.interestRateBasis;
+  if (snapshot.chargesInterest && !interestRateBasis) {
+    throw new Error("Choose Monthly Interest or Annual Interest.");
+  }
+  const annualRate = parseAnnualRate(
+    String(formData.get("annualRatePercent") ?? ""),
+    snapshot.chargesInterest
+  );
+  const commitmentFeeApplies =
+    snapshot.kind === "STANDBY" &&
+    (formData.get("commitmentFeeApplies") === "true" ||
+      formData.get("commitmentFeeApplies") === "Yes");
+  const commitmentFeeRate = commitmentFeeApplies
+    ? parseAnnualRate(
+        String(formData.get("commitmentFeeRatePercent") ?? ""),
+        true
+      )
+    : null;
+  let tenorMonths = snapshot.tenorMonths;
+  let calculationMethod = snapshot.calculationMethod;
+  if (snapshot.kind === "TERM") {
+    const tenorRaw = Number(String(formData.get("tenorMonths") ?? "").trim());
+    tenorMonths = Math.round(tenorRaw);
+    if (
+      !Number.isFinite(tenorMonths) ||
+      tenorMonths < BANK_LOAN_TENOR_MIN ||
+      tenorMonths > BANK_LOAN_TENOR_MAX
+    ) {
+      throw new Error("Enter the tenor in months.");
+    }
+    calculationMethod =
+      parseLoanCalculationMethod(formData.get("calculationMethod")) ??
+      snapshot.calculationMethod ??
+      "ANNUITY";
+    if (!calculationMethod) {
+      throw new Error("Choose Flat, Effective, or Annuity.");
+    }
+  }
+
+  const monthlyInstallment = resolveFacilityMonthlyInstallment({
+    kind: snapshot.kind,
+    principal: snapshot.principal ?? snapshot.outstanding,
+    annualPercent: decimalToNumber(annualRate),
+    tenorMonths,
+    interestRateBasis,
+    calculationMethod,
+  });
+
+  await prisma.loanFacility.update({
+    where: { id: facilityId },
+    data: {
+      dayCountYear,
+      interestRateBasis: interestRateBasis ?? snapshot.interestRateBasis,
+      annualRatePercent: annualRate,
+      tenorMonths,
+      calculationMethod,
+      commitmentFeeApplies,
+      commitmentFeeRatePercent: commitmentFeeRate,
+      monthlyInstallment:
+        monthlyInstallment != null
+          ? new Prisma.Decimal(monthlyInstallment)
+          : snapshot.kind === "TERM"
+            ? null
+            : undefined,
+    },
+  });
   revalidateLoanPaths(facilityId);
 }
 

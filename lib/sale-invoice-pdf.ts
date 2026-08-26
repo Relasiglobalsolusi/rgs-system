@@ -20,7 +20,9 @@ import {
   type CompanyForPdf,
   type LetterheadInfo,
 } from "@/lib/pdf-letterhead";
+import { inventoryTypeCodeFromLabel } from "@/lib/inventory-sku";
 import { formatContractPrice } from "@/lib/project-billing";
+import { jakartaYearMonth } from "@/lib/vat";
 
 export type SaleInvoicePdfInput = {
   invoiceNumber: string;
@@ -42,6 +44,8 @@ export type SaleInvoicePdfInput = {
   totalPrice: number;
   notes?: string | null;
   company?: CompanyForPdf | null;
+  paymentTermsDays?: number | null;
+  dueAt?: Date | null;
 };
 
 type PdfDoc = InstanceType<typeof PDFDocument>;
@@ -82,19 +86,18 @@ function drawInvoiceHeader(
     .text(invoiceNumber, metaRightX, titleY + 2, {
       width: metaRightW,
       align: "right",
-      lineBreak: false,
     });
+  const afterNumberY = doc.y;
   doc
     .font("Helvetica")
     .fontSize(7.5)
     .fillColor(BRAND.muted)
-    .text("Sale invoice", metaRightX, titleY + 16, {
+    .text("Sale invoice", metaRightX, afterNumberY + 2, {
       width: metaRightW,
       align: "right",
-      lineBreak: false,
     });
 
-  doc.y = titleY + 34;
+  doc.y = Math.max(titleY + 34, doc.y + 10);
 }
 
 function drawMetaBlock(doc: PdfDoc, input: SaleInvoicePdfInput) {
@@ -120,14 +123,25 @@ function drawMetaBlock(doc: PdfDoc, input: SaleInvoicePdfInput) {
     billLines.push(input.buyerPhone.trim());
   }
 
+  const dueDate =
+    input.dueAt != null
+      ? formatInvoiceCalendarDate(input.dueAt)
+      : input.paymentTermsDays === 0
+        ? "Due now"
+        : issueDate;
   const details: [string, string][] = [
     ["Invoice No.", input.invoiceNumber],
-    ["Issue date", issueDate],
-    ["Sale date", issueDate],
+    ["Invoice date", issueDate],
+    ["Due date", dueDate],
   ];
 
   const billBodyH = 16 + billLines.length * 13 + (billLines.length > 1 ? 4 : 0);
-  const detailsBodyH = 16 + details.length * 15;
+  const detailsValueWidth = colW - pad * 2 - 88;
+  const invoiceNoWrapLines = Math.max(
+    1,
+    Math.ceil(input.invoiceNumber.length / Math.max(18, detailsValueWidth / 6))
+  );
+  const detailsBodyH = 16 + (details.length - 1) * 16 + invoiceNoWrapLines * 16;
   const panelH = Math.max(billBodyH, detailsBodyH) + pad * 2;
 
   doc.roundedRect(leftX, startY, colW, panelH, 4).fill(BRAND.panelBg);
@@ -173,7 +187,7 @@ function drawMetaBlock(doc: PdfDoc, input: SaleInvoicePdfInput) {
         width: colW - pad * 2 - 88,
         align: "right",
       });
-    rightY += 15;
+    rightY = Math.max(rightY + 16, doc.y + 4);
   }
 
   doc.y = startY + panelH + 16;
@@ -339,8 +353,36 @@ function drawPaymentAndNotes(
   const hasBank = Boolean(bankAccount);
 
   const note = input.notes?.trim() || null;
+  const termsLabel =
+    input.paymentTermsDays === 0
+      ? "Cash — due now"
+      : typeof input.paymentTermsDays === "number" &&
+          Number.isFinite(input.paymentTermsDays)
+        ? `Net ${input.paymentTermsDays} days`
+        : null;
+  const dueLabel =
+    input.dueAt != null
+      ? formatInvoiceCalendarDate(input.dueAt)
+      : input.paymentTermsDays === 0
+        ? "Due now"
+        : null;
+  const bankLines = hasBank
+    ? [
+        "Please transfer to:",
+        bankName,
+        bankAccountName ? `Account name: ${bankAccountName}` : null,
+        bankAccount ? `Account number: ${bankAccount}` : null,
+      ].filter((line): line is string => Boolean(line))
+    : [
+        letterhead.name
+          ? `Please use your agreed payment method with ${letterhead.name}.`
+          : "Please use your agreed payment method.",
+      ];
+  if (termsLabel) bankLines.push(`Payment terms: ${termsLabel}`);
+  if (dueLabel) bankLines.push(`Due date: ${dueLabel}`);
+
   const boxY = doc.y;
-  const boxH = (hasBank ? 86 : 56) + (note ? 22 : 0);
+  const boxH = 36 + bankLines.length * 14 + (note ? 22 : 0);
   doc.roundedRect(PAGE_MARGIN, boxY, CONTENT_WIDTH, boxH, 4).fill(BRAND.panelBg);
   doc
     .font("Helvetica-Bold")
@@ -350,26 +392,17 @@ function drawPaymentAndNotes(
       width: CONTENT_WIDTH - 24,
     });
 
-  const bankLines = hasBank
-    ? [
-        "Please transfer to:",
-        bankName,
-        bankAccountName ? `a/n ${bankAccountName}` : null,
-        bankAccount ? `Account ${bankAccount}` : null,
-      ].filter(Boolean)
-    : [
-        letterhead.name
-          ? `Please use your agreed payment method with ${letterhead.name}.`
-          : "Please use your agreed payment method.",
-      ];
-
-  doc
-    .font("Helvetica")
-    .fontSize(9)
-    .fillColor(BRAND.body)
-    .text(bankLines.join("  ·  "), PAGE_MARGIN + 12, boxY + 24, {
-      width: CONTENT_WIDTH - 24,
-    });
+  let lineY = boxY + 26;
+  for (const line of bankLines) {
+    doc
+      .font("Helvetica")
+      .fontSize(9)
+      .fillColor(BRAND.body)
+      .text(line, PAGE_MARGIN + 12, lineY, {
+        width: CONTENT_WIDTH - 24,
+      });
+    lineY = doc.y + 2;
+  }
 
   if (note) {
     doc
@@ -459,17 +492,14 @@ export async function generateInventorySaleInvoicePdf(
   return publicPath;
 }
 
-export function saleInvoiceNumber(
-  soldAt: Date,
-  sku: string,
-  unique: string
-): string {
-  const year = soldAt.getUTCFullYear();
-  const month = String(soldAt.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(soldAt.getUTCDate()).padStart(2, "0");
-  const skuPart = sku.replace(/[^A-Za-z0-9]/g, "").slice(0, 10) || "ITEM";
-  const suffix =
-    unique.replace(/[^A-Za-z0-9]/g, "").slice(-6).toUpperCase() ||
-    Math.random().toString(36).slice(2, 8).toUpperCase();
-  return `INV-SALE-${year}${month}${day}-${skuPart}-${suffix}`;
+export function saleInvoiceNumber(options: {
+  sequence: number;
+  soldAt: Date;
+  itemType: string;
+}): string {
+  const { year, month } = jakartaYearMonth(options.soldAt);
+  const mm = String(month).padStart(2, "0");
+  const type = inventoryTypeCodeFromLabel(options.itemType);
+  const sequence = Math.max(1, Math.round(options.sequence));
+  return `INV/${sequence}/${mm}${year}/${type}`;
 }

@@ -285,9 +285,6 @@ export function parseSidebarOrder(value: unknown): SidebarOrder | null {
     LEGACY_OVERVIEW_TITLE,
     DASHBOARD_SECTION_TITLE
   );
-  sections = migrateHrSectionItems(sections);
-  sections = migrateCatalogToAdmin(sections);
-  sections = migrateApprovalsToOps(sections);
 
   if (isPlainObject(childrenRaw)) {
     for (const [moduleKey, hrefs] of Object.entries(childrenRaw)) {

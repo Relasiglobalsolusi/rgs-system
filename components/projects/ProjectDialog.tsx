@@ -59,6 +59,9 @@ const INITIAL_FIELDS_STATE: ProjectFormFieldsState = {
   isLandscaping: false,
   showPaymentPlan: false,
   initialStatus: "PLANNED",
+  isDemo: false,
+  isComplimentary: false,
+  isInternal: false,
   controlledSignature: "",
 };
 
@@ -93,6 +96,9 @@ export default function ProjectDialog({
     isLandscaping,
     showPaymentPlan,
     initialStatus,
+    isDemo,
+    isComplimentary,
+    isInternal,
     controlledSignature,
   } = fieldsState;
 
@@ -152,7 +158,7 @@ export default function ProjectDialog({
   }, [open]);
 
   async function submit(formData: FormData) {
-    if (initialStatus === "IN_PROGRESS") {
+    if (!isInternal && (initialStatus === "IN_PROGRESS" || isDemo)) {
       const proof = formData.get("contractProof");
       if (!(proof instanceof File) || proof.size === 0) {
         showRejection({ reasons: t("pages.projects.contractProofHint") });
@@ -160,18 +166,32 @@ export default function ProjectDialog({
       }
     }
 
-    if (!isCommercialTaxKind(chargedTaxKind)) {
+    const resolvedTaxKind = isCommercialTaxKind(chargedTaxKind)
+      ? chargedTaxKind
+      : null;
+    if (!isInternal && !isComplimentary && !resolvedTaxKind) {
       showRejection({ reasons: t("pages.projects.chargedTaxKindRequired") });
       return;
     }
-    if (chargedTaxKind === "OTHER" && !otherTaxName.trim()) {
+    if (
+      !isInternal &&
+      !isComplimentary &&
+      resolvedTaxKind === "OTHER" &&
+      !otherTaxName.trim()
+    ) {
       showRejection({ reasons: t("pages.billing.otherTaxNameRequired") });
       return;
     }
-    if (commercialTaxRequiresRatePercent(chargedTaxKind) && !pphRatePercent.trim()) {
+    if (
+      !isInternal &&
+      !isComplimentary &&
+      resolvedTaxKind &&
+      commercialTaxRequiresRatePercent(resolvedTaxKind) &&
+      !pphRatePercent.trim()
+    ) {
       showRejection({
         reasons:
-          chargedTaxKind === "OTHER"
+          resolvedTaxKind === "OTHER"
             ? t("pages.billing.otherTaxRateRequired")
             : t("pages.projects.pphRatePercentRequired"),
       });

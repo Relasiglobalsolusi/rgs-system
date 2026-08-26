@@ -469,6 +469,7 @@ export function resolveFacilityMonthlyInstallment(input: {
   annualPercent: number | null;
   tenorMonths: number | null;
   interestRateBasis?: LoanInterestBasis | null;
+  calculationMethod?: import("@/lib/bank-loan").LoanCalculationMethod | null;
 }): number | null {
   if (input.kind !== "TERM") return null;
   const principal = input.principal ?? 0;
@@ -478,7 +479,8 @@ export function resolveFacilityMonthlyInstallment(input: {
     principal,
     input.annualPercent ?? 0,
     tenor,
-    input.interestRateBasis ?? "ANNUAL"
+    input.interestRateBasis ?? "ANNUAL",
+    input.calculationMethod ?? "ANNUITY"
   );
 }
 

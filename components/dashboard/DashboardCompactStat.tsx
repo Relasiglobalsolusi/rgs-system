@@ -2,8 +2,14 @@
 
 import type { ReactNode } from "react";
 
+import {
+  cardTintIcon,
+  cardTintWash,
+  type CardTintAccent,
+} from "@/components/ui/card-tint";
 import { useT } from "@/lib/i18n/use-t";
 import type { TranslateParams } from "@/lib/i18n/translate";
+import { cn } from "@/lib/utils";
 
 type Props = {
   label?: string;
@@ -14,7 +20,7 @@ type Props = {
   hintKey?: string;
   hintParams?: TranslateParams;
   icon: ReactNode;
-  iconClassName?: string;
+  accent?: CardTintAccent;
 };
 
 export default function DashboardCompactStat({
@@ -26,14 +32,19 @@ export default function DashboardCompactStat({
   hintKey,
   hintParams,
   icon,
-  iconClassName = "bg-card-tint-teal text-primary",
+  accent = "primary",
 }: Props) {
   const { t } = useT();
   const resolvedLabel = labelKey ? t(labelKey, labelParams) : (label ?? "");
   const resolvedHint = hintKey ? t(hintKey, hintParams) : hint;
 
   return (
-    <div className="rounded-2xl border border-border bg-card px-4 py-3.5 sm:px-5 sm:py-4">
+    <div
+      className={cn(
+        "rounded-2xl border px-4 py-3.5 sm:px-5 sm:py-4",
+        cardTintWash[accent]
+      )}
+    >
       <div className="flex items-center justify-between gap-3 lg:items-start">
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-subtle lg:text-xs lg:tracking-wider">
@@ -47,7 +58,10 @@ export default function DashboardCompactStat({
           )}
         </div>
         <div
-          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md sm:h-10 sm:w-10 ${iconClassName}`}
+          className={cn(
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-md sm:h-10 sm:w-10",
+            cardTintIcon[accent]
+          )}
         >
           {icon}
         </div>

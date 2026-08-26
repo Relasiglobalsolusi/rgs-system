@@ -2,6 +2,27 @@
 
 import { jakartaYearMonth } from "@/lib/vat";
 
+/** Number plate - card or vehicle name - catalog vehicle code. */
+export function formatVehicleIdentityLabel(parts: {
+  plate?: string | null;
+  name?: string | null;
+  sku?: string | null;
+  cardNumber?: string | null;
+}): string {
+  const plate = parts.plate?.trim() || "";
+  const cardOrName = parts.cardNumber?.trim() || parts.name?.trim() || "";
+  const sku = parts.sku?.trim() || "";
+  return [plate, cardOrName, sku].filter(Boolean).join(" - ");
+}
+
+export function formatVehicleNameWithPlate(
+  name: string,
+  plate?: string | null,
+  sku?: string | null
+): string {
+  return formatVehicleIdentityLabel({ plate, name, sku });
+}
+
 export function normalizeVehiclePlate(raw: string): string {
   return raw
     .trim()

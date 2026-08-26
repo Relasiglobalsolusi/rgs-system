@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -326,15 +325,17 @@ export default function DataTable<T>({
 }: Props<T>) {
   const { t } = useT();
   const resolvedEmptyMessage = emptyMessage ?? t("ui.noRecordsFound");
-  const [rows, setRows] = useState(data);
+  const [orderedRows, setOrderedRows] = useState(data);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [needsHScroll, setNeedsHScroll] = useState(false);
 
-  useEffect(() => {
-    setRows(data);
+  useLayoutEffect(() => {
+    setOrderedRows(data);
   }, [data]);
+
+  const rows = reorderable ? orderedRows : data;
 
   const displayColumns = useMemo(() => {
     if (!reorderable) return columns;
@@ -438,7 +439,7 @@ export default function DataTable<T>({
     if (!Number.isFinite(fromIndex) || fromIndex === toIndex) return;
 
     const next = moveItemInArray(rows, fromIndex, toIndex);
-    setRows(next);
+    setOrderedRows(next);
 
     const orderedKeys = next.map((row, index) =>
       resolveRowKey(row, index, getRowKey)
@@ -446,7 +447,7 @@ export default function DataTable<T>({
     try {
       await onReorder?.(orderedKeys);
     } catch {
-      setRows(data);
+      setOrderedRows(data);
     }
   }
 
@@ -467,8 +468,8 @@ export default function DataTable<T>({
         <div
           ref={scrollRef}
           className={cn(
-            "min-w-0 max-w-full overscroll-x-contain [-webkit-overflow-scrolling:touch]",
-            needsHScroll ? "overflow-x-auto" : "overflow-x-hidden"
+            "min-w-0 max-w-full overscroll-x-contain [-webkit-overflow-scrolling:touch] max-sm:overflow-x-auto",
+            needsHScroll ? "overflow-x-auto" : "sm:overflow-x-hidden"
           )}
           style={{ WebkitOverflowScrolling: "touch" }}
         >
@@ -480,7 +481,7 @@ export default function DataTable<T>({
             scrollWidth exceed clientWidth by a few pixels.
           */}
           <Table
-            containerClassName="min-w-0 max-w-full overflow-visible"
+            containerClassName="min-w-0 max-w-full overflow-hidden"
             className="box-border w-full max-w-full min-w-0 table-fixed text-left"
             style={{
               width: "100%",
@@ -519,7 +520,7 @@ export default function DataTable<T>({
                     onClick={isGutter ? stopGutterCellClick : undefined}
                     onPointerDown={isGutter ? stopGutterCellClick : undefined}
                     className={cn(
-                      "min-h-12 bg-elevated px-3 py-3 align-middle text-[11px] font-semibold text-subtle whitespace-normal",
+                      "min-h-12 bg-elevated px-3 py-3 align-middle text-sm font-semibold text-muted whitespace-normal",
                       column.headerClassName,
                       columnTrailingPadClass(column, isLastColumn),
                       // Chip / actions: center title over the chip. Money: right.

@@ -20,7 +20,9 @@ import {
   submitInvoicePaymentForVerification,
 } from "@/app/projects/invoice-actions";
 import { sendProgressForClientReview } from "@/app/billing/reconciliation/actions";
+import NoPortalProgressSentDialog from "@/components/billing/NoPortalProgressSentDialog";
 import ClientBillingReviewActions from "@/components/billing/ClientBillingReviewActions";
+import HoOfflineClientReviewPanel from "@/components/billing/HoOfflineClientReviewPanel";
 import InHouseVerifyPaymentDialog from "@/components/billing/InHouseVerifyPaymentDialog";
 import PaymentReceivedDialog from "@/components/billing/PaymentReceivedDialog";
 import ReconcilePeriodDialog from "@/components/billing/ReconcilePeriodDialog";
@@ -55,7 +57,10 @@ import {
   dedupeOnCompletionPeriods,
   maxMilestonePercent,
 } from "@/lib/project-billing";
-import type { CommercialTaxKind } from "@/lib/commercial-tax";
+import {
+  commercialTaxIncludesIncomeTax,
+  type CommercialTaxKind,
+} from "@/lib/commercial-tax";
 import { formatDisplayDate } from "@/lib/format-date";
 import {
   localizeBillingChipLines,
@@ -111,6 +116,7 @@ type Props = {
   chargedTaxKind?: CommercialTaxKind | "" | null;
   requiresTaxInvoice?: boolean | null;
   pphRatePercent?: number | null;
+  isGovernmentContract?: boolean | null;
   invoicingDay: number;
   /** Real contract start (ISO) — drives Regular Cleaning anniversary cycles. */
   startDate?: string | null;
@@ -120,6 +126,8 @@ type Props = {
   canManage: boolean;
   /** Client portal user — show Approve/Revise on pending reviews. */
   isClientPortal?: boolean;
+  /** When false, HO records the client response offline. */
+  hasPortalAccess?: boolean;
   /** Regular Cleaning only — Contract Extensions history. */
   subCategory?: ProjectSubCategory | string | null;
   contractExtensions?: ContractExtensionRow[];
@@ -143,12 +151,14 @@ export default function ProjectBillingPanel({
   chargedTaxKind = null,
   requiresTaxInvoice = null,
   pphRatePercent = null,
+  isGovernmentContract = false,
   invoicingDay,
   startDate,
   paymentTermsDays,
   periods: periodsProp,
   canManage,
   isClientPortal = false,
+  hasPortalAccess = true,
   subCategory = null,
   contractExtensions = [],
 }: Props) {
@@ -164,6 +174,7 @@ export default function ProjectBillingPanel({
   >(null);
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [noPortalSentOpen, setNoPortalSentOpen] = useState(false);
   const isMonthly = billingMode === "MONTHLY";
   const isMilestone = billingMode === "MILESTONE";
   const price = contractPrice;
@@ -215,11 +226,16 @@ export default function ProjectBillingPanel({
       )[0] ?? null;
   }, [scheduledReady, priorMax]);
 
-  function run(action: () => Promise<unknown>, errorLabel: string) {
+  function run(
+    action: () => Promise<unknown>,
+    errorLabel: string,
+    afterSuccess?: () => void
+  ) {
     startTransition(async () => {
       try {
         await action();
         router.refresh();
+        afterSuccess?.();
       } catch (error) {
         showRejectionFromError(error, errorLabel);
       }
@@ -230,7 +246,10 @@ export default function ProjectBillingPanel({
     if (!nextMilestone) return;
     run(
       () => sendProgressForClientReview(nextMilestone.id),
-      t("pages.billing.sendMilestoneForReviewFailed")
+      t("pages.billing.sendMilestoneForReviewFailed"),
+      () => {
+        if (!hasPortalAccess) setNoPortalSentOpen(true);
+      }
     );
   }
 
@@ -241,7 +260,10 @@ export default function ProjectBillingPanel({
     formData.set("milestonePercent", String(percent));
     run(
       () => sendAdHocMilestoneForClientReview(formData),
-      t("pages.billing.sendMilestoneForReviewFailed")
+      t("pages.billing.sendMilestoneForReviewFailed"),
+      () => {
+        if (!hasPortalAccess) setNoPortalSentOpen(true);
+      }
     );
   }
 
@@ -382,6 +404,7 @@ export default function ProjectBillingPanel({
           chargedTaxKind={chargedTaxKind}
           requiresTaxInvoice={requiresTaxInvoice}
           pphRatePercent={pphRatePercent}
+          isGovernmentContract={isGovernmentContract}
           canManage={canManage}
           milestone={isMilestone}
         />
@@ -880,11 +903,20 @@ export default function ProjectBillingPanel({
                               onClick={() =>
                                 run(
                                   () => sendProgressForClientReview(period.id),
-                                  t("pages.billing.sendMilestoneForReviewFailed")
+                                  t("pages.billing.sendMilestoneForReviewFailed"),
+                                  () => {
+                                    if (!hasPortalAccess) {
+                                      setNoPortalSentOpen(true);
+                                    }
+                                  }
                                 )
                               }
                             >
-                              {t("pages.reconciliation.sendForClientReview")}
+                              {t(
+                                hasPortalAccess
+                                  ? "pages.reconciliation.sendForClientReview"
+                                  : "pages.reconciliation.downloadAndSend"
+                              )}
                             </Button>
                           )}
                           {canManage &&
@@ -995,6 +1027,7 @@ export default function ProjectBillingPanel({
                             )}
                           {canManage &&
                             !period.taxInvoiceDoneAt &&
+                            period.taxInvoiceRequired &&
                             (period.status === "AWAITING_PAYMENT" ||
                               period.status === "OVERDUE" ||
                               period.status === "PENDING_VERIFICATION" ||
@@ -1009,6 +1042,9 @@ export default function ProjectBillingPanel({
                                   period.label ??
                                   t("pages.billing.billingPeriod")
                                 }
+                                showWithholdingSlip={commercialTaxIncludesIncomeTax(
+                                  chargedTaxKind || null
+                                )}
                               />
                             )}
                         </div>
@@ -1067,6 +1103,19 @@ export default function ProjectBillingPanel({
                       </td>
                     </tr>
                   ) : null}
+                  {!isClientPortal &&
+                  canManage &&
+                  !hasPortalAccess &&
+                  clientReviewPending ? (
+                    <tr className="border-b border-border bg-elevated/30">
+                      <td colSpan={7} className="px-4 py-3">
+                        <HoOfflineClientReviewPanel
+                          periodId={period.id}
+                          proposedAmount={amount ?? price}
+                        />
+                      </td>
+                    </tr>
+                  ) : null}
                   </Fragment>
                 );
               })}
@@ -1100,6 +1149,11 @@ export default function ProjectBillingPanel({
           }}
         />
       ) : null}
+
+      <NoPortalProgressSentDialog
+        open={noPortalSentOpen}
+        onOpenChange={setNoPortalSentOpen}
+      />
 
       {verifyDialogPeriodId ? (
         <InHouseVerifyPaymentDialog

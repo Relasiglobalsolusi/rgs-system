@@ -7,10 +7,11 @@ import {
   WarehouseItemReturnActions,
 } from "@/components/transfer-orders/TransferOrderActions";
 import TransferOrderBreadcrumbs from "@/components/transfer-orders/TransferOrderBreadcrumbs";
-import TransferOrderCountBadges from "@/components/transfer-orders/TransferOrderCountBadges";
 import TransferOrderDetailCard from "@/components/transfer-orders/TransferOrderDetailCard";
+import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
+import { CheckCircle2, Package, Truck } from "lucide-react";
 import { ATTENDANCE_INTERNAL_ROUTE_CLIENT_ID } from "@/lib/attendance-internal-sites";
 import { createTranslator } from "@/lib/i18n/translate";
 import { getServerLocale } from "@/lib/i18n/locale";
@@ -55,33 +56,42 @@ export default async function TransferOrdersProjectQueuePage({
         ]}
       />
 
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold text-text">
-            {t("pages.transferOrders.queueTitle")}
-          </h2>
-          <p className="mt-1 text-sm text-subtle">
-            {data.project.location
-              ? data.project.location
-              : t("pages.transferOrders.queueDesc")}
-          </p>
-        </div>
-        {data.orders.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            <TransferOrderCountBadges
-              compact={false}
-              pendingSendCount={data.stats.pendingSend}
-              inTransitCount={data.stats.inTransit}
-            />
-            {data.stats.received > 0 ? (
-              <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold tabular-nums text-emerald-200">
-                {t("pages.transferOrders.statReceived", {
-                  count: data.stats.received,
-                })}
-              </span>
-            ) : null}
-          </div>
-        ) : null}
+      <div className="mb-5">
+        <h2 className="text-base font-semibold text-text">
+          {t("pages.transferOrders.queueTitle")}
+        </h2>
+        <p className="mt-1 text-sm text-subtle">
+          {data.project.location
+            ? data.project.location
+            : t("pages.transferOrders.queueDesc")}
+        </p>
+      </div>
+
+      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <DirectoryStatCard
+          compact
+          tinted
+          title={t("pages.transferOrders.cards.pendingSend")}
+          value={data.stats.pendingSend}
+          accent="warning"
+          icon={<Package size={18} />}
+        />
+        <DirectoryStatCard
+          compact
+          tinted
+          title={t("pages.transferOrders.cards.inTransit")}
+          value={data.stats.inTransit}
+          accent="info"
+          icon={<Truck size={18} />}
+        />
+        <DirectoryStatCard
+          compact
+          tinted
+          title={t("pages.transferOrders.cards.received")}
+          value={data.stats.received}
+          accent="success"
+          icon={<CheckCircle2 size={18} />}
+        />
       </div>
 
       {data.orders.length === 0 ? (

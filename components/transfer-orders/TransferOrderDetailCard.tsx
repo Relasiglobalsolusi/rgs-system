@@ -83,7 +83,7 @@ export default function TransferOrderDetailCard({
       )}
     >
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
-        <div className="min-w-0 space-y-1">
+        <div className="min-w-0 space-y-2">
           <h3 className="text-base font-semibold tracking-tight text-text">
             {order.project.name}
           </h3>
@@ -91,13 +91,17 @@ export default function TransferOrderDetailCard({
             {t("pages.transferOrders.requestedBy", {
               name: order.requestedByName,
             })}
-            {" · "}
-            {t("pages.materialRequests.lineCount", {
-              count: order.lines.length,
-            })}
-            {" · "}
-            {formatDisplayDate(order.createdAt)}
           </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge status="info" compact>
+              {t("pages.materialRequests.lineCount", {
+                count: order.lines.length,
+              })}
+            </StatusBadge>
+            <span className="text-sm text-muted">
+              {formatDisplayDate(order.createdAt)}
+            </span>
+          </div>
         </div>
         <StatusBadge status={transferOrderStatusTone(order.status)} compact>
           {t(transferOrderStatusKey(order.status))}

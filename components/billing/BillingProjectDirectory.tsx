@@ -171,7 +171,7 @@ export default function BillingProjectDirectory({
           const statusLabel = localizeProjectStatus(project.status, locale);
           const statusLines = localizeWorkflowChipLines(englishLabel, locale);
           return (
-            <div className="inline-flex max-w-full flex-wrap items-center justify-center gap-1.5">
+            <div className="flex max-w-full flex-col items-center justify-center gap-1.5">
               <StatusBadge
                 status="active"
                 compact

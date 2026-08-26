@@ -23,6 +23,7 @@ import {
   preventBrowserFileNavigation,
 } from "@/components/ui/FileDropField";
 import { Textarea } from "@/components/ui/textarea";
+import { showMissingRequiredFields } from "@/components/ui/rejection-notice";
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +45,7 @@ export function BillingDocumentFilePick({
   return (
     <FileDropField
       id={id}
+      name={id}
       label={label}
       required={required}
       fileName={fileName}
@@ -127,7 +129,7 @@ export default function BillingDocumentVerifyDialog({
   showServerBanner = true,
   error,
   pending,
-  canSubmit,
+  canSubmit: _canSubmit,
   confirmLabel,
   pendingLabel,
   onSubmit,
@@ -146,7 +148,21 @@ export default function BillingDocumentVerifyDialog({
         )}
       >
         <form
-          onSubmit={onSubmit}
+          noValidate
+          onSubmit={(event) => {
+            const extra: string[] = [];
+            if (showFilePick && !fileName?.trim()) {
+              extra.push(fileLabel?.trim() || t("common.actions.upload"));
+            }
+            if (requireReason && !reasonValue.trim()) {
+              extra.push(t("pages.billing.inHouseVerifyReason"));
+            }
+            if (showMissingRequiredFields(event.currentTarget, extra)) {
+              event.preventDefault();
+              return;
+            }
+            void onSubmit(event);
+          }}
           className="flex min-h-0 flex-1 flex-col gap-0"
         >
           <div
@@ -236,7 +252,7 @@ export default function BillingDocumentVerifyDialog({
             <div className="flex w-full flex-col gap-3">
               <EmployeePrimaryButton
                 type="submit"
-                disabled={pending || !canSubmit}
+                disabled={pending}
               >
                 {pending ? pendingLabel : confirmLabel}
               </EmployeePrimaryButton>

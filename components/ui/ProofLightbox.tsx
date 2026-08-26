@@ -48,7 +48,7 @@ export default function ProofLightbox({
   const pdf = src ? isPdfUrl(src) : false;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog skipUnsavedGuard open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton
         overlayClassName="z-[60]"

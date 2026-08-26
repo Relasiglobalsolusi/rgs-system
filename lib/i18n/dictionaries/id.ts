@@ -55,7 +55,9 @@ export const id = {
       validationDescription:
         "Ada yang perlu diperbaiki sebelum tindakan ini dapat dilanjutkan.",
       serverUnreachable:
-        "Tidak dapat menghubungi server. Pastikan aplikasi sedang berjalan, lalu coba lagi."
+        "Tidak dapat menghubungi server. Pastikan aplikasi sedang berjalan, lalu coba lagi.",
+      fieldsStillMissing:
+        "Masih kosong: {fields}. Lengkapi dulu sebelum melanjutkan."
     }
   },
 
@@ -128,8 +130,10 @@ export const id = {
       active: "Aktif",
       inactive: "Nonaktif",
       searchProjects: "Cari Proyek...",
+      searchClients: "Cari Klien...",
       searchBankAccounts: "Cari Rekening Bank...",
       noMatchingProjects: "Tidak ada proyek yang cocok dengan pencarian ini.",
+      noMatchingClients: "Tidak ada klien yang cocok dengan pencarian ini.",
       noMatchingBankAccounts: "Tidak ada rekening bank yang cocok dengan pencarian ini.",
       noResults: "Tidak ada hasil",
       unknown: "Tidak diketahui",
@@ -154,11 +158,10 @@ export const id = {
       title: "Konfirmasi",
       openBilling: "Buka Billing",
       cannotUndo: "Tindakan ini tidak dapat dibatalkan.",
-      unsavedTitle: "Perubahan belum disimpan",
-      unsavedDescription:
-        "Anda memiliki perubahan yang belum disimpan. Yakin ingin keluar?",
-      exitWithoutSaving: "Keluar tanpa menyimpan",
-      keepEditing: "Lanjutkan mengedit"
+      unsavedTitle: "Menutup akan menghapus semua data",
+      unsavedDescription: "Anda yakin?",
+      exitWithoutSaving: "Yakin",
+      keepEditing: "Tidak"
     },
     roles: {
       admin: "Admin",
@@ -202,12 +205,13 @@ export const id = {
       Loan: "Pinjaman",
       BPJS: "BPJS",
       Sales: "Penjualan",
-      "Petty Cash": "Kas Kecil",
+      "Petty Cash": "Kas Uang Muka",
       "Upload History": "Riwayat Unggah",
       "Payment & Settlement": "Pembayaran & Pelunasan",
       THR: "THR",
       Payroll: "Penggajian Internal",
       "Internal Payroll": "Penggajian Internal",
+      Payslips: "Slip Gaji",
       "Financial Report": "Laporan Keuangan",
       VAT: "PPN",
       "Progress Reports": "Laporan Progress",
@@ -313,10 +317,10 @@ export const id = {
       readyToInvoice2: "Invoice",
       awaitingClientReview1: "Menunggu",
       awaitingClientReview2: "Persetujuan",
-      taxInvoiceDue1: "Pajak",
+      taxInvoiceDue1: "Dokumen Pajak",
       taxInvoiceDue2: "Menunggu",
-      taxInvoiceDone1: "Faktur Pajak",
-      taxInvoiceDone2: "Terkirim",
+      taxInvoiceDone1: "Dokumen Pajak",
+      taxInvoiceDone2: "Terunggah",
       latePayment1: "Bayar",
       latePayment2: "Terlambat",
       paymentDue1: "Menunggu",
@@ -554,6 +558,13 @@ export const id = {
       createDescriptionLandscapingOneTime:
         "Siapkan Lanskap Satu Kali dengan rencana pembayaran yang dapat ditagih nanti.",
       projectName: "Nama proyek",
+      filterClient: "Klien",
+      filterAllClients: "Semua Klien",
+      rgsInternalClient: "RGS Internal",
+      rgsInternalHint:
+        "Ini pekerjaan kita sendiri. Tidak ada klien yang ditagih, tidak ada demo, dan tidak ada penagihan. Karyawan tetap CICO dan kirim laporan progres. Inventaris tetap bisa dialokasikan supaya biayanya terlihat.",
+      rgsInternalLocationHint:
+        "Tidak ada kontrak klien. Peta default ke Kantor Pusat. Pilih area layanan dan jenis pekerjaan seperti biasa — shift hanya muncul jika jenis pekerjaan itu memakai shift.",
       selectClient: "Pilih klien",
       startingStage: "Tahap Awal",
       serviceArea: "Area Layanan",
@@ -562,6 +573,12 @@ export const id = {
       serviceAreaParking: "Parking",
       serviceAreaSecurity: "Security",
       serviceAreaPayroll: "Manajemen Payroll",
+      serviceAreaMaintenance: "Maintenance",
+      isDemo: "Apakah Ini Demo?",
+      isDemoHint: "Proyek demo selalu satu kali.",
+      isDemoFree: "Apakah Demo Ini Gratis?",
+      isDemoFreeHint:
+        "Demo gratis melewati penagihan, pajak, harga kontrak, dan faktur.",
       serviceAreaHeadOffice: "Head Office",
       subcategory: "Subkategori",
       oneTime: "Satu Kali",
@@ -708,6 +725,16 @@ export const id = {
         "Pilih pajak yang kita kenakan pada klien ini. Pajak Pertambahan Nilai berarti kita menerbitkan faktur pajak. Pajak penghasilan dipotong atau final. Pajak Lainnya meminta nama dan persen.",
       chargedTaxKindPlaceholder: "Pilih Pajak",
       chargedTaxKindRequired: "Pilih pajak yang kita kenakan pada proyek ini.",
+      chargeVat: "Kenakan PPN?",
+      chargeVatHint:
+        "Ya menambah Pajak Pertambahan Nilai dan faktur pajak. Kontrak pemerintah tetap menerbitkan faktur pajak, tetapi hanya DPP yang dibayar kepada kami.",
+      chargePph: "Kenakan PPh?",
+      chargePphHint:
+        "Ya menambah pajak penghasilan (potong atau final). PPN dan PPh bisa dikenakan bersama.",
+      pphKind: "Jenis Pajak Penghasilan",
+      governmentContract: "Kontrak Pemerintah",
+      governmentContractHint:
+        "Uang Masuk Hanya DPP. Instansi Yang Membayar Pajak. Kami Tetap Menerbitkan Faktur Pajak. Relasi Tidak Menyetor PPN Itu, Dan Tidak Ada Pajak Yang Keluar Dari Rekening Kami.",
       pphRatePercent: "Tarif Pajak Penghasilan",
       pphRatePercentHint:
         "Potongan Pasal 23 biasanya 2%. Ubah jika proyek ini memakai tarif lain.",
@@ -786,6 +813,11 @@ export const id = {
       visitPlan: "Jadwal Kunjungan",
       visitPlanHint:
         "Kunjungan berulang menyelesaikan pekerjaan setiap trip lalu menagih kunjungan itu. Ini bukan pembayaran bertahap pada satu pekerjaan berkelanjutan.",
+      visitPlanHintInternal:
+        "Atur jadwal kunjungan pada satu proyek — misalnya dua atau empat kali setahun — agar tidak membuat pekerjaan yang sama dua kali.",
+      multipleVisitProject: "Apakah Ini Proyek Kunjungan Berulang?",
+      multipleVisitHint:
+        "Ya = satu pekerjaan Landscaping atau Security dengan beberapa kunjungan dalam setahun. Tidak = satu kunjungan saja.",
       visitN: "Kunjungan {n}",
       visitStart: "Mulai kunjungan",
       visitEnd: "Akhir kunjungan",
@@ -955,8 +987,8 @@ export const id = {
           "Regular Cleaning diperlakukan sebagai kontrak situs. Tanggal akhir dihitung dari tanggal mulai dan durasi.",
         contractStart: "Tanggal mulai kontrak",
         contractEnd: "Tanggal akhir kontrak",
-        durationMonths: "Durasi",
-        durationDays: "Durasi",
+        durationMonths: "Perkiraan Durasi",
+        durationDays: "Perkiraan Durasi",
         daysUnit: "hari",
         planningStageFieldNote:
           "(perkiraan untuk proyek tahap perencanaan)",
@@ -1039,6 +1071,7 @@ export const id = {
         noInvoicePeriods: "Belum ada periode invoice.",
         invoice: "Invoice",
         downloadPdf: "Unduh PDF",
+        downloadInvoice: "Unduh Faktur",
         shiftRange: "Shift {start} – {end}",
         noShiftSet: "Belum ada shift",
         backupChip: "Cadangan {start} – {end} · {rate} / hari",
@@ -1110,6 +1143,8 @@ export const id = {
           "Invoice Dikirim dan Jatuh Tempo kosong karena invoice penjualan belum diterbitkan. Itu terjadi setelah periode ini disetujui.",
         pendingApprovalWhy:
           "Menunggu Persetujuan berarti paket progres siklus ini sudah dikirim untuk ditinjau. Klien harus Setujui atau Revisi. Jika mereka merevisi, Head Office meninjau perubahannya. Invoice penjualan diterbitkan hanya setelah kedua belah pihak setuju.",
+        pendingApprovalNoPortalWhy:
+          "Klien ini tidak punya login portal. Head Office mencatat Disetujui atau Direvisi di sini setelah mengirim laporan di luar ERP. Invoice penjualan diterbitkan hanya setelah catatan Head Office itu.",
         pendingApprovalClientRevised:
           "Klien meminta revisi. Head Office masih perlu menerima atau menolak perubahan itu sebelum periode ini dapat ditagih.",
         pendingApprovalHoRejected:
@@ -1495,9 +1530,14 @@ export const id = {
         contactPhone: "Telepon Narahubung",
         portalAccess: "Akses Portal",
         portalAccessDesc:
-          "Login ID portal selalu dibuat dari nama perusahaan. Cabut akses nanti di Pengguna jika diperlukan.",
+          "Pilih apakah klien ini akan masuk ke ERP. Klien kontrak rutin biasanya ya. Klien General atau Façade sekali jalan biasanya tidak.",
         portalAccessDescIndividual:
-          "Login ID portal selalu dibuat dari nama mereka. Cabut akses nanti di Pengguna jika diperlukan.",
+          "Pilih apakah orang ini akan masuk ke ERP. Pekerjaan sekali jalan biasanya tidak perlu portal.",
+        hasPortalAccess: "Apakah Klien Ini Akan Memiliki Login Portal?",
+        hasPortalAccessHint:
+          "Ya memakai alur setujui/revisi klien di ERP. Tidak berarti Kantor Pusat mengunduh laporan, mengirim di luar sistem, lalu mencatat hasilnya.",
+        hasPortalAccessYes: "Ya",
+        hasPortalAccessNo: "Tidak",
         clientType: "Tipe Klien",
         clientTypeCompany: "Perusahaan",
         clientTypeIndividual: "Perorangan",
@@ -1746,7 +1786,18 @@ export const id = {
         vendorType: "Tipe Pemasok",
         vendorTypeCompany: "Perusahaan",
         vendorTypeIndividual: "Perorangan",
-        vendorTypeOverseas: "Luar Negeri"
+        vendorTypeOverseas: "Luar Negeri",
+        bankAccounts: "Rekening Bank",
+        bankAccountsDesc:
+          "Tujuan pembayaran ke vendor ini. Tambahkan setiap rekening yang mereka pakai.",
+        bankName: "Nama Bank",
+        accountNumber: "Nomor Rekening",
+        accountHolder: "Nama Pemilik Rekening",
+        accountLabel: "Label",
+        accountLabelPlaceholder: "mis. BCA Operasional",
+        addBankAccount: "Tambah Rekening",
+        removeBankAccount: "Hapus",
+        bankAccountRequired: "Tambahkan minimal satu rekening vendor agar pengeluaran tahu tujuan pembayaran."
       }
     },
     employees: {
@@ -2089,6 +2140,7 @@ export const id = {
         startDate: "Tanggal Mulai",
         startDateHint: "Tanggal masuk atau mulai untuk pelacakan masa kerja.",
         contactEmail: "Email Kontak",
+        phone: "Telepon",
         portalLogin: "Login Portal",
         finances: "Keuangan",
         financesHint:
@@ -2480,7 +2532,7 @@ export const id = {
       ppnKeluaran: "PPN Pengeluaran",
       purchase: "Pengeluaran",
       purchaseDescription:
-        "Catat setiap pengeluaran perusahaan di sini: tagihan pemasok, jasa, dan isi ulang Kas Kecil.",
+        "Catat setiap pengeluaran perusahaan di sini: tagihan pemasok, jasa, isi ulang Kas Kecil, dan isi ulang kartu prabayar kendaraan.",
       purchaseTaxTitle: "Faktur Pajak (PPN Masukan)",
       purchaseTaxDesc:
         "Faktur pembelian yang menyertakan PPN masukan atau sudah punya file faktur pajak.",
@@ -2509,7 +2561,7 @@ export const id = {
       settlementsApEmptyDesc:
         "Hubungkan pembelian ke pemasok dengan syarat pembayaran untuk melacak jatuh tempo AP.",
       settlementsOpenBilling: "Buka Invoice & Penagihan",
-      settlementsOpenPurchases: "Buka Pembelian",
+      settlementsOpenPurchases: "Buka Beban",
       vendorStatusTaxMissing: "Perlu Faktur Pajak",
       vendorStatusOpen: "Terbuka",
       vendorStatusOverdue: "Terlambat",
@@ -2528,6 +2580,9 @@ export const id = {
       expenseReportPeriodMonth: "{month} {year}",
       expenseReportPeriodDay: "{day} {month} {year}",
       expenseReportPeriodYear: "{year}",
+      expenseReportPayFrom: "Dibayar Dari",
+      expenseReportPayTo: "Dibayar Ke",
+      expenseReportBanks: "Dari {from} · Ke {to}",
       purchaseCardTotal: "Total Beban",
       purchaseCardUnpaid: "Belum Dibayar",
       purchaseCardUnpaidHint: "Masih di Utang Usaha",
@@ -2541,7 +2596,7 @@ export const id = {
       purchaseUpload: "Tambah Pengeluaran",
       purchaseUploadTitle: "Tambah Pengeluaran",
       purchaseUploadDesc:
-        "Catat tagihan pemasok, jasa, atau isi ulang Kas Kecil. Lampirkan tagihan bila ini faktur pemasok.",
+        "Catat tagihan pemasok, jasa, isi ulang Kas Kecil, atau isi ulang kartu prabayar kendaraan. Lampirkan tagihan bila ini faktur pemasok.",
       purchaseSupplier: "Pemasok",
       purchaseVendorSelect: "Pilih Pemasok",
       purchaseVendorRequired: "Pilih pemasok yang sudah terdaftar.",
@@ -2688,13 +2743,57 @@ export const id = {
       purchaseCategoryVehicle: "Kendaraan",
       purchaseCategoryService: "Jasa",
       purchaseCategoryPettyCash: "Kas Kecil",
+      purchaseCategoryAdvanceCash: "Kas Kecil",
+      advanceCashKind: "Jenis Kas Uang Muka",
+      advanceCashKindPetty: "Kas Kecil",
+      advanceCashKindPrepaid: "Kartu Prabayar",
+      advanceCashPettyHint:
+        "Isi ulang kas kecil. Kartu prabayar diisi ulang lewat Kendaraan → Kartu Prabayar. Kasbon karyawan di Pembayaran Karyawan adalah hal yang berbeda.",
+      advanceCashPrepaidHint:
+        "Isi ulang kartu prabayar kendaraan lewat Kendaraan → Kartu Prabayar. Pengeluaran BBM, tol, dan parkir dicatat di Kas Uang Muka → Kartu Prabayar.",
+      prepaidCard: "Kartu Prabayar",
+      prepaidCardRequired: "Pilih kartu prabayar yang akan diisi ulang.",
+      prepaidCardEmpty: "Tambah kartu prabayar di Kas Uang Muka terlebih dahulu.",
+      prepaidCardHint:
+        "Satu kartu untuk satu kendaraan. Isi ulang ini menambah saldo kartu tersebut.",
       purchaseCategoryGovernment: "Pemerintah",
       purchaseCategoryBankLoan: "Pinjaman",
+      purchaseCategoryEmployee: "Pembayaran Karyawan",
       purchaseCategoryHint:
-        "Produk menjadi stok gudang. Kendaraan dibeli di dalam negeri dan dicatat di Inventaris → Kendaraan. Jasa, Kas Kecil, Pemerintah, dan Pinjaman bukan stok.",
+        "Produk menjadi stok gudang. Kendaraan dibeli di dalam negeri dan dicatat di Inventaris → Kendaraan. Isi ulang kartu prabayar lewat Kendaraan → Kartu Prabayar. Jasa, Kas Kecil, Pemerintah, Pinjaman, dan Pembayaran Karyawan bukan stok.",
+      employeePaymentKind: "Jenis Pembayaran",
+      employeePaymentKindHint:
+        "Catat Internal Payroll, THR, atau kasbon yang dibayar sebelum gajian.",
+      employeePaymentInternalPayroll: "Internal Payroll",
+      employeePaymentThr: "THR",
+      employeePaymentCashAdvance: "Kasbon",
+      employeePaymentDepartment: "Departemen",
+      employeePaymentDepartmentAll: "Semua Departemen",
+      employeePaymentEmployee: "Karyawan",
+      employeePaymentEmployeeSearch: "Cari karyawan…",
+      employeePaymentEmployeeRequired: "Pilih karyawan yang menerima kasbon ini.",
+      employeePaymentKindRequired: "Pilih Internal Payroll, THR, atau Kasbon.",
+      employeePaymentPeriod: "Bulan Payroll",
+      employeePaymentPeriodHint:
+        "Kasbon ini dipotong dari Internal Payroll pada bulan ini.",
+      employeePaymentAutoPeriod:
+        "Dipotong dari Internal Payroll berikutnya (gaji terdekat). Anda tidak memilih bulannya.",
+      employeePaymentAutoPeriodHint:
+        "Kalau kasbon diambil tanggal 1 atau tanggal 24, potongan tetap pada gaji terdekat. Potongan payroll lain memakai aturan yang sama.",
+      payFromAccount: "Dibayar Dari",
+      payFromAccountHint: "Rekening bank perusahaan tempat uang keluar.",
+      payToAccount: "Bank, Nama Rekening, Dan Nomor Rekening",
+      payToAccountHint:
+        "Pilih bank, nama rekening, dan nomor rekening vendor yang menerima pembayaran ini.",
+      payToAccountRequired:
+        "Pilih bank, nama rekening, dan nomor rekening vendor tujuan pembayaran.",
+      payToAccountEmpty:
+        "Vendor ini belum punya rekening. Tambahkan bank, nama rekening, dan nomor rekening di data vendor dulu.",
+      governmentBpjsVaKesehatan: "Virtual Account BPJS Kesehatan",
+      governmentBpjsVaKetenagakerjaan: "Virtual Account BPJS Ketenagakerjaan",
       loanSource: "Sumber Pinjaman",
       loanSourceBank: "Pinjaman Bank",
-      loanSourceShareholder: "Pinjaman Pemegang Saham",
+      loanSourceShareholder: "Pinjaman Pribadi",
       loanSourceHint:
         "Pilih dulu siapa yang meminjamkan. Untuk pinjaman bank, pilih untuk apa pembayaran ini. Lalu pilih pinjaman terdaftar.",
       loanSourceRequired: "Pilih Pinjaman Bank atau Pinjaman Pemegang Saham.",
@@ -2723,7 +2822,7 @@ export const id = {
       loanExpenseTermHint:
         "Isi jumlah yang dibayar kali ini. Boleh lebih atau kurang dari angsuran biasa.",
       loanOutstanding: "Pokok Yang Masih Terutang",
-      loanChargesInterest: "Apakah Pemegang Saham Membebankan Bunga?",
+      loanChargesInterest: "Apakah Kreditur Membebankan Bunga?",
       loanChargesInterestHint:
         "Jika ya, pilih Bunga Bulanan atau Bunga Tahunan, lalu isi suku bunga. Saldo harian ditagih setiap bulan sebagai beban belum dibayar.",
       loanInterestBasis: "Bunga Dikutip Sebagai",
@@ -2736,7 +2835,7 @@ export const id = {
       loanMonthlyRateHint:
         "Dikutip per bulan. Bunga harian memakai persen ini dibagi jumlah hari pada bulan kalender itu.",
       loanMonthlyRateRequired: "Masukkan suku bunga bulanan.",
-      loanShareholderName: "Nama Pemegang Saham",
+      loanShareholderName: "Nama Kreditur",
       loanInterestPaid: "Bunga Dibayar",
       loanPrincipalReturned: "Pokok Dikembalikan",
       bankLoanKind: "Jenis Pinjaman",
@@ -2747,7 +2846,29 @@ export const id = {
       bankLoanKindStandbyHint:
         "Bank biasanya menyebut ini Pinjaman Standby atau Kredit Rekening Koran. Bunga hanya dihitung dari saldo yang ditarik. Plafon yang belum dipakai tidak dikenai bunga.",
       bankLoanKindTermHint:
-        "Ini Pinjaman Berjangka (Kredit Angsuran). Bank Indonesia umumnya memakai anuitas: satu angsuran tetap setiap bulan, di awal lebih banyak bunga, kemudian lebih banyak pokok.",
+        "Ini Pinjaman Berjangka (Kredit Angsuran). Pilih Flat, Efektif, atau Anuitas. Anuitas sama dengan rumus anuitas OCBC / BCA / Mandiri.",
+      loanCalculationMethod: "Metode Perhitungan Pinjaman",
+      loanCalculationMethodFlat: "Flat",
+      loanCalculationMethodEffective: "Efektif",
+      loanCalculationMethodAnnuity: "Anuitas",
+      loanCalculationMethodHint:
+        "Flat: total bunga = pokok × suku bunga tahunan × tahun, lalu dibagi rata. Efektif: bunga atas sisa pokok (angsuran pertama ditampilkan). Anuitas: angsuran tetap M = P × r × (1+r)^n / ((1+r)^n − 1).",
+      loanCalculationMethodFlatHint:
+        "Total bunga = pokok × suku bunga tahunan × tahun, lalu dibagi rata sepanjang tenor.",
+      loanCalculationMethodEffectiveHint:
+        "Bunga dihitung atas sisa pokok. Angsuran pertama yang ditampilkan adalah pokok ÷ bulan plus bunga atas pokok penuh.",
+      loanCalculationMethodAnnuityHint:
+        "Angsuran tetap M = P × r × (1+r)^n / ((1+r)^n − 1), dengan r suku bunga bulanan. Ini sama dengan anuitas OCBC / BCA / Mandiri.",
+      loanCalculationMethodRequired: "Pilih Flat, Efektif, atau Anuitas.",
+      loanCommitmentFee: "Apakah pinjaman ini punya commitment fee?",
+      loanCommitmentFeeHint:
+        "Beberapa fasilitas standby membebankan biaya per tahun atas plafon yang belum dipakai.",
+      loanCommitmentFeeRate: "Tarif Commitment Fee % Per Tahun",
+      loanCommitmentFeeRateHint:
+        "Dikenakan pada plafon yang belum dipakai. Biaya = unused × tarif per tahun × hari / 360. Seperempat tahun 90 hari pada 0,5% atas Rp 6.000.000.000 unused adalah Rp 7.500.000.",
+      loanCommitmentFeePreview:
+        "Jika sisa plafon tetap {unused} selama {days} hari: {amount}.",
+      loanCommitmentFeeRateRequired: "Isi tarif commitment fee.",
       bankLoanAnuitasHint:
         "Angsuran bulanan memakai rumus anuitas bank Indonesia: M = P × r × (1+r)^n / ((1+r)^n − 1), dengan r suku bunga bulanan. Ini cara biasa di BCA, Mandiri, dan BNI. Bukan satu-satunya cara — ada bank yang memakai flat atau efektif menurun — tetapi ERP ini memakai anuitas agar angsuran sesuai jadwal bank pada umumnya.",
       bankLoanKindRequired: "Pilih Pinjaman Standby atau Pinjaman Berjangka.",
@@ -2874,6 +2995,19 @@ export const id = {
         "Biaya Gudang adalah biaya untuk mendatangkan produk ke Indonesia, dikurangi kredit pajak yang berlaku (Pajak Pertambahan Nilai dan Pajak Penghasilan Pasal 22).",
       purchaseImportWarehouseAfterDuties:
         "Kredit pajak dan biaya gudang diisi saat bea impor dicatat. Rupiah pabrik memakai Kurs Pencatatan, atau Kurs Bank pada pembayaran tunai. Kurs Pajak hanya untuk bea. Membayar nanti tidak mengubah biaya gudang atau proyek.",
+      vehicleExpenseKind: "Untuk Apa Beban Kendaraan Ini",
+      vehicleExpenseKindPurchase: "Pembelian Kendaraan",
+      vehicleExpenseKindFuel: "Bahan Bakar",
+      vehicleExpenseKindServicing: "Servis",
+      vehicleExpenseKindModification: "Modifikasi",
+      vehicleExpenseKindOther: "Biaya Kendaraan Lain",
+      vehicleExpenseKindPrepaid: "Kartu Prabayar",
+      vehicleExpenseKindRequired: "Pilih keperluan beban kendaraan ini.",
+      vehiclePrepaidSpendHint:
+        "Isi ulang ini dibayar dari rekening perusahaan dan menambah saldo kartu prabayar. Pengeluaran BBM, tol, dan parkir dicatat di Kas Uang Muka → Kartu Prabayar.",
+      vehiclePrepaidCardRequired: "Pilih kartu prabayar yang akan diisi ulang.",
+      payFromPending: "Belum dipilih — pilih rekening perusahaan saat membayar.",
+      payToPending: "Belum dipilih — pilih rekening vendor saat membayar.",
       purchaseOrigin: "Di Mana Dibeli",
       purchaseOriginLocal: "Dibeli Lokal",
       purchaseOriginImport: "Impor Dari Luar Negeri",
@@ -2909,6 +3043,21 @@ export const id = {
         "Biaya manajemen yang dikenakan agen bea cukai untuk membantu mengeluarkan barang.",
       handlingFeeHintOutsourced:
         "Jumlah all-in yang kami ganti ke handler. Invoice mereka sudah mencakup bea dan pajak.",
+      handlingAllInCharge: "Biaya All-In",
+      handlingAllInHint:
+        "Biaya tunggal ini sudah termasuk bea dan handling.",
+      handlingHasTaxInvoice: "Apakah Biaya Ini Memiliki Faktur Pajak?",
+      handlingDetailsNowTitle: "Rincian Handling",
+      handlingDetailsNowHint:
+        "Isi sekarang jika datanya sudah ada. Bisa juga ditambahkan nanti.",
+      handlingOptionalFile: "Berkas Pendukung (Opsional)",
+      handlingLaterWithDuties: "Bayar handling nanti bersama bea impor",
+      handlingLaterWithDutiesHint:
+        "Petugas handling menagih biaya handling bersama bea impor. Isi vendor, biaya, dan invoice handling saat bea dibayar.",
+      handlingDueWithDuties:
+        "Handling akan dicatat saat bea impor dibayar.",
+      handlingPaidAtArrivalHint:
+        "Handling dibayar saat barang tiba, bersama bea impor. Biaya gudang baru muncul saat itu. Selisih kurs booking dan bank dibukukan ke Head Office sebagai laba atau beban selisih kurs untuk produk tersebut.",
       handlingFeeRequired: "Isi biaya handling.",
       handlingFeeIncludesPpn: "Apakah Biaya Handling Dikenai PPN?",
       handlingFeePpnRate: "Tarif PPN Biaya Handling",
@@ -3155,14 +3304,14 @@ export const id = {
       searchClients: "Cari klien…",
       searchProjects: "Cari proyek…",
       awaitingOrLate: "Menunggu pembayaran atau terlambat",
-      noTaxPending: "Tidak ada Faktur Pajak menunggu",
+      noTaxPending: "Tidak ada dokumen pajak menunggu",
       noTaxPendingDesc:
-        "Saat Anda menerbitkan invoice untuk proyek bertanda dengan pajak, item muncul di sini hingga Faktur Pajak ditandai terkirim.",
+        "Saat Anda menerbitkan invoice untuk proyek bertanda dengan pajak, item muncul di sini hingga dokumen pajak diunggah.",
       noTaxCompleted: "Tidak ada item selesai",
-      noTaxCompletedDesc: "Faktur Pajak yang sudah dikirim akan muncul di sini.",
-      taxInvoiceDue: "Faktur Pajak Jatuh Tempo",
-      taxInvoiceSent: "Faktur Pajak Terkirim",
-      markTaxDone: "Unggah Faktur Pajak",
+      noTaxCompletedDesc: "Dokumen pajak yang sudah diunggah akan muncul di sini.",
+      taxInvoiceDue: "Dokumen Pajak Menunggu",
+      taxInvoiceSent: "Dokumen Pajak Terunggah",
+      markTaxDone: "Unggah Dokumen Pajak",
       submitPayment: "Kirim pembayaran",
       rejectPayment: "Tolak bukti pembayaran",
       rejectPaymentConfirm:
@@ -3203,7 +3352,7 @@ export const id = {
       emptySearchClients: 'Tidak ada hasil untuk "{query}"',
       emptyProjects: "Tidak ada proyek untuk klien ini",
       emptyProjectsDesc: "Proyek aktif klien ini muncul di sini.",
-      markTaxSentFailed: "Gagal menandai Faktur Pajak Terkirim.",
+      markTaxSentFailed: "Gagal mengunggah dokumen pajak.",
       billingPeriod: "Periode penagihan",
       paymentReceived1: "Pembayaran",
       paymentReceived2: "Diterima",
@@ -3217,9 +3366,23 @@ export const id = {
         "Unggah faktur pajak, lalu konfirmasi. Dapat dilakukan sebelum atau sesudah pembayaran dicatat.",
       documentVerifyContext: "Untuk",
       proofOfPayment: "Bukti pembayaran",
-      taxInvoiceDocument: "Faktur pajak",
+      taxInvoiceDocument: "Faktur Pajak",
+      withholdingSlip: "Bukti Potong",
+      withholdingSlipHint:
+        "Bukti Potong PPh. Unggah Ini Jika Pajak Penghasilan Dipotong Bersama PPN.",
+      chooseWithholdingSlip:
+        "Pilih gambar atau PDF bukti potong.",
+      withholdingSlipUploadTitle: "Unggah Bukti Potong",
+      withholdingSlipUploadDesc:
+        "Unggah Bukti Potong, lalu konfirmasi bahwa isinya cocok dengan dokumen.",
       chooseTaxInvoiceDocument:
         "Pilih gambar atau PDF faktur pajak.",
+      taxDocumentUploadTitle: "Unggah Dokumen Pajak",
+      taxDocumentUploadDesc:
+        "Unggah dokumen pajak, lalu konfirmasi. ID Billing, bukti setor, atau bukti pendukung lain.",
+      taxDocumentUploadFailed: "Gagal mengunggah dokumen pajak.",
+      chooseTaxDocument:
+        "Pilih gambar atau PDF dokumen pajak.",
       paymentVerifyHint:
         "Dokumen tetap di server ini. Head Office mengonfirmasi di sini dengan alasan.",
       taxInvoiceVerifyHint:
@@ -3249,9 +3412,9 @@ export const id = {
         "Unduh invoice dan unggah bukti pembayaran untuk proyek ini.",
       paidInvoiceCannotDelete: "Periode invoice yang sudah lunas tidak dapat dihapus.",
       deleteIssuedInvoiceConfirm:
-        "Hapus “{label}”? Ini menghapus invoice yang diterbitkan, PDF, dan bukti pembayaran. Tindakan ini tidak dapat dibatalkan.",
+        "Batalkan “{label}”? Periode kembali ke Rekonsiliasi atau Kirim untuk Persetujuan agar tagihan bisa diperbaiki. Jumlah tetap. File invoice dan bukti pembayaran dihapus.",
       deletePeriodConfirm:
-        "Hapus “{label}”? Tindakan ini tidak dapat dibatalkan.",
+        "Batalkan “{label}”? Periode kembali ke Rekonsiliasi atau Kirim untuk Persetujuan. Jumlah tetap. File tagihan ini dihapus.",
       thisBillingPeriod: "periode penagihan ini",
       paymentProofImageOrPdf: "Bukti pembayaran harus gambar atau PDF.",
       choosePaymentProof: "Pilih gambar atau PDF sebagai bukti pembayaran.",
@@ -3445,10 +3608,37 @@ export const id = {
         "DPP dan PPN dihitung dari jumlah termasuk pajak pada {rate}% sampai nilai faktur disimpan.",
       outputTotal: "PPN Keluaran",
       outputTotalHint: "PPN Keluaran untuk periode ini",
+      outputTotalYearHint: "PPN Keluaran untuk seluruh tahun",
       inputTotal: "PPN Masukan",
       inputTotalHint: "PPN Masukan untuk periode ini",
+      inputTotalYearHint: "PPN Masukan untuk seluruh tahun",
       netPayable: "PPN Neto",
-      netPayableHint: "PPN Masukan − PPN Keluaran. Plus adalah kredit. Minus adalah yang harus dibayar.",
+      netPayableHint: "PPN Masukan − PPN Keluaran bulan ini. Plus adalah kredit. Minus adalah yang disetor bulan ini.",
+      netYear: "PPN Neto Setahun",
+      netYearHint:
+        "PPN Masukan − PPN Keluaran untuk seluruh tahun. Plus adalah kredit. Minus adalah yang harus dibayar secara keseluruhan.",
+      creditBroughtForward: "Kredit PPN",
+      creditBroughtForwardHint:
+        "Sisa PPN masukan dari bulan sebelumnya setelah bulan itu disetor. Tidak pernah minus.",
+      creditBroughtForwardYearHint:
+        "Sisa PPN masukan di akhir tahun setelah setiap bulan disetor. Dibawa ke tahun berikutnya. Tidak pernah minus.",
+      taxReportDownload: "Unduh Laporan Pajak",
+      taxReportTitle: "Laporan Pajak",
+      taxReportHint:
+        "PPN keluaran, PPN masukan, kredit PPN dibawa ke depan, PPh dibayar di muka, dan pajak lain untuk periode yang dipilih.",
+      taxReportDate: "Tanggal",
+      taxReportParty: "Pihak",
+      taxReportDetail: "Rincian",
+      taxReportDpp: "DPP",
+      taxReportPpn: "PPN",
+      taxReportAmount: "Jumlah",
+      taxReportTotal: "Total",
+      taxReportEmptyOutput: "Tidak ada PPN keluaran pada periode ini.",
+      taxReportEmptyInput: "Tidak ada PPN masukan pada periode ini.",
+      taxReportEmptyIncome: "Tidak ada PPh Badan dibayar di muka pada tahun ini.",
+      taxReportEmptyOther: "Tidak ada pajak lain pada periode ini.",
+      taxReportPeriodMonth: "{month} {year}",
+      taxReportPeriodYear: "{year}",
       vatPaid: "PPN Dibayar",
       vatPaidHint: "Pembayaran ID Billing pemerintah bulan ini",
       vatRemaining: "PPN Masih Harus Dibayar",
@@ -3498,14 +3688,24 @@ export const id = {
         "Tidak ada PPh Pasal 22 impor atau pembayaran PPh Badan pemerintah pada tahun ini.",
       incomeSourceImport: "Impor",
       incomeSourceGovernment: "ID Billing Pemerintah",
+      incomeSourceProject: "Potongan Proyek",
       openTaxInvoices: "Buka Faktur Pajak",
-      openPurchases: "Buka Pembelian",
+      openPurchases: "Buka Beban",
       taxDetail: "Rincian Pajak",
       backToTax: "Kembali Ke Pajak",
       relatedExpense: "Pengeluaran Ini",
       relatedBilling: "Penagihan Proyek",
       taxDocuments: "Dokumen Pajak",
-      taxDocumentMissing: "Faktur pajak belum diunggah.",
+      supportingTaxDocument: "Dokumen Pajak",
+      taxDocumentMissing: "Dokumen pajak belum diunggah.",
+      taxInvoiceNumberPlaceholder: "cth. 010.000-26.00000001",
+      taxInvoiceNumberHint:
+        "Ketik Nomor Faktur Pajak yang tercetak di dokumen.",
+      taxInvoiceNumberReading: "Membaca dokumen…",
+      taxInvoiceNumberDetected:
+        "Terisi dari dokumen. Periksa apakah cocok, lalu konfirmasi.",
+      taxInvoiceNumberVerify:
+        "Saya sudah memeriksa Nomor Faktur Pajak ini dengan dokumen.",
       fakturReady: "Terunggah",
       fakturPending: "Menunggu",
       emptyOutput: "Tidak Ada PPN Keluaran",
@@ -3515,6 +3715,10 @@ export const id = {
       emptyInputDesc:
         "Tidak ada pembelian pemasok dengan PPN pada bulan ini.",
       invoicePeriodFallback: "Periode Invoice",
+      governmentClient: "Pemerintah",
+      governmentPaidDirectlyTitle: "Dibayar Langsung Ke Pemerintah",
+      governmentPaidDirectly:
+        "Ini kontrak institusi pemerintah. Institusi klien menyetor pajak ini (PPN dan/atau PPh) langsung ke pemerintah. Relasi tidak menyetornya dari rekening perusahaan — anggap baris ini sudah dibayar.",
       columns: {
         client: "Klien",
         vendor: "Pemasok",
@@ -3522,7 +3726,8 @@ export const id = {
         gross: "Gross",
         dpp: "DPP",
         ppn: "PPN",
-        faktur: "Faktur",
+        taxInvoiceNumber: "Nomor Faktur Pajak",
+        faktur: "Dokumen Pajak",
         source: "Sumber",
         credit: "Pajak Dibayar Di Muka",
         amount: "Jumlah"
@@ -3587,11 +3792,59 @@ export const id = {
           "Opsional. Unggah bukti transfer nanti jika pembayaran belum masuk.",
         paidAt: "Tanggal Pembayaran",
         paidAtHint:
-          "Opsional. Default-nya tanggal penjualan saat bukti pembayaran diunggah."
+          "Opsional. Default-nya tanggal penjualan saat bukti pembayaran diunggah.",
+        warehouseCost: "Biaya Gudang",
+        warehouseCostHint:
+          "Harga modal stok di gudang. Setelah penjualan, stok berkurang. Jika penjualan dibatalkan, stok dikembalikan."
       }
     },
     financialReport: {
       title: "Laporan Keuangan",
+      downloadReport: "Unduh Laporan Keuangan",
+      reportHint:
+        "Setiap baris uang masuk dan uang keluar untuk periode yang dipilih, plus Piutang Usaha dan Utang Usaha.",
+      reportTotal: "Total",
+      reportDate: "Tanggal",
+      reportSource: "Sumber",
+      reportDetail: "Rincian",
+      reportAmount: "Jumlah",
+      reportEmptyMoneyIn: "Tidak ada baris pendapatan pada periode ini.",
+      reportEmptyMoneyOut: "Tidak ada baris beban pada periode ini.",
+      reportEmptyAr: "Tidak ada invoice klien yang belum dibayar.",
+      reportEmptyAp: "Tidak ada tagihan pemasok yang belum dibayar.",
+      reportEmptyFunding: "Tidak ada penarikan atau pengembalian pinjaman pada periode ini.",
+      reportFunding: "Penarikan Dan Pengembalian Pinjaman",
+      reportFundingHint:
+        "Pendanaan, bukan pendapatan. Ditampilkan agar unduhan lengkap.",
+      reportSources: {
+        paidInvoice: "Invoice Dibayar",
+        sale: "Penjualan",
+        payrollManagement: "Payroll Management",
+        parking: "Parkir",
+        parkingFee: "Biaya Klien Parkir",
+        parkingShare: "Bagi Hasil Parkir",
+        parkingTax: "Pajak Parkir",
+        parkingSetup: "Setup Parkir",
+        depositKept: "Deposit Hangus",
+        importIncome: "Pendapatan Selisih Kurs Impor",
+        purchase: "Beban",
+        inventory: "Inventaris",
+        wages: "Gaji",
+        overheadWages: "Gaji Gudang",
+        overheadStock: "Stok Internal Terpakai",
+        thr: "THR",
+        pettyCashTopUp: "Isi Ulang Kas Kecil",
+        prepaidCardTopUp: "Isi Ulang Kartu Prabayar",
+        transferFee: "Biaya Transfer",
+        incident: "Beban Proyek",
+        depositReturned: "Deposit Dikembalikan",
+        importExpense: "Beban Selisih Kurs Impor",
+        payrollAdjustment: "Penyesuaian Gaji",
+        loanDraw: "Penarikan Pinjaman",
+        loanReturn: "Pengembalian Pinjaman",
+        receivable: "Piutang Usaha",
+        payable: "Utang Usaha"
+      },
       description:
         "Pilih tahun, bulan atau setahun penuh, lalu General atau satu klien.",
       filterYear: "Tahun",
@@ -3601,6 +3854,10 @@ export const id = {
       filterReportGeneral: "General",
       filterBank: "Rekening Bank",
       filterBankAll: "Semua Bank",
+      transferReport: "Laporan Transfer",
+      transferReportHint:
+        "Unduh dana yang ditransfer, disaring per klien dan rekening perusahaan. Rincian rekening vendor tidak ditampilkan di halaman ini.",
+      downloadTransferReport: "Unduh Laporan Transfer",
       filterBankUnassigned: "Belum Ditentukan",
       rangeHint:
         "Pendapatan memakai periode kalender. Upah memakai jendela 16–15 untuk bulan atau tahun yang sama. Tagihan pemasok yang belum dibayar adalah Utang Usaha, bukan beban.",
@@ -3638,7 +3895,7 @@ export const id = {
       companyMoneyInHint:
         "Jumlah rekonsiliasi yang disetujui atau invoice, pajak dikeluarkan dengan membagi, plus deposit karyawan yang hangus. Deposit ditahan bukan pendapatan.",
       companyMoneyOutHint:
-        "Stok terpakai di pekerjaan, tagihan pemasok saat dibayar, Penggajian Internal, pengeluaran parkir, overhead Head Office, dan deposit karyawan yang dikembalikan.",
+        "Stok terpakai di pekerjaan, tagihan pemasok saat dibayar, Penggajian Internal, pengeluaran parkir, overhead Head Office, isi ulang Kas Kecil, isi ulang kartu prabayar, dan deposit karyawan yang dikembalikan.",
       stockInWarehouse: "Nilai Persediaan",
       stockInWarehouseHint: "Nilai barang yang masih di gudang. Belum dibebankan ke pekerjaan.",
       headOfficeOverhead: "Overhead Head Office",
@@ -3701,7 +3958,7 @@ export const id = {
         moneyInHelp:
           "Pendapatan termasuk deposit karyawan yang hangus dan pendapatan Head Office saat Kurs Bank impor lebih rendah dari Kurs Pencatatan.",
         moneyOutHelp:
-          "Beban termasuk overhead Head Office, deposit karyawan yang dikembalikan, dan beban Head Office saat Kurs Bank impor lebih tinggi dari Kurs Pencatatan.",
+          "Beban termasuk overhead Head Office, isi ulang Kas Kecil, isi ulang kartu prabayar, deposit karyawan yang dikembalikan, dan beban Head Office saat Kurs Bank impor lebih tinggi dari Kurs Pencatatan.",
         overheadHelp:
           "Gaji Kantor Pusat, pembelian Internal yang dibayar periode ini, stok yang dipakai situs Internal, dan selisih kurs impor yang dicatat ke Head Office.",
         depositsHelp:
@@ -3800,6 +4057,12 @@ export const id = {
 
     thr: {
       title: "THR",
+      downloadReport: "Unduh Laporan THR",
+      reportTitle: "Laporan THR",
+      reportHint:
+        "Setiap pembayaran THR untuk tahun yang dipilih, dengan karyawan, masa kerja, gaji pokok, jumlah, dan status.",
+      reportEmpty: "Tidak ada pembayaran THR pada tahun ini.",
+      reportTotal: "Total",
       description:
         "Buat dan lacak pembayaran Tunjangan Hari Raya (Idul Fitri) dari gaji pokok karyawan.",
       directoryTitle: "Pembayaran THR",
@@ -3818,6 +4081,9 @@ export const id = {
       generateFailed: "Gagal membuat THR.",
       generateOutsideWindow:
         "THR hanya dapat dibuat dalam {days} hari sebelum Idul Fitri.",
+      paidVsUnpaid: "Dibayar / Belum Dibayar",
+      paidVsUnpaidValue: "{paid} / {unpaid}",
+      paidVsUnpaidHint: "{paid} dibayar, {unpaid} belum dibayar.",
       paymentsTitle: "Pembayaran Yang Dibuat",
       paymentsDesc: "Baris THR untuk {year}.",
       emptyTitle: "Belum Ada Pembayaran THR",
@@ -3838,6 +4104,50 @@ export const id = {
       markPaid: "Tandai Dibayar",
       markPaidFailed: "Gagal menandai THR sebagai dibayar."
     },
+    payslips: {
+      title: "Slip Gaji",
+      description:
+        "Kehadiran bulanan, alasan pembayaran, potongan, dan Saldo Terutang Kepada Perusahaan.",
+      directoryTitle: "Slip Gaji",
+      directoryDesc:
+        "Semua karyawan aktif. Buka nama untuk riwayat gaji bulanan. Saldo Terutang Kepada Perusahaan ditampilkan di setiap baris.",
+      balanceDueTitle: "Karyawan",
+      emptyBalance: "Tidak Ada Karyawan.",
+      emptyMonths: "Belum Ada Riwayat Gaji Bulanan.",
+      emptyMonth: "Tidak Ada Slip Gaji Untuk Bulan Ini.",
+      openPayroll: "Buka Penggajian Internal",
+      historyTitle: "Riwayat Gaji Bulanan",
+      historyDesc:
+        "Buka bulan untuk melihat hari kerja, penghasilan, dan potongan. Pratinjau adalah draf yang belum dikunci. Terbit adalah slip gaji resmi yang sudah dikunci.",
+      previewHint: "Gaji sudah dihitung, tetapi bulan ini belum dikunci.",
+      issuedHint: "Penggajian Internal sudah dikunci. Ini slip gaji resmi.",
+      clickEmployee: "Buka riwayat slip gaji",
+      clickMonth: "Buka bulan ini",
+      monthDetailTitle: "Slip Gaji",
+      earnings: "Penghasilan",
+      deductions: "Potongan",
+      bpjsEmployee: "BPJS Karyawan",
+      bpjsCompany: "BPJS Perusahaan",
+      netPay: "Gaji Bersih",
+      daysWorked: "Hari Kerja",
+      preview: "Pratinjau",
+      locked: "Terkunci",
+      issued: "Terbit",
+      noPay: "—",
+      noPayslip: "Tidak Ada Slip Gaji",
+      backToEmployee: "Kembali Ke Slip Gaji",
+      filterYear: "Tahun",
+      filterApply: "Terapkan",
+      columns: {
+        employee: "Karyawan",
+        amountOwed: "Saldo Terutang Kepada Perusahaan",
+        deposit: "Jaminan",
+        bpjsHeld: "Bagian BPJS Ditahan",
+        month: "Bulan",
+        netPay: "Gaji Bersih",
+        status: "Status"
+      }
+    },
     loans: {
       title: "Pinjaman",
       description:
@@ -3851,12 +4161,12 @@ export const id = {
       failed: "Tidak dapat menyimpan pinjaman ini.",
       emptyTitle: "Belum Ada Pinjaman",
       emptyDesc:
-        "Daftarkan fasilitas bank atau pinjaman pemegang saham, lalu catat penarikan dan pengembalian di sini.",
+        "Daftarkan fasilitas bank atau pinjaman pribadi, lalu catat penarikan dan pengembalian di sini.",
       name: "Nama Pinjaman",
       namePlaceholder: "mis. Pinjaman Standby BCA",
       source: "Sumber Pinjaman",
       lenderName: "Pemberi Pinjaman",
-      lenderNameHint: "Bank atau pemegang saham tempat uang ini berasal.",
+      lenderNameHint: "Bank atau kreditur tempat uang ini berasal.",
       startDate: "Tanggal Mulai",
       notes: "Catatan",
       notesPlaceholder: "Catatan opsional",
@@ -3880,6 +4190,8 @@ export const id = {
       outstandingPrincipal: "Pokok Yang Masih Terutang",
       interestPaidThisMonth: "Bunga Dibayar Bulan Ini",
       unusedLimit: "Sisa Plafon Kredit",
+      commitmentFeeThisMonth: "Commitment Fee Bulan Ini",
+      commitmentFeeActual360: "Actual / 360",
       recordDraw: "Catat Penarikan",
       recordDrawTitle: "Catat Uang Yang Diambil",
       recordDrawDesc:
@@ -3925,6 +4237,11 @@ export const id = {
       extendLoanTermDesc:
         "Masukkan suku bunga baru. Angsuran bulanan dihitung ulang dengan metode anuitas bank Indonesia dari sisa pokok dan sisa tenor.",
       extendLoanConfirm: "Simpan Perpanjangan",
+      extendTermsChanged: "Apakah Bunga Atau Ketentuan Berubah?",
+      extendTermsChangedHint:
+        "Pilih Ya hanya jika plafon, suku bunga, atau perhitungan berubah. Jika tidak ada yang berubah, kita hanya memperpanjang jangka waktunya.",
+      extendTermsUnchanged:
+        "Plafon dan suku bunga tetap. Pinjaman diperpanjang satu tahun lagi.",
       extendFailed: "Tidak dapat memperpanjang pinjaman ini.",
       newCeiling: "Plafon Kredit Baru",
       newCeilingHint:
@@ -3943,6 +4260,8 @@ export const id = {
       columns: {
         name: "Pinjaman",
         source: "Sumber",
+        creditor: "Kreditur",
+        kind: "Jenis Pinjaman",
         outstanding: "Terutang",
         next: "Pembayaran Berikutnya",
         status: "Status"
@@ -3956,12 +4275,33 @@ export const id = {
       noMovements: "Belum ada penarikan atau pengembalian.",
       interestRate: "Suku Bunga",
       dayCount: "Hitungan Hari",
+      dayCountYear: "Tahun Hitungan Hari",
+      variable: "Variabel",
+      value: "Nilai",
+      variablesTitle: "Variabel Perhitungan",
+      variablesDesc:
+        "Hitungan hari, suku bunga, dan metode untuk bunga, commitment fee, dan angsuran.",
+      editVariables: "Ubah Variabel",
+      editVariablesTitle: "Ubah Variabel Perhitungan",
+      editVariablesDesc:
+        "Perbarui hitungan hari, suku bunga, dan metode untuk fasilitas ini.",
+      editVariablesSave: "Simpan Variabel",
+      editVariablesFailed: "Tidak dapat menyimpan variabel ini.",
+      commitmentFeeApplies: "Ada Commitment Fee",
       creditCeiling: "Plafon Kredit",
       noInterest: "Tidak Dikenai Bunga",
       backToLoans: "Pinjaman"
     },
     bpjs: {
       title: "BPJS",
+      downloadReport: "Unduh Laporan BPJS",
+      reportTitle: "Laporan BPJS",
+      reportHint:
+        "Setiap karyawan terdaftar BPJS Kesehatan dan BPJS Ketenagakerjaan, dengan bagian karyawan, tanggungan perusahaan, total, dan rincian program.",
+      reportEmpty: "Tidak ada pendaftaran atau pembayaran BPJS pada periode ini.",
+      reportTotal: "Total",
+      reportEmployees: "Karyawan Terdaftar",
+      reportHolding: "Holding Karyawan",
       description:
         "Pendaftaran dan catatan pembayaran. Catat pembayaran virtual account di Biaya.",
       alreadyPaid: "Sudah Dibayar",
@@ -4009,11 +4349,64 @@ export const id = {
         dueDate: "Tanggal Jatuh Tempo",
         status: "Status",
         employee: "Karyawan",
-        employeeShare: "Bagian Karyawan"
-      }
+        employeeNo: "No Karyawan",
+        employeeShare: "Bagian Karyawan",
+        enrolled: "Terdaftar",
+        components: "Rincian Program"
+      },
+      wageBaseLine: "Dasar Upah {amount}"
     },
     pettyCash: {
-      title: "Kas Kecil",
+      title: "Kas Uang Muka",
+      tabPetty: "Kas Kecil",
+      tabPrepaid: "Kartu Prabayar",
+      prepaidCreate: "Tambah Kartu Prabayar",
+      prepaidCreateDesc:
+        "Satu kartu untuk satu kendaraan. Hanya untuk BBM, tol, dan parkir.",
+      prepaidCreateFailed: "Tidak dapat menyimpan kartu prabayar ini.",
+      prepaidEmptyTitle: "Belum Ada Kartu Prabayar",
+      prepaidEmptyDesc:
+        "Tambah kartu dan pilih kendaraannya. Isi ulang lewat Pengeluaran → Kendaraan → Kartu Prabayar.",
+      prepaidSpend: "Catat Pengeluaran",
+      prepaidSpendDesc: "Unggah nota BBM, tol, atau parkir.",
+      prepaidSpendConfirm: "Debit Kartu Prabayar",
+      prepaidSpendFailed: "Tidak dapat mencatat pengeluaran kartu ini.",
+      prepaidAddCard: "Tambah Kartu",
+      cardManageDenied: "Hanya pemilik yang dapat menambah atau mengedit kartu prabayar.",
+      totalTopUp: "Total Isi Ulang",
+      totalSpend: "Total Belanja",
+      netPosition: "Posisi Bersih",
+      filterCard: "Kartu",
+      filterAllCards: "Semua Kartu",
+      filterMonth: "Bulan",
+      filterYear: "Tahun",
+      filterDay: "Hari",
+      filterAllMonths: "Semua Bulan",
+      filterAllDays: "Semua Hari",
+      downloadReport: "Unduh Laporan",
+      editCard: "Ubah Kartu Prabayar",
+      editCardDesc: "Ubah nomor kartu atau kendaraan yang memakai kartu ini.",
+      deleteCard: "Hapus Kartu",
+      deleteCardConfirm: "Hapus kartu prabayar ini beserta riwayat belanjanya?",
+      deleteCardFailed: "Tidak dapat menghapus kartu prabayar ini.",
+      updateFailed: "Tidak dapat menyimpan kartu prabayar ini.",
+      entriesTitle: "Aktivitas Kartu",
+      entriesEmpty: "Tidak Ada Aktivitas Kartu Pada Filter Ini.",
+      prepaidChooseCard: "Pilih kartu prabayar untuk belanja ini.",
+      prepaidChooseVehicle: "Pilih kendaraan untuk belanja ini.",
+      prepaidCardForVehicle:
+        "Kartu prabayar pada kendaraan ini dipakai otomatis.",
+      prepaidLinkedCard: "Kartu Prabayar",
+      cardNumber: "Nomor Kartu",
+      vehicle: "Kendaraan",
+      prepaidOneVehicleHint: "Setiap kendaraan hanya boleh punya satu kartu prabayar.",
+      prepaidInventoryOnlyHint:
+        "Hanya kendaraan yang sudah ada di Inventaris (sudah dibeli dan ada) yang boleh diberi kartu. Kendaraan hanya di katalog tidak masuk daftar.",
+      prepaidBalance: "Saldo Kartu",
+      spendKind: "Nota Ini Untuk",
+      spendFuel: "BBM",
+      spendToll: "Tol",
+      spendParking: "Parkir",
       description:
         "Uang tunai yang dipercayakan kepada staf lapangan dan operasional untuk makan, menjamu klien, darurat, dan upah harian paruh waktu.",
       currentBalance: "Saldo saat ini",
@@ -4045,11 +4438,19 @@ export const id = {
       billIsForHint:
         "Tetapkan belanja ini ke Area Manager, Operations Manager, atau Director.",
       project: "Proyek",
-      projectPlaceholder: "Proyek (opsional)",
-      projectHint: "Tandai lokasi jika belanja ini milik sebuah pekerjaan.",
+      projectPlaceholder: "Pilih proyek",
+      projectHint: "Belanja ini masuk laba rugi proyek tersebut.",
       emptyTitle: "Belum Ada Catatan Kas Kecil",
       emptyDesc:
-        "Tambah isi ulang Kas Kecil di Pengeluaran, atau catat belanja dengan foto nota.",
+        "Tambah Isi Ulang Kas Kecil di Pengeluaran, atau catat belanja dengan foto nota.",
+      chargeType: "Dibebankan Ke",
+      chargeTypeClient: "Klien",
+      chargeTypeProject: "Proyek",
+      chargeTypeRequired: "Pilih Klien atau Proyek.",
+      client: "Klien",
+      clientPlaceholder: "Pilih klien",
+      clientHint:
+        "Belanja ini masuk laba rugi umum klien, bukan ke satu proyek.",
       viewProof: "Lihat bukti",
       columns: {
         date: "Tanggal",
@@ -4060,7 +4461,7 @@ export const id = {
         proof: "Bukti"
       },
       kind: {
-        TOP_UP: "Isi ulang",
+        TOP_UP: "Isi Ulang",
         SPEND: "Belanja",
         PART_TIME_PAY: "Upah paruh waktu"
       },
@@ -4117,6 +4518,11 @@ export const id = {
       totalEmployees: "Karyawan",
       totalWage: "Total Upah",
       totalNetPay: "Total Gaji Bersih",
+      totalBalanceDue: "Total Saldo Terutang Kepada Perusahaan",
+      balanceDueToCompany: "Saldo Terutang Kepada Perusahaan",
+      balanceDueToCompanyHint:
+        "Karyawan ini berutang kepada perusahaan. Jumlah ini untuk penagihan. Tidak dikurangi dari gaji bersih karyawan lain.",
+      employeeBalanceWithCompany: "Saldo Dengan Perusahaan",
       tableTitle: "Detail Penggajian",
       tableDesc:
         "Staf RGS aktif dan siapa pun dengan CICO lengkap di periode ini. Hari kerja = 9 jam atau lebih (18 jam pada shift ganda yang ditugaskan). Hari di bawah jam tetap tidak dibayar sampai Bayar Penuh atau jumlah kustom. Bendera terlambat atau pulang awal tidak mengubah gaji di sini.",
@@ -4172,7 +4578,8 @@ export const id = {
         other: "Lainnya",
         returnOfSecurityDeposit: "Pengembalian Deposit Keamanan",
         clientCompensation: "Kompensasi Klien",
-        forfeitedWages: "Sisa Upah Tidak Dibayar"
+        forfeitedWages: "Sisa Upah Tidak Dibayar",
+        cashAdvance: "Kasbon"
       },
       depositStatus: {
         none: "None",
@@ -4227,23 +4634,58 @@ export const id = {
         "Klien belum merespons selama dua hari atau lebih. Ingatkan mereka — tidak ada persetujuan otomatis.",
       clientPendingTitle: "Menunggu review Anda",
       clientPendingHelp:
-        "Approve untuk menerbitkan invoice, atau Revise dengan catatan dan bukti opsional untuk Head Office.",
+        "Setujui untuk menerbitkan invoice, atau revisi dengan alasan, jumlah yang disesuaikan, dan bukti opsional untuk Head Office.",
       emptyTitle: "Belum ada data",
       emptyDescription:
         "Belum ada rekonsiliasi atau review progress di daftar ini.",
       openBilling: "Buka penagihan",
+      openDetails: "Buka rincian",
       viewReport: "Lihat laporan",
-      sendForClientReview: "Kirim untuk review",
+      detailTitle: "Rincian Rekonsiliasi",
+      revisionReason: "Alasan Permintaan Revisi",
+      revisionProof: "Bukti pendukung klien",
+      noRevisionNote: "Tidak ada catatan revisi.",
+      sendForClientReview: "Kirim Untuk Ditinjau",
+      downloadAndSend: "Unduh Dan Kirim",
+      downloadAndSendHint:
+        "Klien ini tidak punya portal. Buat laporan, kirim sendiri, lalu catat jawaban mereka.",
+      noPortalSentTitle: "Klien Ini Tidak Punya Login Portal",
+      noPortalSentLead:
+        "Unduh laporan progres dan kirim sendiri ke klien. Lalu ikuti alur Head Office ini.",
+      noPortalSentConfirm: "Saya Mengerti",
+      noPortalSentStepDownload:
+        "Unduh laporan progres dan kirim ke klien di luar ERP.",
+      noPortalSentStepReply:
+        "Tunggu jawaban mereka. Jika mereka minta perubahan, selesaikan dulu di luar sistem.",
+      noPortalSentStepApprove:
+        "Catat Disetujui atau Direvisi di sini. Head Office yang menyetujui — klien tidak bisa melakukannya di sistem.",
+      noPortalSentStepInvoice:
+        "Setelah disetujui, buat invoice, unduh, lalu kirim ke klien.",
+      noPortalSentStepPayment:
+        "Saat mereka bayar, mereka kirim bukti. Unggah bukti itu agar invoice bisa menuju Jatuh Tempo / lunas.",
+      noPortalSentStepTax:
+        "Unggah faktur pajak yang mereka kirim — PPN, atau PPN dan PPh, sesuai pajak proyek.",
       clientActionTitle: "Review Anda",
       clientActionHelp:
-        "Tinjau laporan, lalu Approve (invoice diterbitkan) atau Revise (jelaskan yang salah).",
+        "Tinjau laporan, lalu pilih Setujui atau Revisi.",
+      chooseApprove: "Setujui",
+      chooseRevise: "Revisi",
+      chooseApproveHint: "Terbitkan invoice sesuai jumlah yang disepakati.",
+      chooseReviseHint: "Minta perubahan dan kirim jumlah yang disesuaikan.",
+      approveCardHelp: "Setujui laporan ini untuk menerbitkan invoice.",
+      approveProposedHelp:
+        "Setujui jumlah usulan Head Office sebesar {amount}. Invoice akan diterbitkan.",
+      hoChooseApproveHint: "Terima jumlah yang diminta klien dan terbitkan invoice.",
+      hoChooseReviseHint: "Tolak permintaan dan usulkan jumlah baru.",
       confirmClientApprove:
         "Setujui laporan ini? Invoice akan dibuat. Untuk bagian General atau Facade terakhir, proyek ditandai selesai pada saat ini.",
       approve: "Setujui",
       approving: "Menyetujui…",
       revise: "Revisi",
-      reviseNoteLabel: "Apa yang salah atau tidak akurat?",
+      reviseNoteLabel: "Alasan Permintaan Revisi",
       reviseNotePlaceholder: "Jelaskan masalah pada laporan…",
+      revisedRequestedAmount: "Jumlah Yang Diminta",
+      proposedAmount: "Jumlah Usulan",
       reviseProofLabel: "Bukti pendukung (opsional)",
       submitRevise: "Kirim revisi",
       submittingRevise: "Mengirim…",
@@ -4258,7 +4700,7 @@ export const id = {
       hoApprove: "Setujui revisi",
       hoReject: "Tolak revisi",
       revisedInvoiceHelp:
-        "Masukkan nilai invoice revisi (dan nomor invoice opsional) sebelum mengirim ke klien.",
+        "Masukkan jumlah invoice yang disepakati. Invoice diterbitkan hanya setelah persetujuan ini.",
       revisedAmount: "Nilai invoice revisi",
       revisedInvoiceNumber: "Nomor invoice revisi",
       confirmHoApprove: "Setujui & terbitkan invoice",
@@ -4269,6 +4711,27 @@ export const id = {
       sendingReject: "Mengirim…",
       hoApproveFailed: "Gagal menyetujui revisi.",
       hoRejectFailed: "Gagal menolak revisi.",
+      reviseAmountMustDiffer:
+        "Revisi harus memakai jumlah yang berbeda. Jika angkanya sama, pilih Setujui.",
+      filterYear: "Tahun",
+      filterMonth: "Bulan",
+      filterAllMonths: "Semua Bulan",
+      filterApply: "Terapkan",
+      approvedCardHint: "Laporan dan invoice yang disetujui untuk periode terpilih.",
+      revisedCardHint: "Revisi yang menunggu Kantor Pusat, plus riwayat revisi.",
+      offlineReviewTitle: "Catat Respons Klien",
+      offlineReviewHelp:
+        "Klien ini tidak punya login portal. Unduh laporan, kirim sendiri, lalu catat keputusan mereka.",
+      offlineApproved: "Disetujui",
+      offlineRevised: "Direvisi",
+      offlineApprovedHint: "Invoice sesuai nilai kontrak / yang diajukan.",
+      offlineRevisedHint: "Mereka sudah setuju jumlah baru di luar sistem. Isi alasan dan angka baru.",
+      offlineReason: "Alasan Direvisi",
+      offlineReasonPlaceholder: "Jelaskan perubahan yang disepakati…",
+      offlineNewAmount: "Jumlah Invoice Revisi",
+      offlineSubmit: "Catat Dan Buat Invoice",
+      offlineSubmitting: "Mencatat…",
+      offlineFailed: "Tidak dapat mencatat respons klien.",
       completedPeriodsTitle: "Periode tertagih",
       invoiceSent: "Invoice terkirim",
       taxInvoiceIssued: "Faktur pajak",
@@ -4285,6 +4748,13 @@ export const id = {
         "Buka proyek untuk melihat catatan dan foto lokasi Anda.",
       searchClients: "Cari Klien",
       searchProjects: "Cari Proyek",
+      cards: {
+        clients: "Klien",
+        projects: "Proyek",
+        internal: "Internal",
+        reports: "Laporan",
+        employees: "Karyawan"
+      },
       clientsSection: "Klien",
       clientsSectionDesc: "Lokasi proyek Sedang Berjalan dikelompokkan menurut klien.",
       internalSection: "Internal",
@@ -4439,7 +4909,15 @@ export const id = {
       },
       columns: {
         photos: "Foto",
-        notes: "Catatan"
+        notes: "Catatan",
+        client: "Klien",
+        project: "Proyek",
+        location: "Lokasi",
+        type: "Jenis",
+        reports: "Laporan",
+        employee: "Karyawan",
+        serviceArea: "Area Layanan",
+        submittedAt: "Dikirim"
       }
     },
     cico: {
@@ -4670,6 +5148,7 @@ export const id = {
       saving: "Menyimpan...",
       saveFailed: "Gagal memperbarui shift.",
       rosterTitle: "Shift Staf",
+      assignedStaffTitle: "Staf Ditugaskan",
       windowsTitle: "Shift Proyek",
       windowsHint:
         "Atur jam di sini. Shift di proyek ini tidak boleh tumpang tindih. Tambah Shift jika situs perlu shift bernama lain (paling banyak 4). Gunakan Hapus pada baris setelah staf, cadangan, dan shift ganda dilepas dari shift itu.",
@@ -4690,10 +5169,26 @@ export const id = {
         "Buat tim berdasarkan area layanan, lalu masukkan karyawan tetap ke setiap roster.",
       availabilityTitle: "Ketersediaan Tim",
       addTeam: "Tambah Tim",
+      assignMembersOnCreate: "Tugaskan Karyawan",
+      assignEquipmentOnCreate: "Tugaskan Peralatan",
+      noEligibleMembers: "Belum ada karyawan yang bisa ditugaskan.",
+      noEquipment: "Belum ada unit peralatan yang bisa ditugaskan.",
       editTeam: "Ubah Tim",
       deleteTeam: "Hapus Tim",
       members: "Anggota",
       addMember: "Tambah Anggota",
+      assignEquipment: "Tugaskan Peralatan",
+      assignEquipmentHint:
+        "Peralatan yang ditugaskan ke tim mengikuti tim ke setiap pekerjaan.",
+      assignEquipmentSearch: "Cari Peralatan",
+      assignEquipmentEmptySearch: "Tidak Ada Peralatan Yang Cocok.",
+      assignEquipmentEmpty: "Tidak ada unit peralatan yang tersedia.",
+      assignEquipmentSave: "Simpan Peralatan",
+      assetCode: "Kode Aset",
+      item: "Item",
+      assigned: "Ditugaskan",
+      currentTeam: "Tim Saat Ini",
+      unassigned: "Belum Ditugaskan",
       name: "Nama Tim",
       kind: "Jenis Tim",
       kindGeneral: "General Cleaning",
@@ -4707,10 +5202,18 @@ export const id = {
       emptySearch: "Tidak ada tim yang cocok.",
       emptyMembers: "Belum ada anggota di tim ini.",
       emptyEligible: "Tidak ada karyawan yang dapat ditambahkan ke tim.",
+      emptyEligibleFiltered: "Tidak ada karyawan yang dapat ditambahkan di departemen ini.",
+      emptyEligibleSearch: "Tidak ada karyawan yang cocok dengan pencarian ini.",
+      searchEmployees: "Cari karyawan...",
+      searchEquipment: "Cari peralatan...",
       memberCount: "{count} anggota",
       memberCountOne: "1 anggota",
       statusAvailable: "Tersedia",
       statusOnSite: "Di Lokasi",
+      cardTeams: "Tim",
+      cardAvailable: "Tersedia",
+      cardOnSite: "Di Lokasi",
+      cardMembers: "Anggota",
       createFailed: "Gagal membuat tim.",
       updateFailed: "Gagal mengubah tim.",
       deleteFailed: "Gagal menghapus tim.",
@@ -4908,6 +5411,7 @@ export const id = {
       stockShort: "Kurang dari permintaan",
       outOfStock: "Stok Habis",
       itemNotAvailable: "Item Tidak Tersedia",
+      itemNotInStock: "Item Tidak Tersedia Di Stok",
       itemOutOfStock: "Item ini stoknya habis.",
       status: {
         requested: "Diminta",
@@ -4920,6 +5424,7 @@ export const id = {
         sku: "SKU",
         qty: "Kuantitas Diminta",
         onHand: "Stok Gudang",
+        stock: "Stok",
         availability: "Ketersediaan",
         requester: "Pemohon",
         reviewed: "Ditinjau",
@@ -4932,6 +5437,15 @@ export const id = {
       title: "Transfer Barang",
       description:
         "Antrian Gudang: telusuri per klien dan proyek, kirim material yang disetujui, lalu site konfirmasi penerimaan.",
+      cards: {
+        pendingSend: "Menunggu Kirim",
+        inTransit: "Dalam Perjalanan",
+        clients: "Klien",
+        sites: "Situs Internal",
+        projects: "Proyek",
+        received: "Diterima",
+        openOrders: "Pesanan Terbuka"
+      },
       pendingTitle: "Transfer Barang Tertunda",
       pendingTitleOther: "Transfer Barang Tertunda",
       pendingDesc:
@@ -4958,8 +5472,6 @@ export const id = {
       projectsSection: "Proyek",
       projectCountOne: "{count} proyek",
       projectCountOther: "{count} proyek",
-      badgePending: "{count} menunggu",
-      badgeInTransit: "{count} transit",
       queueTitle: "Antrian Gudang",
       queueDesc:
         "Setiap kartu menampilkan proyek tujuan, pemohon, rincian item, dan ketersediaan stok sebelum Anda menandai terkirim.",
@@ -5002,9 +5514,6 @@ export const id = {
       requestedBy: "Diminta oleh {name}",
       sentBy: "Dikirim oleh {name}",
       receivedBy: "Diterima oleh {name}",
-      statPending: "{count} menunggu kirim",
-      statSent: "{count} dalam perjalanan",
-      statReceived: "{count} diterima",
       status: {
         pendingSend: "Menunggu Kirim",
         sent: "Terkirim",
@@ -5019,7 +5528,16 @@ export const id = {
         createdAt: "Dibuat",
         sentAt: "Dikirim",
         receivedAt: "Diterima",
-        itemsToSend: "Item yang dikirim"
+        itemsToSend: "Item yang dikirim",
+        destination: "Tujuan",
+        project: "Proyek",
+        items: "Item",
+        date: "Tanggal",
+        status: "Status",
+        pending: "Menunggu",
+        inTransit: "Dalam Perjalanan",
+        completed: "Selesai",
+        site: "Situs"
       }
     },
     reports: {
@@ -5057,7 +5575,7 @@ export const id = {
       noStockToIssue:
         "Tidak ada item dengan stok tersedia. Catat penerimaan stok sebelum menetapkan ke proyek.",
       quantityExceedsStock:
-        "Kuantitas melebihi stok tersedia. Tersedia: {available} {unit}.",
+        "Stok tersedia hanya {available} {unit}. Penjualan tidak boleh melebihi stok yang ada.",
       quantityMustBeWhole: "{field} harus berupa bilangan bulat.",
       quantityMustBePositive: "{field} harus lebih besar dari nol.",
       quantityMustBeNonNegative: "{field} harus nol atau lebih besar.",
@@ -5108,6 +5626,10 @@ export const id = {
         "Unggah faktur pajak untuk penjualan ini.",
       buyerTaxIdRequired:
         "NPWP perusahaan wajib untuk pembeli berbentuk perusahaan.",
+      buyerIdNumberRequiredWhenNoNpwp:
+        "Isi NIK (lokal) atau paspor (asing) jika pembeli tidak punya NPWP.",
+      buyerIdNumberInvalid:
+        "Isi NIK 16 digit atau nomor paspor (6–12 huruf dan angka).",
       taxRateRequired: "Masukkan tarif pajak untuk penjualan ini.",
       taxAmountRequired: "Jumlah pajak penjualan harus lebih dari nol.",
       clientNotFound: "Klien yang ditautkan tidak ditemukan.",
@@ -5484,6 +6006,7 @@ export const id = {
         catalogItemNoSearchMatch: "Tidak ada item berstok yang cocok dengan pencarian ini.",
         soldOffNoStockForType:
           "Tidak ada item stok jenis ini yang tersedia untuk dijual.",
+        selectItemTypeToShowStock: "Pilih Jenis Item Untuk Menampilkan Stok.",
         quantity: "Kuantitas",
         notes: "Catatan",
         issueItemHint: "Hanya item yang punya stok yang ditampilkan.",
@@ -5507,7 +6030,7 @@ export const id = {
           "Catatan opsional mengapa penjualan ini dibatalkan (misalnya pembeli membatalkan).",
         reverseSaleReasonHint:
           "Opsional. Nama Anda dan waktu pembatalan dicatat otomatis.",
-        saleDate: "Tanggal Penjualan",
+        saleDate: "Tanggal Invoice",
         saleUnitPrice: "Harga Jual Satuan (Sebelum Pajak)",
         saleUnitPriceExTaxHint:
           "Masukkan harga satuan sebelum pajak. Pajak dihitung dari tarif di bawah.",
@@ -5554,11 +6077,15 @@ export const id = {
         buyerIdentityDoc: "Faktur Pajak",
         buyerIdentityDocHint:
           "Wajib untuk pembeli perusahaan. Unggah faktur pajak saja — PDF faktur penjualan dibuat otomatis.",
+        buyerIdentityDocHintAll:
+          "Wajib Untuk Setiap Pembeli. Unggah Faktur Pajak. Relasi Adalah PKP.",
         buyerTaxId: "NPWP Perusahaan",
         buyerTaxIdIndividual: "NPWP",
         buyerTaxIdPlaceholder: "NPWP 15 Atau 16 Digit",
-        buyerIdNumber: "NIK / KTP",
-        buyerIdNumberPlaceholder: "NIK 16 Digit",
+        buyerTaxIdPlaceholderHint:
+          "Jika pembeli tidak punya NPWP, biarkan kosong. Sistem memakai 00.000.000.0-000.000 dan wajib NIK atau paspor.",
+        buyerIdNumber: "NIK / Paspor",
+        buyerIdNumberPlaceholder: "NIK 16 Digit Atau Nomor Paspor",
         buyerIdentityEitherHint:
           "Wajib: isi NPWP atau NIK / KTP — minimal salah satu.",
         soldOffItemHint:
@@ -5626,8 +6153,12 @@ export const id = {
       bulkCreateSuccess: "Berhasil menambah {count} item katalog.",
       deactivate: "Nonaktifkan",
       delete: "Hapus",
+      deactivateHint:
+        "Nonaktifkan menghentikan item untuk pembelian baru. Item tetap di katalog sebagai tidak aktif.",
+      deleteHint:
+        "Hapus mengeluarkan item dari katalog. Jika masih ada stok, Inventaris menahannya sampai stok menjadi nol.",
       deleteConfirm:
-        "Hapus “{name}”? Item yang belum dipakai dihapus permanen. Item yang punya riwayat pembelian/stok diarsipkan agar riwayat tetap ada.",
+        "Hapus “{name}”? Item yang belum dipakai dihapus permanen. Item yang punya riwayat pembelian atau stok keluar dari katalog, tetapi sisa stok tetap di Inventaris sampai habis dipakai.",
       itemDeactivated: "Item katalog dinonaktifkan.",
       itemReactivated: "Item katalog dipulihkan.",
       itemDeleted: "Item katalog dihapus.",
@@ -5641,6 +6172,8 @@ export const id = {
       stats: {
         activeTitle: "Item Aktif",
         activeSubtitle: "{inactive} nonaktif",
+        inactiveTitle: "Item Nonaktif",
+        inactiveSubtitle: "Disembunyikan dari pembelian baru",
         totalTitle: "Total Item",
         totalSubtitle: "Entri katalog aktif dan nonaktif"
       },
@@ -5676,9 +6209,21 @@ export const id = {
         contact: "Kontak",
         contactHint: "Alamat kantor dan cara klien menghubungi perusahaan.",
         tax: "Pajak",
+        government: "Pembayaran Pemerintah",
+        governmentHint:
+          "Rekening virtual perusahaan yang dipakai Kantor Pusat saat membayar BPJS dari Pengeluaran.",
         bank: "Bank",
         bankHint:
           "Rekening penerima yang tercetak pada invoice. Tambahkan setiap rekening yang dapat dibayar klien."
+      },
+      cards: {
+        website: "Situs Web",
+        taxId: "NPWP",
+        banks: "Rekening Bank",
+        set: "Sudah Diisi",
+        notSet: "Belum Diisi",
+        banksOne: "{count} Rekening",
+        banksOther: "{count} Rekening"
       },
       form: {
         name: "Nama Perusahaan",
@@ -5692,6 +6237,10 @@ export const id = {
         email: "Email",
         npwp: "NPWP",
         npwpHint: "NPWP perusahaan. Tercetak pada kop surat jika diisi.",
+        bpjsKesehatanVa: "Rekening Virtual BPJS Kesehatan",
+        bpjsKetenagakerjaanVa: "Rekening Virtual BPJS Ketenagakerjaan",
+        bpjsVaHint:
+          "Mengisi otomatis Tambah Pengeluaran saat membayar program itu. Membayar tagihan juga menyimpan nomor yang dipakai.",
         bankName: "Nama Bank",
         bankAccountNumber: "Nomor Rekening",
         bankAccountName: "Pemilik Rekening",
@@ -5735,7 +6284,7 @@ export const id = {
     teams: "Tim",
     progress: "Laporan Progress",
     cico: "CICO",
-    pettyCash: "Kas Kecil",
+    pettyCash: "Kas Uang Muka",
     attendance: "Laporan Kehadiran",
     shifts: "Shift",
     leaves: "Izin & Sakit",

@@ -55,7 +55,7 @@ type ProjectForActions = {
   clientId: string | null;
   assignments: { employeeId: string }[];
   operationsTeamLinks?: { teamId: string }[];
-  client?: { name: string } | null;
+  client?: { name: string; hasPortalAccess?: boolean } | null;
   invoicePeriods: InvoicePeriodForActions[];
   _count: { progressReports: number };
 };
@@ -238,6 +238,7 @@ export default function ProjectDirectoryActions({
         <ProjectSubmitForApprovalButton
           projectId={project.id}
           projectName={confirmName}
+          hasPortalAccess={project.client?.hasPortalAccess !== false}
           size="badge"
         />
       </span>

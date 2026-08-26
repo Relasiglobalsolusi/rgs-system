@@ -41,6 +41,7 @@ type PhoneInputProps = {
   selectClassName?: string;
   selectContentClassName?: string;
   onValueChange?: (value: string) => void;
+  required?: boolean;
 };
 
 export function PhoneInput({
@@ -56,6 +57,7 @@ export function PhoneInput({
   selectClassName,
   selectContentClassName,
   onValueChange,
+  required = false,
 }: PhoneInputProps) {
   const { t } = useT();
   const resolvedPlaceholder =
@@ -204,6 +206,7 @@ export function PhoneInput({
         onBlur={handleLocalBlur}
         placeholder={resolvedPlaceholder}
         disabled={disabled}
+        required={required}
         className={cn("min-w-0 flex-1", inputClassName)}
       />
 

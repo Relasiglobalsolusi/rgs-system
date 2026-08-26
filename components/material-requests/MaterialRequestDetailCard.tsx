@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import MaterialRequestLinesTable, {
   type MaterialFlowLineView,
 } from "@/components/material-requests/MaterialRequestLinesTable";
+import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { formatDisplayDate, formatDisplayDateTime } from "@/lib/format-date";
 import { useT } from "@/lib/i18n/use-t";
@@ -73,12 +74,7 @@ export default function MaterialRequestDetailCard({
   const to = request.transferOrder;
 
   return (
-    <article
-      className={cn(
-        "rounded-2xl border border-border bg-elevated/25 p-4 sm:p-5",
-        className
-      )}
-    >
+    <SectionCard className={cn("p-4 sm:p-5", className)}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
           <h3 className="text-base font-semibold tracking-tight text-text">
@@ -184,6 +180,6 @@ export default function MaterialRequestDetailCard({
           {actions}
         </div>
       ) : null}
-    </article>
+    </SectionCard>
   );
 }

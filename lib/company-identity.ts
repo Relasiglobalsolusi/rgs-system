@@ -17,3 +17,10 @@ export const LETTERHEAD = {
 
 export const LEGAL_COMPANY_NAME = LETTERHEAD.legalName;
 export const DISPLAY_COMPANY_NAME = LETTERHEAD.displayName;
+
+/** Default map pin for RGS Internal projects — Head Office, Daan Mogot. */
+export const HEAD_OFFICE_SITE = {
+  address: `${LETTERHEAD.addressLines[0]}, ${LETTERHEAD.addressLines[1]}`,
+  latitude: -6.1618,
+  longitude: 106.726,
+} as const;

@@ -29,7 +29,7 @@ type Props = {
 
 /** Same box as Add Subcategory — do not size these with the dialog wrapper. */
 const catalogToolbarPairClass =
-  "box-border h-[2.75rem] min-h-[2.75rem] w-[12.75rem] min-w-[12.75rem] max-w-[12.75rem]";
+  "box-border h-[2.75rem] min-h-[2.75rem] w-full min-w-0 sm:w-[12.75rem] sm:min-w-[12.75rem] sm:max-w-[12.75rem]";
 
 function CatalogRowActions({
   onEdit,
@@ -45,7 +45,7 @@ function CatalogRowActions({
   }
 
   return (
-    <div className="flex items-center justify-center gap-2.5 whitespace-nowrap">
+    <div className="flex flex-col items-stretch justify-center gap-2.5 sm:flex-row sm:items-center">
       <Button
         type="button"
         size="badge"
@@ -180,7 +180,7 @@ export default function ProjectServiceAreaTable({
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             <Button
               type="button"
               variant="mutedBadge"

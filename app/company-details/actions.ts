@@ -223,6 +223,37 @@ export async function updateCompanyTax(formData: FormData) {
   return { ok: true as const };
 }
 
+export async function updateCompanyBpjsAccounts(formData: FormData) {
+  const gate = await requireOwnerCompany();
+  if (!gate.ok) return { ok: false as const, error: gate.error };
+  const { companyId } = gate;
+
+  try {
+    await prisma.company.update({
+      where: { id: companyId },
+      data: {
+        bpjsKesehatanVirtualAccount: optionalText(
+          formData.get("bpjsKesehatanVirtualAccount")
+        ),
+        bpjsKetenagakerjaanVirtualAccount: optionalText(
+          formData.get("bpjsKetenagakerjaanVirtualAccount")
+        ),
+      },
+    });
+  } catch (error) {
+    return {
+      ok: false as const,
+      error: toActionError(
+        error,
+        translate(gate.locale, "pages.companyDetails.saveFailed")
+      ).message,
+    };
+  }
+
+  revalidateCompanyPaths();
+  return { ok: true as const };
+}
+
 function requiredBankField(
   formData: FormData,
   name: string,

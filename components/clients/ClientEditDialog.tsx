@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  showMissingRequiredFields,
   showRejection,
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
@@ -46,6 +47,8 @@ type Client = {
   contactPersonEmail: string | null;
   contactPersonPhone: string | null;
   clientType?: "COMPANY" | "INDIVIDUAL";
+  hasPortalAccess?: boolean;
+  multiProjectAccess?: boolean;
   clientSince: Date | string;
   paymentTermsDays?: number | null;
   active: boolean;
@@ -72,6 +75,9 @@ export default function ClientEditDialog({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [baseline, setBaseline] = useState<HtmlFormDirtyBaseline | null>(null);
+  const [portalAccess, setPortalAccess] = useState(
+    client.hasPortalAccess !== false
+  );
 
   const { isDirty, handleFormInput, resetDirtyTracking } = useHtmlFormDirty(
     formId,
@@ -124,6 +130,14 @@ export default function ClientEditDialog({
   }, [open, formId, client.id]);
 
   async function submit(formData: FormData) {
+    const form = document.getElementById(formId);
+    if (
+      showMissingRequiredFields(
+        form instanceof HTMLFormElement ? form : null
+      )
+    ) {
+      return;
+    }
     const npwpRaw = String(formData.get("npwp") ?? "").trim();
     const isIndividual =
       String(formData.get("clientType") ?? "").toUpperCase() === "INDIVIDUAL";
@@ -212,6 +226,7 @@ export default function ClientEditDialog({
             id={formId}
             key={`${client.id}-${open ? "open" : "closed"}`}
             action={submit}
+            noValidate
             onInput={handleFormInput}
           >
             <ClientFormFields
@@ -231,18 +246,24 @@ export default function ClientEditDialog({
                 contactPersonEmail: client.contactPersonEmail ?? "",
                 contactPersonPhone: client.contactPersonPhone ?? "",
                 clientType: client.clientType ?? "COMPANY",
+                hasPortalAccess: client.hasPortalAccess !== false,
+                multiProjectAccess: client.multiProjectAccess,
               }}
+              hasExistingPortalLogin={(client._count?.users ?? 0) > 0}
+              onPortalAccessChange={setPortalAccess}
               onFormValuesChange={handleFormInput}
             />
           </form>
 
-          <div className="mt-8 border-t border-border pt-6">
-            <ClientMultiProjectPanel
-              clientId={client.id}
-              open={open}
-              formId={formId}
-            />
-          </div>
+          {portalAccess ? (
+            <div className="mt-8 border-t border-border pt-6">
+              <ClientMultiProjectPanel
+                clientId={client.id}
+                open={open}
+                formId={formId}
+              />
+            </div>
+          ) : null}
         </EmployeeDialogShell>
       </Dialog>
 

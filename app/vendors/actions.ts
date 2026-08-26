@@ -15,6 +15,10 @@ import {
 } from "@/lib/linked-login-lifecycle";
 import { nextCompanyScopedSortOrder } from "@/lib/persist-reorder";
 import { prisma } from "@/lib/prisma";
+import {
+  formHasVendorBankFields,
+  parseVendorBankAccountsFromForm,
+} from "@/lib/vendor-bank-accounts";
 import { toActionError } from "@/lib/prisma-errors";
 import { parseRequiredClientNpwpValue } from "@/lib/npwp";
 import type { AppLocale } from "@/lib/i18n/locale";
@@ -237,6 +241,10 @@ export async function createVendor(formData: FormData) {
     }
 
     const sortOrder = await nextCompanyScopedSortOrder("vendor", company.id);
+    const bankAccounts = parseVendorBankAccountsFromForm(formData);
+    if (bankAccounts.length === 0) {
+      throw new Error(translate(locale, "pages.vendors.form.bankAccountRequired"));
+    }
 
     await prisma.$transaction(async (tx) => {
       const shortCode = await getNextVendorShortCode(company.id, tx);
@@ -259,6 +267,15 @@ export async function createVendor(formData: FormData) {
           companyId: company.id,
           active: true,
           sortOrder,
+          bankAccounts: {
+            create: bankAccounts.map((account, index) => ({
+              bankName: account.bankName,
+              accountNumber: account.accountNumber,
+              accountHolder: account.accountHolder,
+              label: account.label || null,
+              sortOrder: index,
+            })),
+          },
         },
       });
     });
@@ -306,6 +323,7 @@ export async function createVendorsInBulk(formData: FormData) {
       npwp: string | null;
       taxIdDocumentUrl: string | null;
       vendorSince: Date;
+      bankAccounts: ReturnType<typeof parseVendorBankAccountsFromForm>;
     }> = [];
 
     for (let index = 0; index < lineCount; index += 1) {
@@ -358,6 +376,19 @@ export async function createVendorsInBulk(formData: FormData) {
         });
         uploaded.push(taxIdDocumentUrl);
       }
+      const bankAccounts = parseVendorBankAccountsFromForm(
+        formData,
+        `line.${index}.`
+      );
+      if (bankAccounts.length === 0) {
+        throw new Error(
+          translate(locale, "bulkCreate.lineError", {
+            n: String(index + 1),
+            message: translate(locale, "pages.vendors.form.bankAccountRequired"),
+          })
+        );
+      }
+
       rows.push({
         identity,
         vendorType,
@@ -365,6 +396,7 @@ export async function createVendorsInBulk(formData: FormData) {
         npwp,
         taxIdDocumentUrl,
         vendorSince,
+        bankAccounts,
       });
     }
 
@@ -396,6 +428,15 @@ export async function createVendorsInBulk(formData: FormData) {
             companyId: company.id,
             active: true,
             sortOrder,
+            bankAccounts: {
+              create: row.bankAccounts.map((account, accountIndex) => ({
+                bankName: account.bankName,
+                accountNumber: account.accountNumber,
+                accountHolder: account.accountHolder,
+                label: account.label || null,
+                sortOrder: accountIndex,
+              })),
+            },
           },
         });
         sortOrder += SORT_ORDER_STEP;
@@ -477,6 +518,12 @@ export async function updateVendor(id: string, formData: FormData) {
         identity.contactPersonLastName
       ) ?? identity.name;
 
+    const bankAccounts = parseVendorBankAccountsFromForm(formData);
+    const replaceBankAccounts = formHasVendorBankFields(formData);
+    if (replaceBankAccounts && bankAccounts.length === 0) {
+      throw new Error(translate(locale, "pages.vendors.form.bankAccountRequired"));
+    }
+
     await prisma.$transaction(async (tx) => {
       // Soft-delete only via Delete dialog / deactivateVendor — never via edit.
       await tx.vendor.update({
@@ -497,6 +544,21 @@ export async function updateVendor(id: string, formData: FormData) {
           vendorSince,
         },
       });
+      if (replaceBankAccounts) {
+        await tx.vendorBankAccount.deleteMany({ where: { vendorId: id } });
+        if (bankAccounts.length > 0) {
+          await tx.vendorBankAccount.createMany({
+            data: bankAccounts.map((account, index) => ({
+              vendorId: id,
+              bankName: account.bankName,
+              accountNumber: account.accountNumber,
+              accountHolder: account.accountHolder,
+              label: account.label || null,
+              sortOrder: index,
+            })),
+          });
+        }
+      }
 
       if (existing.users.length === 0) {
         return;

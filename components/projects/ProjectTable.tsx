@@ -28,7 +28,7 @@ import {
 } from "@/lib/i18n/labels";
 import type { AppLocale } from "@/lib/i18n/locale";
 import { useT } from "@/lib/i18n/use-t";
-import { isInternalProjectSubCategory } from "@/lib/project-subcategory";
+import { isRgsInternalProject } from "@/lib/project-subcategory";
 import {
   isDirectoryPeriodRow,
   type ProjectDirectoryRowKind,
@@ -320,21 +320,39 @@ export default function ProjectTable({
   const router = useRouter();
   const [, startTransition] = useTransition();
 
+  const viewRows = useMemo(() => {
+    if (filterView === "pending-approval") {
+      return rows.filter((row) => row.rowKind === "pending-approval");
+    }
+    if (filterView === "payment-due") {
+      return rows.filter((row) => row.rowKind === "payment-due");
+    }
+    if (filterView === "in-progress") {
+      return rows.filter((row) => row.rowKind === "in-progress");
+    }
+    if (
+      filterView === undefined &&
+      rows.some((row) => isDirectoryPeriodRow(row.rowKind))
+    ) {
+      return rows.filter((row) => !isDirectoryPeriodRow(row.rowKind));
+    }
+    return rows;
+  }, [filterView, rows]);
+
   /** Internal section has no directory workflow chips — hide empty Actions. */
   const isInternalTable =
-    rows.length > 0 &&
-    rows.every((row) =>
-      isInternalProjectSubCategory(row.project.subCategory)
-    );
+    viewRows.length > 0 &&
+    viewRows.every((row) => isRgsInternalProject(row.project));
   /**
    * Workflow chips only — Edit / Delete / downloads are on the detail page.
-   * Completed has no directory workflow chips.
+   * Completed / Pending Approval have no directory workflow chips.
    * Internal: no Finish / Approval / Back to Planning — omit the column.
    * Payment Due: also show actions column when Finance can open billing.
    */
   const showActions =
     !isInternalTable &&
     filterView !== "completed" &&
+    filterView !== "pending-approval" &&
     (canManage || (filterView === "payment-due" && canOpenBilling));
   /** Payment Due: due date sits between Status and Actions. */
   const showPaymentDueColumn = filterView === "payment-due";
@@ -345,7 +363,7 @@ export default function ProjectTable({
     canManage &&
     filterView !== "payment-due" &&
     filterView !== "pending-approval" &&
-    !rows.some((row) => isDirectoryPeriodRow(row.rowKind));
+    !viewRows.some((row) => isDirectoryPeriodRow(row.rowKind));
 
   function handleReorder(orderedIds: string[]) {
     if (!reorderable) return;
@@ -378,9 +396,7 @@ export default function ProjectTable({
         share: internalEqual?.share ?? 2.25,
         className: internalEqual?.className ?? "min-w-[16rem]",
         render: (row) => {
-          const isInternal = isInternalProjectSubCategory(
-            row.project.subCategory
-          );
+          const isInternal = isRgsInternalProject(row.project);
           const isPeriodRow = isDirectoryPeriodRow(row.rowKind);
           if (isInternal && !isPeriodRow) {
             return (
@@ -395,9 +411,6 @@ export default function ProjectTable({
             return (
               <div className="min-w-0 text-left">
                 <p className="font-semibold text-text">{row.displayTitle}</p>
-                {row.periodLine ? (
-                  <p className="mt-0.5 text-sm text-muted">{row.periodLine}</p>
-                ) : null}
                 <p className="mt-0.5 max-w-md truncate text-sm text-subtle">
                   {address}
                 </p>
@@ -498,12 +511,16 @@ export default function ProjectTable({
         cellAlign: "center",
         className: "min-w-[10rem] overflow-visible whitespace-nowrap",
         render: (row) => {
-          const paymentDue = isPaymentDueRow(row);
+          const paymentDue =
+            isPaymentDueRow(row) || filterView === "payment-due";
+          const pendingApproval =
+            row.rowKind === "pending-approval" ||
+            filterView === "pending-approval";
           const englishLabel = getProjectWorkflowStatusLabel({
             status:
               row.rowKind === "in-progress" ? "IN_PROGRESS" : row.project.status,
             paymentDue,
-            pendingApproval: row.rowKind === "pending-approval",
+            pendingApproval,
           });
           const label = localizeWorkflowStatus(
             {
@@ -512,7 +529,7 @@ export default function ProjectTable({
                   ? "IN_PROGRESS"
                   : row.project.status,
               paymentDue,
-              pendingApproval: row.rowKind === "pending-approval",
+              pendingApproval,
             },
             locale
           );
@@ -666,16 +683,18 @@ export default function ProjectTable({
     showPaidColumn,
     showPaymentDueColumn,
     t,
+    teams,
   ]);
 
-  if (rows.length === 0) {
+  if (viewRows.length === 0) {
     return null;
   }
 
   return (
     <DataTable
+      key={filterView ?? "all"}
       columns={columns}
-      data={rows}
+      data={viewRows}
       getRowKey={(row) => (reorderable ? row.project.id : row.key)}
       onRowClick={(row) => router.push(row.detailHref)}
       reorderable={reorderable}

@@ -32,6 +32,8 @@ export const PDF_BRAND = {
   white: "#ffffff",
   tableHeaderBg: "#2a9a8c",
   panelBg: "#f7f9fb",
+  income: "#15803d",
+  expense: "#b91c1c",
 } as const;
 
 export type CompanyForPdf = {

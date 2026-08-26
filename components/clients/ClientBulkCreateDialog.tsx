@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  showMissingRequiredFields,
   showRejection,
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
@@ -86,6 +87,14 @@ export default function ClientBulkCreateDialog({
   }, [controlledOpen]);
 
   function submit(formData: FormData) {
+    const form = document.getElementById(FORM_ID);
+    if (
+      showMissingRequiredFields(
+        form instanceof HTMLFormElement ? form : null
+      )
+    ) {
+      return;
+    }
     for (let index = 0; index < lineKeys.length; index += 1) {
       const isIndividual =
         String(formData.get(bulkLineField(index, "clientType")) ?? "")
@@ -139,7 +148,12 @@ export default function ClientBulkCreateDialog({
             </EmployeePrimaryButton>
           }
         >
-          <form id={FORM_ID} action={submit} onInput={handleFormInput}>
+          <form
+            id={FORM_ID}
+            action={submit}
+            noValidate
+            onInput={handleFormInput}
+          >
             <input type="hidden" name="lineCount" value={lineKeys.length} />
             <BulkLineList
               title={t("pages.clients.bulkCreateLines")}

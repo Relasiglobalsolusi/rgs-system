@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 export const financeRecordListClassName = "flex min-w-0 flex-col gap-2";
 
 const financeRecordRowClassName =
-  "grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-3 py-2.5 md:grid-cols-[minmax(0,1fr)_8.75rem_7.5rem] md:gap-x-8 md:px-4 md:py-2";
+  "grid min-h-[4.25rem] min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-3 py-2.5 md:grid-cols-[minmax(0,1fr)_8.75rem_7.5rem] md:gap-x-8 md:px-4 md:py-2";
 
 export const financeListStatusChipClassName =
   "box-border inline-flex h-auto min-h-8 w-full min-w-0 max-w-full items-center justify-center px-2.5 py-1.5 text-center text-[0.625rem] leading-none md:min-w-[7.5rem] md:px-3 md:text-[0.6875rem]";

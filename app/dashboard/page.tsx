@@ -794,7 +794,7 @@ export default async function DashboardPage() {
         value={adminStats.users}
         hintKey="pages.dashboard.loginAccounts"
         icon={<UserCog size={18} />}
-        iconClassName="bg-card-tint-sky text-sky-300"
+        accent="info"
       />
     ) : null,
     showAdminClients ? (
@@ -804,7 +804,7 @@ export default async function DashboardPage() {
         value={adminStats.clients}
         hintKey="pages.dashboard.availableForProjects"
         icon={<Briefcase size={18} />}
-        iconClassName="bg-card-tint-emerald text-emerald-300"
+        accent="success"
       />
     ) : null,
     showAdminEmployees ? (
@@ -814,7 +814,7 @@ export default async function DashboardPage() {
         value={adminStats.departments}
         hintKey="pages.dashboard.employeeCategories"
         icon={<Building2 size={18} />}
-        iconClassName="bg-card-tint-teal text-primary"
+        accent="primary"
       />
     ) : null,
     showAdminProjects ? (
@@ -825,7 +825,7 @@ export default async function DashboardPage() {
         hintKey="pages.dashboard.inProgressCount"
         hintParams={{ count: activeProjects }}
         icon={<FolderKanban size={18} />}
-        iconClassName="bg-card-tint-cyan text-teal-300"
+        accent="info"
       />
     ) : null,
   ].filter(Boolean);

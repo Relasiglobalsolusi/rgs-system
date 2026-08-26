@@ -378,9 +378,12 @@ export async function createEmployee(formData: FormData) {
 
   if (!firstName) throw new Error("First name is required.");
   if (!lastName) throw new Error("Last name is required.");
+  if (!phone) throw new Error("Phone is required.");
+  if (!hiredAt) throw new Error("Start date is required.");
 
   const finance = parseEmployeeFinanceFromForm(formData, employmentType);
   const idDocumentUrl = await saveIdDocument(formData);
+  if (!idDocumentUrl) throw new Error("ID document is required.");
   const sortOrder = await nextCompanyScopedSortOrder("employee", company.id);
 
   await prisma.$transaction(async (tx) => {
@@ -579,16 +582,20 @@ export async function createEmployeesInBulk(formData: FormData) {
                 jobPosition: { slug: positionSlug, name: positionName },
               });
         const finance = parseEmployeeFinanceFromForm(row, employmentType);
+        const phone =
+          normalizeAndValidatePhone(String(row.get("phone") || ""), "Phone") ||
+          null;
+        if (!phone) throw new Error("Phone is required.");
+        if (!hiredAt) throw new Error("Start date is required.");
         const idDocumentUrl = (await saveIdDocument(row)) ?? null;
-        if (idDocumentUrl) uploaded.push(idDocumentUrl);
+        if (!idDocumentUrl) throw new Error("ID document is required.");
+        uploaded.push(idDocumentUrl);
 
         people.push({
           firstName,
           lastName,
           email: parseContactEmail(row.get("email")),
-          phone:
-            normalizeAndValidatePhone(String(row.get("phone") || ""), "Phone") ||
-            null,
+          phone,
           categoryId: categoryId!,
           positionId,
           positionName,
@@ -745,6 +752,7 @@ export async function updateEmployee(id: string, formData: FormData) {
 
   if (!firstName) throw new Error("First name is required.");
   if (!lastName) throw new Error("Last name is required.");
+  if (!phone) throw new Error("Phone is required.");
 
   const employmentType = parseEmploymentType(formData.get("employmentType"));
   const finance = parseEmployeeFinanceFromForm(formData, employmentType);
@@ -764,6 +772,7 @@ export async function updateEmployee(id: string, formData: FormData) {
       status: true,
       categoryId: true,
       userId: true,
+      idDocumentUrl: true,
       jobPosition: { select: { slug: true, name: true } },
       category: {
         select: {
@@ -831,6 +840,7 @@ export async function updateEmployee(id: string, formData: FormData) {
   }
   const employeeType = employeeTypeFromPlacement(placement);
   const hiredAt = parseHiredAt(formData.get("hiredAt"));
+  if (!hiredAt) throw new Error("Start date is required.");
 
   // Portal Yes/No may be omitted on edit (keep existing)
   const portalRaw = formData.get("createPortalLogin");
@@ -871,6 +881,9 @@ export async function updateEmployee(id: string, formData: FormData) {
         });
 
   const idDocumentUrl = await saveIdDocument(formData);
+  if (!idDocumentUrl && !employee.idDocumentUrl) {
+    throw new Error("ID document is required.");
+  }
 
   await prisma.$transaction(async (tx) => {
     const employeeNo =
@@ -1102,6 +1115,11 @@ async function deactivateEmployeeRecord(id: string, currentUserId: string) {
   }
 
   await prisma.$transaction(async (tx) => {
+    const { writeOffUnrecoveredEmployeeDebt } = await import(
+      "@/lib/employee-unrecovered-debt"
+    );
+    await writeOffUnrecoveredEmployeeDebt(tx, id);
+
     await tx.employee.update({
       where: { id },
       data: { status: "INACTIVE" },

@@ -1,81 +1,43 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
-import {
-  ChevronRight,
-  FolderKanban,
-  Landmark,
-  Warehouse,
-} from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import type { TransferOrderProjectRow } from "@/lib/transfer-order-directory";
 import {
   isAttendanceHeadOfficeName,
   isAttendanceWarehouseName,
-  partitionAttendanceProjects,
 } from "@/lib/attendance-internal-sites";
+import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
+import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import DirectorySearchInput, {
   matchesDirectorySearch,
 } from "@/components/ui/DirectorySearchInput";
 import EmptyState from "@/components/ui/EmptyState";
 import StatusBadge from "@/components/ui/StatusBadge";
-import TransferOrderCountBadges from "@/components/transfer-orders/TransferOrderCountBadges";
-import { localizeSubCategoryShort } from "@/lib/i18n/labels";
+import {
+  localizeSubCategory,
+  localizeSubCategoryChipLines,
+} from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
+import { FolderKanban, Package, Truck } from "lucide-react";
 
 type Props = {
   clientId: string;
   projects: TransferOrderProjectRow[];
 };
 
-function ProjectCard({
-  clientId,
-  project,
-}: {
-  clientId: string;
-  project: TransferOrderProjectRow;
-}) {
-  const { locale } = useT();
-  const shortLabel = localizeSubCategoryShort(project.subCategory, locale);
-  const isHo = isAttendanceHeadOfficeName(project.name);
-  const isWh = isAttendanceWarehouseName(project.name);
-  const Icon = isWh ? Warehouse : isHo ? Landmark : FolderKanban;
-
+function CountCell({ value }: { value: number }) {
   return (
-    <Link
-      href={`/transfer-orders/${clientId}/${project.id}`}
-      className="group flex items-start gap-4 rounded-2xl border border-border bg-card px-4 py-4 transition hover:border-border-strong hover:bg-elevated/40"
+    <span
+      className={
+        value > 0
+          ? "text-lg font-semibold tabular-nums text-text"
+          : "text-lg tabular-nums text-subtle"
+      }
     >
-      <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-inset text-muted">
-        <Icon className="h-5 w-5" />
-        {project.pendingSendCount > 0 ? (
-          <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1 text-[0.625rem] font-bold text-black">
-            {project.pendingSendCount > 99 ? "99+" : project.pendingSendCount}
-          </span>
-        ) : null}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate font-semibold text-text">{project.name}</p>
-        {project.location ? (
-          <p className="mt-0.5 truncate text-xs text-subtle">
-            {project.location}
-          </p>
-        ) : null}
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          {shortLabel !== "-" && !isHo && !isWh ? (
-            <StatusBadge status="info" compact>
-              {shortLabel}
-            </StatusBadge>
-          ) : null}
-          <TransferOrderCountBadges
-            pendingSendCount={project.pendingSendCount}
-            inTransitCount={project.inTransitCount}
-          />
-        </div>
-      </div>
-      <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted transition group-hover:text-text" />
-    </Link>
+      {value}
+    </span>
   );
 }
 
@@ -83,7 +45,8 @@ export default function TransferOrderProjectDirectory({
   clientId,
   projects,
 }: Props) {
-  const { t } = useT();
+  const { t, locale } = useT();
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
 
   const filtered = useMemo(() => {
@@ -96,79 +59,166 @@ export default function TransferOrderProjectDirectory({
     );
   }, [projects, searchQuery]);
 
-  const { internal, projects: siteProjects } = useMemo(
-    () => partitionAttendanceProjects(filtered),
-    [filtered]
+  const stats = useMemo(
+    () => ({
+      projects: projects.length,
+      pending: projects.reduce((sum, project) => sum + project.pendingSendCount, 0),
+      inTransit: projects.reduce((sum, project) => sum + project.inTransitCount, 0),
+    }),
+    [projects]
+  );
+
+  const columns = useMemo(() => {
+    const cols: DataTableColumn<TransferOrderProjectRow>[] = [
+      {
+        key: "project",
+        title: t("pages.transferOrders.columns.project"),
+        width: "12rem",
+        share: 1.25,
+        className: "min-w-[12rem]",
+        render: (project) => (
+          <div className="min-w-0">
+            <p className="font-semibold text-text">{project.name}</p>
+            {project.location ? (
+              <p className="mt-0.5 truncate text-sm text-subtle">
+                {project.location}
+              </p>
+            ) : null}
+          </div>
+        ),
+      },
+      {
+        key: "type",
+        title: t("common.labels.type"),
+        width: "10rem",
+        share: 1,
+        cellAlign: "center",
+        className: "min-w-[10rem] overflow-visible",
+        render: (project) => {
+          const isInternal =
+            isAttendanceHeadOfficeName(project.name) ||
+            isAttendanceWarehouseName(project.name);
+          if (isInternal) {
+            return (
+              <StatusBadge status="info" compact>
+                {t("pages.transferOrders.internalSection")}
+              </StatusBadge>
+            );
+          }
+          const typeLines = localizeSubCategoryChipLines(
+            project.subCategory,
+            locale
+          );
+          return (
+            <StatusBadge
+              status="success"
+              compact
+              lines={typeLines ?? undefined}
+            >
+              {typeLines
+                ? undefined
+                : localizeSubCategory(project.subCategory, locale)}
+            </StatusBadge>
+          );
+        },
+      },
+      {
+        key: "pending",
+        title: t("pages.transferOrders.columns.pending"),
+        width: "9rem",
+        share: 1,
+        cellAlign: "right",
+        className: "min-w-[9rem] whitespace-nowrap",
+        render: (project) => <CountCell value={project.pendingSendCount} />,
+      },
+      {
+        key: "inTransit",
+        title: t("pages.transferOrders.columns.inTransit"),
+        width: "9rem",
+        share: 1,
+        cellAlign: "right",
+        className: "min-w-[9rem] whitespace-nowrap",
+        render: (project) => <CountCell value={project.inTransitCount} />,
+      },
+      {
+        key: "completed",
+        title: t("pages.transferOrders.columns.completed"),
+        width: "9rem",
+        share: 1,
+        cellAlign: "right",
+        className: "min-w-[9rem] whitespace-nowrap",
+        render: (project) => <CountCell value={project.completedCount} />,
+      },
+    ];
+    return cols;
+  }, [locale, t]);
+
+  const statsGrid = (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <DirectoryStatCard
+        compact
+        tinted
+        title={t("pages.transferOrders.cards.projects")}
+        value={stats.projects}
+        accent="primary"
+        icon={<FolderKanban size={18} />}
+      />
+      <DirectoryStatCard
+        compact
+        tinted
+        title={t("pages.transferOrders.cards.pendingSend")}
+        value={stats.pending}
+        accent="warning"
+        icon={<Package size={18} />}
+      />
+      <DirectoryStatCard
+        compact
+        tinted
+        title={t("pages.transferOrders.cards.inTransit")}
+        value={stats.inTransit}
+        accent="info"
+        icon={<Truck size={18} />}
+      />
+    </div>
   );
 
   if (projects.length === 0) {
     return (
-      <EmptyState
-        title={t("pages.transferOrders.noProjects")}
-        description={t("pages.transferOrders.noProjectsDesc")}
-      />
-    );
-  }
-
-  if (filtered.length === 0) {
-    return (
-      <div className="space-y-6">
-        <DirectorySearchInput
-          value={searchQuery}
-          onChange={setSearchQuery}
-          placeholder={t("pages.transferOrders.searchProjects")}
-        />
+      <div className="space-y-4">
+        {statsGrid}
         <EmptyState
-          title={t("common.labels.noResults")}
-          description={t("pages.transferOrders.noProjectsMatch")}
+          title={t("pages.transferOrders.noProjects")}
+          description={t("pages.transferOrders.noProjectsDesc")}
         />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      {statsGrid}
       <DirectorySearchInput
         value={searchQuery}
         onChange={setSearchQuery}
         placeholder={t("pages.transferOrders.searchProjects")}
       />
 
-      {internal.length > 0 ? (
-        <section className="space-y-3">
-          <h2 className="text-base font-semibold text-text">
-            {t("pages.transferOrders.internalSection")}
-          </h2>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {internal.map((project) => (
-              <ProjectCard
-                key={project.id}
-                clientId={clientId}
-                project={project}
-              />
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {siteProjects.length > 0 ? (
-        <section className="space-y-3">
-          {internal.length > 0 ? (
-            <h2 className="text-base font-semibold text-text">
-              {t("pages.transferOrders.projectsSection")}
-            </h2>
-          ) : null}
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {siteProjects.map((project) => (
-              <ProjectCard
-                key={project.id}
-                clientId={clientId}
-                project={project}
-              />
-            ))}
-          </div>
-        </section>
-      ) : null}
+      {filtered.length === 0 ? (
+        <EmptyState
+          title={t("common.labels.noResults")}
+          description={t("pages.transferOrders.noProjectsMatch")}
+        />
+      ) : (
+        <DataTable
+          columns={columns}
+          data={filtered}
+          getRowKey={(project) => project.id}
+          onRowClick={(project) =>
+            router.push(`/transfer-orders/${clientId}/${project.id}`)
+          }
+          emptyMessage={t("pages.transferOrders.noProjects")}
+        />
+      )}
     </div>
   );
 }

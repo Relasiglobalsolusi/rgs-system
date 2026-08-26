@@ -1,4 +1,4 @@
-import type { BpjsProgram } from "@prisma/client";
+import type { BpjsProgram, Prisma } from "@prisma/client";
 
 import {
   listBpjsPayableEmployees,
@@ -25,6 +25,33 @@ export function parseBpjsFinanceProgramKey(
 
 export function bpjsProgramFromKey(key: BpjsFinanceProgramKey): BpjsProgram {
   return key === "kesehatan" ? "KESEHATAN" : "KETENAGAKERJAAN";
+}
+
+/**
+ * Paying BPJS Kesehatan remits that month's employee share.
+ * Reduce held share by the kesehatan employee amount so it does not keep accumulating.
+ */
+export async function releaseBpjsKesehatanHeldShare(
+  tx: Prisma.TransactionClient,
+  companyId: string
+) {
+  const rows = await listBpjsPayableEmployees(companyId, "kesehatan");
+  for (const row of rows) {
+    const release = Math.round(row.employeeAmount ?? 0);
+    if (release <= 0) continue;
+    const employee = await tx.employee.findUnique({
+      where: { id: row.id },
+      select: { bpjsShareHeldIdr: true },
+    });
+    if (!employee) continue;
+    const held = Math.round(decimalToNumber(employee.bpjsShareHeldIdr) ?? 0);
+    const next = Math.max(0, held - release);
+    if (next === held) continue;
+    await tx.employee.update({
+      where: { id: row.id },
+      data: { bpjsShareHeldIdr: next },
+    });
+  }
 }
 
 export type BpjsFinanceProgramLine = {

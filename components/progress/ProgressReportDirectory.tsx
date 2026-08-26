@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useMemo, useState } from "react";
-import { Camera, ChevronDown, ChevronRight, Pencil } from "lucide-react";
+import { Camera, FolderKanban, Pencil, Users } from "lucide-react";
 
 import ProgressDialog, {
   type EditableProgressReport,
@@ -12,9 +12,9 @@ import {
   EmployeePrimaryButton,
   employeeDialogFormClass,
 } from "@/components/employees/employee-dialog-ui";
+import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
+import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import ImageLightbox from "@/components/ui/ImageLightbox";
-import SectionCard from "@/components/ui/SectionCard";
-import StatusBadge from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { formatDisplayTime } from "@/lib/format-date";
@@ -79,17 +79,6 @@ export default function ProgressReportDirectory({
   canEdit = true,
 }: Props) {
   const { t, locale } = useT();
-  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(
-    () => new Set(projects.map((p) => p.id))
-  );
-  const [expandedEmployees, setExpandedEmployees] = useState<Set<string>>(
-    () =>
-      new Set(
-        projects.flatMap((p) =>
-          p.employees.map((e) => `${p.id}:${e.id}`)
-        )
-      )
-  );
   const [viewReport, setViewReport] = useState<ProgressDirectoryReport | null>(
     null
   );
@@ -111,24 +100,15 @@ export default function ProgressReportDirectory({
       ),
     [projects]
   );
-
-  function toggleProject(projectId: string) {
-    setExpandedProjects((prev) => {
-      const next = new Set(prev);
-      if (next.has(projectId)) next.delete(projectId);
-      else next.add(projectId);
-      return next;
-    });
-  }
-
-  function toggleEmployee(key: string) {
-    setExpandedEmployees((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }
+  const totalEmployees = useMemo(
+    () =>
+      new Set(
+        projects.flatMap((project) =>
+          project.employees.map((employee) => employee.id)
+        )
+      ).size,
+    [projects]
+  );
 
   function mayEdit(report: ProgressDirectoryReport): boolean {
     if (!canEdit) return false;
@@ -176,169 +156,152 @@ export default function ProgressReportDirectory({
 
   return (
     <>
-      <div className="mb-3 text-xs text-subtle">
-        {t(
-          totalReports === 1
-            ? "pages.progress.submittedCountOne"
-            : "pages.progress.submittedCountOther",
-          { count: totalReports }
-        )}
-        {" · "}
-        {t("pages.progress.directoryHint")}
+      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <DirectoryStatCard
+          compact
+          tinted
+          title={t("pages.progress.cards.projects")}
+          value={projects.length}
+          accent="info"
+          icon={<FolderKanban size={18} />}
+        />
+        <DirectoryStatCard
+          compact
+          tinted
+          title={t("pages.progress.cards.employees")}
+          value={totalEmployees}
+          accent="success"
+          icon={<Users size={18} />}
+        />
+        <DirectoryStatCard
+          compact
+          tinted
+          title={t("pages.progress.cards.reports")}
+          value={totalReports}
+          accent="warning"
+          icon={<Camera size={18} />}
+        />
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-6">
         {projects.map((project) => {
-          const projectOpen = expandedProjects.has(project.id);
-          const reportCount = project.employees.reduce(
-            (sum, e) => sum + e.reports.length,
-            0
-          );
-
-          return (
-            <SectionCard key={project.id} className="!p-0 overflow-hidden">
-              <button
-                type="button"
-                onClick={() => toggleProject(project.id)}
-                className="flex w-full items-center gap-3 px-5 py-4 text-left transition hover:bg-elevated/60 sm:px-6"
-              >
-                {projectOpen ? (
-                  <ChevronDown className="h-4 w-4 shrink-0 text-muted" />
-                ) : (
-                  <ChevronRight className="h-4 w-4 shrink-0 text-muted" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-text">{project.name}</p>
-                  <p className="mt-0.5 text-xs text-subtle">
-                    {t(
-                      project.employees.length === 1
-                        ? "pages.progress.assignedEmployeeOne"
-                        : "pages.progress.assignedEmployeeOther",
-                      { count: project.employees.length }
-                    )}
-                    {" · "}
-                    {t(
-                      reportCount === 1
-                        ? "pages.progress.submittedCountOne"
-                        : "pages.progress.submittedCountOther",
-                      { count: reportCount }
-                    )}
+          const reports = project.employees.flatMap((employee) => employee.reports);
+          const columns: DataTableColumn<ProgressDirectoryReport>[] = [
+            {
+              key: "employee",
+              title: t("pages.progress.columns.employee"),
+              width: "12rem",
+              share: 1.25,
+              className: "min-w-[12rem]",
+              render: (report) => (
+                <div className="min-w-0">
+                  <p className="font-semibold text-text">
+                    {report.employee.firstName} {report.employee.lastName}
+                  </p>
+                  <p className="mt-0.5 truncate text-sm text-subtle">
+                    {report.employee.employeeNo}
+                    {report.employee.category
+                      ? ` · ${localizeDepartmentLabel(null, report.employee.category.name, locale)}`
+                      : ""}
                   </p>
                 </div>
-              </button>
+              ),
+            },
+            {
+              key: "serviceArea",
+              title: t("pages.progress.columns.serviceArea"),
+              width: "11rem",
+              share: 1.1,
+              className: "min-w-[11rem]",
+              render: (report) => (
+                <p className="min-w-0 text-text">
+                  {report.stageLabel || t("pages.progress.untitledReport")}
+                </p>
+              ),
+            },
+            {
+              key: "submittedAt",
+              title: t("pages.progress.columns.submittedAt"),
+              width: "9rem",
+              share: 1,
+              className: "min-w-[9rem] whitespace-nowrap",
+              render: (report) => (
+                <span className="text-muted">
+                  {formatDisplayTime(report.createdAt)}
+                </span>
+              ),
+            },
+            {
+              key: "photos",
+              title: t("pages.progress.columns.photos"),
+              width: "9rem",
+              share: 1,
+              cellAlign: "right",
+              className: "min-w-[9rem] whitespace-nowrap",
+              render: (report) => (
+                <span className="text-lg font-semibold tabular-nums text-text">
+                  {report.photos.length}
+                </span>
+              ),
+            },
+            {
+              key: "actions",
+              title: t("common.labels.actions"),
+              width: "10rem",
+              share: 1,
+              cellAlign: "center",
+              className: "min-w-[10rem] overflow-visible",
+              render: (report) =>
+                mayEdit(report) ? (
+                  <Button
+                    type="button"
+                    size="badge"
+                    variant="secondary"
+                    className="gap-1"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openEdit(report);
+                    }}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    {t("common.actions.edit")}
+                  </Button>
+                ) : null,
+            },
+          ];
 
-              {projectOpen ? (
-                <div className="space-y-2 border-t border-border px-3 pb-4 pt-2 sm:px-4">
-                  {project.employees.map((employee) => {
-                    const empKey = `${project.id}:${employee.id}`;
-                    const empOpen = expandedEmployees.has(empKey);
-                    const name = `${employee.firstName} ${employee.lastName}`;
-
-                    return (
-                      <div
-                        key={empKey}
-                        className="rounded-xl border border-border bg-elevated/40"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => toggleEmployee(empKey)}
-                          className="flex w-full items-center gap-3 px-3 py-3 text-left transition hover:bg-elevated/80 sm:px-4"
-                        >
-                          {empOpen ? (
-                            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted" />
-                          ) : (
-                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted" />
-                          )}
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-text">
-                              {name}
-                            </p>
-                            <p className="mt-0.5 text-xs text-subtle">
-                              {employee.employeeNo}
-                              {employee.category
-                                ? ` · ${localizeDepartmentLabel(null, employee.category.name, locale)}`
-                                : ""}
-                              {" · "}
-                              {t(
-                                employee.reports.length === 1
-                                  ? "pages.progress.reportCountOne"
-                                  : "pages.progress.reportCountOther",
-                                { count: employee.reports.length }
-                              )}
-                            </p>
-                          </div>
-                          {employee.reports.length > 0 ? (
-                            <StatusBadge status="success" compact>
-                              {t("pages.progress.submitted")}
-                            </StatusBadge>
-                          ) : null}
-                        </button>
-
-                        {empOpen ? (
-                          <div className="space-y-2 border-t border-border px-3 py-3 sm:px-4">
-                            {employee.reports.length === 0 ? (
-                              <p className="px-1 py-2 text-sm text-subtle">
-                                {t("pages.progress.noReportsYet")}
-                              </p>
-                            ) : (
-                              employee.reports.map((report) => (
-                                <div
-                                  key={report.id}
-                                  className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5"
-                                >
-                                  <button
-                                    type="button"
-                                    onClick={() => setViewReport(report)}
-                                    className="min-w-0 flex-1 text-left"
-                                  >
-                                    <p className="truncate text-sm font-medium text-text">
-                                      {report.stageLabel ||
-                                        t("pages.progress.untitledReport")}
-                                    </p>
-                                    <p className="mt-0.5 text-xs text-subtle">
-                                      {formatDisplayTime(report.createdAt)}
-                                      {" · "}
-                                      {t(
-                                        report.photos.length === 1
-                                          ? "pages.progress.photoCountOne"
-                                          : "pages.progress.photoCountOther",
-                                        { count: report.photos.length }
-                                      )}
-                                    </p>
-                                  </button>
-                                  <div className="flex shrink-0 items-center gap-2">
-                                    <Button
-                                      type="button"
-                                      size="badge"
-                                      variant="infoBadge"
-                                      onClick={() => setViewReport(report)}
-                                    >
-                                      {t("common.actions.view")}
-                                    </Button>
-                                    {mayEdit(report) ? (
-                                      <Button
-                                        type="button"
-                                        size="badge"
-                                        variant="secondary"
-                                        className="gap-1"
-                                        onClick={() => openEdit(report)}
-                                      >
-                                        <Pencil className="h-3.5 w-3.5" />
-                                        {t("common.actions.edit")}
-                                      </Button>
-                                    ) : null}
-                                  </div>
-                                </div>
-                              ))
-                            )}
-                          </div>
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : null}
-            </SectionCard>
+          return (
+            <section key={project.id} className="space-y-3">
+              <div>
+                <h3 className="text-base font-semibold text-text">
+                  {project.name}{" "}
+                  <span className="font-medium text-subtle">
+                    ({reports.length})
+                  </span>
+                </h3>
+                <p className="mt-0.5 text-sm text-subtle">
+                  {t(
+                    project.employees.length === 1
+                      ? "pages.progress.assignedEmployeeOne"
+                      : "pages.progress.assignedEmployeeOther",
+                    { count: project.employees.length }
+                  )}
+                </p>
+              </div>
+              {reports.length === 0 ? (
+                <p className="text-sm text-subtle">
+                  {t("pages.progress.noReportsYet")}
+                </p>
+              ) : (
+                <DataTable
+                  columns={columns}
+                  data={reports}
+                  getRowKey={(report) => report.id}
+                  onRowClick={setViewReport}
+                  emptyMessage={t("pages.progress.noReportsYet")}
+                />
+              )}
+            </section>
           );
         })}
       </div>

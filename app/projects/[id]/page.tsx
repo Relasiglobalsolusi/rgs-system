@@ -56,7 +56,7 @@ import {
   usesMonthDurationTimeline,
 } from "@/lib/project-contract";
 import {
-  isInternalProjectSubCategory,
+  isRgsInternalProject,
   isServiceProjectSubCategory,
 } from "@/lib/project-subcategory";
 import {
@@ -130,6 +130,8 @@ import ProjectEquipmentPicker, {
 import ProjectInventoryPanel from "@/components/projects/ProjectInventoryPanel";
 import ProjectLocationMap from "@/components/projects/ProjectLocationMap";
 import ScrollToInvoicePeriod from "@/components/billing/ScrollToInvoicePeriod";
+import HoOfflineClientReviewPanel from "@/components/billing/HoOfflineClientReviewPanel";
+import { isAwaitingClientAction } from "@/lib/client-billing-review";
 
 const metaLabelClassName =
   "w-36 shrink-0 px-4 py-2.5 text-left align-top text-xs font-semibold uppercase tracking-[0.12em] text-subtle sm:w-44 sm:px-5";
@@ -483,7 +485,7 @@ export default async function ProjectDetailPage({
     item: row.item,
   }));
 
-  const isInternal = isInternalProjectSubCategory(project.subCategory);
+  const isInternal = isRgsInternalProject(project);
   const chargedTaxKind = projectChargedTaxKindFromRecord(project);
   const billingHref =
     !isInternal && project.clientId != null
@@ -714,6 +716,10 @@ export default async function ProjectDetailPage({
   const coordinatesLabel = hasSiteCoords
     ? `${project.latitude!.toFixed(6)}, ${project.longitude!.toFixed(6)}`
     : null;
+  const projectDemoFlags = project as typeof project & {
+    isDemo?: boolean;
+    isComplimentary?: boolean;
+  };
 
   return (
     <AppShell title={pageTitle}>
@@ -739,6 +745,7 @@ export default async function ProjectDetailPage({
         canMoveBackToPlanning={canMoveBackToPlanning}
         moveBackBlockedByCollection={moveBackBlockedByCollection}
         billingHref={billingHref}
+        hasPortalAccess={project.client?.hasPortalAccess !== false}
         projectId={project.id}
         projectName={project.name}
         subCategory={project.subCategory}
@@ -771,6 +778,9 @@ export default async function ProjectDetailPage({
           billingCycleEndDay: project.billingCycleEndDay,
           requiresTaxInvoice: project.requiresTaxInvoice,
           chargedTaxKind: project.chargedTaxKind,
+          isGovernmentContract: project.isGovernmentContract,
+          isDemo: Boolean(projectDemoFlags.isDemo),
+          isComplimentary: Boolean(projectDemoFlags.isComplimentary),
           pphRatePercent: decimalToNumber(project.pphRatePercent),
           otherTaxName: project.otherTaxName,
           contractPrice: contractPriceNum,
@@ -1297,6 +1307,7 @@ export default async function ProjectDetailPage({
                   chargedTaxKind={chargedTaxKind}
                   requiresTaxInvoice={project.requiresTaxInvoice}
                   pphRatePercent={decimalToNumber(project.pphRatePercent)}
+                  isGovernmentContract={project.isGovernmentContract}
                   canManage={canManage}
                   milestone={project.billingMode === "MILESTONE"}
                 />
@@ -1345,6 +1356,7 @@ export default async function ProjectDetailPage({
                             pphRatePercent: decimalToNumber(
                               project.pphRatePercent
                             ),
+                            isGovernmentContract: project.isGovernmentContract,
                           });
                         const statusChipLines = display.chipLines
                           ? localizeBillingChipLines(
@@ -1430,6 +1442,32 @@ export default async function ProjectDetailPage({
                   </table>
                 </div>
               )}
+              {canManage &&
+              project.client?.hasPortalAccess === false
+                ? invoicePeriodsForDisplay
+                    .filter(
+                      (period) =>
+                        period.status === "AWAITING_CLIENT_REVIEW" &&
+                        isAwaitingClientAction(period.clientReviewStatus)
+                    )
+                    .map((period) => (
+                      <div key={`${period.id}-offline-review`} className="mt-4">
+                        <p className="mb-2 text-sm font-medium text-text">
+                          {formatInvoicePeriodLabel(period, {
+                            projectName: project.name,
+                            billingMode: project.billingMode,
+                            locale,
+                          })}
+                        </p>
+                        <HoOfflineClientReviewPanel
+                          periodId={period.id}
+                          proposedAmount={
+                            decimalToNumber(period.amount) ?? contractPriceNum
+                          }
+                        />
+                      </div>
+                    ))
+                : null}
             </SectionCard>
           ) : null}
 

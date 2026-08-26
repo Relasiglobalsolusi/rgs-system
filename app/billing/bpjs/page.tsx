@@ -8,6 +8,7 @@ import PageIntro from "@/components/i18n/PageIntro";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import { financeToolbarActionClass } from "@/components/billing/finance-toolbar";
 import {
   currentBpjsPeriod,
   getBpjsFinancePeriod,
@@ -63,12 +64,25 @@ export default async function BpjsPage({
     <AppShell
       titleKey="pages.bpjs.title"
     >
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+      <div className="mb-5 space-y-4">
         <PageIntro
           titleKey="pages.bpjs.title"
           descriptionKey="pages.bpjs.description"
         />
-        <BpjsPeriodControl year={year} month={month} />
+        <div className="flex justify-end">
+          <BpjsPeriodControl
+            year={year}
+            month={month}
+            action={
+              <a
+                href={`/api/billing/bpjs-report?year=${year}&month=${month}`}
+                className={financeToolbarActionClass}
+              >
+                {t("pages.bpjs.downloadReport")}
+              </a>
+            }
+          />
+        </div>
       </div>
 
       <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">

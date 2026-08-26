@@ -27,7 +27,7 @@ export default function ImageLightbox({
   alt = "Photo",
 }: Props) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog skipUnsavedGuard open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton
         overlayClassName="z-[60] bg-black/85"

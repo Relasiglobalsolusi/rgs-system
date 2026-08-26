@@ -47,6 +47,11 @@ export async function applyResignIfLastDayReached(
     },
   });
 
+  const { writeOffUnrecoveredEmployeeDebt } = await import(
+    "@/lib/employee-unrecovered-debt"
+  );
+  await writeOffUnrecoveredEmployeeDebt(db, employeeId);
+
   await releaseEmployeeFromProjects(db, employeeId);
 
   if (employee.userId) {

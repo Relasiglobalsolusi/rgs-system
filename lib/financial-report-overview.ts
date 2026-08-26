@@ -28,7 +28,6 @@ import { computeParkingProjectTotals } from "@/lib/parking-economics";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/project-billing";
 import { jakartaYearMonth } from "@/lib/vat";
-import { sumPostedPettyCashOutflows } from "@/lib/petty-cash";
 import {
   getBpjsPayableTotals,
   type BpjsPayableTotals,
@@ -290,14 +289,16 @@ async function sumInternalStockIssues(
 
 async function sumPurchases(
   companyId: string,
-  purpose: "INTERNAL" | "PROJECT",
+  filter:
+    | { purpose: "INTERNAL" | "PROJECT" | "PETTY_CASH" }
+    | { purchaseCategory: "VEHICLE" },
   from?: Date,
   toExclusive?: Date
 ): Promise<number> {
   const invoices = await prisma.purchaseInvoice.findMany({
     where: {
       companyId,
-      purpose,
+      ...filter,
       reversedAt: null,
       paidAt: {
         not: null,
@@ -307,6 +308,8 @@ async function sumPurchases(
     },
     select: {
       amount: true,
+      supplierName: true,
+      invoiceRef: true,
       purchaseCategory: true,
       governmentTaxKind: true,
       governmentOperatingAmount: true,
@@ -347,30 +350,6 @@ async function sumPurchases(
       })
     );
   }, 0);
-}
-
-async function sumPettyCashTransferFees(
-  companyId: string,
-  from?: Date,
-  toExclusive?: Date
-): Promise<number> {
-  const invoices = await prisma.purchaseInvoice.findMany({
-    where: {
-      companyId,
-      purpose: "PETTY_CASH",
-      reversedAt: null,
-      paidAt: {
-        not: null,
-        ...(from ? { gte: from } : {}),
-        ...(toExclusive ? { lt: toExclusive } : {}),
-      },
-    },
-    select: { transferFeeIdr: true },
-  });
-  return invoices.reduce(
-    (sum, invoice) => sum + (decimalToNumber(invoice.transferFeeIdr) ?? 0),
-    0
-  );
 }
 
 async function sumPaidInvoices(
@@ -757,15 +736,15 @@ async function periodPnl(
     keptIncome,
     thrPaid,
     incidentExpenses,
-    pettyCashOut,
-    pettyCashTransferFees,
+    vehiclePurchases,
     importFx,
+    pettyCashTopUps,
   ] = await Promise.all([
     sumPaidInvoices(companyId, from, toExclusive, bank),
     sumSoldOff(companyId, from, toExclusive, bank),
     sumProjectInventoryIssues(companyId, from, toExclusive),
-    sumPurchases(companyId, "PROJECT", from, toExclusive),
-    sumPurchases(companyId, "INTERNAL", from, toExclusive),
+    sumPurchases(companyId, { purpose: "PROJECT" }, from, toExclusive),
+    sumPurchases(companyId, { purpose: "INTERNAL" }, from, toExclusive),
     sumInternalStockIssues(companyId, from, toExclusive),
     sumPayrollManagement(companyId, from, toExclusive),
     parkingPeriodTotals(companyId, from, toExclusive),
@@ -787,11 +766,9 @@ async function periodPnl(
     }),
     sumThrPaid(companyId, from, toExclusive),
     sumProjectExpenses(companyId, from, toExclusive),
-    sumPostedPettyCashOutflows(companyId, prisma, from, toExclusive).catch(
-      () => 0
-    ),
-    sumPettyCashTransferFees(companyId, from, toExclusive),
+    sumPurchases(companyId, { purchaseCategory: "VEHICLE" }, from, toExclusive),
     sumImportRateDifferences(companyId, from, toExclusive),
+    sumPurchases(companyId, { purpose: "PETTY_CASH" }, from, toExclusive),
   ]);
 
   const commercialWages = [...wages.entries()]
@@ -802,15 +779,16 @@ async function periodPnl(
       0
     );
   const overheadWages = wageTotalForSite(wages, OVERHEAD_WAGE_BUCKET);
+  const overheadPurchases = internalPurchases + pettyCashTopUps;
   const overhead: OverheadBreakdown = {
     wages: overheadWages,
-    internalPurchases,
+    internalPurchases: overheadPurchases,
     internalStockUsed: internalStock,
     importRateDifferenceExpense: importFx.expense,
     importRateDifferenceIncome: importFx.income,
     total:
       overheadWages +
-      internalPurchases +
+      overheadPurchases +
       internalStock +
       importFx.expense,
   };
@@ -829,8 +807,7 @@ async function periodPnl(
     payrollNetAdj +
     thrPaid +
     incidentExpenses +
-    pettyCashOut +
-    pettyCashTransferFees;
+    vehiclePurchases;
 
   return { pair: pair(moneyIn, moneyOut), overhead };
 }

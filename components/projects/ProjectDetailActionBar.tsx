@@ -69,6 +69,9 @@ type EditProject = {
   billingCycleEndDay?: number | null;
   requiresTaxInvoice: boolean;
   chargedTaxKind?: CommercialTaxKind | null;
+  isGovernmentContract?: boolean;
+  isDemo?: boolean;
+  isComplimentary?: boolean;
   pphRatePercent?: number | null;
   otherTaxName?: string | null;
   contractPrice?: number | null;
@@ -129,6 +132,7 @@ type Props = {
   clients: ClientOption[];
   catalog?: ProjectCatalogAreaDTO[];
   bankAccounts?: CompanyBankAccountOption[];
+  hasPortalAccess?: boolean;
   /** Page body between the top action bar and bottom Delete / End Contract. */
   children: ReactNode;
 };
@@ -160,6 +164,7 @@ export default function ProjectDetailActionBar({
   clients,
   catalog = [],
   bankAccounts = [],
+  hasPortalAccess = true,
   children,
 }: Props) {
   const { t } = useT();
@@ -231,6 +236,7 @@ export default function ProjectDetailActionBar({
                 <ProjectSubmitForApprovalButton
                   projectId={projectId}
                   projectName={projectName}
+                  hasPortalAccess={hasPortalAccess}
                   size="bar"
                 />
               ) : null}

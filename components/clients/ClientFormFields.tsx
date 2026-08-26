@@ -49,6 +49,7 @@ export type ClientFormDefaults = {
   contactPersonPhone?: string;
   clientType?: "COMPANY" | "INDIVIDUAL";
   multiProjectAccess?: boolean;
+  hasPortalAccess?: boolean;
 };
 
 type Props = {
@@ -63,6 +64,8 @@ type Props = {
   idPrefix?: string;
   hideShortCode?: boolean;
   hideLoginId?: boolean;
+  hasExistingPortalLogin?: boolean;
+  onPortalAccessChange?: (hasAccess: boolean) => void;
 };
 
 function SectionHeading({
@@ -112,6 +115,8 @@ export default function ClientFormFields({
   idPrefix = "",
   hideShortCode = false,
   hideLoginId = false,
+  hasExistingPortalLogin = false,
+  onPortalAccessChange,
 }: Props) {
   const { t } = useT();
   const nameOf = (field: string) =>
@@ -123,6 +128,9 @@ export default function ClientFormFields({
   const [lastName, setLastName] = useState(initialParts.lastName);
   const [clientType, setClientType] = useState<"COMPANY" | "INDIVIDUAL">(
     defaults?.clientType ?? "COMPANY"
+  );
+  const [hasPortalAccess, setHasPortalAccess] = useState<YesNoChoice>(
+    () => (defaults?.hasPortalAccess === false ? "No" : "Yes")
   );
   const [multiProjectAccess, setMultiProjectAccess] = useState<YesNoChoice>(
     () => (defaults?.multiProjectAccess ? "Yes" : "No")
@@ -593,8 +601,7 @@ export default function ClientFormFields({
         </div>
       ) : null}
 
-      {mode === "create" ? (
-        <div className={employeeDialogSectionClass}>
+      <div className={employeeDialogSectionClass}>
           <SectionHeading
             title={t("pages.clients.form.portalAccess")}
             description={
@@ -605,7 +612,36 @@ export default function ClientFormFields({
           />
 
           <div className={employeeDialogGridClass}>
-            {hideLoginId ? null : (
+            <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+              <label
+                id={idOf("client-has-portal-label")}
+                className={employeeDialogLabelClass}
+              >
+                {t("pages.clients.form.hasPortalAccess")}
+              </label>
+              <YesNoChoiceCards
+                id={idOf("client-has-portal")}
+                labelledBy={idOf("client-has-portal-label")}
+                value={hasPortalAccess}
+                onChange={(value) => {
+                  setHasPortalAccess(value);
+                  if (value === "No") {
+                    setMultiProjectAccess("No");
+                  }
+                  onPortalAccessChange?.(value === "Yes");
+                  onFormValuesChange?.();
+                }}
+              />
+              <input
+                type="hidden"
+                name={nameOf("hasPortalAccess")}
+                value={hasPortalAccess === "Yes" ? "yes" : "no"}
+              />
+              <p className={employeeDialogHintClass}>
+                {t("pages.clients.form.hasPortalAccessHint")}
+              </p>
+            </div>
+            {hasPortalAccess === "Yes" && !hideLoginId ? (
             <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
               <label
                 htmlFor={idOf("client-login-id")}
@@ -628,7 +664,7 @@ export default function ClientFormFields({
                   }}
                   maxLength={8}
                   pattern="[a-z]{8}"
-                  required
+                  required={hasPortalAccess === "Yes" && !hasExistingPortalLogin}
                   className={cn(employeeInputClass, "font-mono tracking-wide")}
                 />
                 <Button
@@ -682,8 +718,9 @@ export default function ClientFormFields({
                 </p>
               ) : null}
             </div>
-            )}
+            ) : null}
 
+            {hasPortalAccess === "Yes" ? (
             <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
               <label
                 id={idOf("client-multi-project-label")}
@@ -710,9 +747,11 @@ export default function ClientFormFields({
                 {t("pages.clients.form.multiProjectAccessHint")}
               </p>
             </div>
+            ) : (
+              <input type="hidden" name={nameOf("multiProjectAccess")} value="no" />
+            )}
           </div>
         </div>
-      ) : null}
     </div>
   );
 }

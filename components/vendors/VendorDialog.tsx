@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  showMissingRequiredFields,
   showRejection,
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
@@ -117,6 +118,14 @@ export default function VendorDialog({
   }, [open]);
 
   async function submit(formData: FormData) {
+    const form = document.getElementById(CREATE_FORM_ID);
+    if (
+      showMissingRequiredFields(
+        form instanceof HTMLFormElement ? form : null
+      )
+    ) {
+      return;
+    }
     const vendorType = String(formData.get("vendorType") ?? "");
     const npwpRaw = String(formData.get("npwp") ?? "").trim();
     const isIndividual =
@@ -189,6 +198,7 @@ export default function VendorDialog({
           <form
             id={CREATE_FORM_ID}
             action={submit}
+            noValidate
             onInput={handleFormInput}
           >
             <VendorFormFields

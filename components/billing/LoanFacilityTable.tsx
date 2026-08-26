@@ -34,25 +34,59 @@ export default function LoanFacilityTable({
       {
         key: "name",
         title: t("pages.loans.columns.name"),
-        width: "16rem",
+        width: "14rem",
         share: 2,
-        className: "min-w-[16rem]",
+        className: "min-w-[14rem]",
         render: (row) => (
           <div className="min-w-0">
             <p className="font-semibold text-text">{row.name}</p>
-            <p className="mt-0.5 max-w-md truncate text-sm text-subtle">
+            <p className="mt-0.5 truncate text-sm text-subtle">
               {row.source === "SHAREHOLDER"
                 ? t("pages.billing.loanSourceShareholder")
                 : t("pages.billing.loanSourceBank")}
-              {" · "}
-              {row.kind === "TERM"
-                ? t("pages.billing.bankLoanKindTerm")
-                : t("pages.billing.bankLoanKindStandby")}
-              {" · "}
-              {row.lenderName}
             </p>
           </div>
         ),
+      },
+      {
+        key: "creditor",
+        title: t("pages.loans.columns.creditor"),
+        width: "12rem",
+        share: 1.5,
+        className: "min-w-[12rem]",
+        render: (row) => (
+          <p className="min-w-0 text-text">{row.lenderName}</p>
+        ),
+      },
+      {
+        key: "kind",
+        title: t("pages.loans.columns.kind"),
+        width: "10rem",
+        cellAlign: "center",
+        className: "min-w-[10rem] overflow-visible",
+        render: (row) => {
+          const label =
+            row.kind === "TERM"
+              ? t("pages.billing.bankLoanKindTerm")
+              : t("pages.billing.bankLoanKindStandby");
+          const words = label.trim().split(/\s+/);
+          const lines =
+            words.length >= 2
+              ? ([
+                  words.slice(0, -1).join(" "),
+                  words[words.length - 1] ?? "",
+                ] as const)
+              : undefined;
+          return (
+            <StatusBadge
+              status={row.kind === "TERM" ? "info" : "warning"}
+              compact
+              lines={lines}
+            >
+              {label}
+            </StatusBadge>
+          );
+        },
       },
       {
         key: "outstanding",

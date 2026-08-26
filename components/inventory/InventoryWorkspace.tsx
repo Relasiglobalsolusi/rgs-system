@@ -39,6 +39,7 @@ import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
+import StatusBadge from "@/components/ui/StatusBadge";
 import {
   isBelowMinStock,
   stockValueOnHand,
@@ -618,12 +619,26 @@ function FactoryReturnsTable({
     {
       key: "status",
       title: t("pages.inventory.columns.status"),
-      width: "8rem",
-      render: (row) =>
-        localizeKnownKey(
-          `pages.inventory.factoryReturn.statuses.${row.status}`,
-          locale
-        ),
+      width: "10rem",
+      cellAlign: "center",
+      className: "min-w-[10rem] overflow-visible",
+      render: (row) => (
+        <StatusBadge
+          status={
+            row.status === "WAITING"
+              ? "warning"
+              : row.status === "REFUNDED"
+                ? "inactive"
+                : "success"
+          }
+          compact
+        >
+          {localizeKnownKey(
+            `pages.inventory.factoryReturn.statuses.${row.status}`,
+            locale
+          )}
+        </StatusBadge>
+      ),
     },
     {
       key: "refund",

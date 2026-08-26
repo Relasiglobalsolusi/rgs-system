@@ -43,7 +43,9 @@ export const en = {
       validationDescription:
         "Something needs to be corrected before this can continue.",
       serverUnreachable:
-        "Could not reach the server. Check that the app is running and try again."
+        "Could not reach the server. Check that the app is running and try again.",
+      fieldsStillMissing:
+        "Still missing: {fields}. Please complete these before continuing."
     }
   },
 
@@ -116,8 +118,10 @@ export const en = {
       active: "Active",
       inactive: "Inactive",
       searchProjects: "Search Projects...",
+      searchClients: "Search Clients...",
       searchBankAccounts: "Search Bank Accounts...",
       noMatchingProjects: "No projects match this search.",
+      noMatchingClients: "No clients match this search.",
       noMatchingBankAccounts: "No bank accounts match this search.",
       noResults: "No results",
       unknown: "Unknown",
@@ -142,11 +146,10 @@ export const en = {
       title: "Confirm",
       openBilling: "Open Billing",
       cannotUndo: "This action cannot be undone.",
-      unsavedTitle: "Unsaved Changes",
-      unsavedDescription:
-        "You have unsaved changes. Are you sure you want to exit?",
-      exitWithoutSaving: "Exit Without Saving",
-      keepEditing: "Keep Editing"
+      unsavedTitle: "Closing Will Discard All Data",
+      unsavedDescription: "Are You Sure?",
+      exitWithoutSaving: "Sure",
+      keepEditing: "No"
     },
       roles: {
       admin: "Admin",
@@ -190,12 +193,13 @@ export const en = {
       Loan: "Loan",
       BPJS: "BPJS",
       Sales: "Sales",
-      "Petty Cash": "Petty Cash",
+      "Petty Cash": "Advance Cash",
       "Upload History": "Upload History",
       "Payment & Settlement": "Payment & Settlement",
       THR: "THR",
       Payroll: "Internal Payroll",
       "Internal Payroll": "Internal Payroll",
+      Payslips: "Payslips",
       "Financial Report": "Financial Report",
       VAT: "VAT",
       "Progress Reports": "Progress Report",
@@ -301,10 +305,10 @@ export const en = {
       readyToInvoice2: "Invoice",
       awaitingClientReview1: "Pending",
       awaitingClientReview2: "Approval",
-      taxInvoiceDue1: "Tax",
+      taxInvoiceDue1: "Tax Document",
       taxInvoiceDue2: "Pending",
-      taxInvoiceDone1: "Tax Invoice",
-      taxInvoiceDone2: "Sent",
+      taxInvoiceDone1: "Tax Document",
+      taxInvoiceDone2: "Uploaded",
       latePayment1: "Late",
       latePayment2: "Payment",
       paymentDue1: "Payment",
@@ -540,6 +544,13 @@ export const en = {
       createDescriptionLandscapingOneTime:
         "Set up One-Time Landscaping with a payment plan staff can invoice later.",
       projectName: "Project name",
+      filterClient: "Client",
+      filterAllClients: "All Clients",
+      rgsInternalClient: "RGS Internal",
+      rgsInternalHint:
+        "This is our own work. There is no billed client, no demo, and no billing. Staff still check in and submit progress. Inventory can be assigned so you can see cost.",
+      rgsInternalLocationHint:
+        "There is no client contract. The map defaults to the Head Office. Choose the service area and work type as usual — shifts apply only when that work type uses them.",
       selectClient: "Select client",
       startingStage: "Starting Stage",
       serviceArea: "Service Area",
@@ -548,7 +559,13 @@ export const en = {
       serviceAreaParking: "Parking",
       serviceAreaSecurity: "Security",
       serviceAreaPayroll: "Payroll Management",
+      serviceAreaMaintenance: "Maintenance",
       serviceAreaHeadOffice: "Head Office",
+      isDemo: "Is This A Demo?",
+      isDemoHint: "Demo projects are always one-time.",
+      isDemoFree: "Is This Demo Free?",
+      isDemoFreeHint:
+        "Free demos skip billing, tax, contract price, and invoices.",
       subcategory: "Subcategory",
       oneTime: "One Time",
       oneTimeType: "One Time Type",
@@ -692,6 +709,16 @@ export const en = {
         "Choose the tax we charge this client. Value Added Tax means we issue a tax invoice. Income tax is withheld or final. Other Tax asks for the name and percent.",
       chargedTaxKindPlaceholder: "Select The Tax",
       chargedTaxKindRequired: "Select the tax we charge on this project.",
+      chargeVat: "Charge VAT?",
+      chargeVatHint:
+        "Yes adds Value Added Tax and a tax invoice. Government contracts still issue a tax invoice, but only DPP is paid to us.",
+      chargePph: "Charge PPh?",
+      chargePphHint:
+        "Yes adds income tax (withholding or final). You can charge VAT and PPh together.",
+      pphKind: "Income Tax Kind",
+      governmentContract: "Government Contract",
+      governmentContractHint:
+        "Cash In Is DPP Only. The Institution Pays The Tax. We Still Issue A Tax Invoice. Relasi Does Not Remit That VAT, And No Tax Leaves Our Account.",
       pphRatePercent: "Income Tax Rate",
       pphRatePercentHint:
         "Usual Article 23 withholding is 2%. Change it if this project uses another rate.",
@@ -768,6 +795,11 @@ export const en = {
       visitPlan: "Visit Windows",
       visitPlanHint:
         "Multiple visits finish the job each trip and invoice that visit. This is not milestone progress on one continuous job.",
+      visitPlanHintInternal:
+        "Set the visit windows on this one project — for example two or four times a year — so you do not create the same job twice.",
+      multipleVisitProject: "Is This A Multiple Visit Project?",
+      multipleVisitHint:
+        "Yes keeps one Landscaping or Security job with several visits in the year. No is a single visit.",
       visitN: "Visit {n}",
       visitStart: "Visit start",
       visitEnd: "Visit end",
@@ -935,8 +967,8 @@ export const en = {
           "Regular Cleaning is treated as a site contract. End date is calculated from start date and duration.",
         contractStart: "Contract start date",
         contractEnd: "Contract end date",
-        durationMonths: "Duration",
-        durationDays: "Duration",
+        durationMonths: "Estimated Duration",
+        durationDays: "Estimated Duration",
         daysUnit: "days",
         planningStageFieldNote:
           "(estimated for projects in planning stage)",
@@ -1019,6 +1051,7 @@ export const en = {
         noInvoicePeriods: "No invoice periods recorded.",
         invoice: "Invoice",
         downloadPdf: "Download PDF",
+        downloadInvoice: "Download Invoice",
         shiftRange: "Shift {start} – {end}",
         noShiftSet: "No shift set",
         backupChip: "Backup {start} – {end} · {rate} / day",
@@ -1090,6 +1123,8 @@ export const en = {
           "Invoice Sent and Due Date are empty because the sales invoice has not been issued yet. That happens after this period is approved.",
         pendingApprovalWhy:
           "Pending Approval means the progress package for this cycle was sent for review. The client must Approve or Revise. If they revise, Head Office reviews the change. The sales invoice is issued only after both sides agree.",
+        pendingApprovalNoPortalWhy:
+          "This client has no portal login. Head Office records Approved or Revised here after sending the report outside the ERP. The sales invoice is issued only after that Head Office record.",
         pendingApprovalClientRevised:
           "The client asked for a revision. Head Office still needs to accept or reject that change before this period can be invoiced.",
         pendingApprovalHoRejected:
@@ -1475,9 +1510,14 @@ export const en = {
         contactPhone: "Contact Person Phone",
         portalAccess: "Portal Access",
         portalAccessDesc:
-          "A portal Login ID is always created from the company name. Revoke access later in Users if needed.",
+          "Choose whether this client will log into the ERP. Regular contract clients usually yes. One-time General or Façade clients usually no.",
         portalAccessDescIndividual:
-          "A portal Login ID is always created from their name. Revoke access later in Users if needed.",
+          "Choose whether this person will log into the ERP. One-time jobs usually do not need a portal.",
+        hasPortalAccess: "Will This Client Have A Portal Login?",
+        hasPortalAccessHint:
+          "Yes uses the client approve/revise flow in the ERP. No means Head Office downloads the report, sends it outside the system, then records the outcome.",
+        hasPortalAccessYes: "Yes",
+        hasPortalAccessNo: "No",
         clientType: "Client Type",
         clientTypeCompany: "Company",
         clientTypeIndividual: "Individual",
@@ -1726,7 +1766,18 @@ export const en = {
         vendorType: "Vendor Type",
         vendorTypeCompany: "Company",
         vendorTypeIndividual: "Individual",
-        vendorTypeOverseas: "Overseas"
+        vendorTypeOverseas: "Overseas",
+        bankAccounts: "Bank Accounts",
+        bankAccountsDesc:
+          "Where we pay this vendor. Add every account they use.",
+        bankName: "Bank Name",
+        accountNumber: "Account Number",
+        accountHolder: "Bank Account Name",
+        accountLabel: "Label",
+        accountLabelPlaceholder: "e.g. BCA Operating",
+        addBankAccount: "Add Bank Account",
+        removeBankAccount: "Remove",
+        bankAccountRequired: "Add at least one vendor bank account so expenses know where to pay."
       }
     },
     employees: {
@@ -2061,6 +2112,7 @@ export const en = {
         startDate: "Start Date",
         startDateHint: "Employee hire or start date for tenure tracking.",
         contactEmail: "Contact email",
+        phone: "Phone",
         portalLogin: "Portal Login",
         finances: "Finances",
         financesHint:
@@ -2451,7 +2503,7 @@ export const en = {
       ppnKeluaran: "Output VAT",
       purchase: "Expenses",
       purchaseDescription:
-        "Record every company expense here: supplier bills, services, and Petty Cash top-ups.",
+        "Record every company expense here: supplier bills, services, Petty Cash top-ups, and Vehicle prepaid card top-ups.",
       purchaseTaxTitle: "Tax Invoice (Input VAT)",
       purchaseTaxDesc:
         "Purchase invoices that include PPN masukan or already have a tax invoice file.",
@@ -2480,7 +2532,7 @@ export const en = {
       settlementsApEmptyDesc:
         "Link purchases to vendors with payment terms to track AP due dates.",
       settlementsOpenBilling: "Open Invoice & Billing",
-      settlementsOpenPurchases: "Open Purchases",
+      settlementsOpenPurchases: "Open Expenses",
       vendorStatusTaxMissing: "Needs Tax Invoice",
       vendorStatusOpen: "Open",
       vendorStatusOverdue: "Overdue",
@@ -2499,6 +2551,9 @@ export const en = {
       expenseReportPeriodMonth: "{month} {year}",
       expenseReportPeriodDay: "{day} {month} {year}",
       expenseReportPeriodYear: "{year}",
+      expenseReportPayFrom: "Paid From",
+      expenseReportPayTo: "Paid To",
+      expenseReportBanks: "From {from} · To {to}",
       purchaseCardTotal: "Total Expenses",
       purchaseCardUnpaid: "Unpaid",
       purchaseCardUnpaidHint: "Still in Accounts Payable",
@@ -2512,7 +2567,7 @@ export const en = {
       purchaseUpload: "Add Expense",
       purchaseUploadTitle: "Add Expense",
       purchaseUploadDesc:
-        "Record a supplier bill, a service, or a Petty Cash top-up. Attach the bill when it is a vendor invoice.",
+        "Record a supplier bill, a service, a Petty Cash top-up, or a Vehicle prepaid card top-up. Attach the bill when it is a vendor invoice.",
       purchaseSupplier: "Vendor",
       purchaseVendorSelect: "Select Vendor",
       purchaseVendorRequired: "Select a registered vendor.",
@@ -2659,13 +2714,56 @@ export const en = {
       purchaseCategoryVehicle: "Vehicle",
       purchaseCategoryService: "Service",
       purchaseCategoryPettyCash: "Petty Cash",
+      purchaseCategoryAdvanceCash: "Petty Cash",
+      advanceCashKind: "Advance Cash Type",
+      advanceCashKindPetty: "Petty Cash",
+      advanceCashKindPrepaid: "Prepaid Card",
+      advanceCashPettyHint:
+        "Cash float top-up. Prepaid cards are topped up under Vehicle → Prepaid Card. Employee cash advance under Employee Payments is a different thing.",
+      advanceCashPrepaidHint:
+        "Top up a vehicle prepaid card under Vehicle → Prepaid Card. Fuel, toll, and parking spends are recorded under Advance Cash → Prepaid Cards.",
+      prepaidCard: "Prepaid Card",
+      prepaidCardRequired: "Choose the prepaid card to top up.",
+      prepaidCardEmpty: "Add a prepaid card under Advance Cash first.",
+      prepaidCardHint: "One card belongs to one vehicle. This top-up adds to that card’s balance.",
       purchaseCategoryGovernment: "Government",
       purchaseCategoryBankLoan: "Loan",
+      purchaseCategoryEmployee: "Employee Payments",
       purchaseCategoryHint:
-        "A product becomes warehouse stock. A vehicle is bought locally and recorded under Inventory → Vehicles. Service, Petty Cash, Government, and Loan are not stock.",
+        "A product becomes warehouse stock. A vehicle is bought locally and recorded under Inventory → Vehicles. Top up a prepaid card under Vehicle → Prepaid Card. Service, Petty Cash, Government, Loan, and Employee Payments are not stock.",
+      employeePaymentKind: "Payment Type",
+      employeePaymentKindHint:
+        "Record Internal Payroll, THR, or a cash advance paid before payday.",
+      employeePaymentInternalPayroll: "Internal Payroll",
+      employeePaymentThr: "THR",
+      employeePaymentCashAdvance: "Cash Advance",
+      employeePaymentDepartment: "Department",
+      employeePaymentDepartmentAll: "All Departments",
+      employeePaymentEmployee: "Employee",
+      employeePaymentEmployeeSearch: "Search employee…",
+      employeePaymentEmployeeRequired: "Choose the employee who received this cash advance.",
+      employeePaymentKindRequired: "Choose Internal Payroll, THR, or Cash Advance.",
+      employeePaymentPeriod: "Payroll Month",
+      employeePaymentPeriodHint:
+        "This cash advance is deducted from Internal Payroll for this month.",
+      employeePaymentAutoPeriod:
+        "Deducted from the next Internal Payroll (closest pay). You do not pick the month.",
+      employeePaymentAutoPeriodHint:
+        "If they take a cash advance on the 1st or the 24th, the closest upcoming pay still deducts it. Other payroll deductions use the same rule.",
+      payFromAccount: "Paid From",
+      payFromAccountHint: "Company bank account the money leaves.",
+      payToAccount: "Bank, Bank Account Name, And Account Number",
+      payToAccountHint:
+        "Choose the bank, bank account name, and account number this expense is paid to.",
+      payToAccountRequired:
+        "Choose the bank, bank account name, and account number this expense is paid to.",
+      payToAccountEmpty:
+        "This vendor has no bank account yet. Add the bank, bank account name, and account number on the vendor first.",
+      governmentBpjsVaKesehatan: "BPJS Kesehatan Virtual Account",
+      governmentBpjsVaKetenagakerjaan: "BPJS Ketenagakerjaan Virtual Account",
       loanSource: "Loan Source",
       loanSourceBank: "Bank Loan",
-      loanSourceShareholder: "Shareholder Loan",
+      loanSourceShareholder: "Private Loan",
       loanSourceHint:
         "Choose who lent the money first. For a bank loan, choose what this payment is for. Then choose the registered loan.",
       loanSourceRequired: "Choose Bank Loan or Shareholder Loan.",
@@ -2694,7 +2792,7 @@ export const en = {
       loanExpenseTermHint:
         "Type the amount paid this time. You can pay more or less than the usual installment.",
       loanOutstanding: "Outstanding Principal",
-      loanChargesInterest: "Does The Shareholder Charge Interest?",
+      loanChargesInterest: "Does The Creditor Charge Interest?",
       loanChargesInterestHint:
         "If yes, choose Monthly Interest or Annual Interest, then enter the rate. Daily outstanding is billed each month as an unpaid expense.",
       loanInterestBasis: "Interest Quoted As",
@@ -2707,7 +2805,7 @@ export const en = {
       loanMonthlyRateHint:
         "Quoted per month. Daily interest uses this percent divided by the days in that calendar month.",
       loanMonthlyRateRequired: "Enter the monthly interest rate.",
-      loanShareholderName: "Shareholder Name",
+      loanShareholderName: "Creditor Name",
       loanInterestPaid: "Interest Paid",
       loanPrincipalReturned: "Principal Returned",
       bankLoanKind: "Loan Type",
@@ -2718,7 +2816,29 @@ export const en = {
       bankLoanKindStandbyHint:
         "Indonesian banks call this a Standby Loan or Kredit Rekening Koran. Interest is charged only on the drawn amount. The unused limit does not accrue interest.",
       bankLoanKindTermHint:
-        "This is a Term Loan (Kredit Angsuran). Indonesian banks usually use anuitas: one fixed monthly amount that starts as mostly interest and later becomes mostly principal.",
+        "This is a Term Loan (Kredit Angsuran). Choose Flat, Effective (sliding), or Annuity. Annuity matches the usual OCBC / BCA / Mandiri anuitas formula.",
+      loanCalculationMethod: "Loan Calculation Method",
+      loanCalculationMethodFlat: "Flat",
+      loanCalculationMethodEffective: "Effective",
+      loanCalculationMethodAnnuity: "Annuity",
+      loanCalculationMethodHint:
+        "Flat: total interest = principal × annual rate × years, then split evenly. Effective: interest on remaining principal (first installment shown). Annuity: fixed installment M = P × r × (1+r)^n / ((1+r)^n − 1).",
+      loanCalculationMethodFlatHint:
+        "Total interest = principal × annual rate × years, then split evenly across the tenor.",
+      loanCalculationMethodEffectiveHint:
+        "Interest is charged on the remaining principal. The first installment shown is principal ÷ months plus interest on the full principal.",
+      loanCalculationMethodAnnuityHint:
+        "Fixed installment M = P × r × (1+r)^n / ((1+r)^n − 1), where r is the monthly rate. This matches the usual OCBC / BCA / Mandiri anuitas.",
+      loanCalculationMethodRequired: "Choose Flat, Effective, or Annuity.",
+      loanCommitmentFee: "Does this loan have a commitment fee?",
+      loanCommitmentFeeHint:
+        "Some standby facilities charge a fee per annum on the unused limit.",
+      loanCommitmentFeeRate: "Commitment Fee Rate % Per Annum",
+      loanCommitmentFeeRateHint:
+        "Charged on the unused credit ceiling. Fee = unused × this annual rate × days / 360. A 90-day quarter at 0.5% on Rp 6.000.000.000 unused is Rp 7.500.000.",
+      loanCommitmentFeePreview:
+        "If the unused ceiling stays {unused} for {days} days: {amount}.",
+      loanCommitmentFeeRateRequired: "Enter the commitment fee rate.",
       bankLoanAnuitasHint:
         "Monthly payment uses the Indonesian bank anuitas formula: M = P × r × (1+r)^n / ((1+r)^n − 1), where r is the monthly rate. This is the usual method at BCA, Mandiri, and BNI. It is not the only method — some banks still use flat or sliding-effective — but anuitas is the one this ERP uses so the installment matches a typical bank schedule.",
       bankLoanKindRequired: "Choose Standby Loan or Term Loan.",
@@ -2844,6 +2964,19 @@ export const en = {
         "Warehouse Cost is what it cost to get the product to Indonesia, minus the applicable tax credits (Value Added Tax and Income Tax Article 22).",
       purchaseImportWarehouseAfterDuties:
         "Tax credits and warehouse cost are set when import duties are recorded. Factory Rupiah uses the Booking Rate, or the Bank Rate on Cash. Customs Rate is only for duties. Paying later does not change warehouse or project cost.",
+      vehicleExpenseKind: "What Is This Vehicle Expense For",
+      vehicleExpenseKindPurchase: "Purchasing A Vehicle",
+      vehicleExpenseKindFuel: "Fuel",
+      vehicleExpenseKindServicing: "Servicing",
+      vehicleExpenseKindModification: "Modifications",
+      vehicleExpenseKindOther: "Other Vehicle Cost",
+      vehicleExpenseKindPrepaid: "Prepaid Card",
+      vehicleExpenseKindRequired: "Choose what this vehicle expense is for.",
+      vehiclePrepaidSpendHint:
+        "This top-up is paid from the company bank and adds to the prepaid card balance. Fuel, toll, and parking spends are recorded under Advance Cash → Prepaid Cards.",
+      vehiclePrepaidCardRequired: "Choose which prepaid card to top up.",
+      payFromPending: "Not chosen yet — select the company account when you pay.",
+      payToPending: "Not chosen yet — select the vendor account when you pay.",
       purchaseOrigin: "Where Was This Bought",
       purchaseOriginLocal: "Bought Locally",
       purchaseOriginImport: "Imported From Overseas",
@@ -2879,6 +3012,21 @@ export const en = {
         "The management fee the customs agent charges to help get the goods out.",
       handlingFeeHintOutsourced:
         "The all-in amount we reimburse the handler. Their invoice covers duties and tax.",
+      handlingAllInCharge: "All-In Charge",
+      handlingAllInHint:
+        "This single charge includes duties and handling.",
+      handlingHasTaxInvoice: "Does This Charge Have A Tax Invoice?",
+      handlingDetailsNowTitle: "Handling Details",
+      handlingDetailsNowHint:
+        "Enter these now if you already have them. You can also add them later.",
+      handlingOptionalFile: "Supporting File (Optional)",
+      handlingLaterWithDuties: "Pay handling later with import duties",
+      handlingLaterWithDutiesHint:
+        "The handler invoices handling together with import duties. Enter the handling vendor, fee, and invoice when duties are paid.",
+      handlingDueWithDuties:
+        "Handling will be recorded when import duties are paid.",
+      handlingPaidAtArrivalHint:
+        "Handling is paid when the goods arrive, together with import duties. Warehouse cost appears only then. A booking-rate versus bank-rate difference is booked to Head Office as rate-difference profit or expense for that product.",
       handlingFeeRequired: "Enter the handling fee.",
       handlingFeeIncludesPpn: "Is Value Added Tax Charged On This Handling Fee?",
       handlingFeePpnRate: "Handling Fee Value Added Tax Rate",
@@ -3123,14 +3271,14 @@ export const en = {
       searchClients: "Search clients...",
       searchProjects: "Search projects...",
       awaitingOrLate: "Awaiting Payment or late",
-      noTaxPending: "No Tax Invoices pending",
+      noTaxPending: "No Tax Documents pending",
       noTaxPendingDesc:
-        "When you issue an invoice for a project marked with tax, it appears here until the Tax Invoice is marked sent.",
+        "When you issue an invoice for a project marked with tax, it appears here until the tax document is uploaded.",
       noTaxCompleted: "No completed items",
-      noTaxCompletedDesc: "Sent Tax Invoices will show up here.",
-      taxInvoiceDue: "Tax Invoice Due",
-      taxInvoiceSent: "Tax Invoice Sent",
-      markTaxDone: "Upload Tax Invoice",
+      noTaxCompletedDesc: "Uploaded tax documents will show up here.",
+      taxInvoiceDue: "Tax Document Due",
+      taxInvoiceSent: "Tax Document Uploaded",
+      markTaxDone: "Upload Tax Document",
       submitPayment: "Submit payment",
       rejectPayment: "Reject payment proof",
       rejectPaymentConfirm:
@@ -3170,7 +3318,7 @@ export const en = {
       emptySearchClients: 'No results for "{query}"',
       emptyProjects: "No projects for this client",
       emptyProjectsDesc: "Active projects for this client appear here.",
-      markTaxSentFailed: "Failed to mark Tax Invoice Sent.",
+      markTaxSentFailed: "Failed to upload the tax document.",
       billingPeriod: "Billing period",
       paymentReceived1: "Payment",
       paymentReceived2: "Received",
@@ -3184,9 +3332,23 @@ export const en = {
         "Upload the tax invoice, then confirm. Can be done before or after payment is recorded.",
       documentVerifyContext: "For",
       proofOfPayment: "Proof of payment",
-      taxInvoiceDocument: "Tax invoice",
+      taxInvoiceDocument: "Tax Invoice",
+      withholdingSlip: "Withholding Tax Slip",
+      withholdingSlipHint:
+        "Bukti Potong PPh. Upload This When Income Tax Is Charged Together With VAT.",
+      chooseWithholdingSlip:
+        "Please choose an image or PDF of the withholding tax slip.",
+      withholdingSlipUploadTitle: "Upload Withholding Tax Slip",
+      withholdingSlipUploadDesc:
+        "Upload the Bukti Potong, then confirm it matches the document.",
       chooseTaxInvoiceDocument:
         "Please choose an image or PDF of the tax invoice.",
+      taxDocumentUploadTitle: "Upload Tax Document",
+      taxDocumentUploadDesc:
+        "Upload the tax document, then confirm. Billing ID, Bukti Setor, or other supporting proof.",
+      taxDocumentUploadFailed: "Failed to upload the tax document.",
+      chooseTaxDocument:
+        "Please choose an image or PDF of the tax document.",
       paymentVerifyHint:
         "Documents stay on this server. Head Office confirms here with a reason.",
       taxInvoiceVerifyHint:
@@ -3216,9 +3378,9 @@ export const en = {
         "Download invoices and upload payment proof for this project.",
       paidInvoiceCannotDelete: "Paid invoice periods cannot be deleted.",
       deleteIssuedInvoiceConfirm:
-        "Delete “{label}”? This removes the issued invoice, any PDF, and payment proof. This cannot be undone.",
+        "Void “{label}”? The period returns to Reconcile or Submit for Approval so you can fix the bill. The amount stays. Issued files and payment proof are removed.",
       deletePeriodConfirm:
-        "Delete “{label}”? This cannot be undone.",
+        "Void “{label}”? The period returns to Reconcile or Submit for Approval. The amount stays. Files for this bill are removed.",
       thisBillingPeriod: "this billing period",
       paymentProofImageOrPdf: "Payment proof must be an image or PDF.",
       choosePaymentProof: "Please choose an image or PDF as proof of payment.",
@@ -3412,10 +3574,37 @@ export const en = {
         "DPP and PPN are derived from tax-inclusive amounts at {rate}% until faktur amounts are stored.",
       outputTotal: "Output VAT",
       outputTotalHint: "PPN Keluaran for this period",
+      outputTotalYearHint: "PPN Keluaran for the whole year",
       inputTotal: "Input VAT",
       inputTotalHint: "PPN Masukan for this period",
+      inputTotalYearHint: "PPN Masukan for the whole year",
       netPayable: "Net VAT",
-      netPayableHint: "Input VAT − Output VAT. Plus is credit. Minus is amount we owe.",
+      netPayableHint: "Input VAT − Output VAT this month. Plus is credit. Minus is amount we settle this month.",
+      netYear: "Year Net VAT",
+      netYearHint:
+        "Input VAT − Output VAT for the whole year. Plus is credit. Minus is amount we owed overall.",
+      creditBroughtForward: "VAT Credit",
+      creditBroughtForwardHint:
+        "Unused input VAT brought from earlier months after those months were settled. This is never a minus.",
+      creditBroughtForwardYearHint:
+        "Unused input VAT left at year end after each month was settled. Carried into next year. This is never a minus.",
+      taxReportDownload: "Download Tax Report",
+      taxReportTitle: "Tax Report",
+      taxReportHint:
+        "Output VAT, input VAT, brought-forward VAT credit, prepaid income tax, and other tax for the selected period.",
+      taxReportDate: "Date",
+      taxReportParty: "Party",
+      taxReportDetail: "Detail",
+      taxReportDpp: "DPP",
+      taxReportPpn: "VAT",
+      taxReportAmount: "Amount",
+      taxReportTotal: "Total",
+      taxReportEmptyOutput: "No output VAT falls in this period.",
+      taxReportEmptyInput: "No input VAT falls in this period.",
+      taxReportEmptyIncome: "No prepaid corporate income tax falls in this year.",
+      taxReportEmptyOther: "No other tax falls in this period.",
+      taxReportPeriodMonth: "{month} {year}",
+      taxReportPeriodYear: "{year}",
       vatPaid: "VAT Paid",
       vatPaidHint: "Government Billing ID payments this month",
       vatRemaining: "VAT Still To Pay",
@@ -3465,6 +3654,7 @@ export const en = {
         "No import Income Tax Article 22 or government Corporate Income Tax payments fall in this year.",
       incomeSourceImport: "Import",
       incomeSourceGovernment: "Government Billing ID",
+      incomeSourceProject: "Project Withholding",
       columns: {
         client: "Client",
         vendor: "Vendor",
@@ -3472,19 +3662,29 @@ export const en = {
         gross: "Gross",
         dpp: "DPP",
         ppn: "VAT",
-        faktur: "Tax Invoice",
+        taxInvoiceNumber: "Tax Invoice Number",
+        faktur: "Tax Document",
         source: "Source",
         credit: "Prepaid Tax",
         amount: "Amount"
       },
       openTaxInvoices: "Open Tax Invoice",
-      openPurchases: "Open Purchases",
+      openPurchases: "Open Expenses",
       taxDetail: "Tax Details",
       backToTax: "Back To Tax",
       relatedExpense: "This Expense",
       relatedBilling: "Project Billing",
       taxDocuments: "Tax Documents",
-      taxDocumentMissing: "No tax invoice uploaded yet.",
+      supportingTaxDocument: "Tax Document",
+      taxDocumentMissing: "No tax document uploaded yet.",
+      taxInvoiceNumberPlaceholder: "e.g. 010.000-26.00000001",
+      taxInvoiceNumberHint:
+        "Type the Tax Invoice Number printed on the Faktur Pajak.",
+      taxInvoiceNumberReading: "Reading the document…",
+      taxInvoiceNumberDetected:
+        "Filled from the document. Check it matches, then confirm.",
+      taxInvoiceNumberVerify:
+        "I checked this Tax Invoice Number against the document.",
       fakturReady: "Uploaded",
       fakturPending: "Pending",
       emptyOutput: "No Output VAT",
@@ -3493,7 +3693,11 @@ export const en = {
       emptyInput: "No Input VAT",
       emptyInputDesc:
         "No supplier purchases with PPN fall in this month.",
-      invoicePeriodFallback: "Invoice Period"
+      invoicePeriodFallback: "Invoice Period",
+      governmentClient: "Government",
+      governmentPaidDirectlyTitle: "Paid Directly To The Government",
+      governmentPaidDirectly:
+        "This is a government-institution contract. The client government institution pays this tax (VAT and/or PPh) straight to the government. Relasi does not remit it from company funds — treat this line as already paid."
     },
     sales: {
       title: "Sales",
@@ -3552,11 +3756,58 @@ export const en = {
         paymentProofHint:
           "Optional. Upload the bank transfer slip later if payment is not in yet.",
         paidAt: "Payment Date",
-        paidAtHint: "Optional. Defaults to the sale date when payment proof is uploaded."
+        paidAtHint: "Optional. Defaults to the sale date when payment proof is uploaded.",
+        warehouseCost: "Warehouse Cost",
+        warehouseCostHint:
+          "What this stock cost us in the warehouse. After the sale, stock is reduced. If the sale is reversed, stock is put back."
       }
     },
     financialReport: {
       title: "Financial Report",
+      downloadReport: "Download Financial Report",
+      reportHint:
+        "Every money-in and money-out line for the selected period, plus Accounts Receivable and Accounts Payable.",
+      reportTotal: "Total",
+      reportDate: "Date",
+      reportSource: "Source",
+      reportDetail: "Detail",
+      reportAmount: "Amount",
+      reportEmptyMoneyIn: "No revenue lines fall in this period.",
+      reportEmptyMoneyOut: "No expense lines fall in this period.",
+      reportEmptyAr: "No unpaid client invoices.",
+      reportEmptyAp: "No unpaid vendor bills.",
+      reportEmptyFunding: "No loan draws or returns fall in this period.",
+      reportFunding: "Loan Draws And Returns",
+      reportFundingHint: "Funding, not revenue. Shown so the download is complete.",
+      reportSources: {
+        paidInvoice: "Paid Invoice",
+        sale: "Sale",
+        payrollManagement: "Payroll Management",
+        parking: "Parking",
+        parkingFee: "Parking Client Fee",
+        parkingShare: "Parking Profit Share",
+        parkingTax: "Parking Tax",
+        parkingSetup: "Parking Setup",
+        depositKept: "Deposit Retained",
+        importIncome: "Import Rate Difference Income",
+        purchase: "Expense",
+        inventory: "Inventory",
+        wages: "Wages",
+        overheadWages: "Warehouse Wages",
+        overheadStock: "Internal Stock Used",
+        thr: "THR",
+        pettyCashTopUp: "Top Up Petty Cash",
+        prepaidCardTopUp: "Top Up Prepaid Card",
+        transferFee: "Transfer Fee",
+        incident: "Project Expense",
+        depositReturned: "Deposit Refunded",
+        importExpense: "Import Rate Difference Expense",
+        payrollAdjustment: "Payroll Adjustment",
+        loanDraw: "Loan Draw",
+        loanReturn: "Loan Return",
+        receivable: "Accounts Receivable",
+        payable: "Accounts Payable"
+      },
       description:
         "Pick a year, a month or the whole year, and General or one client.",
       filterYear: "Year",
@@ -3567,6 +3818,10 @@ export const en = {
       filterBank: "Bank Account",
       filterBankAll: "All Banks",
       filterBankUnassigned: "Unassigned",
+      transferReport: "Transfer Report",
+      transferReportHint:
+        "Download what was transferred, filtered by client and company bank. Vendor bank details stay off this page.",
+      downloadTransferReport: "Download Transfer Report",
       rangeHint:
         "Income uses the calendar period. Wages use the 16th–15th payroll window for that same month or year. Unpaid vendor bills are Accounts Payable, not expenses.",
       periodNet: "Period Profit",
@@ -3603,7 +3858,7 @@ export const en = {
       companyMoneyInHint:
         "Approved or invoiced amounts after tax is taken out by dividing, plus retained employee deposits. Held deposits are not income.",
       companyMoneyOutHint:
-        "Stock used on jobs, vendor bills when paid, Internal Payroll, parking outflows, Head Office overhead, and refunded employee deposits.",
+        "Stock used on jobs, vendor bills when paid, Internal Payroll, parking outflows, Head Office overhead, Petty Cash top-ups, prepaid card top-ups, and refunded employee deposits.",
       stockInWarehouse: "Inventory Value",
       stockInWarehouseHint: "Value of goods on hand. Not yet charged to a job.",
       headOfficeOverhead: "Head Office Overhead",
@@ -3666,7 +3921,7 @@ export const en = {
         moneyInHelp:
           "Revenue includes retained employee deposits and Head Office income when an import Bank Rate is lower than the Booking Rate.",
         moneyOutHelp:
-          "Expenses include Head Office overhead, refunded employee deposits, and Head Office expense when an import Bank Rate is higher than the Booking Rate.",
+          "Expenses include Head Office overhead, Petty Cash top-ups, prepaid card top-ups, refunded employee deposits, and Head Office expense when an import Bank Rate is higher than the Booking Rate.",
         overheadHelp:
           "Head Office wages, Internal purchases paid this period, stock used on Internal sites, and import rate differences booked to Head Office.",
         depositsHelp:
@@ -3760,6 +4015,12 @@ export const en = {
     },
     thr: {
       title: "THR",
+      downloadReport: "Download THR Report",
+      reportTitle: "THR Report",
+      reportHint:
+        "Every THR payment for the selected year, with employee, tenure, base pay, amount, and status.",
+      reportEmpty: "No THR payments fall in this year.",
+      reportTotal: "Total",
       description:
         "Generate and track Tunjangan Hari Raya (Idul Fitri) payments from employee base pay.",
       directoryTitle: "THR Payments",
@@ -3778,6 +4039,9 @@ export const en = {
       generateFailed: "Failed to generate THR.",
       generateOutsideWindow:
         "THR can only be generated within {days} days before Idul Fitri.",
+      paidVsUnpaid: "Paid / Unpaid",
+      paidVsUnpaidValue: "{paid} / {unpaid}",
+      paidVsUnpaidHint: "{paid} paid, {unpaid} unpaid.",
       paymentsTitle: "Generated Payments",
       paymentsDesc: "THR rows for {year}.",
       emptyTitle: "No THR Payments Yet",
@@ -3798,6 +4062,50 @@ export const en = {
       markPaid: "Mark Paid",
       markPaidFailed: "Failed to mark THR as paid."
     },
+    payslips: {
+      title: "Payslips",
+      description:
+        "Monthly attendance, why each employee was paid, deductions, and Balance Due To Company.",
+      directoryTitle: "Payslips",
+      directoryDesc:
+        "All active employees. Open a name for monthly pay history. Balance Due To Company is shown on each row.",
+      balanceDueTitle: "Employees",
+      emptyBalance: "No Employees To Show.",
+      emptyMonths: "No Monthly Pay History Yet.",
+      emptyMonth: "No Payslip For This Month.",
+      openPayroll: "Open Internal Payroll",
+      historyTitle: "Monthly Pay History",
+      historyDesc:
+        "Open a month to see days worked, earnings, and deductions. Preview is the unlocked draft. Issued is the locked official payslip.",
+      previewHint: "Pay is calculated, but this month is not locked yet.",
+      issuedHint: "Internal Payroll is locked. This is the official payslip.",
+      clickEmployee: "Open payslip history",
+      clickMonth: "Open this month",
+      monthDetailTitle: "Payslip",
+      earnings: "Earnings",
+      deductions: "Deductions",
+      bpjsEmployee: "BPJS Employee",
+      bpjsCompany: "BPJS Company",
+      netPay: "Net Pay",
+      daysWorked: "Days Worked",
+      preview: "Preview",
+      locked: "Locked",
+      issued: "Issued",
+      noPay: "—",
+      noPayslip: "No Payslip",
+      backToEmployee: "Back To Payslips",
+      filterYear: "Year",
+      filterApply: "Apply",
+      columns: {
+        employee: "Employee",
+        amountOwed: "Balance Due To Company",
+        deposit: "Security Deposit",
+        bpjsHeld: "Held BPJS Share",
+        month: "Month",
+        netPay: "Net Pay",
+        status: "Status"
+      }
+    },
     loans: {
       title: "Loan",
       description:
@@ -3811,12 +4119,12 @@ export const en = {
       failed: "Could not save this loan.",
       emptyTitle: "No Loans Registered",
       emptyDesc:
-        "Register a bank facility or a shareholder loan, then record draws and returns here.",
+        "Register a bank facility or a private loan, then record draws and returns here.",
       name: "Loan Name",
       namePlaceholder: "e.g. BCA Standby Loan",
       source: "Loan Source",
       lenderName: "Lender",
-      lenderNameHint: "The bank or the shareholder this money comes from.",
+      lenderNameHint: "The bank or the creditor this money comes from.",
       startDate: "Start Date",
       notes: "Notes",
       notesPlaceholder: "Optional notes",
@@ -3840,6 +4148,8 @@ export const en = {
       outstandingPrincipal: "Outstanding Principal",
       interestPaidThisMonth: "Interest Paid This Month",
       unusedLimit: "Unused Credit Ceiling",
+      commitmentFeeThisMonth: "Commitment Fee This Month",
+      commitmentFeeActual360: "Actual / 360",
       recordDraw: "Record Draw",
       recordDrawTitle: "Record Money Taken",
       recordDrawDesc:
@@ -3885,6 +4195,11 @@ export const en = {
       extendLoanTermDesc:
         "Enter the new interest rate. The monthly installment is recalculated with the Indonesian bank anuitas method on remaining principal and remaining tenor.",
       extendLoanConfirm: "Save Extension",
+      extendTermsChanged: "Did Interest Or Terms Change?",
+      extendTermsChangedHint:
+        "Choose Yes only if the ceiling, rate, or calculation changed. If nothing changed, we just extend the period.",
+      extendTermsUnchanged:
+        "The current ceiling and rate stay the same. The loan is extended for another year.",
       extendFailed: "Could not extend this loan.",
       newCeiling: "New Credit Ceiling",
       newCeilingHint:
@@ -3903,6 +4218,8 @@ export const en = {
       columns: {
         name: "Loan",
         source: "Source",
+        creditor: "Creditor",
+        kind: "Loan Type",
         outstanding: "Outstanding",
         next: "Next Payment",
         status: "Status"
@@ -3916,12 +4233,33 @@ export const en = {
       noMovements: "No draws or returns yet.",
       interestRate: "Interest Rate",
       dayCount: "Day Count",
+      dayCountYear: "Day Count Year",
+      variable: "Variable",
+      value: "Value",
+      variablesTitle: "Calculation Variables",
+      variablesDesc:
+        "Day count, rate, and method used for interest, commitment fee, and installments.",
+      editVariables: "Edit Variables",
+      editVariablesTitle: "Edit Calculation Variables",
+      editVariablesDesc:
+        "Update the day count, rate, and method used for this facility.",
+      editVariablesSave: "Save Variables",
+      editVariablesFailed: "Could not save these variables.",
+      commitmentFeeApplies: "Commitment Fee Applies",
       creditCeiling: "Credit Ceiling",
       noInterest: "Does Not Charge Interest",
       backToLoans: "Loan"
     },
     bpjs: {
       title: "BPJS",
+      downloadReport: "Download BPJS Report",
+      reportTitle: "BPJS Report",
+      reportHint:
+        "Every enrolled employee for BPJS Kesehatan and BPJS Ketenagakerjaan, with employee share, company share, total, and program lines.",
+      reportEmpty: "No BPJS enrollment or payments fall in this period.",
+      reportTotal: "Total",
+      reportEmployees: "Enrolled Employees",
+      reportHolding: "Employee Holding",
       description:
         "Enrollment and payment record. Record the virtual-account payment in Expenses.",
       alreadyPaid: "Already Paid",
@@ -3969,11 +4307,64 @@ export const en = {
         dueDate: "Due Date",
         status: "Status",
         employee: "Employee",
-        employeeShare: "Employee Share"
-      }
+        employeeNo: "Employee No",
+        employeeShare: "Employee Share",
+        enrolled: "Enrolled",
+        components: "Program Lines"
+      },
+      wageBaseLine: "Wage Base {amount}",
     },
     pettyCash: {
-      title: "Petty Cash",
+      title: "Advance Cash",
+      tabPetty: "Petty Cash",
+      tabPrepaid: "Prepaid Cards",
+      prepaidCreate: "Add Prepaid Card",
+      prepaidCreateDesc:
+        "One card belongs to one vehicle. It can only pay fuel, toll, and parking.",
+      prepaidCreateFailed: "Could not save this prepaid card.",
+      prepaidEmptyTitle: "No Prepaid Cards Yet",
+      prepaidEmptyDesc:
+        "Add a card and choose the vehicle it belongs to. Top-ups go through Expenses → Vehicle → Prepaid Card.",
+      prepaidSpend: "Record Spend",
+      prepaidSpendDesc: "Upload the fuel, toll, or parking bill.",
+      prepaidSpendConfirm: "Debit Prepaid Card",
+      prepaidSpendFailed: "Could not record this prepaid spend.",
+      prepaidAddCard: "Add Card",
+      cardManageDenied: "Only the owner can add or edit prepaid cards.",
+      totalTopUp: "Total Top Up",
+      totalSpend: "Total Spend",
+      netPosition: "Net Position",
+      filterCard: "Card",
+      filterAllCards: "All Cards",
+      filterMonth: "Month",
+      filterYear: "Year",
+      filterDay: "Day",
+      filterAllMonths: "All Months",
+      filterAllDays: "All Days",
+      downloadReport: "Download Report",
+      editCard: "Edit Prepaid Card",
+      editCardDesc: "Change the card number or the vehicle this card is on.",
+      deleteCard: "Delete Card",
+      deleteCardConfirm: "Delete this prepaid card and its spend history?",
+      deleteCardFailed: "Could not delete this prepaid card.",
+      updateFailed: "Could not save this prepaid card.",
+      entriesTitle: "Card Activity",
+      entriesEmpty: "No Prepaid Card Activity In This Filter.",
+      prepaidChooseCard: "Choose which prepaid card this spend is for.",
+      prepaidChooseVehicle: "Choose the vehicle this spend is for.",
+      prepaidCardForVehicle:
+        "The prepaid card on this vehicle is used automatically.",
+      prepaidLinkedCard: "Prepaid Card",
+      cardNumber: "Card Number",
+      vehicle: "Vehicle",
+      prepaidOneVehicleHint: "Each vehicle can have only one prepaid card.",
+      prepaidInventoryOnlyHint:
+        "Only vehicles already in Inventory (bought and on hand) can receive a card. Catalogue-only vehicles are not listed.",
+      prepaidBalance: "Card Balance",
+      spendKind: "This Bill Is For",
+      spendFuel: "Fuel",
+      spendToll: "Toll",
+      spendParking: "Parking",
       description:
         "Cash entrusted to field and operations staff for meals, client entertainment, emergencies, and daily part-time pay.",
       currentBalance: "Current balance",
@@ -3983,7 +4374,7 @@ export const en = {
       monthOut: "This month expenses",
       upcoming: "Scheduled part-time pay still ahead: {amount}",
       negativeWarning:
-        "The float is below zero. Record a top-up under Expenses.",
+        "Petty Cash is below zero. Record a Top Up under Expenses.",
       recordSpend: "Record Spend",
       spendTitle: "Record Petty Cash Spend",
       spendDesc:
@@ -4005,11 +4396,19 @@ export const en = {
       billIsForHint:
         "Attribute this spend to an Area Manager, Operations Manager, or Director.",
       project: "Project",
-      projectPlaceholder: "Optional project",
-      projectHint: "Tag a site when this spend belongs to a job.",
+      projectPlaceholder: "Select project",
+      projectHint: "This spend hits that project's profit and loss.",
       emptyTitle: "No Petty Cash Entries Yet",
       emptyDesc:
-        "Add a Petty Cash top-up under Expenses, or record a spend with a bill photo.",
+        "Add a Petty Cash Top Up under Expenses, or record a spend with a bill photo.",
+      chargeType: "Charge To",
+      chargeTypeClient: "Client",
+      chargeTypeProject: "Project",
+      chargeTypeRequired: "Choose Client or Project.",
+      client: "Client",
+      clientPlaceholder: "Select client",
+      clientHint:
+        "This spend hits the client's general profit and loss, not a project.",
       viewProof: "View proof",
       columns: {
         date: "Date",
@@ -4020,7 +4419,7 @@ export const en = {
         proof: "Proof"
       },
       kind: {
-        TOP_UP: "Top-up",
+        TOP_UP: "Top Up",
         SPEND: "Spend",
         PART_TIME_PAY: "Part-time pay"
       },
@@ -4077,6 +4476,11 @@ export const en = {
       totalEmployees: "Employees",
       totalWage: "Total Wages",
       totalNetPay: "Total Net Pay",
+      totalBalanceDue: "Total Balance Due To Company",
+      balanceDueToCompany: "Balance Due To Company",
+      balanceDueToCompanyHint:
+        "This employee owes the company. The amount is shown for recovery. It is not subtracted from other employees’ net pay.",
+      employeeBalanceWithCompany: "Balance With Company",
       tableTitle: "Payroll Detail",
       tableDesc:
         "Active RGS staff and anyone with complete CICO in the period. Days worked = 9 hours or more (18 hours on an assigned double shift). Under-hours days stay unpaid until Full pay or a custom amount. Late or early flags do not change pay here.",
@@ -4129,7 +4533,8 @@ export const en = {
         other: "Other",
         returnOfSecurityDeposit: "Return Of Security Deposit",
         clientCompensation: "Client Compensation",
-        forfeitedWages: "Remaining Wage Not Paid"
+        forfeitedWages: "Remaining Wage Not Paid",
+        cashAdvance: "Cash Advance"
       },
       depositStatus: {
         none: "None",
@@ -4182,22 +4587,57 @@ export const en = {
         "Client has not responded for two or more days. Remind them — there is no auto-approve.",
       clientPendingTitle: "Awaiting your review",
       clientPendingHelp:
-        "Approve to generate the invoice, or revise with a note and optional proof for Head Office.",
+        "Approve to generate the invoice, or revise with a reason, adjusted amount, and optional proof for Head Office.",
       emptyTitle: "Nothing here",
       emptyDescription: "No reconciliation or progress reviews in this list yet.",
       openBilling: "Open billing",
+      openDetails: "Open details",
       viewReport: "View report",
-      sendForClientReview: "Send for review",
+      detailTitle: "Reconciliation Detail",
+      revisionReason: "Revision Request Reason",
+      revisionProof: "Client supporting proof",
+      noRevisionNote: "No revision note was recorded.",
+      sendForClientReview: "Send For Review",
+      downloadAndSend: "Download And Send",
+      downloadAndSendHint:
+        "This client has no portal. Generate the report, send it yourself, then record their reply.",
+      noPortalSentTitle: "This Client Has No Portal Login",
+      noPortalSentLead:
+        "Download the progress report and send it to the client yourself. Then follow this Head Office flow.",
+      noPortalSentConfirm: "I Understand",
+      noPortalSentStepDownload:
+        "Download the progress report and send it to the client outside the ERP.",
+      noPortalSentStepReply:
+        "Wait for their reply. If they ask for a change, settle it with them first.",
+      noPortalSentStepApprove:
+        "Record Approved or Revised here. Head Office approves — the client cannot do it in the system.",
+      noPortalSentStepInvoice:
+        "After approval, generate the invoice, download it, and send it to the client.",
+      noPortalSentStepPayment:
+        "When they pay, they send proof. Upload the proof so the invoice can move to Payment Due / paid.",
+      noPortalSentStepTax:
+        "Upload the tax invoice they send — PPN, or PPN and PPh, matching the project tax.",
       clientActionTitle: "Your review",
       clientActionHelp:
-        "Review the report, then Approve (invoice is issued) or Revise (explain what is wrong).",
+        "Review the report, then choose Approve or Revise.",
+      chooseApprove: "Approve",
+      chooseRevise: "Revise",
+      chooseApproveHint: "Issue the invoice at the agreed amount.",
+      chooseReviseHint: "Request a change and send an adjusted amount.",
+      approveCardHelp: "Approve this report to generate the invoice.",
+      approveProposedHelp:
+        "Approve Head Office’s proposed amount of {amount}. An invoice will be generated.",
+      hoChooseApproveHint: "Accept the client’s requested amount and issue the invoice.",
+      hoChooseReviseHint: "Reject the request and propose a new amount.",
       confirmClientApprove:
         "Approve this report? An invoice will be generated. For a final General or Facade part, the project is marked completed at this point.",
       approve: "Approve",
       approving: "Approving…",
       revise: "Revise",
-      reviseNoteLabel: "What is wrong or inaccurate?",
+      reviseNoteLabel: "Revision Request Reason",
       reviseNotePlaceholder: "Describe the issue in the report…",
+      revisedRequestedAmount: "Adjusted Amount",
+      proposedAmount: "Proposed Amount",
       reviseProofLabel: "Supporting proof (optional)",
       submitRevise: "Submit revision",
       submittingRevise: "Submitting…",
@@ -4212,7 +4652,7 @@ export const en = {
       hoApprove: "Approve revision",
       hoReject: "Reject revision",
       revisedInvoiceHelp:
-        "Enter the revised invoice value (and optional invoice number) before issuing to the client.",
+        "Enter the agreed invoice amount. The invoice is issued only after this approval.",
       revisedAmount: "Revised invoice amount",
       revisedInvoiceNumber: "Revised invoice number",
       confirmHoApprove: "Approve & issue invoice",
@@ -4223,6 +4663,27 @@ export const en = {
       sendingReject: "Sending…",
       hoApproveFailed: "Failed to approve revision.",
       hoRejectFailed: "Failed to reject revision.",
+      reviseAmountMustDiffer:
+        "A revision must use a different amount. If the number is unchanged, choose Approve.",
+      filterYear: "Year",
+      filterMonth: "Month",
+      filterAllMonths: "All Months",
+      filterApply: "Apply",
+      approvedCardHint: "Approved reports and invoices for the selected period.",
+      revisedCardHint: "Revisions waiting on Head Office, plus revised history.",
+      offlineReviewTitle: "Record Client Response",
+      offlineReviewHelp:
+        "This client has no portal login. Download the report, send it yourself, then record what they decided.",
+      offlineApproved: "Approved",
+      offlineRevised: "Revised",
+      offlineApprovedHint: "Invoice at the contract / proposed amount.",
+      offlineRevisedHint: "They agreed a new amount in real time. Enter the reason and the new number.",
+      offlineReason: "Why It Was Revised",
+      offlineReasonPlaceholder: "Explain the agreed change…",
+      offlineNewAmount: "Revised Invoice Amount",
+      offlineSubmit: "Record And Invoice",
+      offlineSubmitting: "Recording…",
+      offlineFailed: "Could not record the client response.",
       completedPeriodsTitle: "Invoiced periods",
       invoiceSent: "Invoice sent",
       taxInvoiceIssued: "Tax invoice",
@@ -4239,6 +4700,13 @@ export const en = {
         "Open a project to view notes and photos for your sites.",
       searchClients: "Search Clients",
       searchProjects: "Search Projects",
+      cards: {
+        clients: "Clients",
+        projects: "Projects",
+        internal: "Internal",
+        reports: "Reports",
+        employees: "Employees"
+      },
       clientsSection: "Clients",
       clientsSectionDesc: "In Progress project sites grouped by client.",
       internalSection: "Internal",
@@ -4392,7 +4860,15 @@ export const en = {
       },
       columns: {
         photos: "Photos",
-        notes: "Notes"
+        notes: "Notes",
+        client: "Client",
+        project: "Project",
+        location: "Location",
+        type: "Type",
+        reports: "Reports",
+        employee: "Employee",
+        serviceArea: "Service Area",
+        submittedAt: "Submitted"
       }
     },
     cico: {
@@ -4622,6 +5098,7 @@ export const en = {
       saving: "Saving...",
       saveFailed: "Failed to update shift.",
       rosterTitle: "Staff Shifts",
+      assignedStaffTitle: "Assigned Staff",
       windowsTitle: "Project Shifts",
       windowsHint:
         "Set hours here. Shifts on this project cannot overlap. Add Shift when the site needs another named shift (up to 4). Use Remove on a row after staff, backups, and double shifts are unassigned from that shift.",
@@ -4642,10 +5119,26 @@ export const en = {
         "Create teams by service area, then add permanent employees to each roster.",
       availabilityTitle: "Team Availability",
       addTeam: "Add Team",
+      assignMembersOnCreate: "Assign Employees",
+      assignEquipmentOnCreate: "Assign Equipment",
+      noEligibleMembers: "No available employees to assign yet.",
+      noEquipment: "No equipment units to assign yet.",
       editTeam: "Edit Team",
       deleteTeam: "Delete Team",
       members: "Members",
       addMember: "Add Member",
+      assignEquipment: "Assign Equipment",
+      assignEquipmentHint:
+        "Equipment assigned to the team follows the team to every job.",
+      assignEquipmentSearch: "Search Equipment",
+      assignEquipmentEmptySearch: "No Equipment Matches This Search.",
+      assignEquipmentEmpty: "No available equipment units to assign.",
+      assignEquipmentSave: "Save Equipment",
+      assetCode: "Asset Code",
+      item: "Item",
+      assigned: "Assigned",
+      currentTeam: "Current Team",
+      unassigned: "Unassigned",
       name: "Team Name",
       kind: "Team Type",
       kindGeneral: "General Cleaning",
@@ -4659,10 +5152,18 @@ export const en = {
       emptySearch: "No teams match this search.",
       emptyMembers: "No members on this team yet.",
       emptyEligible: "No eligible employees are free to join a team.",
+      emptyEligibleFiltered: "No eligible employees in this department.",
+      emptyEligibleSearch: "No employees match this search.",
+      searchEmployees: "Search employees...",
+      searchEquipment: "Search equipment...",
       memberCount: "{count} members",
       memberCountOne: "1 member",
       statusAvailable: "Available",
       statusOnSite: "On Site",
+      cardTeams: "Teams",
+      cardAvailable: "Available",
+      cardOnSite: "On Site",
+      cardMembers: "Members",
       createFailed: "Could not create the team.",
       updateFailed: "Could not update the team.",
       deleteFailed: "Could not delete the team.",
@@ -4855,6 +5356,7 @@ export const en = {
       stockShort: "Below request",
       outOfStock: "Out Of Stock",
       itemNotAvailable: "Item Not Available",
+      itemNotInStock: "Item Not In Stock",
       itemOutOfStock: "This item is out of stock.",
       status: {
         requested: "Requested",
@@ -4867,6 +5369,7 @@ export const en = {
         sku: "SKU",
         qty: "Quantity Requested",
         onHand: "On Hand",
+        stock: "Stock",
         availability: "Availability",
         requester: "Requester",
         reviewed: "Reviewed",
@@ -4879,6 +5382,15 @@ export const en = {
       title: "Transfer Orders",
       description:
         "Warehouse Queue: browse by client and project, send approved materials, then site confirms receipt.",
+      cards: {
+        pendingSend: "Pending Send",
+        inTransit: "In Transit",
+        clients: "Clients",
+        sites: "Internal Sites",
+        projects: "Projects",
+        received: "Received",
+        openOrders: "Open Orders"
+      },
       pendingTitle: "Pending Transfer Order",
       pendingTitleOther: "Pending Transfer Orders",
       pendingDesc:
@@ -4905,8 +5417,6 @@ export const en = {
       projectsSection: "Projects",
       projectCountOne: "{count} project",
       projectCountOther: "{count} projects",
-      badgePending: "{count} pending",
-      badgeInTransit: "{count} transit",
       queueTitle: "Warehouse Queue",
       queueDesc:
         "Each card shows the destination project, requester, item breakdown, and stock availability before you mark sent.",
@@ -4948,9 +5458,6 @@ export const en = {
       requestedBy: "Requested by {name}",
       sentBy: "Sent by {name}",
       receivedBy: "Received by {name}",
-      statPending: "{count} pending send",
-      statSent: "{count} in transit",
-      statReceived: "{count} received",
       status: {
         pendingSend: "Pending Send",
         sent: "Sent",
@@ -4965,7 +5472,16 @@ export const en = {
         createdAt: "Created",
         sentAt: "Sent",
         receivedAt: "Received",
-        itemsToSend: "Items to send"
+        itemsToSend: "Items to send",
+        destination: "Destination",
+        project: "Project",
+        items: "Items",
+        date: "Date",
+        status: "Status",
+        pending: "Pending",
+        inTransit: "In Transit",
+        completed: "Completed",
+        site: "Site"
       }
     },
     reports: {
@@ -5003,7 +5519,7 @@ export const en = {
       noStockToIssue:
         "No items have available stock. Record a stock receipt before assigning to a project.",
       quantityExceedsStock:
-        "Quantity exceeds available stock. Available: {available} {unit}.",
+        "Only {available} {unit} are on hand. This sale cannot exceed available stock.",
       quantityMustBeWhole: "{field} must be a whole number.",
       quantityMustBePositive: "{field} must be greater than zero.",
       quantityMustBeNonNegative: "{field} must be zero or greater.",
@@ -5052,6 +5568,10 @@ export const en = {
       buyerPhoneRequired: "Buyer contact number is required.",
       buyerIdentityDocRequired: "Upload the tax invoice (faktur pajak) for this sale.",
       buyerTaxIdRequired: "Company Tax ID (NPWP) is required for company buyers.",
+      buyerIdNumberRequiredWhenNoNpwp:
+        "Enter The Buyer NIK (Local) Or Passport (Foreigner) When There Is No NPWP.",
+      buyerIdNumberInvalid:
+        "Enter A 16-Digit NIK Or A Passport Number (6–12 Letters And Numbers).",
       taxRateRequired: "Enter a tax rate for this sale.",
       taxAmountRequired: "Sale tax amount must be greater than zero.",
       clientNotFound: "Linked client was not found.",
@@ -5418,6 +5938,7 @@ export const en = {
         catalogItemNoSearchMatch: "No stocked items match this search.",
         soldOffNoStockForType:
           "No stocked items of this type are available to sell.",
+        selectItemTypeToShowStock: "Select An Item Type To Show Stock.",
         quantity: "Quantity",
         notes: "Notes",
         issueItemHint: "Only items with on-hand stock are listed.",
@@ -5441,7 +5962,7 @@ export const en = {
           "Optional note for why this sale is being reversed (for example, buyer cancelled).",
         reverseSaleReasonHint:
           "Optional. Your name and the reversal time are recorded automatically.",
-        saleDate: "Sale Date",
+        saleDate: "Invoice Date",
         saleUnitPrice: "Sale Unit Price (Ex Tax)",
         saleUnitPriceExTaxHint:
           "Enter the pre-tax (ex-tax) unit price. Tax is calculated from the rate below.",
@@ -5488,11 +6009,15 @@ export const en = {
         buyerIdentityDoc: "Tax Invoice",
         buyerIdentityDocHint:
           "Required for company buyers. Upload the tax invoice (faktur pajak) only — the sales invoice PDF is generated automatically.",
+        buyerIdentityDocHintAll:
+          "Required For Every Buyer. Upload The Tax Invoice (Faktur Pajak). Relasi Is PKP.",
         buyerTaxId: "Company Tax ID (NPWP)",
         buyerTaxIdIndividual: "Tax ID (NPWP)",
         buyerTaxIdPlaceholder: "15 Or 16 Digit NPWP",
-        buyerIdNumber: "National ID (KTP)",
-        buyerIdNumberPlaceholder: "16 Digit NIK / KTP",
+        buyerTaxIdPlaceholderHint:
+          "If The Buyer Has No NPWP, Leave This Blank. The System Uses 00.000.000.0-000.000 And Requires NIK Or Passport.",
+        buyerIdNumber: "National ID / Passport",
+        buyerIdNumberPlaceholder: "16 Digit NIK Or Passport Number",
         buyerIdentityEitherHint:
           "Required: enter Tax ID (NPWP) or National ID (KTP) — at least one.",
         soldOffItemHint:
@@ -5560,8 +6085,12 @@ export const en = {
       bulkCreateSuccess: "Added {count} catalog items.",
       deactivate: "Deactivate",
       delete: "Delete",
+      deactivateHint:
+        "Deactivate stops the item for new purchases. It stays in the catalog as inactive.",
+      deleteHint:
+        "Delete removes the item from the catalog. If stock remains, Inventory keeps it until the quantity is zero.",
       deleteConfirm:
-        "Delete “{name}”? Unused items are removed permanently. Items with purchase or stock history are archived so history is kept.",
+        "Delete “{name}”? Unused items are removed permanently. Items with purchase or stock history leave the catalog, but remaining stock stays in Inventory until it is used up.",
       itemDeactivated: "Catalog item deactivated.",
       itemReactivated: "Catalog item restored.",
       itemDeleted: "Catalog item deleted.",
@@ -5575,6 +6104,8 @@ export const en = {
       stats: {
         activeTitle: "Active Items",
         activeSubtitle: "{inactive} inactive",
+        inactiveTitle: "Inactive Items",
+        inactiveSubtitle: "Hidden from new purchases",
         totalTitle: "Total Items",
         totalSubtitle: "Active and inactive catalog entries"
       },
@@ -5610,9 +6141,21 @@ export const en = {
         contact: "Contact",
         contactHint: "Office address and how clients reach the company.",
         tax: "Tax",
+        government: "Government Payments",
+        governmentHint:
+          "Company virtual accounts used when Head Office pays BPJS from Expenses.",
         bank: "Bank",
         bankHint:
           "Recipient accounts printed on invoices. Add every account clients may pay to."
+      },
+      cards: {
+        website: "Website",
+        taxId: "NPWP",
+        banks: "Bank Accounts",
+        set: "Set",
+        notSet: "Not Set",
+        banksOne: "{count} Account",
+        banksOther: "{count} Accounts"
       },
       form: {
         name: "Company Name",
@@ -5625,6 +6168,10 @@ export const en = {
         email: "Email",
         npwp: "NPWP",
         npwpHint: "Company tax ID. Printed on letterheads when filled.",
+        bpjsKesehatanVa: "BPJS Kesehatan Virtual Account",
+        bpjsKetenagakerjaanVa: "BPJS Ketenagakerjaan Virtual Account",
+        bpjsVaHint:
+          "Prefills Add Expense when you pay that programme. Paying a bill also saves the number used.",
         bankName: "Bank Name",
         bankAccountNumber: "Account Number",
         bankAccountName: "Account Holder",
@@ -5665,7 +6212,7 @@ export const en = {
     teams: "Teams",
     progress: "Progress Report",
     cico: "CICO",
-    pettyCash: "Petty Cash",
+    pettyCash: "Advance Cash",
     attendance: "Attendance Report",
     shifts: "Shifts",
     leaves: "Leave & Sick",

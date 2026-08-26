@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
   useCallback,
@@ -20,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useUnsavedDialogGuard } from "@/components/ui/unsaved-dialog-guard";
 import { preventBrowserFileNavigation } from "@/components/ui/FileDropField";
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
@@ -48,7 +49,7 @@ export const employeeDialogSectionsClass = "flex flex-col gap-8";
 /** Spacing within a section (heading â†’ field grid). */
 export const employeeDialogSectionClass = "flex flex-col gap-6";
 
-/** Label â†’ control gap for a single field. */
+/** Label to control gap for a single field. */
 export const employeeDialogFieldClass = "flex flex-col gap-2.5";
 
 /** Two-column paired fields with wider gutters than outer margins alone. */
@@ -57,6 +58,19 @@ export const employeeDialogGridClass =
 
 /** Choice chips: each chip fills and centers in its grid cell. */
 export const employeeDialogChoiceGridClass = "grid grid-cols-2 gap-2";
+
+/** 2 → two columns, 3 → three columns, 4 → two-by-two, odd leftover spans full width. */
+export function choiceGridClassForCount(count: number) {
+  if (count <= 1) return "grid grid-cols-1 gap-2";
+  if (count === 3) return "grid grid-cols-1 gap-2 sm:grid-cols-3";
+  return "grid grid-cols-2 gap-2";
+}
+
+/** Last chip spans the full row when a 2-column grid has an odd count. */
+export function choiceGridSpanLastClass(index: number, total: number) {
+  if (total === 3) return undefined;
+  return total % 2 === 1 && index === total - 1 ? "col-span-2" : undefined;
+}
 
 export const employeeDialogChoiceChipClass =
   "inline-flex min-h-8 w-full items-center justify-center rounded-xl px-3 py-1.5 text-center text-xs font-semibold tracking-wide transition";
@@ -89,12 +103,12 @@ export function handleEmployeeDialogOpenChange(
     return;
   }
 
-  if (!isDirty) {
+  if (!isDirty || !eventDetails) {
     onClose();
     return;
   }
 
-  eventDetails?.cancel();
+  eventDetails.cancel();
   onRequestExitConfirm();
 }
 
@@ -340,16 +354,26 @@ export function EmployeeSecondaryButton({
   children,
   disabled,
   onClick,
+  closesDialog = true,
 }: {
   children: ReactNode;
   disabled?: boolean;
   onClick?: () => void;
+  closesDialog?: boolean;
 }) {
+  const guard = useUnsavedDialogGuard();
+
   return (
     <button
       type="button"
       disabled={disabled}
-      onClick={onClick}
+      onClick={() => {
+        if (closesDialog && guard && !guard.skip) {
+          guard.requestClose(() => guard.closeDialog());
+          return;
+        }
+        onClick?.();
+      }}
       className="flex h-11 w-full items-center justify-center rounded-xl border border-border bg-elevated text-sm font-medium text-text transition hover:bg-card-hover disabled:cursor-not-allowed disabled:opacity-60"
     >
       {children}
@@ -550,7 +574,11 @@ export function EmployeeUnsavedExitDialog({
   const { t } = useT();
 
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>
+    <Dialog
+      skipUnsavedGuard
+      open={open}
+      onOpenChange={(nextOpen) => !nextOpen && onCancel()}
+    >
       <DialogContent
         showCloseButton={false}
         className="gap-0 overflow-hidden rounded-2xl border border-border bg-panel p-0 text-text ring-0 sm:max-w-sm"

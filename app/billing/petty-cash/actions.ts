@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 
+import { applyMissingExpenseTopUps } from "@/lib/advance-cash-expense";
 import {
   parseDateInput,
   parsePettyCashAmount,
@@ -39,6 +40,12 @@ function requireProofFile(value: FormDataEntryValue | null): File {
 export async function syncPettyCashOnPageLoad() {
   const session = await requirePettyCashAccess();
   await processScheduledPettyCashPays(prisma, session.user.companyId);
+  await prisma.$transaction((tx) =>
+    applyMissingExpenseTopUps(tx, {
+      companyId: session.user.companyId,
+      userId: session.user.id,
+    })
+  );
 }
 
 export async function recordPettyCashSpend(formData: FormData) {
@@ -46,7 +53,9 @@ export async function recordPettyCashSpend(formData: FormData) {
   const amount = parsePettyCashAmount(String(formData.get("amount") ?? ""));
   const dateRaw = String(formData.get("entryDate") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
+  const chargeType = String(formData.get("chargeType") ?? "").trim();
   const projectIdRaw = String(formData.get("projectId") ?? "").trim();
+  const clientIdRaw = String(formData.get("clientId") ?? "").trim();
   const employeeIdRaw = String(formData.get("employeeId") ?? "").trim();
   const file = requireProofFile(formData.get("document"));
 
@@ -79,8 +88,16 @@ export async function recordPettyCashSpend(formData: FormData) {
     throw new Error("This bill must be for an Area Manager, Operations Manager, or Director.");
   }
 
+  if (chargeType !== "client" && chargeType !== "project") {
+    throw new Error("Choose Client or Project.");
+  }
+
   let projectId: string | null = null;
-  if (projectIdRaw) {
+  let clientId: string | null = null;
+  if (chargeType === "project") {
+    if (!projectIdRaw) {
+      throw new Error("Select a project.");
+    }
     const project = await prisma.project.findFirst({
       where: {
         id: projectIdRaw,
@@ -93,6 +110,22 @@ export async function recordPettyCashSpend(formData: FormData) {
       throw new Error("Select a valid project.");
     }
     projectId = project.id;
+  } else {
+    if (!clientIdRaw) {
+      throw new Error("Select a client.");
+    }
+    const client = await prisma.client.findFirst({
+      where: {
+        id: clientIdRaw,
+        companyId: session.user.companyId,
+        active: true,
+      },
+      select: { id: true },
+    });
+    if (!client) {
+      throw new Error("Select a valid client.");
+    }
+    clientId = client.id;
   }
 
   const proofPath = await saveUpload(file, "uploads/petty-cash", {
@@ -108,6 +141,7 @@ export async function recordPettyCashSpend(formData: FormData) {
       entryDate: parseDateInput(dateRaw),
       description,
       projectId,
+      clientId,
       employeeId: attributed.id,
       proofPath,
       createdById: session.user.id,

@@ -14,16 +14,22 @@ import {
   type InterestPaidMonth,
   type LoanSource,
 } from "@/lib/loan-facility";
-import type { BankLoanKind, LoanInterestBasis } from "@/lib/bank-loan";
+import type {
+  BankLoanKind,
+  LoanCalculationMethod,
+  LoanInterestBasis,
+} from "@/lib/bank-loan";
 import {
   buildStandbyUsageSlices,
   englishMonthYearLabel,
+  standbyCommitmentFeeForDateRange,
   yearMonthKey,
   type LoanInterestMonthRow,
   type StandbyUsageSlice,
 } from "@/lib/loan-interest";
+import { toUtcDateOnly } from "@/lib/invoice-period";
 import { jakartaTodayAsUtcDateOnly } from "@/lib/leave-employment-status";
-import { jakartaYearMonth } from "@/lib/vat";
+import { jakartaYearMonth, utcRangeForJakartaMonth } from "@/lib/vat";
 
 const facilityInclude = {
   vendor: { select: { id: true, name: true } },
@@ -105,6 +111,7 @@ export type LoanFacilitySnapshot = {
   interestMonths: LoanInterestMonthRow[];
   usageSlices: StandbyUsageSlice[];
   dayCountYear: number;
+  calculationMethod: LoanCalculationMethod | null;
   lastRepaymentDate: Date | null;
   facilityLimit: number | null;
   principal: number | null;
@@ -117,6 +124,9 @@ export type LoanFacilitySnapshot = {
   principalReturned: number;
   interestPaid: number;
   unusedLimit: number | null;
+  commitmentFeeApplies: boolean;
+  commitmentFeeRatePercent: number | null;
+  commitmentFeeThisMonth: number;
   suggestedPayment: number;
   interestPaidThisMonth: number;
   movements: LoanMovementRow[];
@@ -225,6 +235,34 @@ export function snapshotLoanFacility(
   const interestPaidThisMonth =
     interestPaidByMonth.find((row) => row.yearMonth === currentKey)?.interest ??
     0;
+  const today = jakartaTodayAsUtcDateOnly();
+  const monthStart = utcRangeForJakartaMonth(current.year, current.month).start;
+  const facilityStart = toUtcDateOnly(facility.startDate);
+  const feeFrom =
+    facilityStart.getTime() > monthStart.getTime() ? facilityStart : monthStart;
+  const closedDay =
+    facility.status === "CLOSED" ? toUtcDateOnly(facility.updatedAt) : null;
+  const feeTo =
+    closedDay && closedDay.getTime() < today.getTime() ? closedDay : today;
+  const commitmentFeeApplies = Boolean(facility.commitmentFeeApplies);
+  const commitmentFeeRatePercent = decimalToNumber(
+    facility.commitmentFeeRatePercent
+  );
+  const facilityLimit = decimalToNumber(facility.facilityLimit);
+  const commitmentFeeThisMonth =
+    facility.kind === "STANDBY" &&
+    commitmentFeeApplies &&
+    facilityLimit != null &&
+    commitmentFeeRatePercent != null
+      ? standbyCommitmentFeeForDateRange({
+          facilityLimit,
+          movements,
+          annualRatePercent: commitmentFeeRatePercent,
+          from: feeFrom,
+          to: feeTo,
+          dayCountYear,
+        })
+      : 0;
   return {
     id: facility.id,
     name: facility.name,
@@ -247,6 +285,7 @@ export function snapshotLoanFacility(
     interestMonths,
     usageSlices,
     dayCountYear,
+    calculationMethod: facility.calculationMethod ?? null,
     lastRepaymentDate: lastRepaymentDate(movements),
     facilityLimit: decimalToNumber(facility.facilityLimit),
     principal: decimalToNumber(facility.principal),
@@ -263,6 +302,9 @@ export function snapshotLoanFacility(
       facilityLimit: decimalToNumber(facility.facilityLimit),
       outstanding,
     }),
+    commitmentFeeApplies,
+    commitmentFeeRatePercent,
+    commitmentFeeThisMonth,
     suggestedPayment,
     interestPaidThisMonth,
     movements,
@@ -284,7 +326,13 @@ export async function listLoanFacilitySnapshots(
     include: facilityInclude,
     orderBy: [{ status: "asc" }, { name: "asc" }],
   });
-  return rows.map(snapshotLoanFacility);
+  return rows.flatMap((row) => {
+    try {
+      return [snapshotLoanFacility(row)];
+    } catch {
+      return [];
+    }
+  });
 }
 
 export async function getLoanFacilitySnapshot(

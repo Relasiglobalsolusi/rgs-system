@@ -252,7 +252,9 @@ export function catalogDisplayName(
   row: { nameEn: string; nameId: string },
   locale: AppLocale
 ): string {
-  return locale === "id" ? row.nameId || row.nameEn : row.nameEn || row.nameId;
+  const name =
+    locale === "id" ? row.nameId || row.nameEn : row.nameEn || row.nameId;
+  return titleCaseWords(name);
 }
 
 export function slugFromName(name: string): string {
@@ -271,6 +273,37 @@ export function titleCaseCatalogName(name: string): string {
 
 export function isReservedSubcategorySlug(slug: string): boolean {
   return RESERVED_SUB_SLUGS.has(slug.trim().toUpperCase());
+}
+
+/** Catalog area named Maintenance (custom OTHER, or a renamed system row). */
+export function findMaintenanceCatalogArea(
+  catalog: readonly ProjectCatalogAreaDTO[]
+): ProjectCatalogAreaDTO | null {
+  return (
+    catalog.find((area) => {
+      const slug = area.slug.trim().toUpperCase();
+      if (slug === "MAINTENANCE") return true;
+      const name = `${area.nameEn} ${area.nameId}`.toLowerCase();
+      return (
+        name.includes("maintenance") || name.includes("pemeliharaan")
+      );
+    }) ?? null
+  );
+}
+
+export function parseDemoProjectFlags(formData: FormData): {
+  isDemo: boolean;
+  isComplimentary: boolean;
+} {
+  const rawDemo = String(formData.get("isDemo") ?? "").trim().toLowerCase();
+  const rawFree = String(formData.get("isComplimentary") ?? "")
+    .trim()
+    .toLowerCase();
+  const isDemo = rawDemo === "true" || rawDemo === "yes" || rawDemo === "on";
+  const isComplimentary =
+    isDemo &&
+    (rawFree === "true" || rawFree === "yes" || rawFree === "on");
+  return { isDemo, isComplimentary };
 }
 
 /** Demo-only Pest Control area — not a real RGS service. */

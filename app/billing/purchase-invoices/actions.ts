@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
 
 import { getServerLocale } from "@/lib/i18n/locale";
+import { nextOpenWagePayrollPeriod } from "@/lib/internal-payroll-lock";
 import { translate } from "@/lib/i18n/translate";
 import {
   inferDocumentMime,
@@ -43,9 +44,12 @@ import {
   stockQuantityFromPurchase,
 } from "@/lib/inventory-units";
 import {
-  parseManualVerifyReason,
   parseOptionalManualVerifyReason,
 } from "@/lib/in-house-document-verify";
+import {
+  parseRequiredTaxInvoiceSerial,
+  requireTaxInvoiceSerialVerified,
+} from "@/lib/tax-invoice-serial";
 import {
   assertPurchasePurposeProject,
   parsePurchaseCategory,
@@ -54,10 +58,12 @@ import {
   resolvePurchasePurpose,
 } from "@/lib/purchase-purpose";
 import { requireSession, toPermissionUser } from "@/lib/session";
+import { creditPrepaidCardFromExpense } from "@/lib/advance-cash-expense";
 import { nextPettyCashTopUpRef } from "@/lib/petty-cash";
 import { writeRecordChange } from "@/lib/record-change";
 import { capitalizeProper, titleCaseWords } from "@/lib/text-case";
 import {
+  commercialTaxIncludesIncomeTax,
   commercialTaxIncludesVat,
   commercialTaxRequiresRatePercent,
   parseCommercialPphRatePercent,
@@ -71,7 +77,10 @@ import {
   isBpjsGovernmentKind,
   parseGovernmentTaxKind,
 } from "@/lib/government-tax";
-import { getBpjsFinancePeriod } from "@/lib/bpjs-finance";
+import {
+  getBpjsFinancePeriod,
+  releaseBpjsKesehatanHeldShare,
+} from "@/lib/bpjs-finance";
 import { vendorMatchesPurchaseOrigin } from "@/lib/vendor-type";
 import {
   applyExclusiveVat,
@@ -117,6 +126,7 @@ import {
 } from "@/lib/import-landed-cost";
 import { purchaseNeedsImportBankRate } from "@/lib/purchase-amount-display";
 import { todayDateInput } from "@/lib/project-contract";
+import { setPurchaseHandlingHasTaxInvoice } from "@/lib/review-amount-fields";
 
 type PurchaseLineInput = {
   itemId?: string;
@@ -358,6 +368,15 @@ function parseVehicleLeaseFromForm(formData: FormData): {
   };
 }
 
+function parseHandlingHasTaxInvoice(formData: FormData): boolean | null {
+  const raw = String(formData.get("handlingHasTaxInvoice") ?? "")
+    .trim()
+    .toLowerCase();
+  if (raw === "true" || raw === "yes") return true;
+  if (raw === "false" || raw === "no") return false;
+  return null;
+}
+
 function parseHandlingFee(
   formData: FormData,
   required: boolean
@@ -554,9 +573,130 @@ async function requirePurchaseManageAccess() {
   return session;
 }
 
+async function requirePurchaseTaxDocumentAccess() {
+  const session = await requireSession();
+  if (session.user.clientId) {
+    redirect("/dashboard");
+  }
+  const user = toPermissionUser(session);
+  if (
+    !canAccess(user, "projects") &&
+    !canAccess(user, "purchaseInvoices") &&
+    !canAccess(user, "taxInvoices")
+  ) {
+    redirect("/dashboard");
+  }
+  return session;
+}
+
 export async function listPurchasePayoutBankAccounts() {
   const session = await requirePurchaseManageAccess();
   return listCompanyBankAccountOptions(session.user.companyId);
+}
+
+export async function listVendorBankAccountsForExpense(vendorId: string) {
+  const session = await requirePurchaseManageAccess();
+  const id = vendorId.trim();
+  if (!id) return [];
+  const vendor = await prisma.vendor.findFirst({
+    where: { id, companyId: session.user.companyId, active: true },
+    select: { id: true },
+  });
+  if (!vendor) return [];
+  return prisma.vendorBankAccount.findMany({
+    where: { vendorId: vendor.id },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    select: {
+      id: true,
+      bankName: true,
+      accountNumber: true,
+      accountHolder: true,
+      label: true,
+    },
+  });
+}
+
+export async function listEmployeesForExpense() {
+  const session = await requirePurchaseManageAccess();
+  const employees = await prisma.employee.findMany({
+    where: {
+      companyId: session.user.companyId,
+      archivedFromDirectory: false,
+      status: { in: ["ACTIVE", "ON_LEAVE", "LEAVE_PENDING"] },
+    },
+    select: {
+      id: true,
+      employeeNo: true,
+      firstName: true,
+      lastName: true,
+      category: { select: { id: true, name: true, slug: true } },
+    },
+    orderBy: [{ employeeNo: "asc" }],
+  });
+  const departments = await prisma.employeeCategory.findMany({
+    where: { companyId: session.user.companyId, active: true },
+    select: { id: true, name: true, slug: true },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+  });
+  return {
+    employees: employees.map((employee) => ({
+      id: employee.id,
+      employeeNo: employee.employeeNo,
+      firstName: employee.firstName,
+      lastName: employee.lastName,
+      department: employee.category,
+    })),
+    departments,
+  };
+}
+
+export async function listPrepaidCardsForExpense() {
+  const session = await requirePurchaseManageAccess();
+  const cards = await prisma.prepaidCard.findMany({
+    where: { companyId: session.user.companyId },
+    select: {
+      id: true,
+      cardNumber: true,
+      currentBalance: true,
+      vehicleItem: {
+        select: {
+          name: true,
+          sku: true,
+          equipmentAssets: {
+            select: { assetCode: true },
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          },
+        },
+      },
+    },
+    orderBy: { cardNumber: "asc" },
+  });
+  return cards.map((card) => ({
+    id: card.id,
+    cardNumber: card.cardNumber,
+    currentBalance: decimalToNumber(card.currentBalance) ?? 0,
+    vehicleName: card.vehicleItem.name,
+    vehicleSku: card.vehicleItem.sku,
+    vehiclePlate: card.vehicleItem.equipmentAssets
+      .map((asset) => asset.assetCode)
+      .filter(Boolean)
+      .join(" / "),
+  }));
+}
+
+export async function listCompanyBpjsVirtualAccounts() {
+  const session = await requirePurchaseManageAccess();
+  const company = await prisma.company.findFirst({
+    where: { id: session.user.companyId },
+    select: {
+      bpjsKesehatanVirtualAccount: true,
+      bpjsKetenagakerjaanVirtualAccount: true,
+    },
+  });
+  return {
+    kesehatan: company?.bpjsKesehatanVirtualAccount ?? "",
+    ketenagakerjaan: company?.bpjsKetenagakerjaanVirtualAccount ?? "",
+  };
 }
 
 function requireImageOrPdfUpload(
@@ -765,6 +905,84 @@ export async function createPurchaseInvoice(formData: FormData) {
     return;
   }
 
+  const vehicleExpenseKindEarly = String(formData.get("vehicleExpenseKind") ?? "")
+    .trim()
+    .toUpperCase();
+  if (
+    purchaseCategoryRawEarly === "VEHICLE" &&
+    vehicleExpenseKindEarly === "PREPAID_CARD"
+  ) {
+    if (session.user.vendorId) {
+      throw new Error("Prepaid card top-ups are recorded by Head Office only.");
+    }
+    const amount = parseAmount(String(formData.get("amount") ?? "").trim());
+    const invoiceAmount = decimalToNumber(amount);
+    if (invoiceAmount == null || invoiceAmount <= 0) {
+      throw new Error("Enter a valid amount.");
+    }
+    const invoiceDateRaw = String(formData.get("invoiceDate") ?? "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(invoiceDateRaw)) {
+      throw new Error("Date is required.");
+    }
+    const prepaidCardId = String(formData.get("prepaidCardId") ?? "").trim();
+    if (!prepaidCardId) {
+      throw new Error("Choose the prepaid card to top up.");
+    }
+    const notesRaw = String(formData.get("notes") ?? "").trim();
+    const invoiceDate = taxInvoiceDateToUtcDate(invoiceDateRaw);
+    const invoiceRef = nextPettyCashTopUpRef().replace(/^PC-/, "PPC-");
+    const file = optionalImageOrPdfUpload(formData.get("document"), {
+      sizeMessage: "File must be 10 MB or smaller.",
+      typeMessage: "Upload an image or PDF.",
+    });
+    const filePath = file
+      ? await saveUpload(file, "uploads/purchase-invoices", {
+          fileBaseName: buildBillingDocumentFileBase({
+            prefix: "Prepaid-Card-Top-Up",
+            clientName: "Prepaid Card",
+            invoiceNumber: invoiceRef,
+          }),
+        })
+      : "";
+
+    await prisma.$transaction(async (tx) => {
+      const card = await creditPrepaidCardFromExpense(tx, {
+        companyId: session.user.companyId,
+        userId: session.user.id,
+        prepaidCardId,
+        amount,
+        invoiceRef,
+        invoiceDate,
+        notes: notesRaw,
+        filePath,
+      });
+      await tx.purchaseInvoice.create({
+        data: {
+          companyId: session.user.companyId,
+          supplierName: "Prepaid Card",
+          vendorId: null,
+          invoiceRef,
+          invoiceDate,
+          amount,
+          filePath,
+          notes: notesRaw || `Prepaid card top-up ${card.cardNumber}`,
+          includesPpn: false,
+          purchaseCategory: "VEHICLE",
+          purpose: "STOCK",
+          paidAt: new Date(),
+          bankAccountId,
+          createdById: session.user.id,
+          transferFeeIdr,
+        },
+      });
+    });
+
+    revalidatePath("/billing/purchase-invoices");
+    revalidatePath("/billing/petty-cash");
+    revalidatePath("/billing/financial-report");
+    return;
+  }
+
   if (purchaseCategoryRawEarly === "GOVERNMENT") {
     if (session.user.vendorId) {
       throw new Error("Government bills are recorded by Head Office only.");
@@ -885,6 +1103,18 @@ export async function createPurchaseInvoice(formData: FormData) {
             companyShareAmount: new Prisma.Decimal(bpjsCompanyShare),
           },
         });
+        if (invoiceRef) {
+          await tx.company.update({
+            where: { id: session.user.companyId },
+            data:
+              governmentTaxKind === "BPJS_KESEHATAN"
+                ? { bpjsKesehatanVirtualAccount: invoiceRef }
+                : { bpjsKetenagakerjaanVirtualAccount: invoiceRef },
+          });
+        }
+        if (governmentTaxKind === "BPJS_KESEHATAN") {
+          await releaseBpjsKesehatanHeldShare(tx, session.user.companyId);
+        }
       }
     });
 
@@ -1007,6 +1237,153 @@ export async function createPurchaseInvoice(formData: FormData) {
     return;
   }
 
+  if (purchaseCategoryRawEarly === "EMPLOYEE_PAYMENT") {
+    if (session.user.vendorId) {
+      throw new Error("Employee payments are recorded by Head Office only.");
+    }
+    const kindRaw = String(formData.get("employeePaymentKind") ?? "")
+      .trim()
+      .toUpperCase();
+    const employeePaymentKind =
+      kindRaw === "INTERNAL_PAYROLL" ||
+      kindRaw === "THR" ||
+      kindRaw === "CASH_ADVANCE"
+        ? kindRaw
+        : null;
+    if (!employeePaymentKind) {
+      throw new Error(
+        translate(locale, "pages.billing.employeePaymentKindRequired")
+      );
+    }
+    const amount = parseAmount(String(formData.get("amount") ?? "").trim());
+    const invoiceAmount = decimalToNumber(amount);
+    if (invoiceAmount == null || invoiceAmount <= 0) {
+      throw new Error("Enter a valid amount.");
+    }
+    const invoiceDateRaw = String(formData.get("invoiceDate") ?? "").trim();
+    const invoiceDate = /^\d{4}-\d{2}-\d{2}$/.test(invoiceDateRaw)
+      ? taxInvoiceDateToUtcDate(invoiceDateRaw)
+      : taxInvoiceDateToUtcDate(
+          new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" })
+        );
+    const notesRaw = String(formData.get("notes") ?? "").trim();
+    const employeeId = String(formData.get("employeeId") ?? "").trim();
+    const nextPayroll = await nextOpenWagePayrollPeriod(
+      session.user.companyId
+    );
+    const year = nextPayroll.year;
+    const month = nextPayroll.month;
+    let employeeName = "Employee Payments";
+    if (employeePaymentKind === "CASH_ADVANCE") {
+      if (!employeeId) {
+        throw new Error(
+          translate(locale, "pages.billing.employeePaymentEmployeeRequired")
+        );
+      }
+      const employee = await prisma.employee.findFirst({
+        where: {
+          id: employeeId,
+          companyId: session.user.companyId,
+          archivedFromDirectory: false,
+        },
+        select: { id: true, firstName: true, lastName: true, employeeNo: true },
+      });
+      if (!employee) {
+        throw new Error(
+          translate(locale, "pages.billing.employeePaymentEmployeeRequired")
+        );
+      }
+      employeeName = `${employee.firstName} ${employee.lastName}`.trim();
+    }
+    if (
+      employeePaymentKind !== "THR" &&
+      (!Number.isInteger(year) ||
+        year < 2000 ||
+        year > 2100 ||
+        !Number.isInteger(month) ||
+        month < 1 ||
+        month > 12)
+    ) {
+      throw new Error("Enter the payroll month and year.");
+    }
+    const file = requireImageOrPdfUpload(formData.get("document"), {
+      requiredMessage: "Upload the payment proof.",
+      sizeMessage: "File must be 10 MB or smaller.",
+      typeMessage: "Upload an image or PDF.",
+    });
+    const supplierName =
+      employeePaymentKind === "INTERNAL_PAYROLL"
+        ? "Internal Payroll"
+        : employeePaymentKind === "THR"
+          ? "THR"
+          : employeeName;
+    const invoiceDateKey =
+      /^\d{4}-\d{2}-\d{2}$/.test(invoiceDateRaw)
+        ? invoiceDateRaw
+        : new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
+    const invoiceRef =
+      String(formData.get("invoiceRef") ?? "").trim() ||
+      `${employeePaymentKind}-${invoiceDateKey}`;
+    const filePath = await saveUpload(file, "uploads/purchase-invoices", {
+      fileBaseName: buildBillingDocumentFileBase({
+        prefix: "Employee-Payment",
+        clientName: supplierName,
+        invoiceNumber: invoiceRef,
+      }),
+    });
+    const notes =
+      notesRaw ||
+      (employeePaymentKind === "CASH_ADVANCE"
+        ? `Cash advance ${employeeName}`
+        : supplierName);
+
+    await prisma.$transaction(async (tx) => {
+      const invoice = await tx.purchaseInvoice.create({
+        data: {
+          companyId: session.user.companyId,
+          supplierName,
+          vendorId: null,
+          invoiceRef,
+          invoiceDate,
+          amount,
+          filePath,
+          notes,
+          includesPpn: false,
+          purchaseCategory: "EMPLOYEE_PAYMENT",
+          employeePaymentKind,
+          employeeId: employeePaymentKind === "CASH_ADVANCE" ? employeeId : null,
+          purpose: "INTERNAL",
+          origin: "LOCAL",
+          paidAt: new Date(),
+          bankAccountId,
+          createdById: session.user.id,
+          transferFeeIdr,
+        },
+      });
+      if (employeePaymentKind === "CASH_ADVANCE") {
+        await tx.payrollDeduction.create({
+          data: {
+            companyId: session.user.companyId,
+            employeeId,
+            year,
+            month,
+            type: "CASH_ADVANCE",
+            amount,
+            reason: notes,
+            createdById: session.user.id,
+            purchaseInvoiceId: invoice.id,
+          },
+        });
+      }
+    });
+
+    revalidatePath("/billing/purchase-invoices");
+    revalidatePath("/billing/payroll");
+    revalidatePath("/payslips");
+    revalidatePath("/billing/financial-report");
+    return;
+  }
+
   let supplierName = String(formData.get("supplierName") ?? "").trim();
   const vendorIdRaw = String(formData.get("vendorId") ?? "").trim();
   let invoiceRef = String(formData.get("invoiceRef") ?? "").trim();
@@ -1023,7 +1400,8 @@ export async function createPurchaseInvoice(formData: FormData) {
   if (
     purchaseCategory === "PETTY_CASH" ||
     purchaseCategory === "GOVERNMENT" ||
-    purchaseCategory === "BANK_LOAN"
+    purchaseCategory === "BANK_LOAN" ||
+    purchaseCategory === "EMPLOYEE_PAYMENT"
   ) {
     throw new Error("Use the dedicated form for this expense type.");
   }
@@ -1174,6 +1552,17 @@ export async function createPurchaseInvoice(formData: FormData) {
           handlingFeePpnRatePercent: null,
           handlingFeeAmountPaidIdr: null,
         };
+  const handlingHasTaxInvoice =
+    origin === "IMPORT" ? parseHandlingHasTaxInvoice(formData) : null;
+  const hasHandlingNow =
+    handledByHeadOffice ||
+    (handling.handlingFeeIdr != null && handling.handlingFeeIdr > 0) ||
+    Boolean(rawHandlingVendorId);
+  const handlingLaterWithDuties =
+    origin === "IMPORT" &&
+    importFulfillment === "INTERNAL" &&
+    !recordingImportArrivalNow &&
+    !hasHandlingNow;
 
   let importPayload: ImportFormPayload | null = null;
   let importResult: ImportLandedCostResult | null = null;
@@ -1300,6 +1689,26 @@ export async function createPurchaseInvoice(formData: FormData) {
   if (!vendorId || !supplierName) {
     throw new Error("Select a registered vendor.");
   }
+  const vendorBankAccountIdRaw = String(
+    formData.get("vendorBankAccountId") ?? ""
+  ).trim();
+  const vendorBanks = await prisma.vendorBankAccount.findMany({
+    where: { vendorId },
+    select: { id: true },
+  });
+  let vendorBankAccountId: string | null = null;
+  if (vendorBanks.length === 0) {
+    throw new Error(translate(locale, "pages.billing.payToAccountEmpty"));
+  }
+  if (
+    !vendorBankAccountIdRaw ||
+    !vendorBanks.some((account) => account.id === vendorBankAccountIdRaw)
+  ) {
+    throw new Error(
+      translate(locale, "pages.billing.payToAccountRequired")
+    );
+  }
+  vendorBankAccountId = vendorBankAccountIdRaw;
   if (hasInvoice && !invoiceRef) {
     throw new Error("Invoice Number / Ref is required.");
   }
@@ -1348,6 +1757,13 @@ export async function createPurchaseInvoice(formData: FormData) {
           typeMessage: "Upload an image or PDF for the tax invoice.",
         })
       : null;
+  let taxInvoiceSerial: string | null = null;
+  if (taxFile) {
+    requireTaxInvoiceSerialVerified(formData.get("taxInvoiceSerialVerified"));
+    taxInvoiceSerial = parseRequiredTaxInvoiceSerial(
+      formData.get("taxInvoiceSerial")
+    );
+  }
 
   const invoiceDate = taxInvoiceDateToUtcDate(invoiceDateRaw);
 
@@ -1427,7 +1843,7 @@ export async function createPurchaseInvoice(formData: FormData) {
   }
 
   const taxInvoiceManualReason = taxFile
-    ? parseManualVerifyReason(formData.get("manualReason"))
+    ? parseOptionalManualVerifyReason(formData.get("manualReason"))
     : null;
 
   const filePath = file
@@ -1467,7 +1883,11 @@ export async function createPurchaseInvoice(formData: FormData) {
     if (!importDutiesBillingId) {
       throw new Error("Enter the Import Duties Billing ID.");
     }
-    if (!handledByHeadOffice && !handlingVendorId) {
+    if (
+      !handlingLaterWithDuties &&
+      !handledByHeadOffice &&
+      !handlingVendorId
+    ) {
       throw new Error("Select the Handling Vendor or Handled By Head Office.");
     }
   }
@@ -1476,12 +1896,13 @@ export async function createPurchaseInvoice(formData: FormData) {
     origin === "IMPORT" &&
     importFulfillment === "OUTSOURCED"
   ) {
-    if (!handlingVendorId) {
+    if (!handlingLaterWithDuties && !handlingVendorId) {
       throw new Error("Select the Handling Vendor.");
     }
   }
   if (
     origin === "IMPORT" &&
+    !handlingLaterWithDuties &&
     handling.handlingFeeIdr != null &&
     handling.handlingFeeIdr > 0 &&
     !handlingVendorId
@@ -1545,6 +1966,7 @@ export async function createPurchaseInvoice(formData: FormData) {
 
   let handlingFeeTaxInvoicePath: string | null = null;
   const requireHandlingInvoice =
+    !handlingLaterWithDuties &&
     recordingImportArrivalNow &&
     origin === "IMPORT" &&
     (importFulfillment === "OUTSOURCED" ||
@@ -1608,7 +2030,7 @@ export async function createPurchaseInvoice(formData: FormData) {
       : parseVehicleLeaseFromForm(new FormData());
 
   try {
-    await prisma.$transaction(async (tx) => {
+    const createdInvoiceId = await prisma.$transaction(async (tx) => {
       const invoice = await tx.purchaseInvoice.create({
         data: {
           companyId: session.user.companyId,
@@ -1620,6 +2042,7 @@ export async function createPurchaseInvoice(formData: FormData) {
           filePath,
           taxInvoiceFilePath,
           taxInvoiceUploadedAt: taxInvoiceFilePath ? new Date() : null,
+          taxInvoiceSerial,
           taxInvoiceManualReason,
           notes: notesRaw || null,
           freeOfCharge,
@@ -1649,6 +2072,7 @@ export async function createPurchaseInvoice(formData: FormData) {
           paidAt: invoicePaidNow ? new Date() : null,
           paidById: invoicePaidNow ? session.user.id : null,
           bankAccountId,
+          vendorBankAccountId,
           transferFeeIdr,
           origin,
           invoiceCurrency: hasCustomsFees
@@ -1767,7 +2191,10 @@ export async function createPurchaseInvoice(formData: FormData) {
             : null,
           importPpnBillingId: null,
           importPph22BillingId: null,
-          handlingVendorId: handlingVendorId || null,
+          handlingDueWithDuties: origin === "IMPORT" && !recordingImportArrivalNow,
+          handlingVendorId: handlingLaterWithDuties
+            ? null
+            : handlingVendorId || null,
           handlingFeeIdr: optionalDecimal(handling.handlingFeeIdr),
           handlingFeeIncludesPpn: handling.handlingFeeIncludesPpn,
           handlingFeePpnRatePercent: optionalDecimal(
@@ -1777,6 +2204,28 @@ export async function createPurchaseInvoice(formData: FormData) {
             handling.handlingFeeAmountPaidIdr
           ),
           handlingFeeTaxInvoicePath,
+          vehicleExpenseKind:
+            purchaseCategory === "VEHICLE"
+              ? (() => {
+                  const raw = String(formData.get("vehicleExpenseKind") ?? "")
+                    .trim()
+                    .toUpperCase();
+                  return [
+                    "PURCHASE",
+                    "FUEL",
+                    "SERVICING",
+                    "MODIFICATION",
+                    "OTHER",
+                  ].includes(raw)
+                    ? (raw as
+                        | "PURCHASE"
+                        | "FUEL"
+                        | "SERVICING"
+                        | "MODIFICATION"
+                        | "OTHER")
+                    : null;
+                })()
+              : null,
           isVehicleLease: vehicleLease.isVehicleLease,
           leaseOtrAmount: optionalDecimal(vehicleLease.otrAmount),
           leaseDownPayment: optionalDecimal(vehicleLease.downPayment),
@@ -1961,7 +2410,14 @@ export async function createPurchaseInvoice(formData: FormData) {
           origin,
         },
       });
+      return invoice.id;
     });
+    if (origin === "IMPORT") {
+      await setPurchaseHandlingHasTaxInvoice(
+        createdInvoiceId,
+        handlingHasTaxInvoice
+      );
+    }
   } catch (error) {
     await deleteLocalUpload(filePath);
     if (taxInvoiceFilePath) {
@@ -1972,11 +2428,13 @@ export async function createPurchaseInvoice(formData: FormData) {
 
   revalidatePath("/billing/purchase-invoices");
   revalidatePath("/billing/tax-invoices");
+  revalidatePath("/billing/financial-report");
   revalidatePath("/inventory");
+  revalidatePath("/inventory/vehicles");
 }
 
 export async function uploadPurchaseTaxInvoice(formData: FormData) {
-  const session = await requirePurchaseManageAccess();
+  const session = await requirePurchaseTaxDocumentAccess();
 
   const purchaseInvoiceId = String(formData.get("purchaseInvoiceId") ?? "").trim();
   if (!purchaseInvoiceId) {
@@ -2010,7 +2468,11 @@ export async function uploadPurchaseTaxInvoice(formData: FormData) {
     typeMessage: "Upload an image or PDF.",
   });
 
-  const reason = parseManualVerifyReason(formData.get("manualReason"));
+  const reason = parseOptionalManualVerifyReason(formData.get("manualReason"));
+  requireTaxInvoiceSerialVerified(formData.get("taxInvoiceSerialVerified"));
+  const taxInvoiceSerial = parseRequiredTaxInvoiceSerial(
+    formData.get("taxInvoiceSerial")
+  );
 
   const taxInvoiceFilePath = await savePurchaseTaxInvoiceFile(
     taxFile,
@@ -2024,12 +2486,29 @@ export async function uploadPurchaseTaxInvoice(formData: FormData) {
       data: {
         taxInvoiceFilePath,
         taxInvoiceUploadedAt: new Date(),
+        taxInvoiceSerial,
         taxInvoiceManualReason: reason,
       },
     });
   } catch (error) {
     await deleteLocalUpload(taxInvoiceFilePath);
     throw error;
+  }
+
+  const withholdingFile = formData.get("withholdingSlip");
+  if (withholdingFile instanceof File && withholdingFile.size > 0) {
+    const slipPath = await saveUpload(
+      withholdingFile,
+      "uploads/purchase-invoices",
+      {
+        fileBaseName: `Withholding-Slip_${invoice.invoiceRef || invoice.id.slice(-8)}`,
+      }
+    );
+    await prisma.$executeRaw`
+      UPDATE "PurchaseInvoice"
+      SET "withholdingSlipPath" = ${slipPath}
+      WHERE id = ${invoice.id}
+    `;
   }
 
   if (
@@ -2041,6 +2520,120 @@ export async function uploadPurchaseTaxInvoice(formData: FormData) {
 
   revalidatePath("/billing/purchase-invoices");
   revalidatePath("/billing/tax-invoices");
+}
+
+const PURCHASE_TAX_DOCUMENT_SLOTS = [
+  "withholding",
+  "government",
+  "duties",
+] as const;
+type PurchaseTaxDocumentSlot = (typeof PURCHASE_TAX_DOCUMENT_SLOTS)[number];
+
+function isPurchaseTaxDocumentSlot(
+  value: string
+): value is PurchaseTaxDocumentSlot {
+  return (PURCHASE_TAX_DOCUMENT_SLOTS as readonly string[]).includes(value);
+}
+
+/** Archive a tax document from Tax. Does not mark payment or duties paid. */
+export async function uploadPurchaseTaxDocument(formData: FormData) {
+  const session = await requirePurchaseTaxDocumentAccess();
+  if (session.user.vendorId) {
+    throw new Error("Head Office uploads tax documents.");
+  }
+
+  const purchaseInvoiceId = String(formData.get("purchaseInvoiceId") ?? "").trim();
+  const slotRaw = String(formData.get("slot") ?? "").trim();
+  if (!purchaseInvoiceId) {
+    throw new Error("Purchase invoice is required.");
+  }
+  if (!isPurchaseTaxDocumentSlot(slotRaw)) {
+    throw new Error("Select the tax document to upload.");
+  }
+
+  const file = requireImageOrPdfUpload(formData.get("document"), {
+    requiredMessage: "Upload the tax document.",
+    sizeMessage: "File must be 10 MB or smaller.",
+    typeMessage: "Upload an image or PDF.",
+  });
+
+  const invoice = await prisma.purchaseInvoice.findFirst({
+    where: {
+      id: purchaseInvoiceId,
+      companyId: session.user.companyId,
+    },
+    select: {
+      id: true,
+      supplierName: true,
+      invoiceRef: true,
+      filePath: true,
+      importDutiesFilePath: true,
+      withholdingSlipPath: true,
+      purchaseCategory: true,
+      origin: true,
+      includedTaxKind: true,
+    },
+  });
+  if (!invoice) {
+    throw new Error("Purchase invoice not found.");
+  }
+
+  if (
+    slotRaw === "withholding" &&
+    !commercialTaxIncludesIncomeTax(invoice.includedTaxKind)
+  ) {
+    throw new Error("This expense does not include income tax.");
+  }
+  if (slotRaw === "government" && invoice.purchaseCategory !== "GOVERNMENT") {
+    throw new Error("This expense is not a government tax document.");
+  }
+  if (slotRaw === "duties" && invoice.origin !== "IMPORT") {
+    throw new Error("Import duties documents are only for import expenses.");
+  }
+
+  const alreadyUploaded =
+    slotRaw === "withholding"
+      ? invoice.withholdingSlipPath
+      : slotRaw === "duties"
+        ? invoice.importDutiesFilePath
+        : invoice.filePath;
+  if (alreadyUploaded) {
+    throw new Error("Tax document already uploaded.");
+  }
+
+  const prefix =
+    slotRaw === "withholding"
+      ? "Withholding-Slip"
+      : slotRaw === "duties"
+        ? "Import-Duties"
+        : "Government-Billing";
+  const filePath = await saveUpload(file, "uploads/purchase-invoices", {
+    fileBaseName: buildBillingDocumentFileBase({
+      prefix,
+      clientName: invoice.supplierName,
+      invoiceNumber: invoice.invoiceRef,
+    }),
+  });
+
+  try {
+    await prisma.purchaseInvoice.update({
+      where: { id: invoice.id },
+      data:
+        slotRaw === "withholding"
+          ? { withholdingSlipPath: filePath }
+          : slotRaw === "duties"
+            ? { importDutiesFilePath: filePath }
+            : { filePath },
+    });
+  } catch (error) {
+    await deleteLocalUpload(filePath);
+    throw error;
+  }
+
+  revalidatePath("/billing/purchase-invoices");
+  revalidatePath(`/billing/purchase-invoices/${invoice.id}`);
+  revalidatePath("/billing/tax-invoices");
+  revalidatePath(`/billing/tax-invoices/purchase/${invoice.id}`);
 }
 
 /**
@@ -2336,7 +2929,13 @@ export async function markImportDutiesPaid(formData: FormData) {
       localBankFeeIdr: true,
       declaredValue: true,
       declaredCurrency: true,
+      handlingDueWithDuties: true,
+      handlingVendorId: true,
       handlingFeeIdr: true,
+      handlingFeeIncludesPpn: true,
+      handlingFeePpnRatePercent: true,
+      handlingFeeAmountPaidIdr: true,
+      handlingFeeTaxInvoicePath: true,
       shippingIdr: true,
       lines: {
         select: {
@@ -2349,7 +2948,12 @@ export async function markImportDutiesPaid(formData: FormData) {
     },
   });
   if (!invoice) throw new Error("Import purchase not found.");
-  if (invoice.importDutiesPaidAt) {
+  const dutiesAlreadyPaid = Boolean(invoice.importDutiesPaidAt);
+  const handlingStillDue =
+    invoice.handlingDueWithDuties &&
+    !invoice.handlingVendorId &&
+    (decimalToNumber(invoice.handlingFeeIdr) ?? 0) <= 0;
+  if (dutiesAlreadyPaid && !handlingStillDue) {
     throw new Error("Import duties are already marked paid.");
   }
 
@@ -2363,10 +2967,85 @@ export async function markImportDutiesPaid(formData: FormData) {
       ? outsourcedImportPayload(locked)
       : locked
   );
+  const needsDeferredHandling =
+    invoice.handlingDueWithDuties &&
+    !invoice.handlingVendorId &&
+    (decimalToNumber(invoice.handlingFeeIdr) ?? 0) <= 0;
+  let handlingVendorId = invoice.handlingVendorId;
+  let handling = {
+    handlingFeeIdr: decimalToNumber(invoice.handlingFeeIdr),
+    handlingFeeIncludesPpn: invoice.handlingFeeIncludesPpn,
+    handlingFeePpnRatePercent: decimalToNumber(invoice.handlingFeePpnRatePercent),
+    handlingFeeAmountPaidIdr: decimalToNumber(invoice.handlingFeeAmountPaidIdr),
+  };
+  let handlingFeeTaxInvoicePath = invoice.handlingFeeTaxInvoicePath;
+  if (needsDeferredHandling) {
+    const rawHandlingVendorId = String(
+      formData.get("handlingVendorId") ?? ""
+    ).trim();
+    if (!rawHandlingVendorId || isHandlingByHeadOffice(rawHandlingVendorId)) {
+      throw new Error("Select the Handling Vendor.");
+    }
+    const handlingVendor = await prisma.vendor.findFirst({
+      where: {
+        id: rawHandlingVendorId,
+        companyId: session.user.companyId,
+        active: true,
+      },
+      select: { id: true, vendorType: true },
+    });
+    if (!handlingVendor) {
+      throw new Error("Select the Handling Vendor.");
+    }
+    if (!vendorMatchesPurchaseOrigin(handlingVendor.vendorType, "LOCAL")) {
+      throw new Error("The Handling Vendor must be a Company or Individual.");
+    }
+    handling = parseHandlingFee(formData, true);
+    if (handling.handlingFeeIdr == null || handling.handlingFeeIdr <= 0) {
+      throw new Error("Enter the handling fee.");
+    }
+    const handlingFeeFile = requireImageOrPdfUpload(
+      formData.get("handlingFeeDocument"),
+      {
+        requiredMessage: "Upload the Handling Fee invoice.",
+        sizeMessage: "Handling Fee invoice must be 10 MB or smaller.",
+        typeMessage: "Upload an image or PDF for the Handling Fee invoice.",
+      }
+    );
+    handlingFeeTaxInvoicePath = await saveUpload(
+      handlingFeeFile,
+      "uploads/purchase-invoices",
+      {
+        fileBaseName: buildBillingDocumentFileBase({
+          prefix: "Import-Handling",
+          clientName: invoice.supplierName,
+          invoiceNumber: invoice.invoiceRef,
+        }),
+      }
+    );
+    if (handling.handlingFeeIncludesPpn) {
+      const handlingTaxFile = requireImageOrPdfUpload(
+        formData.get("handlingFeeTaxDocument"),
+        {
+          requiredMessage: "Upload the tax invoice for the handling fee.",
+          sizeMessage: "Handling tax invoice must be 10 MB or smaller.",
+          typeMessage: "Upload an image or PDF for the handling tax invoice.",
+        }
+      );
+      await saveUpload(handlingTaxFile, "uploads/purchase-invoices", {
+        fileBaseName: buildBillingDocumentFileBase({
+          prefix: "Import-Handling-Tax",
+          clientName: invoice.supplierName,
+          invoiceNumber: invoice.invoiceRef,
+        }),
+      });
+    }
+    handlingVendorId = handlingVendor.id;
+  }
   const importStockLandedCostIdr =
     (decimalToNumber(invoice.shippingIdr) ?? 0) +
     importResult.stockLandedCostIdr +
-    (decimalToNumber(invoice.handlingFeeIdr) ?? 0);
+    (handling.handlingFeeIdr ?? 0);
   const pricedLines = invoice.lines.filter(
     (line) => (decimalToNumber(line.quantity) ?? 0) > 0
   );
@@ -2448,6 +3127,21 @@ export async function markImportDutiesPaid(formData: FormData) {
           ppnRatePercent: includesPpn
             ? optionalDecimal(importResult.ppnRatePercent)
             : invoice.ppnRatePercent,
+          ...(needsDeferredHandling
+            ? {
+                handlingVendorId,
+                handlingFeeIdr: optionalDecimal(handling.handlingFeeIdr),
+                handlingFeeIncludesPpn: handling.handlingFeeIncludesPpn,
+                handlingFeePpnRatePercent: optionalDecimal(
+                  handling.handlingFeePpnRatePercent
+                ),
+                handlingFeeAmountPaidIdr: optionalDecimal(
+                  handling.handlingFeeAmountPaidIdr
+                ),
+                handlingFeeTaxInvoicePath,
+                handlingDueWithDuties: false,
+              }
+            : {}),
         },
       });
       for (let i = 0; i < pricedLines.length; i++) {
@@ -2540,7 +3234,12 @@ export async function reversePurchaseInvoice(formData: FormData) {
   revalidatePath("/billing/settlements");
   revalidatePath("/billing/tax-invoices");
   revalidatePath("/billing/petty-cash");
+  revalidatePath("/billing/payroll");
+  revalidatePath("/payslips");
+  revalidatePath("/billing/loans");
+  revalidatePath("/billing/bpjs");
   revalidatePath("/inventory");
+  revalidatePath("/inventory/vehicles");
   if (reversed.projectId) {
     revalidatePath("/projects");
     revalidatePath(`/projects/${reversed.projectId}`);

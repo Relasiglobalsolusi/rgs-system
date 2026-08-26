@@ -188,6 +188,11 @@ export function parseEmployeeFinanceFromForm(
     String(formData.get("bankAccountNumber") ?? "").trim() || null;
   const bankAccountName =
     String(formData.get("bankAccountName") ?? "").trim() || null;
+  if (!bankName || !bankAccountNumber || !bankAccountName) {
+    throw new Error(
+      "Bank name, account holder name, and account number are required."
+    );
+  }
 
   const partTime = isDailyPaidPartTime(
     employmentType ?? formData.get("employmentType")

@@ -43,10 +43,10 @@ export type SalesReportPdfInput = {
 type PdfDoc = InstanceType<typeof PDFDocument>;
 
 const COLS = {
-  date: { x: 0, w: 92 },
-  item: { x: 92, w: 188 },
-  buyer: { x: 280, w: 168 },
-  amount: { x: 448, w: CONTENT_WIDTH - 448 },
+  date: { x: 0, w: 78 },
+  item: { x: 78, w: 160 },
+  buyer: { x: 238, w: 144 },
+  amount: { x: 382, w: CONTENT_WIDTH - 382 },
 } as const;
 
 function drawTitleBlock(
@@ -169,10 +169,13 @@ export async function buildSalesReportPdfBuffer(
             col: COLS.amount,
             text: formatContractPrice(row.totalPrice),
             align: "right" as const,
+            color: BRAND.income,
           },
         ];
         for (const cell of cells) {
-          doc.text(cell.text, PAGE_MARGIN + cell.col.x + 4, y + 6, {
+          doc
+            .fillColor("color" in cell && cell.color ? cell.color : BRAND.ink)
+            .text(cell.text, PAGE_MARGIN + cell.col.x + 4, y + 6, {
             width: cell.col.w - 8,
             lineBreak: false,
             ellipsis: true,
@@ -191,8 +194,11 @@ export async function buildSalesReportPdfBuffer(
         .text(translate(locale, "pages.sales.salesReportTotal"), PAGE_MARGIN, totalY, {
           width: COLS.amount.x - 8,
         });
-      doc.text(formatContractPrice(input.totalAmount), PAGE_MARGIN + COLS.amount.x, totalY, {
+      doc
+        .fillColor(BRAND.income)
+        .text(formatContractPrice(input.totalAmount), PAGE_MARGIN + COLS.amount.x, totalY, {
         width: COLS.amount.w,
+        lineBreak: false,
         align: "right",
       });
     }

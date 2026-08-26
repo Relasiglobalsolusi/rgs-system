@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  showMissingRequiredFields,
   showRejection,
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
@@ -126,6 +127,14 @@ export default function ItemCatalogBulkCreateDialog({
   }, [controlledOpen, itemType, lineKeys.length]);
 
   function submit(formData: FormData) {
+    const form = document.getElementById(FORM_ID);
+    if (
+      showMissingRequiredFields(
+        form instanceof HTMLFormElement ? form : null
+      )
+    ) {
+      return;
+    }
     if (!itemType.trim()) {
       showRejection({ reasons: t("pages.inventory.itemTypeRequired") });
       return;
@@ -164,6 +173,7 @@ export default function ItemCatalogBulkCreateDialog({
             id={FORM_ID}
             className={employeeDialogFormClass}
             action={submit}
+            noValidate
             onInput={handleFormInput}
           >
             <input type="hidden" name="lineCount" value={lineKeys.length} />

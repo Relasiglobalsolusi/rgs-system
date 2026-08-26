@@ -912,6 +912,8 @@ type Props = {
   showWarehouseCost?: boolean;
   /** Net terms: hide the pay-later remittance hint. Cash uses the Bank Rate fields instead. */
   showPayLaterHint?: boolean;
+  /** Hide Form E / Bea Masuk / PPh 22 “duties later” copy (outsourced all-in). */
+  showDutiesLaterHint?: boolean;
 };
 
 export default function PurchaseImportCostFields({
@@ -933,6 +935,7 @@ export default function PurchaseImportCostFields({
   lockFactoryNow = false,
   showWarehouseCost,
   showPayLaterHint,
+  showDutiesLaterHint = true,
 }: Props) {
   const revealWarehouseCost = showWarehouseCost ?? lockFactoryNow;
   const revealPayLaterHint = showPayLaterHint ?? false;
@@ -1299,6 +1302,7 @@ export default function PurchaseImportCostFields({
               </>
             )}
           </div>
+          {showDutiesLaterHint ? (
           <div className="space-y-1 rounded-xl border border-border bg-elevated/40 p-3">
             <p className={employeeDialogLabelClass}>
               {t("pages.billing.purchaseImportDutiesSectionTitle")}
@@ -1307,6 +1311,7 @@ export default function PurchaseImportCostFields({
               {t("pages.billing.purchaseImportDutiesLaterHint")}
             </p>
           </div>
+          ) : null}
         </div>
       ) : revealPayLaterHint ? (
         <div className="space-y-1 rounded-xl border border-border bg-elevated/40 p-3">
@@ -1327,6 +1332,7 @@ export default function PurchaseImportCostFields({
               {t("pages.billing.purchaseImportNetRemittanceLaterHint")}
             </p>
           </div>
+          {showDutiesLaterHint ? (
           <div className="space-y-1 rounded-xl border border-border bg-elevated/40 p-3">
             <p className={employeeDialogLabelClass}>
               {t("pages.billing.purchaseImportDutiesSectionTitle")}
@@ -1335,6 +1341,7 @@ export default function PurchaseImportCostFields({
               {t("pages.billing.purchaseImportDutiesLaterHint")}
             </p>
           </div>
+          ) : null}
         </div>
       )}
       </div>
@@ -1530,7 +1537,7 @@ export default function PurchaseImportCostFields({
             <p className={employeeDialogLabelClass}>
               {t("pages.billing.purchaseImportPph22Basis")}
             </p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               {(
                 [
                   ["API", t("pages.billing.purchaseImportPph22Api")],

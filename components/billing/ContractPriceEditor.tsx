@@ -28,6 +28,7 @@ export default function ContractPriceEditor({
   chargedTaxKind = null,
   requiresTaxInvoice = null,
   pphRatePercent = null,
+  isGovernmentContract = false,
   canManage,
   milestone = false,
 }: {
@@ -36,6 +37,7 @@ export default function ContractPriceEditor({
   chargedTaxKind?: CommercialTaxKind | "" | null;
   requiresTaxInvoice?: boolean | null;
   pphRatePercent?: number | null;
+  isGovernmentContract?: boolean | null;
   canManage: boolean;
   milestone?: boolean;
 }) {
@@ -56,6 +58,7 @@ export default function ContractPriceEditor({
           chargedTaxKind,
           requiresTaxInvoice,
           pphRatePercent,
+          isGovernmentContract,
         })
       : null;
 

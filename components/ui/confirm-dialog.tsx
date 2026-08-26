@@ -82,6 +82,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     <ConfirmContext.Provider value={value}>
       {children}
       <Dialog
+        skipUnsavedGuard
         open={request != null}
         onOpenChange={(open) => {
           if (!open) close(false);

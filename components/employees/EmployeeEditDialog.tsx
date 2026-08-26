@@ -1,6 +1,9 @@
 "use client";
 
-import { showRejectionFromError } from "@/components/ui/rejection-notice";
+import {
+  showMissingRequiredFields,
+  showRejectionFromError,
+} from "@/components/ui/rejection-notice";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { UserCog } from "lucide-react";
@@ -28,6 +31,7 @@ type Employee = {
   areaManagedProjects?: { projectId: string }[];
   status: "ACTIVE" | "INACTIVE" | "TERMINATED" | "ON_LEAVE" | "LEAVE_PENDING" | "RESIGNED";
   depositHeldAmount?: number | null;
+  amountOwedToCompany?: number | null;
   depositStatus?: "NONE" | "HELD" | "RETURNED" | "KEPT_BY_COMPANY";
   securityDepositRequired?: boolean;
   cicoExempt?: boolean;
@@ -111,6 +115,7 @@ export default function EmployeeEditDialog({ employee, categories, positions, pr
     jkkPercent: employee.jkkPercent,
     depositStatus: employee.depositStatus,
     depositHeldAmount: employee.depositHeldAmount,
+    amountOwedToCompany: employee.amountOwedToCompany,
     securityDepositRequired: employee.securityDepositRequired ?? false,
     cicoExempt: employee.cicoExempt ?? false,
     progressExempt: employee.progressExempt ?? false,
@@ -145,6 +150,18 @@ export default function EmployeeEditDialog({ employee, categories, positions, pr
     return () => { cancelled = true; };
   }, [open, categoryChanged, categoryId]);
   function submit(formData: FormData) {
+    const form = document.getElementById(EDIT_FORM_ID);
+    const extra: string[] = [];
+    if (!categoryId) extra.push(t("pages.employees.form.department"));
+    if (!positionId) extra.push(t("pages.employees.form.position"));
+    if (
+      showMissingRequiredFields(
+        form instanceof HTMLFormElement ? form : null,
+        extra
+      )
+    ) {
+      return;
+    }
     startTransition(async () => {
       try {
         await updateEmployee(employee.id, formData);
@@ -194,7 +211,7 @@ export default function EmployeeEditDialog({ employee, categories, positions, pr
           <EmployeePrimaryButton form={EDIT_FORM_ID} disabled={pending}>{pending ? t("common.actions.saving") : t("common.actions.saveChanges")}</EmployeePrimaryButton>
         </div>
       }>
-        <form id={EDIT_FORM_ID} key={`${employee.id}-${open ? "open" : "closed"}`} action={submit} onInput={handleFormInput} onChange={handleFormChange}>
+        <form id={EDIT_FORM_ID} key={`${employee.id}-${open ? "open" : "closed"}`} action={submit} noValidate onInput={handleFormInput} onChange={handleFormChange}>
           <EmployeeFormFields
             mode="edit"
             categories={categories}

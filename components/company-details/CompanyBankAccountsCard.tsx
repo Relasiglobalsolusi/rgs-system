@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { Landmark } from "lucide-react";
 import { toast } from "sonner";
 
 import { deleteCompanyBankAccount } from "@/app/company-details/actions";
@@ -15,6 +16,7 @@ import DirectoryAddButton from "@/components/ui/DirectoryAddButton";
 import EmptyState from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/button";
 import { trashActionChipClassName } from "@/components/ui/trash-action-buttons";
+import { cardTintIcon, cardTintWash } from "@/components/ui/card-tint";
 import type { CompanyBankAccountOption } from "@/lib/company-bank-accounts";
 import { useT } from "@/lib/i18n/use-t";
 
@@ -116,15 +118,22 @@ export default function CompanyBankAccountsCard({ accounts }: Props) {
   ];
 
   return (
-    <section className="rounded-3xl border border-border bg-elevated p-6 sm:p-8">
+    <section className={`rounded-2xl border p-6 sm:p-8 ${cardTintWash.primary}`}>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className={employeeDialogSectionHeadingClass}>
-          <h3 className="text-sm font-semibold text-text">
-            {t("pages.companyDetails.sections.bank")}
-          </h3>
-          <p className={employeeDialogHintClass}>
-            {t("pages.companyDetails.sections.bankHint")}
-          </p>
+        <div className="flex items-start gap-3">
+          <div
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md ${cardTintIcon.primary}`}
+          >
+            <Landmark size={18} />
+          </div>
+          <div className={employeeDialogSectionHeadingClass}>
+            <h3 className="text-sm font-semibold text-text">
+              {t("pages.companyDetails.sections.bank")}
+            </h3>
+            <p className={employeeDialogHintClass}>
+              {t("pages.companyDetails.sections.bankHint")}
+            </p>
+          </div>
         </div>
         <DirectoryAddButton
           label={t("pages.companyDetails.bank.add")}

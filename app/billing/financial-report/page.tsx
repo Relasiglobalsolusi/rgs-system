@@ -9,9 +9,14 @@ import BillingBreadcrumbs from "@/components/billing/BillingBreadcrumbs";
 import FinancialReportClientDirectory from "@/components/billing/FinancialReportClientDirectory";
 import FinancialReportCompanyOverview from "@/components/billing/FinancialReportCompanyOverview";
 import FinancialReportFilters from "@/components/billing/FinancialReportFilters";
-import { financialReportQueryString, parseFinancialReportSelection } from "@/lib/financial-report-query";
+import { directoryToolbarDownloadClass } from "@/components/ui/DirectoryFilterSelect";
+import {
+  financialReportQueryString,
+  parseFinancialReportSelection,
+} from "@/lib/financial-report-query";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
+import { requireFinanceChild } from "@/lib/session";
 
 type SearchParams = Promise<{
   year?: string;
@@ -24,7 +29,9 @@ export default async function FinancialReportPage({
 }: {
   searchParams: SearchParams;
 }) {
-  const t = createTranslator(await getServerLocale());
+  await requireFinanceChild("financialReport");
+  const locale = await getServerLocale();
+  const t = createTranslator(locale);
   const params = await searchParams;
   const selection = parseFinancialReportSelection(params);
   const queryString = financialReportQueryString(selection);
@@ -47,6 +54,16 @@ export default async function FinancialReportPage({
         clients={scopeClients}
         scopeClientId={null}
         bankAccounts={bankAccounts}
+        action={
+          <a
+            href={`/api/billing/financial-report?year=${selection.year}${
+              selection.month != null ? `&month=${selection.month}` : ""
+            }${selection.bank ? `&bank=${selection.bank}` : ""}`}
+            className={directoryToolbarDownloadClass}
+          >
+            {t("pages.financialReport.downloadReport")}
+          </a>
+        }
       />
       <FinancialReportCompanyOverview
         company={company}

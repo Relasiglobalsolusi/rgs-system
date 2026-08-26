@@ -1,51 +1,172 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
-import {
-  Building2,
-  ChevronRight,
-  Landmark,
-  Warehouse,
-} from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import type {
   TransferOrderClientRow,
   TransferOrderInternalSiteRow,
 } from "@/lib/transfer-order-directory";
+import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import DirectorySearchInput, {
   matchesDirectorySearch,
 } from "@/components/ui/DirectorySearchInput";
 import EmptyState from "@/components/ui/EmptyState";
-import TransferOrderCountBadges from "@/components/transfer-orders/TransferOrderCountBadges";
+import StatusBadge from "@/components/ui/StatusBadge";
 import { useT } from "@/lib/i18n/use-t";
+
+type DestinationRow = {
+  id: string;
+  name: string;
+  hint: string | null;
+  kind: "internal" | "client";
+  projectCount: number;
+  pendingSendCount: number;
+  inTransitCount: number;
+  completedCount: number;
+  href: string;
+};
 
 type Props = {
   clients: TransferOrderClientRow[];
   internalSites?: TransferOrderInternalSiteRow[];
 };
 
+function CountCell({ value }: { value: number }) {
+  return (
+    <span
+      className={
+        value > 0
+          ? "text-lg font-semibold tabular-nums text-text"
+          : "text-lg tabular-nums text-subtle"
+      }
+    >
+      {value}
+    </span>
+  );
+}
+
 export default function TransferOrderClientDirectory({
   clients,
   internalSites = [],
 }: Props) {
   const { t } = useT();
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
 
-  const visibleInternal = useMemo(() => {
-    if (!searchQuery.trim()) return internalSites;
-    return internalSites.filter((site) =>
-      matchesDirectorySearch(searchQuery, site.name)
-    );
-  }, [internalSites, searchQuery]);
+  const rows = useMemo(() => {
+    const next: DestinationRow[] = [];
+    for (const site of internalSites) {
+      next.push({
+        id: site.projectId,
+        name: site.name,
+        hint: t("pages.transferOrders.internalSiteHint"),
+        kind: "internal",
+        projectCount: 1,
+        pendingSendCount: site.pendingSendCount,
+        inTransitCount: site.inTransitCount,
+        completedCount: site.completedCount,
+        href: `/transfer-orders/${site.clientId}/${site.projectId}`,
+      });
+    }
+    for (const client of clients) {
+      next.push({
+        id: client.id,
+        name: client.name,
+        hint: null,
+        kind: "client",
+        projectCount: client.projectCount,
+        pendingSendCount: client.pendingSendCount,
+        inTransitCount: client.inTransitCount,
+        completedCount: client.completedCount,
+        href: `/transfer-orders/${client.id}`,
+      });
+    }
+    return next;
+  }, [clients, internalSites, t]);
 
-  const visibleClients = useMemo(
+  const visible = useMemo(
     () =>
-      clients.filter((client) =>
-        matchesDirectorySearch(searchQuery, client.name)
+      rows.filter((row) =>
+        matchesDirectorySearch(searchQuery, row.name, row.hint)
       ),
-    [clients, searchQuery]
+    [rows, searchQuery]
   );
+
+  const columns = useMemo(() => {
+    const cols: DataTableColumn<DestinationRow>[] = [
+      {
+        key: "name",
+        title: t("pages.transferOrders.columns.destination"),
+        width: "12rem",
+        share: 1.25,
+        className: "min-w-[12rem]",
+        render: (row) => (
+          <div className="min-w-0">
+            <p className="font-semibold text-text">{row.name}</p>
+            {row.hint ? (
+              <p className="mt-0.5 truncate text-sm text-subtle">{row.hint}</p>
+            ) : null}
+          </div>
+        ),
+      },
+      {
+        key: "type",
+        title: t("common.labels.type"),
+        width: "10rem",
+        share: 1,
+        cellAlign: "center",
+        className: "min-w-[10rem] overflow-visible",
+        render: (row) => (
+          <StatusBadge
+            status={row.kind === "internal" ? "info" : "success"}
+            compact
+          >
+            {row.kind === "internal"
+              ? t("pages.transferOrders.internalSection")
+              : t("pages.transferOrders.clientsSection")}
+          </StatusBadge>
+        ),
+      },
+      {
+        key: "projects",
+        title: t("pages.transferOrders.projectsSection"),
+        width: "9rem",
+        share: 1,
+        cellAlign: "right",
+        className: "min-w-[9rem] whitespace-nowrap",
+        render: (row) => <CountCell value={row.projectCount} />,
+      },
+      {
+        key: "pending",
+        title: t("pages.transferOrders.columns.pending"),
+        width: "9rem",
+        share: 1,
+        cellAlign: "right",
+        className: "min-w-[9rem] whitespace-nowrap",
+        render: (row) => <CountCell value={row.pendingSendCount} />,
+      },
+      {
+        key: "inTransit",
+        title: t("pages.transferOrders.columns.inTransit"),
+        width: "9rem",
+        share: 1,
+        cellAlign: "right",
+        className: "min-w-[9rem] whitespace-nowrap",
+        render: (row) => <CountCell value={row.inTransitCount} />,
+      },
+      {
+        key: "completed",
+        title: t("pages.transferOrders.columns.completed"),
+        width: "9rem",
+        share: 1,
+        cellAlign: "right",
+        className: "min-w-[9rem] whitespace-nowrap",
+        render: (row) => <CountCell value={row.completedCount} />,
+      },
+    ];
+    return cols;
+  }, [t]);
 
   if (clients.length === 0 && internalSites.length === 0) {
     return (
@@ -56,120 +177,27 @@ export default function TransferOrderClientDirectory({
     );
   }
 
-  const noMatches =
-    visibleInternal.length === 0 && visibleClients.length === 0;
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <DirectorySearchInput
         value={searchQuery}
         onChange={setSearchQuery}
         placeholder={t("pages.transferOrders.searchClients")}
       />
 
-      {noMatches ? (
+      {visible.length === 0 ? (
         <EmptyState
           title={t("common.labels.noResults")}
           description={t("pages.transferOrders.noClientsMatch")}
         />
       ) : (
-        <>
-          {visibleInternal.length > 0 ? (
-            <section className="space-y-3">
-              <div>
-                <h2 className="text-base font-semibold text-text">
-                  {t("pages.transferOrders.internalSection")}
-                </h2>
-                <p className="mt-1 text-sm text-subtle">
-                  {t("pages.transferOrders.internalSectionDesc")}
-                </p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {visibleInternal.map((site) => {
-                  const Icon =
-                    site.kind === "WAREHOUSE" ? Warehouse : Landmark;
-                  return (
-                    <Link
-                      key={site.projectId}
-                      href={`/transfer-orders/${site.clientId}/${site.projectId}`}
-                      className="group flex items-center gap-4 rounded-2xl border border-border bg-card px-4 py-4 transition hover:border-border-strong hover:bg-elevated/40"
-                    >
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-inset text-muted">
-                        <Icon className="h-5 w-5" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-semibold text-text">
-                          {site.name}
-                        </p>
-                        <p className="mt-0.5 text-xs text-subtle">
-                          {t("pages.transferOrders.internalSiteHint")}
-                        </p>
-                        <TransferOrderCountBadges
-                          className="mt-2"
-                          pendingSendCount={site.pendingSendCount}
-                          inTransitCount={site.inTransitCount}
-                        />
-                      </div>
-                      <ChevronRight className="h-4 w-4 shrink-0 text-muted transition group-hover:text-text" />
-                    </Link>
-                  );
-                })}
-              </div>
-            </section>
-          ) : null}
-
-          {visibleClients.length > 0 ? (
-            <section className="space-y-3">
-              <div>
-                <h2 className="text-base font-semibold text-text">
-                  {t("pages.transferOrders.clientsSection")}
-                </h2>
-                <p className="mt-1 text-sm text-subtle">
-                  {t("pages.transferOrders.clientsSectionDesc")}
-                </p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {visibleClients.map((client) => (
-                  <Link
-                    key={client.id}
-                    href={`/transfer-orders/${client.id}`}
-                    className="group flex items-center gap-4 rounded-2xl border border-border bg-card px-4 py-4 transition hover:border-border-strong hover:bg-elevated/40"
-                  >
-                    <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-inset text-muted">
-                      <Building2 className="h-5 w-5" />
-                      {client.pendingSendCount > 0 ? (
-                        <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1 text-[0.625rem] font-bold text-black">
-                          {client.pendingSendCount > 99
-                            ? "99+"
-                            : client.pendingSendCount}
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold text-text">
-                        {client.name}
-                      </p>
-                      <p className="mt-0.5 text-xs text-subtle">
-                        {t(
-                          client.projectCount === 1
-                            ? "pages.transferOrders.projectCountOne"
-                            : "pages.transferOrders.projectCountOther",
-                          { count: client.projectCount }
-                        )}
-                      </p>
-                      <TransferOrderCountBadges
-                        className="mt-2"
-                        pendingSendCount={client.pendingSendCount}
-                        inTransitCount={client.inTransitCount}
-                      />
-                    </div>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-muted transition group-hover:text-text" />
-                  </Link>
-                ))}
-              </div>
-            </section>
-          ) : null}
-        </>
+        <DataTable
+          columns={columns}
+          data={visible}
+          getRowKey={(row) => row.id}
+          onRowClick={(row) => router.push(row.href)}
+          emptyMessage={t("pages.transferOrders.emptyTitle")}
+        />
       )}
     </div>
   );

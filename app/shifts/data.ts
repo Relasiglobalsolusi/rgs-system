@@ -15,6 +15,7 @@ import {
   PROJECT_SITE_WORK_STATUSES,
 } from "@/lib/project-status";
 import { MAX_PROJECT_SHIFTS, syncProjectShifts } from "@/lib/project-shifts";
+import { projectUsesNamedShifts } from "@/lib/project-subcategory";
 import {
   ATTENDANCE_INTERNAL_CLIENT_NAME,
   isAttendanceInternalProject,
@@ -308,6 +309,7 @@ export type ShiftsBoardData = {
     endTime: string;
   }>;
   canAddShift: boolean;
+  usesNamedShifts: boolean;
   assignments: Array<{
     id: string;
     shiftId: string | null;
@@ -418,7 +420,9 @@ export async function getShiftsBoardData(
   if (isInternalRoute && !isAttendanceInternalProject(project)) return null;
   if (!isInternalRoute && isAttendanceInternalProject(project)) return null;
 
-  await syncProjectShifts(prisma, project.id, project.shiftCount || 1);
+  if (project.shiftCount > 0) {
+    await syncProjectShifts(prisma, project.id, project.shiftCount);
+  }
   await releaseExpiredBackupCrew(prisma as never, project.companyId);
 
   const canManage = canManageProjects(session.permissionUser);
@@ -594,7 +598,10 @@ export async function getShiftsBoardData(
       assignedTeamIds: project.operationsTeamLinks.map((link) => link.teamId),
     },
     projectShifts,
-    canAddShift: projectShifts.length < MAX_PROJECT_SHIFTS,
+    usesNamedShifts: projectUsesNamedShifts(project.subCategory),
+    canAddShift:
+      projectUsesNamedShifts(project.subCategory) &&
+      projectShifts.length < MAX_PROJECT_SHIFTS,
     assignments: regularAssignments.map((row) => ({
       id: row.id,
       shiftId: row.shiftId,

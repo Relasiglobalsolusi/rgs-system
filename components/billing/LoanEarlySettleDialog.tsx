@@ -30,6 +30,7 @@ import {
 } from "@/lib/bank-loan";
 import { parseDateInput } from "@/lib/invoice-period";
 import type { LoanFacilitySnapshot } from "@/lib/loan-facility-query";
+import { showMissingRequiredFields } from "@/components/ui/rejection-notice";
 import { useT } from "@/lib/i18n/use-t";
 import { formatContractPrice } from "@/lib/project-billing";
 import { todayDateInput } from "@/lib/project-contract";
@@ -120,10 +121,16 @@ export default function LoanEarlySettleDialog({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    if (!documentFile || documentFile.size === 0) {
-      setError(t("pages.loans.proofRequired"));
+    if (
+      showMissingRequiredFields(event.currentTarget, [
+        ...(!documentFile || documentFile.size === 0
+          ? [t("pages.loans.proof")]
+          : []),
+      ])
+    ) {
       return;
     }
+    if (!documentFile) return;
     const formData = new FormData(event.currentTarget);
     formData.set("facilityId", facility.id);
     formData.set("bankAccountId", bankAccountId);

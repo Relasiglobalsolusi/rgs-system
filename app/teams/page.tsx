@@ -37,7 +37,7 @@ export default async function TeamsAssignmentPage() {
   const today = new Date(`${jakartaTodayKey()}T00:00:00.000Z`);
   const catalog = await ensureTeamServiceAreas(companyId);
 
-  const [teams, eligible] = await Promise.all([
+  const [teams, eligible, equipmentAssets] = await Promise.all([
     prisma.operationsTeam.findMany({
       where: { companyId },
       include: {
@@ -96,8 +96,26 @@ export default async function TeamsAssignmentPage() {
         firstName: true,
         lastName: true,
         employeeNo: true,
+        categoryId: true,
+        category: { select: { slug: true, name: true } },
       },
       orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+    }),
+    prisma.equipmentAsset.findMany({
+      where: {
+        companyId,
+        status: { in: ["AVAILABLE", "ON_PROJECT"] },
+        soldOffMovementId: null,
+        writeOffMovementId: null,
+      },
+      select: {
+        id: true,
+        assetCode: true,
+        teamId: true,
+        item: { select: { name: true } },
+        team: { select: { name: true } },
+      },
+      orderBy: { assetCode: "asc" },
     }),
   ]);
 
@@ -148,7 +166,22 @@ export default async function TeamsAssignmentPage() {
           nameEn: area.nameEn,
           nameId: area.nameId,
         }))}
-        eligible={eligible}
+        eligible={eligible.map((employee) => ({
+          id: employee.id,
+          firstName: employee.firstName,
+          lastName: employee.lastName,
+          employeeNo: employee.employeeNo,
+          categoryId: employee.categoryId,
+          categorySlug: employee.category?.slug ?? null,
+          categoryName: employee.category?.name ?? null,
+        }))}
+        equipmentAssets={equipmentAssets.map((asset) => ({
+          id: asset.id,
+          assetCode: asset.assetCode,
+          itemName: asset.item.name,
+          teamId: asset.teamId,
+          teamName: asset.team?.name ?? null,
+        }))}
         canManage={canManage}
       />
     </AppShell>

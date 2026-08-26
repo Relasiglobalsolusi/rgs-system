@@ -160,64 +160,62 @@ function FeedReportCard({
   const dateLabel = formatDisplayDate(report.reportDate, {
     timeZone: "UTC",
   });
+  const meta = [
+    report.employee.employeeNo,
+    report.employee.category
+      ? localizeDepartmentLabel(null, report.employee.category.name, locale)
+      : null,
+    report.stageLabel,
+    `${dateLabel} · ${formatDisplayTime(report.createdAt)}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <article className="overflow-hidden rounded-2xl border border-border bg-card">
-      <header className="flex items-start justify-between gap-3 px-4 py-3">
-        <div className="min-w-0">
-          <p className="font-semibold text-text">{name}</p>
-          <p className="mt-0.5 text-xs text-subtle">
-            {report.employee.employeeNo}
-            {report.employee.category
-              ? ` · ${localizeDepartmentLabel(null, report.employee.category.name, locale)}`
-              : ""}
-            {" · "}
-            {dateLabel}
-            {" · "}
-            {formatDisplayTime(report.createdAt)}
-          </p>
+    <article className="flex gap-4 rounded-2xl border border-border bg-card p-4">
+      <div className="h-24 w-36 shrink-0 overflow-hidden rounded-xl bg-inset">
+        {report.photos.length > 0 ? (
+          <ProgressPhotoCarousel
+            photos={report.photos}
+            alt={t("pages.progress.progressPhoto")}
+            onPhotoClick={onPhotoClick}
+            className="h-full w-full"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center gap-2 text-muted">
+            <Camera className="h-5 w-5" />
+          </div>
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-semibold text-text">{name}</p>
+            <p className="mt-0.5 truncate text-xs text-subtle">{meta}</p>
+          </div>
+          {canEditCard ? (
+            <Button
+              type="button"
+              size="badge"
+              variant="secondary"
+              className="shrink-0 gap-1"
+              onClick={() => onEdit(report)}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              {t("common.actions.edit")}
+            </Button>
+          ) : null}
         </div>
-        {canEditCard ? (
-          <Button
-            type="button"
-            size="badge"
-            variant="secondary"
-            className="shrink-0 gap-1"
-            onClick={() => onEdit(report)}
-          >
-            <Pencil className="h-3.5 w-3.5" />
-            {t("common.actions.edit")}
-          </Button>
-        ) : null}
-      </header>
-
-      {report.photos.length > 0 ? (
-        <ProgressPhotoCarousel
-          photos={report.photos}
-          alt={t("pages.progress.progressPhoto")}
-          onPhotoClick={onPhotoClick}
-          className="aspect-video w-full"
-        />
-      ) : (
-        <div className="flex aspect-video items-center justify-center gap-2 bg-inset text-muted">
-          <Camera className="h-5 w-5" />
-          {t("pages.progress.noPhotos")}
-        </div>
-      )}
-
-      <div className="space-y-2 px-4 py-3">
-        {report.stageLabel ? (
-          <p className="text-sm font-medium text-text">{report.stageLabel}</p>
-        ) : null}
         {report.notes ? (
-          <p className="text-sm leading-6 text-muted">
-            <span className="font-semibold text-text">{name} </span>
+          <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted">
             {report.notes}
           </p>
         ) : (
-          <p className="text-sm text-subtle">{t("pages.progress.noNotes")}</p>
+          <p className="mt-2 text-sm text-subtle">
+            {t("pages.progress.noNotes")}
+          </p>
         )}
-        <p className="text-xs text-subtle">
+        <p className="mt-1 text-xs text-subtle">
           {t(
             report.photos.length === 1
               ? "pages.progress.photoCountOne"
@@ -400,7 +398,7 @@ export default function ProgressProjectFeed({
         });
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-5">
+    <div className="w-full space-y-5">
       <div className="min-w-0">
         <Link
           href={backHref}
@@ -600,25 +598,18 @@ export default function ProgressProjectFeed({
           )}
         </div>
       ) : viewMode === "month" ? (
-        <div className="space-y-8">
+        <div className="space-y-5">
           {monthGroups.map((group) => (
-            <section key={group.dateKey} className="space-y-4">
-              <div>
-                <h3 className="text-sm font-semibold text-text">
-                  {formatDisplayDate(parseDateInput(group.dateKey), {
-                    timeZone: "UTC",
-                  })}
-                </h3>
-                <p className="mt-0.5 text-xs text-subtle">
-                  {t(
-                    group.reports.length === 1
-                      ? "pages.progress.feedReportCountOne"
-                      : "pages.progress.feedReportCountOther",
-                    { count: group.reports.length }
-                  )}
-                </p>
-              </div>
-              <div className="space-y-6">
+            <section key={group.dateKey} className="space-y-3">
+              <h3 className="text-sm font-semibold text-text">
+                {formatDisplayDate(parseDateInput(group.dateKey), {
+                  timeZone: "UTC",
+                })}{" "}
+                <span className="font-medium text-subtle">
+                  ({group.reports.length})
+                </span>
+              </h3>
+              <div className="space-y-3">
                 {group.reports.map((report) => (
                   <FeedReportCard
                     key={report.id}
@@ -633,7 +624,7 @@ export default function ProgressProjectFeed({
           ))}
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-3">
           {reports.map((report) => (
             <FeedReportCard
               key={report.id}

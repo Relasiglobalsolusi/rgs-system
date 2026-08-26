@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  showMissingRequiredFields,
   showRejection,
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
@@ -135,6 +136,16 @@ export default function InventoryItemDialog({
   }, [open, itemType]);
 
   async function submit(formData: FormData) {
+    const form = document.getElementById(CREATE_FORM_ID);
+    const extra = !itemType.trim() ? [t("pages.inventory.form.itemType")] : [];
+    if (
+      showMissingRequiredFields(
+        form instanceof HTMLFormElement ? form : null,
+        extra
+      )
+    ) {
+      return;
+    }
     if (!itemType.trim()) {
       showRejection({ reasons: t("pages.inventory.itemTypeRequired") });
       return;
@@ -207,6 +218,7 @@ export default function InventoryItemDialog({
             id={CREATE_FORM_ID}
             className={employeeDialogFormClass}
             action={submit}
+            noValidate
             onInput={handleFormInput}
           >
             <div className={employeeDialogFieldClass}>

@@ -738,7 +738,7 @@ export default function CicoActions({
         />
       ) : null}
 
-      <Dialog open={earlyConfirmOpen} onOpenChange={setEarlyConfirmOpen}>
+      <Dialog skipUnsavedGuard open={earlyConfirmOpen} onOpenChange={setEarlyConfirmOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t("pages.cico.earlyCheckoutTitle")}</DialogTitle>

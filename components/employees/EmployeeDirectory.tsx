@@ -76,6 +76,7 @@ type Employee = {
     | "LEAVE_PENDING"
     | "RESIGNED";
   depositHeldAmount?: number | null;
+  amountOwedToCompany?: number | null;
   depositStatus?: "NONE" | "HELD" | "RETURNED" | "KEPT_BY_COMPANY";
   lastWorkingDay?: Date | string | null;
   resignAccordingToProcedure?: boolean | null;

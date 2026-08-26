@@ -190,8 +190,8 @@ export default async function ApprovalsPage() {
           )}
         </SectionCard>
 
-        <SectionCard className="p-5 sm:p-6">
-          <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
               <h2 className="text-base font-semibold text-text">
                 {t("pages.approvals.materialsSection")}
@@ -209,45 +209,45 @@ export default async function ApprovalsPage() {
             ) : null}
           </div>
           {pendingMaterials.length === 0 ? (
-            <EmptyState
-              titleKey="pages.approvals.emptyMaterialsTitle"
-              descriptionKey="pages.approvals.emptyMaterialsDescription"
-            />
+            <SectionCard className="p-5 sm:p-6">
+              <EmptyState
+                titleKey="pages.approvals.emptyMaterialsTitle"
+                descriptionKey="pages.approvals.emptyMaterialsDescription"
+              />
+            </SectionCard>
           ) : (
-            <div className="space-y-4">
-              {pendingMaterials.map((request) => (
-                <MaterialRequestDetailCard
-                  key={request.id}
-                  showStock
-                  request={{
-                    id: request.id,
-                    status: request.status,
-                    notes: request.notes,
-                    reviewNote: request.reviewNote,
-                    createdAt: request.createdAt,
-                    reviewedAt: request.reviewedAt,
-                    project: request.project,
-                    requestedByName: formatEmployeeName(request.requestedBy),
-                    requestedByNo: request.requestedBy.employeeNo,
-                    lines: request.lines.map((line) => ({
-                      id: line.id,
-                      quantity: inventoryQtyFromDecimal(line.quantity),
-                      item: {
-                        sku: line.item.sku,
-                        name: line.item.name,
-                        unit: line.item.unit,
-                        currentStock: inventoryQtyFromDecimal(
-                          line.item.currentStock
-                        ),
-                      },
-                    })),
-                  }}
-                  actions={<ReviewMaterialRequestButtons id={request.id} />}
-                />
-              ))}
-            </div>
+            pendingMaterials.map((request) => (
+              <MaterialRequestDetailCard
+                key={request.id}
+                showStock
+                request={{
+                  id: request.id,
+                  status: request.status,
+                  notes: request.notes,
+                  reviewNote: request.reviewNote,
+                  createdAt: request.createdAt,
+                  reviewedAt: request.reviewedAt,
+                  project: request.project,
+                  requestedByName: formatEmployeeName(request.requestedBy),
+                  requestedByNo: request.requestedBy.employeeNo,
+                  lines: request.lines.map((line) => ({
+                    id: line.id,
+                    quantity: inventoryQtyFromDecimal(line.quantity),
+                    item: {
+                      sku: line.item.sku,
+                      name: line.item.name,
+                      unit: line.item.unit,
+                      currentStock: inventoryQtyFromDecimal(
+                        line.item.currentStock
+                      ),
+                    },
+                  })),
+                }}
+                actions={<ReviewMaterialRequestButtons id={request.id} />}
+              />
+            ))
           )}
-        </SectionCard>
+        </div>
       </div>
     </AppShell>
   );

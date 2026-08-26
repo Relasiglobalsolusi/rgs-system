@@ -14,7 +14,6 @@ import {
   STATUS_COLUMN_WIDTH,
   TrashPermanentDeleteChip,
   TrashRestoreChip,
-  TRASH_ACTIONS_COLUMN_WIDTH,
 } from "@/components/ui/trash-action-buttons";
 import { Button } from "@/components/ui/button";
 import { formatHiredAtLabel, formatTenure } from "@/lib/format-tenure";
@@ -128,7 +127,7 @@ function ClientRowActions({
 
   return (
     <>
-      <div className="flex shrink-0 items-center justify-center gap-2 whitespace-nowrap">
+      <div className="flex flex-col items-stretch justify-center gap-2">
         {showTrashActions ? (
           <TrashRestoreChip
             onClick={(event) => {
@@ -387,18 +386,12 @@ export default function ClientTable({
     );
 
     if (canManage) {
-      const isTrashActions =
-        directoryView === "trash" || directoryView === "all";
       cols.push({
         key: "actions",
         title: t("pages.clients.columns.actions"),
-        width: isTrashActions
-          ? TRASH_ACTIONS_COLUMN_WIDTH
-          : ACTIONS_SINGLE_CHIP_COLUMN_WIDTH,
+        width: ACTIONS_SINGLE_CHIP_COLUMN_WIDTH,
         cellAlign: "center",
-        className: isTrashActions
-          ? "min-w-[22rem] overflow-visible whitespace-nowrap max-xl:min-w-[20rem] max-xl:px-2"
-          : "min-w-[12.5rem] overflow-visible whitespace-nowrap max-xl:min-w-[11rem] max-xl:px-2",
+        className: "min-w-[12.5rem] overflow-visible max-xl:px-2",
         render: (client) => (
           <ClientRowActions client={client} directoryView={directoryView} />
         ),

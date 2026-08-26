@@ -514,6 +514,7 @@ export default function BulkImportDialog({
                       : t("bulkImport.confirmAdd")}
                 </EmployeePrimaryButton>
                 <EmployeeSecondaryButton
+                  closesDialog={false}
                   disabled={pending}
                   onClick={resetToUploadStep}
                 >

@@ -16,6 +16,7 @@ import {
   teamMatchesProjectServiceArea,
   type OperationsTeamKindValue,
 } from "@/lib/operations-team-kind";
+import { syncTeamEquipmentToProject } from "@/lib/team-equipment";
 
 export {
   OPERATIONS_TEAM_KINDS,
@@ -40,11 +41,8 @@ export function eligibleTeamMemberWhere(
     companyId,
     status: "ACTIVE",
     employmentType: "FULL_TIME",
-    category: { active: true, slug: "operations" },
-    jobPosition: {
-      active: true,
-      slug: { in: ["cleaning-staff", "gc-staff"] },
-    },
+    archivedFromDirectory: false,
+    category: { active: true },
     operationsTeamMembership: null,
   };
 }
@@ -360,6 +358,15 @@ export async function applyOperationsTeamAssignments(
         },
       },
     });
+    const remainingJob = await db.operationsTeamProject.findFirst({
+      where: { teamId: link.teamId },
+      orderBy: { assignedAt: "desc" },
+      select: { projectId: true },
+    });
+    await syncTeamEquipmentToProject(db, {
+      teamId: link.teamId,
+      projectId: remainingJob?.projectId ?? null,
+    });
   }
 
   const teamMemberIds = new Set<string>();
@@ -372,6 +379,10 @@ export async function applyOperationsTeamAssignments(
         data: { teamId: team.id, projectId: opts.projectId },
       });
     }
+    await syncTeamEquipmentToProject(db, {
+      teamId: team.id,
+      projectId: opts.projectId,
+    });
   }
 
   const extras = [...new Set(opts.extraEmployeeIds.filter(Boolean))].filter(

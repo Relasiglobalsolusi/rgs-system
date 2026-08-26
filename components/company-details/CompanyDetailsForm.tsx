@@ -1,9 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
+import {
+  Building2,
+  FileText,
+  Globe,
+  Landmark,
+  MapPin,
+  Wallet,
+} from "lucide-react";
 
 import {
+  updateCompanyBpjsAccounts,
   updateCompanyContact,
   updateCompanyIdentity,
   updateCompanyTax,
@@ -14,9 +23,14 @@ import {
   employeeDialogGridClass,
   employeeDialogHintClass,
   employeeDialogLabelClass,
-  employeeDialogSectionHeadingClass,
   employeeInputClass,
 } from "@/components/employees/employee-dialog-ui";
+import {
+  cardTintIcon,
+  cardTintWash,
+  type CardTintAccent,
+} from "@/components/ui/card-tint";
+import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PhoneInput } from "@/components/ui/PhoneInput";
@@ -33,31 +47,70 @@ export type CompanyDetailsValues = {
   phone: string;
   email: string;
   npwp: string;
+  bpjsKesehatanVirtualAccount: string;
+  bpjsKetenagakerjaanVirtualAccount: string;
 };
 
-function SectionHeading({
+type SectionTone = "primary" | "info" | "warning" | "danger" | "success";
+
+const sectionToneToAccent: Record<SectionTone, CardTintAccent> = {
+  primary: "primary",
+  info: "info",
+  warning: "warning",
+  danger: "danger",
+  success: "success",
+};
+
+function SectionCard({
+  children,
+  tone,
+  icon,
   title,
   description,
 }: {
+  children: ReactNode;
+  tone: SectionTone;
+  icon: ReactNode;
   title: string;
   description?: string;
 }) {
   return (
-    <div className={employeeDialogSectionHeadingClass}>
-      <h3 className="text-sm font-semibold text-text">{title}</h3>
-      {description ? (
-        <p className={employeeDialogHintClass}>{description}</p>
-      ) : null}
-    </div>
-  );
-}
-
-function SectionCard({ children }: { children: React.ReactNode }) {
-  return (
-    <section className="rounded-3xl border border-border bg-elevated p-6 sm:p-8">
+    <section
+      className={cn(
+        "rounded-2xl border p-6 sm:p-8",
+        cardTintWash[sectionToneToAccent[tone]]
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className={cn(
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-md",
+            cardTintIcon[sectionToneToAccent[tone]]
+          )}
+        >
+          {icon}
+        </div>
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-text">{title}</h3>
+          {description ? (
+            <p className={cn(employeeDialogHintClass, "mt-1")}>{description}</p>
+          ) : null}
+        </div>
+      </div>
       {children}
     </section>
   );
+}
+
+function websiteHost(value: string) {
+  const raw = value.trim();
+  if (!raw) return "";
+  try {
+    const url = new URL(raw.includes("://") ? raw : `https://${raw}`);
+    return url.hostname.replace(/^www\./, "");
+  } catch {
+    return raw;
+  }
 }
 
 function SaveRow({ saving }: { saving: boolean }) {
@@ -84,6 +137,7 @@ export default function CompanyDetailsForm({
   const [identitySaving, setIdentitySaving] = useState(false);
   const [contactSaving, setContactSaving] = useState(false);
   const [taxSaving, setTaxSaving] = useState(false);
+  const [bpjsSaving, setBpjsSaving] = useState(false);
   const npwpInvalidMessage = t("validation.npwpInvalid");
 
   async function saveSection(
@@ -110,18 +164,67 @@ export default function CompanyDetailsForm({
     }
   }
 
+  const websiteLabel = websiteHost(defaults.website);
+  const taxSet = Boolean(defaults.npwp.trim());
+
   return (
     <div className="flex flex-col gap-6">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <DirectoryStatCard
+          compact
+          tinted
+          title={t("pages.companyDetails.form.name")}
+          value={defaults.name}
+          accent="primary"
+          icon={<Building2 size={18} />}
+        />
+        <DirectoryStatCard
+          compact
+          tinted
+          title={t("pages.companyDetails.cards.website")}
+          value={websiteLabel || t("pages.companyDetails.cards.notSet")}
+          accent={websiteLabel ? "info" : "muted"}
+          icon={<Globe size={18} />}
+        />
+        <DirectoryStatCard
+          compact
+          tinted
+          title={t("pages.companyDetails.cards.taxId")}
+          value={
+            taxSet
+              ? t("pages.companyDetails.cards.set")
+              : t("pages.companyDetails.cards.notSet")
+          }
+          accent={taxSet ? "warning" : "danger"}
+          icon={<FileText size={18} />}
+        />
+        <DirectoryStatCard
+          compact
+          tinted
+          title={t("pages.companyDetails.cards.banks")}
+          value={bankAccounts.length}
+          subtitle={t(
+            bankAccounts.length === 1
+              ? "pages.companyDetails.cards.banksOne"
+              : "pages.companyDetails.cards.banksOther",
+            { count: bankAccounts.length }
+          )}
+          accent={bankAccounts.length > 0 ? "success" : "muted"}
+          icon={<Wallet size={18} />}
+        />
+      </div>
+
       <form
         onSubmit={(event) =>
           saveSection(event, updateCompanyIdentity, setIdentitySaving)
         }
       >
-        <SectionCard>
-          <SectionHeading
-            title={t("pages.companyDetails.sections.identity")}
-            description={t("pages.companyDetails.sections.identityHint")}
-          />
+        <SectionCard
+          tone="primary"
+          icon={<Building2 size={18} />}
+          title={t("pages.companyDetails.sections.identity")}
+          description={t("pages.companyDetails.sections.identityHint")}
+        >
           <div className={cn(employeeDialogGridClass, "mt-6")}>
             <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
               <label htmlFor="company-name" className={employeeDialogLabelClass}>
@@ -163,11 +266,12 @@ export default function CompanyDetailsForm({
           saveSection(event, updateCompanyContact, setContactSaving)
         }
       >
-        <SectionCard>
-          <SectionHeading
-            title={t("pages.companyDetails.sections.contact")}
-            description={t("pages.companyDetails.sections.contactHint")}
-          />
+        <SectionCard
+          tone="info"
+          icon={<MapPin size={18} />}
+          title={t("pages.companyDetails.sections.contact")}
+          description={t("pages.companyDetails.sections.contactHint")}
+        >
           <div className={cn(employeeDialogGridClass, "mt-6")}>
             <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
               <label
@@ -220,8 +324,11 @@ export default function CompanyDetailsForm({
       <form
         onSubmit={(event) => saveSection(event, updateCompanyTax, setTaxSaving)}
       >
-        <SectionCard>
-          <SectionHeading title={t("pages.companyDetails.sections.tax")} />
+        <SectionCard
+          tone="warning"
+          icon={<FileText size={18} />}
+          title={t("pages.companyDetails.sections.tax")}
+        >
           <div className={cn(employeeDialogGridClass, "mt-6")}>
             <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
               <label htmlFor="company-npwp" className={employeeDialogLabelClass}>
@@ -254,6 +361,54 @@ export default function CompanyDetailsForm({
             </div>
           </div>
           <SaveRow saving={taxSaving} />
+        </SectionCard>
+      </form>
+
+      <form
+        onSubmit={(event) =>
+          saveSection(event, updateCompanyBpjsAccounts, setBpjsSaving)
+        }
+      >
+        <SectionCard
+          tone="danger"
+          icon={<Landmark size={18} />}
+          title={t("pages.companyDetails.sections.government")}
+          description={t("pages.companyDetails.sections.governmentHint")}
+        >
+          <div className={cn(employeeDialogGridClass, "mt-6")}>
+            <div className={employeeDialogFieldClass}>
+              <label
+                htmlFor="company-bpjs-kesehatan"
+                className={employeeDialogLabelClass}
+              >
+                {t("pages.companyDetails.form.bpjsKesehatanVa")}
+              </label>
+              <Input
+                id="company-bpjs-kesehatan"
+                name="bpjsKesehatanVirtualAccount"
+                defaultValue={defaults.bpjsKesehatanVirtualAccount}
+                className={employeeInputClass}
+              />
+            </div>
+            <div className={employeeDialogFieldClass}>
+              <label
+                htmlFor="company-bpjs-ketenagakerjaan"
+                className={employeeDialogLabelClass}
+              >
+                {t("pages.companyDetails.form.bpjsKetenagakerjaanVa")}
+              </label>
+              <Input
+                id="company-bpjs-ketenagakerjaan"
+                name="bpjsKetenagakerjaanVirtualAccount"
+                defaultValue={defaults.bpjsKetenagakerjaanVirtualAccount}
+                className={employeeInputClass}
+              />
+            </div>
+            <p className={cn(employeeDialogHintClass, "sm:col-span-2")}>
+              {t("pages.companyDetails.form.bpjsVaHint")}
+            </p>
+          </div>
+          <SaveRow saving={bpjsSaving} />
         </SectionCard>
       </form>
 

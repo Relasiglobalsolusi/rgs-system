@@ -20,6 +20,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { FileDropField } from "@/components/ui/FileDropField";
 import SectionCard from "@/components/ui/SectionCard";
+import StatusBadge from "@/components/ui/StatusBadge";
 import { formatDisplayDate } from "@/lib/format-date";
 import { formatInventoryQtyWithUnit } from "@/lib/inventory";
 import { localizeInventoryItemType } from "@/lib/i18n/labels";
@@ -41,11 +42,7 @@ const labelClass =
   "text-[11px] font-semibold uppercase tracking-[0.14em] text-subtle";
 
 function SoftPill({ children }: { children: ReactNode }) {
-  return (
-    <span className="inline-flex items-center rounded-full border border-accent-cyan/30 bg-card-tint-cyan px-2.5 py-1 text-[11px] font-semibold tracking-wide text-accent-teal">
-      {children}
-    </span>
-  );
+  return <StatusBadge status="info" compact>{children}</StatusBadge>;
 }
 
 function Meta({
@@ -187,7 +184,7 @@ export default function InventorySoldOffDetailDialog({
       viewLabel: t("pages.sales.viewPaymentProof"),
     });
   }
-  if (taxInvoiceUrl && (isCompany || !isIndividual)) {
+  if (taxInvoiceUrl) {
     docs.push({
       label: t("pages.inventory.saleDetailsTaxInvoice"),
       url: taxInvoiceUrl,
@@ -295,6 +292,18 @@ export default function InventorySoldOffDetailDialog({
         }
       >
         <div className="space-y-3">
+          {docs.length > 0 ? (
+            <div className="flex flex-wrap justify-end gap-2">
+              {docs.map((doc) => (
+                <DocChip
+                  key={doc.url}
+                  label={doc.label}
+                  url={doc.url}
+                  viewLabel={doc.viewLabel}
+                />
+              ))}
+            </div>
+          ) : null}
           {/* Hero */}
           <SectionCard className="overflow-hidden p-0">
             <div className="flex flex-wrap items-start justify-between gap-4 px-4 py-4 sm:px-5">

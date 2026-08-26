@@ -14,7 +14,10 @@
  * (June 1% / 30). Annual quote: percent / 360 per day.
  */
 import type { LoanInterestBasis } from "@/lib/bank-loan";
-import { roundIdr } from "@/lib/bank-loan";
+import {
+  COMMITMENT_FEE_DAY_COUNT_YEAR,
+  roundIdr,
+} from "@/lib/bank-loan";
 import { toUtcDateOnly } from "@/lib/invoice-period";
 
 export const LOAN_DAY_COUNT_YEAR = 360;
@@ -30,6 +33,21 @@ export type DatedPrincipalMovement = {
 
 function utcDay(value: Date | string): Date {
   return toUtcDateOnly(value instanceof Date ? value : new Date(value));
+}
+
+function addUtcDays(date: Date, days: number): Date {
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + days)
+  );
+}
+
+function utcDayDiff(from: Date, toExclusive: Date): number {
+  return Math.max(
+    0,
+    Math.round(
+      (utcDay(toExclusive).getTime() - utcDay(from).getTime()) / 86_400_000
+    )
+  );
 }
 
 function dayKey(date: Date | string): number {
@@ -59,6 +77,87 @@ export function sortDatedMovements(
         : 0;
       return leftCreated - rightCreated;
     });
+}
+
+/** Unused plafon after every draw/return on this date (end of day). */
+export function unusedAtEndOfDay(
+  facilityLimit: number,
+  movements: DatedPrincipalMovement[],
+  day: Date
+): number {
+  const limit = Math.max(0, Number(facilityLimit) || 0);
+  if (limit <= 0) return 0;
+  return Math.max(0, roundIdr(limit - outstandingAtEndOfDay(movements, day)));
+}
+
+/**
+ * Commitment fee for an inclusive date range.
+ * Bank method: for each stretch of constant unused,
+ *   unused × annual% × days / 360
+ * then one rupiah round at the end.
+ *
+ * End-of-day unused: a draw or return on date D already changes D.
+ */
+export function standbyCommitmentFeeForDateRange(input: {
+  facilityLimit: number;
+  movements: DatedPrincipalMovement[];
+  annualRatePercent: number | null | undefined;
+  from: Date;
+  to: Date;
+  dayCountYear?: number;
+}): number {
+  const rate = Number(input.annualRatePercent) || 0;
+  const limit = Math.max(0, Number(input.facilityLimit) || 0);
+  if (rate <= 0 || limit <= 0) return 0;
+  const year =
+    input.dayCountYear === 365 ? 365 : COMMITMENT_FEE_DAY_COUNT_YEAR;
+  const from = utcDay(input.from);
+  const to = utcDay(input.to);
+  if (from.getTime() > to.getTime()) return 0;
+
+  const events = sortDatedMovements(input.movements);
+  let outstanding = 0;
+  const later: DatedPrincipalMovement[] = [];
+  for (const event of events) {
+    if (dayKey(event.movementDate) <= from.getTime()) {
+      outstanding += principalDelta(event);
+    } else {
+      later.push(event);
+    }
+  }
+  outstanding = Math.max(0, outstanding);
+
+  let total = 0;
+  let cursor = from;
+  let index = 0;
+  while (index < later.length) {
+    const eventDay = utcDay(later[index].movementDate);
+    if (eventDay.getTime() > to.getTime()) break;
+    const days = utcDayDiff(cursor, eventDay);
+    if (days > 0) {
+      const unused = Math.max(0, roundIdr(limit - outstanding));
+      if (unused > 0) {
+        total += (unused * rate * days) / (100 * year);
+      }
+    }
+    const eventKey = eventDay.getTime();
+    while (
+      index < later.length &&
+      dayKey(later[index].movementDate) === eventKey
+    ) {
+      outstanding = Math.max(0, outstanding + principalDelta(later[index]));
+      index += 1;
+    }
+    cursor = eventDay;
+  }
+  const tailDays = utcDayDiff(cursor, addUtcDays(to, 1));
+  if (tailDays > 0) {
+    const unused = Math.max(0, roundIdr(limit - outstanding));
+    if (unused > 0) {
+      total += (unused * rate * tailDays) / (100 * year);
+    }
+  }
+  return roundIdr(total);
 }
 
 /** End-of-day outstanding: draws and returns on this date already applied. */
@@ -148,19 +247,6 @@ export type StandbyUsageSlice = {
   interest: number;
   open: boolean;
 };
-
-function addUtcDays(date: Date, days: number): Date {
-  return new Date(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + days)
-  );
-}
-
-function utcDayDiff(from: Date, toExclusive: Date): number {
-  return Math.max(
-    0,
-    Math.round((utcDay(toExclusive).getTime() - utcDay(from).getTime()) / 86_400_000)
-  );
-}
 
 /** Interest on a fixed outstanding from `from` inclusive to `toExclusive`. */
 export function standbySliceInterest(input: {

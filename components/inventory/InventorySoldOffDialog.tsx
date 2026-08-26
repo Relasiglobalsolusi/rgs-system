@@ -62,6 +62,7 @@ import {
 } from "@/components/ui/select";
 import { outlineChipTones } from "@/components/ui/StatusBadge";
 import CompanyBankAccountField from "@/components/company-details/CompanyBankAccountField";
+import PaymentTermsField from "@/components/billing/PaymentTermsField";
 import type { CompanyBankAccountOption } from "@/lib/company-bank-accounts";
 import { formatDateForInput } from "@/lib/format-tenure";
 import { formatContractPrice, parseContractPrice } from "@/lib/project-billing";
@@ -69,7 +70,14 @@ import {
   formatInventoryQty,
   isWholeInventoryQty,
 } from "@/lib/inventory";
-import { isValidNpwp } from "@/lib/npwp";
+import { INVENTORY_ITEM_TYPE_PRESETS } from "@/lib/inventory-sku";
+import {
+  DJP_PLACEHOLDER_NPWP,
+  isPlaceholderNpwp,
+  isValidNik,
+  isValidNpwp,
+  isValidPassportNumber,
+} from "@/lib/npwp";
 import { localizeInventoryItemType } from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
@@ -127,16 +135,24 @@ export default function InventorySoldOffDialog({
   const [pending, startTransition] = useTransition();
   const [baseline, setBaseline] = useState<HtmlFormDirtyBaseline | null>(null);
   const [lossConfirmOpen, setLossConfirmOpen] = useState(false);
+  const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
+  const [taxInvoiceFile, setTaxInvoiceFile] = useState<File | null>(null);
+  const [notes, setNotes] = useState("");
+  const [paidAt, setPaidAt] = useState("");
+  const [formEpoch, setFormEpoch] = useState(0);
   const lossConfirmedRef = useRef(false);
   const formRef = useRef<HTMLFormElement>(null);
 
-  const saleItemTypes = [
-    "Consumable",
-    "Chemical",
-    "Equipment",
-    "Spare Part",
-    "Other",
-  ] as const;
+  const saleItemTypes = useMemo(() => {
+    const types = new Set<string>(INVENTORY_ITEM_TYPE_PRESETS);
+    for (const item of items) {
+      const type = item.itemType.trim();
+      if (type) types.add(type);
+    }
+    return [...types].sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: "base" })
+    );
+  }, [items]);
 
   const stockedItems = useMemo(
     () =>
@@ -244,6 +260,11 @@ export default function InventorySoldOffDialog({
     setSelectedAssetIds([]);
     setBankAccountId("");
     setLossConfirmOpen(false);
+    setPaymentProofFile(null);
+    setTaxInvoiceFile(null);
+    setNotes("");
+    setPaidAt("");
+    setFormEpoch((current) => current + 1);
     lossConfirmedRef.current = false;
   }
 
@@ -269,9 +290,9 @@ export default function InventorySoldOffDialog({
 
   function closeDialog() {
     onOpenChange(false);
+    resetFormState();
     resetDirtyTracking();
     setBaseline(null);
-    resetFormState();
   }
 
   function handleOpenChange(
@@ -292,13 +313,17 @@ export default function InventorySoldOffDialog({
 
   useEffect(() => {
     if (!open) {
+      resetFormState();
       setBaseline(null);
       return;
     }
+    resetFormState();
     const frame = requestAnimationFrame(() => {
       setBaseline(captureHtmlFormBaseline(FORM_ID, ""));
     });
     return () => cancelAnimationFrame(frame);
+    // Reset every time the dialog opens or closes — never keep the last sale.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   useEffect(() => {
@@ -387,25 +412,36 @@ export default function InventorySoldOffDialog({
   }
 
   async function submit(formData: FormData) {
-    if (!itemId) {
-      showRejection({ reasons: t("pages.inventory.itemRequired") });
-      return;
+    const missing: string[] = [];
+    if (!itemType) {
+      missing.push(t("pages.inventory.form.itemType"));
     }
-    if (stockedItems.length === 0) {
-      showRejection({ reasons: t("pages.inventory.noStockToIssue") });
+    if (!itemId) {
+      missing.push(t("pages.inventory.form.catalogItem"));
+    }
+    if (itemType && stockedItems.length === 0) {
+      missing.push(t("pages.inventory.noStockToIssue"));
+    }
+    if (buyerType !== "INDIVIDUAL" && buyerType !== "COMPANY") {
+      missing.push(t("pages.inventory.buyerTypeRequired"));
+    }
+    if (!buyer.trim()) {
+      missing.push(
+        buyerType === "COMPANY"
+          ? t("pages.inventory.companyNameRequired")
+          : t("pages.inventory.buyerNameRequired")
+      );
+    }
+    if (missing.length > 0) {
+      showRejection({
+        reasons: t("ui.rejectionNotice.fieldsStillMissing", {
+          fields: missing.join(", "),
+        }),
+      });
       return;
     }
     if (buyerType !== "INDIVIDUAL" && buyerType !== "COMPANY") {
       showRejection({ reasons: t("pages.inventory.buyerTypeRequired") });
-      return;
-    }
-    if (!buyer.trim()) {
-      showRejection({
-        reasons:
-          buyerType === "COMPANY"
-            ? t("pages.inventory.companyNameRequired")
-            : t("pages.inventory.buyerNameRequired"),
-      });
       return;
     }
     if (buyerType === "COMPANY" && !buyerPicName.trim()) {
@@ -416,38 +452,36 @@ export default function InventorySoldOffDialog({
       showRejection({ reasons: t("pages.inventory.buyerPhoneRequired") });
       return;
     }
-    if (buyerType === "COMPANY") {
-      if (!buyerTaxId.trim()) {
-        showRejection({ reasons: t("pages.inventory.buyerTaxIdRequired") });
-        return;
-      }
-      if (!isValidNpwp(buyerTaxId)) {
-        showRejection({ reasons: t("validation.npwpInvalid") });
-        return;
-      }
-      // Tax invoice (Faktur Pajak) is only required for company buyers —
-      // individuals cannot legally be issued one.
-      const taxDoc = formData.get("buyerIdentityDoc");
-      if (!(taxDoc instanceof File) || taxDoc.size === 0) {
-        showRejection({
-          reasons: t("pages.inventory.buyerIdentityDocRequired"),
-        });
-        return;
-      }
-    } else {
-      // INDIVIDUAL — at least one of Tax ID (NPWP) or National ID (KTP) is required.
-      if (!buyerTaxId.trim() && !buyerIdNumber.trim()) {
-        showRejection({ reasons: t("validation.npwpOrNikRequired") });
-        return;
-      }
-      if (buyerTaxId.trim() && !isValidNpwp(buyerTaxId)) {
-        showRejection({ reasons: t("validation.npwpOrNikInvalid") });
-        return;
-      }
-      if (buyerIdNumber.trim() && !isValidNpwp(buyerIdNumber)) {
-        showRejection({ reasons: t("validation.npwpOrNikInvalid") });
-        return;
-      }
+    if (!buyerTaxId.trim()) {
+      formData.set("buyerTaxId", DJP_PLACEHOLDER_NPWP);
+      setBuyerTaxId(DJP_PLACEHOLDER_NPWP);
+    } else if (!isValidNpwp(buyerTaxId)) {
+      showRejection({ reasons: t("validation.npwpInvalid") });
+      return;
+    }
+    if (
+      (isPlaceholderNpwp(buyerTaxId) || !buyerTaxId.trim()) &&
+      !buyerIdNumber.trim()
+    ) {
+      showRejection({
+        reasons: t("pages.inventory.buyerIdNumberRequiredWhenNoNpwp"),
+      });
+      return;
+    }
+    if (
+      buyerIdNumber.trim() &&
+      !isValidNik(buyerIdNumber) &&
+      !isValidPassportNumber(buyerIdNumber)
+    ) {
+      showRejection({ reasons: t("pages.inventory.buyerIdNumberInvalid") });
+      return;
+    }
+    const taxDoc = formData.get("buyerIdentityDoc");
+    if (!(taxDoc instanceof File) || taxDoc.size === 0) {
+      showRejection({
+        reasons: t("pages.inventory.buyerIdentityDocRequired"),
+      });
+      return;
     }
     if (parsedTaxRate == null || parsedTaxRate <= 0) {
       showRejection({ reasons: t("pages.inventory.taxRateRequired") });
@@ -546,6 +580,14 @@ export default function InventorySoldOffDialog({
     formData.set("buyerIdNumber", buyerIdNumber.trim());
     formData.set("taxRatePercent", taxRatePercent.trim());
     formData.set("clientId", clientId);
+    formData.set("notes", notes);
+    formData.set("paidAt", paidAt);
+    if (paymentProofFile) {
+      formData.set("paymentProof", paymentProofFile);
+    }
+    if (taxInvoiceFile) {
+      formData.set("buyerIdentityDoc", taxInvoiceFile);
+    }
     formData.delete("assetIds");
     for (const assetId of selectedAssetIds) {
       formData.append("assetIds", assetId);
@@ -587,7 +629,7 @@ export default function InventorySoldOffDialog({
               <EmployeePrimaryButton
                 type="submit"
                 form={FORM_ID}
-                disabled={pending || stockedItems.length === 0}
+                disabled={pending}
               >
                 {pending
                   ? t("common.actions.saving")
@@ -598,9 +640,11 @@ export default function InventorySoldOffDialog({
         >
           <form
             id={FORM_ID}
+            key={formEpoch}
             ref={formRef}
-            className={employeeDialogFormClass}
+            className={cn(employeeDialogFormClass, "min-h-[32rem]")}
             action={submit}
+            noValidate
             onInput={handleFormInput}
           >
             <div className={employeeDialogFieldClass}>
@@ -608,7 +652,7 @@ export default function InventorySoldOffDialog({
                 {t("pages.inventory.form.itemType")}
               </label>
               <Select
-                value={itemType || undefined}
+                value={itemType || null}
                 onValueChange={(value) => setItemType(value ?? "")}
                 items={saleItemTypes.map((type) => ({
                   value: type,
@@ -634,12 +678,16 @@ export default function InventorySoldOffDialog({
               </Select>
             </div>
 
-            {itemType ? (
-              <div className={employeeDialogFieldClass}>
+            <div className={employeeDialogFieldClass}>
                 <label className={employeeDialogLabelClass}>
                   {t("pages.inventory.form.catalogItem")}
                 </label>
-                {stockedItems.length === 0 ? (
+                <div className="min-h-[7.5rem]">
+                {!itemType ? (
+                  <p className={employeeDialogHintClass}>
+                    {t("pages.inventory.form.selectItemTypeToShowStock")}
+                  </p>
+                ) : stockedItems.length === 0 ? (
                   <p className={employeeDialogHintClass}>
                     {t("pages.inventory.form.soldOffNoStockForType")}
                   </p>
@@ -715,8 +763,8 @@ export default function InventorySoldOffDialog({
                     )}
                   </>
                 )}
+                </div>
               </div>
-            ) : null}
 
             {isEquipmentSelected ? (
               <div className={employeeDialogFieldClass}>
@@ -841,7 +889,29 @@ export default function InventorySoldOffDialog({
                   value={quantity}
                   onChange={(event) => {
                     if (isEquipmentSelected && saleSource === "issued") return;
-                    setQuantity(event.target.value);
+                    const raw = event.target.value;
+                    const next = Number(String(raw).replace(/,/g, "").trim());
+                    const available = isEquipmentSelected
+                      ? saleSource === "issued"
+                        ? sellableAssets.length
+                        : uncodedNew
+                      : selected?.currentStock;
+                    if (
+                      selected &&
+                      Number.isFinite(next) &&
+                      available != null &&
+                      next > available
+                    ) {
+                      setQuantity(String(available));
+                      showRejection({
+                        reasons: t("pages.inventory.quantityExceedsStock", {
+                          available: formatInventoryQty(available),
+                          unit: selected.unit,
+                        }),
+                      });
+                      return;
+                    }
+                    setQuantity(raw);
                   }}
                   readOnly={isEquipmentSelected && saleSource === "issued"}
                   max={
@@ -870,6 +940,11 @@ export default function InventorySoldOffDialog({
                   className={employeeInputClass}
                 />
               </div>
+              <PaymentTermsField
+                name="paymentTermsDays"
+                id="soldoff-payment-terms"
+                defaultValue={0}
+              />
             </div>
 
             <div className={employeeDialogGridClass}>
@@ -892,6 +967,17 @@ export default function InventorySoldOffDialog({
                 <p className={employeeDialogHintClass}>
                   {t("pages.inventory.form.saleUnitPriceExTaxHint")}
                 </p>
+                {selected && Number.isFinite(qtyNumber) && qtyNumber > 0 ? (
+                  <p className={employeeDialogHintClass}>
+                    {t("pages.sales.form.warehouseCost")}:{" "}
+                    <span className="font-semibold tabular-nums text-text">
+                      {formatContractPrice(estimateSaleCostBasis(qtyNumber))}
+                    </span>
+                    <span className="mt-1 block">
+                      {t("pages.sales.form.warehouseCostHint")}
+                    </span>
+                  </p>
+                ) : null}
               </div>
               <div className={employeeDialogFieldClass}>
                 <label
@@ -920,7 +1006,7 @@ export default function InventorySoldOffDialog({
               </div>
             </div>
 
-            <div className={employeeDialogGridClass}>
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-3 sm:gap-x-8 sm:gap-y-5">
               <div className={employeeDialogFieldClass}>
                 <label className={employeeDialogLabelClass}>
                   {t("pages.inventory.form.saleSubtotal")}
@@ -1168,26 +1254,50 @@ export default function InventorySoldOffDialog({
                         </p>
                       </div>
                     </div>
-                    <div className={employeeDialogFieldClass}>
-                      <label
-                        className={employeeDialogLabelClass}
-                        htmlFor="soldoff-buyer-tax"
-                      >
-                        {t("pages.inventory.form.buyerTaxId")}
-                        <span className="text-danger"> *</span>
-                      </label>
-                      <input
-                        id="soldoff-buyer-tax"
-                        name="buyerTaxId"
-                        type="text"
-                        required
-                        value={buyerTaxId}
-                        onChange={(event) => setBuyerTaxId(event.target.value)}
-                        placeholder={t(
-                          "pages.inventory.form.buyerTaxIdPlaceholder"
-                        )}
-                        className={employeeInputClass}
-                      />
+                    <div className={employeeDialogGridClass}>
+                      <div className={employeeDialogFieldClass}>
+                        <label
+                          className={employeeDialogLabelClass}
+                          htmlFor="soldoff-buyer-tax"
+                        >
+                          {t("pages.inventory.form.buyerTaxId")}
+                        </label>
+                        <input
+                          id="soldoff-buyer-tax"
+                          name="buyerTaxId"
+                          type="text"
+                          value={buyerTaxId}
+                          onChange={(event) =>
+                            setBuyerTaxId(event.target.value)
+                          }
+                          placeholder={DJP_PLACEHOLDER_NPWP}
+                          className={employeeInputClass}
+                        />
+                        <p className={employeeDialogHintClass}>
+                          {t("pages.inventory.form.buyerTaxIdPlaceholderHint")}
+                        </p>
+                      </div>
+                      <div className={employeeDialogFieldClass}>
+                        <label
+                          className={employeeDialogLabelClass}
+                          htmlFor="soldoff-buyer-id-number-company"
+                        >
+                          {t("pages.inventory.form.buyerIdNumber")}
+                        </label>
+                        <input
+                          id="soldoff-buyer-id-number-company"
+                          name="buyerIdNumber"
+                          type="text"
+                          value={buyerIdNumber}
+                          onChange={(event) =>
+                            setBuyerIdNumber(event.target.value)
+                          }
+                          placeholder={t(
+                            "pages.inventory.form.buyerIdNumberPlaceholder"
+                          )}
+                          className={employeeInputClass}
+                        />
+                      </div>
                     </div>
                   </>
                 ) : null}
@@ -1267,9 +1377,7 @@ export default function InventorySoldOffDialog({
                           onChange={(event) =>
                             setBuyerTaxId(event.target.value)
                           }
-                          placeholder={t(
-                            "pages.inventory.form.buyerTaxIdPlaceholder"
-                          )}
+                          placeholder={DJP_PLACEHOLDER_NPWP}
                           className={employeeInputClass}
                         />
                       </div>
@@ -1303,10 +1411,13 @@ export default function InventorySoldOffDialog({
 
                 <div className={employeeDialogFieldClass}>
                   <FileDropField
+                    key={`payment-proof-${formEpoch}`}
                     id="soldoff-payment-proof"
                     name="paymentProof"
                     label={t("pages.sales.form.paymentProof")}
                     accept="image/*,.pdf"
+                    fileName={paymentProofFile?.name ?? null}
+                    onPick={setPaymentProofFile}
                   />
                   <p className={employeeDialogHintClass}>
                     {t("pages.sales.form.paymentProofHint")}
@@ -1324,6 +1435,8 @@ export default function InventorySoldOffDialog({
                     id="soldoff-paid-at"
                     name="paidAt"
                     type="date"
+                    value={paidAt}
+                    onChange={(event) => setPaidAt(event.target.value)}
                     className={employeeInputClass}
                   />
                   <p className={employeeDialogHintClass}>
@@ -1331,20 +1444,21 @@ export default function InventorySoldOffDialog({
                   </p>
                 </div>
 
-                {buyerType === "COMPANY" ? (
-                  <div className={employeeDialogFieldClass}>
-                    <FileDropField
-                      id="soldoff-buyer-identity"
-                      name="buyerIdentityDoc"
-                      label={t("pages.inventory.form.buyerIdentityDoc")}
-                      required
-                      accept="image/*,.pdf"
-                    />
-                    <p className={employeeDialogHintClass}>
-                      {t("pages.inventory.form.buyerIdentityDocHint")}
-                    </p>
-                  </div>
-                ) : null}
+                <div className={employeeDialogFieldClass}>
+                  <FileDropField
+                    key={`tax-invoice-${formEpoch}`}
+                    id="soldoff-buyer-identity"
+                    name="buyerIdentityDoc"
+                    label={t("pages.inventory.form.buyerIdentityDoc")}
+                    required
+                    accept="image/*,.pdf"
+                    fileName={taxInvoiceFile?.name ?? null}
+                    onPick={setTaxInvoiceFile}
+                  />
+                  <p className={employeeDialogHintClass}>
+                    {t("pages.inventory.form.buyerIdentityDocHintAll")}
+                  </p>
+                </div>
               </>
             ) : null}
 
@@ -1356,6 +1470,8 @@ export default function InventorySoldOffDialog({
                 id="soldoff-notes"
                 name="notes"
                 rows={2}
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
                 placeholder={t("pages.inventory.form.soldOffNotesPlaceholder")}
                 className={`${employeeInputClass} h-auto min-h-[4rem] py-3`}
               />
@@ -1374,6 +1490,7 @@ export default function InventorySoldOffDialog({
       />
 
       <Dialog
+        skipUnsavedGuard
         open={lossConfirmOpen}
         onOpenChange={(nextOpen) => {
           if (!nextOpen) {

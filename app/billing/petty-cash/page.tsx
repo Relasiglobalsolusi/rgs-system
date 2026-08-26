@@ -4,6 +4,10 @@ import {
   syncPettyCashOnPageLoad,
 } from "@/app/billing/petty-cash/actions";
 import PettyCashSpendDialog from "@/components/billing/PettyCashSpendDialog";
+import PrepaidCardsPanel from "@/components/billing/PrepaidCardsPanel";
+import DirectoryFilterTab from "@/components/ui/DirectoryFilterTab";
+import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import { isVehicleItemType } from "@/lib/inventory-sku";
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/ui/EmptyState";
 import FinanceRecordRow, {
@@ -20,11 +24,16 @@ import { getPettyCashTotals, processScheduledPettyCashPays } from "@/lib/petty-c
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber, formatContractPrice } from "@/lib/project-billing";
 import { formatEmployeeName } from "@/lib/employee-user-link";
-import { getOmServiceAreaListFilter } from "@/lib/om-approval";
+import { isOwnerAccount } from "@/lib/permissions";
 import { isAreaManagerOrAbovePosition } from "@/lib/positions";
 import { requirePettyCashAccess } from "@/lib/session";
 import { jakartaYearMonth, utcRangeForJakartaMonth } from "@/lib/vat";
-import { cn } from "@/lib/utils";
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  CalendarDays,
+  Wallet,
+} from "lucide-react";
 
 
 function statusTone(status: string): "success" | "warning" | "danger" | "info" {
@@ -33,11 +42,18 @@ function statusTone(status: string): "success" | "warning" | "danger" | "info" {
   return "warning";
 }
 
-export default async function PettyCashPage() {
+export default async function PettyCashPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const session = await requirePettyCashAccess();
   if (session.user.clientId || session.user.vendorId) {
     redirect("/dashboard");
   }
+
+  const { tab } = await searchParams;
+  const showPrepaid = tab === "prepaid";
 
   await syncPettyCashOnPageLoad();
   await processScheduledPettyCashPays(prisma, session.user.companyId);
@@ -47,18 +63,13 @@ export default async function PettyCashPage() {
   const now = jakartaYearMonth();
   const { start, endExclusive } = utcRangeForJakartaMonth(now.year, now.month);
 
-  const projectScope = await getOmServiceAreaListFilter({
-    userId: session.user.id,
-    username: session.user.username,
-    clientId: session.user.clientId,
-  });
-
-  const [totals, entries, projects, attributionEmployees] = await Promise.all([
+  const [totals, entries, projects, clients, attributionEmployees, prepaidCards, inventoryItems] = await Promise.all([
     getPettyCashTotals(prisma, session.user.companyId, start, endExclusive),
     prisma.pettyCashEntry.findMany({
       where: { companyId: session.user.companyId },
       include: {
         project: { select: { name: true } },
+        client: { select: { name: true } },
         employee: { select: { firstName: true, lastName: true } },
       },
       orderBy: [{ entryDate: "desc" }, { createdAt: "desc" }],
@@ -67,18 +78,23 @@ export default async function PettyCashPage() {
     prisma.project.findMany({
       where: {
         companyId: session.user.companyId,
-        status: { in: ["PLANNED", "IN_PROGRESS", "WAITING_FOR_APPROVAL"] },
-        OR: [
-          projectScope ?? {},
-          { subCategory: "INTERNAL", serviceArea: "HEAD_OFFICE" },
-        ],
+        status: { not: "CANCELLED" },
       },
       select: {
         id: true,
         name: true,
+        subCategory: true,
         client: { select: { name: true } },
       },
       orderBy: { name: "asc" },
+    }),
+    prisma.client.findMany({
+      where: {
+        companyId: session.user.companyId,
+        active: true,
+      },
+      select: { id: true, name: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
     prisma.employee.findMany({
       where: {
@@ -93,6 +109,48 @@ export default async function PettyCashPage() {
         jobPosition: { select: { slug: true, name: true } },
       },
       orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+    }),
+    prisma.prepaidCard.findMany({
+      where: { companyId: session.user.companyId },
+      include: {
+        vehicleItem: {
+          select: {
+            name: true,
+            sku: true,
+            equipmentAssets: {
+              select: { assetCode: true },
+              orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+            },
+          },
+        },
+        entries: {
+          orderBy: [{ entryDate: "desc" }, { createdAt: "desc" }],
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.inventoryItem.findMany({
+      where: {
+        companyId: session.user.companyId,
+        active: true,
+        deletedAt: null,
+        OR: [
+          { currentStock: { gt: 0 } },
+          { equipmentAssets: { some: { companyId: session.user.companyId } } },
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        itemType: true,
+        equipmentAssets: {
+          where: { companyId: session.user.companyId },
+          select: { id: true, assetCode: true },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        },
+      },
+      orderBy: { name: "asc" },
     }),
   ]);
 
@@ -112,27 +170,36 @@ export default async function PettyCashPage() {
       key: "balance",
       label: t("pages.pettyCash.currentBalance"),
       value: totals.balance,
-      warn: totals.balance < 0,
+      accent: totals.balance < 0 ? ("danger" as const) : ("success" as const),
+      icon: <Wallet size={18} />,
     },
     {
       key: "lifetimeIn",
       label: t("pages.pettyCash.lifetimeIn"),
       value: totals.lifetimeIn,
+      accent: "info" as const,
+      icon: <ArrowDownLeft size={18} />,
     },
     {
       key: "monthIn",
       label: t("pages.pettyCash.monthIn"),
       value: totals.monthIn,
+      accent: "primary" as const,
+      icon: <CalendarDays size={18} />,
     },
     {
       key: "lifetimeOut",
       label: t("pages.pettyCash.lifetimeOut"),
       value: totals.lifetimeOut,
+      accent: "warning" as const,
+      icon: <ArrowUpRight size={18} />,
     },
     {
       key: "monthOut",
       label: t("pages.pettyCash.monthOut"),
       value: totals.monthOut,
+      accent: "warning" as const,
+      icon: <ArrowUpRight size={18} />,
     },
   ];
 
@@ -140,32 +207,83 @@ export default async function PettyCashPage() {
     <AppShell
       titleKey="pages.pettyCash.title"
     >
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        <DirectoryFilterTab
+          href="/billing/petty-cash"
+          active={!showPrepaid}
+        >
+          {t("pages.pettyCash.tabPetty")}
+        </DirectoryFilterTab>
+        <DirectoryFilterTab
+          href="/billing/petty-cash?tab=prepaid"
+          active={showPrepaid}
+        >
+          {t("pages.pettyCash.tabPrepaid")}
+        </DirectoryFilterTab>
+      </div>
+
+      {showPrepaid ? (
+        <PrepaidCardsPanel
+          canManageCards={isOwnerAccount({ username: session.user.username })}
+          cards={prepaidCards.map((card) => ({
+            id: card.id,
+            cardNumber: card.cardNumber,
+            currentBalance: decimalToNumber(card.currentBalance) ?? 0,
+            vehicleName: card.vehicleItem.name,
+            vehicleSku: card.vehicleItem.sku,
+            vehiclePlate: card.vehicleItem.equipmentAssets
+              .map((asset) => asset.assetCode)
+              .filter(Boolean)
+              .join(" / "),
+            vehicleItemId: card.vehicleItemId,
+            entries: card.entries.map((entry) => ({
+              id: entry.id,
+              kind: entry.kind,
+              spendKind: entry.spendKind,
+              amount: decimalToNumber(entry.amount) ?? 0,
+              entryDate: entry.entryDate.toISOString().slice(0, 10),
+              description: entry.description,
+              proofPath: entry.proofPath,
+            })),
+          }))}
+          vehicles={inventoryItems
+            .filter((item) => isVehicleItemType(item.itemType))
+            .map((item) => ({
+              id: item.id,
+              name: item.name,
+              sku: item.sku,
+              plate: item.equipmentAssets
+                .map((asset) => asset.assetCode)
+                .filter(Boolean)
+                .join(" / "),
+            }))}
+        />
+      ) : (
+      <>
       <div className="mb-5 flex flex-wrap items-end justify-end gap-3">
         <PettyCashSpendDialog
           projects={projects.map((project) => ({
             id: project.id,
             name: project.name,
             clientName: project.client?.name ?? null,
+            subCategory: project.subCategory,
           }))}
+          clients={clients}
           billForEmployees={billForEmployees}
         />
       </div>
 
       <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {cards.map((card) => (
-          <SectionCard key={card.key} className="p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-              {card.label}
-            </p>
-            <p
-              className={cn(
-                "mt-2 text-lg font-semibold tabular-nums",
-                card.warn ? "text-danger" : "text-text"
-              )}
-            >
-              {formatContractPrice(card.value)}
-            </p>
-          </SectionCard>
+          <DirectoryStatCard
+            key={card.key}
+            compact
+            tinted
+            title={card.label}
+            value={formatContractPrice(card.value)}
+            accent={card.accent}
+            icon={card.icon}
+          />
         ))}
       </div>
 
@@ -216,6 +334,13 @@ export default async function PettyCashPage() {
                         </span>
                         {entry.project.name}
                       </>
+                    ) : entry.client ? (
+                      <>
+                        <span className="mx-1.5 text-border-strong" aria-hidden>
+                          ·
+                        </span>
+                        {entry.client.name}
+                      </>
                     ) : null}
                   </p>
                   {entry.proofPath ? (
@@ -247,6 +372,8 @@ export default async function PettyCashPage() {
             />
           ))}
         </div>
+      )}
+      </>
       )}
     </AppShell>
   );

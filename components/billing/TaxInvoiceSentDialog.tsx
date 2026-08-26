@@ -5,7 +5,12 @@ import { Receipt } from "lucide-react";
 
 import { markTaxInvoiceDone } from "@/app/projects/invoice-actions";
 import BillingDocumentVerifyDialog from "@/components/billing/BillingDocumentVerifyDialog";
+import TaxInvoiceNumberFields, {
+  useTaxInvoiceSerialAssist,
+} from "@/components/billing/TaxInvoiceNumberFields";
+import { FileDropField } from "@/components/ui/FileDropField";
 import { Input } from "@/components/ui/input";
+import { showMissingRequiredFields } from "@/components/ui/rejection-notice";
 import { useT } from "@/lib/i18n/use-t";
 import {
   DEFAULT_PRODUCT_PPN_RATE_PERCENT,
@@ -20,6 +25,7 @@ type Props = {
   periodLabel: string;
   /** Prefill from period when already stored; otherwise product default. */
   defaultPpnRatePercent?: number | null;
+  showWithholdingSlip?: boolean;
   onSuccess: () => void;
 };
 
@@ -30,11 +36,13 @@ export default function TaxInvoiceSentDialog({
   projectName,
   periodLabel,
   defaultPpnRatePercent,
+  showWithholdingSlip,
   onSuccess,
 }: Props) {
   const { t } = useT();
   const [taxFile, setTaxFile] = useState<File | null>(null);
-  const [reason, setReason] = useState("");
+  const [withholdingFile, setWithholdingFile] = useState<File | null>(null);
+  const serialAssist = useTaxInvoiceSerialAssist(taxFile);
   const [ppnRatePercent, setPpnRatePercent] = useState(
     String(defaultPpnRatePercent ?? DEFAULT_PRODUCT_PPN_RATE_PERCENT)
   );
@@ -44,7 +52,7 @@ export default function TaxInvoiceSentDialog({
   useEffect(() => {
     if (!open) {
       setTaxFile(null);
-      setReason("");
+      setWithholdingFile(null);
       setPpnRatePercent(
         String(defaultPpnRatePercent ?? DEFAULT_PRODUCT_PPN_RATE_PERCENT)
       );
@@ -54,9 +62,7 @@ export default function TaxInvoiceSentDialog({
   }, [open, defaultPpnRatePercent]);
 
   const parsedRate = parsePpnRatePercent(ppnRatePercent);
-  const canSubmit = Boolean(
-    taxFile && taxFile.size > 0 && parsedRate != null && reason.trim()
-  );
+  const canSubmit = Boolean(taxFile && taxFile.size > 0 && parsedRate != null);
 
   const displayLabel =
     periodLabel &&
@@ -77,6 +83,18 @@ export default function TaxInvoiceSentDialog({
       setError(t("pages.billing.purchasePpnRateRequired"));
       return;
     }
+    if (
+      showMissingRequiredFields(null, [
+        ...(!serialAssist.serial.trim()
+          ? [t("pages.vat.columns.taxInvoiceNumber")]
+          : []),
+        ...(!serialAssist.verified
+          ? [t("pages.vat.taxInvoiceNumberVerify")]
+          : []),
+      ])
+    ) {
+      return;
+    }
 
     setPending(true);
     try {
@@ -84,7 +102,12 @@ export default function TaxInvoiceSentDialog({
       formData.set("periodId", periodId);
       formData.set("taxInvoiceDocument", taxFile);
       formData.set("ppnRatePercent", String(parsedRate));
-      formData.set("manualReason", reason);
+      formData.set("taxInvoiceSerial", serialAssist.serial);
+      formData.set(
+        "taxInvoiceSerialVerified",
+        serialAssist.verified ? "true" : ""
+      );
+      if (withholdingFile) formData.set("withholdingSlip", withholdingFile);
       await markTaxInvoiceDone(formData);
       onOpenChange(false);
       onSuccess();
@@ -112,10 +135,7 @@ export default function TaxInvoiceSentDialog({
       fileLabel={t("pages.billing.taxInvoiceDocument")}
       fileName={taxFile?.name ?? null}
       onFilePick={setTaxFile}
-      requireReason
-      reasonValue={reason}
-      onReasonChange={setReason}
-      callout={t("pages.billing.taxInvoiceVerifyHint")}
+      showServerBanner={false}
       error={error}
       pending={pending}
       canSubmit={canSubmit}
@@ -123,6 +143,25 @@ export default function TaxInvoiceSentDialog({
       pendingLabel={t("pages.billing.paymentVerifyChecking")}
       onSubmit={handleSubmit}
     >
+      <TaxInvoiceNumberFields
+        id={`tax-serial-${periodId}`}
+        serial={serialAssist.serial}
+        onSerialChange={serialAssist.setSerial}
+        verified={serialAssist.verified}
+        onVerifiedChange={serialAssist.setVerified}
+        detected={serialAssist.detected}
+        reading={serialAssist.reading}
+        disabled={pending}
+      />
+      {showWithholdingSlip ? (
+        <FileDropField
+          id={`withholding-slip-${periodId}`}
+          label={t("pages.billing.withholdingSlip")}
+          fileName={withholdingFile?.name ?? null}
+          onPick={setWithholdingFile}
+          accept="image/*,application/pdf"
+        />
+      ) : null}
       <div className="space-y-2">
         <label
           htmlFor={`tax-ppn-rate-${periodId}`}

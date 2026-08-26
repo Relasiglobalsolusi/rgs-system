@@ -8,6 +8,7 @@ import type {
 
 import { getLocale, type AppLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
+import { titleCaseWords } from "@/lib/text-case";
 import {
   getProjectWorkflowStatusLabel,
   isProjectStatus,
@@ -247,7 +248,7 @@ export function localizeNavLabel(
   const item = translate(locale, itemKey);
   if (item !== itemKey) return item;
 
-  return englishLabel;
+  return titleCaseWords(englishLabel);
 }
 
 /** Seed/system department slugs → dictionary keys under `status.department`. */
@@ -257,6 +258,8 @@ const SYSTEM_DEPARTMENT_SLUG_KEYS: Record<string, string> = {
   warehouse: "warehouse",
   operations: "operations",
   finance: "finance",
+  cleaning: "cleaningStaff",
+  cln: "cleaningStaff",
   "cleaning-staff": "cleaningStaff",
   "general-cleaning-staff": "generalCleaning",
   gondola: "gondola",
@@ -271,6 +274,7 @@ const SYSTEM_DEPARTMENT_NAME_KEYS: Record<string, string> = {
   gudang: "warehouse",
   operations: "operations",
   finance: "finance",
+  cleaning: "cleaningStaff",
   "cleaning staff": "cleaningStaff",
   "general cleaning": "generalCleaning",
   "general cleaning staff": "generalCleaning",
@@ -411,8 +415,8 @@ export function localizeInventoryItemType(
   const preset =
     INVENTORY_ITEM_TYPE_CODE_KEYS[trimmed.toUpperCase()] ??
     INVENTORY_ITEM_TYPE_LABEL_KEYS[trimmed.toLowerCase()];
-  if (!preset) return trimmed;
+  if (!preset) return titleCaseWords(trimmed);
   const key = `pages.inventory.itemTypes.${preset}`;
   const translated = translate(locale, key);
-  return translated === key ? trimmed : translated;
+  return translated === key ? titleCaseWords(trimmed) : translated;
 }

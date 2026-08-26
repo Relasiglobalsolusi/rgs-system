@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   Building2,
@@ -31,9 +31,14 @@ export type BillingClientRow = {
 
 type Props = {
   clients: BillingClientRow[];
+  /** Warnings sit under the stat chips, not above them. */
+  alerts?: ReactNode;
 };
 
-export default function BillingClientDirectory({ clients }: Props) {
+export default function BillingClientDirectory({
+  clients,
+  alerts,
+}: Props) {
   const { t } = useT();
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -136,7 +141,7 @@ export default function BillingClientDirectory({ clients }: Props) {
         cellAlign: "center",
         className: "min-w-[10rem] overflow-visible whitespace-nowrap",
         render: (client) => (
-          <div className="inline-flex max-w-full flex-wrap items-center justify-center gap-1.5">
+          <div className="flex max-w-full flex-col items-center justify-center gap-1.5">
             {client.lateInvoices > 0 ? (
               <StatusBadge status="danger" compact>
                 {t("pages.billing.overdueCount", {
@@ -193,6 +198,8 @@ export default function BillingClientDirectory({ clients }: Props) {
           accent="danger"
         />
       </div>
+
+      {alerts ? <div className="mb-5 space-y-5">{alerts}</div> : null}
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-subtle">

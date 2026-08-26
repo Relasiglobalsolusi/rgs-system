@@ -26,6 +26,9 @@ export default async function VendorsPage() {
 
   const vendors = await prisma.vendor.findMany({
     where: { companyId: company.id },
+    include: {
+      bankAccounts: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
+    },
     orderBy: [{ shortCode: "asc" }, { name: "asc" }],
   });
 

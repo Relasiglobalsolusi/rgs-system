@@ -38,6 +38,7 @@ export default function SignOutConfirmDialog({
 
   return (
     <Dialog
+      skipUnsavedGuard
       open={open}
       onOpenChange={(next) => {
         if (pending) return;

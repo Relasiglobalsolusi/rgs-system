@@ -21,10 +21,10 @@ export function formSubcategoryFromStored(
   oneTimeCleaningType: CleaningOneTimeType | "";
 } {
   if (subCategory === "GENERAL_CLEANING") {
-    return { uiSubcategory: ONE_TIME_FORM_VALUE, oneTimeCleaningType: "GENERAL_CLEANING" };
+    return { uiSubcategory: "GENERAL_CLEANING", oneTimeCleaningType: "GENERAL_CLEANING" };
   }
   if (subCategory === "FACADE_CLEANING") {
-    return { uiSubcategory: ONE_TIME_FORM_VALUE, oneTimeCleaningType: "FACADE_CLEANING" };
+    return { uiSubcategory: "FACADE_CLEANING", oneTimeCleaningType: "FACADE_CLEANING" };
   }
   if (subCategory === "ONE_TIME_LANDSCAPING") {
     return { uiSubcategory: ONE_TIME_FORM_VALUE, oneTimeCleaningType: "" };
@@ -64,6 +64,8 @@ export function storedSubCategoryFromForm(opts: {
 
   if (serviceArea === "CLEANING") {
     if (uiSubcategory === "REGULAR_CLEANING") return "REGULAR_CLEANING";
+    if (uiSubcategory === "GENERAL_CLEANING") return "GENERAL_CLEANING";
+    if (uiSubcategory === "FACADE_CLEANING") return "FACADE_CLEANING";
     if (uiSubcategory === "CONTRACT_GENERAL_CLEANING") {
       return "CONTRACT_GENERAL_CLEANING";
     }

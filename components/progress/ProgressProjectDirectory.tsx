@@ -1,17 +1,22 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ChevronRight, FolderKanban } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import type { ProgressProjectRow } from "@/lib/progress-directory";
+import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
+import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import DirectorySearchInput, {
   matchesDirectorySearch,
 } from "@/components/ui/DirectorySearchInput";
 import EmptyState from "@/components/ui/EmptyState";
 import StatusBadge from "@/components/ui/StatusBadge";
-import { localizeSubCategoryShort } from "@/lib/i18n/labels";
+import {
+  localizeSubCategory,
+  localizeSubCategoryChipLines,
+} from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
+import { Camera, FolderKanban } from "lucide-react";
 
 type Props = {
   projects: ProgressProjectRow[];
@@ -19,6 +24,7 @@ type Props = {
 
 export default function ProgressProjectDirectory({ projects }: Props) {
   const { t, locale } = useT();
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
 
   const visible = useMemo(() => {
@@ -31,17 +37,113 @@ export default function ProgressProjectDirectory({ projects }: Props) {
     );
   }, [projects, searchQuery]);
 
+  const columns = useMemo(() => {
+    const cols: DataTableColumn<ProgressProjectRow>[] = [
+      {
+        key: "project",
+        title: t("pages.progress.columns.project"),
+        width: "12rem",
+        share: 1.25,
+        className: "min-w-[12rem]",
+        render: (project) => (
+          <p className="font-semibold text-text">{project.name}</p>
+        ),
+      },
+      {
+        key: "location",
+        title: t("pages.progress.columns.location"),
+        width: "11rem",
+        share: 1.1,
+        className: "min-w-[11rem]",
+        render: (project) => (
+          <p className="min-w-0 text-muted">
+            {project.location || t("common.labels.na")}
+          </p>
+        ),
+      },
+      {
+        key: "type",
+        title: t("pages.progress.columns.type"),
+        width: "10rem",
+        share: 1,
+        cellAlign: "center",
+        className: "min-w-[10rem] overflow-visible",
+        render: (project) => {
+          const typeLines = localizeSubCategoryChipLines(
+            project.subCategory,
+            locale
+          );
+          return (
+            <StatusBadge
+              status="success"
+              compact
+              lines={typeLines ?? undefined}
+            >
+              {typeLines
+                ? undefined
+                : localizeSubCategory(project.subCategory, locale)}
+            </StatusBadge>
+          );
+        },
+      },
+      {
+        key: "reports",
+        title: t("pages.progress.columns.reports"),
+        width: "9rem",
+        share: 1,
+        cellAlign: "right",
+        className: "min-w-[9rem] whitespace-nowrap",
+        render: (project) => (
+          <span className="text-lg font-semibold tabular-nums text-text">
+            {project.reportCount}
+          </span>
+        ),
+      },
+    ];
+    return cols;
+  }, [locale, t]);
+
+  const reportTotal = useMemo(
+    () => projects.reduce((sum, project) => sum + project.reportCount, 0),
+    [projects]
+  );
+
+  const statsGrid = (
+    <div className="grid grid-cols-2 gap-3">
+      <DirectoryStatCard
+        compact
+        tinted
+        title={t("pages.progress.cards.projects")}
+        value={projects.length}
+        accent="info"
+        icon={<FolderKanban size={18} />}
+      />
+      <DirectoryStatCard
+        compact
+        tinted
+        title={t("pages.progress.cards.reports")}
+        value={reportTotal}
+        accent="warning"
+        icon={<Camera size={18} />}
+      />
+    </div>
+  );
+
   if (projects.length === 0) {
     return (
-      <EmptyState
-        title={t("pages.progress.noProjects")}
-        description={t("pages.progress.noProjectsDesc")}
-      />
+      <div className="space-y-4">
+        {statsGrid}
+        <EmptyState
+          title={t("pages.progress.noProjects")}
+          description={t("pages.progress.noProjectsDesc")}
+        />
+      </div>
     );
   }
 
   return (
     <div className="space-y-4">
+      {statsGrid}
       <DirectorySearchInput
         value={searchQuery}
         onChange={setSearchQuery}
@@ -54,51 +156,15 @@ export default function ProgressProjectDirectory({ projects }: Props) {
           description={t("pages.progress.noProjectsMatch")}
         />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {visible.map((project) => {
-            const shortLabel = localizeSubCategoryShort(
-              project.subCategory,
-              locale
-            );
-            return (
-              <Link
-                key={project.id}
-                href={`/progress?projectId=${encodeURIComponent(project.id)}`}
-                className="group flex items-start gap-4 rounded-2xl border border-border bg-card px-4 py-4 transition hover:border-border-strong hover:bg-elevated/40"
-              >
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-inset text-muted">
-                  <FolderKanban className="h-5 w-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold text-text">
-                    {project.name}
-                  </p>
-                  {project.location ? (
-                    <p className="mt-0.5 truncate text-xs text-subtle">
-                      {project.location}
-                    </p>
-                  ) : null}
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    {shortLabel !== "-" ? (
-                      <StatusBadge status="info" compact>
-                        {shortLabel}
-                      </StatusBadge>
-                    ) : null}
-                    <span className="text-xs text-subtle">
-                      {t(
-                        project.reportCount === 1
-                          ? "pages.progress.feedReportCountOne"
-                          : "pages.progress.feedReportCountOther",
-                        { count: project.reportCount }
-                      )}
-                    </span>
-                  </div>
-                </div>
-                <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted transition group-hover:text-text" />
-              </Link>
-            );
-          })}
-        </div>
+        <DataTable
+          columns={columns}
+          data={visible}
+          getRowKey={(project) => project.id}
+          onRowClick={(project) =>
+            router.push(`/progress?projectId=${encodeURIComponent(project.id)}`)
+          }
+          emptyMessage={t("pages.progress.noProjects")}
+        />
       )}
     </div>
   );

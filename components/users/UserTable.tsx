@@ -9,15 +9,13 @@ import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import { createSelectionColumn } from "@/components/ui/data-table-selection";
 import StatusBadge from "@/components/ui/StatusBadge";
 import {
-  ACTIONS_DUAL_CHIP_COLUMN_WIDTH,
-  ACTIONS_TRIPLE_CHIP_COLUMN_WIDTH,
+  ACTIONS_SINGLE_CHIP_COLUMN_WIDTH,
   permanentDeleteLabelClassName,
   permissionsChipTextClassName,
   STATUS_COLUMN_WIDTH,
   TrashPermanentDeleteChip,
   TrashRestoreAccessChip,
   TrashRestoreChip,
-  TRASH_ACTIONS_WITH_PERMISSIONS_COLUMN_WIDTH,
   trashActionChipClassName,
 } from "@/components/ui/trash-action-buttons";
 import { Button } from "@/components/ui/button";
@@ -220,7 +218,7 @@ function UserRowActions({
 
   return (
     <>
-      <div className="flex shrink-0 items-center justify-center gap-2 whitespace-nowrap">
+      <div className="flex flex-col items-stretch justify-center gap-2">
         <Button
           type="button"
           size="badge"
@@ -544,23 +542,13 @@ export default function UserTable({
 
     if (canEditPermissions) {
       // Active: Permissions+Revoke+Delete. Revoked: Permissions+Restore Access. Trash: Permissions+Restore+Delete.
-      const activeHasTripleChip = directoryView === "active";
-      const trashHasTripleChip = directoryView === "trash";
       cols.push({
         key: "actions",
         title: t("pages.users.columns.actions"),
-        width: trashHasTripleChip
-          ? TRASH_ACTIONS_WITH_PERMISSIONS_COLUMN_WIDTH
-          : activeHasTripleChip
-            ? ACTIONS_TRIPLE_CHIP_COLUMN_WIDTH
-            : ACTIONS_DUAL_CHIP_COLUMN_WIDTH,
+        width: ACTIONS_SINGLE_CHIP_COLUMN_WIDTH,
         cellAlign: "center",
         share: 0,
-        className: trashHasTripleChip
-          ? "min-w-[36rem] overflow-visible whitespace-nowrap"
-          : activeHasTripleChip
-            ? "min-w-[34rem] overflow-visible whitespace-nowrap"
-            : "min-w-[24rem] overflow-visible whitespace-nowrap",
+        className: "min-w-[12.5rem] overflow-visible",
         render: (row) => (
           <UserRowActions
             row={row}

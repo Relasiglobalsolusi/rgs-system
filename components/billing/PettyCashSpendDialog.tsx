@@ -20,8 +20,10 @@ import {
 } from "@/components/employees/employee-dialog-ui";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
+import DirectoryFilterTab from "@/components/ui/DirectoryFilterTab";
 import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/MoneyInput";
+import SearchableClientSelect from "@/components/ui/SearchableClientSelect";
 import SearchableProjectSelect from "@/components/ui/SearchableProjectSelect";
 import {
   Select,
@@ -31,6 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { showMissingRequiredFields } from "@/components/ui/rejection-notice";
 import { useT } from "@/lib/i18n/use-t";
 import { todayDateInput } from "@/lib/project-contract";
 import { cn } from "@/lib/utils";
@@ -39,6 +42,12 @@ type ProjectOption = {
   id: string;
   name: string;
   clientName: string | null;
+  subCategory?: string | null;
+};
+
+type ClientOption = {
+  id: string;
+  name: string;
 };
 
 type BillForEmployee = {
@@ -46,11 +55,15 @@ type BillForEmployee = {
   name: string;
 };
 
+type ChargeType = "client" | "project";
+
 export default function PettyCashSpendDialog({
   projects,
+  clients,
   billForEmployees,
 }: {
   projects: ProjectOption[];
+  clients: ClientOption[];
   billForEmployees: BillForEmployee[];
 }) {
   const { t } = useT();
@@ -62,17 +75,12 @@ export default function PettyCashSpendDialog({
   const [amount, setAmount] = useState("");
   const [entryDate, setEntryDate] = useState(todayDateInput());
   const [description, setDescription] = useState("");
+  const [chargeType, setChargeType] = useState<ChargeType | "">("");
   const [projectId, setProjectId] = useState("");
+  const [clientId, setClientId] = useState("");
   const [employeeId, setEmployeeId] = useState("");
 
   const typedAmount = Number(amount.replace(/[^\d]/g, ""));
-  const canSubmit =
-    Boolean(documentFile && documentFile.size > 0) &&
-    Number.isFinite(typedAmount) &&
-    typedAmount > 0 &&
-    Boolean(entryDate) &&
-    Boolean(description.trim()) &&
-    Boolean(employeeId);
 
   function reset() {
     setError(null);
@@ -80,28 +88,38 @@ export default function PettyCashSpendDialog({
     setAmount("");
     setEntryDate(todayDateInput());
     setDescription("");
+    setChargeType("");
     setProjectId("");
+    setClientId("");
     setEmployeeId("");
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    if (!documentFile) {
-      setError(t("pages.pettyCash.proofRequired"));
+    const extraMissing: string[] = [];
+    if (!documentFile) extraMissing.push(t("pages.pettyCash.proof"));
+    if (!employeeId) extraMissing.push(t("pages.pettyCash.billIsForRequired"));
+    if (!chargeType) extraMissing.push(t("pages.pettyCash.chargeTypeRequired"));
+    if (chargeType === "client" && !clientId) {
+      extraMissing.push(t("pages.pettyCash.chargeTypeRequired"));
+    }
+    if (chargeType === "project" && !projectId) {
+      extraMissing.push(t("pages.pettyCash.chargeTypeRequired"));
+    }
+    if (showMissingRequiredFields(event.currentTarget, extraMissing)) {
       return;
     }
-    if (!employeeId) {
-      setError(t("pages.pettyCash.billIsForRequired"));
-      return;
-    }
+    if (!documentFile || !chargeType) return;
 
     const formData = new FormData(event.currentTarget);
     formData.set("document", documentFile);
     formData.set("amount", String(Math.round(typedAmount)));
     formData.set("entryDate", entryDate);
     formData.set("description", description.trim());
-    formData.set("projectId", projectId);
+    formData.set("chargeType", chargeType);
+    formData.set("projectId", chargeType === "project" ? projectId : "");
+    formData.set("clientId", chargeType === "client" ? clientId : "");
     formData.set("employeeId", employeeId);
 
     setPending(true);
@@ -143,7 +161,7 @@ export default function PettyCashSpendDialog({
             <EmployeePrimaryButton
               type="submit"
               form="petty-cash-spend-form"
-              disabled={pending || !canSubmit}
+              disabled={pending}
             >
               {pending
                 ? t("pages.pettyCash.spending")
@@ -161,6 +179,7 @@ export default function PettyCashSpendDialog({
         <form
           id="petty-cash-spend-form"
           onSubmit={handleSubmit}
+          noValidate
           className={employeeDialogFormClass}
         >
           <div className={employeeDialogGridClass}>
@@ -270,10 +289,60 @@ export default function PettyCashSpendDialog({
               </p>
             </div>
 
-            {projects.length > 0 ? (
+            <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+              <p className={employeeDialogLabelClass}>
+                {t("pages.pettyCash.chargeType")}
+                <span className="text-red-400"> *</span>
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <DirectoryFilterTab
+                  size="sm"
+                  active={chargeType === "client"}
+                  onClick={() => {
+                    setChargeType("client");
+                    setProjectId("");
+                  }}
+                >
+                  {t("pages.pettyCash.chargeTypeClient")}
+                </DirectoryFilterTab>
+                <DirectoryFilterTab
+                  size="sm"
+                  active={chargeType === "project"}
+                  onClick={() => {
+                    setChargeType("project");
+                    setClientId("");
+                  }}
+                >
+                  {t("pages.pettyCash.chargeTypeProject")}
+                </DirectoryFilterTab>
+              </div>
+            </div>
+
+            {chargeType === "client" ? (
+              <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+                <label className={employeeDialogLabelClass}>
+                  {t("pages.pettyCash.client")}
+                  <span className="text-red-400"> *</span>
+                </label>
+                <SearchableClientSelect
+                  value={clientId}
+                  onValueChange={setClientId}
+                  clients={clients}
+                  placeholder={t("pages.pettyCash.clientPlaceholder")}
+                  disabled={pending}
+                  required
+                />
+                <p className={employeeDialogHintClass}>
+                  {t("pages.pettyCash.clientHint")}
+                </p>
+              </div>
+            ) : null}
+
+            {chargeType === "project" ? (
               <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
                 <label className={employeeDialogLabelClass}>
                   {t("pages.pettyCash.project")}
+                  <span className="text-red-400"> *</span>
                 </label>
                 <SearchableProjectSelect
                   value={projectId}
@@ -281,6 +350,7 @@ export default function PettyCashSpendDialog({
                   projects={projects}
                   placeholder={t("pages.pettyCash.projectPlaceholder")}
                   disabled={pending}
+                  required
                 />
                 <p className={employeeDialogHintClass}>
                   {t("pages.pettyCash.projectHint")}

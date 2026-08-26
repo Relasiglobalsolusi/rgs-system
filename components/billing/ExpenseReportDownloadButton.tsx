@@ -2,9 +2,9 @@
 
 import { FileDown } from "lucide-react";
 
+import { financeToolbarActionClass } from "@/components/billing/finance-toolbar";
 import { financePeriodSearchParams } from "@/lib/finance-period";
 import { useT } from "@/lib/i18n/use-t";
-import { cn } from "@/lib/utils";
 
 type Props = {
   year: number;
@@ -25,10 +25,7 @@ export default function ExpenseReportDownloadButton({
   return (
     <a
       href={`/api/billing/expense-report?${params.toString()}`}
-      className={cn(
-        "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border-strong bg-elevated px-3 text-sm font-semibold text-text",
-        "hover:border-primary/45 hover:bg-card-hover"
-      )}
+      className={financeToolbarActionClass}
     >
       <FileDown size={16} aria-hidden />
       {t("pages.billing.expenseReportDownload")}

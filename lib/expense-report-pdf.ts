@@ -22,7 +22,7 @@ import {
 } from "@/lib/pdf-letterhead";
 
 const JAKARTA_TZ = "Asia/Jakarta";
-const ROW_H = 22;
+const ROW_H = 34;
 const HEADER_H = 24;
 
 export type ExpenseReportPdfRow = {
@@ -31,6 +31,8 @@ export type ExpenseReportPdfRow = {
   invoiceRef: string | null;
   amount: number;
   statusLabel: string;
+  payFromLabel?: string | null;
+  payToLabel?: string | null;
 };
 
 export type ExpenseReportPdfInput = {
@@ -44,11 +46,11 @@ export type ExpenseReportPdfInput = {
 type PdfDoc = InstanceType<typeof PDFDocument>;
 
 const COLS = {
-  date: { x: 0, w: 92 },
-  vendor: { x: 92, w: 168 },
-  reference: { x: 260, w: 118 },
-  status: { x: 378, w: 70 },
-  amount: { x: 448, w: CONTENT_WIDTH - 448 },
+  date: { x: 0, w: 78 },
+  vendor: { x: 78, w: 142 },
+  reference: { x: 220, w: 100 },
+  status: { x: 320, w: 62 },
+  amount: { x: 382, w: CONTENT_WIDTH - 382 },
 } as const;
 
 function drawTitleBlock(
@@ -169,7 +171,6 @@ export async function buildExpenseReportPdfBuffer(
         if (index % 2 === 0) {
           doc.rect(PAGE_MARGIN, y, CONTENT_WIDTH, ROW_H).fill(BRAND.panelBg);
         }
-        doc.font("Helvetica").fontSize(8).fillColor(BRAND.ink);
         const cells = [
           {
             col: COLS.date,
@@ -182,15 +183,39 @@ export async function buildExpenseReportPdfBuffer(
             col: COLS.amount,
             text: formatContractPrice(row.amount),
             align: "right" as const,
+            color: BRAND.expense,
           },
         ];
         for (const cell of cells) {
-          doc.text(cell.text, PAGE_MARGIN + cell.col.x + 4, y + 6, {
-            width: cell.col.w - 8,
-            lineBreak: false,
-            ellipsis: true,
-            align: cell.align,
-          });
+          doc
+            .font("Helvetica")
+            .fontSize(8)
+            .fillColor("color" in cell && cell.color ? cell.color : BRAND.ink)
+            .text(cell.text, PAGE_MARGIN + cell.col.x + 4, y + 5, {
+              width: cell.col.w - 8,
+              lineBreak: false,
+              ellipsis: true,
+              align: cell.align,
+            });
+        }
+        if (row.payFromLabel || row.payToLabel) {
+          doc
+            .font("Helvetica")
+            .fontSize(7)
+            .fillColor(BRAND.muted)
+            .text(
+              translate(locale, "pages.billing.expenseReportBanks", {
+                from: row.payFromLabel || "—",
+                to: row.payToLabel || "—",
+              }),
+              PAGE_MARGIN + COLS.vendor.x + 4,
+              y + 18,
+              {
+                width: COLS.reference.w + COLS.status.w + COLS.vendor.w - 8,
+                lineBreak: false,
+                ellipsis: true,
+              }
+            );
         }
         doc.y = y + ROW_H;
       });
@@ -204,10 +229,13 @@ export async function buildExpenseReportPdfBuffer(
         .text(translate(locale, "pages.billing.expenseReportTotal"), PAGE_MARGIN, totalY, {
           width: COLS.amount.x - 8,
         });
-      doc.text(formatContractPrice(input.totalAmount), PAGE_MARGIN + COLS.amount.x, totalY, {
-        width: COLS.amount.w,
-        align: "right",
-      });
+      doc
+        .fillColor(BRAND.expense)
+        .text(formatContractPrice(input.totalAmount), PAGE_MARGIN + COLS.amount.x, totalY, {
+          width: COLS.amount.w,
+          lineBreak: false,
+          align: "right",
+        });
     }
 
     const range = doc.bufferedPageRange();

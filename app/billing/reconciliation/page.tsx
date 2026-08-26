@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { InvoicePeriodStatus, type Prisma } from "@prisma/client";
 
 import HoRevisionReviewPanel from "@/components/billing/HoRevisionReviewPanel";
+import HoOfflineClientReviewPanel from "@/components/billing/HoOfflineClientReviewPanel";
 import ClientBillingReviewActions from "@/components/billing/ClientBillingReviewActions";
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/ui/EmptyState";
@@ -31,6 +32,8 @@ import {
 import { getProjectWhereForUser } from "@/lib/project-access";
 import { requireFinanceChild } from "@/lib/session";
 import { cn } from "@/lib/utils";
+import { loadPeriodReviewAmountsByIds } from "@/lib/review-amount-fields";
+import { jakartaYearMonth, utcRangeForJakartaMonth } from "@/lib/vat";
 
 const POST_REVIEW_PERIOD_STATUSES: InvoicePeriodStatus[] = [
   InvoicePeriodStatus.AWAITING_PAYMENT,
@@ -39,7 +42,7 @@ const POST_REVIEW_PERIOD_STATUSES: InvoicePeriodStatus[] = [
   InvoicePeriodStatus.OVERDUE,
 ];
 
-type SearchParams = Promise<{ tab?: string }>;
+type SearchParams = Promise<{ tab?: string; year?: string; month?: string }>;
 
 export default async function ReconciliationPage({
   searchParams,
@@ -60,11 +63,29 @@ export default async function ReconciliationPage({
   const isClient = Boolean(portalClientId);
 
   // Client portal: only their pending reviews. HO: Approved + Revised tabs.
+  const nowYm = jakartaYearMonth();
+  const yearRaw = Number(params.year ?? nowYm.year);
+  const year =
+    Number.isInteger(yearRaw) && yearRaw >= 2000 && yearRaw <= 2100
+      ? yearRaw
+      : nowYm.year;
+  const monthRaw = Number(params.month ?? 0);
+  const month =
+    Number.isInteger(monthRaw) && monthRaw >= 1 && monthRaw <= 12
+      ? monthRaw
+      : 0;
   const tab = isClient
     ? "pending"
     : params.tab === "revised"
       ? "revised"
       : "approved";
+  const periodDateFilter =
+    month > 0
+      ? utcRangeForJakartaMonth(year, month)
+      : {
+          start: utcRangeForJakartaMonth(year, 1).start,
+          endExclusive: utcRangeForJakartaMonth(year, 12).endExclusive,
+        };
 
   const companyId = session.user.companyId;
   const projectWhere = await getProjectWhereForUser({
@@ -80,13 +101,17 @@ export default async function ReconciliationPage({
         id: true,
         name: true,
         clientId: true,
-        client: { select: { id: true, name: true } },
+        client: { select: { id: true, name: true, hasPortalAccess: true } },
       },
     },
   } satisfies Prisma.ProjectInvoicePeriodInclude;
 
   const approvedWhere: Prisma.ProjectInvoicePeriodWhereInput = {
     project: { ...projectWhere },
+    periodEnd: {
+      gte: periodDateFilter.start,
+      lt: periodDateFilter.endExclusive,
+    },
     OR: [
       {
         status: InvoicePeriodStatus.AWAITING_CLIENT_REVIEW,
@@ -101,8 +126,19 @@ export default async function ReconciliationPage({
 
   const revisedWhere: Prisma.ProjectInvoicePeriodWhereInput = {
     project: { ...projectWhere },
-    status: InvoicePeriodStatus.AWAITING_CLIENT_REVIEW,
-    clientReviewStatus: { in: [...HO_REVISED_QUEUE_STATUSES] },
+    periodEnd: {
+      gte: periodDateFilter.start,
+      lt: periodDateFilter.endExclusive,
+    },
+    OR: [
+      {
+        status: InvoicePeriodStatus.AWAITING_CLIENT_REVIEW,
+        clientReviewStatus: { in: [...HO_REVISED_QUEUE_STATUSES] },
+      },
+      {
+        clientReviewStatus: "HO_REJECTED_REVISION",
+      },
+    ],
   };
 
   const pendingClientWhere: Prisma.ProjectInvoicePeriodWhereInput = {
@@ -143,6 +179,9 @@ export default async function ReconciliationPage({
     : tab === "revised"
       ? revisedRows
       : approvedRows;
+  const reviewAmounts = await loadPeriodReviewAmountsByIds(
+    rows.map((row) => row.id)
+  );
   const nowMs = Date.now();
 
   return (
@@ -151,29 +190,89 @@ export default async function ReconciliationPage({
     >
       <div className="space-y-6">
         {!isClient ? (
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href="/billing/reconciliation?tab=approved"
-              className={cn(
-                buttonVariants({
-                  variant: tab === "approved" ? "default" : "outline",
-                  size: "sm",
-                })
-              )}
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Link
+                href={`/billing/reconciliation?tab=approved&year=${year}${month ? `&month=${month}` : ""}`}
+                className={cn(
+                  "flex min-h-24 flex-col items-start justify-center rounded-2xl border px-5 py-4 text-left transition",
+                  tab === "approved"
+                    ? "border-primary bg-card-tint-emerald/30 text-text"
+                    : "border-border bg-elevated text-muted hover:border-border-strong hover:text-text"
+                )}
+              >
+                <span className="text-base font-semibold tracking-tight">
+                  {t("pages.reconciliation.tabApproved")} ({approvedRows.length})
+                </span>
+                <span className="mt-1.5 text-xs leading-5">
+                  {t("pages.reconciliation.approvedCardHint")}
+                </span>
+              </Link>
+              <Link
+                href={`/billing/reconciliation?tab=revised&year=${year}${month ? `&month=${month}` : ""}`}
+                className={cn(
+                  "flex min-h-24 flex-col items-start justify-center rounded-2xl border px-5 py-4 text-left transition",
+                  tab === "revised"
+                    ? "border-warning/60 bg-card-tint-amber/30 text-text"
+                    : "border-border bg-elevated text-muted hover:border-border-strong hover:text-text"
+                )}
+              >
+                <span className="text-base font-semibold tracking-tight">
+                  {t("pages.reconciliation.tabRevised")} ({revisedRows.length})
+                </span>
+                <span className="mt-1.5 text-xs leading-5">
+                  {t("pages.reconciliation.revisedCardHint")}
+                </span>
+              </Link>
+            </div>
+            <form
+              method="get"
+              action="/billing/reconciliation"
+              className="flex flex-wrap items-end gap-3"
             >
-              {t("pages.reconciliation.tabApproved")} ({approvedRows.length})
-            </Link>
-            <Link
-              href="/billing/reconciliation?tab=revised"
-              className={cn(
-                buttonVariants({
-                  variant: tab === "revised" ? "default" : "outline",
-                  size: "sm",
-                })
-              )}
-            >
-              {t("pages.reconciliation.tabRevised")} ({revisedRows.length})
-            </Link>
+              <input type="hidden" name="tab" value={tab} />
+              <label className="text-sm">
+                <span className="mb-1 block text-xs font-medium text-muted">
+                  {t("pages.reconciliation.filterYear")}
+                </span>
+                <select
+                  name="year"
+                  defaultValue={String(year)}
+                  className="h-10 rounded-xl border border-border bg-card px-3 text-sm text-text"
+                >
+                  {Array.from({ length: 8 }, (_, index) => nowYm.year - 5 + index).map(
+                    (value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    )
+                  )}
+                </select>
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block text-xs font-medium text-muted">
+                  {t("pages.reconciliation.filterMonth")}
+                </span>
+                <select
+                  name="month"
+                  defaultValue={month ? String(month) : "0"}
+                  className="h-10 rounded-xl border border-border bg-card px-3 text-sm text-text"
+                >
+                  <option value="0">{t("pages.reconciliation.filterAllMonths")}</option>
+                  {Array.from({ length: 12 }, (_, index) => index + 1).map((value) => (
+                    <option key={value} value={value}>
+                      {t(`pages.reports.months.${value}`)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="submit"
+                className={cn(buttonVariants({ size: "sm" }), "h-10")}
+              >
+                {t("pages.reconciliation.filterApply")}
+              </button>
+            </form>
           </div>
         ) : null}
 
@@ -205,6 +304,12 @@ export default async function ReconciliationPage({
                   const amount =
                     decimalToNumber(period.revisedInvoiceAmount) ??
                     decimalToNumber(period.amount);
+                  const { clientRequestedAmount, hoProposedAmount } =
+                    reviewAmounts.get(period.id) ?? {
+                      clientRequestedAmount: null,
+                      hoProposedAmount: null,
+                    };
+                  const detailHref = `/billing/reconciliation/${period.id}`;
                   const billingHref = period.project.clientId
                     ? `/billing/${period.project.clientId}/${period.project.id}`
                     : "/billing";
@@ -233,9 +338,12 @@ export default async function ReconciliationPage({
                     >
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0 flex-1">
-                          <p className="font-medium text-text">
+                          <Link
+                            href={detailHref}
+                            className="font-medium text-text hover:underline"
+                          >
                             {period.project.name}
-                          </p>
+                          </Link>
                           <p className="text-sm text-muted">
                             {period.project.client?.name ?? "—"} ·{" "}
                             {period.label ?? t("pages.billing.columns.period")}
@@ -295,10 +403,22 @@ export default async function ReconciliationPage({
                         </div>
                         <div className="flex min-w-[9.75rem] flex-col items-stretch gap-2 sm:items-end">
                           <Link
-                            href={billingHref}
+                            href={detailHref}
                             className={cn(
                               buttonVariants({
                                 variant: "default",
+                                size: "sm",
+                              }),
+                              "w-full justify-center sm:w-[9.75rem]"
+                            )}
+                          >
+                            {t("pages.reconciliation.openDetails")}
+                          </Link>
+                          <Link
+                            href={billingHref}
+                            className={cn(
+                              buttonVariants({
+                                variant: "outline",
                                 size: "sm",
                               }),
                               "w-full justify-center sm:w-[9.75rem]"
@@ -336,6 +456,18 @@ export default async function ReconciliationPage({
                               period.clientReviewStatus ===
                               "HO_REJECTED_REVISION"
                             }
+                            hoProposedAmount={hoProposedAmount}
+                          />
+                        </div>
+                      ) : null}
+
+                      {!isClient &&
+                      awaitingClient &&
+                      period.project.client?.hasPortalAccess === false ? (
+                        <div className="mt-4">
+                          <HoOfflineClientReviewPanel
+                            periodId={period.id}
+                            proposedAmount={hoProposedAmount ?? amount}
                           />
                         </div>
                       ) : null}
@@ -348,7 +480,8 @@ export default async function ReconciliationPage({
                             clientRevisionProofPath={
                               period.clientRevisionProofPath
                             }
-                            suggestedAmount={amount}
+                            suggestedAmount={clientRequestedAmount ?? amount}
+                            clientRequestedAmount={clientRequestedAmount}
                           />
                         </div>
                       ) : null}

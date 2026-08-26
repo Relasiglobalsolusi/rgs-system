@@ -6,6 +6,7 @@ export type PurchaseDocumentKind =
   | "duties"
   | "handling"
   | "handlingTax"
+  | "withholding"
   | "paymentProof";
 
 export type PurchaseDocumentSlot = {
@@ -23,9 +24,13 @@ type PurchaseDocumentSource = {
   importDutiesFilePath?: string | null;
   handlingInvoicePath?: string | null;
   paymentProofPath?: string | null;
+  withholdingSlipPath?: string | null;
   hasHandling?: boolean;
   hasInvoice?: boolean;
   hasCustomsFees?: boolean;
+  includesPpn?: boolean;
+  handlingIncludesPpn?: boolean;
+  showWithholding?: boolean;
 };
 
 function pathOrNull(value: string | null | undefined): string | null {
@@ -33,7 +38,8 @@ function pathOrNull(value: string | null | undefined): string | null {
   return trimmed ? trimmed : null;
 }
 
-/** Every document that belongs on this expense. Empty href = not attached yet. */
+/** Documents that belong on this expense. Only slots that apply to the
+ *  recorded tax / import / government choices — empty href means not attached yet. */
 export function listPurchaseDocumentSlots(
   source: PurchaseDocumentSource
 ): PurchaseDocumentSlot[] {
@@ -42,6 +48,7 @@ export function listPurchaseDocumentSlots(
   const dutiesPath = pathOrNull(source.importDutiesFilePath);
   const handlingPath = pathOrNull(source.handlingInvoicePath);
   const proofPath = pathOrNull(source.paymentProofPath);
+  const withholdingPath = pathOrNull(source.withholdingSlipPath);
   const isImport = source.origin === "IMPORT";
   const isGovernment = source.purchaseCategory === "GOVERNMENT";
   const showInvoice = source.hasInvoice !== false;
@@ -79,12 +86,14 @@ export function listPurchaseDocumentSlots(
         hintKey: "pages.billing.handlingFeeInvoiceHint",
         href: handlingPath,
       });
-      slots.push({
-        kind: "handlingTax",
-        titleKey: "pages.billing.handlingFeeTaxInvoice",
-        hintKey: "pages.billing.handlingFeeTaxInvoiceHint",
-        href: taxPath,
-      });
+      if (source.handlingIncludesPpn || taxPath) {
+        slots.push({
+          kind: "handlingTax",
+          titleKey: "pages.billing.handlingFeeTaxInvoice",
+          hintKey: "pages.billing.handlingFeeTaxInvoiceHint",
+          href: taxPath,
+        });
+      }
     }
   } else {
     if (showInvoice) {
@@ -105,7 +114,11 @@ export function listPurchaseDocumentSlots(
         href: dutiesPath,
       });
     }
-    if (source.purchaseCategory !== "PETTY_CASH" && showInvoice) {
+    if (
+      source.purchaseCategory !== "PETTY_CASH" &&
+      showInvoice &&
+      (source.includesPpn || taxPath)
+    ) {
       slots.push({
         kind: "tax",
         titleKey: "pages.billing.purchaseTaxInvoice",
@@ -113,6 +126,15 @@ export function listPurchaseDocumentSlots(
         href: taxPath,
       });
     }
+  }
+
+  if (source.showWithholding || withholdingPath) {
+    slots.push({
+      kind: "withholding",
+      titleKey: "pages.billing.withholdingSlip",
+      hintKey: "pages.billing.withholdingSlipHint",
+      href: withholdingPath,
+    });
   }
 
   slots.push({

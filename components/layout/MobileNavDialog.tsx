@@ -77,7 +77,7 @@ export default function MobileNavDialog({
         <Menu size={24} strokeWidth={3} absoluteStrokeWidth aria-hidden />
       </button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog skipUnsavedGuard open={open} onOpenChange={setOpen}>
         <DialogContent
           showCloseButton={false}
           className={cn(

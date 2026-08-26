@@ -13,23 +13,22 @@ export type TaxFileSlot = {
   title: string;
   hint?: string;
   href: string | null;
+  canUpload?: boolean;
 };
 
 function downloadName(href: string): string {
   const path = href.split("?")[0] ?? href;
-  return path.split("/").filter(Boolean).pop() || "tax-invoice";
+  return path.split("/").filter(Boolean).pop() || "tax-document";
 }
 
 type Props = {
   files: TaxFileSlot[];
-  onUpload?: () => void;
-  showUpload?: boolean;
+  onUpload?: (file: TaxFileSlot) => void;
 };
 
 export default function TaxFileActions({
   files,
   onUpload,
-  showUpload = false,
 }: Props) {
   const { t } = useT();
   const [lightbox, setLightbox] = useState<{ src: string; title: string } | null>(
@@ -84,13 +83,13 @@ export default function TaxFileActions({
                     {t("common.actions.download")}
                   </a>
                 </>
-              ) : showUpload && onUpload ? (
+              ) : file.canUpload && onUpload ? (
                 <Button
                   type="button"
                   variant="accent"
                   size="sm"
                   className="h-8 gap-1.5"
-                  onClick={onUpload}
+                  onClick={() => onUpload(file)}
                 >
                   <Upload className="h-3.5 w-3.5" aria-hidden />
                   {t("common.actions.upload")}

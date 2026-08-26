@@ -31,13 +31,15 @@ export function parsePurchaseCategory(
   | "PETTY_CASH"
   | "GOVERNMENT"
   | "VEHICLE"
-  | "BANK_LOAN" {
+  | "BANK_LOAN"
+  | "EMPLOYEE_PAYMENT" {
   const raw = String(value ?? "").trim().toUpperCase();
   if (raw === "SERVICE") return "SERVICE";
   if (raw === "PETTY_CASH") return "PETTY_CASH";
   if (raw === "GOVERNMENT") return "GOVERNMENT";
   if (raw === "VEHICLE") return "VEHICLE";
   if (raw === "BANK_LOAN") return "BANK_LOAN";
+  if (raw === "EMPLOYEE_PAYMENT") return "EMPLOYEE_PAYMENT";
   return "PRODUCT";
 }
 
@@ -52,6 +54,7 @@ export function resolvePurchasePurpose(options: {
   }
   if (options.category === "GOVERNMENT") return "INTERNAL";
   if (options.category === "BANK_LOAN") return "INTERNAL";
+  if (options.category === "EMPLOYEE_PAYMENT") return "INTERNAL";
   if (options.category === "PETTY_CASH") return "PETTY_CASH";
   return options.requested;
 }

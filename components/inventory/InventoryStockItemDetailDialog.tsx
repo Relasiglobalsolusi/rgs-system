@@ -16,6 +16,7 @@ import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import { Dialog } from "@/components/ui/dialog";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
+import StatusBadge from "@/components/ui/StatusBadge";
 import InventoryLifetimeStats from "@/components/inventory/InventoryLifetimeStats";
 import { isBelowMinStock, formatInventoryQtyWithUnit } from "@/lib/inventory";
 import { formatDisplayDate } from "@/lib/format-date";
@@ -34,11 +35,7 @@ const labelClass =
   "text-[11px] font-semibold uppercase tracking-[0.14em] text-subtle";
 
 function SoftPill({ children }: { children: ReactNode }) {
-  return (
-    <span className="inline-flex items-center rounded-full border border-accent-cyan/30 bg-card-tint-cyan px-2.5 py-1 text-[11px] font-semibold tracking-wide text-accent-teal">
-      {children}
-    </span>
-  );
+  return <StatusBadge status="info" compact>{children}</StatusBadge>;
 }
 
 export default function InventoryStockItemDetailDialog({

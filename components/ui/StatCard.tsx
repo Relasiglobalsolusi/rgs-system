@@ -2,6 +2,11 @@
 
 import { ReactNode } from "react";
 
+import {
+  cardTintIcon,
+  cardTintWash,
+  type CardTintAccent,
+} from "@/components/ui/card-tint";
 import { useT } from "@/lib/i18n/use-t";
 import type { TranslateParams } from "@/lib/i18n/translate";
 import { cn } from "@/lib/utils";
@@ -21,35 +26,12 @@ type StatCardProps = {
   accent?: StatCardAccent;
 };
 
-const accentStyles: Record<
-  StatCardAccent,
-  { card: string; icon: string; iconText: string }
-> = {
-  emerald: {
-    card: "border-emerald-400/25 hover:border-emerald-400/40 bg-card-tint-emerald hover:bg-[color-mix(in_srgb,var(--color-card-tint-emerald),var(--color-card-hover)_35%)]",
-    icon: "bg-elevated text-emerald-700",
-    iconText: "text-emerald-700",
-  },
-  amber: {
-    card: "border-amber-400/25 hover:border-amber-400/40 bg-card-tint-amber hover:bg-[color-mix(in_srgb,var(--color-card-tint-amber),var(--color-card-hover)_35%)]",
-    icon: "bg-elevated text-amber-700",
-    iconText: "text-amber-700",
-  },
-  cyan: {
-    card: "border-accent-cyan/30 hover:border-accent-cyan/45 bg-card-tint-cyan hover:bg-[color-mix(in_srgb,var(--color-card-tint-cyan),var(--color-card-hover)_35%)]",
-    icon: "bg-elevated text-accent-cyan",
-    iconText: "text-accent-cyan",
-  },
-  sky: {
-    card: "border-accent-blue/30 hover:border-accent-blue/45 bg-card-tint-sky hover:bg-[color-mix(in_srgb,var(--color-card-tint-sky),var(--color-card-hover)_35%)]",
-    icon: "bg-elevated text-accent-blue",
-    iconText: "text-accent-blue",
-  },
-  teal: {
-    card: "border-primary/30 hover:border-primary/45 bg-card-tint-teal hover:bg-[color-mix(in_srgb,var(--color-card-tint-teal),var(--color-card-hover)_35%)]",
-    icon: "bg-elevated text-primary",
-    iconText: "text-primary",
-  },
+const accentToTint: Record<StatCardAccent, CardTintAccent> = {
+  emerald: "success",
+  amber: "warning",
+  cyan: "info",
+  sky: "info",
+  teal: "primary",
 };
 
 export default function StatCard({
@@ -64,7 +46,7 @@ export default function StatCard({
   accent = "cyan",
 }: StatCardProps) {
   const { t } = useT();
-  const styles = accentStyles[accent];
+  const tint = accentToTint[accent];
   const resolvedTitle = titleKey ? t(titleKey, titleParams) : (title ?? "");
   const resolvedSubtitle = subtitleKey
     ? t(subtitleKey, subtitleParams)
@@ -75,7 +57,7 @@ export default function StatCard({
     <div
       className={cn(
         "motion-hover-lift rounded-2xl border p-4 shadow-[0_12px_28px_-22px_rgba(0,0,0,0.5)] sm:p-5 lg:p-6",
-        styles.card
+        cardTintWash[tint]
       )}
     >
       <div className="flex items-start justify-between gap-3">
@@ -102,8 +84,7 @@ export default function StatCard({
           <div
             className={cn(
               "flex h-10 w-10 shrink-0 items-center justify-center rounded-md sm:h-12 sm:w-12",
-              styles.icon,
-              styles.iconText
+              cardTintIcon[tint]
             )}
           >
             {icon}

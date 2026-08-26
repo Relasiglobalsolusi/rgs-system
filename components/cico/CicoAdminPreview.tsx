@@ -67,7 +67,7 @@ export default function CicoAdminPreview({
   const fieldProjects = adminFieldMode ? selectableProjects : previewProjects;
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 pb-8">
+    <div className="flex w-full flex-col gap-8 pb-8">
       <div
         className={
           adminFieldMode

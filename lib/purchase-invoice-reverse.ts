@@ -8,6 +8,10 @@ import {
   toDecimal,
 } from "@/lib/inventory";
 import { lockInventoryItemRow } from "@/lib/inventory-access";
+import {
+  isPrepaidCardTopUpInvoice,
+  unwindPrepaidTopUpFromInvoice,
+} from "@/lib/advance-cash-expense";
 import { decimalToNumber } from "@/lib/project-billing";
 
 type ReverseDb = Prisma.TransactionClient;
@@ -148,11 +152,19 @@ export async function unwindAndReversePurchaseInvoice(
     where: { purchaseInvoiceId: invoice.id },
   });
 
+  await tx.payrollDeduction.deleteMany({
+    where: { purchaseInvoiceId: invoice.id },
+  });
+
   if (invoice.pettyCashEntry && invoice.pettyCashEntry.status !== "VOIDED") {
     await tx.pettyCashEntry.update({
       where: { id: invoice.pettyCashEntry.id },
       data: { status: "VOIDED" },
     });
+  }
+
+  if (isPrepaidCardTopUpInvoice(invoice)) {
+    await unwindPrepaidTopUpFromInvoice(tx, invoice);
   }
 
   await tx.purchaseInvoice.update({

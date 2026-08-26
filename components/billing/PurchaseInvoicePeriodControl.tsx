@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import type { ReactNode } from "react";
 
 import FinancePeriodControl from "@/components/billing/FinancePeriodControl";
 import { financePeriodSearchParams } from "@/lib/finance-period";
@@ -12,6 +13,7 @@ type Props = {
   day?: number | null;
   /** Preserve AP list view (`tax` / `payments`) when changing period. */
   view?: string | null;
+  action?: ReactNode;
 };
 
 export default function PurchaseInvoicePeriodControl({
@@ -19,6 +21,7 @@ export default function PurchaseInvoicePeriodControl({
   month,
   day = null,
   view,
+  action,
 }: Props) {
   const { t } = useT();
   const router = useRouter();
@@ -30,6 +33,7 @@ export default function PurchaseInvoicePeriodControl({
       day={day}
       idPrefix="purchase"
       periodLabel={t("pages.billing.purchasePeriod")}
+      action={action}
       onNavigate={(next) => {
         router.push(
           `/billing/purchase-invoices?${financePeriodSearchParams(next, {

@@ -13,7 +13,9 @@ import { createTranslator } from "@/lib/i18n/translate";
 import { getPurchasePaymentDisplay } from "@/lib/invoice-period";
 import { canAccess } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { formatBankAccountOptionLabel } from "@/lib/company-bank-accounts";
 import { decimalToNumber } from "@/lib/project-billing";
+import { formatVendorBankAccountLabel } from "@/lib/vendor-bank-accounts";
 import { toPermissionUser } from "@/lib/session";
 
 const PURCHASE_VIEWS = ["tax", "payments"] as const;
@@ -62,6 +64,25 @@ export async function GET(request: NextRequest) {
           reversedAt: null,
           ...(purchaseView ? { purpose: { not: "PETTY_CASH" } } : {}),
         },
+        include: {
+          bankAccount: {
+            select: {
+              bankName: true,
+              accountNumber: true,
+              accountHolder: true,
+              label: true,
+              sortOrder: true,
+            },
+          },
+          vendorBankAccount: {
+            select: {
+              bankName: true,
+              accountNumber: true,
+              accountHolder: true,
+              label: true,
+            },
+          },
+        },
         orderBy: [{ invoiceDate: "desc" }, { createdAt: "desc" }],
       }),
       loadCompanyForPdf(session.user.companyId),
@@ -100,6 +121,16 @@ export async function GET(request: NextRequest) {
         invoiceRef: invoice.invoiceRef,
         amount: decimalToNumber(invoice.amount) ?? 0,
         statusLabel,
+        payFromLabel: invoice.bankAccount
+          ? formatBankAccountOptionLabel(invoice.bankAccount)
+          : null,
+        payToLabel: invoice.vendorBankAccount
+          ? formatVendorBankAccountLabel(invoice.vendorBankAccount)
+          : invoice.purchaseCategory === "GOVERNMENT"
+            ? invoice.invoiceRef
+            : invoice.purchaseCategory === "EMPLOYEE_PAYMENT"
+              ? invoice.supplierName
+              : null,
       };
     });
 

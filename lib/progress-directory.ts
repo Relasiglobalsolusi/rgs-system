@@ -14,6 +14,7 @@ export type ProgressClientRow = {
   shortCode: string;
   projectNames: string[];
   projectCount: number;
+  reportCount: number;
 };
 
 export type ProgressProjectRow = {
@@ -27,6 +28,7 @@ export type ProgressProjectRow = {
 export type ProgressInternalSummary = {
   projectCount: number;
   siteNames: string[];
+  reportCount: number;
 };
 
 export type ProgressDirectory = {

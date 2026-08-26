@@ -229,10 +229,13 @@ export async function createClient(formData: FormData) {
         fieldLabel: translate(locale, "pages.clients.form.clientSince"),
       }) ?? new Date();
     const preferredLoginId = String(formData.get("loginId") ?? "").trim();
+    const hasPortalAccess =
+      String(formData.get("hasPortalAccess") ?? "yes").toLowerCase() !== "no";
     const multiProjectAccess =
-      String(formData.get("multiProjectAccess") ?? "").toLowerCase() ===
+      hasPortalAccess &&
+      (String(formData.get("multiProjectAccess") ?? "").toLowerCase() ===
         "yes" ||
-      String(formData.get("multiProjectAccess") ?? "") === "true";
+        String(formData.get("multiProjectAccess") ?? "") === "true");
 
     const company = await prisma.company.findFirst();
     if (!company) {
@@ -271,6 +274,7 @@ export async function createClient(formData: FormData) {
           contactPersonEmail: identity.contactPersonEmail,
           contactPersonPhone: identity.contactPersonPhone,
           clientSince,
+          hasPortalAccess,
           multiProjectAccess,
           multiProjectSecurityMode: multiProjectAccess
             ? "MASTER_AND_GROUP"
@@ -281,15 +285,16 @@ export async function createClient(formData: FormData) {
         },
       });
 
-      // Always create portal Login ID; revoke later in Users if needed.
-      await provisionClientUser(tx, {
-        companyId: company.id,
-        clientId: client.id,
-        clientName: identity.name,
-        contactPersonFirstName: identity.contactPersonFirstName,
-        contactPersonLastName: identity.contactPersonLastName,
-        preferredLoginId: preferredLoginId || null,
-      });
+      if (hasPortalAccess) {
+        await provisionClientUser(tx, {
+          companyId: company.id,
+          clientId: client.id,
+          clientName: identity.name,
+          contactPersonFirstName: identity.contactPersonFirstName,
+          contactPersonLastName: identity.contactPersonLastName,
+          preferredLoginId: preferredLoginId || null,
+        });
+      }
     });
 
     revalidatePath("/clients");
@@ -317,6 +322,7 @@ const CLIENT_LINE_FIELDS = [
   "clientType",
   "clientSince",
   "multiProjectAccess",
+  "hasPortalAccess",
 ];
 
 export async function createClientsInBulk(formData: FormData) {
@@ -339,6 +345,7 @@ export async function createClientsInBulk(formData: FormData) {
       taxIdDocumentUrl: string;
       clientSince: Date;
       multiProjectAccess: boolean;
+      hasPortalAccess: boolean;
     }> = [];
     const seenNames = new Set<string>();
 
@@ -350,6 +357,7 @@ export async function createClientsInBulk(formData: FormData) {
       let npwp: string;
       let clientSince: Date;
       let multiProjectAccess: boolean;
+      let hasPortalAccess: boolean;
       try {
         identity = resolveClientFormIdentity(row, clientType, locale);
         address = capitalizeProper(String(row.get("address") ?? "").trim());
@@ -358,12 +366,14 @@ export async function createClientsInBulk(formData: FormData) {
           parseFormDateInput(row.get("clientSince"), {
             fieldLabel: translate(locale, "pages.clients.form.clientSince"),
           }) ?? new Date();
+        hasPortalAccess =
+          String(row.get("hasPortalAccess") ?? "yes").toLowerCase() !== "no";
         multiProjectAccess =
-          clientType === "INDIVIDUAL"
-            ? false
-            : String(row.get("multiProjectAccess") ?? "").toLowerCase() ===
-                "yes" ||
-              String(row.get("multiProjectAccess") ?? "") === "true";
+          hasPortalAccess &&
+          clientType !== "INDIVIDUAL" &&
+          (String(row.get("multiProjectAccess") ?? "").toLowerCase() ===
+            "yes" ||
+            String(row.get("multiProjectAccess") ?? "") === "true");
       } catch (error) {
         throw new Error(
           translate(locale, "bulkCreate.lineError", {
@@ -407,6 +417,7 @@ export async function createClientsInBulk(formData: FormData) {
         taxIdDocumentUrl,
         clientSince,
         multiProjectAccess,
+        hasPortalAccess,
       });
     }
 
@@ -440,6 +451,7 @@ export async function createClientsInBulk(formData: FormData) {
             contactPersonEmail: row.identity.contactPersonEmail,
             contactPersonPhone: row.identity.contactPersonPhone,
             clientSince: row.clientSince,
+            hasPortalAccess: row.hasPortalAccess,
             multiProjectAccess: row.multiProjectAccess,
             multiProjectSecurityMode: row.multiProjectAccess
               ? "MASTER_AND_GROUP"
@@ -450,14 +462,16 @@ export async function createClientsInBulk(formData: FormData) {
           },
         });
 
-        await provisionClientUser(tx, {
-          companyId: company.id,
-          clientId: client.id,
-          clientName: row.identity.name,
-          contactPersonFirstName: row.identity.contactPersonFirstName,
-          contactPersonLastName: row.identity.contactPersonLastName,
-          preferredLoginId: null,
-        });
+        if (row.hasPortalAccess) {
+          await provisionClientUser(tx, {
+            companyId: company.id,
+            clientId: client.id,
+            clientName: row.identity.name,
+            contactPersonFirstName: row.identity.contactPersonFirstName,
+            contactPersonLastName: row.identity.contactPersonLastName,
+            preferredLoginId: null,
+          });
+        }
 
         sortOrder += SORT_ORDER_STEP;
       }
@@ -520,6 +534,10 @@ export async function updateClient(id: string, formData: FormData) {
         fieldLabel: translate(locale, "pages.clients.form.clientSince"),
       }) ?? new Date();
 
+    const hasPortalAccess =
+      String(formData.get("hasPortalAccess") ?? "yes").toLowerCase() !== "no";
+    const preferredLoginId = String(formData.get("loginId") ?? "").trim();
+
     const existing = await prisma.client.findUnique({
       where: { id },
       select: {
@@ -527,6 +545,7 @@ export async function updateClient(id: string, formData: FormData) {
         companyId: true,
         shortCode: true,
         taxIdDocumentUrl: true,
+        _count: { select: { users: true } },
       },
     });
 
@@ -583,6 +602,11 @@ export async function updateClient(id: string, formData: FormData) {
           contactPersonEmail: identity.contactPersonEmail,
           contactPersonPhone: identity.contactPersonPhone,
           clientSince,
+          hasPortalAccess,
+          multiProjectAccess: hasPortalAccess
+            ? undefined
+            : false,
+          multiProjectSecurityMode: hasPortalAccess ? undefined : null,
         },
       });
 
@@ -591,6 +615,25 @@ export async function updateClient(id: string, formData: FormData) {
         where: { clientId: id },
         data: { name: contactDisplay },
       });
+
+      if (hasPortalAccess) {
+        await tx.user.updateMany({
+          where: { clientId: id },
+          data: { active: true },
+        });
+        if (existing._count.users === 0) {
+          await provisionClientUser(tx, {
+            companyId: existing.companyId,
+            clientId: id,
+            clientName: identity.name,
+            contactPersonFirstName: identity.contactPersonFirstName,
+            contactPersonLastName: identity.contactPersonLastName,
+            preferredLoginId: preferredLoginId || null,
+          });
+        }
+      } else {
+        await softDeactivateClientLogins(tx, id);
+      }
     });
 
     await persistClientProjectGroupMembership(id, formData);

@@ -55,7 +55,10 @@ export default async function InventoryPage() {
     factoryRows,
   ] = await Promise.all([
       prisma.inventoryItem.findMany({
-        where: { companyId: company.id, deletedAt: null },
+        where: {
+          companyId: company.id,
+          OR: [{ deletedAt: null }, { currentStock: { gt: 0 } }],
+        },
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       }),
       prisma.inventoryPurchase.findMany({

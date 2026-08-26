@@ -26,6 +26,8 @@ import {
   formatContractPrice,
 } from "@/lib/project-billing";
 import { formatPurchaseListedAmount } from "@/lib/purchase-amount-display";
+import { formatBankAccountOptionLabel } from "@/lib/company-bank-accounts";
+import { formatVendorBankAccountLabel } from "@/lib/vendor-bank-accounts";
 import { listLoanFacilitySnapshots } from "@/lib/loan-facility-query";
 import { requireFinanceChild, toPermissionUser } from "@/lib/session";
 import { processScheduledPettyCashPays } from "@/lib/petty-cash";
@@ -91,6 +93,23 @@ export default async function PurchaseInvoicesPage({
       include: {
         createdBy: { select: { name: true } },
         lines: { select: { quantity: true, unitPrice: true } },
+        bankAccount: {
+          select: {
+            bankName: true,
+            accountNumber: true,
+            accountHolder: true,
+            label: true,
+            sortOrder: true,
+          },
+        },
+        vendorBankAccount: {
+          select: {
+            bankName: true,
+            accountNumber: true,
+            accountHolder: true,
+            label: true,
+          },
+        },
       },
       orderBy: [{ invoiceDate: "desc" }, { createdAt: "desc" }],
     }),
@@ -170,6 +189,16 @@ export default async function PurchaseInvoicesPage({
       amountLabel: formatPurchaseListedAmount(invoice),
       origin: invoice.origin,
       purchaseCategory: invoice.purchaseCategory,
+      payFromLabel: invoice.bankAccount
+        ? formatBankAccountOptionLabel(invoice.bankAccount)
+        : null,
+      payToLabel: invoice.vendorBankAccount
+        ? formatVendorBankAccountLabel(invoice.vendorBankAccount)
+        : invoice.purchaseCategory === "GOVERNMENT"
+          ? invoice.invoiceRef
+          : invoice.purchaseCategory === "EMPLOYEE_PAYMENT"
+            ? invoice.supplierName
+            : null,
       freeOfCharge: invoice.freeOfCharge,
       hasInvoice: invoice.hasInvoice,
       paymentStatus: invoice.freeOfCharge
@@ -213,7 +242,7 @@ export default async function PurchaseInvoicesPage({
 
   return (
     <AppShell titleKey={titleKey}>
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+      <div className="mb-5 flex flex-wrap items-end gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/30 bg-card-tint-emerald text-primary-dark">
@@ -231,20 +260,22 @@ export default async function PurchaseInvoicesPage({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-end gap-3">
-          <PurchaseInvoicePeriodControl
-            year={year}
-            month={month}
-            day={day}
-            view={purchaseView}
-          />
-          <ExpenseReportDownloadButton
-            year={year}
-            month={month}
-            day={day}
-            view={purchaseView}
-          />
-          {canUpload ? (
+        <PurchaseInvoicePeriodControl
+          year={year}
+          month={month}
+          day={day}
+          view={purchaseView}
+          action={
+            <ExpenseReportDownloadButton
+              year={year}
+              month={month}
+              day={day}
+              view={purchaseView}
+            />
+          }
+        />
+        {canUpload ? (
+          <div className="ml-auto shrink-0">
             <PurchaseInvoiceUploadDialog
               vendors={vendors}
               catalogItems={catalogItems}
@@ -255,8 +286,8 @@ export default async function PurchaseInvoicesPage({
               }))}
               loanFacilities={loanFacilities}
             />
-          ) : null}
-        </div>
+          </div>
+        ) : null}
       </div>
 
       {purchaseView ? null : (

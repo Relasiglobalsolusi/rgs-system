@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useTransition, type ReactNode } from "react";
 
 import type { FinancialReportScopeClient } from "@/app/billing/financial-report/actions";
 import type { CompanyBankAccountOption } from "@/lib/company-bank-accounts";
@@ -34,6 +34,7 @@ type Props = {
   bankAccounts?: CompanyBankAccountOption[];
   /** Keep the clicked Financial Report card when changing period / bank. */
   detailMetric?: string;
+  action?: ReactNode;
 };
 
 export default function FinancialReportFilters({
@@ -43,6 +44,7 @@ export default function FinancialReportFilters({
   projectId,
   bankAccounts = [],
   detailMetric,
+  action,
 }: Props) {
   const { t } = useT();
   const router = useRouter();
@@ -69,8 +71,9 @@ export default function FinancialReportFilters({
             : "/billing/financial-report";
     const href = financialReportHref(path, next);
     startTransition(() => {
-      router.push(
-        detailMetric && !nextClientId ? `${href}&metric=${detailMetric}` : href
+      router.replace(
+        detailMetric && !nextClientId ? `${href}&metric=${detailMetric}` : href,
+        { scroll: false }
       );
     });
   }
@@ -247,6 +250,17 @@ export default function FinancialReportFilters({
           </SelectContent>
         </Select>
       </label>
+      {action ? (
+        <div className="grid gap-1.5">
+          <span
+            className="invisible text-xs font-semibold uppercase tracking-wide"
+            aria-hidden
+          >
+            {t("pages.financialReport.downloadReport")}
+          </span>
+          {action}
+        </div>
+      ) : null}
       {pending ? (
         <p className="text-sm text-subtle">{t("common.actions.loading")}</p>
       ) : null}

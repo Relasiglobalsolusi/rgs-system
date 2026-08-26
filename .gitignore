@@ -27,6 +27,7 @@
 /public/uploads/
 /public/proofs/
 /public/progress/
+/public/prepaid-card-proofs/
 
 # debug
 npm-debug.log*

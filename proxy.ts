@@ -26,6 +26,7 @@ const PROTECTED_PREFIXES = [
   "/item-catalog",
   "/billing",
   "/invoicing",
+  "/payslips",
   "/multi-project-unlock",
 ];
 
@@ -159,6 +160,8 @@ export const config = {
     "/billing/:path*",
     "/invoicing",
     "/invoicing/:path*",
+    "/payslips",
+    "/payslips/:path*",
     "/multi-project-unlock",
     "/multi-project-unlock/:path*",
   ],

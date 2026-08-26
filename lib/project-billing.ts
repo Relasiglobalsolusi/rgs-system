@@ -13,7 +13,7 @@ export const BILLING_MODES = [
 ] as const satisfies readonly BillingMode[];
 
 /** Canonical stored/display label for on-completion invoices (one per project). */
-export const COMPLETION_INVOICE_LABEL = "Completion invoice";
+export const COMPLETION_INVOICE_LABEL = "Completion Invoice";
 
 /** Billing choices for General / Facade / One-Time Landscaping. */
 export const MILESTONE_ELIGIBLE_BILLING_MODES = [

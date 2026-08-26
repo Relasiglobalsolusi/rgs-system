@@ -19,6 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { formatInventoryQty } from "@/lib/inventory";
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 
@@ -27,8 +28,8 @@ export type MaterialRequestCatalogItem = {
   sku: string;
   name: string;
   unit: string;
-  /** Requesters never see the warehouse quantity — only whether it can be picked. */
   available: boolean;
+  currentStock: number;
   itemType: string;
 };
 
@@ -150,22 +151,24 @@ export default function MaterialRequestItemPicker({
       render: (row) => row.sku,
     },
     {
-      key: "availability",
-      title: t("pages.materialRequests.columns.availability"),
+      key: "stock",
+      title: t("pages.materialRequests.columns.stock"),
       width: "10rem",
       render: (row) =>
         isMaterialRequestItemAvailable(row) ? (
-          <span className="text-muted">—</span>
+          <span className="tabular-nums text-text">
+            {formatInventoryQty(row.currentStock)} {inventoryUnitLabel(t, row.unit)}
+          </span>
         ) : (
           <span className="font-medium text-danger">
-            {t("pages.materialRequests.itemNotAvailable")}
+            {t("pages.materialRequests.itemNotInStock")}
           </span>
         ),
     },
   ];
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog skipUnsavedGuard open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[min(92vh,44rem)] w-full flex-col gap-4 overflow-hidden sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{t("pages.materialRequests.selectItemTitle")}</DialogTitle>

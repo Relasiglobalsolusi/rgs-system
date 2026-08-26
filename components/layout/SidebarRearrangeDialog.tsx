@@ -708,6 +708,7 @@ export default function SidebarRearrangeDialog({
           footer={
             <div className="flex w-full flex-col gap-3 sm:flex-row sm:justify-end">
               <EmployeeSecondaryButton
+                closesDialog={false}
                 disabled={isPending}
                 onClick={handleReset}
               >

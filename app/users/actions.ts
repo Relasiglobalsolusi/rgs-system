@@ -510,6 +510,10 @@ async function deactivateUserRecord(id: string, currentUserId: string) {
 
   await prisma.$transaction(async (tx) => {
     if (user.employee && employeeOnRoster) {
+      const { writeOffUnrecoveredEmployeeDebt } = await import(
+        "@/lib/employee-unrecovered-debt"
+      );
+      await writeOffUnrecoveredEmployeeDebt(tx, user.employee.id);
       await tx.employee.update({
         where: { id: user.employee.id },
         data: { status: "INACTIVE" },

@@ -33,7 +33,7 @@ import {
 } from "@/lib/petty-cash";
 import {
   isProgressEligibleProjectSubCategory,
-  isInternalProjectSubCategory,
+  isRgsInternalProject,
 } from "@/lib/project-subcategory";
 import { getProjectWhereForUser } from "@/lib/project-access";
 import { getServerLocale } from "@/lib/i18n/locale";
@@ -264,7 +264,12 @@ export async function createProgressReport(formData: FormData) {
     },
     include: {
       project: {
-        select: { companyId: true, subCategory: true, status: true },
+        select: {
+          companyId: true,
+          clientId: true,
+          subCategory: true,
+          status: true,
+        },
       },
     },
   });
@@ -286,7 +291,7 @@ export async function createProgressReport(formData: FormData) {
   // Desk HO cannot submit — exception: assigned to an Internal (HO/Warehouse) cleaning site.
   if (
     employee.employeeType === "HEAD_OFFICE" &&
-    !isInternalProjectSubCategory(assignment.project.subCategory)
+    !isRgsInternalProject(assignment.project)
   ) {
     throw await progressError("headOfficeNotAllowed");
   }
@@ -305,7 +310,7 @@ export async function createProgressReport(formData: FormData) {
   }
   await assertCanCreateProgressReport(employee, projectId, reportDate);
 
-  const period = isInternalProjectSubCategory(assignment.project.subCategory)
+  const period = isRgsInternalProject(assignment.project)
     ? null
     : await ensureOngoingPeriod(projectId, reportDate);
 

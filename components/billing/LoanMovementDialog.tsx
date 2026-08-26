@@ -30,6 +30,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatDisplayDate } from "@/lib/format-date";
 import type { LoanFacilitySnapshot } from "@/lib/loan-facility-query";
 import { closingStandbySlicePreview } from "@/lib/loan-interest";
+import { showMissingRequiredFields } from "@/components/ui/rejection-notice";
 import { useT } from "@/lib/i18n/use-t";
 import { formatContractPrice } from "@/lib/project-billing";
 import { todayDateInput } from "@/lib/project-contract";
@@ -92,8 +93,11 @@ export default function LoanMovementDialog({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    const extraMissing: string[] = [];
     if (!isDraw && (!documentFile || documentFile.size === 0)) {
-      setError(t("pages.loans.proofRequired"));
+      extraMissing.push(t("pages.loans.proof"));
+    }
+    if (showMissingRequiredFields(event.currentTarget, extraMissing)) {
       return;
     }
     const formData = new FormData(event.currentTarget);
@@ -230,6 +234,7 @@ export default function LoanMovementDialog({
               <MoneyInput
                 id={`loan-amount-${mode}`}
                 name="amount"
+                required
                 disabled={pending}
                 value={amount}
                 onValueChange={setAmount}

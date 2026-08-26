@@ -98,7 +98,10 @@ export function toBankAccountOption(
 }
 
 export function formatBankAccountOptionLabel(
-  account: CompanyBankAccountOption
+  account: Pick<
+    CompanyBankAccountOption,
+    "bankName" | "accountNumber" | "accountHolder" | "label"
+  >
 ): string {
   const core = `${account.bankName} · ${account.accountNumber} · ${account.accountHolder}`;
   const label = account.label?.trim();

@@ -69,7 +69,13 @@ export async function getProgressDirectory(): Promise<ProgressDirectory> {
             ...where,
             subCategory: { not: "INTERNAL" },
           },
-          select: { id: true, name: true, serviceArea: true, subCategory: true },
+          select: {
+            id: true,
+            name: true,
+            serviceArea: true,
+            subCategory: true,
+            _count: { select: { progressReports: true } },
+          },
         },
       },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -84,6 +90,7 @@ export async function getProgressDirectory(): Promise<ProgressDirectory> {
             clientId: true,
             serviceArea: true,
             subCategory: true,
+            _count: { select: { progressReports: true } },
           },
           orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
         }),
@@ -99,6 +106,10 @@ export async function getProgressDirectory(): Promise<ProgressDirectory> {
         ? {
             projectCount: internalProjects.length,
             siteNames: internalProjects.map((project) => project.name),
+            reportCount: internalProjects.reduce(
+              (sum, project) => sum + project._count.progressReports,
+              0
+            ),
           }
         : null,
     clients: clientsRaw
@@ -112,6 +123,10 @@ export async function getProgressDirectory(): Promise<ProgressDirectory> {
           shortCode: client.shortCode,
           projectNames: projects.map((project) => project.name),
           projectCount: projects.length,
+          reportCount: projects.reduce(
+            (sum, project) => sum + project._count.progressReports,
+            0
+          ),
         };
       })
       .filter((client) => client.projectCount > 0),

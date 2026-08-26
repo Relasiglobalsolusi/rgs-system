@@ -73,7 +73,13 @@ export async function createOperationsTeam(formData: FormData) {
     orderBy: { sortOrder: "desc" },
     select: { sortOrder: true },
   });
-  await prisma.operationsTeam.create({
+  const employeeIds = [
+    ...new Set(formData.getAll("employeeIds").map(String).filter(Boolean)),
+  ];
+  const assetIds = [
+    ...new Set(formData.getAll("assetIds").map(String).filter(Boolean)),
+  ];
+  const created = await prisma.operationsTeam.create({
     data: {
       companyId,
       name,
@@ -82,8 +88,35 @@ export async function createOperationsTeam(formData: FormData) {
       sortOrder: (last?.sortOrder ?? 0) + 1,
     },
   });
+  for (const employeeId of employeeIds) {
+    const existing = await prisma.operationsTeamMember.findUnique({
+      where: { employeeId },
+      select: { id: true },
+    });
+    if (existing) continue;
+    const eligible = await prisma.employee.findFirst({
+      where: { id: employeeId, ...eligibleTeamMemberWhere(companyId) },
+      select: { id: true },
+    });
+    if (!eligible) continue;
+    await prisma.$transaction(async (tx) => {
+      await tx.operationsTeamMember.create({
+        data: { teamId: created.id, employeeId },
+      });
+      await syncTeamMemberOntoOpenJobs(tx, companyId, created.id, employeeId);
+    });
+  }
+  if (assetIds.length > 0) {
+    const { assignEquipmentAssetsToTeam } = await import("@/lib/team-equipment");
+    await assignEquipmentAssetsToTeam(prisma, {
+      teamId: created.id,
+      assetIds,
+      companyId,
+    });
+  }
   revalidatePath("/teams");
   revalidatePath("/teams/availability");
+  revalidatePath("/inventory");
 }
 
 export async function updateOperationsTeam(formData: FormData) {
@@ -195,7 +228,7 @@ export async function addOperationsTeamMember(formData: FormData) {
   });
   if (!eligible) {
     throw new Error(
-      "Select an available full-time Operations cleaning employee who is not already on a team."
+      "Select an available full-time employee who is not already on a team."
     );
   }
 
@@ -234,4 +267,27 @@ export async function removeOperationsTeamMember(formData: FormData) {
   revalidatePath("/teams/availability");
   revalidatePath("/employees");
   revalidatePath("/projects");
+}
+
+export async function assignTeamEquipment(formData: FormData) {
+  const { companyId } = await requireTeamManager();
+  const teamId = String(formData.get("teamId") ?? "").trim();
+  const assetIds = formData.getAll("assetIds").map(String).filter(Boolean);
+  if (!teamId) throw new Error("Team not found.");
+
+  const team = await prisma.operationsTeam.findFirst({
+    where: { id: teamId, companyId },
+    select: { id: true },
+  });
+  if (!team) throw new Error("Team not found.");
+
+  const { assignEquipmentAssetsToTeam } = await import("@/lib/team-equipment");
+  await assignEquipmentAssetsToTeam(prisma, {
+    teamId,
+    assetIds,
+    companyId,
+  });
+
+  revalidatePath("/teams");
+  revalidatePath("/inventory");
 }

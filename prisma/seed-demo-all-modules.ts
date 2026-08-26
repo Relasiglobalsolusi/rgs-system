@@ -189,6 +189,7 @@ async function ensureClient(
     contactPersonPosition: string;
     contactPersonEmail: string;
     contactPersonPhone: string;
+    hasPortalAccess?: boolean;
   }
 ) {
   const existing = await prisma.client.findUnique({ where: { id: row.id } });
@@ -208,6 +209,7 @@ async function ensureClient(
       contactPersonPosition: row.contactPersonPosition,
       contactPersonEmail: row.contactPersonEmail,
       contactPersonPhone: row.contactPersonPhone,
+      hasPortalAccess: row.hasPortalAccess ?? true,
       active: true,
     },
     create: {
@@ -226,6 +228,7 @@ async function ensureClient(
       contactPersonPosition: row.contactPersonPosition,
       contactPersonEmail: row.contactPersonEmail,
       contactPersonPhone: row.contactPersonPhone,
+      hasPortalAccess: row.hasPortalAccess ?? true,
       clientSince: utcDate(2024, 3, 1),
       active: true,
     },
@@ -594,6 +597,8 @@ async function ensurePeriod(
     taxInvoiceDoneAt?: Date | null;
     taxInvoiceDoneById?: string | null;
     reviewSentToClientAt?: Date | null;
+    clientRevisionNote?: string | null;
+    clientRequestedAmount?: number | null;
   }
 ) {
   const invoicePdf =
@@ -633,6 +638,11 @@ async function ensurePeriod(
       taxInvoiceDoneAt: row.taxInvoiceDoneAt ?? null,
       taxInvoiceDoneById: row.taxInvoiceDoneById ?? null,
       reviewSentToClientAt: row.reviewSentToClientAt ?? null,
+      clientRevisionNote: row.clientRevisionNote ?? null,
+      clientRequestedAmount:
+        row.clientRequestedAmount != null
+          ? toDecimal(row.clientRequestedAmount)
+          : undefined,
       invoicePdfPath: invoicePdf,
       reviewReportPdfPath: reviewPdf,
       reportCount: 2,
@@ -654,6 +664,11 @@ async function ensurePeriod(
       taxInvoiceDoneAt: row.taxInvoiceDoneAt ?? null,
       taxInvoiceDoneById: row.taxInvoiceDoneById ?? null,
       reviewSentToClientAt: row.reviewSentToClientAt ?? null,
+      clientRevisionNote: row.clientRevisionNote ?? null,
+      clientRequestedAmount:
+        row.clientRequestedAmount != null
+          ? toDecimal(row.clientRequestedAmount)
+          : undefined,
       invoicePdfPath: invoicePdf,
       reviewReportPdfPath: reviewPdf,
       reportCount: 2,
@@ -837,6 +852,8 @@ export async function seedDemoAllModules(prisma: Db) {
       bankName: "Bank Central Asia",
       bankAccountNumber: "0888123456",
       bankAccountName: "PT Relasi Global Solusi",
+      bpjsKesehatanVirtualAccount: "88801234567890",
+      bpjsKetenagakerjaanVirtualAccount: "88809876543210",
     },
     create: {
       id: "rgs-company",
@@ -849,6 +866,8 @@ export async function seedDemoAllModules(prisma: Db) {
       bankName: "Bank Central Asia",
       bankAccountNumber: "0888123456",
       bankAccountName: "PT Relasi Global Solusi",
+      bpjsKesehatanVirtualAccount: "88801234567890",
+      bpjsKetenagakerjaanVirtualAccount: "88809876543210",
       cashAtBankOpening: toDecimal(250_000_000),
       cashAtBankOpeningAsOf: utcDate(2026, 1, 1),
     },
@@ -955,6 +974,7 @@ export async function seedDemoAllModules(prisma: Db) {
     contactPersonPosition: "Homeowner",
     contactPersonEmail: "sari.wulandari@example.com",
     contactPersonPhone: "+62 812 7000 1100",
+    hasPortalAccess: false,
   });
   const plazaClient = await ensureClient(prisma, company.id, {
     id: "client-demo-mod-plaza-hijau",
@@ -1015,6 +1035,65 @@ export async function seedDemoAllModules(prisma: Db) {
     contactPersonFirstName: "Andi",
     contactPersonLastName: "Kredit",
     contactPersonPosition: "Relationship Manager",
+  });
+
+  async function ensureVendorBank(
+    vendorId: string,
+    account: {
+      id: string;
+      bankName: string;
+      accountNumber: string;
+      accountHolder: string;
+      label: string;
+    }
+  ) {
+    await prisma.vendorBankAccount.upsert({
+      where: { id: account.id },
+      update: {
+        vendorId,
+        bankName: account.bankName,
+        accountNumber: account.accountNumber,
+        accountHolder: account.accountHolder,
+        label: account.label,
+      },
+      create: {
+        id: account.id,
+        vendorId,
+        bankName: account.bankName,
+        accountNumber: account.accountNumber,
+        accountHolder: account.accountHolder,
+        label: account.label,
+      },
+    });
+  }
+
+  await ensureVendorBank(vendorCompany.id, {
+    id: "demo-vendor-bank-mandiri-chemical",
+    bankName: "Bank Mandiri",
+    accountNumber: "1350012345678",
+    accountHolder: "CV Mandiri Chemical",
+    label: "Operating",
+  });
+  await ensureVendorBank(vendorIndividual.id, {
+    id: "demo-vendor-bank-slamet",
+    bankName: "BCA",
+    accountNumber: "088899001122",
+    accountHolder: "Slamet Wijaya",
+    label: "Personal",
+  });
+  await ensureVendorBank(vendorOverseas.id, {
+    id: "demo-vendor-bank-guangzhou",
+    bankName: "Bank of China",
+    accountNumber: "6217001234567890",
+    accountHolder: "Guangzhou Facility Goods Ltd.",
+    label: "Export",
+  });
+  await ensureVendorBank(vendorBank.id, {
+    id: "demo-vendor-bank-bca-lender",
+    bankName: "BCA",
+    accountNumber: "2060123456",
+    accountHolder: "PT Bank Central Asia Tbk",
+    label: "Loan Servicing",
   });
 
   const clientOverrides = getClientModuleOverrides();
@@ -1126,15 +1205,17 @@ export async function seedDemoAllModules(prisma: Db) {
     clientId: gedung.id,
     moduleOverrides: clientOverrides,
   });
-  await ensureUser(prisma, {
-    username: "sari",
-    name: "Portal Sari Wulandari",
-    email: "sari.portal@rgs.co.id",
-    passwordHash: clientHash,
-    companyId: company.id,
-    clientId: sariClient.id,
-    moduleOverrides: clientOverrides,
-  });
+  if (sariClient.hasPortalAccess) {
+    await ensureUser(prisma, {
+      username: "sari",
+      name: "Portal Sari Wulandari",
+      email: "sari.portal@rgs.co.id",
+      passwordHash: clientHash,
+      companyId: company.id,
+      clientId: sariClient.id,
+      moduleOverrides: clientOverrides,
+    });
+  }
 
   const empVicko = await ensureEmployee(prisma, {
     employeeNo: "COR-001",
@@ -1978,6 +2059,9 @@ export async function seedDemoAllModules(prisma: Db) {
     clientReviewKind: ClientReviewKind.RECONCILIATION,
     clientReviewStatus: ClientReviewStatus.CLIENT_REVISED,
     reviewSentToClientAt: wib(2026, 8, 16, 9),
+    clientRevisionNote:
+      "Please revise the billed amount. Two days were not fully staffed and the attendance sheet does not match our log.",
+    clientRequestedAmount: 28_000_000,
     taxInvoiceRequired: true,
   });
   await ensurePeriod(prisma, {

@@ -6,7 +6,11 @@ import { Plus, Trash2 } from "lucide-react";
 
 import {
   createPurchaseInvoice,
+  listCompanyBpjsVirtualAccounts,
+  listEmployeesForExpense,
+  listPrepaidCardsForExpense,
   listPurchasePayoutBankAccounts,
+  listVendorBankAccountsForExpense,
 } from "@/app/billing/purchase-invoices/actions";
 import CompanyBankAccountField from "@/components/company-details/CompanyBankAccountField";
 import type { CompanyBankAccountOption } from "@/lib/company-bank-accounts";
@@ -21,6 +25,9 @@ import PurchaseVehicleLeaseFields, {
   type PurchaseVehicleLeaseDraft,
 } from "@/components/billing/PurchaseVehicleLeaseFields";
 import { BillingDocumentFilePick } from "@/components/billing/BillingDocumentVerifyDialog";
+import TaxInvoiceNumberFields, {
+  useTaxInvoiceSerialAssist,
+} from "@/components/billing/TaxInvoiceNumberFields";
 import CommercialTaxKindField from "@/components/billing/CommercialTaxKindField";
 import PaymentTermsField from "@/components/billing/PaymentTermsField";
 import PurchaseImportCostFields, {
@@ -29,19 +36,20 @@ import PurchaseImportCostFields, {
   importDraftToInput,
   type PurchaseImportDraft,
 } from "@/components/billing/PurchaseImportCostFields";
+import PurchaseHandlingNowFields from "@/components/billing/PurchaseHandlingNowFields";
 import {
   allocateImportStockCost,
   calculateImportLandedCost,
-  HANDLING_BY_HEAD_OFFICE,
   type ImportLandedCostInput,
   IMPORT_FEE_CURRENCIES,
-  isHandlingByHeadOffice,
   parseImportDecimal,
 } from "@/lib/import-landed-cost";
 import {
   EmployeeDialogShell,
   EmployeePrimaryButton,
   EmployeeSecondaryButton,
+  choiceGridClassForCount,
+  choiceGridSpanLastClass,
   employeeDialogChoiceChipClass,
   employeeDialogChoiceGridClass,
   employeeDialogFieldClass,
@@ -76,14 +84,19 @@ import YesNoChoiceCards, {
   type YesNoChoice,
 } from "@/components/ui/YesNoChoiceCards";
 import { formatDisplayDate } from "@/lib/format-date";
+import { localizeDepartmentLabel } from "@/lib/i18n/labels";
+import {
+  showMissingRequiredFields,
+  showRejection,
+} from "@/components/ui/rejection-notice";
 import { useT } from "@/lib/i18n/use-t";
+import { formatVendorBankAccountLabel } from "@/lib/vendor-bank-accounts";
 import {
   CASH_PAYMENT_TERMS_DAYS,
   dueAtFromPaymentTerms,
   isCashPaymentTerms,
 } from "@/lib/invoice-period";
 import {
-  applyExclusiveVat,
   DEFAULT_PRODUCT_PPN_RATE_PERCENT,
   parsePpnRatePercent,
   ppnRateFromPercent,
@@ -93,6 +106,7 @@ import { todayDateInput } from "@/lib/project-contract";
 import { vendorMatchesPurchaseOrigin } from "@/lib/vendor-type";
 import { formatContractPrice, parseContractPrice } from "@/lib/project-billing";
 import { cn } from "@/lib/utils";
+import { formatVehicleIdentityLabel } from "@/lib/vehicle-plate";
 import { outlineChipTones } from "@/components/ui/StatusBadge";
 import {
   commercialTaxIncludesVat,
@@ -114,7 +128,8 @@ type PurchaseCategoryChoice =
   | "PETTY_CASH"
   | "GOVERNMENT"
   | "VEHICLE"
-  | "BANK_LOAN";
+  | "BANK_LOAN"
+  | "EMPLOYEE_PAYMENT";
 type PurchaseOriginChoice = "LOCAL" | "IMPORT";
 type GovernmentTaxKindChoice = GovernmentTaxKind;
 
@@ -170,20 +185,43 @@ type PurchaseInvoiceUploadDialogProps = {
   loanFacilities?: PurchaseLoanFacilityOption[];
 };
 
-export default function PurchaseInvoiceUploadDialog({
+export default function PurchaseInvoiceUploadDialog(
+  props: PurchaseInvoiceUploadDialogProps
+) {
+  const [open, setOpen] = useState(false);
+  const [formKey, setFormKey] = useState(0);
+
+  return (
+    <PurchaseInvoiceUploadDialogInner
+      key={formKey}
+      {...props}
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setFormKey((current) => current + 1);
+      }}
+    />
+  );
+}
+
+function PurchaseInvoiceUploadDialogInner({
   vendors: vendorsProp,
   catalogItems: catalogItemsProp = [],
   projects = [],
   loanFacilities = [],
-}: PurchaseInvoiceUploadDialogProps) {
+  open,
+  onOpenChange: setOpen,
+}: PurchaseInvoiceUploadDialogProps & {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const { t } = useT();
   const router = useRouter();
-  const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [taxFile, setTaxFile] = useState<File | null>(null);
-  const [taxReason, setTaxReason] = useState("");
+  const taxSerialAssist = useTaxInvoiceSerialAssist(taxFile);
   const [includesPpn, setIncludesPpn] = useState<YesNoChoice>("No");
   const [includedTaxKind, setIncludedTaxKind] = useState<
     CommercialTaxKind | ""
@@ -253,19 +291,61 @@ export default function PurchaseInvoiceUploadDialog({
   const [importDutiesFile, setImportDutiesFile] = useState<File | null>(null);
   const [handlingVendorId, setHandlingVendorId] = useState("");
   const [handlingFeeIdr, setHandlingFeeIdr] = useState("");
-  const [handlingFeeIncludesPpn, setHandlingFeeIncludesPpn] = useState(false);
-  const [handlingFeePpnRatePercent, setHandlingFeePpnRatePercent] =
-    useState("11");
+  const [handlingHasTaxInvoice, setHandlingHasTaxInvoice] = useState<
+    YesNoChoice | ""
+  >("");
   const [handlingFeeFile, setHandlingFeeFile] = useState<File | null>(null);
-  const [handlingFeeTaxFile, setHandlingFeeTaxFile] = useState<File | null>(
-    null
-  );
-
+  const [vehicleExpenseKind, setVehicleExpenseKind] = useState("");
+  const [employeePaymentKind, setEmployeePaymentKind] = useState<
+    "INTERNAL_PAYROLL" | "THR" | "CASH_ADVANCE" | ""
+  >("");
+  const [employeeDepartmentId, setEmployeeDepartmentId] = useState("");
+  const [employeeId, setEmployeeId] = useState("");
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [expenseEmployees, setExpenseEmployees] = useState<
+    Array<{
+      id: string;
+      employeeNo: string;
+      firstName: string;
+      lastName: string;
+      department: { id: string; name: string; slug?: string | null } | null;
+    }>
+  >([]);
+  const [expenseDepartments, setExpenseDepartments] = useState<
+    Array<{ id: string; name: string; slug?: string | null }>
+  >([]);
+  const [vendorBankAccounts, setVendorBankAccounts] = useState<
+    Array<{
+      id: string;
+      bankName: string;
+      accountNumber: string;
+      accountHolder: string;
+      label: string | null;
+    }>
+  >([]);
+  const [vendorBankAccountId, setVendorBankAccountId] = useState("");
+  const [bpjsVirtualAccounts, setBpjsVirtualAccounts] = useState({
+    kesehatan: "",
+    ketenagakerjaan: "",
+  });
+  const [prepaidCards, setPrepaidCards] = useState<
+    Array<{
+      id: string;
+      cardNumber: string;
+      currentBalance: number;
+      vehicleName: string;
+      vehicleSku: string;
+      vehiclePlate?: string | null;
+    }>
+  >([]);
+  const [prepaidCardId, setPrepaidCardId] = useState("");
   const isPettyCash = purchaseCategory === "PETTY_CASH";
   const isGovernment = purchaseCategory === "GOVERNMENT";
   const isService = purchaseCategory === "SERVICE";
   const isVehicle = purchaseCategory === "VEHICLE";
+  const isVehiclePrepaid = isVehicle && vehicleExpenseKind === "PREPAID_CARD";
   const isBankLoan = purchaseCategory === "BANK_LOAN";
+  const isEmployeePayment = purchaseCategory === "EMPLOYEE_PAYMENT";
   const isShareholderLoan = isBankLoan && loanSource === "SHAREHOLDER";
   const isBpjsGovernment =
     isGovernment && isBpjsGovernmentKind(governmentTaxKind);
@@ -274,9 +354,19 @@ export default function PurchaseInvoiceUploadDialog({
     !isPettyCash &&
     !isGovernment &&
     !isVehicle &&
-    !isBankLoan;
-  const showInvoiceFields = !isFreeOfCharge || hasInvoice === "Yes";
+    !isBankLoan &&
+    !isEmployeePayment;
+  const showInvoiceFields =
+    !isEmployeePayment &&
+    !isVehiclePrepaid &&
+    (!isFreeOfCharge || hasInvoice === "Yes");
   const showShippingCost = isFreeOfCharge && addShippingCost === "Yes";
+  const requiresVendorBank =
+    !isPettyCash &&
+    !isGovernment &&
+    !isVehicle &&
+    !isBankLoan &&
+    !isEmployeePayment;
   const allowCustomsFees =
     isFreeOfCharge &&
     purchaseCategory === "PRODUCT" &&
@@ -304,11 +394,9 @@ export default function PurchaseInvoiceUploadDialog({
       usesImportFlow ? "IMPORT" : "LOCAL"
     )
   );
-  const handlingVendors = vendors.filter((vendor) =>
-    vendorMatchesPurchaseOrigin(vendor.vendorType, "LOCAL")
-  );
   const requireCatalogLines =
-    purchaseCategory === "PRODUCT" || purchaseCategory === "VEHICLE";
+    (purchaseCategory === "PRODUCT" || purchaseCategory === "VEHICLE") &&
+    !isVehiclePrepaid;
   const pickerCatalogItems = catalogItems.filter((item) =>
     isVehicle
       ? isVehicleItemType(item.itemType)
@@ -368,30 +456,10 @@ export default function PurchaseInvoiceUploadDialog({
   const importResult = importInput
     ? calculateImportLandedCost(importInput as ImportLandedCostInput)
     : null;
-  const handledByHeadOffice =
-    usesImportFlow &&
-    importFulfillment === "INTERNAL" &&
-    isHandlingByHeadOffice(handlingVendorId);
-  const handlingFeeNumber = parseContractPrice(handlingFeeIdr) ?? Number.NaN;
-  const handlingRate = parsePpnRatePercent(handlingFeePpnRatePercent);
-  const handlingPaid =
-    Number.isFinite(handlingFeeNumber) && handlingFeeNumber >= 0
-      ? handlingFeeIncludesPpn && handlingRate != null
-        ? applyExclusiveVat(
-            handlingFeeNumber,
-            ppnRateFromPercent(handlingRate)
-          ).gross
-        : handlingFeeNumber
-      : 0;
-  const handlingCost =
-    Number.isFinite(handlingFeeNumber) && handlingFeeNumber >= 0
-      ? handlingFeeNumber
-      : 0;
   const recordingArrivalNow = Boolean(importDutiesBillingId.trim());
   const importStockLandedCostIdr = importResult
     ? (isFocImport ? shippingIdrPreview ?? 0 : 0) +
-      importResult.stockLandedCostIdr +
-      handlingCost
+      importResult.stockLandedCostIdr
     : 0;
   const localLinesTotal = lines.reduce((sum, line) => {
     const qty = isVehicle || isService ? 1 : Number(line.quantity);
@@ -468,15 +536,36 @@ export default function PurchaseInvoiceUploadDialog({
   }, [vendorChoice, vendors, usesImportFlow]);
 
   useEffect(() => {
-    if (!handlingVendorId || isHandlingByHeadOffice(handlingVendorId)) return;
-    const vendor = vendors.find((item) => item.id === handlingVendorId);
-    if (
-      !vendor ||
-      !vendorMatchesPurchaseOrigin(vendor.vendorType, "LOCAL")
-    ) {
-      setHandlingVendorId("");
+    if (!open || !vendorChoice) {
+      setVendorBankAccounts([]);
+      setVendorBankAccountId("");
+      return;
     }
-  }, [handlingVendorId, vendors]);
+    listVendorBankAccountsForExpense(vendorChoice)
+      .then((accounts) => {
+        setVendorBankAccounts(accounts);
+        setVendorBankAccountId((current) =>
+          accounts.some((account) => account.id === current)
+            ? current
+            : accounts[0]?.id ?? ""
+        );
+      })
+      .catch(() => {
+        setVendorBankAccounts([]);
+        setVendorBankAccountId("");
+      });
+  }, [open, vendorChoice]);
+
+  useEffect(() => {
+    if (!isBpjsGovernment) return;
+    const saved =
+      governmentTaxKind === "BPJS_KESEHATAN"
+        ? bpjsVirtualAccounts.kesehatan
+        : bpjsVirtualAccounts.ketenagakerjaan;
+    if (saved && !invoiceRef.trim()) {
+      setInvoiceRef(saved);
+    }
+  }, [bpjsVirtualAccounts, governmentTaxKind, invoiceRef, isBpjsGovernment]);
 
   useEffect(() => {
     if (!open) {
@@ -488,6 +577,26 @@ export default function PurchaseInvoiceUploadDialog({
         setBankAccountId((current) => current || accounts[0]?.id || "");
       })
       .catch(() => setBankAccounts([]));
+    listEmployeesForExpense()
+      .then((payload) => {
+        setExpenseEmployees(payload.employees);
+        setExpenseDepartments(payload.departments);
+      })
+      .catch(() => {
+        setExpenseEmployees([]);
+        setExpenseDepartments([]);
+      });
+    listCompanyBpjsVirtualAccounts()
+      .then(setBpjsVirtualAccounts)
+      .catch(() =>
+        setBpjsVirtualAccounts({ kesehatan: "", ketenagakerjaan: "" })
+      );
+    listPrepaidCardsForExpense()
+      .then((cards) => {
+        setPrepaidCards(cards);
+        setPrepaidCardId((current) => current || cards[0]?.id || "");
+      })
+      .catch(() => setPrepaidCards([]));
   }, [open]);
 
   useEffect(() => {
@@ -496,7 +605,6 @@ export default function PurchaseInvoiceUploadDialog({
       setError(null);
       setDocumentFile(null);
       setTaxFile(null);
-      setTaxReason("");
       setIncludesPpn("No");
       setIncludedTaxKind("");
       setPphRatePercent("");
@@ -541,10 +649,15 @@ export default function PurchaseInvoiceUploadDialog({
       setImportDutiesFile(null);
       setHandlingVendorId("");
       setHandlingFeeIdr("");
-      setHandlingFeeIncludesPpn(false);
-      setHandlingFeePpnRatePercent("11");
+      setHandlingHasTaxInvoice("");
       setHandlingFeeFile(null);
-      setHandlingFeeTaxFile(null);
+      setEmployeePaymentKind("");
+      setEmployeeDepartmentId("");
+      setEmployeeId("");
+      setEmployeeSearch("");
+      setVendorBankAccounts([]);
+      setVendorBankAccountId("");
+      setPrepaidCardId("");
     }
   }, [open]);
 
@@ -570,9 +683,8 @@ export default function PurchaseInvoiceUploadDialog({
       setImportFulfillment("INTERNAL");
       setHandlingVendorId("");
       setHandlingFeeIdr("");
-      setHandlingFeeIncludesPpn(false);
+      setHandlingHasTaxInvoice("");
       setHandlingFeeFile(null);
-      setHandlingFeeTaxFile(null);
     }
     if (value === "SERVICE") {
       setPurchasePurpose("INTERNAL");
@@ -593,6 +705,7 @@ export default function PurchaseInvoiceUploadDialog({
       setPurchaseOrigin("LOCAL");
       setFreeOfCharge("No");
       setFreeOfChargeReason("");
+      setIncludesPpn("No");
       setPaymentTermsDays(CASH_PAYMENT_TERMS_DAYS);
       setLines([newPurchaseLine()]);
       setVehicleLease(emptyVehicleLeaseDraft());
@@ -615,6 +728,18 @@ export default function PurchaseInvoiceUploadDialog({
       setIncludedTaxKind("");
       setTaxFile(null);
       setVendorChoice("");
+    }
+    if (value === "EMPLOYEE_PAYMENT") {
+      setPurchasePurpose("INTERNAL");
+      setProjectId("");
+      setIncludesPpn("No");
+      setFreeOfCharge("No");
+      setFreeOfChargeReason("");
+      setIncludedTaxKind("");
+      setTaxFile(null);
+      setVendorChoice("");
+      setEmployeePaymentKind("");
+      setEmployeeId("");
     }
     if (value === "BANK_LOAN") {
       setPurchasePurpose("INTERNAL");
@@ -645,6 +770,43 @@ export default function PurchaseInvoiceUploadDialog({
     setError(null);
 
     const form = event.currentTarget;
+    const extraMissing: string[] = [];
+    if (isVehiclePrepaid && !prepaidCardId) {
+      extraMissing.push(t("pages.billing.prepaidCard"));
+    }
+    if (isVehicle && !vehicleExpenseKind) {
+      extraMissing.push(t("pages.billing.vehicleExpenseKind"));
+    }
+    if (requiresVendorBank && !vendorChoice) {
+      extraMissing.push(t("pages.billing.purchaseSupplier"));
+    }
+    if (requiresVendorBank && vendorChoice && vendorBankAccounts.length === 0) {
+      showRejection({ reasons: t("pages.billing.payToAccountEmpty") });
+      return;
+    }
+    if (requiresVendorBank && vendorChoice && !vendorBankAccountId) {
+      extraMissing.push(t("pages.billing.payToAccount"));
+    }
+    if (!isPettyCash && showInvoiceFields && !documentFile) {
+      extraMissing.push(t("pages.billing.purchaseDocument"));
+    }
+    if ((isPettyCash || isVehiclePrepaid) && !amount.trim()) {
+      extraMissing.push(t("pages.billing.purchaseAmount"));
+    }
+    if (isVehiclePrepaid && (!documentFile || documentFile.size === 0)) {
+      extraMissing.push(t("pages.billing.purchaseDocument"));
+    }
+    if (!usesImportFlow && withPpn && taxFile && taxFile.size > 0) {
+      if (!taxSerialAssist.serial.trim()) {
+        extraMissing.push(t("pages.vat.columns.taxInvoiceNumber"));
+      }
+      if (!taxSerialAssist.verified) {
+        extraMissing.push(t("pages.vat.taxInvoiceNumberVerify"));
+      }
+    }
+    if (showMissingRequiredFields(form, extraMissing)) {
+      return;
+    }
     const formData = new FormData(form);
     const localTaxIncluded = !usesImportFlow && taxIncluded;
     formData.set(
@@ -714,7 +876,7 @@ export default function PurchaseInvoiceUploadDialog({
     formData.set(
       "paymentTermsDays",
       String(
-        isFreeOfCharge || isVehicle || isBankLoan
+        isFreeOfCharge || isVehicle || isBankLoan || isEmployeePayment
           ? CASH_PAYMENT_TERMS_DAYS
           : paymentTermsDays
       )
@@ -814,8 +976,40 @@ export default function PurchaseInvoiceUploadDialog({
       }
     }
 
-    if (isPettyCash || isGovernment) {
+    formData.set("vendorBankAccountId", vendorBankAccountId);
+    if (isEmployeePayment) {
+      formData.set("employeePaymentKind", employeePaymentKind);
+      formData.set("employeeId", employeeId);
       formData.set("amount", amount.trim());
+      if (!employeePaymentKind) {
+        setError(t("pages.billing.employeePaymentKindRequired"));
+        return;
+      }
+      if (employeePaymentKind === "CASH_ADVANCE" && !employeeId) {
+        setError(t("pages.billing.employeePaymentEmployeeRequired"));
+        return;
+      }
+      if (!documentFile || documentFile.size === 0) {
+        setError(t("pages.loans.proofRequired"));
+        return;
+      }
+    }
+    if (isPettyCash || isGovernment || isVehiclePrepaid) {
+      formData.set("amount", amount.trim());
+      formData.set("bankAccountId", bankAccountId);
+      if (isVehiclePrepaid) {
+        if (!prepaidCardId) {
+          showRejection({ reasons: t("pages.billing.vehiclePrepaidCardRequired") });
+          return;
+        }
+        formData.set("prepaidCardId", prepaidCardId);
+        formData.set("vehicleExpenseKind", "PREPAID_CARD");
+        formData.set("purchaseCategory", "VEHICLE");
+        if (!documentFile || documentFile.size === 0) {
+          setError(t("pages.loans.proofRequired"));
+          return;
+        }
+      }
       if (isGovernment) {
         formData.set("governmentTaxKind", governmentTaxKind);
         formData.set("notes", String(formData.get("notes") ?? "").trim());
@@ -947,70 +1141,31 @@ export default function PurchaseInvoiceUploadDialog({
     } else {
       formData.set("importJson", JSON.stringify(importInput));
       formData.set("importFulfillment", importFulfillment);
-      formData.set(
-        "handlingVendorId",
-        handledByHeadOffice ? HANDLING_BY_HEAD_OFFICE : handlingVendorId
-      );
-      formData.set(
-        "handlingFeeIdr",
-        handledByHeadOffice ? "" : handlingFeeIdr.trim()
-      );
-      formData.set(
-        "handlingFeeIncludesPpn",
-        !handledByHeadOffice && handlingFeeIncludesPpn ? "true" : "false"
-      );
-      formData.set("handlingFeePpnRatePercent", handlingFeePpnRatePercent);
+      }
       formData.set("importDutiesBillingId", "");
-      const startedHandling =
-        Boolean(handlingVendorId) ||
-        (Number.isFinite(handlingFeeNumber) && handlingFeeNumber > 0) ||
-        Boolean(handlingFeeFile && handlingFeeFile.size > 0);
-      if (importFulfillment === "OUTSOURCED" && startedHandling) {
-        if (!handlingVendorId || isHandlingByHeadOffice(handlingVendorId)) {
-          setError(t("pages.billing.handlingVendorRequired"));
-        return;
-      }
-        if (!handlingVendors.some((vendor) => vendor.id === handlingVendorId)) {
-          setError(t("pages.billing.handlingVendorMustBeLocal"));
-          return;
+      const hasHandlingNow =
+        Boolean(handlingVendorId.trim()) || Boolean(handlingFeeIdr.trim());
+      if (hasHandlingNow) {
+        formData.set("handlingVendorId", handlingVendorId);
+        formData.set("handlingFeeIdr", handlingFeeIdr);
+        formData.set(
+          "handlingHasTaxInvoice",
+          handlingHasTaxInvoice === "Yes" ? "true" : "false"
+        );
+        if (handlingFeeFile && handlingFeeFile.size > 0) {
+          formData.set("handlingFeeDocument", handlingFeeFile);
         }
-        if (!Number.isFinite(handlingFeeNumber) || handlingFeeNumber <= 0) {
-          setError(t("pages.billing.handlingFeeRequired"));
-          return;
-        }
+      } else {
+        formData.delete("handlingVendorId");
+        formData.delete("handlingFeeIdr");
+        formData.set("handlingFeeIncludesPpn", "false");
       }
-      const needHandlingInvoice =
-        startedHandling &&
-        !handledByHeadOffice &&
-        (importFulfillment === "OUTSOURCED" ||
-          (Number.isFinite(handlingFeeNumber) && handlingFeeNumber > 0));
-      if (needHandlingInvoice && (!handlingFeeFile || handlingFeeFile.size === 0)) {
-        setError(t("pages.billing.handlingFeeInvoiceRequired"));
-        return;
-      }
-      if (
-        !handledByHeadOffice &&
-        handlingFeeIncludesPpn &&
-        (!handlingFeeTaxFile || handlingFeeTaxFile.size === 0)
-      ) {
-        setError(t("pages.billing.handlingFeeTaxInvoiceRequired"));
-        return;
-      }
-      if (
-        !handledByHeadOffice &&
-        handlingFeeFile &&
-        handlingFeeFile.size > 0
-      ) {
-        formData.set("handlingFeeDocument", handlingFeeFile);
-      }
-      if (
-        !handledByHeadOffice &&
-        handlingFeeTaxFile &&
-        handlingFeeTaxFile.size > 0
-      ) {
-        formData.set("handlingFeeTaxDocument", handlingFeeTaxFile);
-      }
-      }
+      formData.set(
+        "handlingDueWithDuties",
+        importFulfillment === "OUTSOURCED" || hasHandlingNow
+          ? "false"
+          : "true"
+      );
     } else {
       formData.delete("importJson");
     }
@@ -1155,15 +1310,17 @@ export default function PurchaseInvoiceUploadDialog({
     }
 
     if (!usesImportFlow && withPpn && taxFile && taxFile.size > 0) {
-      if (!taxReason.trim()) {
-        setError(t("pages.billing.inHouseReasonRequired"));
-        return;
-      }
       formData.set("taxInvoiceDocument", taxFile);
-      formData.set("manualReason", taxReason);
+      formData.set("taxInvoiceSerial", taxSerialAssist.serial);
+      formData.set(
+        "taxInvoiceSerialVerified",
+        taxSerialAssist.verified ? "true" : ""
+      );
     } else {
       formData.delete("taxInvoiceDocument");
       formData.delete("manualReason");
+      formData.delete("taxInvoiceSerial");
+      formData.delete("taxInvoiceSerialVerified");
     }
 
     if (bankAccounts.length > 0 && !bankAccountId) {
@@ -1172,7 +1329,12 @@ export default function PurchaseInvoiceUploadDialog({
     }
     formData.set("bankAccountId", bankAccountId);
 
-    if (isVehicle) {
+    if (isVehicle && !isVehiclePrepaid) {
+      if (!vehicleExpenseKind) {
+        setError(t("pages.billing.vehicleExpenseKindRequired"));
+        return;
+      }
+      formData.set("vehicleExpenseKind", vehicleExpenseKind);
       if (!vehicleLease.plateNumber.trim()) {
         setError(t("pages.billing.purchaseVehiclePlateRequired"));
         return;
@@ -1220,6 +1382,23 @@ export default function PurchaseInvoiceUploadDialog({
     }
   }
 
+  const handlingPaidNow = parseImportDecimal(handlingFeeIdr) ?? 0;
+  const handlingNowFields = (
+    <PurchaseHandlingNowFields
+      fulfillment={importFulfillment}
+      vendors={vendors}
+      vendorId={handlingVendorId}
+      onVendorIdChange={setHandlingVendorId}
+      amount={handlingFeeIdr}
+      onAmountChange={setHandlingFeeIdr}
+      hasTaxInvoice={handlingHasTaxInvoice}
+      onHasTaxInvoiceChange={setHandlingHasTaxInvoice}
+      file={handlingFeeFile}
+      onFileChange={setHandlingFeeFile}
+      disabled={busy}
+    />
+  );
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -1239,24 +1418,7 @@ export default function PurchaseInvoiceUploadDialog({
             <EmployeePrimaryButton
               type="submit"
               form="purchase-invoice-upload-form"
-              disabled={
-                busy ||
-                (isPettyCash
-                  ? !amount.trim()
-                  : isGovernment
-                    ? !amount.trim() || !documentFile
-                    : isBankLoan
-                      ? !amount.trim() ||
-                        !documentFile ||
-                        !loanSource ||
-                        (loanSource === "BANK" && !loanPaymentPurpose) ||
-                        !loanKind ||
-                        !loanFacilityId
-                      : (showInvoiceFields && !documentFile) ||
-                        vendors.length === 0 ||
-                        !vendorChoice ||
-                        (requireCatalogLines && pickerCatalogItems.length === 0))
-              }
+              disabled={busy}
             >
               {pending
                 ? t("pages.billing.purchaseUploading")
@@ -1274,6 +1436,7 @@ export default function PurchaseInvoiceUploadDialog({
         <form
           id="purchase-invoice-upload-form"
           onSubmit={handleSubmit}
+          noValidate
           className={employeeDialogFormClass}
         >
           <div className={employeeDialogGridClass}>
@@ -1289,7 +1452,7 @@ export default function PurchaseInvoiceUploadDialog({
                 id="purchase-category"
                 role="radiogroup"
                 aria-labelledby="purchase-category-label"
-                className={employeeDialogChoiceGridClass}
+                className={choiceGridClassForCount(7)}
               >
                 {(
                   [
@@ -1305,8 +1468,12 @@ export default function PurchaseInvoiceUploadDialog({
                       t("pages.billing.purchaseCategoryPettyCash"),
                     ],
                     ["VEHICLE", t("pages.billing.purchaseCategoryVehicle")],
+                    [
+                      "EMPLOYEE_PAYMENT",
+                      t("pages.billing.purchaseCategoryEmployee"),
+                    ],
                   ] as Array<[PurchaseCategoryChoice, string]>
-                ).map(([value, label]) => {
+                ).map(([value, label], index, options) => {
                   const active = purchaseCategory === value;
                   return (
                     <button
@@ -1318,6 +1485,7 @@ export default function PurchaseInvoiceUploadDialog({
                       onClick={() => applyPurchaseCategory(value)}
                       className={cn(
                         employeeDialogChoiceChipClass,
+                        choiceGridSpanLastClass(index, options.length),
                         active && outlineChipTones.emeraldInteractive,
                         !active &&
                           "border border-border bg-elevated text-muted hover:border-border-strong hover:bg-card-hover hover:text-text"
@@ -1331,7 +1499,293 @@ export default function PurchaseInvoiceUploadDialog({
               <p className={employeeDialogHintClass}>
                 {t("pages.billing.purchaseCategoryHint")}
               </p>
+              {isPettyCash ? (
+                <p className={employeeDialogHintClass}>
+                  {t("pages.billing.advanceCashPettyHint")}
+                </p>
+              ) : null}
             </div>
+
+            {isVehicle ? (
+              <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+                <label
+                  id="vehicle-expense-kind-label"
+                  className={employeeDialogLabelClass}
+                >
+                  {t("pages.billing.vehicleExpenseKind")}
+                  <span className="text-red-400"> *</span>
+                </label>
+                <div
+                  role="radiogroup"
+                  aria-labelledby="vehicle-expense-kind-label"
+                  className={cn("mt-2", choiceGridClassForCount(5))}
+                >
+                  {(
+                    [
+                      ["PURCHASE", t("pages.billing.vehicleExpenseKindPurchase")],
+                      [
+                        "PREPAID_CARD",
+                        t("pages.billing.vehicleExpenseKindPrepaid"),
+                      ],
+                      ["SERVICING", t("pages.billing.vehicleExpenseKindServicing")],
+                      [
+                        "MODIFICATION",
+                        t("pages.billing.vehicleExpenseKindModification"),
+                      ],
+                      ["OTHER", t("pages.billing.vehicleExpenseKindOther")],
+                    ] as const
+                  ).map(([value, label], index, options) => (
+                    <button
+                      key={value}
+                      type="button"
+                      role="radio"
+                      aria-checked={vehicleExpenseKind === value}
+                      disabled={busy}
+                      onClick={() => setVehicleExpenseKind(value)}
+                      className={cn(
+                        "inline-flex min-h-8 w-full items-center justify-center rounded-xl px-3 py-1.5 text-xs font-semibold tracking-wide transition",
+                        choiceGridSpanLastClass(index, options.length),
+                        vehicleExpenseKind === value &&
+                          outlineChipTones.emeraldInteractive,
+                        vehicleExpenseKind !== value &&
+                          "border border-border bg-elevated text-muted hover:border-border-strong hover:bg-card-hover hover:text-text"
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="hidden"
+                  name="vehicleExpenseKind"
+                  value={vehicleExpenseKind}
+                  required
+                  data-required-label={t("pages.billing.vehicleExpenseKind")}
+                />
+              </div>
+            ) : null}
+
+            {isVehiclePrepaid ? (
+              <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+                <label className={employeeDialogLabelClass}>
+                  {t("pages.billing.prepaidCard")}
+                  <span className="text-red-400"> *</span>
+                </label>
+                {prepaidCards.length === 0 ? (
+                  <p className={employeeDialogHintClass}>
+                    {t("pages.billing.prepaidCardEmpty")}
+                  </p>
+                ) : (
+                  <Select
+                    value={prepaidCardId || null}
+                    onValueChange={(value) => setPrepaidCardId(value ?? "")}
+                    disabled={busy}
+                  >
+                    <SelectTrigger className={employeeSelectTriggerClass}>
+                      <SelectValue>
+                        {(value) => {
+                          const card = prepaidCards.find((row) => row.id === value);
+                          return card
+                            ? formatVehicleIdentityLabel({
+                                plate: card.vehiclePlate,
+                                cardNumber: card.cardNumber,
+                                sku: card.vehicleSku,
+                              })
+                            : t("pages.billing.prepaidCard");
+                        }}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {prepaidCards.map((card) => (
+                        <SelectItem key={card.id} value={card.id}>
+                          {formatVehicleIdentityLabel({
+                            plate: card.vehiclePlate,
+                            cardNumber: card.cardNumber,
+                            sku: card.vehicleSku,
+                          })}{" "}
+                          · {formatContractPrice(card.currentBalance)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <input
+                  type="hidden"
+                  name="prepaidCardId"
+                  value={prepaidCardId}
+                  required
+                  data-required-label={t("pages.billing.prepaidCard")}
+                />
+                <p className={employeeDialogHintClass}>
+                  {t("pages.billing.vehiclePrepaidSpendHint")}
+                </p>
+              </div>
+            ) : null}
+
+            {isEmployeePayment ? (
+              <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+                <label className={employeeDialogLabelClass}>
+                  {t("pages.billing.employeePaymentKind")}
+                  <span className="text-red-400"> *</span>
+                </label>
+                <div className={choiceGridClassForCount(3)}>
+                  {(
+                    [
+                      [
+                        "INTERNAL_PAYROLL",
+                        t("pages.billing.employeePaymentInternalPayroll"),
+                      ],
+                      [
+                        "CASH_ADVANCE",
+                        t("pages.billing.employeePaymentCashAdvance"),
+                      ],
+                      ["THR", t("pages.billing.employeePaymentThr")],
+                    ] as const
+                  ).map(([value, label], index, options) => {
+                    const active = employeePaymentKind === value;
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        disabled={busy}
+                        onClick={() => setEmployeePaymentKind(value)}
+                        className={cn(
+                          employeeDialogChoiceChipClass,
+                          choiceGridSpanLastClass(index, options.length),
+                          active && outlineChipTones.emeraldInteractive,
+                          !active &&
+                            "border border-border bg-elevated text-muted hover:border-border-strong hover:bg-card-hover hover:text-text"
+                        )}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className={employeeDialogHintClass}>
+                  {t("pages.billing.employeePaymentKindHint")}
+                </p>
+                <input
+                  type="hidden"
+                  name="employeePaymentKind"
+                  value={employeePaymentKind}
+                  required
+                  data-required-label={t("pages.billing.employeePaymentKind")}
+                />
+              </div>
+            ) : null}
+
+            {isEmployeePayment && employeePaymentKind === "CASH_ADVANCE" ? (
+              <>
+                <div className={employeeDialogFieldClass}>
+                  <label className={employeeDialogLabelClass}>
+                    {t("pages.billing.employeePaymentDepartment")}
+                  </label>
+                  <Select
+                    value={employeeDepartmentId || "all"}
+                    onValueChange={(value) =>
+                      setEmployeeDepartmentId(value === "all" ? "" : value ?? "")
+                    }
+                    disabled={busy}
+                  >
+                    <SelectTrigger className={employeeSelectTriggerClass}>
+                      <SelectValue>
+                        {(value) => {
+                          if (!value || value === "all") {
+                            return t(
+                              "pages.billing.employeePaymentDepartmentAll"
+                            );
+                          }
+                          const department = expenseDepartments.find(
+                            (row) => row.id === value
+                          );
+                          return department
+                            ? localizeDepartmentLabel(
+                                department.slug,
+                                department.name
+                              )
+                            : t("pages.billing.employeePaymentDepartmentAll");
+                        }}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">
+                        {t("pages.billing.employeePaymentDepartmentAll")}
+                      </SelectItem>
+                      {expenseDepartments.map((department) => (
+                        <SelectItem key={department.id} value={department.id}>
+                          {localizeDepartmentLabel(
+                            department.slug,
+                            department.name
+                          )}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className={employeeDialogFieldClass}>
+                  <label className={employeeDialogLabelClass}>
+                    {t("pages.billing.employeePaymentEmployee")}
+                    <span className="text-red-400"> *</span>
+                  </label>
+                  <Input
+                    value={employeeSearch}
+                    onChange={(event) => setEmployeeSearch(event.target.value)}
+                    placeholder={t("pages.billing.employeePaymentEmployeeSearch")}
+                    className={employeeInputClass}
+                  />
+                  <Select
+                    value={employeeId || null}
+                    onValueChange={(value) => setEmployeeId(value ?? "")}
+                    disabled={busy}
+                  >
+                    <SelectTrigger className={cn(employeeSelectTriggerClass, "mt-2")}>
+                      <SelectValue
+                        placeholder={t("pages.billing.employeePaymentEmployee")}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {expenseEmployees
+                        .filter((employee) => {
+                          if (
+                            employeeDepartmentId &&
+                            employee.department?.id !== employeeDepartmentId
+                          ) {
+                            return false;
+                          }
+                          const query = employeeSearch.trim().toLowerCase();
+                          if (!query) return true;
+                          const name =
+                            `${employee.firstName} ${employee.lastName}`.toLowerCase();
+                          return (
+                            name.includes(query) ||
+                            employee.employeeNo.toLowerCase().includes(query)
+                          );
+                        })
+                        .map((employee) => (
+                          <SelectItem key={employee.id} value={employee.id}>
+                            {employee.firstName} {employee.lastName} ·{" "}
+                            {employee.employeeNo}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            ) : null}
+
+            {isEmployeePayment && employeePaymentKind && employeePaymentKind !== "THR" ? (
+              <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+                <p className={employeeDialogHintClass}>
+                  {t("pages.billing.employeePaymentAutoPeriod")}
+                </p>
+                <p className={employeeDialogHintClass}>
+                  {t("pages.billing.employeePaymentAutoPeriodHint")}
+                </p>
+              </div>
+            ) : null}
 
             {purchaseCategory === "PRODUCT" ? (
               <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
@@ -1373,11 +1827,6 @@ export default function PurchaseInvoiceUploadDialog({
                             setImportDutiesBillingId("");
                             setImportDutiesFile(null);
                             setImportFulfillment("INTERNAL");
-                            setHandlingVendorId("");
-                            setHandlingFeeIdr("");
-                            setHandlingFeeIncludesPpn(false);
-                            setHandlingFeeFile(null);
-                            setHandlingFeeTaxFile(null);
                           } else {
                             setIncludesPpn("No");
                             setIncludedTaxKind("");
@@ -1407,7 +1856,7 @@ export default function PurchaseInvoiceUploadDialog({
               </div>
             ) : null}
 
-            {isPettyCash || isGovernment || isVehicle || isBankLoan ? null : (
+            {isPettyCash || isGovernment || isVehicle || isBankLoan || isEmployeePayment ? null : (
               <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
                 <label
                   id="purchase-free-of-charge-label"
@@ -1436,11 +1885,6 @@ export default function PurchaseInvoiceUploadDialog({
                         setImportDutiesBillingId("");
                         setImportDutiesFile(null);
                         setImportFulfillment("INTERNAL");
-                        setHandlingVendorId("");
-                        setHandlingFeeIdr("");
-                        setHandlingFeeIncludesPpn(false);
-                        setHandlingFeeFile(null);
-                        setHandlingFeeTaxFile(null);
                       }
                       setLines((current) =>
                         current.map((row) => ({ ...row, unitPrice: "0" }))
@@ -1536,6 +1980,7 @@ export default function PurchaseInvoiceUploadDialog({
             isGovernment ||
             isVehicle ||
             isBankLoan ||
+            isEmployeePayment ||
             isFreeOfCharge ||
             isImport ? null : (
               <PaymentTermsField
@@ -1634,12 +2079,6 @@ export default function PurchaseInvoiceUploadDialog({
                     disabled={busy}
                       onClick={() => {
                         setImportFulfillment(value);
-                        if (
-                          value === "OUTSOURCED" &&
-                          isHandlingByHeadOffice(handlingVendorId)
-                        ) {
-                          setHandlingVendorId("");
-                        }
                       }}
                       className={cn(
                         employeeDialogChoiceChipClass,
@@ -1743,7 +2182,7 @@ export default function PurchaseInvoiceUploadDialog({
                         {(value) =>
                           value
                             ? t(
-                                `pages.progress.months.${value as "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "10" | "11" | "12"}`
+                                `pages.reports.months.${value as "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "10" | "11" | "12"}`
                               )
                             : t("pages.billing.governmentBpjsPeriod")
                         }
@@ -1765,7 +2204,7 @@ export default function PurchaseInvoiceUploadDialog({
                         "12",
                       ] as const).map((month) => (
                         <SelectItem key={month} value={month}>
-                          {t(`pages.progress.months.${month}`)}
+                          {t(`pages.reports.months.${month}`)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1779,19 +2218,31 @@ export default function PurchaseInvoiceUploadDialog({
                     {t("pages.billing.governmentBpjsYear")}
                     <span className="text-red-400"> *</span>
                   </label>
-                  <Input
-                    id="bpjs-expense-year"
-                    type="number"
-                    min={2000}
-                    max={2100}
-                    required
+                  <Select
+                    value={String(bpjsYear)}
+                    onValueChange={(value) => {
+                      const next = Number(value);
+                      if (Number.isInteger(next)) setBpjsYear(next);
+                    }}
                     disabled={busy}
-                    value={bpjsYear}
-                    onChange={(event) =>
-                      setBpjsYear(Number(event.target.value))
-                    }
-                    className={employeeInputClass}
-                  />
+                  >
+                    <SelectTrigger
+                      id="bpjs-expense-year"
+                      className={cn(employeeSelectTriggerClass, "w-full")}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="z-[60]">
+                      {Array.from({ length: 8 }, (_, index) => {
+                        const year = Number(todayDateInput().slice(0, 4)) - 5 + index;
+                        return (
+                          <SelectItem key={year} value={String(year)}>
+                            {year}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
                   <p className={employeeDialogHintClass}>
                     {t("pages.billing.governmentBpjsPeriodHint")}
                   </p>
@@ -1871,7 +2322,9 @@ export default function PurchaseInvoiceUploadDialog({
               </>
             ) : null}
 
-            {isPettyCash || !showInvoiceFields || isBpjsGovernment ? null : (
+            {isPettyCash || isBpjsGovernment ? null : showInvoiceFields ||
+            isEmployeePayment ||
+            isVehiclePrepaid ? (
             <div className="sm:col-span-2 space-y-2">
               <BillingDocumentFilePick
                 id="purchase-document"
@@ -1880,7 +2333,7 @@ export default function PurchaseInvoiceUploadDialog({
                     ? t("pages.billing.governmentBpjsDocument")
                     : isGovernment
                     ? t("pages.billing.governmentDocument")
-                    : isBankLoan
+                    : isBankLoan || isEmployeePayment
                       ? t("pages.billing.purchasePaymentProof")
                       : isImport
                         ? t("pages.billing.purchaseFactoryInvoice")
@@ -1892,9 +2345,10 @@ export default function PurchaseInvoiceUploadDialog({
                 disabled={busy}
               />
             </div>
-            )}
+            ) : null}
 
-            {isPettyCash || isGovernment || isBankLoan ? null : (
+            {isPettyCash || isVehiclePrepaid || isGovernment || isBankLoan || isEmployeePayment ? null : (
+            <>
             <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
               <label
                 htmlFor="purchase-vendor"
@@ -1945,6 +2399,13 @@ export default function PurchaseInvoiceUploadDialog({
                   </SelectContent>
                 </Select>
               )}
+              <input
+                type="hidden"
+                name="vendorId"
+                value={vendorChoice}
+                required={requiresVendorBank}
+                data-required-label={t("pages.billing.purchaseSupplier")}
+              />
               {purchaseDueHint && !isFreeOfCharge ? (
                 <p className={cn(employeeDialogHintClass, "mt-2")}>
                   {purchaseDueHint}
@@ -1957,6 +2418,54 @@ export default function PurchaseInvoiceUploadDialog({
                 </p>
               ) : null}
             </div>
+            {vendorChoice && vendorBankAccounts.length > 0 ? (
+              <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+                <label className={employeeDialogLabelClass}>
+                  {t("pages.billing.payToAccount")}
+                  <span className="text-red-400"> *</span>
+                </label>
+                <Select
+                  value={vendorBankAccountId || null}
+                  onValueChange={(value) => setVendorBankAccountId(value ?? "")}
+                  disabled={busy}
+                >
+                  <SelectTrigger className={employeeSelectTriggerClass}>
+                    <SelectValue>
+                      {(value) => {
+                        const account = vendorBankAccounts.find(
+                          (item) => item.id === value
+                        );
+                        return account
+                          ? formatVendorBankAccountLabel(account)
+                          : t("pages.billing.payToAccount");
+                      }}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vendorBankAccounts.map((account) => (
+                      <SelectItem key={account.id} value={account.id}>
+                        {formatVendorBankAccountLabel(account)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <input
+                  type="hidden"
+                  name="vendorBankAccountId"
+                  value={vendorBankAccountId}
+                  required
+                  data-required-label={t("pages.billing.payToAccount")}
+                />
+                <p className={employeeDialogHintClass}>
+                  {t("pages.billing.payToAccountHint")}
+                </p>
+              </div>
+            ) : vendorChoice ? (
+              <p className={cn(employeeDialogHintClass, "sm:col-span-2")}>
+                {t("pages.billing.payToAccountEmpty")}
+              </p>
+            ) : null}
+            </>
             )}
 
             {isPettyCash ||
@@ -2008,11 +2517,14 @@ export default function PurchaseInvoiceUploadDialog({
             </div>
             )}
 
-            {isBpjsGovernment ? null : isPettyCash || showInvoiceFields ? (
+            {isBpjsGovernment ? null : isPettyCash || isVehiclePrepaid || showInvoiceFields ? (
             <div
               className={cn(
                 employeeDialogFieldClass,
-                (isPettyCash || isGovernment || !showInvoiceFields) &&
+                (isPettyCash ||
+                  isVehiclePrepaid ||
+                  isGovernment ||
+                  !showInvoiceFields) &&
                   "sm:col-span-2"
               )}
             >
@@ -2022,7 +2534,7 @@ export default function PurchaseInvoiceUploadDialog({
               >
                 {isShareholderLoan || isBpjsGovernment
                   ? t("pages.billing.loanPaidDate")
-                  : isPettyCash
+                  : isPettyCash || isVehiclePrepaid
                     ? t("pages.billing.purchaseDate")
                     : t("pages.billing.purchaseInvoiceDate")}
                 <span className="text-red-400"> *</span>
@@ -2051,9 +2563,10 @@ export default function PurchaseInvoiceUploadDialog({
                 showPayLaterHint={false}
                 showWarehouseCost={false}
                 showCustomsCharges={false}
-                handlingFeePaidIdr={handledByHeadOffice ? 0 : handlingPaid}
-                handlingFeeCostIdr={handledByHeadOffice ? 0 : handlingCost}
-                showHandlingFee={isImport && !handledByHeadOffice}
+                showDutiesLaterHint={importFulfillment === "INTERNAL"}
+                handlingFeePaidIdr={handlingPaidNow}
+                handlingFeeCostIdr={handlingPaidNow}
+                showHandlingFee={handlingPaidNow > 0}
                 nowExtras={
                   <PaymentTermsField
                     className="sm:col-span-2"
@@ -2072,206 +2585,7 @@ export default function PurchaseInvoiceUploadDialog({
                     hintKey="pages.billing.purchasePaymentTermsHintField"
                   />
                 }
-                afterCharges={
-                  <>
-                    <div
-                      className={cn(employeeDialogFieldClass, "sm:col-span-2")}
-                    >
-                      <label className={employeeDialogLabelClass}>
-                        {t("pages.billing.handlingVendor")}
-                        <span className="text-red-400"> *</span>
-                      </label>
-                      <Select
-                        value={handlingVendorId || null}
-                        onValueChange={(value) => {
-                          const next = value ?? "";
-                          setHandlingVendorId(next);
-                          if (isHandlingByHeadOffice(next)) {
-                            setHandlingFeeIdr("");
-                            setHandlingFeeIncludesPpn(false);
-                            setHandlingFeePpnRatePercent("11");
-                            setHandlingFeeFile(null);
-                            setHandlingFeeTaxFile(null);
-                          }
-                        }}
-                        disabled={busy}
-                      >
-                        <SelectTrigger className={employeeSelectTriggerClass}>
-                          <SelectValue
-                            placeholder={t(
-                              importFulfillment === "INTERNAL"
-                                ? "pages.billing.handlingVendorPlaceholderInternal"
-                                : "pages.billing.handlingVendorPlaceholder"
-                            )}
-                          >
-                            {(value) => {
-                              if (!value) {
-                                return t(
-                                  importFulfillment === "INTERNAL"
-                                    ? "pages.billing.handlingVendorPlaceholderInternal"
-                                    : "pages.billing.handlingVendorPlaceholder"
-                                );
-                              }
-                              if (isHandlingByHeadOffice(String(value))) {
-                                return t("pages.billing.handlingByHeadOffice");
-                              }
-                              return (
-                                handlingVendors.find(
-                                  (vendor) => vendor.id === value
-                                )?.name ?? null
-                              );
-                            }}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {importFulfillment === "INTERNAL" ? (
-                            <SelectItem value={HANDLING_BY_HEAD_OFFICE}>
-                              {t("pages.billing.handlingByHeadOffice")}
-                            </SelectItem>
-                          ) : null}
-                          {handlingVendors.map((vendor) => (
-                            <SelectItem key={vendor.id} value={vendor.id}>
-                              {vendor.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {handledByHeadOffice ? (
-                        <p className={employeeDialogHintClass}>
-                          {t("pages.billing.handlingByHeadOfficeHint")}
-                        </p>
-                      ) : handlingVendors.length === 0 ? (
-                        <p className={employeeDialogHintClass}>
-                          {t("pages.billing.handlingVendorRegisterLocalFirst")}
-                        </p>
-                      ) : (
-                        <p className={employeeDialogHintClass}>
-                          {t("pages.billing.handlingVendorMustBeLocal")}
-                        </p>
-                      )}
-                    </div>
-                    {handledByHeadOffice ? null : (
-                      <>
-                        <div className={employeeDialogFieldClass}>
-                          <label className={employeeDialogLabelClass}>
-                            {t("pages.billing.handlingFee")}
-                            {importFulfillment === "OUTSOURCED" ? (
-                              <span className="text-red-400"> *</span>
-                            ) : null}
-                          </label>
-                          <MoneyInput
-                            value={handlingFeeIdr}
-                            onValueChange={setHandlingFeeIdr}
-                            disabled={busy}
-                            className={employeeInputClass}
-                          />
-                          <p className={employeeDialogHintClass}>
-                            {importFulfillment === "OUTSOURCED"
-                              ? t("pages.billing.handlingFeeHintOutsourced")
-                              : t("pages.billing.handlingFeeHintInternal")}
-                          </p>
-                        </div>
-                        {importFulfillment === "OUTSOURCED" ? (
-                          <>
-                            <div
-                              className={cn(
-                                employeeDialogFieldClass,
-                                "sm:col-span-2"
-                              )}
-                            >
-                              <label
-                                id="handling-fee-ppn-label"
-                                className={employeeDialogLabelClass}
-                              >
-                                {t("pages.billing.handlingFeeIncludesPpn")}
-                              </label>
-                              <YesNoChoiceCards
-                                id="handling-fee-ppn"
-                                labelledBy="handling-fee-ppn-label"
-                                value={handlingFeeIncludesPpn ? "Yes" : "No"}
-                                onChange={(value) =>
-                                  setHandlingFeeIncludesPpn(value === "Yes")
-                                }
-                              />
-                            </div>
-                            {handlingFeeIncludesPpn ? (
-                              <div className={employeeDialogFieldClass}>
-                                <label className={employeeDialogLabelClass}>
-                                  {t("pages.billing.handlingFeePpnRate")}
-                                </label>
-                                <Input
-                                  value={handlingFeePpnRatePercent}
-                                  onChange={(event) =>
-                                    setHandlingFeePpnRatePercent(
-                                      event.target.value
-                                    )
-                                  }
-                                  disabled={busy}
-                                  className={employeeInputClass}
-                                />
-                              </div>
-                            ) : null}
-                            {Number.isFinite(handlingFeeNumber) &&
-                            handlingFeeNumber > 0 ? (
-                              <p
-                                className={cn(
-                                  employeeDialogHintClass,
-                                  "sm:col-span-2"
-                                )}
-                              >
-                                {t("pages.billing.handlingFeeTotalPaid", {
-                                  amount: formatContractPrice(handlingPaid),
-                                })}
-                              </p>
-                            ) : null}
-                          </>
-                        ) : null}
-                        <div
-                          className={cn(
-                            employeeDialogFieldClass,
-                            "sm:col-span-2"
-                          )}
-                        >
-                          <BillingDocumentFilePick
-                            id="purchase-handling-fee-invoice"
-                            label={t("pages.billing.handlingFeeInvoice")}
-                            required={
-                              importFulfillment === "OUTSOURCED" ||
-                              (Number.isFinite(handlingFeeNumber) &&
-                                handlingFeeNumber > 0)
-                            }
-                            fileName={handlingFeeFile?.name ?? null}
-                            onPick={setHandlingFeeFile}
-                            disabled={busy}
-                          />
-                          <p className={employeeDialogHintClass}>
-                            {t("pages.billing.handlingFeeInvoiceHint")}
-                          </p>
-                        </div>
-                        {handlingFeeIncludesPpn ? (
-                          <div
-                            className={cn(
-                              employeeDialogFieldClass,
-                              "sm:col-span-2"
-                            )}
-                          >
-                            <BillingDocumentFilePick
-                              id="purchase-handling-fee-tax"
-                              label={t("pages.billing.handlingFeeTaxInvoice")}
-                              required
-                              fileName={handlingFeeTaxFile?.name ?? null}
-                              onPick={setHandlingFeeTaxFile}
-                              disabled={busy}
-                            />
-                            <p className={employeeDialogHintClass}>
-                              {t("pages.billing.handlingFeeTaxInvoiceHint")}
-                            </p>
-                          </div>
-                        ) : null}
-                      </>
-                    )}
-                  </>
-                }
+                afterCharges={handlingNowFields}
               />
             ) : null}
 
@@ -2889,11 +3203,6 @@ export default function PurchaseInvoiceUploadDialog({
                       setImportDutiesFile(null);
                       setImportDraft(emptyPurchaseImportDraft());
                       setImportFulfillment("INTERNAL");
-                      setHandlingVendorId("");
-                      setHandlingFeeIdr("");
-                      setHandlingFeeIncludesPpn(false);
-                      setHandlingFeeFile(null);
-                      setHandlingFeeTaxFile(null);
                     }
                   }}
                 />
@@ -3012,12 +3321,6 @@ export default function PurchaseInvoiceUploadDialog({
                         disabled={busy}
                         onClick={() => {
                           setImportFulfillment(value);
-                          if (
-                            value === "OUTSOURCED" &&
-                            isHandlingByHeadOffice(handlingVendorId)
-                          ) {
-                            setHandlingVendorId("");
-                          }
                         }}
                         className={cn(
                           employeeDialogChoiceChipClass,
@@ -3046,9 +3349,10 @@ export default function PurchaseInvoiceUploadDialog({
                   requireBankRate={false}
                   showWarehouseCost={recordingArrivalNow}
                   showCustomsCharges={importFulfillment === "INTERNAL"}
-                  handlingFeePaidIdr={handledByHeadOffice ? 0 : handlingPaid}
-                  handlingFeeCostIdr={handledByHeadOffice ? 0 : handlingCost}
-                  showHandlingFee={!handledByHeadOffice}
+                  showDutiesLaterHint={importFulfillment === "INTERNAL"}
+                  handlingFeePaidIdr={handlingPaidNow}
+                  handlingFeeCostIdr={handlingPaidNow}
+                  showHandlingFee={handlingPaidNow > 0}
                   chargesOnly
                   declaredCif={declaredCif}
                   extraStockCostIdr={shippingIdrPreview ?? 0}
@@ -3088,181 +3392,7 @@ export default function PurchaseInvoiceUploadDialog({
                           </div>
                         </>
                       ) : null}
-                      <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
-                        <label className={employeeDialogLabelClass}>
-                          {t("pages.billing.handlingVendor")}
-                          <span className="text-red-400"> *</span>
-                        </label>
-                        <Select
-                          value={handlingVendorId || null}
-                          onValueChange={(value) => {
-                            const next = value ?? "";
-                            setHandlingVendorId(next);
-                            if (isHandlingByHeadOffice(next)) {
-                              setHandlingFeeIdr("");
-                              setHandlingFeeIncludesPpn(false);
-                              setHandlingFeePpnRatePercent("11");
-                              setHandlingFeeFile(null);
-                              setHandlingFeeTaxFile(null);
-                            }
-                          }}
-                          disabled={busy}
-                        >
-                          <SelectTrigger className={employeeSelectTriggerClass}>
-                            <SelectValue
-                              placeholder={t(
-                                importFulfillment === "INTERNAL"
-                                  ? "pages.billing.handlingVendorPlaceholderInternal"
-                                  : "pages.billing.handlingVendorPlaceholder"
-                              )}
-                            >
-                              {(value) => {
-                                if (!value) {
-                                  return t(
-                                    importFulfillment === "INTERNAL"
-                                      ? "pages.billing.handlingVendorPlaceholderInternal"
-                                      : "pages.billing.handlingVendorPlaceholder"
-                                  );
-                                }
-                                if (isHandlingByHeadOffice(String(value))) {
-                                  return t("pages.billing.handlingByHeadOffice");
-                                }
-                                return (
-                                  handlingVendors.find(
-                                    (vendor) => vendor.id === value
-                                  )?.name ?? null
-                                );
-                              }}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            {importFulfillment === "INTERNAL" ? (
-                              <SelectItem value={HANDLING_BY_HEAD_OFFICE}>
-                                {t("pages.billing.handlingByHeadOffice")}
-                              </SelectItem>
-                            ) : null}
-                            {handlingVendors.map((vendor) => (
-                              <SelectItem key={vendor.id} value={vendor.id}>
-                                {vendor.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {handledByHeadOffice ? (
-                          <p className={employeeDialogHintClass}>
-                            {t("pages.billing.handlingByHeadOfficeHint")}
-                          </p>
-                        ) : handlingVendors.length === 0 ? (
-                          <p className={employeeDialogHintClass}>
-                            {t("pages.billing.handlingVendorRegisterLocalFirst")}
-                          </p>
-                        ) : (
-                          <p className={employeeDialogHintClass}>
-                            {t("pages.billing.handlingVendorMustBeLocal")}
-                          </p>
-                        )}
-                      </div>
-                      {handledByHeadOffice ? null : (
-                        <>
-                          <div className={employeeDialogFieldClass}>
-                            <label className={employeeDialogLabelClass}>
-                              {t("pages.billing.handlingFee")}
-                              {importFulfillment === "OUTSOURCED" ? (
-                                <span className="text-red-400"> *</span>
-                              ) : null}
-                            </label>
-                            <MoneyInput
-                              value={handlingFeeIdr}
-                              onValueChange={setHandlingFeeIdr}
-                              disabled={busy}
-                              className={employeeInputClass}
-                            />
-                            <p className={employeeDialogHintClass}>
-                              {importFulfillment === "OUTSOURCED"
-                                ? t("pages.billing.handlingFeeHintOutsourced")
-                                : t("pages.billing.handlingFeeHintInternal")}
-                            </p>
-                          </div>
-                          {importFulfillment === "OUTSOURCED" ? (
-                            <>
-                              <div
-                                className={cn(
-                                  employeeDialogFieldClass,
-                                  "sm:col-span-2"
-                                )}
-                              >
-                                <label
-                                  id="foc-handling-fee-ppn-label"
-                                  className={employeeDialogLabelClass}
-                                >
-                                  {t("pages.billing.handlingFeeIncludesPpn")}
-                                </label>
-                                <YesNoChoiceCards
-                                  id="foc-handling-fee-ppn"
-                                  labelledBy="foc-handling-fee-ppn-label"
-                                  value={handlingFeeIncludesPpn ? "Yes" : "No"}
-                                  onChange={(value) =>
-                                    setHandlingFeeIncludesPpn(value === "Yes")
-                                  }
-                                />
-                              </div>
-                              {handlingFeeIncludesPpn ? (
-                                <div className={employeeDialogFieldClass}>
-                                  <label className={employeeDialogLabelClass}>
-                                    {t("pages.billing.handlingFeePpnRate")}
-                                  </label>
-                                  <Input
-                                    value={handlingFeePpnRatePercent}
-                                    onChange={(event) =>
-                                      setHandlingFeePpnRatePercent(
-                                        event.target.value
-                                      )
-                                    }
-                                    disabled={busy}
-                                    className={employeeInputClass}
-                                  />
-                                </div>
-                              ) : null}
-                            </>
-                          ) : null}
-                          <div
-                            className={cn(
-                              employeeDialogFieldClass,
-                              "sm:col-span-2"
-                            )}
-                          >
-                            <BillingDocumentFilePick
-                              id="foc-handling-fee-invoice"
-                              label={t("pages.billing.handlingFeeInvoice")}
-                              required={
-                                importFulfillment === "OUTSOURCED" ||
-                                (Number.isFinite(handlingFeeNumber) &&
-                                  handlingFeeNumber > 0)
-                              }
-                              fileName={handlingFeeFile?.name ?? null}
-                              onPick={setHandlingFeeFile}
-                              disabled={busy}
-                            />
-                          </div>
-                          {handlingFeeIncludesPpn ? (
-                            <div
-                              className={cn(
-                                employeeDialogFieldClass,
-                                "sm:col-span-2"
-                              )}
-                            >
-                              <BillingDocumentFilePick
-                                id="foc-handling-fee-tax"
-                                label={t("pages.billing.handlingFeeTaxInvoice")}
-                                required
-                                fileName={handlingFeeTaxFile?.name ?? null}
-                                onPick={setHandlingFeeTaxFile}
-                                disabled={busy}
-                              />
-                            </div>
-                          ) : null}
-                        </>
-                      )}
+                      {handlingNowFields}
                     </>
                   }
                 />
@@ -3358,6 +3488,7 @@ export default function PurchaseInvoiceUploadDialog({
 
             {isImport ||
             isPettyCash ||
+            isVehiclePrepaid ||
             isGovernment ||
             isBankLoan ||
             isFreeOfCharge ? null : (
@@ -3392,6 +3523,7 @@ export default function PurchaseInvoiceUploadDialog({
 
             {taxIncluded &&
             !isPettyCash &&
+            !isVehiclePrepaid &&
             !isImport &&
             !isGovernment &&
             !isBankLoan ? (
@@ -3419,7 +3551,11 @@ export default function PurchaseInvoiceUploadDialog({
               />
             ) : null}
 
-            {taxIncluded && kindNeedsOtherName && !isPettyCash && !isImport ? (
+            {taxIncluded &&
+            kindNeedsOtherName &&
+            !isPettyCash &&
+            !isVehiclePrepaid &&
+            !isImport ? (
               <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
                 <label
                   htmlFor="purchase-other-tax-name"
@@ -3444,7 +3580,11 @@ export default function PurchaseInvoiceUploadDialog({
               </div>
             ) : null}
 
-            {taxIncluded && kindNeedsRate && !isPettyCash && !isImport ? (
+            {taxIncluded &&
+            kindNeedsRate &&
+            !isPettyCash &&
+            !isVehiclePrepaid &&
+            !isImport ? (
               <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
                 <label
                   htmlFor="purchase-pph-rate"
@@ -3478,7 +3618,7 @@ export default function PurchaseInvoiceUploadDialog({
               </div>
             ) : null}
 
-            {withPpn && !isPettyCash && !isImport ? (
+            {withPpn && !isPettyCash && !isVehiclePrepaid && !isImport ? (
               <>
                 <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
                   <label
@@ -3524,22 +3664,18 @@ export default function PurchaseInvoiceUploadDialog({
                 <p className={employeeDialogHintClass}>
                   {t("pages.billing.purchaseTaxInvoiceHint")}
                 </p>
-                  {taxFile ? (
-                    <div className="space-y-2">
-                      <label className={employeeDialogLabelClass}>
-                        {t("pages.billing.inHouseVerifyReason")}
-                        <span className="text-red-400"> *</span>
-                      </label>
-                      <Textarea
-                        value={taxReason}
-                        onChange={(event) => setTaxReason(event.target.value)}
-                        disabled={busy}
-                        placeholder={t(
-                          "pages.billing.inHouseVerifyReasonPlaceholder"
-                        )}
-                      />
-              </div>
-                  ) : null}
+                {taxFile ? (
+                  <TaxInvoiceNumberFields
+                    id="purchase-tax-serial"
+                    serial={taxSerialAssist.serial}
+                    onSerialChange={taxSerialAssist.setSerial}
+                    verified={taxSerialAssist.verified}
+                    onVerifiedChange={taxSerialAssist.setVerified}
+                    detected={taxSerialAssist.detected}
+                    reading={taxSerialAssist.reading}
+                    disabled={busy}
+                  />
+                ) : null}
                 </div>
               </>
             ) : null}

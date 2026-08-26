@@ -80,6 +80,7 @@ export function buildBillingDocumentFileBase(input: {
     | "Purchase-Invoice"
     | "Purchase-Tax-Invoice"
     | "Petty-Cash-Top-Up"
+    | "Prepaid-Card-Top-Up"
     | "Government-Billing"
     | "Bank-Loan"
     | "Loan-Facility"
@@ -88,7 +89,9 @@ export function buildBillingDocumentFileBase(input: {
     | "BPJS"
     | "Import-Duties"
     | "Import-Handling"
-    | "Import-Handling-Tax";
+    | "Import-Handling-Tax"
+    | "Employee-Payment"
+    | "Withholding-Slip";
   /** Prefer shortCode (e.g. C001). Falls back to clientName only if code missing. */
   clientShortCode?: string | null;
   clientName?: string | null;

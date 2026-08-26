@@ -26,6 +26,8 @@ import ServiceCommercialFields from "@/components/projects/ServiceCommercialFiel
 import {
   employeeDialogFieldClass,
   employeeDialogFormClass,
+  employeeDialogHintClass,
+  employeeDialogLabelClass,
   employeeInputClass,
   employeeSelectTriggerClass,
 } from "@/components/employees/employee-dialog-ui";
@@ -43,10 +45,12 @@ import { DEFAULT_NEW_PROJECT_SHIFTS } from "@/lib/project-shifts";
 import {
   isLandscapingProjectSubCategory,
   isServiceProjectSubCategory,
+  projectUsesNamedShifts,
   subCategoryForServiceArea,
 } from "@/lib/project-subcategory";
 import {
   ONE_TIME_FORM_VALUE,
+  isCleaningOneTimeType,
   storedSubCategoryFromForm,
   type CleaningOneTimeType,
 } from "@/lib/project-form-subcategory";
@@ -54,6 +58,7 @@ import {
   billingSubCategoryForCatalog,
   catalogDisplayName,
   catalogSubsForAddProject,
+  findMaintenanceCatalogArea,
   type ProjectCatalogAreaDTO,
 } from "@/lib/project-service-catalog";
 import { teamsForProjectServiceArea } from "@/lib/operations-team-kind";
@@ -78,15 +83,22 @@ import type {
   BillingPeriodBasis,
   ProjectSubCategory,
 } from "@prisma/client";
-import CommercialTaxKindField from "@/components/billing/CommercialTaxKindField";
+import YesNoChoiceCards, {
+  type YesNoChoice,
+} from "@/components/ui/YesNoChoiceCards";
+import ProjectChargedTaxFields from "@/components/projects/ProjectChargedTaxFields";
 import {
   commercialTaxRequiresOtherName,
   commercialTaxRequiresRatePercent,
-  defaultCommercialNonVatRatePercent,
   type CommercialTaxKind,
 } from "@/lib/commercial-tax";
 import { taxInvoiceDefaultsFromClient } from "@/lib/npwp";
+import { HEAD_OFFICE_SITE } from "@/lib/company-identity";
 import { localizeBillingMode, localizeSubCategory } from "@/lib/i18n/labels";
+import {
+  RGS_INTERNAL_CLIENT_FORM_VALUE,
+  isRgsInternalClientFormValue,
+} from "@/lib/attendance-internal-sites";
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 
@@ -117,6 +129,9 @@ export type ProjectFormFieldsState = {
   isLandscaping: boolean;
   showPaymentPlan: boolean;
   initialStatus: ProjectFormInitialStatus;
+  isDemo: boolean;
+  isComplimentary: boolean;
+  isInternal: boolean;
   controlledSignature: string;
 };
 
@@ -171,13 +186,17 @@ export default function ProjectFormFields({
     useState<CleaningOneTimeType>("GENERAL_CLEANING");
   const [subcategoryCatalogId, setSubcategoryCatalogId] = useState("");
 
+  const [isDemoChoice, setIsDemoChoice] = useState<YesNoChoice>("No");
+  const isDemoForBilling = isDemoChoice === "Yes";
   const generalFacadeBillingOptions = useMemo(
     () =>
-      MILESTONE_ELIGIBLE_BILLING_MODES.map((value) => ({
+      MILESTONE_ELIGIBLE_BILLING_MODES.filter(
+        (value) => !isDemoForBilling || value !== "MULTI_VISIT"
+      ).map((value) => ({
         value,
         label: localizeBillingMode(value, locale),
       })),
-    [locale]
+    [isDemoForBilling, locale]
   );
 
   const [clientId, setClientId] = useState(clients[0]?.id ?? "");
@@ -251,6 +270,19 @@ export default function ProjectFormFields({
     { startDate: "", endDate: "" },
   ]);
   const [shiftCount, setShiftCount] = useState(DEFAULT_NEW_PROJECT_SHIFTS);
+  const [isGovernmentContract, setIsGovernmentContract] = useState(false);
+  const [isComplimentaryChoice, setIsComplimentaryChoice] =
+    useState<YesNoChoice>("No");
+  const [internalMultipleVisit, setInternalMultipleVisit] =
+    useState<YesNoChoice>("No");
+  const isInternal = isRgsInternalClientFormValue(clientId);
+  const isDemo = !isInternal && isDemoChoice === "Yes";
+  const isComplimentary = isDemo && isComplimentaryChoice === "Yes";
+  const maintenanceCatalog = useMemo(
+    () => findMaintenanceCatalogArea(catalog),
+    [catalog]
+  );
+  const showBillingFields = !isComplimentary && !isInternal;
 
   const isContract = isContractSubCategory(subCategory);
   const isLandscaping = isLandscapingProjectSubCategory(subCategory);
@@ -259,6 +291,25 @@ export default function ProjectFormFields({
   const isMilestoneEligible = isMilestoneSubCategory(subCategory);
   const showPaymentPlan = isMilestoneEligible && billingMode === "MILESTONE";
   const showVisitPlan = isMilestoneEligible && billingMode === "MULTI_VISIT";
+  const isMaintenanceArea = Boolean(
+    maintenanceCatalog &&
+      (areaCatalogId === maintenanceCatalog.id ||
+        selectedCatalogArea?.id === maintenanceCatalog.id)
+  );
+  const selectedCatalogSub = selectedCatalogArea?.subcategories.find(
+    (sub) => sub.id === uiSubcategory || sub.id === subcategoryCatalogId
+  );
+  const isInternalOneTimeSelection =
+    uiSubcategory === ONE_TIME_FORM_VALUE ||
+    selectedCatalogSub?.billingKind === "ONE_TIME";
+  const showInternalMultipleVisitQuestion =
+    isInternal &&
+    isInternalOneTimeSelection &&
+    (serviceArea === "LANDSCAPING" ||
+      serviceArea === "SECURITY" ||
+      isMaintenanceArea);
+  const showInternalVisitPlan =
+    showInternalMultipleVisitQuestion && internalMultipleVisit === "Yes";
   const onStateChangeRef = useRef(onStateChange);
   onStateChangeRef.current = onStateChange;
 
@@ -290,6 +341,8 @@ export default function ProjectFormFields({
     durationDays,
     locationValue,
     visitWindows,
+    isDemo,
+    isComplimentary,
   });
 
   useLayoutEffect(() => {
@@ -304,6 +357,9 @@ export default function ProjectFormFields({
       isLandscaping,
       showPaymentPlan,
       initialStatus,
+      isDemo,
+      isComplimentary,
+      isInternal,
       controlledSignature,
     });
   }, [
@@ -317,6 +373,9 @@ export default function ProjectFormFields({
     isLandscaping,
     showPaymentPlan,
     initialStatus,
+    isDemo,
+    isComplimentary,
+    isInternal,
     controlledSignature,
   ]);
 
@@ -332,6 +391,17 @@ export default function ProjectFormFields({
   function handleClientChange(value: string | null) {
     const nextId = value === "none" || value == null ? "" : value;
     setClientId(nextId);
+    if (isRgsInternalClientFormValue(nextId)) {
+      setIsDemoChoice("No");
+      setIsComplimentaryChoice("No");
+      setInitialStatus("IN_PROGRESS");
+      setLocationValue({
+        location: HEAD_OFFICE_SITE.address,
+        latitude: HEAD_OFFICE_SITE.latitude,
+        longitude: HEAD_OFFICE_SITE.longitude,
+        locationRadiusMeters: DEFAULT_LOCATION_RADIUS_METERS,
+      });
+    }
     applyTaxDefaultsFromClient(clients.find((item) => item.id === nextId));
     onFormValuesChange?.();
   }
@@ -354,6 +424,9 @@ export default function ProjectFormFields({
   function handleUiSubcategoryChange(next: string) {
     setUiSubcategory(next);
     setSubcategoryCatalogId("");
+    if (next !== ONE_TIME_FORM_VALUE) {
+      setInternalMultipleVisit("No");
+    }
     if (next === ONE_TIME_FORM_VALUE && serviceArea === "CLEANING") {
       applyResolvedSubCategory(oneTimeCleaningType);
       return;
@@ -386,7 +459,60 @@ export default function ProjectFormFields({
     applyResolvedSubCategory(next);
   }
 
+  function applyDemoServiceArea(next: FormServiceArea, catalogId?: string) {
+    setServiceArea(next);
+    setAreaCatalogId(
+      catalogId ?? catalog.find((area) => area.systemArea === next)?.id ?? ""
+    );
+    setSubcategoryCatalogId("");
+    if (next === "CLEANING") {
+      setUiSubcategory("GENERAL_CLEANING");
+      setOneTimeCleaningType("GENERAL_CLEANING");
+      applyResolvedSubCategory("GENERAL_CLEANING");
+      return;
+    }
+    if (next === "LANDSCAPING") {
+      setUiSubcategory(ONE_TIME_FORM_VALUE);
+      applyResolvedSubCategory("ONE_TIME_LANDSCAPING");
+      return;
+    }
+    const nextArea = catalog.find((area) => area.id === catalogId);
+    const oneTimeSub = nextArea?.subcategories.find(
+      (sub) => sub.billingKind === "ONE_TIME"
+    );
+    if (oneTimeSub && nextArea) {
+      setSubcategoryCatalogId(oneTimeSub.id);
+      setUiSubcategory(oneTimeSub.id);
+      applyResolvedSubCategory(
+        billingSubCategoryForCatalog({
+          systemArea: nextArea.systemArea,
+          billingKind: oneTimeSub.billingKind,
+          systemSubCategory: oneTimeSub.systemSubCategory,
+        })
+      );
+      return;
+    }
+    setUiSubcategory("GENERAL_CLEANING");
+    applyResolvedSubCategory("GENERAL_CLEANING");
+  }
+
+  function handleDemoChoiceChange(next: YesNoChoice) {
+    setIsDemoChoice(next);
+    if (next === "No") {
+      setIsComplimentaryChoice("No");
+      return;
+    }
+    if (billingMode === "MULTI_VISIT") {
+      setBillingMode("ON_COMPLETION");
+    }
+    applyDemoServiceArea("CLEANING");
+  }
+
   function handleServiceAreaChange(next: FormServiceArea, catalogId?: string) {
+    if (isDemo) {
+      applyDemoServiceArea(next, catalogId);
+      return;
+    }
     setServiceArea(next);
     setAreaCatalogId(
       catalogId ??
@@ -448,7 +574,7 @@ export default function ProjectFormFields({
       <input
         type="hidden"
         name={nameOf("initialStatus")}
-        value={initialStatus}
+        value={isInternal ? "IN_PROGRESS" : initialStatus}
       />
       <input type="hidden" name={nameOf("subCategory")} value={subCategory} />
       <input type="hidden" name={nameOf("serviceArea")} value={serviceArea} />
@@ -459,6 +585,12 @@ export default function ProjectFormFields({
         value={subcategoryCatalogId}
       />
       <input type="hidden" name={nameOf("billingMode")} value={billingMode} />
+      <input type="hidden" name={nameOf("isDemo")} value={isDemo ? "true" : "false"} />
+      <input
+        type="hidden"
+        name={nameOf("isComplimentary")}
+        value={isComplimentary ? "true" : "false"}
+      />
       {isContractCycleSubCategory(subCategory) ? (
         <input
           type="hidden"
@@ -489,6 +621,9 @@ export default function ProjectFormFields({
             <SelectValue placeholder={t("pages.projects.selectClient")}>
               {(value) => {
                 if (!value || value === "none") return null;
+                if (isRgsInternalClientFormValue(value)) {
+                  return t("pages.projects.rgsInternalClient");
+                }
                 const client = clients.find((item) => item.id === value);
                 return client?.name ?? null;
               }}
@@ -498,6 +633,9 @@ export default function ProjectFormFields({
             <SelectItem value="none" className="text-muted">
               {t("pages.projects.selectClient")}
             </SelectItem>
+            <SelectItem value={RGS_INTERNAL_CLIENT_FORM_VALUE}>
+              {t("pages.projects.rgsInternalClient")}
+            </SelectItem>
             {clients.map((client) => (
               <SelectItem key={client.id} value={client.id}>
                 {client.name}
@@ -505,49 +643,127 @@ export default function ProjectFormFields({
             ))}
           </SelectContent>
         </Select>
+        {isInternal ? (
+          <p className="text-xs text-subtle">
+            {t("pages.projects.rgsInternalHint")}
+          </p>
+        ) : null}
       </div>
 
-      <ProjectOptionPills
-        label={t("pages.projects.startingStage")}
-        value={initialStatus}
-        options={initialStatusOptions}
-        onChange={setInitialStatus}
-        columns={2}
-      />
+      {!isInternal ? (
+        <div className={employeeDialogFieldClass}>
+          <label id={idOf("is-demo")} className="text-sm font-medium text-text">
+            {t("pages.projects.isDemo")}
+          </label>
+          <YesNoChoiceCards
+            id={idOf("is-demo")}
+            labelledBy={idOf("is-demo")}
+            value={isDemoChoice}
+            onChange={handleDemoChoiceChange}
+          />
+          <p className="text-xs text-subtle">{t("pages.projects.isDemoHint")}</p>
+        </div>
+      ) : null}
+
+      {isDemo ? (
+        <div className={employeeDialogFieldClass}>
+          <label
+            id={idOf("is-demo-free")}
+            className="text-sm font-medium text-text"
+          >
+            {t("pages.projects.isDemoFree")}
+          </label>
+          <YesNoChoiceCards
+            id={idOf("is-demo-free")}
+            labelledBy={idOf("is-demo-free")}
+            value={isComplimentaryChoice}
+            onChange={setIsComplimentaryChoice}
+          />
+          <p className="text-xs text-subtle">
+            {t("pages.projects.isDemoFreeHint")}
+          </p>
+        </div>
+      ) : null}
+
+      {!isInternal ? (
+        <ProjectOptionPills
+          label={t("pages.projects.startingStage")}
+          value={initialStatus}
+          options={initialStatusOptions}
+          onChange={setInitialStatus}
+          columns={2}
+        />
+      ) : null}
 
       <ProjectOptionPills
         label={t("pages.projects.serviceArea")}
-        value={areaCatalogId || serviceArea}
+        value={
+          isDemo
+            ? serviceArea === "OTHER" ||
+              (maintenanceCatalog && areaCatalogId === maintenanceCatalog.id)
+              ? maintenanceCatalog?.id ?? "MAINTENANCE"
+              : areaCatalogId || serviceArea
+            : areaCatalogId || serviceArea
+        }
         options={
-          catalog.length > 0
-            ? catalog.map((area) => ({
-                value: area.id,
-                label: catalogDisplayName(area, locale),
-              }))
-            : [
+          isDemo
+            ? [
                 {
-                  value: "CLEANING",
+                  value:
+                    catalog.find((area) => area.systemArea === "CLEANING")?.id ??
+                    "CLEANING",
                   label: t("pages.projects.serviceAreaCleaning"),
                 },
                 {
-                  value: "LANDSCAPING",
+                  value:
+                    catalog.find((area) => area.systemArea === "LANDSCAPING")
+                      ?.id ?? "LANDSCAPING",
                   label: t("pages.projects.serviceAreaLandscaping"),
                 },
                 {
-                  value: "PARKING",
-                  label: t("pages.projects.serviceAreaParking"),
-                },
-                {
-                  value: "SECURITY",
-                  label: t("pages.projects.serviceAreaSecurity"),
-                },
-                {
-                  value: "PAYROLL_MANAGEMENT",
-                  label: t("pages.projects.serviceAreaPayroll"),
+                  value: maintenanceCatalog?.id ?? "MAINTENANCE",
+                  label: t("pages.projects.serviceAreaMaintenance"),
                 },
               ]
+            : catalog.length > 0
+              ? catalog.map((area) => ({
+                  value: area.id,
+                  label: catalogDisplayName(area, locale),
+                }))
+              : [
+                  {
+                    value: "CLEANING",
+                    label: t("pages.projects.serviceAreaCleaning"),
+                  },
+                  {
+                    value: "LANDSCAPING",
+                    label: t("pages.projects.serviceAreaLandscaping"),
+                  },
+                  {
+                    value: "PARKING",
+                    label: t("pages.projects.serviceAreaParking"),
+                  },
+                  {
+                    value: "SECURITY",
+                    label: t("pages.projects.serviceAreaSecurity"),
+                  },
+                  {
+                    value: "PAYROLL_MANAGEMENT",
+                    label: t("pages.projects.serviceAreaPayroll"),
+                  },
+                ]
         }
         onChange={(value) => {
+          if (value === "MAINTENANCE" || value === maintenanceCatalog?.id) {
+            const nextArea: FormServiceArea =
+              !maintenanceCatalog ||
+              maintenanceCatalog.systemArea === "OTHER" ||
+              maintenanceCatalog.systemArea === "HEAD_OFFICE"
+                ? "OTHER"
+                : (maintenanceCatalog.systemArea as ProjectServiceAreaValue);
+            handleServiceAreaChange(nextArea, maintenanceCatalog?.id);
+            return;
+          }
           const area = catalog.find((item) => item.id === value);
           if (area) {
             const nextArea: FormServiceArea =
@@ -568,31 +784,45 @@ export default function ProjectFormFields({
           <ProjectOptionPills
             label={t("pages.projects.subcategory")}
             value={uiSubcategory}
-            options={[
-              {
-                value: "REGULAR_CLEANING",
-                label: localizeSubCategory("REGULAR_CLEANING", locale),
-              },
-              {
-                value: "CONTRACT_GENERAL_CLEANING",
-                label: localizeSubCategory("CONTRACT_GENERAL_CLEANING", locale),
-              },
-              {
-                value: "CONTRACT_FACADE_CLEANING",
-                label: localizeSubCategory("CONTRACT_FACADE_CLEANING", locale),
-              },
-              {
-                value: ONE_TIME_FORM_VALUE,
-                label: t("pages.projects.oneTime"),
-              },
-              ...(selectedCatalogArea?.subcategories
-                .filter((sub) => !sub.isSystem)
-                .map((sub) => ({
-                  value: sub.id,
-                  label: catalogDisplayName(sub, locale),
-                })) ?? []),
-            ]}
+            options={
+              isDemo
+                ? [
+                    {
+                      value: "GENERAL_CLEANING",
+                      label: localizeSubCategory("GENERAL_CLEANING", locale),
+                    },
+                    {
+                      value: "FACADE_CLEANING",
+                      label: localizeSubCategory("FACADE_CLEANING", locale),
+                    },
+                  ]
+                : [
+                    {
+                      value: "REGULAR_CLEANING",
+                      label: localizeSubCategory("REGULAR_CLEANING", locale),
+                    },
+                    {
+                      value: "GENERAL_CLEANING",
+                      label: localizeSubCategory("GENERAL_CLEANING", locale),
+                    },
+                    {
+                      value: "FACADE_CLEANING",
+                      label: localizeSubCategory("FACADE_CLEANING", locale),
+                    },
+                    ...(selectedCatalogArea?.subcategories
+                      .filter((sub) => !sub.isSystem)
+                      .map((sub) => ({
+                        value: sub.id,
+                        label: catalogDisplayName(sub, locale),
+                      })) ?? []),
+                  ]
+            }
             onChange={(value) => {
+              if (isDemo && isCleaningOneTimeType(value)) {
+                handleOneTimeCleaningTypeChange(value);
+                setUiSubcategory(value);
+                return;
+              }
               const custom = selectedCatalogArea?.subcategories.find(
                 (sub) => sub.id === value && !sub.isSystem
               );
@@ -603,31 +833,12 @@ export default function ProjectFormFields({
               handleUiSubcategoryChange(value);
             }}
             columns={2}
+            spanLastWhenOdd
           />
-          {uiSubcategory === ONE_TIME_FORM_VALUE && !selectedCustomSub ? (
-            <ProjectOptionPills
-              label={t("pages.projects.oneTimeType")}
-              value={oneTimeCleaningType}
-              options={[
-                {
-                  value: "GENERAL_CLEANING",
-                  label: localizeSubCategory("GENERAL_CLEANING", locale),
-                },
-                {
-                  value: "FACADE_CLEANING",
-                  label: localizeSubCategory("FACADE_CLEANING", locale),
-                },
-              ]}
-              onChange={(value) =>
-                handleOneTimeCleaningTypeChange(value as CleaningOneTimeType)
-              }
-              columns={2}
-            />
-          ) : null}
         </>
       ) : null}
 
-      {serviceArea === "LANDSCAPING" ? (
+      {serviceArea === "LANDSCAPING" && !isDemo ? (
         <ProjectOptionPills
           label={t("pages.projects.subcategory")}
           value={uiSubcategory}
@@ -700,7 +911,7 @@ export default function ProjectFormFields({
         />
       ) : null}
 
-      {serviceArea === "OTHER" && selectedCatalogArea ? (
+      {serviceArea === "OTHER" && selectedCatalogArea && !isDemo ? (
         <ProjectOptionPills
           label={t("pages.projects.subcategory")}
           value={uiSubcategory}
@@ -713,17 +924,16 @@ export default function ProjectFormFields({
         />
       ) : null}
 
-      {isMilestoneEligible ? (
+      {showBillingFields && isMilestoneEligible ? (
         <ProjectOptionPills
           label={t("pages.projects.billingLabel")}
           value={billingMode}
           options={generalFacadeBillingOptions}
           onChange={handleBillingModeChange}
-          columns={3}
         />
       ) : null}
 
-      {isContractCycleSubCategory(subCategory) ? (
+      {showBillingFields && isContractCycleSubCategory(subCategory) ? (
         <BillingPeriodBasisFields
           billingPeriodBasis={billingPeriodBasis}
           onBillingPeriodBasisChange={setBillingPeriodBasis}
@@ -736,7 +946,7 @@ export default function ProjectFormFields({
         />
       ) : null}
 
-      {showPaymentPlan ? (
+      {showBillingFields && showPaymentPlan ? (
         <MilestonePaymentPlanFields
           paymentCount={paymentCount}
           installmentPercents={installmentPercents}
@@ -747,7 +957,7 @@ export default function ProjectFormFields({
         />
       ) : null}
 
-      {showVisitPlan ? (
+      {showBillingFields && showVisitPlan ? (
         <VisitPlanFields
           visits={visitWindows}
           onChange={setVisitWindows}
@@ -755,7 +965,41 @@ export default function ProjectFormFields({
         />
       ) : null}
 
-      {isService ? (
+      {showInternalMultipleVisitQuestion ? (
+        <div className={employeeDialogFieldClass}>
+          <label
+            id={idOf("internal-multiple-visit-label")}
+            className={employeeDialogLabelClass}
+          >
+            {t("pages.projects.multipleVisitProject")}
+          </label>
+          <YesNoChoiceCards
+            id={idOf("internal-multiple-visit")}
+            labelledBy={idOf("internal-multiple-visit-label")}
+            value={internalMultipleVisit}
+            onChange={setInternalMultipleVisit}
+          />
+          <p className={employeeDialogHintClass}>
+            {t("pages.projects.multipleVisitHint")}
+          </p>
+          <input
+            type="hidden"
+            name={nameOf("multipleVisit")}
+            value={internalMultipleVisit}
+          />
+        </div>
+      ) : null}
+
+      {showInternalVisitPlan ? (
+        <VisitPlanFields
+          visits={visitWindows}
+          onChange={setVisitWindows}
+          namePrefix={namePrefix}
+          hintKey="pages.projects.visitPlanHintInternal"
+        />
+      ) : null}
+
+      {showBillingFields && isService ? (
         <ServiceCommercialFields
           key={`${subCategory}-${clientId}`}
           subCategory={subCategory}
@@ -763,7 +1007,7 @@ export default function ProjectFormFields({
         />
       ) : null}
 
-      {subCategory !== "PARKING" ? (
+      {showBillingFields && subCategory !== "PARKING" ? (
         <PaymentTermsField
           name={nameOf("paymentTermsDays")}
           id={idOf("payment-terms")}
@@ -771,27 +1015,46 @@ export default function ProjectFormFields({
         />
       ) : null}
 
+      {showBillingFields ? (
       <CompanyBankAccountField
         name={nameOf("bankAccountId")}
         id={idOf("bank-account")}
         accounts={bankAccounts}
       />
+      ) : null}
 
-      <CommercialTaxKindField
+      {showBillingFields ? (
+      <>
+      <ProjectChargedTaxFields
         id={idOf("charged-tax-kind")}
         name={nameOf("chargedTaxKind")}
         value={chargedTaxKind}
         onChange={(next) => {
           setChargedTaxKind(next);
-          const nextRate = defaultCommercialNonVatRatePercent(next || null);
-          setPphRatePercent(nextRate != null ? String(nextRate) : "");
           if (next !== "OTHER") setOtherTaxName("");
           onFormValuesChange?.();
         }}
-        label={t("pages.projects.chargedTaxKind")}
-        hint={t("pages.projects.chargedTaxKindHint")}
-        placeholder={t("pages.projects.chargedTaxKindPlaceholder")}
+        onRatePrefill={setPphRatePercent}
       />
+
+      <div className={employeeDialogFieldClass}>
+        <label className="inline-flex items-start gap-2 text-sm text-text">
+          <input
+            type="checkbox"
+            name={nameOf("isGovernmentContract")}
+            value="true"
+            checked={isGovernmentContract}
+            onChange={(event) => setIsGovernmentContract(event.target.checked)}
+            className="mt-0.5 size-4 rounded border-border"
+          />
+          <span>
+            {t("pages.projects.governmentContract")}
+            <span className="mt-1 block text-xs text-muted">
+              {t("pages.projects.governmentContractHint")}
+            </span>
+          </span>
+        </label>
+      </div>
 
       {chargedTaxKind && commercialTaxRequiresOtherName(chargedTaxKind) ? (
         <div className={employeeDialogFieldClass}>
@@ -884,8 +1147,17 @@ export default function ProjectFormFields({
             : t("pages.projects.withoutTaxNote")}
         </p>
       </div>
+      </>
+      ) : null}
 
-      {isMonthTimeline ? (
+      {isInternal ? (
+        <>
+          <input type="hidden" name={nameOf("startDate")} value={startDate} />
+          <p className="text-xs text-subtle">
+            {t("pages.projects.rgsInternalLocationHint")}
+          </p>
+        </>
+      ) : isMonthTimeline ? (
         <ProjectTimelineFields
           mode="contract"
           planning={initialStatus === "PLANNED"}
@@ -932,15 +1204,20 @@ export default function ProjectFormFields({
         namePrefix={namePrefix}
       />
 
-      <ProjectShiftCountField
-        name={nameOf("shiftCount")}
-        namePrefix={namePrefix}
-        value={shiftCount}
-        onChange={setShiftCount}
-      />
+      {projectUsesNamedShifts(subCategory) ? (
+        <ProjectShiftCountField
+          name={nameOf("shiftCount")}
+          namePrefix={namePrefix}
+          value={shiftCount}
+          onChange={setShiftCount}
+        />
+      ) : (
+        <input type="hidden" name={nameOf("shiftCount")} value="0" />
+      )}
 
-      {initialStatus === "IN_PROGRESS" ? (
+      {initialStatus === "IN_PROGRESS" || isInternal ? (
         <>
+          {!isDemo && !isInternal ? (
           <div className={employeeDialogFieldClass}>
             <FileDropField
               id={idOf("contract-proof")}
@@ -953,7 +1230,8 @@ export default function ProjectFormFields({
               {t("pages.projects.contractProofHint")}
             </p>
           </div>
-          {billingMode !== "MULTI_VISIT" ? (
+          ) : null}
+          {isInternal || billingMode !== "MULTI_VISIT" ? (
             <>
               <ProjectTeamPicker
                 teams={teamsForProjectServiceArea(teams, {

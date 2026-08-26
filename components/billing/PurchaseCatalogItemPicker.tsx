@@ -131,7 +131,7 @@ export default function PurchaseCatalogItemPicker({
   ];
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog skipUnsavedGuard open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="z-[60] flex max-h-[min(92vh,44rem)] w-full flex-col gap-4 overflow-hidden sm:max-w-2xl"
         overlayClassName="z-[60]"

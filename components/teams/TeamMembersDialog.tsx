@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Users } from "lucide-react";
 
@@ -17,8 +17,14 @@ import {
 } from "@/components/employees/employee-dialog-ui";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import DirectoryFilterTab from "@/components/ui/DirectoryFilterTab";
+import DirectorySearchInput, {
+  matchesDirectorySearch,
+} from "@/components/ui/DirectorySearchInput";
 import { showRejectionFromError } from "@/components/ui/rejection-notice";
+import { localizeDepartmentLabel } from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
+import { DEFAULT_WORKFORCE_DEPARTMENTS } from "@/lib/positions";
 
 export type TeamMemberRow = {
   employeeId: string;
@@ -32,7 +38,12 @@ export type EligibleEmployeeRow = {
   firstName: string;
   lastName: string;
   employeeNo: string;
+  categoryId: string | null;
+  categorySlug: string | null;
+  categoryName: string | null;
 };
+
+const ALL_DEPARTMENTS = "all";
 
 type Props = {
   open: boolean;
@@ -42,6 +53,10 @@ type Props = {
   members: TeamMemberRow[];
   eligible: EligibleEmployeeRow[];
 };
+
+function employeeLabel(employee: EligibleEmployeeRow) {
+  return `${employee.firstName} ${employee.lastName} · ${employee.employeeNo}`;
+}
 
 export default function TeamMembersDialog({
   open,
@@ -55,6 +70,61 @@ export default function TeamMembersDialog({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [employeeId, setEmployeeId] = useState("");
+  const [departmentFilter, setDepartmentFilter] = useState(ALL_DEPARTMENTS);
+  const [query, setQuery] = useState("");
+
+  const departmentOptions = useMemo(() => {
+    const bySlug = new Map<
+      string,
+      { id: string; slug: string; name: string }
+    >();
+    for (const item of DEFAULT_WORKFORCE_DEPARTMENTS) {
+      bySlug.set(item.slug, { id: item.slug, slug: item.slug, name: item.name });
+    }
+    for (const employee of eligible) {
+      const slug = employee.categorySlug?.trim();
+      if (!slug) continue;
+      if (!bySlug.has(slug)) {
+        bySlug.set(slug, {
+          id: slug,
+          slug,
+          name: employee.categoryName?.trim() || slug,
+        });
+      }
+    }
+    const defaults = DEFAULT_WORKFORCE_DEPARTMENTS.map((item) =>
+      bySlug.get(item.slug)
+    ).filter((item): item is { id: string; slug: string; name: string } =>
+      Boolean(item)
+    );
+    const extras = [...bySlug.values()]
+      .filter(
+        (item) =>
+          !DEFAULT_WORKFORCE_DEPARTMENTS.some((dept) => dept.slug === item.slug)
+      )
+      .sort((a, b) => a.name.localeCompare(b.name, "en"));
+    return [...defaults, ...extras];
+  }, [eligible]);
+
+  const departmentFiltered = useMemo(() => {
+    if (departmentFilter === ALL_DEPARTMENTS) return eligible;
+    return eligible.filter(
+      (employee) => employee.categorySlug === departmentFilter
+    );
+  }, [departmentFilter, eligible]);
+
+  const visible = useMemo(() => {
+    const trimmed = query.trim();
+    if (!trimmed) return departmentFiltered;
+    return departmentFiltered.filter((employee) =>
+      matchesDirectorySearch(
+        trimmed,
+        employee.firstName,
+        employee.lastName,
+        employee.employeeNo
+      )
+    );
+  }, [departmentFiltered, query]);
 
   function handleAdd(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -87,6 +157,13 @@ export default function TeamMembersDialog({
     });
   }
 
+  const emptyMessage =
+    eligible.length === 0
+      ? t("pages.teams.emptyEligible")
+      : departmentFiltered.length === 0
+        ? t("pages.teams.emptyEligibleFiltered")
+        : t("pages.teams.emptyEligibleSearch");
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <EmployeeDialogShell
@@ -108,8 +185,52 @@ export default function TeamMembersDialog({
               <label className={employeeDialogLabelClass} htmlFor="team-add-member">
                 {t("pages.teams.addMember")}
               </label>
-              {eligible.length === 0 ? (
-                <p className="text-sm text-muted">{t("pages.teams.emptyEligible")}</p>
+              <div
+                className="flex flex-wrap items-center gap-2"
+                role="group"
+                aria-label={t("common.labels.department")}
+              >
+                <DirectoryFilterTab
+                  size="sm"
+                  active={departmentFilter === ALL_DEPARTMENTS}
+                  count={eligible.length}
+                  onClick={() => {
+                    setDepartmentFilter(ALL_DEPARTMENTS);
+                    setEmployeeId("");
+                  }}
+                >
+                  {t("pages.teams.filterAll")}
+                </DirectoryFilterTab>
+                {departmentOptions.map((category) => (
+                  <DirectoryFilterTab
+                    key={category.slug}
+                    size="sm"
+                    active={departmentFilter === category.slug}
+                    count={
+                      eligible.filter(
+                        (employee) => employee.categorySlug === category.slug
+                      ).length
+                    }
+                    onClick={() => {
+                      setDepartmentFilter(category.slug);
+                      setEmployeeId("");
+                    }}
+                  >
+                    {localizeDepartmentLabel(category.slug, category.name)}
+                  </DirectoryFilterTab>
+                ))}
+              </div>
+              <DirectorySearchInput
+                value={query}
+                onChange={(value) => {
+                  setQuery(value);
+                  setEmployeeId("");
+                }}
+                placeholder={t("pages.teams.searchEmployees")}
+                className="max-w-none"
+              />
+              {visible.length === 0 ? (
+                <p className="text-sm text-muted">{emptyMessage}</p>
               ) : (
                 <div className="flex gap-2">
                   <select
@@ -120,9 +241,9 @@ export default function TeamMembersDialog({
                     disabled={pending}
                   >
                     <option value="">{t("common.actions.select")}</option>
-                    {eligible.map((employee) => (
+                    {visible.map((employee) => (
                       <option key={employee.id} value={employee.id}>
-                        {employee.firstName} {employee.lastName} · {employee.employeeNo}
+                        {employeeLabel(employee)}
                       </option>
                     ))}
                   </select>

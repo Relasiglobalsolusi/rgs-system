@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useTransition } from "react";
+import { useMemo, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
+import { FinancePeriodToolbar } from "@/components/billing/finance-toolbar";
 import { employeeSelectTriggerClass } from "@/components/employees/employee-dialog-ui";
 import {
   Select,
@@ -18,9 +19,10 @@ import { cn } from "@/lib/utils";
 type Props = {
   year: number;
   month: number;
+  action?: ReactNode;
 };
 
-export default function BpjsPeriodControl({ year, month }: Props) {
+export default function BpjsPeriodControl({ year, month, action }: Props) {
   const { t } = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -50,17 +52,11 @@ export default function BpjsPeriodControl({ year, month }: Props) {
   }
 
   return (
-    <div
-      className={cn(
-        "flex flex-wrap items-end gap-2",
-        pending && "pointer-events-none opacity-70"
-      )}
+    <FinancePeriodToolbar
+      label={t("pages.bpjs.period")}
+      action={action}
+      className={cn(pending && "pointer-events-none opacity-70")}
     >
-      <div className="space-y-1.5">
-        <p className="text-xs font-medium text-subtle">
-          {t("pages.bpjs.period")}
-        </p>
-        <div className="flex flex-wrap gap-2">
           <Select
             value={String(month) || null}
             onValueChange={(value) => {
@@ -112,8 +108,6 @@ export default function BpjsPeriodControl({ year, month }: Props) {
               ))}
             </SelectContent>
           </Select>
-        </div>
-      </div>
-    </div>
+    </FinancePeriodToolbar>
   );
 }

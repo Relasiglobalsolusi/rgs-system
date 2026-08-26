@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  showMissingRequiredFields,
   showRejection,
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
@@ -105,6 +106,14 @@ export default function ProjectBulkCreateDialog({
   }, [controlledOpen]);
 
   function submit(formData: FormData) {
+    const form = document.getElementById(FORM_ID);
+    if (
+      showMissingRequiredFields(
+        form instanceof HTMLFormElement ? form : null
+      )
+    ) {
+      return;
+    }
     for (let index = 0; index < lineKeys.length; index += 1) {
       const name = String(formData.get(bulkLineField(index, "name")) ?? "").trim();
       const clientId = String(
@@ -131,10 +140,16 @@ export default function ProjectBulkCreateDialog({
         });
         return;
       }
+      const isComplimentary =
+        String(formData.get(bulkLineField(index, "isComplimentary")) ?? "") ===
+        "true";
       const chargedTaxKind = String(
         formData.get(bulkLineField(index, "chargedTaxKind")) ?? ""
       ).trim();
-      if (!isCommercialTaxKind(chargedTaxKind)) {
+      const resolvedTaxKind = isCommercialTaxKind(chargedTaxKind)
+        ? chargedTaxKind
+        : null;
+      if (!isComplimentary && !resolvedTaxKind) {
         showRejection({
           reasons: t("bulkCreate.lineError", {
             n: String(index + 1),
@@ -144,7 +159,8 @@ export default function ProjectBulkCreateDialog({
         return;
       }
       if (
-        chargedTaxKind === "OTHER" &&
+        !isComplimentary &&
+        resolvedTaxKind === "OTHER" &&
         !String(formData.get(bulkLineField(index, "otherTaxName")) ?? "").trim()
       ) {
         showRejection({
@@ -156,21 +172,23 @@ export default function ProjectBulkCreateDialog({
         return;
       }
       if (
-        commercialTaxRequiresRatePercent(chargedTaxKind) &&
+        !isComplimentary &&
+        resolvedTaxKind &&
+        commercialTaxRequiresRatePercent(resolvedTaxKind) &&
         !String(formData.get(bulkLineField(index, "pphRatePercent")) ?? "").trim()
       ) {
         showRejection({
           reasons: t("bulkCreate.lineError", {
             n: String(index + 1),
             message:
-              chargedTaxKind === "OTHER"
+              resolvedTaxKind === "OTHER"
                 ? t("pages.billing.otherTaxRateRequired")
                 : t("pages.projects.pphRatePercentRequired"),
           }),
         });
         return;
       }
-      if (initialStatus === "IN_PROGRESS") {
+      if (initialStatus === "IN_PROGRESS" || isComplimentary || String(formData.get(bulkLineField(index, "isDemo")) ?? "") === "true") {
         const proof = formData.get(bulkLineField(index, "contractProof"));
         if (!(proof instanceof File) || proof.size === 0) {
           showRejection({
@@ -214,7 +232,12 @@ export default function ProjectBulkCreateDialog({
             </EmployeePrimaryButton>
           }
         >
-          <form id={FORM_ID} action={submit} onInput={handleFormInput}>
+          <form
+            id={FORM_ID}
+            action={submit}
+            noValidate
+            onInput={handleFormInput}
+          >
             <input type="hidden" name="lineCount" value={lineKeys.length} />
             <BulkLineList
               title={t("pages.projects.bulkCreateLines")}

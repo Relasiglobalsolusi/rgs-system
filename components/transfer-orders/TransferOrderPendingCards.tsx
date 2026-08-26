@@ -1,9 +1,10 @@
 "use client";
 
-import Link from "next/link";
-import { ChevronRight, Package } from "lucide-react";
+import { useMemo } from "react";
+import { useRouter } from "next/navigation";
 
 import type { TransferOrderPendingRow } from "@/lib/transfer-order-directory";
+import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { formatDisplayDate } from "@/lib/format-date";
 import { formatInventoryQty } from "@/lib/inventory";
@@ -42,63 +43,90 @@ function itemSummary(
 
 export default function TransferOrderPendingCards({ orders }: Props) {
   const { t } = useT();
+  const router = useRouter();
+
+  const columns = useMemo(() => {
+    const cols: DataTableColumn<TransferOrderPendingRow>[] = [
+      {
+        key: "destination",
+        title: t("pages.transferOrders.columns.destination"),
+        width: "12rem",
+        share: 1.2,
+        className: "min-w-[12rem]",
+        render: (order) => (
+          <p className="font-semibold text-text">
+            {order.isInternal
+              ? t("pages.transferOrders.internalSection")
+              : order.clientName}
+          </p>
+        ),
+      },
+      {
+        key: "project",
+        title: t("pages.transferOrders.columns.project"),
+        width: "12rem",
+        share: 1.2,
+        className: "min-w-[12rem]",
+        render: (order) => (
+          <p className="min-w-0 text-text">{order.projectName}</p>
+        ),
+      },
+      {
+        key: "items",
+        title: t("pages.transferOrders.columns.items"),
+        width: "12rem",
+        share: 1.2,
+        className: "min-w-[12rem]",
+        render: (order) => (
+          <p className="min-w-0 text-sm text-muted">{itemSummary(order, t)}</p>
+        ),
+      },
+      {
+        key: "date",
+        title: t("pages.transferOrders.columns.date"),
+        width: "9rem",
+        share: 1,
+        className: "min-w-[9rem] whitespace-nowrap",
+        render: (order) => (
+          <span className="text-muted">{formatDisplayDate(order.createdAt)}</span>
+        ),
+      },
+      {
+        key: "status",
+        title: t("pages.transferOrders.columns.status"),
+        width: "10rem",
+        share: 1,
+        cellAlign: "center",
+        className: "min-w-[10rem] overflow-visible",
+        render: (order) => (
+          <StatusBadge status={transferOrderStatusTone(order.status)} compact>
+            {t(transferOrderStatusKey(order.status))}
+          </StatusBadge>
+        ),
+      },
+    ];
+    return cols;
+  }, [t]);
 
   if (orders.length === 0) return null;
 
   return (
     <section className="mb-5 space-y-3">
-      <div>
-        <h2 className="text-base font-semibold text-text">
-          {t(
-            orders.length === 1
-              ? "pages.transferOrders.pendingTitle"
-              : "pages.transferOrders.pendingTitleOther"
-          )}
-        </h2>
-        <p className="mt-1 text-sm text-subtle">
-          {t("pages.transferOrders.pendingDesc")}
-        </p>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {orders.map((order) => (
-          <Link
-            key={order.id}
-            href={order.href}
-            className="group flex items-start gap-4 rounded-2xl border border-border bg-card px-4 py-4 transition hover:border-border-strong hover:bg-elevated/40"
-          >
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-inset text-muted">
-              <Package className="h-5 w-5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-semibold text-subtle">
-                {t("pages.transferOrders.pendingTitle")}
-              </p>
-              <p className="mt-0.5 truncate font-semibold text-text">
-                {order.isInternal
-                  ? t("pages.transferOrders.internalSection")
-                  : order.clientName}
-              </p>
-              <p className="mt-0.5 truncate text-sm text-muted">
-                {order.projectName}
-              </p>
-              <p className="mt-1 truncate text-xs text-subtle">
-                {itemSummary(order, t)}
-                {" · "}
-                {formatDisplayDate(order.createdAt)}
-              </p>
-              <div className="mt-2">
-                <StatusBadge
-                  status={transferOrderStatusTone(order.status)}
-                  compact
-                >
-                  {t(transferOrderStatusKey(order.status))}
-                </StatusBadge>
-              </div>
-            </div>
-            <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted transition group-hover:text-text" />
-          </Link>
-        ))}
-      </div>
+      <h2 className="text-base font-semibold text-text">
+        {t(
+          orders.length === 1
+            ? "pages.transferOrders.pendingTitle"
+            : "pages.transferOrders.pendingTitleOther"
+        )}{" "}
+        <span className="font-medium text-subtle">({orders.length})</span>
+      </h2>
+      <DataTable
+        columns={columns}
+        data={orders}
+        getRowKey={(order) => order.id}
+        onRowClick={(order) => router.push(order.href)}
+        emptyMessage={t("pages.transferOrders.emptyTitle")}
+      />
     </section>
   );
 }

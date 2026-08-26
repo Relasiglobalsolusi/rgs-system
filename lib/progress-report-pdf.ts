@@ -56,6 +56,8 @@ type CompilePdfInput = {
   clientPhone?: string | null;
   /** Client Company Tax ID (NPWP) — shown when present. */
   clientNpwp?: string | null;
+  /** Institution remits VAT; cash-in is DPP only. */
+  isGovernmentContract?: boolean | null;
 };
 
 function publicUrlToFsPath(url: string): string | null {
@@ -512,6 +514,17 @@ function drawPaymentAndNotes(
       `Supporting documentation: ${reportCount} progress report(s) for this project/location in the period above are attached after this invoice page.`,
       { width: CONTENT_WIDTH }
     );
+  if (input.isGovernmentContract) {
+    doc.moveDown(0.4);
+    doc
+      .font("Helvetica")
+      .fontSize(8.5)
+      .fillColor(BRAND.body)
+      .text(
+        "This amount does not include tax. The client (institution) pays the tax. Relasi Global Solusi does not remit that VAT, and no tax leaves our account.",
+        { width: CONTENT_WIDTH }
+      );
+  }
   doc.moveDown(1.2);
 
   drawBrandAccentBar(doc, doc.y, false);

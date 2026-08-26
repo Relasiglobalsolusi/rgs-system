@@ -9,6 +9,7 @@ import {
   backfillSecurityDepositRequiredForSiteRoles,
   ensureWorkforceDepartments,
 } from "@/lib/positions";
+import { getEmployeeCompanyBalances } from "@/lib/employee-company-balance";
 import { applyResignIfLastDayReachedMany } from "@/lib/employee-resign";
 import { canManageEmployees, canResignEmployees } from "@/lib/project-access";
 import { requireModule, toPermissionUser } from "@/lib/session";
@@ -176,11 +177,17 @@ export default async function EmployeesPage() {
     employees.map((employee) => employee.id)
   );
 
+  const balances = await getEmployeeCompanyBalances(
+    prisma,
+    employees.map((employee) => employee.id)
+  );
+
   const employeeRows = employees.map((employee) => ({
     ...employee,
     basePay: decimalToNumber(employee.basePay),
     jkkPercent: decimalToNumber(employee.jkkPercent),
     depositHeldAmount: decimalToNumber(employee.depositHeldAmount) ?? 0,
+    amountOwedToCompany: balances.get(employee.id)?.amountOwed ?? 0,
     hasPendingLeaveRequest: employee._count.leaveRequests > 0,
   }));
 

@@ -4,10 +4,14 @@ import { redirect } from "next/navigation";
 import PurchaseInvoiceDetailClient from "@/components/billing/PurchaseInvoiceDetailClient";
 import AppShell from "@/components/layout/AppShell";
 import BackLink from "@/components/ui/BackLink";
+import { PageDocumentActions } from "@/components/ui/PageDocumentActions";
 import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { formatDisplayDate } from "@/lib/format-date";
-import { commercialTaxKindLabelKey } from "@/lib/commercial-tax";
+import {
+  commercialTaxIncludesIncomeTax,
+  commercialTaxKindLabelKey,
+} from "@/lib/commercial-tax";
 import { governmentTaxKindLabelKey } from "@/lib/government-tax";
 import { localizeInventoryItemType } from "@/lib/i18n/labels";
 import { getServerLocale } from "@/lib/i18n/locale";
@@ -28,11 +32,14 @@ import {
   purchaseNeedsImportBankRate,
 } from "@/lib/purchase-amount-display";
 import { formatBankAccountOptionLabel } from "@/lib/company-bank-accounts";
+import { formatVendorBankAccountLabel } from "@/lib/vendor-bank-accounts";
 import { listPurchaseDocumentSlots } from "@/lib/purchase-invoice-documents";
+import { formatTaxInvoiceSerial } from "@/lib/tax-invoice-serial";
 import {
   getPurchaseRecordStatus,
   purchaseRecordStatusLabelKey,
 } from "@/lib/purchase-record-status";
+import { isPrepaidCardTopUpInvoice } from "@/lib/advance-cash-expense";
 import {
   displayImportCifBreakdown,
   formatImportCifFormulaLabel,
@@ -85,6 +92,17 @@ export default async function PurchaseInvoiceDetailPage({
           sortOrder: true,
         },
       },
+      vendorBankAccount: {
+        select: {
+          bankName: true,
+          accountNumber: true,
+          accountHolder: true,
+          label: true,
+        },
+      },
+      employee: {
+        select: { firstName: true, lastName: true, employeeNo: true },
+      },
       handlingVendor: { select: { name: true } },
       project: { select: { id: true, name: true } },
       createdBy: { select: { name: true } },
@@ -104,6 +122,15 @@ export default async function PurchaseInvoiceDetailPage({
   if (!invoice) {
     redirect("/billing/purchase-invoices");
   }
+
+  const handlingVendors = await prisma.vendor.findMany({
+    where: {
+      companyId: session.user.companyId,
+      active: true,
+    },
+    select: { id: true, name: true, vendorType: true },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+  });
 
   const user = toPermissionUser(session);
   const canManage =
@@ -129,6 +156,10 @@ export default async function PurchaseInvoiceDetailPage({
     importDutiesFilePath: invoice.importDutiesFilePath,
     handlingInvoicePath: invoice.handlingFeeTaxInvoicePath,
     paymentProofPath: invoice.paymentProofPath,
+    withholdingSlipPath: invoice.withholdingSlipPath,
+    includesPpn: invoice.includesPpn,
+    handlingIncludesPpn: invoice.handlingFeeIncludesPpn,
+    showWithholding: commercialTaxIncludesIncomeTax(invoice.includedTaxKind),
     hasHandling: Boolean(
       invoice.handlingVendorId ||
         invoice.handlingFeeIdr ||
@@ -138,8 +169,9 @@ export default async function PurchaseInvoiceDetailPage({
     hasCustomsFees: invoice.hasCustomsFees,
   });
 
-  const purposeLabel =
-    invoice.purchaseCategory === "VEHICLE"
+  const purposeLabel = isPrepaidCardTopUpInvoice(invoice)
+    ? t("pages.billing.vehicleExpenseKindPrepaid")
+    : invoice.purchaseCategory === "VEHICLE"
       ? t("pages.billing.purchaseVehicleBought")
       : invoice.purpose === "PROJECT"
         ? t("pages.billing.purchasePurposeProject")
@@ -159,7 +191,17 @@ export default async function PurchaseInvoiceDetailPage({
             ? t("pages.billing.purchaseCategoryVehicle")
             : invoice.purchaseCategory === "BANK_LOAN"
               ? t("pages.billing.purchaseCategoryBankLoan")
-              : t("pages.billing.purchaseCategoryProduct");
+              : invoice.purchaseCategory === "EMPLOYEE_PAYMENT"
+                ? t("pages.billing.purchaseCategoryEmployee")
+                : t("pages.billing.purchaseCategoryProduct");
+  const employeePaymentKindLabel =
+    invoice.employeePaymentKind === "INTERNAL_PAYROLL"
+      ? t("pages.billing.employeePaymentInternalPayroll")
+      : invoice.employeePaymentKind === "THR"
+        ? t("pages.billing.employeePaymentThr")
+        : invoice.employeePaymentKind === "CASH_ADVANCE"
+          ? t("pages.billing.employeePaymentCashAdvance")
+          : null;
   const factoryAmountIdr = decimalToNumber(invoice.invoiceAmountIdr) ?? 0;
   const bankRate = decimalToNumber(invoice.exchangeRateToIdr);
   const paidBankRate = decimalToNumber(invoice.paidExchangeRateToIdr);
@@ -333,12 +375,25 @@ export default async function PurchaseInvoiceDetailPage({
             ? t("pages.billing.purchaseCategoryVehicle")
             : null;
 
+  const readyDocuments = documents.flatMap((doc) =>
+    doc.href
+      ? [
+          {
+            href: doc.href,
+            label: t(doc.titleKey),
+            icon: "download" as const,
+          },
+        ]
+      : []
+  );
+
   return (
     <AppShell title={invoice.supplierName}>
-      <div className="mb-4">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         <BackLink href="/billing/purchase-invoices">
           {t("pages.billing.purchaseBackToExpenses")}
         </BackLink>
+        <PageDocumentActions documents={readyDocuments} />
       </div>
 
       <div className="space-y-5">
@@ -417,6 +472,16 @@ export default async function PurchaseInvoiceDetailPage({
                   </td>
                 </tr>
               )}
+              {invoice.taxInvoiceSerial ? (
+                <tr className="border-b border-border">
+                  <th scope="row" className={metaLabelClassName}>
+                    {t("pages.vat.columns.taxInvoiceNumber")}
+                  </th>
+                  <td className={`${metaValueClassName} tabular-nums`}>
+                    {formatTaxInvoiceSerial(invoice.taxInvoiceSerial)}
+                  </td>
+                </tr>
+              ) : null}
               <tr className="border-b border-border">
                 <th scope="row" className={metaLabelClassName}>
                   {invoice.hasInvoice
@@ -431,8 +496,24 @@ export default async function PurchaseInvoiceDetailPage({
                 <th scope="row" className={metaLabelClassName}>
                   {t("pages.billing.purchaseCategory")}
                 </th>
-                <td className={metaValueClassName}>{categoryLabel}</td>
+                <td className={metaValueClassName}>
+                  {categoryLabel}
+                  {employeePaymentKindLabel ? ` · ${employeePaymentKindLabel}` : ""}
+                </td>
               </tr>
+              {invoice.employee ? (
+                <tr className="border-b border-border">
+                  <th scope="row" className={metaLabelClassName}>
+                    {t("pages.billing.employeePaymentEmployee")}
+                  </th>
+                  <td className={metaValueClassName}>
+                    {`${invoice.employee.firstName} ${invoice.employee.lastName}`.trim()}
+                    <span className="ml-2 font-mono text-xs text-muted">
+                      {invoice.employee.employeeNo}
+                    </span>
+                  </td>
+                </tr>
+              ) : null}
               {invoice.purchaseCategory === "SERVICE" ||
               invoice.purchaseCategory === "VEHICLE" ? (
                 <tr className="border-b border-border">
@@ -460,16 +541,26 @@ export default async function PurchaseInvoiceDetailPage({
                   <td className={metaValueClassName}>{invoice.vehicleYear}</td>
                 </tr>
               ) : null}
-              {invoice.bankAccount ? (
-                <tr className="border-b border-border">
-                  <th scope="row" className={metaLabelClassName}>
-                    {t("pages.billing.purchaseBankAccount")}
-                  </th>
-                  <td className={metaValueClassName}>
-                    {formatBankAccountOptionLabel(invoice.bankAccount)}
-                  </td>
-                </tr>
-              ) : null}
+              <tr className="border-b border-border">
+                <th scope="row" className={metaLabelClassName}>
+                  {t("pages.billing.payFromAccount")}
+                </th>
+                <td className={metaValueClassName}>
+                  {invoice.bankAccount
+                    ? formatBankAccountOptionLabel(invoice.bankAccount)
+                    : t("pages.billing.payFromPending")}
+                </td>
+              </tr>
+              <tr className="border-b border-border">
+                <th scope="row" className={metaLabelClassName}>
+                  {t("pages.billing.payToAccount")}
+                </th>
+                <td className={metaValueClassName}>
+                  {invoice.vendorBankAccount
+                    ? formatVendorBankAccountLabel(invoice.vendorBankAccount)
+                    : t("pages.billing.payToPending")}
+                </td>
+              </tr>
               {invoice.includedTaxKind ? (
                 <tr className="border-b border-border">
                   <th scope="row" className={metaLabelClassName}>
@@ -1188,7 +1279,11 @@ export default async function PurchaseInvoiceDetailPage({
               invoiceCurrency={invoice.invoiceCurrency}
               invoiceForeignAmount={invoiceForeignAmount}
               bookingRate={bankRate}
+              showWithholdingSlip={commercialTaxIncludesIncomeTax(
+                invoice.includedTaxKind
+              )}
               showLocalTaxUpload={
+                invoice.includesPpn &&
                 invoice.origin !== "IMPORT" &&
                 invoice.purchaseCategory !== "GOVERNMENT" &&
                 invoice.purchaseCategory !== "PETTY_CASH" &&
@@ -1198,9 +1293,25 @@ export default async function PurchaseInvoiceDetailPage({
                 canManage &&
                 !invoice.reversedAt &&
                 invoice.origin === "IMPORT" &&
-                invoice.importFulfillment !== "OUTSOURCED" &&
-                !invoice.importDutiesPaidAt
+                (
+                  (
+                    invoice.importFulfillment !== "OUTSOURCED" &&
+                    !invoice.importDutiesPaidAt
+                  ) ||
+                  (
+                    invoice.handlingDueWithDuties &&
+                    !invoice.handlingVendorId
+                  )
+                )
               }
+              needsHandlingWithDuties={
+                invoice.handlingDueWithDuties && !invoice.handlingVendorId
+              }
+              handlingVendors={handlingVendors.map((vendor) => ({
+                id: vendor.id,
+                name: vendor.name,
+                vendorType: vendor.vendorType,
+              }))}
               importDutiesBillingId={invoice.importDutiesBillingId}
               isImport={isImport}
               importArrival={{

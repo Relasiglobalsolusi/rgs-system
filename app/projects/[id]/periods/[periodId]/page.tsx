@@ -2,10 +2,15 @@ import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Download, FileText } from "lucide-react";
+import { PageDocumentActions } from "@/components/ui/PageDocumentActions";
 
 import { prisma } from "@/lib/prisma";
 import { requireSession, toPermissionUser } from "@/lib/session";
-import { getProjectWhereForUser } from "@/lib/project-access";
+import {
+  canManageProjects,
+  getProjectWhereForUser,
+  isClientPortalUser,
+} from "@/lib/project-access";
 import { canAccess } from "@/lib/permissions";
 import { PROJECT_LIST_VIEW_PATHS } from "@/lib/project-status";
 import {
@@ -31,6 +36,8 @@ import {
   projectDetailHref,
 } from "@/lib/project-directory-rows";
 import { isInternalProjectSubCategory } from "@/lib/project-subcategory";
+import { isAwaitingClientAction } from "@/lib/client-billing-review";
+import HoOfflineClientReviewPanel from "@/components/billing/HoOfflineClientReviewPanel";
 
 import AppShell from "@/components/layout/AppShell";
 import BackLink from "@/components/ui/BackLink";
@@ -64,7 +71,7 @@ export default async function ProjectPeriodPage({
   const project = await prisma.project.findFirst({
     where: { id, ...projectWhere },
     include: {
-      client: { select: { id: true, name: true } },
+      client: { select: { id: true, name: true, hasPortalAccess: true } },
     },
   });
 
@@ -159,6 +166,13 @@ export default async function ProjectPeriodPage({
       ? projectBillingHref(project.clientId, project.id, period.id)
       : null;
   const canOpenProgress = canAccess(permissionUser, "progress");
+  const canManage =
+    canManageProjects(permissionUser) && !isClientPortalUser(permissionUser);
+  const showOfflineHoReview =
+    canManage &&
+    project.client?.hasPortalAccess === false &&
+    pendingApproval &&
+    isAwaitingClientAction(period.clientReviewStatus);
   const reportCount = Math.max(period.reportCount, reports.length);
 
   const whatThisIs =
@@ -196,6 +210,8 @@ export default async function ProjectPeriodPage({
       why.push(t("pages.projects.periodPage.pendingApprovalClientRevised"));
     } else if (period.clientReviewStatus === "HO_REJECTED_REVISION") {
       why.push(t("pages.projects.periodPage.pendingApprovalHoRejected"));
+    } else if (project.client?.hasPortalAccess === false) {
+      why.push(t("pages.projects.periodPage.pendingApprovalNoPortalWhy"));
     } else {
       why.push(t("pages.projects.periodPage.pendingApprovalWhy"));
     }
@@ -245,7 +261,7 @@ export default async function ProjectPeriodPage({
     period.invoicePdfPath
       ? {
           href: period.invoicePdfPath,
-          label: t("pages.projects.detail.downloadPdf"),
+          label: t("pages.projects.detail.downloadInvoice"),
           icon: "download" as const,
         }
       : null,
@@ -310,6 +326,7 @@ export default async function ProjectPeriodPage({
             {t("pages.projects.periodPage.openAllReports")}
           </Link>
         ) : null}
+        <PageDocumentActions documents={documents} />
       </div>
 
       <div className="space-y-5">
@@ -378,6 +395,15 @@ export default async function ProjectPeriodPage({
             ) : null}
           </div>
         </SectionCard>
+
+        {showOfflineHoReview ? (
+          <SectionCard className={sectionCardClassName}>
+            <HoOfflineClientReviewPanel
+              periodId={period.id}
+              proposedAmount={amount}
+            />
+          </SectionCard>
+        ) : null}
 
         <SectionCard className={`${sectionCardClassName} overflow-hidden p-0`}>
           <h3 className={`${sectionTitleClassName} px-4 pt-5 sm:px-5`}>
@@ -574,7 +600,10 @@ export default async function ProjectPeriodPage({
                   rel="noreferrer"
                   className={cn(
                     buttonVariants({
-                      variant: "infoBadge",
+                      variant:
+                        doc.icon === "download"
+                          ? "permissionsBadge"
+                          : "infoBadge",
                       size: "badgeFlex",
                     })
                   )}

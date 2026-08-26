@@ -113,6 +113,7 @@ type Props = {
   toolbar?: ReactNode;
   canAssignCover?: boolean;
   projectMissing?: boolean;
+  usesNamedShifts?: boolean;
 };
 
 function ShiftWindowForm({
@@ -222,11 +223,13 @@ function StaffShiftForm({
   shifts,
   doubleShifts,
   canAssignCover,
+  hideShift = false,
 }: {
   row: ShiftAssignmentRow;
   shifts: ShiftWindowRow[];
   doubleShifts: ShiftDoubleRow[];
   canAssignCover: boolean;
+  hideShift?: boolean;
 }) {
   const { t, locale } = useT();
   const [pending, startTransition] = useTransition();
@@ -278,6 +281,7 @@ function StaffShiftForm({
       <td className="px-3 py-3 align-middle text-sm text-muted">
         {formatEmploymentTypeLabel(row.employee.employmentType, locale)}
       </td>
+      {hideShift ? null : (
       <td className="px-3 py-3 align-middle">
         <Select
           value={selected}
@@ -305,6 +309,7 @@ function StaffShiftForm({
           </SelectContent>
         </Select>
       </td>
+      )}
     </tr>
   );
 }
@@ -318,6 +323,7 @@ export default function ShiftsDirectory({
   toolbar,
   canAssignCover = false,
   projectMissing = false,
+  usesNamedShifts = true,
 }: Props) {
   const { t } = useT();
   const [query, setQuery] = useState("");
@@ -351,6 +357,7 @@ export default function ShiftsDirectory({
         <div className="flex flex-wrap items-center gap-2">{toolbar}</div>
       ) : null}
 
+      {usesNamedShifts ? (
       <SectionCard className="overflow-hidden p-0">
         <div className="border-b border-border px-4 py-3">
           <h2 className="text-sm font-semibold text-text">
@@ -394,10 +401,13 @@ export default function ShiftsDirectory({
           </div>
         )}
       </SectionCard>
+      ) : null}
 
       <div>
         <h2 className="mb-3 text-sm font-semibold text-text">
-          {t("pages.shifts.rosterTitle")}
+          {usesNamedShifts
+            ? t("pages.shifts.rosterTitle")
+            : t("pages.shifts.assignedStaffTitle")}
         </h2>
         <div className="mb-3">
           <DirectorySearchInput
@@ -435,9 +445,11 @@ export default function ShiftsDirectory({
                     <th className="px-3 py-2.5 text-left font-semibold">
                       {t("pages.shifts.columns.employmentType")}
                     </th>
-                    <th className="px-3 py-2.5 text-left font-semibold">
-                      {t("pages.shifts.assignShift")}
-                    </th>
+                    {usesNamedShifts ? (
+                      <th className="px-3 py-2.5 text-left font-semibold">
+                        {t("pages.shifts.assignShift")}
+                      </th>
+                    ) : null}
                   </tr>
                 </thead>
                 <tbody>
@@ -448,6 +460,7 @@ export default function ShiftsDirectory({
                       shifts={shifts}
                       doubleShifts={doubleShifts}
                       canAssignCover={canAssignCover}
+                      hideShift={!usesNamedShifts}
                     />
                   ))}
                 </tbody>

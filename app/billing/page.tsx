@@ -119,67 +119,73 @@ export default async function BillingPage() {
     >
       <BillingBreadcrumbs items={[{ label: t("pages.billing.title") }]} />
 
-      {!portalClientId && dueMonthlyReminders > 0 ? (
-        <SectionCard className="mb-5 border-amber-500/30 bg-card-tint-amber">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
-              <div>
-                <p className="font-medium text-amber-100">
-                  {t("pages.billing.cyclesReadyTitle", {
-                    count: dueMonthlyReminders,
-                  })}
-                </p>
-                {t("pages.billing.cyclesReadyDesc") ? (
-                  <p className="mt-1 text-sm text-muted">
-                    {t("pages.billing.cyclesReadyDesc")}
-                  </p>
-                ) : null}
-              </div>
-            </div>
-            <Link
-              href="/projects?view=in-progress"
-              className={cn(
-                buttonVariants({ variant: "warningBadge", size: "badge" }),
-                "!w-auto !min-w-[7.5rem] !max-w-none px-3"
-              )}
-            >
-              {t("pages.billing.openInProgress")}
-            </Link>
-          </div>
-        </SectionCard>
-      ) : null}
-
-      {!portalClientId && pendingTaxInvoiceCount > 0 ? (
-        <SectionCard className="mb-5 border-amber-500/30 bg-card-tint-amber">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
-              <div>
-                <p className="font-medium text-amber-100">
-                  {t("pages.billing.taxStillNeedTitle", {
-                    count: pendingTaxInvoiceCount,
-                  })}
-                </p>
-                <p className="mt-1 text-sm text-muted">
-                  {t("pages.billing.taxStillNeedDesc")}
-                </p>
-              </div>
-            </div>
-            <Link
-              href="/billing/tax-invoices"
-              className={cn(
-                buttonVariants({ variant: "warningBadge", size: "badge" }),
-                "!w-auto !min-w-[7.5rem] !max-w-none px-3"
-              )}
-            >
-              {t("pages.billing.openTaxChecklist")}
-            </Link>
-          </div>
-        </SectionCard>
-      ) : null}
-
-      <BillingClientDirectory clients={rows} />
+      <BillingClientDirectory
+        clients={rows}
+        alerts={
+          !portalClientId ? (
+            <>
+              {dueMonthlyReminders > 0 ? (
+                <SectionCard className="border-amber-500/30 bg-card-tint-amber">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
+                      <div>
+                        <p className="font-medium text-amber-100">
+                          {t("pages.billing.cyclesReadyTitle", {
+                            count: dueMonthlyReminders,
+                          })}
+                        </p>
+                        {t("pages.billing.cyclesReadyDesc") ? (
+                          <p className="mt-1 text-sm text-muted">
+                            {t("pages.billing.cyclesReadyDesc")}
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                    <Link
+                      href="/projects?view=in-progress"
+                      className={cn(
+                        buttonVariants({ variant: "warningBadge", size: "badge" }),
+                        "!w-auto !min-w-[7.5rem] !max-w-none px-3"
+                      )}
+                    >
+                      {t("pages.billing.openInProgress")}
+                    </Link>
+                  </div>
+                </SectionCard>
+              ) : null}
+              {pendingTaxInvoiceCount > 0 ? (
+                <SectionCard className="border-amber-500/30 bg-card-tint-amber">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
+                      <div>
+                        <p className="font-medium text-amber-100">
+                          {t("pages.billing.taxStillNeedTitle", {
+                            count: pendingTaxInvoiceCount,
+                          })}
+                        </p>
+                        <p className="mt-1 text-sm text-muted">
+                          {t("pages.billing.taxStillNeedDesc")}
+                        </p>
+                      </div>
+                    </div>
+                    <Link
+                      href="/billing/tax-invoices"
+                      className={cn(
+                        buttonVariants({ variant: "warningBadge", size: "badge" }),
+                        "!w-auto !min-w-[7.5rem] !max-w-none px-3"
+                      )}
+                    >
+                      {t("pages.billing.openTaxChecklist")}
+                    </Link>
+                  </div>
+                </SectionCard>
+              ) : null}
+            </>
+          ) : null
+        }
+      />
     </AppShell>
   );
 }

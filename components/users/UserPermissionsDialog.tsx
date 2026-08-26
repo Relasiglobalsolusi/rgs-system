@@ -289,6 +289,7 @@ export default function UserPermissionsDialog({
                 : t("pages.users.savePermissions")}
             </EmployeePrimaryButton>
             <EmployeeSecondaryButton
+              closesDialog={false}
               disabled={pending || overrideCount === 0}
               onClick={handleReset}
             >

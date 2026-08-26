@@ -12,7 +12,7 @@ import { requireSession, toPermissionUser } from "@/lib/session";
 import { getProjectWhereForUser, canManageProjects } from "@/lib/project-access";
 import { canAccess } from "@/lib/permissions";
 import { formatDisplayDate } from "@/lib/format-date";
-import { isInternalProjectSubCategory } from "@/lib/project-subcategory";
+import { isRgsInternalProject } from "@/lib/project-subcategory";
 import {
   CLEANING_DIRECTORY_SUB_CHIPS,
   DIRECTORY_ALL_SECTION_ORDER,
@@ -26,6 +26,7 @@ import {
   toCustomChip,
   type DirectorySectionKey,
 } from "@/lib/project-directory-chips";
+import { buildProjectsHref } from "@/lib/project-directory-href";
 import {
   catalogDisplayName,
   type ProjectCatalogAreaDTO,
@@ -56,6 +57,7 @@ import {
   buildProjectDirectoryItems,
   formatDirectoryDateRange,
   isDirectoryPeriodRow,
+  itemsForDirectoryView,
   projectBillingHref,
   projectDetailHref,
   projectPeriodHref,
@@ -87,6 +89,7 @@ import ProjectTable, {
   type ProjectTableRow,
 } from "@/components/projects/ProjectTable";
 import DirectoryFilterTab from "@/components/ui/DirectoryFilterTab";
+import ProjectsClientFilter from "@/components/projects/ProjectsClientFilter";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
 import type { MessageKey } from "@/lib/i18n/messages";
@@ -143,21 +146,6 @@ function resolveProjectListView(
   if (raw === "history") return "completed";
   if (isProjectListView(raw)) return raw;
   return undefined;
-}
-
-function buildProjectsHref(opts: {
-  clientId?: string;
-  view?: ProjectListView;
-  area?: string;
-  sub?: string;
-}) {
-  const params = new URLSearchParams();
-  if (opts.clientId) params.set("clientId", opts.clientId);
-  if (opts.view) params.set("view", opts.view);
-  if (opts.area && opts.area !== "all") params.set("area", opts.area);
-  if (opts.sub) params.set("sub", opts.sub);
-  const query = params.toString();
-  return query ? `/projects?${query}` : "/projects";
 }
 
 function viewCopy(view: ProjectListView | undefined): {
@@ -434,7 +422,7 @@ export default async function ProjectsPage({
             ],
           })
         : Promise.resolve([]),
-      canManage
+      !session.user.clientId
         ? prisma.client.findMany({
             where: { companyId: company.id, active: true },
             orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -516,16 +504,19 @@ export default async function ProjectsPage({
         })
       : projectsRaw;
 
-  const directoryItems = buildProjectDirectoryItems(projectsSorted, filterView);
+  const directoryItems = itemsForDirectoryView(
+    buildProjectDirectoryItems(projectsSorted, filterView),
+    filterView
+  );
   const projects = projectsSorted;
 
-  const tableRows: ProjectTableRow[] = serializeDirectoryDecimals(
-    directoryItems.map(({ key, project, kind, focusPeriod }) => {
+  const tableRows: ProjectTableRow[] = directoryItems.map(
+    ({ key, project, kind, focusPeriod }) => {
       const isPeriodRow = Boolean(
         isDirectoryPeriodRow(kind) && focusPeriod
       );
       const isPlanningCard = kind === "planning";
-      const isInternal = isInternalProjectSubCategory(project.subCategory);
+      const isInternal = isRgsInternalProject(project);
       const periodLine =
         isPeriodRow && focusPeriod
           ? formatDirectoryDateRange(
@@ -709,8 +700,12 @@ export default async function ProjectsPage({
             ? catalogDisplayName(project.subcategoryCatalog, locale)
             : localizeSubCategory(project.subCategory, locale),
       };
-    })
-  ) as ProjectTableRow[];
+    }
+  ).map((row) => ({
+    ...serializeDirectoryDecimals(row),
+    key: row.key,
+    rowKind: row.rowKind,
+  })) as ProjectTableRow[];
 
   const customAreas = serviceCatalog.filter((area) => !area.isSystem);
   const topChips = [
@@ -872,6 +867,7 @@ export default async function ProjectsPage({
       rows: tableRows.filter((row) => {
         const section = directorySectionForProject({
           subCategory: row.project.subCategory,
+          clientId: row.project.clientId,
           areaCatalogId: row.project.areaCatalogId,
           subcategoryCatalogIsSystem: row.project.subcategoryCatalog?.isSystem,
           subcategoryBillingKind: row.project.subcategoryCatalog?.billingKind,
@@ -932,15 +928,32 @@ export default async function ProjectsPage({
             : null
         }
         actions={
-          canManage && filterView === "completed" && projects.length > 0 ? (
-            <ProjectHistoryClearAllDialog
-              projects={projects.map((project) => ({
-                id: project.id,
-                name: project.name,
-                clientName: project.client?.name ?? null,
-              }))}
-            />
-          ) : null
+          <>
+            {canManage && filterView === "completed" && projects.length > 0 ? (
+              <ProjectHistoryClearAllDialog
+                projects={projects.map((project) => ({
+                  id: project.id,
+                  name: project.name,
+                  clientName: project.client?.name ?? null,
+                }))}
+              />
+            ) : null}
+            {canManage &&
+            (SUBCATEGORY_CHIP_VIEWS.has(filterView) || showCreate) ? (
+              <>
+                {showCreate ? (
+                  <ProjectAddControl
+                    employees={serializeDirectoryDecimals(staffEmployees)}
+                    teams={serializeDirectoryDecimals(teamOptions)}
+                    clients={serializeDirectoryDecimals(clients)}
+                    catalog={serviceCatalog}
+                    bankAccounts={bankAccounts}
+                  />
+                ) : null}
+                <ProjectServiceAreaManageDialog catalog={serviceCatalog} />
+              </>
+            ) : null}
+          </>
         }
       />
 
@@ -964,40 +977,38 @@ export default async function ProjectsPage({
 
       {(SUBCATEGORY_CHIP_VIEWS.has(filterView) || showCreate) && (
         <div className="mb-5 space-y-4">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-4">
-            {SUBCATEGORY_CHIP_VIEWS.has(filterView)
-              ? topChips.map((pill) => {
-                  const isActive =
-                    pill.key === "all"
-                      ? directoryChips.area === "all"
-                      : directoryChips.area === pill.key;
+          {!session.user.clientId && clients.length > 0 ? (
+            <ProjectsClientFilter
+              clients={clients.map((client) => ({
+                id: client.id,
+                name: client.name,
+              }))}
+              selectedClientId={filterClientId}
+              view={filterView}
+              area={directoryChips.area}
+              sub={directoryChips.sub}
+            />
+          ) : null}
+          {SUBCATEGORY_CHIP_VIEWS.has(filterView) ? (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-4">
+              {topChips.map((pill) => {
+                const isActive =
+                  pill.key === "all"
+                    ? directoryChips.area === "all"
+                    : directoryChips.area === pill.key;
 
-                  return (
-                    <DirectoryFilterTab
-                      key={pill.key}
-                      href={pill.href}
-                      active={isActive}
-                    >
-                      {pill.label}
-                    </DirectoryFilterTab>
-                  );
-                })
-              : null}
-            {canManage ? (
-              <div className="ml-auto flex flex-wrap items-center justify-end gap-4">
-                {showCreate ? (
-                  <ProjectAddControl
-                    employees={serializeDirectoryDecimals(staffEmployees)}
-                    teams={serializeDirectoryDecimals(teamOptions)}
-                    clients={serializeDirectoryDecimals(clients)}
-                    catalog={serviceCatalog}
-                    bankAccounts={bankAccounts}
-                  />
-                ) : null}
-                <ProjectServiceAreaManageDialog catalog={serviceCatalog} />
-              </div>
-            ) : null}
-          </div>
+                return (
+                  <DirectoryFilterTab
+                    key={pill.key}
+                    href={pill.href}
+                    active={isActive}
+                  >
+                    {pill.label}
+                  </DirectoryFilterTab>
+                );
+              })}
+            </div>
+          ) : null}
           {SUBCATEGORY_CHIP_VIEWS.has(filterView) && subChips.length > 0 ? (
             <div className="flex flex-wrap items-center gap-2">
               {subChips.map((pill) => (
@@ -1049,6 +1060,7 @@ export default async function ProjectsPage({
         <div className="space-y-6">
           {typeSections.map((section) => (
             <section key={section.key}>
+              {typeSections.length > 1 || !filteredTitle ? (
               <div className="mb-3">
                 <h3 className="text-base font-semibold text-text">
                   {section.label}
@@ -1069,6 +1081,7 @@ export default async function ProjectsPage({
                       )}
                 </p>
               </div>
+              ) : null}
               {(section.key === "CLEANING" || section.key === "LANDSCAPING") &&
               canManage &&
               (filterView === undefined ||
@@ -1079,6 +1092,7 @@ export default async function ProjectsPage({
                 </p>
               ) : null}
               <ProjectTable
+                key={`${filterView ?? "all"}-${section.key}`}
                 rows={section.rows}
                 filterView={filterView}
                 canManage={canManage}

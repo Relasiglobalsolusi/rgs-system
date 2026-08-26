@@ -20,7 +20,10 @@ export type PurchaseInvoiceTableRow = {
     | "PETTY_CASH"
     | "GOVERNMENT"
     | "VEHICLE"
-    | "BANK_LOAN";
+    | "BANK_LOAN"
+    | "EMPLOYEE_PAYMENT";
+  payFromLabel?: string | null;
+  payToLabel?: string | null;
   freeOfCharge?: boolean;
   hasInvoice?: boolean;
   paymentStatus?: "open" | "overdue" | "paid" | null;
@@ -72,6 +75,14 @@ function PurchaseInvoiceCard({ row }: { row: PurchaseInvoiceTableRow }) {
             </span>
             {row.invoiceDateLabel}
           </p>
+          {row.payFromLabel || row.payToLabel ? (
+            <p className="mt-1 truncate text-xs leading-snug text-muted">
+              {t("pages.billing.expenseReportBanks", {
+                from: row.payFromLabel || "—",
+                to: row.payToLabel || "—",
+              })}
+            </p>
+          ) : null}
         </>
       }
       status={

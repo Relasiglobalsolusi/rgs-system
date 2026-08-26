@@ -53,6 +53,26 @@
   --color-warning: #fbbf24;
   --color-danger: #f87171;
 
+  /*
+   * Chip hues — same mid-tone shade so amber/red do not pop over mint/cyan.
+   * Fill is a light wash of that hue; ink is a deeper mix of the same hue.
+   */
+  --color-chip-emerald: #4aa896;
+  --color-chip-cyan: #4aadc0;
+  --color-chip-amber: #c9a24c;
+  --color-chip-rose: #d07c82;
+  --color-chip-slate: #8b9aaf;
+  --color-chip-fill-emerald: color-mix(in srgb, var(--color-chip-emerald) 84%, white);
+  --color-chip-fill-cyan: color-mix(in srgb, var(--color-chip-cyan) 84%, white);
+  --color-chip-fill-amber: color-mix(in srgb, var(--color-chip-amber) 84%, white);
+  --color-chip-fill-rose: color-mix(in srgb, var(--color-chip-rose) 84%, white);
+  --color-chip-fill-slate: color-mix(in srgb, var(--color-chip-slate) 84%, white);
+  --color-chip-ink-emerald: color-mix(in srgb, var(--color-chip-emerald) 16%, black);
+  --color-chip-ink-cyan: color-mix(in srgb, var(--color-chip-cyan) 16%, black);
+  --color-chip-ink-amber: color-mix(in srgb, var(--color-chip-amber) 16%, black);
+  --color-chip-ink-rose: color-mix(in srgb, var(--color-chip-rose) 16%, black);
+  --color-chip-ink-slate: color-mix(in srgb, var(--color-chip-slate) 16%, black);
+
   --color-border: rgba(176, 200, 224, 0.48);
   --color-border-strong: rgba(190, 214, 232, 0.7);
   --color-input: rgba(176, 200, 224, 0.4);
@@ -1471,6 +1491,22 @@ html:not(.dark) {
   --color-success: #059669;
   --color-warning: #d97706;
   --color-danger: #dc2626;
+
+  --color-chip-emerald: #2a8a7c;
+  --color-chip-cyan: #1f8a9a;
+  --color-chip-amber: #b8860b;
+  --color-chip-rose: #c45c64;
+  --color-chip-slate: #64748b;
+  --color-chip-fill-emerald: color-mix(in srgb, var(--color-chip-emerald) 66%, white);
+  --color-chip-fill-cyan: color-mix(in srgb, var(--color-chip-cyan) 66%, white);
+  --color-chip-fill-amber: color-mix(in srgb, var(--color-chip-amber) 66%, white);
+  --color-chip-fill-rose: color-mix(in srgb, var(--color-chip-rose) 66%, white);
+  --color-chip-fill-slate: color-mix(in srgb, var(--color-chip-slate) 66%, white);
+  --color-chip-ink-emerald: color-mix(in srgb, var(--color-chip-emerald) 26%, black);
+  --color-chip-ink-cyan: color-mix(in srgb, var(--color-chip-cyan) 26%, black);
+  --color-chip-ink-amber: color-mix(in srgb, var(--color-chip-amber) 26%, black);
+  --color-chip-ink-rose: color-mix(in srgb, var(--color-chip-rose) 26%, black);
+  --color-chip-ink-slate: color-mix(in srgb, var(--color-chip-slate) 26%, black);
 
   --color-border: rgba(15, 35, 55, 0.34);
   --color-border-strong: rgba(15, 45, 65, 0.5);

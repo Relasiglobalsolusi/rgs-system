@@ -32,6 +32,7 @@ import {
   getProgressDirectory,
   progressRouteClientId,
 } from "@/app/progress/directory";
+import PageIntro from "@/components/i18n/PageIntro";
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/ui/EmptyState";
 import ProgressClientDirectory from "@/components/progress/ProgressClientDirectory";
@@ -290,14 +291,10 @@ export default async function ProgressPage({
         <AppShell
           titleKey="pages.progress.title"
         >
-          <div className="mb-5">
-            <h2 className="text-lg font-semibold text-text">
-              {t("pages.progress.chooseProject")}
-            </h2>
-            <p className="mt-1 text-xs text-subtle">
-              {t("pages.progress.chooseProjectHintClient")}
-            </p>
-          </div>
+          <PageIntro
+            titleKey="pages.progress.chooseProject"
+            descriptionKey="pages.progress.chooseProjectHintClient"
+          />
           <ProgressProjectDirectory projects={cards} />
         </AppShell>
       );
@@ -306,14 +303,18 @@ export default async function ProgressPage({
     const directory = await getProgressDirectory();
 
     return (
-      <AppShell
-        titleKey="pages.progress.title"
-      >
-        <ProgressClientDirectory
-          clients={directory.clients}
-          internal={directory.internal}
-        />
-      </AppShell>
+        <AppShell
+          titleKey="pages.progress.title"
+        >
+          <PageIntro
+            titleKey="pages.progress.title"
+            descriptionKey="pages.progress.description"
+          />
+          <ProgressClientDirectory
+            clients={directory.clients}
+            internal={directory.internal}
+          />
+        </AppShell>
     );
   }
 

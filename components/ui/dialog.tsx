@@ -2,13 +2,138 @@
 
 import * as React from "react"
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
+import { AlertTriangle, XIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { XIcon } from "lucide-react"
+import { useT } from "@/lib/i18n/use-t"
+import {
+  UnsavedDialogGuardProvider,
+  useUnsavedDialogGuard,
+} from "@/components/ui/unsaved-dialog-guard"
 
-function Dialog({ ...props }: DialogPrimitive.Root.Props) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />
+type DialogRootProps = DialogPrimitive.Root.Props & {
+  skipUnsavedGuard?: boolean
+}
+
+function Dialog({
+  skipUnsavedGuard,
+  onOpenChange,
+  children,
+  ...props
+}: DialogRootProps) {
+  const onOpenChangeRef = React.useRef(onOpenChange)
+  onOpenChangeRef.current = onOpenChange
+
+  const callUserOpenChange = React.useCallback<
+    NonNullable<DialogPrimitive.Root.Props["onOpenChange"]>
+  >((open, eventDetails) => {
+    onOpenChangeRef.current?.(open, eventDetails)
+  }, [])
+
+  return (
+    <UnsavedDialogGuardProvider
+      skip={Boolean(skipUnsavedGuard)}
+      onRequestClose={(open, eventDetails) => {
+        onOpenChangeRef.current?.(open, eventDetails as never)
+      }}
+    >
+      <DialogGuardedRoot
+        skipUnsavedGuard={skipUnsavedGuard}
+        onOpenChange={callUserOpenChange}
+        {...props}
+      >
+        {children}
+      </DialogGuardedRoot>
+      {skipUnsavedGuard ? null : <UnsavedDiscardConfirm />}
+    </UnsavedDialogGuardProvider>
+  )
+}
+
+function DialogGuardedRoot({
+  skipUnsavedGuard,
+  onOpenChange,
+  ...props
+}: DialogRootProps) {
+  const guard = useUnsavedDialogGuard()
+
+  return (
+    <DialogPrimitive.Root
+      data-slot="dialog"
+      {...props}
+      onOpenChange={(open, eventDetails) => {
+        if (open) {
+          onOpenChange?.(open, eventDetails)
+          return
+        }
+        if (!guard || skipUnsavedGuard || guard.skip) {
+          onOpenChange?.(open, eventDetails)
+          return
+        }
+        const blocked = guard.requestClose(() => {
+          onOpenChange?.(false, eventDetails)
+        })
+        if (blocked) {
+          const details = eventDetails as { cancel?: () => void } | undefined
+          details?.cancel?.()
+        }
+      }}
+    />
+  )
+}
+
+function UnsavedDiscardConfirm() {
+  const guard = useUnsavedDialogGuard()
+  const { t } = useT()
+  if (!guard) return null
+
+  return (
+    <Dialog
+      skipUnsavedGuard
+      open={guard.confirmOpen}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) guard.cancelDiscard()
+      }}
+    >
+      <DialogContent
+        showCloseButton={false}
+        overlayClassName="z-[80]"
+        className="z-[80] gap-0 overflow-hidden rounded-2xl border border-border bg-panel p-0 text-text ring-0 sm:max-w-sm"
+      >
+        <div className="px-8 pt-8 pb-7 sm:px-10">
+          <DialogHeader className="items-center gap-4 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-card-tint-amber ring-1 ring-amber-500/25">
+              <AlertTriangle className="h-6 w-6 text-warning" />
+            </div>
+            <div className="space-y-2.5">
+              <DialogTitle className="text-lg font-semibold text-text">
+                {t("common.confirm.unsavedTitle")}
+              </DialogTitle>
+              <DialogDescription className="text-sm leading-6 text-muted">
+                {t("common.confirm.unsavedDescription")}
+              </DialogDescription>
+            </div>
+          </DialogHeader>
+        </div>
+        <DialogFooter className="mx-0 mb-0 mt-0 flex-col gap-3 rounded-none border-t border-border bg-strip px-8 py-6 sm:flex-col sm:justify-stretch sm:px-10">
+          <button
+            type="button"
+            className="flex h-11 w-full items-center justify-center rounded-xl border border-danger/40 bg-card-tint-red text-sm font-semibold text-danger transition hover:bg-[color-mix(in_srgb,var(--color-card-tint-red),var(--color-danger)_12%)]"
+            onClick={guard.confirmDiscard}
+          >
+            {t("common.confirm.exitWithoutSaving")}
+          </button>
+          <button
+            type="button"
+            className="flex h-11 w-full items-center justify-center rounded-xl border border-border bg-elevated text-sm font-medium text-text transition hover:bg-card-hover"
+            onClick={guard.cancelDiscard}
+          >
+            {t("common.confirm.keepEditing")}
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
 }
 
 function DialogTrigger({
@@ -63,6 +188,15 @@ function DialogContent({
   showCloseButton?: boolean
   overlayClassName?: string
 }) {
+  const guard = useUnsavedDialogGuard()
+  const registerRoot = guard?.registerRoot
+  const setRoot = React.useCallback(
+    (node: HTMLElement | null) => {
+      registerRoot?.(node)
+    },
+    [registerRoot]
+  )
+
   return (
     <DialogPortal>
       <DialogOverlay className={overlayClassName} />
@@ -74,22 +208,31 @@ function DialogContent({
         )}
         {...props}
       >
-        {children}
+        <div
+          ref={setRoot}
+          data-unsaved-root=""
+          className="flex h-full min-h-0 min-w-0 flex-1 flex-col"
+        >
+          {children}
+        </div>
         {showCloseButton && (
-          <DialogPrimitive.Close
+          <Button
+            type="button"
             data-slot="dialog-close"
-            render={
-              <Button
-                variant="ghost"
-                className="absolute top-2 right-2 z-10 text-text hover:bg-elevated hover:text-text"
-                size="icon-sm"
-              />
-            }
+            variant="ghost"
+            size="icon-sm"
+            className="absolute top-2 right-2 z-10 text-text hover:bg-elevated hover:text-text"
+            onClick={() => {
+              if (guard && !guard.skip) {
+                guard.requestClose(() => guard.closeDialog())
+                return
+              }
+              guard?.closeDialog()
+            }}
           >
-            <XIcon
-            />
+            <XIcon />
             <span className="sr-only">Close</span>
-          </DialogPrimitive.Close>
+          </Button>
         )}
       </DialogPrimitive.Popup>
     </DialogPortal>

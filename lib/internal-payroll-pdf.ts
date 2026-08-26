@@ -118,7 +118,10 @@ export async function buildInternalPayrollPdfBuffer(
   doc.moveDown(1);
 
   const totalGross = input.employees.reduce((sum, row) => sum + row.wage, 0);
-  const totalNet = input.employees.reduce((sum, row) => sum + row.netPay, 0);
+  const totalNet = input.employees.reduce(
+    (sum, row) => sum + Math.max(0, row.netPay),
+    0
+  );
 
   doc
     .font("Helvetica")
@@ -152,63 +155,100 @@ export async function buildInternalPayrollPdfBuffer(
       });
     doc.moveDown(0.25);
 
-    const lines: Array<[string, string]> = [
+    const lines: Array<[string, string, "income" | "expense" | "neutral"]> = [
       [
         translate(locale, "pages.payroll.columns.bankName"),
         employee.bankName?.trim() || "—",
+        "neutral",
       ],
       [
         translate(locale, "pages.payroll.columns.accountNumber"),
         employee.bankAccountNumber?.trim() || "—",
+        "neutral",
       ],
       [
         translate(locale, "pages.payroll.columns.accountHolder"),
         employee.bankAccountName?.trim() || "—",
+        "neutral",
       ],
-      [translate(locale, "pages.payroll.columns.daysWorked"), String(employee.daysWorked)],
-      [translate(locale, "pages.payroll.columns.dailyRate"), idr(employee.dailyRate)],
-      [translate(locale, "pages.payroll.pdfGross"), idr(employee.wage)],
+      [
+        translate(locale, "pages.payroll.columns.daysWorked"),
+        String(employee.daysWorked),
+        "neutral",
+      ],
+      [
+        translate(locale, "pages.payroll.columns.dailyRate"),
+        idr(employee.dailyRate),
+        "neutral",
+      ],
+      [
+        translate(locale, "pages.payroll.pdfGross"),
+        idr(employee.wage),
+        "income",
+      ],
     ];
     if (employee.bpjsKesehatan > 0) {
       lines.push([
         translate(locale, "pages.payroll.columns.bpjsKesehatan"),
-        `− ${idr(employee.bpjsKesehatan)}`,
+        idr(employee.bpjsKesehatan),
+        "expense",
       ]);
     }
     if (employee.bpjsTk > 0) {
       lines.push([
         translate(locale, "pages.payroll.columns.bpjsTk"),
-        `− ${idr(employee.bpjsTk)}`,
+        idr(employee.bpjsTk),
+        "expense",
       ]);
     }
     for (const deduction of employee.deductions) {
-      const prefix = deduction.payable ? "+" : "−";
       const label = deduction.detail
         ? `${deduction.typeLabel} (${deduction.detail})`
         : deduction.typeLabel;
-      lines.push([label, `${prefix} ${idr(deduction.amount)}`]);
+      lines.push([
+        label,
+        idr(deduction.amount),
+        deduction.payable ? "income" : "expense",
+      ]);
     }
-    lines.push([translate(locale, "pages.payroll.columns.netPay"), idr(employee.netPay)]);
+    const owes = employee.netPay < 0;
+    lines.push([
+      owes
+        ? translate(locale, "pages.payroll.balanceDueToCompany")
+        : translate(locale, "pages.payroll.columns.netPay"),
+      idr(Math.abs(employee.netPay)),
+      owes ? "expense" : "income",
+    ]);
 
-    for (const [label, value] of lines) {
+    for (const [label, value, tone] of lines) {
       ensureSpace(doc, 14);
       const y = doc.y;
+      const isNet =
+        label === translate(locale, "pages.payroll.columns.netPay") ||
+        label === translate(locale, "pages.payroll.balanceDueToCompany");
       doc
-        .font(label === translate(locale, "pages.payroll.columns.netPay")
-          ? "Helvetica-Bold"
-          : "Helvetica")
+        .font(isNet ? "Helvetica-Bold" : "Helvetica")
         .fontSize(8.5)
         .fillColor(BRAND.body)
-        .text(label, PAGE_MARGIN, y, { width: CONTENT_WIDTH * 0.7 });
+        .text(label, PAGE_MARGIN, y, {
+          width: CONTENT_WIDTH * 0.52,
+          lineBreak: false,
+          ellipsis: true,
+        });
+      const valueColor =
+        tone === "income"
+          ? BRAND.income
+          : tone === "expense"
+            ? BRAND.expense
+            : BRAND.ink;
       doc
-        .font(label === translate(locale, "pages.payroll.columns.netPay")
-          ? "Helvetica-Bold"
-          : "Helvetica")
+        .font(isNet ? "Helvetica-Bold" : "Helvetica")
         .fontSize(8.5)
-        .fillColor(BRAND.ink)
-        .text(value, PAGE_MARGIN + CONTENT_WIDTH * 0.7, y, {
-          width: CONTENT_WIDTH * 0.3,
+        .fillColor(valueColor)
+        .text(value, PAGE_MARGIN + CONTENT_WIDTH * 0.52, y, {
+          width: CONTENT_WIDTH * 0.48,
           align: "right",
+          lineBreak: false,
         });
       doc.y = y + 13;
     }

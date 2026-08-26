@@ -1,6 +1,9 @@
 "use client";
 
-import { showRejectionFromError } from "@/components/ui/rejection-notice";
+import {
+  showMissingRequiredFields,
+  showRejectionFromError,
+} from "@/components/ui/rejection-notice";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { UserPlus } from "lucide-react";
 import { createEmployee, previewEmployeeNumber } from "@/app/employees/actions";
@@ -90,6 +93,18 @@ export default function EmployeeDialog({ categories, positions, projects, open: 
   }, [open, categoryId]);
 
   function submit(formData: FormData) {
+    const form = document.getElementById(CREATE_FORM_ID);
+    const extra: string[] = [];
+    if (!categoryId) extra.push(t("pages.employees.form.department"));
+    if (!positionId) extra.push(t("pages.employees.form.position"));
+    if (
+      showMissingRequiredFields(
+        form instanceof HTMLFormElement ? form : null,
+        extra
+      )
+    ) {
+      return;
+    }
     startTransition(async () => {
       try { await createEmployee(formData); closeDialog(); }
       catch (error) { showRejectionFromError(error, t("pages.employees.form.createFailed")); }
@@ -104,7 +119,7 @@ export default function EmployeeDialog({ categories, positions, projects, open: 
           {pending ? t("common.actions.adding") : t("pages.employees.addEmployee")}
         </EmployeePrimaryButton>
       }>
-        <form id={CREATE_FORM_ID} action={submit} onInput={handleFormInput} onChange={handleFormChange}>
+        <form id={CREATE_FORM_ID} action={submit} noValidate onInput={handleFormInput} onChange={handleFormChange}>
           <EmployeeFormFields mode="create" categories={categories} positions={positions} projects={projects} categoryId={categoryId} onCategoryIdChange={setCategoryId} positionId={positionId} onPositionIdChange={setPositionId} employmentType={employmentType} onEmploymentTypeChange={setEmploymentType} previewEmployeeNo={previewEmployeeNo} onFormValuesChange={handleFormInput} />
         </form>
       </EmployeeDialogShell>

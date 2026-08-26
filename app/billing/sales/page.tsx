@@ -4,6 +4,7 @@ import {
   listInventorySales,
 } from "@/app/inventory/actions";
 import SalesWorkspace from "@/components/billing/SalesWorkspace";
+import type { InventoryOverviewAssetRow } from "@/components/inventory/inventory-types";
 import AppShell from "@/components/layout/AppShell";
 import { inventoryQtyFromDecimal } from "@/lib/inventory";
 import { prisma } from "@/lib/prisma";
@@ -63,7 +64,10 @@ export default async function SalesPage({
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
     prisma.equipmentAsset.findMany({
-      where: { companyId: session.user.companyId },
+      where: {
+        companyId: session.user.companyId,
+        status: { in: ["AVAILABLE", "ON_PROJECT"] },
+      },
       select: {
         id: true,
         assetCode: true,
@@ -110,7 +114,7 @@ export default async function SalesPage({
     .map((asset) => ({
       id: asset.id,
       assetCode: asset.assetCode,
-      status: asset.status as "AVAILABLE" | "ON_PROJECT" | "RETIRED",
+      status: asset.status as InventoryOverviewAssetRow["status"],
       unitCost: decimalToNumber(asset.unitCost),
       serialNo: asset.serialNo,
       notes: asset.notes,

@@ -97,10 +97,14 @@ export default function SalesWorkspace({
   return (
     <>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-wrap items-end gap-2">
-          <SalesPeriodControl year={year} month={month} day={day} />
-          <SalesReportDownloadButton year={year} month={month} day={day} />
-        </div>
+        <SalesPeriodControl
+          year={year}
+          month={month}
+          day={day}
+          action={
+            <SalesReportDownloadButton year={year} month={month} day={day} />
+          }
+        />
         {canManage ? (
           <DirectoryAddButton
             label={t("pages.sales.addSale")}

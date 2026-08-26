@@ -5,6 +5,7 @@ export type ProjectSelectOption = {
   id: string;
   name: string;
   clientName?: string | null;
+  subCategory?: string | null;
 };
 
 export function isHeadOfficeProjectOption(
@@ -22,10 +23,19 @@ export function projectSelectLabel(project: ProjectSelectOption): string {
     : project.name;
 }
 
+export function isInternalProjectOption(
+  project: Pick<ProjectSelectOption, "id" | "name" | "subCategory">
+): boolean {
+  return project.subCategory === "INTERNAL" || isHeadOfficeProjectOption(project);
+}
+
 export function compareProjectSelectOptions(
   a: ProjectSelectOption,
   b: ProjectSelectOption
 ): number {
+  const aInternal = isInternalProjectOption(a);
+  const bInternal = isInternalProjectOption(b);
+  if (aInternal !== bInternal) return aInternal ? -1 : 1;
   const aHeadOffice = isHeadOfficeProjectOption(a);
   const bHeadOffice = isHeadOfficeProjectOption(b);
   if (aHeadOffice !== bHeadOffice) return aHeadOffice ? -1 : 1;

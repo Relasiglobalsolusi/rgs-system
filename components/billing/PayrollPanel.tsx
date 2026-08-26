@@ -9,9 +9,10 @@ import {
   unlockInternalPayroll,
 } from "@/app/billing/payroll-actions";
 import PayrollDeductionDialog from "@/components/billing/PayrollDeductionDialog";
+import { cardTintWash } from "@/components/ui/card-tint";
 import SectionCard from "@/components/ui/SectionCard";
 import EmptyState from "@/components/ui/EmptyState";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Dialog,
@@ -132,6 +133,30 @@ function canEditDayPay(day: PayrollDayRow) {
   );
 }
 
+function dayCheckInLabel(
+  row: PayrollRow,
+  day: PayrollDayRow,
+  t: ReturnType<typeof useT>["t"],
+  bcp47: string
+) {
+  if (row.cicoExempt) return t("pages.payroll.exempt");
+  if (day.onLeave && !day.checkInAt) return t("pages.payroll.onLeave");
+  if (day.off && !day.checkInAt) return t("pages.payroll.restDay");
+  if (day.absent && !day.checkInAt) return t("pages.payroll.absent");
+  return jakartaTime(day.checkInAt, bcp47);
+}
+
+function dayCheckOutLabel(
+  row: PayrollRow,
+  day: PayrollDayRow,
+  t: ReturnType<typeof useT>["t"],
+  bcp47: string
+) {
+  if (row.cicoExempt) return t("pages.payroll.exempt");
+  if ((day.off || day.absent) && !day.checkOutAt) return "—";
+  return jakartaTime(day.checkOutAt, bcp47);
+}
+
 export default function PayrollPanel({
   year,
   month,
@@ -229,7 +254,11 @@ export default function PayrollPanel({
   }
 
   const totalWage = rows.reduce((sum, r) => sum + r.wage, 0);
-  const totalNet = rows.reduce((sum, r) => sum + r.netPay, 0);
+  const totalNet = rows.reduce((sum, r) => sum + Math.max(0, r.netPay), 0);
+  const totalBalanceDue = rows.reduce(
+    (sum, r) => sum + (r.netPay < 0 ? Math.abs(r.netPay) : 0),
+    0
+  );
   const visibleRows = useMemo(() => {
     const query = employeeQuery.trim().toLowerCase();
     if (!query) return rows;
@@ -290,7 +319,7 @@ export default function PayrollPanel({
               <SelectTrigger
                 className={cn(
                   employeeSelectTriggerClass,
-                  "h-auto min-h-8 min-w-[22rem] py-1.5 sm:min-w-[42rem]"
+                  "h-auto min-h-8 w-full min-w-0 py-1.5 sm:w-auto sm:min-w-[22rem] lg:min-w-[42rem]"
                 )}
                 aria-label={t("pages.payroll.periodPicker")}
               >
@@ -321,7 +350,7 @@ export default function PayrollPanel({
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl border border-primary/30 bg-card-tint-emerald px-3 py-2.5">
+          <div className={`rounded-xl border px-3 py-2.5 ${cardTintWash.primary}`}>
             <p className="text-xs font-semibold uppercase tracking-wide text-subtle">
               {t("pages.payroll.totalEmployees")}
             </p>
@@ -329,7 +358,7 @@ export default function PayrollPanel({
               {rows.length}
             </p>
           </div>
-          <div className="rounded-xl border border-accent-cyan/35 bg-card-tint-cyan px-3 py-2.5">
+          <div className={`rounded-xl border px-3 py-2.5 ${cardTintWash.info}`}>
             <p className="text-xs font-semibold uppercase tracking-wide text-subtle">
               {t("pages.payroll.totalWage")}
             </p>
@@ -337,7 +366,7 @@ export default function PayrollPanel({
               {formatContractPrice(totalWage)}
             </p>
           </div>
-          <div className="rounded-xl border border-warning/40 bg-card-tint-amber px-3 py-2.5">
+          <div className={`rounded-xl border px-3 py-2.5 ${cardTintWash.warning}`}>
             <p className="text-xs font-semibold uppercase tracking-wide text-subtle">
               {t("pages.payroll.totalNetPay")}
             </p>
@@ -348,22 +377,52 @@ export default function PayrollPanel({
         </div>
       </SectionCard>
 
-      <SectionCard>
-        <div className="mb-5">
+      <div className="space-y-5">
+        <div>
           <h2 className="text-lg font-semibold text-text">
             {t("pages.payroll.tableTitle")}
           </h2>
           <p className="mt-1 text-sm text-muted">
             {t("pages.payroll.tableDesc")}
           </p>
-          <div className="mt-4">
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <Input
               value={employeeQuery}
               onChange={(event) => setEmployeeQuery(event.target.value)}
               placeholder={t("pages.payroll.searchEmployee")}
-              className="max-w-md"
+              className="min-w-0 w-full sm:max-w-md"
               aria-label={t("pages.payroll.searchEmployee")}
             />
+            <div
+              className={cn(
+                "grid w-full gap-2 sm:shrink-0",
+                periodLocked && canUnlock
+                  ? "grid-cols-2 sm:w-[22rem]"
+                  : "grid-cols-1 sm:ml-auto sm:w-[11rem]"
+              )}
+            >
+              {periodLocked && canUnlock ? (
+                <Button
+                  type="button"
+                  variant="warning"
+                  size="default"
+                  className="h-8 w-full justify-center"
+                  disabled={pending}
+                  onClick={() => setUnlockOpen(true)}
+                >
+                  {t("pages.payroll.unlockPeriod")}
+                </Button>
+              ) : null}
+              <a
+                href={`/api/payroll/export?year=${year}&month=${month}`}
+                className={cn(
+                  buttonVariants({ variant: "accent", size: "default" }),
+                  "h-8 w-full justify-center"
+                )}
+              >
+                {t("pages.payroll.generatePdf")}
+              </a>
+            </div>
           </div>
         </div>
 
@@ -373,32 +432,13 @@ export default function PayrollPanel({
               title={t("pages.payroll.emptyTitle")}
               description={t("pages.payroll.emptyDesc")}
             />
-            <div className="flex justify-end gap-2">
-              {periodLocked && canUnlock ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="badge"
-                  disabled={pending}
-                  onClick={() => setUnlockOpen(true)}
-                >
-                  {t("pages.payroll.unlockPeriod")}
-                </Button>
-              ) : null}
-              <a
-                href={`/api/payroll/export?year=${year}&month=${month}`}
-                className="inline-flex h-8 items-center rounded-lg border border-border-strong bg-elevated px-3 text-sm font-semibold text-text hover:border-primary/45 hover:bg-card-hover"
-              >
-                {t("pages.payroll.generatePdf")}
-              </a>
-            </div>
           </div>
         ) : (
           <div className="space-y-6">
             {visibleRows.map((row) => (
-              <article
+              <SectionCard
                 key={row.employeeId}
-                className="rounded-2xl border border-border-strong/70 bg-card p-4 shadow-[0_10px_24px_-20px_rgba(0,0,0,0.7)]"
+                className="p-4 sm:p-5"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -473,33 +513,33 @@ export default function PayrollPanel({
                       {t("pages.payroll.noDays")}
                     </p>
                   ) : (
-                    <div className="mt-2 overflow-x-auto">
-                      <table className="min-w-[56rem] text-left text-sm">
-                        <thead className="border-b border-border text-xs uppercase tracking-wide text-muted">
+                    <div className="mt-3 w-full overflow-x-auto rounded-xl border border-border bg-elevated/20">
+                      <table className="w-full min-w-[52rem] text-sm">
+                        <thead className="bg-elevated/60 text-left text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-subtle">
                           <tr>
-                            <th className="px-2 py-2 text-left font-medium">
-                              {t("pages.payroll.dayDate")}
+                            <th className="px-3 py-2.5 font-semibold">
+                              {t("pages.payroll.dayListTitle")}
                             </th>
-                            <th className="px-2 py-2 font-medium">
+                            <th className="px-3 py-2.5 font-semibold">
                               {t("pages.payroll.daySite")}
                             </th>
-                            <th className="px-2 py-2 font-medium">
+                            <th className="px-3 py-2.5 font-semibold">
                               {t("pages.payroll.dayShift")}
                             </th>
-                            <th className="px-2 py-2 font-medium">
+                            <th className="px-3 py-2.5 font-semibold">
                               {t("pages.payroll.dayCheckIn")}
                             </th>
-                            <th className="px-2 py-2 font-medium">
+                            <th className="px-3 py-2.5 font-semibold">
                               {t("pages.payroll.dayCheckOut")}
                             </th>
-                            <th className="px-2 py-2 font-medium">
+                            <th className="px-3 py-2.5 font-semibold">
                               {t("pages.payroll.dayHours")}
                             </th>
-                            <th className="px-2 py-2 text-right font-medium">
-                              {t("pages.payroll.dayPay")}
+                            <th className="px-3 py-2.5 font-semibold">
+                              {t("pages.payroll.columns.netPay")}
                             </th>
-                            <th className="px-2 py-2 text-center font-medium">
-                              {t("pages.payroll.columns.actions")}
+                            <th className="px-3 py-2.5 font-semibold">
+                              {t("common.actions.save")}
                             </th>
                           </tr>
                         </thead>
@@ -507,18 +547,18 @@ export default function PayrollPanel({
                           {(row.days ?? []).map((day) => (
                             <tr
                               key={day.sessionKey ?? day.dateKey}
-                              className="border-b border-border/60 align-top"
+                              className="border-t border-border align-top"
                             >
-                              <td className="px-2 py-2 text-text">
+                              <td className="px-3 py-2.5 font-medium text-text">
                                 {formatEnglishOrdinalDate(
                                   `${day.dateKey}T00:00:00Z`,
                                   bcp47
                                 )}
                               </td>
-                              <td className="px-2 py-2 text-muted">
-                                <p>{day.siteName ?? "—"}</p>
+                              <td className="px-3 py-2.5 text-muted">
+                                {day.siteName ?? "—"}
                               </td>
-                              <td className="px-2 py-2 text-muted">
+                              <td className="px-3 py-2.5 text-muted">
                                 <p>{day.shiftLabel ?? "—"}</p>
                                 {day.tookOverShiftLabel ? (
                                   <p className="mt-0.5 text-xs font-medium text-primary">
@@ -532,83 +572,34 @@ export default function PayrollPanel({
                                     {t("pages.payroll.doubleShift")}
                                   </p>
                                 ) : null}
-                                {day.doubleShift &&
-                                !day.needsPayDecision &&
-                                day.payAmount ? (
-                                  <p className="mt-0.5 text-xs text-subtle">
-                                    {t("pages.payroll.doubleShiftPayNote")}
+                              </td>
+                              <td className="px-3 py-2.5 text-muted">
+                                <p>{dayCheckInLabel(row, day, t, bcp47)}</p>
+                                {day.lateCheckIn ? (
+                                  <p className="text-xs font-medium text-amber-600">
+                                    {t("pages.payroll.lateCheckIn")}
+                                  </p>
+                                ) : day.shiftTakenOverByName &&
+                                  day.absent &&
+                                  !day.checkInAt ? (
+                                  <p className="text-xs font-medium text-amber-600">
+                                    {t("pages.payroll.coveredByName", {
+                                      name: day.shiftTakenOverByName,
+                                    })}
                                   </p>
                                 ) : null}
                               </td>
-                              <td className="px-2 py-2 text-muted">
-                                {row.cicoExempt ? (
-                                  <span className="font-medium text-text">
-                                    {t("pages.payroll.exempt")}
-                                  </span>
-                                ) : day.onLeave && !day.checkInAt ? (
-                                  <span className="font-medium text-amber-600">
-                                    {t("pages.payroll.onLeave")}
-                                  </span>
-                                ) : day.off && !day.checkInAt ? (
-                                  <span className="text-muted">
-                                    {t("pages.payroll.restDay")}
-                                  </span>
-                                ) : day.absent && !day.checkInAt ? (
-                                  <div>
-                                    <span className="font-medium text-amber-600">
-                                      {t("pages.payroll.absent")}
-                                    </span>
-                                    {day.shiftTakenOverByName ? (
-                                      <p className="mt-0.5 text-xs font-medium text-amber-600">
-                                        {t("pages.payroll.coveredByName", {
-                                          name: day.shiftTakenOverByName,
-                                        })}
-                                      </p>
-                                    ) : null}
-                                  </div>
-                                ) : (
-                                  <div>
-                                    <p>{jakartaTime(day.checkInAt, bcp47)}</p>
-                                    {day.lateCheckIn ? (
-                                      <p className="text-xs font-medium text-amber-600">
-                                        {t("pages.payroll.lateCheckIn")}
-                                      </p>
-                                    ) : null}
-                                  </div>
-                                )}
+                              <td className="px-3 py-2.5 text-muted">
+                                <p>{dayCheckOutLabel(row, day, t, bcp47)}</p>
+                                {day.earlyCheckOut ? (
+                                  <p className="text-xs font-medium text-amber-600">
+                                    {t(
+                                      "pages.payroll.checkedOutBeforeShiftEnd"
+                                    )}
+                                  </p>
+                                ) : null}
                               </td>
-                              <td className="px-2 py-2 text-muted">
-                                {row.cicoExempt ? (
-                                  <span className="font-medium text-text">
-                                    {t("pages.payroll.exempt")}
-                                  </span>
-                                ) : day.off && !day.checkOutAt ? (
-                                  "—"
-                                ) : day.absent && !day.checkOutAt ? (
-                                  day.checkInAt ? (
-                                    <div>
-                                      <p>—</p>
-                                      <p className="text-xs font-medium text-amber-600">
-                                        {t("pages.payroll.absent")}
-                                      </p>
-                                    </div>
-                                  ) : (
-                                    "—"
-                                  )
-                                ) : (
-                                  <div>
-                                    <p>{jakartaTime(day.checkOutAt, bcp47)}</p>
-                                    {day.earlyCheckOut ? (
-                                      <p className="text-xs font-medium text-amber-600">
-                                        {t(
-                                          "pages.payroll.checkedOutBeforeShiftEnd"
-                                        )}
-                                      </p>
-                                    ) : null}
-                                  </div>
-                                )}
-                              </td>
-                              <td className="px-2 py-2 text-muted">
+                              <td className="px-3 py-2.5 text-muted">
                                 {day.hoursWorked != null
                                   ? t("pages.payroll.hoursWorkedValue", {
                                       hours: formatHoursWorked(day.hoursWorked),
@@ -621,14 +612,14 @@ export default function PayrollPanel({
                                       })
                                     : "—"}
                               </td>
-                              <td className="whitespace-nowrap px-2 py-2 text-right font-medium text-text">
+                              <td className="px-3 py-2.5 tabular-nums font-semibold text-text">
                                 {day.payAmount != null
                                   ? formatContractPrice(day.payAmount)
                                   : "—"}
                               </td>
-                              <td className="whitespace-nowrap px-2 py-2 text-center">
+                              <td className="px-3 py-2.5">
                                 {canEditDayPay(day) && !periodLocked ? (
-                                  <div className="flex items-center justify-center gap-2">
+                                  <div className="flex flex-wrap items-center gap-2">
                                     <Button
                                       type="button"
                                       size="sm"
@@ -650,7 +641,7 @@ export default function PayrollPanel({
                                     </Button>
                                     <Input
                                       inputMode="numeric"
-                                      className="h-7 w-32"
+                                      className="h-7 w-28"
                                       placeholder={t(
                                         "pages.payroll.customAmountPlaceholder"
                                       )}
@@ -694,7 +685,9 @@ export default function PayrollPanel({
                                       {t("pages.payroll.saveCustomPay")}
                                     </Button>
                                   </div>
-                                ) : null}
+                                ) : (
+                                  "—"
+                                )}
                               </td>
                             </tr>
                           ))}
@@ -755,18 +748,31 @@ export default function PayrollPanel({
                   </div>
                   <div>
                     <p className="text-xs text-muted">
-                      {t("pages.payroll.columns.netPay")}
+                      {row.netPay < 0
+                        ? t("pages.payroll.balanceDueToCompany")
+                        : t("pages.payroll.columns.netPay")}
                     </p>
-                    <p className="font-semibold text-text">
-                      {formatContractPrice(row.netPay)}
+                    <p
+                      className={
+                        row.netPay < 0
+                          ? "font-semibold text-danger"
+                          : "font-semibold text-text"
+                      }
+                    >
+                      {formatContractPrice(Math.abs(row.netPay))}
                     </p>
+                    {row.netPay < 0 ? (
+                      <p className="mt-1 text-[0.7rem] text-subtle">
+                        {t("pages.payroll.balanceDueToCompanyHint")}
+                      </p>
+                    ) : null}
                   </div>
                   </div>
                 </div>
-              </article>
+              </SectionCard>
             ))}
 
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+            <div className="border-t border-border pt-4">
               <div className="grid gap-1 text-sm sm:grid-cols-2 lg:grid-cols-4 sm:gap-6">
                 <p className="text-muted">
                   {t("pages.payroll.totalWage")}:{" "}
@@ -794,30 +800,19 @@ export default function PayrollPanel({
                     {formatContractPrice(totalNet)}
                   </span>
                 </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {periodLocked && canUnlock ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="badge"
-                    disabled={pending}
-                    onClick={() => setUnlockOpen(true)}
-                  >
-                    {t("pages.payroll.unlockPeriod")}
-                  </Button>
+                {totalBalanceDue > 0 ? (
+                  <p className="text-muted sm:col-span-2">
+                    {t("pages.payroll.totalBalanceDue")}:{" "}
+                    <span className="font-semibold text-danger">
+                      {formatContractPrice(totalBalanceDue)}
+                    </span>
+                  </p>
                 ) : null}
-                <a
-                  href={`/api/payroll/export?year=${year}&month=${month}`}
-                  className="inline-flex h-8 items-center rounded-lg border border-border-strong bg-elevated px-3 text-sm font-semibold text-text hover:border-primary/45 hover:bg-card-hover"
-                >
-                  {t("pages.payroll.generatePdf")}
-                </a>
               </div>
             </div>
           </div>
         )}
-      </SectionCard>
+      </div>
 
       {deducting && !periodLocked ? (
         <PayrollDeductionDialog

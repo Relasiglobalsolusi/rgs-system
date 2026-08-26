@@ -24,11 +24,9 @@ import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import { createSelectionColumn } from "@/components/ui/data-table-selection";
 import StatusBadge from "@/components/ui/StatusBadge";
 import {
-  ACTIONS_DUAL_CHIP_COLUMN_WIDTH,
   ACTIONS_SINGLE_CHIP_COLUMN_WIDTH,
   TrashPermanentDeleteChip,
   TrashRestoreChip,
-  TRASH_ACTIONS_COLUMN_WIDTH,
 } from "@/components/ui/trash-action-buttons";
 import { Button } from "@/components/ui/button";
 import {
@@ -64,6 +62,7 @@ type Employee = {
     | "LEAVE_PENDING"
     | "RESIGNED";
   depositHeldAmount?: number | null;
+  amountOwedToCompany?: number | null;
   depositStatus?: "NONE" | "HELD" | "RETURNED" | "KEPT_BY_COMPANY";
   securityDepositRequired?: boolean;
   lastWorkingDay?: Date | string | null;
@@ -439,15 +438,11 @@ export default function EmployeeTable({
       cols.push({
         key: "actions",
         title: t("pages.employees.columns.actions"),
-        width: isTrash
-          ? TRASH_ACTIONS_COLUMN_WIDTH
-          : canResign
-            ? ACTIONS_DUAL_CHIP_COLUMN_WIDTH
-            : ACTIONS_SINGLE_CHIP_COLUMN_WIDTH,
+        width: ACTIONS_SINGLE_CHIP_COLUMN_WIDTH,
         cellAlign: "center",
-        className: "overflow-visible whitespace-nowrap max-xl:px-2",
+        className: "overflow-visible max-xl:px-2",
         render: (employee) => (
-          <div className="flex shrink-0 items-center justify-center gap-2 whitespace-nowrap">
+          <div className="flex flex-col items-stretch justify-center gap-2">
             {isTrash ? (
               <>
                 <TrashRestoreChip

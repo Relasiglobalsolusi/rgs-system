@@ -62,6 +62,8 @@ enum PayrollDeductionType {
   CLIENT_COMPENSATION
   /// Remaining Internal Payroll wage withheld after not-according-to-procedure resign.
   FORFEITED_WAGES
+  /// Cash borrowed before payday and recovered on Internal Payroll.
+  CASH_ADVANCE
 }
 
 /// Operational Manager decision when CICO is under 9 hours (or 18 on a double shift).
@@ -315,6 +317,15 @@ enum PurchaseCategory {
   VEHICLE
   /// Bank facility draw / installment / interest payment. Not stock.
   BANK_LOAN
+  /// Internal Payroll, THR, or employee cash advance paid by the company.
+  EMPLOYEE_PAYMENT
+}
+
+/// Subtype when purchaseCategory = EMPLOYEE_PAYMENT.
+enum EmployeePaymentKind {
+  INTERNAL_PAYROLL
+  THR
+  CASH_ADVANCE
 }
 
 /// Standby facility (KRK) vs term loan (kredit angsuran / anuitas).
@@ -342,6 +353,22 @@ enum LoanMovementKind {
 enum LoanInterestBasis {
   MONTHLY
   ANNUAL
+}
+
+/// Indonesian term-loan installment method.
+enum LoanCalculationMethod {
+  FLAT
+  EFFECTIVE
+  ANNUITY
+}
+
+/// What a vehicle expense is for. Import is not used for vehicles.
+enum VehicleExpenseKind {
+  PURCHASE
+  FUEL
+  SERVICING
+  MODIFICATION
+  OTHER
 }
 
 /// What a government expense is settling (DJP / other state bills).
@@ -483,6 +510,11 @@ model Company {
   cashAtBankOpening     Decimal?  @db.Decimal(14, 2)
   cashAtBankOpeningAsOf DateTime? @db.Date
 
+  /// Company BPJS Kesehatan virtual account (prefilled on government expenses).
+  bpjsKesehatanVirtualAccount String?
+  /// Company BPJS Ketenagakerjaan virtual account (prefilled on government expenses).
+  bpjsKetenagakerjaanVirtualAccount String?
+
   users               User[]
   employees           Employee[]
   employeeCategories  EmployeeCategory[]
@@ -510,6 +542,7 @@ model Company {
   websiteContent      WebsiteContent?
   operationsTeams     OperationsTeam[]
   pettyCashEntries    PettyCashEntry[]
+  prepaidCards        PrepaidCard[]
   loanFacilities      LoanFacility[]
   bpjsRemittances     BpjsRemittance[]
   projectServiceAreas ProjectServiceAreaCatalog[]
@@ -694,6 +727,8 @@ model Employee {
   /// Security deposit withheld via Internal Payroll (sum of Security deposit lines).
   depositHeldAmount Decimal @default(0) @db.Decimal(14, 2)
   depositStatus     SecurityDepositStatus @default(NONE)
+  /// Employee BPJS share not yet recovered from wages. Taken from the next month she works.
+  bpjsShareHeldIdr Decimal @default(0) @db.Decimal(14, 2)
 
   lastWorkingDay DateTime? @db.Date
   resignAccordingToProcedure Boolean?
@@ -731,6 +766,7 @@ model Employee {
   payrollManagementDayDecisions PayrollManagementDayDecision[]
   projectExpenses    ProjectExpense[]
   pettyCashEntries   PettyCashEntry[]
+  purchaseInvoices   PurchaseInvoice[]
 
   /// Manual directory order (lower = higher in lists).
   sortOrder Int @default(0)
@@ -857,6 +893,8 @@ model Client {
   /// Opt-in Multi-Project Access (Security Codes after login).
   multiProjectAccess     Boolean @default(false)
   multiProjectSecurityMode MultiProjectSecurityMode?
+  /// When false, HO records review and payment offline. Client has no ERP login.
+  hasPortalAccess        Boolean @default(true)
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -866,6 +904,7 @@ model Client {
   projectGroups  ClientProjectGroup[]
   securityCodes  ClientSecurityCode[]
   inventorySales InventorySale[]
+  pettyCashEntries PettyCashEntry[]
 
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -948,6 +987,7 @@ model Vendor {
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   users User[]
+  bankAccounts VendorBankAccount[]
 
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -960,6 +1000,24 @@ model Vendor {
   factoryReturns       EquipmentFactoryReturn[]
 
   @@unique([companyId, shortCode])
+}
+
+/// Vendor recipient accounts used when paying an expense.
+model VendorBankAccount {
+  id            String  @id @default(cuid())
+  vendorId      String
+  vendor        Vendor  @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  bankName      String
+  accountNumber String
+  accountHolder String
+  label         String?
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  purchaseInvoices PurchaseInvoice[]
+
+  @@index([vendorId, sortOrder])
 }
 
 model Project {
@@ -1035,8 +1093,13 @@ model Project {
   memberParkingUnitCount Int?
   /// Parking: tax % on casual (normal traffic) revenue only. Default 10.
   parkingTaxPercent Decimal? @db.Decimal(5, 2)
-  /// How many named site shifts this project runs (1–4). Hours are set on the project; HR assigns people to Shift 1–4.
+  /// How many named site shifts this project runs (0–4). One-time jobs store 0.
   shiftCount Int @default(1)
+  /// Government institution contract: client remits VAT themselves. We receive DPP only.
+  isGovernmentContract Boolean @default(false)
+  /// One-time demo / trial site. Always one-time; complimentary skips billing.
+  isDemo Boolean @default(false)
+  isComplimentary Boolean @default(false)
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -1331,6 +1394,15 @@ model PurchaseInvoice {
   handlingFeePpnRatePercent Decimal? @db.Decimal(5, 2)
   handlingFeeAmountPaidIdr Decimal? @db.Decimal(14, 2)
   handlingFeeTaxInvoicePath String?
+  /// Outsourced all-in charge: whether the handler issued a tax invoice.
+  handlingHasTaxInvoice Boolean?
+  /// Bukti potong (withholding tax slip) when purchase PPh is withheld.
+  withholdingSlipPath String?
+  /// Handling vendor / fee / invoice will be recorded when import duties are paid.
+  handlingDueWithDuties Boolean @default(false)
+
+  /// Fuel, servicing, modification, purchase, or other vehicle spend.
+  vehicleExpenseKind VehicleExpenseKind?
 
   /// Indonesian finance lease for a company vehicle (DP, tenor, interest, bank fees).
   isVehicleLease Boolean @default(false)
@@ -1383,6 +1455,15 @@ model PurchaseInvoice {
   bankAccountId String?
   bankAccount   CompanyBankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
 
+  /// Vendor bank this purchase is paid to.
+  vendorBankAccountId String?
+  vendorBankAccount   VendorBankAccount? @relation(fields: [vendorBankAccountId], references: [id], onDelete: SetNull)
+
+  /// Employee Payments: who received Internal Payroll, THR, or a cash advance.
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  employeePaymentKind EmployeePaymentKind?
+
   createdById String?
   createdBy   User?   @relation("PurchaseInvoiceCreator", fields: [createdById], references: [id])
 
@@ -1400,6 +1481,7 @@ model PurchaseInvoice {
   lines PurchaseInvoiceLine[]
   pettyCashEntry PettyCashEntry?
   bpjsRemittances BpjsRemittance[]
+  payrollDeductions PayrollDeduction[]
 
   reversedAt DateTime?
   reversedById String?
@@ -1414,6 +1496,8 @@ model PurchaseInvoice {
   @@index([loanFacilityId])
   @@index([loanFacilityId, loanInterestPeriod])
   @@index([vendorId])
+  @@index([vendorBankAccountId])
+  @@index([employeeId])
   @@index([taxInvoiceSerial])
   @@index([bankAccountId])
   @@index([taxInvoiceDocumentHash])
@@ -1447,6 +1531,11 @@ model LoanFacility {
   interestRateBasis LoanInterestBasis @default(ANNUAL)
   /// Quoted percent. Monthly 1 = 1% per month. Annual 12 = 12% per year.
   annualRatePercent Decimal? @db.Decimal(6, 3)
+  /// Term loan: Flat, Effective (sliding), or Annuity. Unused on standby.
+  calculationMethod LoanCalculationMethod?
+  /// Standby: fee per annum on the unused limit.
+  commitmentFeeApplies Boolean @default(false)
+  commitmentFeeRatePercent Decimal? @db.Decimal(6, 3)
   /// Standby Actual/360 (Mandiri/BNI default) or Actual/365.
   dayCountYear Int @default(360)
   tenorMonths Int?
@@ -1654,6 +1743,10 @@ model PettyCashEntry {
   projectId String?
   project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
+  /// Client-level spend (general P&L). Mutually exclusive with projectId.
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
   employeeId String?
   employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
 
@@ -1667,6 +1760,9 @@ model PettyCashEntry {
   /// Bill / receipt photo for spends. Required before a spend can post.
   proofPath String?
 
+  prepaidCardId String?
+  prepaidCard   PrepaidCard? @relation(fields: [prepaidCardId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1674,6 +1770,56 @@ model PettyCashEntry {
   @@index([companyId, status, kind])
   @@index([assignmentId])
   @@index([projectId])
+  @@index([clientId])
+  @@index([prepaidCardId])
+}
+
+enum PrepaidCardSpendKind {
+  FUEL
+  TOLL
+  PARKING
+}
+
+enum PrepaidCardEntryKind {
+  TOP_UP
+  SPEND
+}
+
+/// One prepaid card per company vehicle. Fuel, toll, and parking only.
+model PrepaidCard {
+  id             String   @id @default(cuid())
+  companyId      String
+  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  cardNumber     String
+  vehicleItemId  String
+  vehicleItem    InventoryItem @relation(fields: [vehicleItemId], references: [id], onDelete: Restrict)
+  currentBalance Decimal  @default(0) @db.Decimal(14, 2)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  entries        PrepaidCardEntry[]
+  pettyCashEntries PettyCashEntry[]
+
+  @@unique([companyId, cardNumber])
+  @@unique([companyId, vehicleItemId])
+  @@index([companyId])
+}
+
+model PrepaidCardEntry {
+  id               String               @id @default(cuid())
+  prepaidCardId    String
+  prepaidCard      PrepaidCard          @relation(fields: [prepaidCardId], references: [id], onDelete: Cascade)
+  kind             PrepaidCardEntryKind
+  spendKind        PrepaidCardSpendKind?
+  amount           Decimal              @db.Decimal(14, 2)
+  previousBalance  Decimal              @db.Decimal(14, 2)
+  resultingBalance Decimal              @db.Decimal(14, 2)
+  proofPath        String?
+  entryDate        DateTime             @db.Date
+  description      String
+  createdById      String?
+  createdAt        DateTime             @default(now())
+
+  @@index([prepaidCardId, entryDate])
 }
 
 /// Permanent operations team for one project service area (catalog type).
@@ -1690,6 +1836,7 @@ model OperationsTeam {
   members      OperationsTeamMember[]
   projectLinks OperationsTeamProject[]
   visitAssignments ProjectVisitAssignment[]
+  equipmentAssets  EquipmentAsset[]
 
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
@@ -1892,6 +2039,13 @@ model ProjectInvoicePeriod {
   /// When HO approves a client revision, they may set a revised commercial amount/number.
   revisedInvoiceAmount Decimal? @db.Decimal(14, 2)
   revisedInvoiceNumber String?
+  /// Amount the client asked for when requesting a revision.
+  clientRequestedAmount Decimal? @db.Decimal(14, 2)
+  /// Amount HO proposes when rejecting a revision (client can approve or revise again).
+  hoProposedAmount Decimal? @db.Decimal(14, 2)
+  /// Bukti potong (withholding tax slip) when PPh is charged.
+  withholdingSlipPath String?
+  withholdingSlipUploadedAt DateTime?
 
   reviewEvents BillingClientReviewEvent[]
   payrollManagementPeriod PayrollManagementPeriod?
@@ -2073,6 +2227,7 @@ model InventoryItem {
   materialRequestLines MaterialRequestLine[]
   transferOrderLines   TransferOrderLine[]
   payrollDeductions    PayrollDeduction[]
+  prepaidCards         PrepaidCard[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2265,6 +2420,10 @@ model EquipmentAsset {
   projectId String?
   project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
+  /// When set, this unit follows the team to whatever job they are on.
+  teamId String?
+  team   OperationsTeam? @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
   /// Per-asset ISSUE_TO_PROJECT movement from the equipment picker (qty −1 each).
   /// Voided on individual release — mirrors how consumable void returns stock.
   movementId String?            @unique
@@ -2309,6 +2468,7 @@ model EquipmentAsset {
   @@index([companyId, status])
   @@index([itemId, status])
   @@index([projectId])
+  @@index([teamId])
 }
 
 /// Equipment sent back to the factory for refund, repair, or replacement.
@@ -2392,6 +2552,9 @@ model PayrollDeduction {
 
   createdById String?
   createdBy   User?   @relation("PayrollDeductionCreator", fields: [createdById], references: [id])
+
+  purchaseInvoiceId String?
+  purchaseInvoice   PurchaseInvoice? @relation(fields: [purchaseInvoiceId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

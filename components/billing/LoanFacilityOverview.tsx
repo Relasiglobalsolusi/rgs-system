@@ -9,6 +9,20 @@ import { formatContractPrice } from "@/lib/project-billing";
 
 type LoanTranslator = ReturnType<typeof createTranslator>;
 
+function methodLabel(
+  method: LoanFacilitySnapshot["calculationMethod"],
+  t: LoanTranslator
+) {
+  if (method === "FLAT") return t("pages.billing.loanCalculationMethodFlat");
+  if (method === "EFFECTIVE") {
+    return t("pages.billing.loanCalculationMethodEffective");
+  }
+  if (method === "ANNUITY") {
+    return t("pages.billing.loanCalculationMethodAnnuity");
+  }
+  return "—";
+}
+
 function LoanFact({
   label,
   value,
@@ -86,28 +100,10 @@ export default function LoanFacilityOverview({
               label={t("pages.loans.startDate")}
               value={formatDisplayDate(facility.startDate, { timeZone: "UTC" })}
             />
-            <LoanFact
-              label={t("pages.loans.interestRate")}
-              value={interestLabel}
-            />
-            {isStandby ? (
-              <LoanFact
-                label={t("pages.loans.dayCount")}
-                value={t("pages.loans.dayCountActual", {
-                  year: facility.dayCountYear,
-                })}
-              />
-            ) : null}
             {isStandby && facility.facilityLimit != null ? (
               <LoanFact
                 label={t("pages.loans.creditCeiling")}
                 value={formatContractPrice(facility.facilityLimit)}
-              />
-            ) : null}
-            {isTerm && facility.tenorMonths != null ? (
-              <LoanFact
-                label={t("pages.billing.bankLoanTenorMonths")}
-                value={String(facility.tenorMonths)}
               />
             ) : null}
             {facility.bankAccountLabel ? (
@@ -116,6 +112,99 @@ export default function LoanFacilityOverview({
                 value={facility.bankAccountLabel}
               />
             ) : null}
+          </div>
+
+          <div className="overflow-x-auto rounded-2xl border border-border">
+            <table className="min-w-full text-left text-sm">
+              <thead className="border-b border-border bg-strip text-xs uppercase tracking-wide text-muted">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">
+                    {t("pages.loans.variable")}
+                  </th>
+                  <th className="px-4 py-3 font-semibold">
+                    {t("pages.loans.value")}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b border-border/70">
+                  <td className="px-4 py-3 text-muted">
+                    {t("pages.loans.dayCountYear")}
+                  </td>
+                  <td className="px-4 py-3 font-medium text-text">
+                    {t("pages.loans.dayCountActual", {
+                      year: facility.dayCountYear,
+                    })}
+                  </td>
+                </tr>
+                <tr className="border-b border-border/70">
+                  <td className="px-4 py-3 text-muted">
+                    {t("pages.loans.interestRate")}
+                  </td>
+                  <td className="px-4 py-3 font-medium text-text">
+                    {interestLabel}
+                  </td>
+                </tr>
+                {facility.chargesInterest ? (
+                  <tr className="border-b border-border/70">
+                    <td className="px-4 py-3 text-muted">
+                      {t("pages.billing.loanInterestBasis")}
+                    </td>
+                    <td className="px-4 py-3 font-medium text-text">
+                      {facility.interestRateBasis === "MONTHLY"
+                        ? t("pages.billing.loanInterestBasisMonthly")
+                        : t("pages.billing.loanInterestBasisAnnual")}
+                    </td>
+                  </tr>
+                ) : null}
+                {isStandby ? (
+                  <>
+                    <tr className="border-b border-border/70">
+                      <td className="px-4 py-3 text-muted">
+                        {t("pages.loans.commitmentFeeApplies")}
+                      </td>
+                      <td className="px-4 py-3 font-medium text-text">
+                        {facility.commitmentFeeApplies
+                          ? t("common.actions.yes")
+                          : t("common.actions.no")}
+                      </td>
+                    </tr>
+                    {facility.commitmentFeeApplies ? (
+                      <tr className="border-b border-border/70">
+                        <td className="px-4 py-3 text-muted">
+                          {t("pages.billing.loanCommitmentFeeRate")}
+                        </td>
+                        <td className="px-4 py-3 font-medium text-text">
+                          {`${facility.commitmentFeeRatePercent ?? 0}%`}
+                        </td>
+                      </tr>
+                    ) : null}
+                  </>
+                ) : null}
+                {isTerm ? (
+                  <>
+                    <tr className="border-b border-border/70">
+                      <td className="px-4 py-3 text-muted">
+                        {t("pages.billing.loanCalculationMethod")}
+                      </td>
+                      <td className="px-4 py-3 font-medium text-text">
+                        {methodLabel(facility.calculationMethod, t)}
+                      </td>
+                    </tr>
+                    {facility.tenorMonths != null ? (
+                      <tr className="border-b border-border/70 last:border-0">
+                        <td className="px-4 py-3 text-muted">
+                          {t("pages.billing.bankLoanTenorMonths")}
+                        </td>
+                        <td className="px-4 py-3 font-medium text-text">
+                          {String(facility.tenorMonths)}
+                        </td>
+                      </tr>
+                    ) : null}
+                  </>
+                ) : null}
+              </tbody>
+            </table>
           </div>
 
           {isStandby ? (

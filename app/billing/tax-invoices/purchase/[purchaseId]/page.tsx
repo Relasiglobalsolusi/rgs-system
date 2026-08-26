@@ -1,12 +1,14 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 
-import TaxFileActions from "@/components/billing/TaxFileActions";
+import PurchaseTaxDocumentsClient from "@/components/billing/PurchaseTaxDocumentsClient";
 import AppShell from "@/components/layout/AppShell";
 import BackLink from "@/components/ui/BackLink";
+import { PageDocumentActions } from "@/components/ui/PageDocumentActions";
 import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { formatDisplayDate } from "@/lib/format-date";
+import { commercialTaxIncludesIncomeTax } from "@/lib/commercial-tax";
 import { governmentTaxKindLabelKey } from "@/lib/government-tax";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
@@ -14,7 +16,9 @@ import { purchaseImportInputVat } from "@/lib/import-landed-cost";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber, formatContractPrice } from "@/lib/project-billing";
 import { listPurchaseDocumentSlots } from "@/lib/purchase-invoice-documents";
-import { requireFinanceChild } from "@/lib/session";
+import { canAccess } from "@/lib/permissions";
+import { requireFinanceChild, toPermissionUser } from "@/lib/session";
+import { formatTaxInvoiceSerial } from "@/lib/tax-invoice-serial";
 
 const metaLabelClassName =
   "w-36 shrink-0 px-4 py-2.5 text-left align-top text-xs font-semibold uppercase tracking-[0.12em] text-subtle sm:w-52 sm:px-5";
@@ -27,13 +31,20 @@ function money(value: number | null | undefined): string {
 
 export default async function PurchaseTaxDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ purchaseId: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   const session = await requireFinanceChild("taxInvoices");
   const locale = await getServerLocale();
   const t = createTranslator(locale);
   const { purchaseId } = await params;
+  const query = await searchParams;
+  const backView =
+    query.from === "income" || query.from === "other" || query.from === "output"
+      ? query.from
+      : "input";
 
   if (session.user.clientId || session.user.vendorId) {
     redirect("/billing");
@@ -50,6 +61,15 @@ export default async function PurchaseTaxDetailPage({
   if (!invoice) {
     notFound();
   }
+
+  const user = toPermissionUser(session);
+  const canManage =
+    canAccess(user, "taxInvoices") ||
+    canAccess(user, "purchaseInvoices") ||
+    canAccess(user, "projects");
+  const showWithholdingSlip = commercialTaxIncludesIncomeTax(
+    invoice.includedTaxKind
+  );
 
   const storedRatePercent = decimalToNumber(invoice.ppnRatePercent);
   const goodsVat = purchaseImportInputVat({
@@ -79,6 +99,10 @@ export default async function PurchaseTaxDetailPage({
     importDutiesFilePath: invoice.importDutiesFilePath,
     handlingInvoicePath: invoice.handlingFeeTaxInvoicePath,
     paymentProofPath: invoice.paymentProofPath,
+    withholdingSlipPath: invoice.withholdingSlipPath,
+    includesPpn: invoice.includesPpn,
+    handlingIncludesPpn: invoice.handlingFeeIncludesPpn,
+    showWithholding: showWithholdingSlip,
     hasHandling: Boolean(
       invoice.handlingVendorId ||
         invoice.handlingFeeIdr ||
@@ -87,15 +111,29 @@ export default async function PurchaseTaxDetailPage({
     hasInvoice: invoice.hasInvoice,
     hasCustomsFees: invoice.hasCustomsFees,
   });
-  const taxSlots = slots.filter((slot) =>
-    ["tax", "duties", "handlingTax", "government"].includes(slot.kind)
-  );
+  const taxSlots = slots.filter((slot) => {
+    if (slot.kind === "tax") {
+      return invoice.includesPpn || Boolean(slot.href);
+    }
+    if (slot.kind === "handlingTax") {
+      return invoice.handlingFeeIncludesPpn || Boolean(slot.href);
+    }
+    if (slot.kind === "withholding") {
+      return showWithholdingSlip || Boolean(slot.href);
+    }
+    return ["duties", "government"].includes(slot.kind);
+  });
+  const uploadKinds = new Set(["tax", "withholding", "government", "duties"]);
   const files = (taxSlots.length > 0 ? taxSlots : slots.slice(0, 1)).map(
     (slot) => ({
       id: slot.kind,
-      title: t(slot.titleKey),
+      title:
+        slot.kind === "government"
+          ? t("pages.vat.supportingTaxDocument")
+          : t(slot.titleKey),
       hint: slot.hintKey ? t(slot.hintKey) : undefined,
       href: slot.href,
+      canUpload: canManage && !slot.href && uploadKinds.has(slot.kind),
     })
   );
 
@@ -111,14 +149,27 @@ export default async function PurchaseTaxDetailPage({
           ? t("pages.vat.inputSourceVehicle")
           : t("pages.vat.inputSourceItems");
 
+  const readyDocuments = files.flatMap((file) =>
+    file.href
+      ? [
+          {
+            href: file.href,
+            label: file.title,
+            icon: "download" as const,
+          },
+        ]
+      : []
+  );
+
   return (
     <AppShell
       title={t("pages.vat.taxDetail")}
     >
-      <div className="mb-4">
-        <BackLink href="/billing/tax-invoices?view=input">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <BackLink href={`/billing/tax-invoices?view=${backView}`}>
           {t("pages.vat.backToTax")}
         </BackLink>
+        <PageDocumentActions documents={readyDocuments} />
       </div>
 
       <div className="space-y-5">
@@ -136,6 +187,16 @@ export default async function PurchaseTaxDetailPage({
             invoice.governmentTaxKind === "PPH_29" ? (
               <StatusBadge status="success">
                 {t("pages.vat.tabs.income")}
+              </StatusBadge>
+            ) : null}
+            {isGovernment &&
+            invoice.governmentTaxKind &&
+            invoice.governmentTaxKind !== "PPN" &&
+            invoice.governmentTaxKind !== "PPH_22" &&
+            invoice.governmentTaxKind !== "PPH_25" &&
+            invoice.governmentTaxKind !== "PPH_29" ? (
+              <StatusBadge status="success">
+                {t("pages.vat.tabs.other")}
               </StatusBadge>
             ) : null}
           </div>
@@ -167,6 +228,19 @@ export default async function PurchaseTaxDetailPage({
                   )}
                 </td>
               </tr>
+              {invoice.taxInvoiceSerial ||
+              (invoice.includesPpn && !isGovernment) ? (
+                <tr className="border-b border-border">
+                  <th scope="row" className={metaLabelClassName}>
+                    {t("pages.vat.columns.taxInvoiceNumber")}
+                  </th>
+                  <td className={`${metaValueClassName} tabular-nums`}>
+                    {invoice.taxInvoiceSerial
+                      ? formatTaxInvoiceSerial(invoice.taxInvoiceSerial)
+                      : "—"}
+                  </td>
+                </tr>
+              ) : null}
               {goodsVat.ppn > 0 ? (
                 <>
                   <tr className="border-b border-border">
@@ -230,7 +304,13 @@ export default async function PurchaseTaxDetailPage({
             {t("pages.vat.taxDocuments")}
           </h3>
           <div className="mt-4">
-            <TaxFileActions files={files} />
+            <PurchaseTaxDocumentsClient
+              purchaseInvoiceId={invoice.id}
+              supplierName={invoice.vendor?.name ?? invoice.supplierName}
+              invoiceRef={invoice.invoiceRef}
+              files={files}
+              showWithholdingSlip={showWithholdingSlip}
+            />
           </div>
           <p className="mt-4 text-sm">
             <Link

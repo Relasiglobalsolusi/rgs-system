@@ -108,6 +108,7 @@ export default function ProjectEquipmentPicker({
       )}
 
       <Dialog
+        skipUnsavedGuard
         open={releaseTarget != null}
         onOpenChange={(value) => {
           if (!value) setReleaseTarget(null);

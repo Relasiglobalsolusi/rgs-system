@@ -9,6 +9,7 @@ import {
 } from "@/components/employees/employee-dialog-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import type { MessageKey } from "@/lib/i18n/messages";
 import { useT } from "@/lib/i18n/use-t";
 
 export type VisitWindowDraft = {
@@ -21,12 +22,14 @@ type Props = {
   onChange: (visits: VisitWindowDraft[]) => void;
   /** Prefix field names (e.g. `line.0.`) for bulk create. */
   namePrefix?: string;
+  hintKey?: MessageKey;
 };
 
 export default function VisitPlanFields({
   visits,
   onChange,
   namePrefix = "",
+  hintKey = "pages.projects.visitPlanHint",
 }: Props) {
   const nameOf = (field: string) =>
     namePrefix ? `${namePrefix}${field}` : field;
@@ -47,7 +50,7 @@ export default function VisitPlanFields({
           {t("pages.projects.visitPlan")}
         </p>
         <p className={employeeDialogHintClass}>
-          {t("pages.projects.visitPlanHint")}
+          {t(hintKey)}
         </p>
       </div>
       {visits.map((visit, index) => (

@@ -12,11 +12,16 @@ import {
   allowedSubCategoriesForServiceArea,
   isClientProjectSubCategory,
   isProjectSubCategory,
+  isRgsInternalProject,
   isServiceProjectSubCategory,
+  projectUsesNamedShifts,
   serviceAreaForSubCategory,
   subCategoryForServiceArea,
 } from "@/lib/project-subcategory";
-import { billingSubCategoryForCatalog } from "@/lib/project-service-catalog";
+import {
+  billingSubCategoryForCatalog,
+  parseDemoProjectFlags,
+} from "@/lib/project-service-catalog";
 import { isCleaningOneTimeType } from "@/lib/project-form-subcategory";
 import {
   clampProjectDurationDays,
@@ -43,7 +48,7 @@ import {
   decimalToNumber,
 } from "@/lib/project-billing";
 import {
-  parseShiftCount,
+  parseOptionalNamedShiftCount,
   parseShiftWindowsFromForm,
   syncProjectShifts,
 } from "@/lib/project-shifts";
@@ -113,6 +118,8 @@ import {
   DEFAULT_LOCATION_RADIUS_METERS,
 } from "@/lib/geo";
 import { resolveProjectSiteCoordinates } from "@/lib/project-site-location";
+import { isRgsInternalClientFormValue } from "@/lib/attendance-internal-sites";
+import { HEAD_OFFICE_SITE } from "@/lib/company-identity";
 import {
   applyOperationsTeamAssignments,
   parseTeamIdsFromForm,
@@ -475,7 +482,13 @@ async function resolveSubCategoryAndServiceArea(
   const subcategoryCatalogId = String(
     formData.get("subcategoryCatalogId") ?? ""
   ).trim();
-  const serviceArea = parseServiceArea(formData.get("serviceArea"));
+  const rawServiceArea = String(formData.get("serviceArea") ?? "")
+    .trim()
+    .toUpperCase();
+  const serviceArea =
+    rawServiceArea === "MAINTENANCE"
+      ? "OTHER"
+      : parseServiceArea(formData.get("serviceArea"));
 
   if (subcategoryCatalogId) {
     const catalogSub = await prisma.projectSubcategoryCatalog.findFirst({
@@ -792,6 +805,140 @@ async function createMilestoneSchedulePeriods(
   }
 }
 
+async function createInternalRgsProject(
+  formData: FormData,
+  session: { user: { id: string; username?: string; companyId: string | null } }
+) {
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) throw new Error("Project name is required.");
+  const companyId = session.user.companyId;
+  if (!companyId) throw new Error("Company not found.");
+  const employeeIds = [
+    ...new Set(formData.getAll("employeeIds").map(String).filter(Boolean)),
+  ];
+  const resolvedArea = await resolveSubCategoryAndServiceArea(
+    formData,
+    companyId
+  );
+  const { subCategory, serviceArea, areaCatalogId, subcategoryCatalogId } =
+    resolvedArea;
+  const createScope = await assertCanCreateProjectInScope({
+    userId: session.user.id,
+    username: session.user.username,
+    serviceArea,
+  });
+  let location;
+  let latitude;
+  let longitude;
+  let locationRadiusMeters;
+  try {
+    const parsed = await parseLocationFields(formData);
+    location = parsed.location;
+    latitude = parsed.latitude;
+    longitude = parsed.longitude;
+    locationRadiusMeters = parsed.locationRadiusMeters;
+  } catch {
+    location = HEAD_OFFICE_SITE.address;
+    latitude = HEAD_OFFICE_SITE.latitude;
+    longitude = HEAD_OFFICE_SITE.longitude;
+    locationRadiusMeters = DEFAULT_LOCATION_RADIUS_METERS;
+  }
+  const shiftCount = parseOptionalNamedShiftCount(
+    formData.get("shiftCount"),
+    projectUsesNamedShifts(subCategory)
+  );
+  const shiftWindows =
+    shiftCount > 0 ? parseShiftWindowsFromForm(formData, shiftCount) : [];
+  const company = await prisma.company.findFirst({ where: { id: companyId } });
+  if (!company) throw new Error("Company not found.");
+  const sortOrder = await nextCompanyScopedSortOrder("project", company.id);
+  const startDate = parseDateInput(todayDateInput());
+  const multipleVisit =
+    String(formData.get("multipleVisit") ?? "").trim() === "Yes";
+  const visits = multipleVisit
+    ? parseProjectVisitsFromForm(formData, null)
+    : [];
+  const billingMode = multipleVisit ? "MULTI_VISIT" : "ON_COMPLETION";
+  const lastVisitEnd = visits[visits.length - 1]?.endDate ?? null;
+
+  await prisma.$transaction(async (tx) => {
+    const created = await tx.project.create({
+      data: {
+        name,
+        location,
+        latitude,
+        longitude,
+        locationRadiusMeters,
+        status: "IN_PROGRESS",
+        startDate,
+        endDate: lastVisitEnd,
+        estimatedStartDate: startDate,
+        subCategory,
+        serviceArea,
+        areaCatalogId,
+        subcategoryCatalogId,
+        clientId: null,
+        isDemo: false,
+        isComplimentary: false,
+        billingMode,
+        requiresTaxInvoice: false,
+        companyId: company.id,
+        sortOrder,
+        shiftCount,
+      } as unknown as Prisma.ProjectUncheckedCreateInput,
+    });
+    if (createScope.areaManagerEmployeeId) {
+      await tx.areaManagerProject.create({
+        data: {
+          employeeId: createScope.areaManagerEmployeeId,
+          projectId: created.id,
+        },
+      });
+    }
+    await syncProjectShifts(tx, created.id, shiftCount, shiftWindows);
+    if (visits.length > 0) {
+      await tx.projectVisit.createMany({
+        data: visits.map((visit) => ({
+          projectId: created.id,
+          visitIndex: visit.visitIndex,
+          startDate: visit.startDate,
+          endDate: visit.endDate,
+          amount: visit.amount,
+        })),
+      });
+    }
+    const nextIds = await nextCrewIdsWithTeams(tx, {
+      companyId: company.id,
+      projectId: created.id,
+      subCategory,
+      areaCatalogId,
+      serviceArea,
+      formData,
+      extraEmployeeIds: employeeIds,
+    });
+    if (nextIds.length > 0) {
+      await assertProjectStaffAssignable(tx, company.id, nextIds, {
+        excludeProjectId: created.id,
+        ...staffAssignableOptions(subCategory),
+      });
+      await tx.projectAssignment.createMany({
+        data: nextIds.map((employeeId) => ({
+          projectId: created.id,
+          employeeId,
+        })),
+        skipDuplicates: true,
+      });
+      await markEmployeesOnProject(tx, nextIds, company.id);
+    }
+    return created;
+  });
+
+  revalidatePath("/projects");
+  revalidatePath("/dashboard");
+  revalidatePath("/cico");
+  revalidatePath("/progress");
+}
+
 export async function createProject(formData: FormData) {
   try {
     const session = await requireModule("projects");
@@ -806,10 +953,30 @@ export async function createProject(formData: FormData) {
     const formDurationDays = parseDurationDays(formData);
     const clientId = String(formData.get("clientId") ?? "").trim();
     const employeeIds = formData.getAll("employeeIds").map(String);
+    if (isRgsInternalClientFormValue(clientId)) {
+      await createInternalRgsProject(formData, session);
+      return;
+    }
     const companyId = session.user.companyId;
     if (!companyId) throw new Error("Company not found.");
-    const { subCategory, serviceArea, areaCatalogId, subcategoryCatalogId } =
-      await resolveSubCategoryAndServiceArea(formData, companyId);
+    const { isDemo, isComplimentary } = parseDemoProjectFlags(formData);
+    const resolvedArea = await resolveSubCategoryAndServiceArea(
+      formData,
+      companyId
+    );
+    let { subCategory, serviceArea, areaCatalogId, subcategoryCatalogId } =
+      resolvedArea;
+    if (isDemo) {
+      if (serviceArea === "CLEANING" && !isCleaningOneTimeType(subCategory)) {
+        subCategory = "GENERAL_CLEANING";
+      }
+      if (serviceArea === "LANDSCAPING") {
+        subCategory = "ONE_TIME_LANDSCAPING";
+      }
+      if (serviceArea === "OTHER" && !subcategoryCatalogId) {
+        subCategory = "GENERAL_CLEANING";
+      }
+    }
     const createScope = await assertCanCreateProjectInScope({
       userId: session.user.id,
       username: session.user.username,
@@ -817,9 +984,16 @@ export async function createProject(formData: FormData) {
     });
     const { location, latitude, longitude, locationRadiusMeters } =
       await parseLocationFields(formData);
-    const shiftCount = parseShiftCount(formData.get("shiftCount"));
-    const shiftWindows = parseShiftWindowsFromForm(formData, shiftCount);
-    const billingMode = resolveBillingMode(formData, subCategory);
+    const shiftCount = parseOptionalNamedShiftCount(
+      formData.get("shiftCount"),
+      projectUsesNamedShifts(subCategory)
+    );
+    const shiftWindows =
+      shiftCount > 0 ? parseShiftWindowsFromForm(formData, shiftCount) : [];
+    let billingMode = resolveBillingMode(formData, subCategory);
+    if (isDemo && billingMode === "MULTI_VISIT") {
+      billingMode = "ON_COMPLETION";
+    }
     const { invoicingDay: defaultInvoicingDay } = billingDefaults(
       subCategory,
       billingMode
@@ -953,7 +1127,7 @@ export async function createProject(formData: FormData) {
       );
     }
     let contractDocumentUrl: string | null = null;
-    if (status === "IN_PROGRESS") {
+    if (status === "IN_PROGRESS" && !isDemo) {
       const contractProof = formData.get("contractProof");
       if (!(contractProof instanceof File) || contractProof.size === 0) {
         throw new Error(
@@ -972,26 +1146,38 @@ export async function createProject(formData: FormData) {
       requiresTaxInvoice,
       pphRatePercent,
       otherTaxName,
-    } = parseProjectChargedTax(formData);
+    } = isComplimentary
+      ? {
+          chargedTaxKind: null,
+          requiresTaxInvoice: false,
+          pphRatePercent: null,
+          otherTaxName: null,
+        }
+      : parseProjectChargedTax(formData);
     const paymentTermsDays =
-      subCategory === "PARKING"
+      isComplimentary || subCategory === "PARKING"
         ? null
         : parseProjectPaymentTermsDays(formData, 14);
-    const bankAccountId = await parseFormCompanyBankAccountId(
-      formData,
-      company.id,
-      { requiredWhenAccountsExist: true }
-    );
-    const serviceFields = isService
-      ? parseServiceCommercialFields(formData, subCategory)
-      : null;
-    const contractPrice = isService
-      ? serviceFields?.contractPrice ?? null
-      : parseRequiredMoneyField(
+    const bankAccountId = isComplimentary
+      ? null
+      : await parseFormCompanyBankAccountId(
           formData,
-          "contractPrice",
-          "Contract price"
+          company.id,
+          { requiredWhenAccountsExist: true }
         );
+    const serviceFields =
+      isComplimentary || !isService
+        ? null
+        : parseServiceCommercialFields(formData, subCategory);
+    const contractPrice = isComplimentary
+      ? 0
+      : isService
+        ? serviceFields?.contractPrice ?? null
+        : parseRequiredMoneyField(
+            formData,
+            "contractPrice",
+            "Contract price"
+          );
     if (subCategory === "PAYROLL_MANAGEMENT" && endDate) {
       const cutoff = serviceFields?.payrollCutoffEndDay;
       if (cutoff != null) {
@@ -1039,12 +1225,17 @@ export async function createProject(formData: FormData) {
           chargedTaxKind,
           pphRatePercent,
           otherTaxName,
+          isGovernmentContract:
+            !isComplimentary &&
+            String(formData.get("isGovernmentContract") ?? "") === "true",
+          isDemo,
+          isComplimentary,
           companyId: company.id,
           clientId,
           sortOrder,
           contractDocumentUrl,
           shiftCount,
-        },
+        } as unknown as Prisma.ProjectUncheckedCreateInput,
       });
 
       if (createScope.areaManagerEmployeeId) {
@@ -1058,18 +1249,18 @@ export async function createProject(formData: FormData) {
 
       await syncProjectShifts(tx, created.id, shiftCount, shiftWindows);
 
-      if (milestoneInstallments) {
+      if (billingMode === "MILESTONE") {
         await createMilestoneSchedulePeriods(tx, {
           projectId: created.id,
           // Prefer real start; fall back to estimate for schedule anchoring.
           startDate: startDate ?? estimatedStartDate,
-          installmentPercents: milestoneInstallments,
+          installmentPercents: milestoneInstallments ?? [100],
           contractPrice,
           bankAccountId,
         });
       }
 
-      if (billingMode === "MULTI_VISIT") {
+      if (billingMode === "MULTI_VISIT" && !isComplimentary) {
         const visits = parseProjectVisitsFromForm(
           formData,
           serviceFields?.contractPrice ?? null
@@ -1095,6 +1286,7 @@ export async function createProject(formData: FormData) {
       // Regular + Security In Progress create: open the first billing period.
       // Parking / Payroll Management stay commercial-terms only (no periods).
       if (
+        !isComplimentary &&
         !isPlanning &&
         usesInvoicePeriods(subCategory) &&
         billingMode === "MONTHLY" &&
@@ -1433,13 +1625,32 @@ export async function updateProject(id: string, formData: FormData) {
       return;
     }
 
-    const { subCategory, serviceArea, areaCatalogId, subcategoryCatalogId } =
-      await resolveSubCategoryAndServiceArea(formData, companyId);
-    const billingMode = resolveBillingMode(
+    const { isDemo, isComplimentary } = parseDemoProjectFlags(formData);
+    const resolvedUpdate = await resolveSubCategoryAndServiceArea(
+      formData,
+      companyId
+    );
+    let { subCategory, serviceArea, areaCatalogId, subcategoryCatalogId } =
+      resolvedUpdate;
+    if (isDemo) {
+      if (serviceArea === "CLEANING" && !isCleaningOneTimeType(subCategory)) {
+        subCategory = "GENERAL_CLEANING";
+      }
+      if (serviceArea === "LANDSCAPING") {
+        subCategory = "ONE_TIME_LANDSCAPING";
+      }
+      if (serviceArea === "OTHER" && !subcategoryCatalogId) {
+        subCategory = "GENERAL_CLEANING";
+      }
+    }
+    let billingMode = resolveBillingMode(
       formData,
       subCategory,
       existing.billingMode
     );
+    if (isDemo && billingMode === "MULTI_VISIT") {
+      billingMode = "ON_COMPLETION";
+    }
     const { invoicingDay: defaultInvoicingDay } = billingDefaults(
       subCategory,
       billingMode
@@ -1553,30 +1764,42 @@ export async function updateProject(id: string, formData: FormData) {
       requiresTaxInvoice,
       pphRatePercent,
       otherTaxName,
-    } = parseProjectChargedTax(formData);
+    } = isComplimentary
+      ? {
+          chargedTaxKind: null,
+          requiresTaxInvoice: false,
+          pphRatePercent: null,
+          otherTaxName: null,
+        }
+      : parseProjectChargedTax(formData);
 
     const paymentTermsDays =
-      subCategory === "PARKING"
+      isComplimentary || subCategory === "PARKING"
         ? null
         : parseProjectPaymentTermsDays(
             formData,
             existing.paymentTermsDays ?? 14
           );
-    const bankAccountId = await parseFormCompanyBankAccountId(
-      formData,
-      companyId,
-      { requiredWhenAccountsExist: true }
-    );
-    const serviceFields = isService
-      ? parseServiceCommercialFields(formData, subCategory)
-      : null;
-    const contractPrice = isService
-      ? serviceFields?.contractPrice ?? null
-      : parseRequiredMoneyField(
+    const bankAccountId = isComplimentary
+      ? null
+      : await parseFormCompanyBankAccountId(
           formData,
-          "contractPrice",
-          "Contract price"
+          companyId,
+          { requiredWhenAccountsExist: true }
         );
+    const serviceFields =
+      isComplimentary || !isService
+        ? null
+        : parseServiceCommercialFields(formData, subCategory);
+    const contractPrice = isComplimentary
+      ? 0
+      : isService
+        ? serviceFields?.contractPrice ?? null
+        : parseRequiredMoneyField(
+            formData,
+            "contractPrice",
+            "Contract price"
+          );
     if (subCategory === "PAYROLL_MANAGEMENT" && endDate) {
       const cutoff = serviceFields?.payrollCutoffEndDay;
       if (cutoff != null) {
@@ -1586,11 +1809,13 @@ export async function updateProject(id: string, formData: FormData) {
 
     const leavingMilestone =
       existing.billingMode === "MILESTONE" && billingMode !== "MILESTONE";
-    const shiftCount = parseShiftCount(
+    const shiftCount = parseOptionalNamedShiftCount(
       formData.get("shiftCount"),
+      projectUsesNamedShifts(subCategory),
       existing.shiftCount
     );
-    const shiftWindows = parseShiftWindowsFromForm(formData, shiftCount);
+    const shiftWindows =
+      shiftCount > 0 ? parseShiftWindowsFromForm(formData, shiftCount) : [];
 
     await prisma.$transaction(async (tx) => {
       await tx.project.update({
@@ -1620,6 +1845,11 @@ export async function updateProject(id: string, formData: FormData) {
           chargedTaxKind,
           pphRatePercent,
           otherTaxName,
+          isGovernmentContract:
+            !isComplimentary &&
+            String(formData.get("isGovernmentContract") ?? "") === "true",
+          isDemo,
+          isComplimentary,
           contractPrice,
           ...(isService
             ? {
@@ -1653,7 +1883,7 @@ export async function updateProject(id: string, formData: FormData) {
           bankAccountId,
           clientId: clientId || null,
           shiftCount,
-        },
+        } as unknown as Prisma.ProjectUncheckedUpdateInput,
       });
 
       await syncProjectShifts(tx, id, shiftCount, shiftWindows);
@@ -2697,6 +2927,7 @@ export async function submitProjectForApproval(projectId: string) {
         endDate: true,
         clientId: true,
         serviceArea: true,
+        contractPrice: true,
         invoicePeriods: {
           where: {
             status: { in: ["ONGOING", "COMPILING", "AWAITING_CLIENT_REVIEW"] },
@@ -2716,7 +2947,7 @@ export async function submitProjectForApproval(projectId: string) {
     if (!project) throw new Error(translate(locale, "pages.projects.notFound"));
     await assertSessionCanWriteProject(session, project);
 
-    if (project.subCategory === "INTERNAL") {
+    if (isRgsInternalProject(project)) {
       throw new Error(
         translate(locale, "pages.projects.submitForApproval.internalNotAllowed")
       );
@@ -2785,14 +3016,26 @@ export async function submitProjectForApproval(projectId: string) {
         (p) => p.status === "ONGOING"
       );
       if (!ongoingMilestone) {
-        throw new Error(
-          translate(
-            locale,
-            "pages.projects.submitForApproval.noOngoingMilestone"
-          )
-        );
+        const periodStart = project.startDate
+          ? toUtcDateOnly(project.startDate)
+          : today;
+        const created = await prisma.projectInvoicePeriod.create({
+          data: {
+            projectId: project.id,
+            periodStart,
+            periodEnd: project.endDate
+              ? toUtcDateOnly(project.endDate)
+              : periodStart,
+            label: "Milestone 1",
+            status: "ONGOING",
+            amount: decimalToNumber(project.contractPrice) ?? 0,
+            milestonePercent: 100,
+          },
+        });
+        periodId = created.id;
+      } else {
+        periodId = ongoingMilestone.id;
       }
-      periodId = ongoingMilestone.id;
     } else {
       // ON_COMPLETION: find or create a single completion period.
       const existing = project.invoicePeriods.find(
@@ -2838,13 +3081,16 @@ export async function submitProjectForApproval(projectId: string) {
       }
     }
 
-    // Milestone review stays on this period. Project list stays In Progress.
-
     // Compile PRs into PDF + send to client for review (reuse existing billing action).
     const { sendPeriodForClientReview } = await import(
       "@/app/billing/reconciliation/actions"
     );
     await sendPeriodForClientReview(periodId, "PROGRESS");
+
+    await prisma.project.update({
+      where: { id: project.id },
+      data: { status: "WAITING_FOR_APPROVAL" },
+    });
 
     revalidateAfterProjectLifecycle({ projectId, clientId: project.clientId });
 

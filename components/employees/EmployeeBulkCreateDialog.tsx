@@ -1,6 +1,9 @@
 "use client";
 
-import { showRejectionFromError } from "@/components/ui/rejection-notice";
+import {
+  showMissingRequiredFields,
+  showRejectionFromError,
+} from "@/components/ui/rejection-notice";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Users } from "lucide-react";
 
@@ -130,6 +133,14 @@ export default function EmployeeBulkCreateDialog({
   }, [controlledOpen, categoryList.join("|")]);
 
   function submit(formData: FormData) {
+    const form = document.getElementById(FORM_ID);
+    if (
+      showMissingRequiredFields(
+        form instanceof HTMLFormElement ? form : null
+      )
+    ) {
+      return;
+    }
     startTransition(async () => {
       try {
         await createEmployeesInBulk(formData);
@@ -167,7 +178,12 @@ export default function EmployeeBulkCreateDialog({
             </EmployeePrimaryButton>
           }
         >
-          <form id={FORM_ID} action={submit} onInput={handleFormInput}>
+          <form
+            id={FORM_ID}
+            action={submit}
+            noValidate
+            onInput={handleFormInput}
+          >
             <input type="hidden" name="lineCount" value={lineKeys.length} />
             <BulkLineList
               title={t("pages.employees.bulkCreatePeople")}

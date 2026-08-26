@@ -45,11 +45,11 @@ type StatusBadgeProps = {
  * No optical pb nudges or display-mode swaps — those fight Inter caps.
  */
 export const compactChipClassName =
-  "box-border inline-flex h-[2.75rem] min-h-[2.75rem] w-auto min-w-[7.5rem] max-w-none shrink-0 items-center justify-center overflow-hidden whitespace-nowrap rounded-md px-2.5 py-0 text-xs font-semibold uppercase leading-none tracking-[0.04em]";
+  "box-border inline-flex h-[2.75rem] min-h-[2.75rem] w-auto min-w-[7.5rem] max-w-none shrink-0 items-center justify-center overflow-hidden whitespace-nowrap rounded-md px-2.5 py-0 text-xs font-bold uppercase leading-none tracking-[0.04em]";
 
 /** Larger identity chips — project detail status / cleaning type overview. */
 export const largeChipClassName =
-  "box-border inline-flex h-[3.5rem] min-h-[3.5rem] w-auto min-w-[9.75rem] max-w-none shrink-0 items-center justify-center overflow-hidden whitespace-nowrap rounded-md px-3.5 py-0 text-sm font-semibold uppercase leading-none tracking-[0.04em]";
+  "box-border inline-flex h-[3.5rem] min-h-[3.5rem] w-auto min-w-[9.75rem] max-w-none shrink-0 items-center justify-center overflow-hidden whitespace-nowrap rounded-md px-3.5 py-0 text-sm font-bold uppercase leading-none tracking-[0.04em]";
 
 const chipSizeClassName: Record<StatusBadgeSize, string> = {
   md: compactChipClassName,
@@ -62,45 +62,41 @@ const chipSizeClassName: Record<StatusBadgeSize, string> = {
  * Inherits parent chip text color.
  */
 export const stackedChipLabelClassName =
-  "flex h-full w-full flex-col items-center justify-center text-center text-[0.5625rem] font-semibold uppercase leading-[1.15] tracking-[0.04em] text-inherit";
+  "flex h-full w-full flex-col items-center justify-center text-center text-[0.5625rem] font-bold uppercase leading-[1.15] tracking-[0.04em] text-inherit";
 
 /** Stacked label scale for `size="lg"` chips. */
 export const largeStackedChipLabelClassName =
-  "flex h-full w-full flex-col items-center justify-center text-center text-xs font-semibold uppercase leading-[1.2] tracking-[0.04em] text-inherit";
+  "flex h-full w-full flex-col items-center justify-center text-center text-xs font-bold uppercase leading-[1.2] tracking-[0.04em] text-inherit";
 
 /** @deprecated Prefer stackedChipLabelClassName — kept for existing imports. */
 export const permanentDeleteLabelClassName = stackedChipLabelClassName;
 
 /**
- * Outline / soft-tint chip tones — colored border + tinted bg + colored text.
+ * Light same-hue wash + deep same-hue ink. Hue tokens stay put;
+ * contrast is the fill/ink gap, not a different color family.
  * Shared by StatusBadge, Button *Badge, DirectoryFilterTab, option pills.
  */
 export const outlineChipTones = {
-  /** Mint — Manage Billing / Restore / Active / Permissions / success. */
   emerald:
-    "border border-primary/35 bg-card-tint-emerald font-semibold text-primary-dark shadow-none",
+    "border border-chip-ink-emerald/35 bg-chip-fill-emerald font-bold text-chip-ink-emerald shadow-none",
   emeraldInteractive:
-    "border border-primary/35 bg-card-tint-emerald font-semibold text-primary-dark shadow-none hover:bg-[color-mix(in_srgb,var(--color-card-tint-emerald),var(--color-primary)_12%)] focus-visible:border-primary focus-visible:ring-primary/25",
-  /** Cyan — Edit / info / Back to Planning. */
+    "border border-chip-ink-emerald/35 bg-chip-fill-emerald font-bold text-chip-ink-emerald shadow-none hover:bg-[color-mix(in_srgb,var(--color-chip-emerald)_92%,white)] focus-visible:border-chip-emerald focus-visible:ring-chip-emerald/25",
   cyan:
-    "border border-accent-cyan/40 bg-card-tint-cyan font-semibold text-accent-teal shadow-none",
+    "border border-chip-ink-cyan/35 bg-chip-fill-cyan font-bold text-chip-ink-cyan shadow-none",
   cyanInteractive:
-    "border border-accent-cyan/40 bg-card-tint-cyan font-semibold text-accent-teal shadow-none hover:bg-[color-mix(in_srgb,var(--color-card-tint-cyan),var(--color-accent-cyan)_12%)] focus-visible:border-accent-cyan focus-visible:ring-accent-cyan/25",
-  /** Red — Delete / End Contract / Revoke. */
+    "border border-chip-ink-cyan/35 bg-chip-fill-cyan font-bold text-chip-ink-cyan shadow-none hover:bg-[color-mix(in_srgb,var(--color-chip-cyan)_92%,white)] focus-visible:border-chip-cyan focus-visible:ring-chip-cyan/25",
   danger:
-    "border border-danger/40 bg-card-tint-red font-semibold text-danger shadow-none",
+    "border border-chip-ink-rose/35 bg-chip-fill-rose font-bold text-chip-ink-rose shadow-none",
   dangerInteractive:
-    "border border-danger/40 bg-card-tint-red font-semibold text-danger shadow-none hover:bg-[color-mix(in_srgb,var(--color-card-tint-red),var(--color-danger)_10%)] focus-visible:border-danger focus-visible:ring-danger/25",
-  /** Amber — warning / pending. */
+    "border border-chip-ink-rose/35 bg-chip-fill-rose font-bold text-chip-ink-rose shadow-none hover:bg-[color-mix(in_srgb,var(--color-chip-rose)_92%,white)] focus-visible:border-chip-rose focus-visible:ring-chip-rose/25",
   warning:
-    "border border-warning/40 bg-card-tint-amber font-semibold text-warning shadow-none",
+    "border border-chip-ink-amber/35 bg-chip-fill-amber font-bold text-chip-ink-amber shadow-none",
   warningInteractive:
-    "border border-warning/40 bg-card-tint-amber font-semibold text-warning shadow-none hover:bg-[color-mix(in_srgb,var(--color-card-tint-amber),var(--color-warning)_10%)] focus-visible:border-warning focus-visible:ring-warning/25",
-  /** Quiet unselected / Clear. */
+    "border border-chip-ink-amber/35 bg-chip-fill-amber font-bold text-chip-ink-amber shadow-none hover:bg-[color-mix(in_srgb,var(--color-chip-amber)_92%,white)] focus-visible:border-chip-amber focus-visible:ring-chip-amber/25",
   muted:
-    "border border-border bg-elevated font-semibold text-muted shadow-none",
+    "border border-chip-ink-slate/35 bg-chip-fill-slate font-bold text-chip-ink-slate shadow-none",
   mutedInteractive:
-    "border border-border bg-elevated font-semibold text-muted shadow-none hover:border-border-strong hover:bg-card-hover hover:text-text focus-visible:border-border-strong focus-visible:ring-ring/40",
+    "border border-chip-ink-slate/35 bg-chip-fill-slate font-bold text-chip-ink-slate shadow-none hover:bg-[color-mix(in_srgb,var(--color-chip-slate)_92%,white)] focus-visible:border-chip-slate focus-visible:ring-chip-slate/25",
 } as const;
 
 /**

@@ -1,14 +1,19 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { FileSpreadsheet, ListPlus, Package } from "lucide-react";
+import { useMemo, useState, useTransition, type ReactNode } from "react";
+import {
+  Boxes,
+  Car,
+  Cog,
+  FileSpreadsheet,
+  FlaskConical,
+  ListPlus,
+  Package,
+  Wrench,
+} from "lucide-react";
 import { toast } from "sonner";
 
-import {
-  deactivateInventoryItem,
-  deleteInventoryItem,
-  reactivateInventoryItem,
-} from "@/app/inventory/actions";
+import { deleteInventoryItem } from "@/app/inventory/actions";
 import {
   confirmBulkImportInventoryItems,
   previewBulkImportInventoryItems,
@@ -20,7 +25,9 @@ import InventoryItemEditDialog from "@/components/inventory/InventoryItemEditDia
 import {
   INVENTORY_CATEGORY_DISPLAY_ORDER,
   INVENTORY_CATEGORY_TITLE_KEY,
+  inventoryItemTypeCategory,
   partitionItemsByInventoryItemType,
+  type InventoryItemTypeCategory,
 } from "@/components/inventory/inventory-category";
 import type { InventoryCatalogItem } from "@/components/inventory/inventory-types";
 import DirectoryAddButton from "@/components/ui/DirectoryAddButton";
@@ -33,8 +40,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge from "@/components/ui/StatusBadge";
 import {
-  ACTIONS_TRIPLE_CHIP_COLUMN_WIDTH,
-  STATUS_COLUMN_WIDTH,
+  ACTIONS_SINGLE_CHIP_COLUMN_WIDTH,
   trashActionChipClassName,
 } from "@/components/ui/trash-action-buttons";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -88,29 +94,50 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
     () => partitionItemsByInventoryItemType(visibleItems),
     [visibleItems]
   );
+  const categorizedAll = useMemo(
+    () => partitionItemsByInventoryItemType(items),
+    [items]
+  );
 
-  function toggleItemActive(item: InventoryCatalogItem) {
-    const formData = new FormData();
-    formData.set("id", item.id);
-    startTransition(async () => {
-      try {
-        if (item.active) {
-          await deactivateInventoryItem(formData);
-          toast.success(t("pages.itemCatalog.itemDeactivated"));
-        } else {
-          await reactivateInventoryItem(formData);
-          toast.success(t("pages.itemCatalog.itemReactivated"));
-        }
-      } catch (error) {
-        showRejectionFromError(
-          error,
-          item.active
-            ? t("pages.itemCatalog.deactivateItemFailed")
-            : t("pages.itemCatalog.reactivateItemFailed")
-        );
-      }
-    });
-  }
+  const categoryMeta: Record<
+    InventoryItemTypeCategory,
+    {
+      accent: "primary" | "success" | "warning" | "danger" | "info" | "muted";
+      status: "success" | "warning" | "danger" | "info" | "inactive" | "pending";
+      icon: ReactNode;
+    }
+  > = {
+    equipment: {
+      accent: "success",
+      status: "success",
+      icon: <Wrench size={18} />,
+    },
+    vehicle: {
+      accent: "info",
+      status: "info",
+      icon: <Car size={18} />,
+    },
+    sparePart: {
+      accent: "warning",
+      status: "warning",
+      icon: <Cog size={18} />,
+    },
+    chemical: {
+      accent: "danger",
+      status: "danger",
+      icon: <FlaskConical size={18} />,
+    },
+    consumable: {
+      accent: "primary",
+      status: "pending",
+      icon: <Package size={18} />,
+    },
+    other: {
+      accent: "muted",
+      status: "inactive",
+      icon: <Boxes size={18} />,
+    },
+  };
 
   async function deleteItem(item: InventoryCatalogItem) {
     const confirmed = await confirm({
@@ -162,16 +189,26 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
     {
       key: "itemType",
       title: t("pages.itemCatalog.columns.itemType"),
-      width: "8rem",
-      render: (row) => localizeInventoryItemType(row.itemType, locale),
+      width: "10rem",
+      cellAlign: "center",
+      className: "min-w-[10rem] overflow-visible",
+      render: (row) => {
+        const category = inventoryItemTypeCategory(row.itemType);
+        return (
+          <StatusBadge status={categoryMeta[category].status} compact>
+            {localizeInventoryItemType(row.itemType, locale)}
+          </StatusBadge>
+        );
+      },
     },
     {
-      key: "active",
+      key: "status",
       title: t("pages.itemCatalog.columns.status"),
-      width: STATUS_COLUMN_WIDTH,
+      width: "8rem",
       cellAlign: "center",
+      className: "min-w-[8rem] overflow-visible",
       render: (row) => (
-        <StatusBadge status={row.active ? "active" : "inactive"} compact>
+        <StatusBadge status={row.active ? "success" : "inactive"} compact>
           {row.active
             ? t("pages.itemCatalog.status.active")
             : t("pages.itemCatalog.status.inactive")}
@@ -183,11 +220,11 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
           {
             key: "actions",
             title: t("pages.itemCatalog.columns.actions"),
-            width: ACTIONS_TRIPLE_CHIP_COLUMN_WIDTH,
+            width: ACTIONS_SINGLE_CHIP_COLUMN_WIDTH,
             cellAlign: "center" as const,
-            className: "min-w-[34rem] overflow-visible whitespace-nowrap",
+            className: "min-w-[12.5rem] overflow-visible",
             render: (row: InventoryCatalogItem) => (
-              <div className="flex shrink-0 items-center justify-center gap-2 whitespace-nowrap">
+              <div className="flex flex-col items-stretch justify-center gap-2">
                 <Button
                   type="button"
                   size="badge"
@@ -197,18 +234,6 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
                   onClick={() => setEditItem(row)}
                 >
                   {t("common.actions.edit")}
-                </Button>
-                <Button
-                  type="button"
-                  size="badge"
-                  variant={row.active ? "outline" : "successBadge"}
-                  className={trashActionChipClassName}
-                  disabled={pending}
-                  onClick={() => toggleItemActive(row)}
-                >
-                  {row.active
-                    ? t("pages.itemCatalog.deactivate")
-                    : t("common.actions.restore")}
                 </Button>
                 <Button
                   type="button"
@@ -229,26 +254,54 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
 
   return (
     <>
-      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-3">
         <DirectoryStatCard
+          compact
+          tinted
           title={t("pages.itemCatalog.stats.activeTitle")}
           value={activeItems.length}
           subtitle={t("pages.itemCatalog.stats.activeSubtitle", {
             inactive: String(inactiveItems.length),
           })}
           icon={<Package size={18} />}
-          accent="info"
-          selected
+          accent="success"
         />
         <DirectoryStatCard
+          compact
+          tinted
+          title={t("pages.itemCatalog.stats.inactiveTitle")}
+          value={inactiveItems.length}
+          subtitle={t("pages.itemCatalog.stats.inactiveSubtitle")}
+          icon={<Boxes size={18} />}
+          accent={inactiveItems.length > 0 ? "warning" : "muted"}
+        />
+        <DirectoryStatCard
+          compact
+          tinted
           title={t("pages.itemCatalog.stats.totalTitle")}
           value={items.length}
           subtitle={t("pages.itemCatalog.stats.totalSubtitle")}
           icon={<Package size={18} />}
-          accent="success"
+          accent="info"
         />
       </div>
+      <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        {INVENTORY_CATEGORY_DISPLAY_ORDER.map((key) => (
+          <DirectoryStatCard
+            key={key}
+            compact
+            tinted
+            title={t(INVENTORY_CATEGORY_TITLE_KEY[key])}
+            value={categorizedAll[key].length}
+            accent={categoryMeta[key].accent}
+            icon={categoryMeta[key].icon}
+          />
+        ))}
+      </div>
 
+      <p className="mb-3 text-sm text-subtle">
+        {t("pages.itemCatalog.deleteHint")}
+      </p>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <DirectorySearchInput
           value={searchQuery}
@@ -298,8 +351,11 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
           {INVENTORY_CATEGORY_DISPLAY_ORDER.map((key) =>
             categorized[key].length > 0 ? (
               <div key={key} className="space-y-2">
-                <p className="text-xs font-semibold text-subtle">
-                  {t(INVENTORY_CATEGORY_TITLE_KEY[key])}
+                <p className="text-sm font-semibold text-text">
+                  {t(INVENTORY_CATEGORY_TITLE_KEY[key])}{" "}
+                  <span className="font-medium text-subtle">
+                    ({categorized[key].length})
+                  </span>
                 </p>
                 <DataTable
                   columns={columns}

@@ -314,13 +314,11 @@ export default async function CicoPage() {
         <AppShell
           titleKey="pages.cico.title"
         >
-          <div className="mx-auto w-full max-w-2xl">
-            <SectionCard>
-              <p className="text-center text-subtle">
-                {t("pages.cico.activeOnlyMessage")}
-              </p>
-            </SectionCard>
-          </div>
+          <SectionCard>
+            <p className="text-center text-subtle">
+              {t("pages.cico.activeOnlyMessage")}
+            </p>
+          </SectionCard>
         </AppShell>
       );
     }
@@ -329,13 +327,11 @@ export default async function CicoPage() {
       <AppShell
         titleKey="pages.cico.title"
       >
-        <div className="mx-auto w-full max-w-2xl">
-          <SectionCard>
-            <p className="text-center text-subtle">
-              {t("pages.cico.onProjectOnlyMessage")}
-            </p>
-          </SectionCard>
-        </div>
+        <SectionCard>
+          <p className="text-center text-subtle">
+            {t("pages.cico.onProjectOnlyMessage")}
+          </p>
+        </SectionCard>
       </AppShell>
     );
   }
@@ -457,7 +453,7 @@ export default async function CicoPage() {
     <AppShell
       titleKey="pages.cico.title"
     >
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-8 pb-8">
+      <div className="flex w-full flex-col gap-8 pb-8">
         <SectionCard className="px-6 py-7 sm:px-8 sm:py-8">
           <h3 className="mb-6 text-lg font-semibold tracking-tight text-text">
             {t("pages.cico.todaysCico")}

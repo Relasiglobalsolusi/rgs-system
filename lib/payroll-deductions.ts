@@ -53,6 +53,48 @@ export function payrollNetFromParts(options: {
   );
 }
 
+/** Recover this month's employee BPJS share plus any amount still held from earlier months. */
+export function applyBpjsShareHold(options: {
+  wage: number;
+  thisMonthEmployeeShare: number;
+  priorHeld?: number;
+  forfeitWages?: boolean;
+}): {
+  deductedShare: number;
+  heldAfter: number;
+  remainingWage: number;
+  priorHeld: number;
+} {
+  const priorHeld = Math.max(0, Math.round(options.priorHeld ?? 0));
+  if (options.forfeitWages) {
+    return {
+      deductedShare: 0,
+      heldAfter: 0,
+      remainingWage: Math.max(0, Math.round(options.wage)),
+      priorHeld,
+    };
+  }
+  const shareDue = Math.max(
+    0,
+    Math.round(options.thisMonthEmployeeShare) + priorHeld
+  );
+  const wage = Math.max(0, Math.round(options.wage));
+  if (wage < shareDue) {
+    return {
+      deductedShare: wage,
+      heldAfter: shareDue - wage,
+      remainingWage: 0,
+      priorHeld,
+    };
+  }
+  return {
+    deductedShare: shareDue,
+    heldAfter: 0,
+    remainingWage: wage - shareDue,
+    priorHeld,
+  };
+}
+
 export function nextDepositHeldAmount(
   currentHeld: number,
   delta: number
