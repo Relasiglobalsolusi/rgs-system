@@ -10,7 +10,7 @@ import { isOwnerAccount } from "@/lib/permissions";
 import { parseContractPrice } from "@/lib/project-billing";
 import { prisma } from "@/lib/prisma";
 import { requirePettyCashAccess } from "@/lib/session";
-import { saveUpload } from "@/lib/upload";
+import { deleteLocalUpload, saveUpload } from "@/lib/upload";
 import { todayDateInput } from "@/lib/project-contract";
 import { parseDateInput } from "@/lib/invoice-period";
 
@@ -176,9 +176,16 @@ export async function deletePrepaidCard(cardId: string) {
   const session = await requireOwnerPrepaidCardManage();
   const existing = await prisma.prepaidCard.findFirst({
     where: { id: cardId, companyId: session.user.companyId },
-    select: { id: true },
+    select: {
+      id: true,
+      entries: { select: { proofPath: true } },
+    },
   });
   if (!existing) throw new Error("Prepaid card not found.");
+  const proofPaths = existing.entries
+    .map((entry) => entry.proofPath)
+    .filter((path): path is string => Boolean(path));
   await prisma.prepaidCard.delete({ where: { id: cardId } });
+  await Promise.all(proofPaths.map((path) => deleteLocalUpload(path)));
   revalidatePath("/billing/petty-cash");
 }

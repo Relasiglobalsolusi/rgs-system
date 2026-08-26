@@ -11,6 +11,13 @@ const nextConfig: NextConfig = {
   reactCompiler: true,
   // Default badge sits on the sidebar account block and gets stuck on "Rendering…".
   devIndicators: false,
+  // App upload validators allow 10 MB; Next.js defaults to 1 MB and rejects first.
+  // 12 MB leaves room for multipart boundaries. Nginx is already 20M.
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "12mb",
+    },
+  },
   async redirects() {
     return [
       { source: "/website", destination: "/dashboard", permanent: false },

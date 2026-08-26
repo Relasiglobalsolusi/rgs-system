@@ -44,7 +44,11 @@ export default async function ThrPage({
   const locale = await getServerLocale();
   const t = createTranslator(locale);
 
-  await syncThrOnPageLoad();
+  try {
+    await syncThrOnPageLoad();
+  } catch {
+    // Directory still loads if auto-generate fails on an empty company.
+  }
 
   const params = await searchParams;
   const requestedYear = Number(params.year);

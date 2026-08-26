@@ -55,8 +55,12 @@ export default async function PettyCashPage({
   const { tab } = await searchParams;
   const showPrepaid = tab === "prepaid";
 
-  await syncPettyCashOnPageLoad();
-  await processScheduledPettyCashPays(prisma, session.user.companyId);
+  try {
+    await syncPettyCashOnPageLoad();
+    await processScheduledPettyCashPays(prisma, session.user.companyId);
+  } catch {
+    // Directory still loads if scheduled sync fails on an empty company.
+  }
 
   const locale = await getServerLocale();
   const t = createTranslator(locale);

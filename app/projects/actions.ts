@@ -159,11 +159,17 @@ const projectDeleteSelect = {
   status: true,
   subCategory: true,
   serviceArea: true,
+  contractDocumentUrl: true,
+  contractExtensions: { select: { proofUrl: true } },
   invoicePeriods: {
     select: {
       invoicePdfPath: true,
       paymentProofPath: true,
       taxInvoiceDocumentPath: true,
+      withholdingSlipPath: true,
+      reviewReportPdfPath: true,
+      clientRevisionProofPath: true,
+      hoReviewProofPath: true,
     },
   },
   progressReports: { select: { photos: { select: { url: true } } } },
@@ -254,20 +260,36 @@ async function assertProjectStaffAssignable(
 }
 
 type ProjectDeleteFiles = {
+  contractDocumentUrl: string | null;
+  contractExtensions: { proofUrl: string }[];
   invoicePeriods: {
     invoicePdfPath: string | null;
     paymentProofPath: string | null;
     taxInvoiceDocumentPath: string | null;
+    withholdingSlipPath: string | null;
+    reviewReportPdfPath: string | null;
+    clientRevisionProofPath: string | null;
+    hoReviewProofPath: string | null;
   }[];
   progressReports: { photos: { url: string }[] }[];
 };
 
 function collectProjectUploadPaths(project: ProjectDeleteFiles) {
   const paths: string[] = [];
+  if (project.contractDocumentUrl) paths.push(project.contractDocumentUrl);
+  for (const extension of project.contractExtensions) {
+    if (extension.proofUrl) paths.push(extension.proofUrl);
+  }
   for (const period of project.invoicePeriods) {
     if (period.invoicePdfPath) paths.push(period.invoicePdfPath);
     if (period.paymentProofPath) paths.push(period.paymentProofPath);
     if (period.taxInvoiceDocumentPath) paths.push(period.taxInvoiceDocumentPath);
+    if (period.withholdingSlipPath) paths.push(period.withholdingSlipPath);
+    if (period.reviewReportPdfPath) paths.push(period.reviewReportPdfPath);
+    if (period.clientRevisionProofPath) {
+      paths.push(period.clientRevisionProofPath);
+    }
+    if (period.hoReviewProofPath) paths.push(period.hoReviewProofPath);
   }
   for (const report of project.progressReports) {
     for (const photo of report.photos) paths.push(photo.url);

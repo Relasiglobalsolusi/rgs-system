@@ -173,15 +173,27 @@ export async function saveUpload(
   return `/${safeFolder}/${filename}`;
 }
 
+const DELETABLE_PUBLIC_PREFIXES = [
+  "/uploads/",
+  "/proofs/",
+  "/prepaid-card-proofs/",
+  "/contract-documents/",
+  "/contract-extensions/",
+] as const;
+
 /**
- * Best-effort delete for files stored under public/uploads/...
- * Ignores missing files and non-local paths.
+ * Best-effort delete for files stored under known public upload folders.
+ * Ignores missing files, brand assets, and non-local paths.
  */
 export async function deleteLocalUpload(publicPath: string | null | undefined) {
   if (!publicPath) return;
 
   const cleaned = publicPath.split("?")[0].trim();
-  if (!cleaned.startsWith("/uploads/")) return;
+  if (
+    !DELETABLE_PUBLIC_PREFIXES.some((prefix) => cleaned.startsWith(prefix))
+  ) {
+    return;
+  }
 
   const relative = cleaned.replace(/^\/+/, "").replace(/\//g, path.sep);
   const publicRoot = path.resolve(process.cwd(), "public");
