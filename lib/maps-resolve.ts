@@ -3,7 +3,12 @@
  * Follows redirects and scrapes coords from final URLs / HTML.
  */
 
-import { parseCoordinates, type ParsedCoordinates, hasReliablePinCoordsInUrl } from "@/lib/parse-coordinates";
+import {
+  extractGoogleMapsPin,
+  parseCoordinates,
+  type ParsedCoordinates,
+  hasReliablePinCoordsInUrl,
+} from "@/lib/parse-coordinates";
 import { isAllowedGoogleMapsHost } from "@/lib/google-maps-url";
 
 export const MAPS_RESOLVE_NO_COORDS_MESSAGE =
@@ -85,19 +90,21 @@ export function extractUrlFromHtml(html: string, baseUrl: string): string | null
  * Maps blobs contain numbers like 31736.182…,106.78… that falsely match.
  */
 export function extractCoordsFromHtml(html: string): ParsedCoordinates | null {
-  // Prefer place pin data over camera / init state
-  const d3 = html.match(/!3d(-?\d+(?:\.\d+)?)/);
-  const d4 = html.match(/!4d(-?\d+(?:\.\d+)?)/);
-  if (d3 && d4) {
-    const parsed = validateCoords(Number(d3[1]), Number(d4[1]));
-    if (parsed) return parsed;
+  const embeddedMapsUrls = html.match(
+    /https?:\/\/(?:(?:www|maps)\.)?google\.[^\s"'<>\\]+\/maps[^\s"'<>\\]*/gi
+  );
+  if (embeddedMapsUrls) {
+    for (const raw of embeddedMapsUrls) {
+      const pin = extractGoogleMapsPin(raw.replace(/&amp;/g, "&"));
+      if (pin?.source === "place" || pin?.source === "query") {
+        return { lat: pin.lat, lng: pin.lng };
+      }
+    }
   }
 
-  // /@lat,lng or /maps/place/.../@lat,lng
-  const atMatch = html.match(/@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/);
-  if (atMatch) {
-    const parsed = validateCoords(Number(atMatch[1]), Number(atMatch[2]));
-    if (parsed) return parsed;
+  const fromBlob = extractGoogleMapsPin(html);
+  if (fromBlob?.source === "place" || fromBlob?.source === "query") {
+    return { lat: fromBlob.lat, lng: fromBlob.lng };
   }
 
   // APP_INITIALIZATION_STATE=[[[zoomFactor, lng, lat], ...
@@ -135,6 +142,10 @@ export function extractCoordsFromHtml(html: string): ParsedCoordinates | null {
   if (queryMatch) {
     const parsed = validateCoords(Number(queryMatch[1]), Number(queryMatch[2]));
     if (parsed) return parsed;
+  }
+
+  if (fromBlob?.source === "camera") {
+    return { lat: fromBlob.lat, lng: fromBlob.lng };
   }
 
   return null;

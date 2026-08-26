@@ -7,8 +7,12 @@ import { useEffect, useRef, useState, type ClipboardEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MapPin, Search } from "lucide-react";
-import { parseCoordinates } from "@/lib/parse-coordinates";
 import {
+  hasReliablePinCoordsInUrl,
+  parseCoordinates,
+} from "@/lib/parse-coordinates";
+import {
+  extractGoogleMapsUrlFromText,
   isGoogleMapsUrl,
   looksLikeUrl,
   normalizeGoogleMapsUrl,
@@ -254,20 +258,25 @@ export default function LocationPicker({
       return false;
     }
 
+    const mapsUrl = extractGoogleMapsUrlFromText(trimmed);
     const parsed = parseCoordinates(trimmed);
-    if (parsed) {
+    const reliablePin = mapsUrl ? hasReliablePinCoordsInUrl(mapsUrl) : false;
+
+    // Place pin in the URL (!8m2!3d…!4d…) — same spot as the Google pin.
+    if (parsed && (!mapsUrl || reliablePin)) {
       return applyLatLng(parsed.lat, parsed.lng);
     }
 
-    // Short Maps / share links have no lat/lng in the pasted URL — resolve server-side
-    if (isGoogleMapsUrl(trimmed)) {
+    // Short links, or full URLs that only have a panned camera @ — resolve the place pin.
+    if (mapsUrl || isGoogleMapsUrl(trimmed)) {
       setPasteHint(t("pages.projects.locationPicker.resolvingShortLink"));
       setPasteError(null);
       const resolved = await resolveMapsShortLink(
-        trimmed,
+        mapsUrl ?? trimmed,
         t("pages.projects.locationPicker.shortLinkError")
       );
       if ("error" in resolved) {
+        if (parsed) return applyLatLng(parsed.lat, parsed.lng);
         setPasteError(resolved.error);
         setPasteHint(null);
         return false;
@@ -277,6 +286,10 @@ export default function LocationPicker({
         resolved.lng,
         t("pages.projects.locationPicker.shortLinkLookingUp")
       );
+    }
+
+    if (parsed) {
+      return applyLatLng(parsed.lat, parsed.lng);
     }
 
     setPasteError(t("pages.projects.locationPicker.parseError"));
@@ -291,15 +304,7 @@ export default function LocationPicker({
     const trimmed = raw.trim();
     if (!trimmed) return;
 
-    // Local coords / full Maps URLs with lat/lng
-    if (parseCoordinates(trimmed)) {
-      event.preventDefault();
-      await applyParsedCoordinates(trimmed);
-      return;
-    }
-
-    // Short share / goo.gl links — resolve instead of pasting into the field as text
-    if (isGoogleMapsUrl(trimmed)) {
+    if (parseCoordinates(trimmed) || extractGoogleMapsUrlFromText(trimmed)) {
       event.preventDefault();
       setPasteText(trimmed);
       await applyParsedCoordinates(trimmed);
@@ -385,7 +390,11 @@ export default function LocationPicker({
     if (!query) return;
 
     // Maps / share URLs are not addresses — resolve coords; never Nominatim-geocode them
-    if (looksLikeUrl(query) || isGoogleMapsUrl(query)) {
+    if (
+      looksLikeUrl(query) ||
+      isGoogleMapsUrl(query) ||
+      extractGoogleMapsUrlFromText(query)
+    ) {
       setSearching(true);
       try {
         const ok = await applyParsedCoordinates(query);

@@ -4,12 +4,17 @@
  */
 
 import {
+  extractGoogleMapsUrlFromText,
   isGoogleMapsUrl,
   looksLikeUrl,
   normalizeGoogleMapsUrl,
 } from "@/lib/google-maps-url";
 import { resolveMapsUrl } from "@/lib/maps-resolve";
-import { parseCoordinates } from "@/lib/parse-coordinates";
+import {
+  extractGoogleMapsPin,
+  hasReliablePinCoordsInUrl,
+  parseCoordinates,
+} from "@/lib/parse-coordinates";
 
 export type SiteCoordinateInput = {
   location: string;
@@ -40,16 +45,19 @@ function coordsFromText(text: string): { lat: number; lng: number } | null {
 async function coordsFromMapsUrl(
   raw: string
 ): Promise<{ lat: number; lng: number } | null> {
-  const url = normalizeGoogleMapsUrl(raw);
+  const url = extractGoogleMapsUrlFromText(raw) ?? normalizeGoogleMapsUrl(raw);
   if (!url) return null;
 
-  const inline = parseCoordinates(url);
-  if (inline) return inline;
+  const inline = extractGoogleMapsPin(url);
+  if (inline && hasReliablePinCoordsInUrl(url)) {
+    return { lat: inline.lat, lng: inline.lng };
+  }
 
   try {
     const resolved = await resolveMapsUrl(url);
     return { lat: resolved.latitude, lng: resolved.longitude };
   } catch {
+    if (inline) return { lat: inline.lat, lng: inline.lng };
     return null;
   }
 }
@@ -73,7 +81,11 @@ export async function resolveProjectSiteCoordinates(
       };
     }
 
-    if (isGoogleMapsUrl(location) || looksLikeUrl(location)) {
+    if (
+      extractGoogleMapsUrlFromText(location) ||
+      isGoogleMapsUrl(location) ||
+      looksLikeUrl(location)
+    ) {
       const fromUrl = await coordsFromMapsUrl(location);
       if (fromUrl) {
         return {

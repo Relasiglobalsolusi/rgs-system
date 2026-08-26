@@ -3,10 +3,149 @@ export type ParsedCoordinates = {
   lng: number;
 };
 
+export type PinSource = "place" | "query" | "camera" | "plain";
+
+export type ExtractedPin = ParsedCoordinates & {
+  source: PinSource;
+};
+
 function validateCoordinates(lat: number, lng: number): ParsedCoordinates | null {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
   if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
   return { lat, lng };
+}
+
+function decodeMapsText(input: string): string {
+  let decoded = input.trim();
+  try {
+    decoded = decodeURIComponent(decoded.replace(/\+/g, " "));
+  } catch {
+    decoded = input.trim();
+  }
+  return decoded.replace(/&amp;/g, "&");
+}
+
+function collectPairs(
+  text: string,
+  pattern: RegExp,
+  order: "latlng" | "lnglat"
+): ParsedCoordinates[] {
+  const pairs: ParsedCoordinates[] = [];
+  const regex = new RegExp(pattern.source, pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`);
+  for (const match of text.matchAll(regex)) {
+    const first = Number(match[1]);
+    const second = Number(match[2]);
+    const parsed =
+      order === "latlng"
+        ? validateCoordinates(first, second)
+        : validateCoordinates(second, first);
+    if (parsed) pairs.push(parsed);
+  }
+  return pairs;
+}
+
+function distanceSq(a: ParsedCoordinates, b: ParsedCoordinates): number {
+  const dLat = a.lat - b.lat;
+  const dLng = a.lng - b.lng;
+  return dLat * dLat + dLng * dLng;
+}
+
+function pickPlacePair(
+  pairs: ParsedCoordinates[],
+  camera: ParsedCoordinates | null
+): ParsedCoordinates | null {
+  if (pairs.length === 0) return null;
+  if (camera) {
+    let best = pairs[0];
+    let bestDist = distanceSq(best, camera);
+    for (const pair of pairs.slice(1)) {
+      const dist = distanceSq(pair, camera);
+      if (dist < bestDist) {
+        best = pair;
+        bestDist = dist;
+      }
+    }
+    return best;
+  }
+  return pairs[pairs.length - 1];
+}
+
+function parseCameraAt(text: string): ParsedCoordinates | null {
+  const atMatch = text.match(/@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/);
+  if (!atMatch) return null;
+  return validateCoordinates(Number(atMatch[1]), Number(atMatch[2]));
+}
+
+function parseQueryCoords(text: string): ParsedCoordinates | null {
+  const queryMatch = text.match(
+    /[?&](?:q|query|ll|center|daddr|sll|pt)=(-?\d+(?:\.\d+)?)[,+\s]+(-?\d+(?:\.\d+)?)/i
+  );
+  if (queryMatch) {
+    return validateCoordinates(Number(queryMatch[1]), Number(queryMatch[2]));
+  }
+
+  const pathMatch = text.match(
+    /\/(?:dir\/+|place\/[^/]+\/|search\/)(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/i
+  );
+  if (pathMatch) {
+    return validateCoordinates(Number(pathMatch[1]), Number(pathMatch[2]));
+  }
+
+  return null;
+}
+
+/**
+ * Google Maps place pin from a URL or data blob.
+ * Prefers !8m2!3dlat!4dlng (the shared place), never unpaired first !3d + first !4d.
+ */
+export function extractGoogleMapsPin(input: string): ExtractedPin | null {
+  const decoded = decodeMapsText(input);
+  if (!decoded) return null;
+
+  const camera = parseCameraAt(decoded);
+
+  const placePins = collectPairs(
+    decoded,
+    /!8m2!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/,
+    "latlng"
+  );
+  if (placePins.length > 0) {
+    const picked = pickPlacePair(placePins, camera) ?? placePins[placePins.length - 1];
+    return { ...picked, source: "place" };
+  }
+
+  const latLngPins = collectPairs(
+    decoded,
+    /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/,
+    "latlng"
+  );
+  const lngLatPins = collectPairs(
+    decoded,
+    /!2d(-?\d+(?:\.\d+)?)!3d(-?\d+(?:\.\d+)?)/,
+    "lnglat"
+  );
+  const consecutive = [...latLngPins, ...lngLatPins];
+  const place = pickPlacePair(consecutive, camera);
+  if (place) {
+    return { ...place, source: "place" };
+  }
+
+  const query = parseQueryCoords(decoded);
+  if (query) {
+    return { ...query, source: "query" };
+  }
+
+  if (camera) {
+    return { ...camera, source: "camera" };
+  }
+
+  return null;
+}
+
+/** True when URL embeds a place pin or explicit coord query — not just a map camera @ position. */
+export function hasReliablePinCoordsInUrl(url: string): boolean {
+  const pin = extractGoogleMapsPin(url);
+  return pin?.source === "place" || pin?.source === "query";
 }
 
 function dmsToDecimal(
@@ -48,14 +187,6 @@ function parseDmsPair(text: string): ParsedCoordinates | null {
   return validateCoordinates(lat, lng);
 }
 
-/** True when URL embeds a place pin or explicit coord query — not just a map camera @ position. */
-export function hasReliablePinCoordsInUrl(url: string): boolean {
-  if (/!3d-?\d/.test(url)) return true;
-  return /[?&](?:q|query|ll|center|daddr|sll|pt)=-?\d+(?:\.\d+)?[,+\s]+-?\d+(?:\.\d+)?/i.test(
-    url
-  );
-}
-
 /**
  * Parse pasted Google Maps URLs or plain "lat, lng" / DMS pairs.
  */
@@ -63,59 +194,16 @@ export function parseCoordinates(input: string): ParsedCoordinates | null {
   const text = input.trim();
   if (!text) return null;
 
-  // Decode common URL encodings so %2C / %40 patterns still match
-  let decoded = text;
-  try {
-    decoded = decodeURIComponent(text.replace(/\+/g, " "));
-  } catch {
-    decoded = text;
+  const mapsPin = extractGoogleMapsPin(text);
+  if (mapsPin) {
+    return { lat: mapsPin.lat, lng: mapsPin.lng };
   }
 
-  // Place pin in Maps data (!3dlat!4dlng) is preferred over camera @lat,lng
-  // Also accept data=!3d…!4d… without requiring adjacent tokens
-  const d3 = decoded.match(/!3d(-?\d+(?:\.\d+)?)/);
-  const d4 = decoded.match(/!4d(-?\d+(?:\.\d+)?)/);
-  if (d3 && d4) {
-    return validateCoordinates(Number(d3[1]), Number(d4[1]));
-  }
-
-  // Google Maps camera / place: .../@-6.2,106.8,17z  or  /maps/place/.../@lat,lng
-  const atMatch = decoded.match(
-    /@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/
-  );
-  if (atMatch) {
-    return validateCoordinates(Number(atMatch[1]), Number(atMatch[2]));
-  }
-
-  // q= / query= / ll= / center= / daddr= / sll= / pt=
-  const queryMatch = decoded.match(
-    /[?&](?:q|query|ll|center|daddr|sll|pt)=(-?\d+(?:\.\d+)?)[,+\s]+(-?\d+(?:\.\d+)?)/i
-  );
-  if (queryMatch) {
-    return validateCoordinates(Number(queryMatch[1]), Number(queryMatch[2]));
-  }
-
-  // Destination / place / search path coords: /dir//lat,lng/ or /place/Name/@ already covered
-  const pathMatch = decoded.match(
-    /\/(?:dir\/+|place\/[^/]+\/|search\/)(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/i
-  );
-  if (pathMatch) {
-    return validateCoordinates(Number(pathMatch[1]), Number(pathMatch[2]));
-  }
-
-  // Embedded Maps data blob: data=!4m…!3dLAT!4dLNG (order may vary; already handled above)
-  // Fallback: 3dLAT!4dLNG without leading !
-  const loose3d4d = decoded.match(
-    /(?:^|[^0-9])3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/
-  );
-  if (loose3d4d) {
-    return validateCoordinates(Number(loose3d4d[1]), Number(loose3d4d[2]));
-  }
+  const decoded = decodeMapsText(text);
 
   const dms = parseDmsPair(decoded);
   if (dms) return dms;
 
-  // Labeled: lat: -6.2, lng: 106.8
   const labeled = decoded.match(
     /(?:lat(?:itude)?)\s*[:=]?\s*(-?\d+(?:\.\d+)?)\s*[,;\s]+\s*(?:lng|lon(?:gitude)?)\s*[:=]?\s*(-?\d+(?:\.\d+)?)/i
   );
@@ -123,7 +211,6 @@ export function parseCoordinates(input: string): ParsedCoordinates | null {
     return validateCoordinates(Number(labeled[1]), Number(labeled[2]));
   }
 
-  // Plain decimal pair: -6.200000, 106.816666
   const plain = decoded.match(
     /^(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)\s*$/
   );
@@ -131,7 +218,6 @@ export function parseCoordinates(input: string): ParsedCoordinates | null {
     return validateCoordinates(Number(plain[1]), Number(plain[2]));
   }
 
-  // Loose pair somewhere in the string (last resort for noisy paste)
   const loose = decoded.match(
     /(-?\d{1,2}(?:\.\d{3,}))\s*[,;\s]\s*(-?\d{1,3}(?:\.\d{3,}))/
   );

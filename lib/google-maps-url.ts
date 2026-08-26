@@ -54,7 +54,32 @@ export function normalizeGoogleMapsUrl(input: string): string | null {
 
 /** True when paste/search input is a Google Maps or share.google URL (short or full). */
 export function isGoogleMapsUrl(input: string): boolean {
-  return normalizeGoogleMapsUrl(input) != null;
+  return extractGoogleMapsUrlFromText(input) != null;
+}
+
+/** Pull a Maps / share URL out of a messy paste (address + link). */
+export function extractGoogleMapsUrlFromText(input: string): string | null {
+  const text = input.trim();
+  if (!text) return null;
+
+  const direct = normalizeGoogleMapsUrl(text);
+  if (direct) return direct;
+
+  const urls = text.match(/https?:\/\/[^\s<>"']+/gi) ?? [];
+  for (const raw of urls) {
+    const cleaned = raw.replace(/[),.;]+$/g, "");
+    const normalized = normalizeGoogleMapsUrl(cleaned);
+    if (normalized) return normalized;
+  }
+
+  const bare = text.match(
+    /(?:maps\.app\.goo\.gl|goo\.gl\/maps|share\.google)\/[^\s<>"']+/i
+  );
+  if (bare?.[0]) {
+    return normalizeGoogleMapsUrl(bare[0].replace(/[),.;]+$/g, ""));
+  }
+
+  return null;
 }
 
 /**
