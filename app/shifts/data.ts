@@ -131,6 +131,7 @@ export async function getShiftsDirectory(
             name: true,
             serviceArea: true,
             subCategory: true,
+            ...staffCountInclude(today),
           },
         },
       },
@@ -143,6 +144,7 @@ export async function getShiftsDirectory(
           select: {
             ...siteWorkSelect,
             clientId: true,
+            ...staffCountInclude(today),
           },
           orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
         }),
@@ -157,6 +159,10 @@ export async function getShiftsDirectory(
         id: client.id,
         name: client.name,
         projectCount: commercial.length,
+        staffCount: commercial.reduce(
+          (sum, project) => sum + project.assignments.length,
+          0
+        ),
       };
     })
     .filter((client) => client.projectCount > 0);
@@ -171,6 +177,10 @@ export async function getShiftsDirectory(
       internalProjects.length > 0
         ? {
             projectCount: internalProjects.length,
+            staffCount: internalProjects.reduce(
+              (sum, project) => sum + project.assignments.length,
+              0
+            ),
             siteNames: internalProjects.map((project) => project.name),
           }
         : null,

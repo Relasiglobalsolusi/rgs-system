@@ -514,31 +514,31 @@ export default function PayrollPanel({
                     </p>
                   ) : (
                     <div className="mt-3 w-full overflow-x-auto rounded-xl border border-border bg-elevated/20">
-                      <table className="w-full min-w-[52rem] text-sm">
-                        <thead className="bg-elevated/60 text-left text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-subtle">
+                      <table className="w-full min-w-[72rem] text-base">
+                        <thead className="bg-elevated/60 text-left text-xs font-semibold uppercase tracking-[0.12em] text-subtle">
                           <tr>
-                            <th className="px-3 py-2.5 font-semibold">
+                            <th className="px-4 py-3.5 font-semibold">
                               {t("pages.payroll.dayListTitle")}
                             </th>
-                            <th className="px-3 py-2.5 font-semibold">
+                            <th className="px-4 py-3.5 font-semibold">
                               {t("pages.payroll.daySite")}
                             </th>
-                            <th className="px-3 py-2.5 font-semibold">
+                            <th className="px-4 py-3.5 font-semibold">
                               {t("pages.payroll.dayShift")}
                             </th>
-                            <th className="px-3 py-2.5 font-semibold">
+                            <th className="px-4 py-3.5 font-semibold">
                               {t("pages.payroll.dayCheckIn")}
                             </th>
-                            <th className="px-3 py-2.5 font-semibold">
+                            <th className="px-4 py-3.5 font-semibold">
                               {t("pages.payroll.dayCheckOut")}
                             </th>
-                            <th className="px-3 py-2.5 font-semibold">
+                            <th className="px-4 py-3.5 font-semibold">
                               {t("pages.payroll.dayHours")}
                             </th>
-                            <th className="px-3 py-2.5 font-semibold">
+                            <th className="px-4 py-3.5 font-semibold">
                               {t("pages.payroll.columns.netPay")}
                             </th>
-                            <th className="px-3 py-2.5 font-semibold">
+                            <th className="px-4 py-3.5 font-semibold">
                               {t("common.actions.save")}
                             </th>
                           </tr>
@@ -549,16 +549,16 @@ export default function PayrollPanel({
                               key={day.sessionKey ?? day.dateKey}
                               className="border-t border-border align-top"
                             >
-                              <td className="px-3 py-2.5 font-medium text-text">
+                              <td className="px-4 py-3.5 font-medium text-text">
                                 {formatEnglishOrdinalDate(
                                   `${day.dateKey}T00:00:00Z`,
                                   bcp47
                                 )}
                               </td>
-                              <td className="px-3 py-2.5 text-muted">
+                              <td className="px-4 py-3.5 text-muted">
                                 {day.siteName ?? "—"}
                               </td>
-                              <td className="px-3 py-2.5 text-muted">
+                              <td className="px-4 py-3.5 text-muted">
                                 <p>{day.shiftLabel ?? "—"}</p>
                                 {day.tookOverShiftLabel ? (
                                   <p className="mt-0.5 text-xs font-medium text-primary">
@@ -573,7 +573,7 @@ export default function PayrollPanel({
                                   </p>
                                 ) : null}
                               </td>
-                              <td className="px-3 py-2.5 text-muted">
+                              <td className="px-4 py-3.5 text-muted">
                                 <p>{dayCheckInLabel(row, day, t, bcp47)}</p>
                                 {day.lateCheckIn ? (
                                   <p className="text-xs font-medium text-amber-600">
@@ -589,7 +589,7 @@ export default function PayrollPanel({
                                   </p>
                                 ) : null}
                               </td>
-                              <td className="px-3 py-2.5 text-muted">
+                              <td className="px-4 py-3.5 text-muted">
                                 <p>{dayCheckOutLabel(row, day, t, bcp47)}</p>
                                 {day.earlyCheckOut ? (
                                   <p className="text-xs font-medium text-amber-600">
@@ -599,7 +599,7 @@ export default function PayrollPanel({
                                   </p>
                                 ) : null}
                               </td>
-                              <td className="px-3 py-2.5 text-muted">
+                              <td className="px-4 py-3.5 text-muted">
                                 {day.hoursWorked != null
                                   ? t("pages.payroll.hoursWorkedValue", {
                                       hours: formatHoursWorked(day.hoursWorked),
@@ -612,12 +612,12 @@ export default function PayrollPanel({
                                       })
                                     : "—"}
                               </td>
-                              <td className="px-3 py-2.5 tabular-nums font-semibold text-text">
+                              <td className="px-4 py-3.5 tabular-nums font-semibold text-text">
                                 {day.payAmount != null
                                   ? formatContractPrice(day.payAmount)
                                   : "—"}
                               </td>
-                              <td className="px-3 py-2.5">
+                              <td className="px-4 py-3.5">
                                 {canEditDayPay(day) && !periodLocked ? (
                                   <div className="flex flex-wrap items-center gap-2">
                                     <Button
@@ -851,10 +851,12 @@ export default function PayrollPanel({
       ) : null}
 
       <Dialog open={unlockOpen} onOpenChange={setUnlockOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-lg p-6 text-base">
           <DialogHeader>
-            <DialogTitle>{t("pages.payroll.unlockPeriod")}</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-xl">
+              {t("pages.payroll.unlockPeriod")}
+            </DialogTitle>
+            <DialogDescription className="text-sm leading-6">
               {t("pages.payroll.unlockPeriodDesc")}
             </DialogDescription>
           </DialogHeader>
@@ -864,7 +866,8 @@ export default function PayrollPanel({
           <Textarea
             value={unlockReason}
             onChange={(event) => setUnlockReason(event.target.value)}
-            rows={4}
+            rows={6}
+            className="min-h-32"
           />
           <DialogFooter>
             <Button

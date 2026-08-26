@@ -5044,6 +5044,12 @@ export const en = {
       breadcrumbAria: "Shifts Navigation",
       searchClients: "Search Clients",
       searchProjects: "Search Projects",
+      cards: {
+        clients: "Clients",
+        projects: "Projects",
+        internal: "Internal",
+        staff: "Staff"
+      },
       clientsSection: "Clients",
       clientsSectionDesc: "In Progress project sites grouped by client.",
       internalSection: "Internal",
@@ -5106,6 +5112,11 @@ export const en = {
       selectShift: "Select Shift",
       unassignedShift: "No Shift",
       columns: {
+        client: "Client",
+        project: "Project",
+        location: "Location",
+        type: "Type",
+        staff: "Staff",
         employee: "Employee",
         employmentType: "Employment Type",
         shift: "Shift",

@@ -102,15 +102,18 @@ export default function TeamAssignmentDirectory({
     {
       key: "name",
       title: t("pages.teams.columns.team"),
-      share: 2,
+      width: "12rem",
+      share: 1,
+      className: "min-w-[12rem]",
       render: (team) => <p className="font-semibold text-text">{team.name}</p>,
     },
     {
       key: "kind",
       title: t("pages.teams.columns.type"),
-      width: "10rem",
+      width: "12rem",
+      share: 1,
       cellAlign: "center",
-      className: "min-w-[10rem] overflow-visible",
+      className: "min-w-[12rem] overflow-visible",
       render: (team) => (
         <StatusBadge
           status={
@@ -129,6 +132,9 @@ export default function TeamAssignmentDirectory({
     {
       key: "members",
       title: t("pages.teams.columns.members"),
+      width: "12rem",
+      share: 1,
+      className: "min-w-[12rem]",
       render: (team) => (
         <span className="text-muted">
           {team.memberCount === 1
@@ -141,9 +147,9 @@ export default function TeamAssignmentDirectory({
       key: "status",
       title: t("pages.teams.columns.status"),
       cellAlign: "center",
-      share: 2,
-      width: "14rem",
-      className: "min-w-[14rem]",
+      share: 1,
+      width: "12rem",
+      className: "min-w-[12rem]",
       render: (team) => {
         if (!team.occupiedProjectName) {
           return (
@@ -183,6 +189,7 @@ export default function TeamAssignmentDirectory({
             title: t("pages.teams.columns.actions"),
             cellAlign: "center" as const,
             width: ACTIONS_SINGLE_CHIP_COLUMN_WIDTH,
+            share: 0,
             className: "min-w-[12.5rem] overflow-visible",
             render: (team: TeamAssignmentRow) => (
               <div className="flex flex-col items-stretch justify-center gap-1.5">

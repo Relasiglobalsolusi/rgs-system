@@ -11,6 +11,7 @@ export type ShiftsClientRow = {
   id: string;
   name: string;
   projectCount: number;
+  staffCount: number;
 };
 
 export type ShiftsProjectRow = {
@@ -24,6 +25,7 @@ export type ShiftsProjectRow = {
 
 export type ShiftsInternalSummary = {
   projectCount: number;
+  staffCount: number;
   siteNames: string[];
 };
 

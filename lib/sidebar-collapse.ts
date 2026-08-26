@@ -1,6 +1,6 @@
 /** Persist sidebar expand/collapse. Missing keys stay unset (`null`). */
 
-const STORAGE_KEY = "rgs-sidebar-collapse";
+const STORAGE_KEY = "rgs-sidebar-collapse-v2";
 
 type SidebarCollapseState = {
   items: Record<string, boolean>;
@@ -39,7 +39,7 @@ function writeState(state: SidebarCollapseState) {
   }
 }
 
-/** `null` = no saved preference (items default expanded). */
+/** `null` = no saved preference (items default collapsed). */
 export function getSidebarItemExpanded(navKey: string): boolean | null {
   const value = readState().items[navKey];
   return typeof value === "boolean" ? value : null;

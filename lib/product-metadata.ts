@@ -1,6 +1,6 @@
 ﻿import type { Metadata } from "next";
 
-import { RGS_ONE_PRODUCT_NAME } from "@/lib/brand";
+import { RGS_ONE_PRODUCT_NAME, RGS_TAB_TITLE } from "@/lib/brand";
 
 /** RGS ONE tab / home-screen mark (teal site-plate). */
 export const RGS_FAVICON_SRC = "/favicon-rgs.png?v=3";
@@ -9,8 +9,8 @@ export const RGS_APPLE_ICON_SRC = "/apple-touch-icon-rgs.png?v=3";
 /** Browser chrome for RGS ONE ERP (cleaning / Relasi Global Solusi). */
 export const rgsMetadata: Metadata = {
   title: {
-    default: RGS_ONE_PRODUCT_NAME,
-    template: `%s | ${RGS_ONE_PRODUCT_NAME}`,
+    default: RGS_TAB_TITLE,
+    absolute: RGS_TAB_TITLE,
   },
   description:
     "Enterprise Resource Planning platform for Relasi Global Solusi.",

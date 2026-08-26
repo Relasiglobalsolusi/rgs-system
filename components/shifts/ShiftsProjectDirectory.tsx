@@ -1,27 +1,25 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
-import {
-  ChevronRight,
-  FolderKanban,
-  Landmark,
-  Users,
-  Warehouse,
-} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { FolderKanban, Users } from "lucide-react";
 
 import type { ShiftsProjectRow } from "@/lib/shifts-directory";
 import {
   isAttendanceHeadOfficeName,
   isAttendanceWarehouseName,
-  partitionAttendanceProjects,
 } from "@/lib/attendance-internal-sites";
+import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
+import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import DirectorySearchInput, {
   matchesDirectorySearch,
 } from "@/components/ui/DirectorySearchInput";
 import EmptyState from "@/components/ui/EmptyState";
 import StatusBadge from "@/components/ui/StatusBadge";
-import { localizeSubCategoryShort } from "@/lib/i18n/labels";
+import {
+  localizeSubCategory,
+  localizeSubCategoryChipLines,
+} from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
 
 type Props = {
@@ -29,53 +27,23 @@ type Props = {
   projects: ShiftsProjectRow[];
 };
 
-function ProjectCard({
-  clientId,
-  project,
-}: {
-  clientId: string;
-  project: ShiftsProjectRow;
-}) {
-  const { t, locale } = useT();
-  const shortLabel = localizeSubCategoryShort(project.subCategory, locale);
-  const isHo = isAttendanceHeadOfficeName(project.name);
-  const isWh = isAttendanceWarehouseName(project.name);
-  const Icon = isWh ? Warehouse : isHo ? Landmark : FolderKanban;
-
+function CountCell({ value }: { value: number }) {
   return (
-    <Link
-      href={`/shifts/${clientId}/${project.id}`}
-      className="group flex items-start gap-4 rounded-2xl border border-border bg-card px-4 py-4 transition hover:border-border-strong hover:bg-elevated/40"
+    <span
+      className={
+        value > 0
+          ? "text-lg font-semibold tabular-nums text-text"
+          : "text-lg tabular-nums text-subtle"
+      }
     >
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-inset text-muted">
-        <Icon className="h-5 w-5" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate font-semibold text-text">{project.name}</p>
-        {project.location ? (
-          <p className="mt-0.5 truncate text-xs text-subtle">
-            {project.location}
-          </p>
-        ) : null}
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          {shortLabel !== "-" && !isHo && !isWh ? (
-            <StatusBadge status="info" compact>
-              {shortLabel}
-            </StatusBadge>
-          ) : null}
-          <span className="inline-flex items-center gap-1 text-xs text-subtle">
-            <Users size={12} />
-            {t("pages.shifts.staffCount", { count: project.staffCount })}
-          </span>
-        </div>
-      </div>
-      <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted transition group-hover:text-text" />
-    </Link>
+      {value}
+    </span>
   );
 }
 
 export default function ShiftsProjectDirectory({ clientId, projects }: Props) {
-  const { t } = useT();
+  const { t, locale } = useT();
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
 
   const filtered = useMemo(() => {
@@ -88,83 +56,138 @@ export default function ShiftsProjectDirectory({ clientId, projects }: Props) {
     );
   }, [projects, searchQuery]);
 
-  const { internal, projects: siteProjects } = useMemo(
-    () => partitionAttendanceProjects(filtered),
-    [filtered]
+  const stats = useMemo(
+    () => ({
+      projects: projects.length,
+      staff: projects.reduce((sum, project) => sum + project.staffCount, 0),
+    }),
+    [projects]
+  );
+
+  const columns = useMemo(() => {
+    const cols: DataTableColumn<ShiftsProjectRow>[] = [
+      {
+        key: "project",
+        title: t("pages.shifts.columns.project"),
+        width: "12rem",
+        share: 1.25,
+        className: "min-w-[12rem]",
+        render: (project) => (
+          <div className="min-w-0">
+            <p className="font-semibold text-text">{project.name}</p>
+            {project.location ? (
+              <p className="mt-0.5 truncate text-sm text-subtle">
+                {project.location}
+              </p>
+            ) : null}
+          </div>
+        ),
+      },
+      {
+        key: "type",
+        title: t("pages.shifts.columns.type"),
+        width: "10rem",
+        share: 1,
+        cellAlign: "center",
+        className: "min-w-[10rem] overflow-visible",
+        render: (project) => {
+          const isInternal =
+            isAttendanceHeadOfficeName(project.name) ||
+            isAttendanceWarehouseName(project.name);
+          if (isInternal) {
+            return (
+              <StatusBadge status="info" compact>
+                {t("pages.shifts.internalSection")}
+              </StatusBadge>
+            );
+          }
+          const typeLines = localizeSubCategoryChipLines(
+            project.subCategory,
+            locale
+          );
+          return (
+            <StatusBadge
+              status="success"
+              compact
+              lines={typeLines ?? undefined}
+            >
+              {typeLines
+                ? undefined
+                : localizeSubCategory(project.subCategory, locale)}
+            </StatusBadge>
+          );
+        },
+      },
+      {
+        key: "staff",
+        title: t("pages.shifts.columns.staff"),
+        width: "9rem",
+        share: 1,
+        cellAlign: "right",
+        className: "min-w-[9rem] whitespace-nowrap",
+        render: (project) => <CountCell value={project.staffCount} />,
+      },
+    ];
+    return cols;
+  }, [locale, t]);
+
+  const statsGrid = (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <DirectoryStatCard
+        compact
+        tinted
+        title={t("pages.shifts.cards.projects")}
+        value={stats.projects}
+        accent="primary"
+        icon={<FolderKanban size={18} />}
+      />
+      <DirectoryStatCard
+        compact
+        tinted
+        title={t("pages.shifts.cards.staff")}
+        value={stats.staff}
+        accent="warning"
+        icon={<Users size={18} />}
+      />
+    </div>
   );
 
   if (projects.length === 0) {
     return (
-      <EmptyState
-        title={t("pages.shifts.noProjects")}
-        description={t("pages.shifts.noProjectsDesc")}
-      />
+      <div className="space-y-4">
+        {statsGrid}
+        <EmptyState
+          title={t("pages.shifts.noProjects")}
+          description={t("pages.shifts.noProjectsDesc")}
+        />
+      </div>
     );
   }
 
-  const noMatches = internal.length === 0 && siteProjects.length === 0;
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      {statsGrid}
       <DirectorySearchInput
         value={searchQuery}
         onChange={setSearchQuery}
         placeholder={t("pages.shifts.searchProjects")}
       />
 
-      {noMatches ? (
+      {filtered.length === 0 ? (
         <EmptyState
           title={t("common.labels.noResults")}
           description={t("pages.shifts.noProjectsMatch")}
         />
       ) : (
-        <>
-          {internal.length > 0 ? (
-            <section className="space-y-3">
-              <div>
-                <h2 className="text-base font-semibold text-text">
-                  {t("pages.shifts.internalSection")}
-                </h2>
-                <p className="mt-1 text-sm text-subtle">
-                  {t("pages.shifts.internalSectionDesc")}
-                </p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {internal.map((project) => (
-                  <ProjectCard
-                    key={project.id}
-                    clientId={clientId}
-                    project={project}
-                  />
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          {siteProjects.length > 0 ? (
-            <section className="space-y-3">
-              {internal.length > 0 ? (
-                <div>
-                  <h2 className="text-base font-semibold text-text">
-                    {t("pages.shifts.projectsSection")}
-                  </h2>
-                  <p className="mt-1 text-sm text-subtle">
-                    {t("pages.shifts.projectsSectionDesc")}
-                  </p>
-                </div>
-              ) : null}
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {siteProjects.map((project) => (
-                  <ProjectCard
-                    key={project.id}
-                    clientId={clientId}
-                    project={project}
-                  />
-                ))}
-              </div>
-            </section>
-          ) : null}
-        </>
+        <DataTable
+          columns={columns}
+          data={filtered}
+          getRowKey={(project) => project.id}
+          onRowClick={(project) =>
+            router.push(`/shifts/${clientId}/${project.id}`)
+          }
+          emptyMessage={t("pages.shifts.noProjects")}
+        />
       )}
     </div>
   );

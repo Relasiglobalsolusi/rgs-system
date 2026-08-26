@@ -383,18 +383,19 @@ export default function ProjectTable({
   }
 
   const columns = useMemo(() => {
-    // Internal: four equal columns (~25% of free width after reorder gutter).
-    const internalEqual = isInternalTable
-      ? ({ width: "25%", share: 1, className: "min-w-0" } as const)
+    // All Projects / In Progress / Internal: four equal data columns.
+    const equalFour = !showPaymentDueColumn && !showPaidColumn;
+    const equalCol = equalFour
+      ? ({ width: "12rem", share: 1, className: "min-w-[12rem]" } as const)
       : null;
 
     const cols: DataTableColumn<ProjectTableRow>[] = [
       {
         key: "project",
         title: t("pages.projects.columns.project"),
-        width: internalEqual?.width ?? "16rem",
-        share: internalEqual?.share ?? 2.25,
-        className: internalEqual?.className ?? "min-w-[16rem]",
+        width: equalCol?.width ?? "16rem",
+        share: equalCol?.share ?? 2.25,
+        className: equalCol?.className ?? "min-w-[16rem]",
         render: (row) => {
           const isInternal = isRgsInternalProject(row.project);
           const isPeriodRow = isDirectoryPeriodRow(row.rowKind);
@@ -442,11 +443,11 @@ export default function ProjectTable({
       {
         key: "timeline",
         title: t("pages.projects.timeline"),
-        width: isInternalTable ? "10rem" : internalEqual?.width ?? "11rem",
-        share: isInternalTable ? 0 : internalEqual?.share ?? 1,
-        className: isInternalTable
-          ? "min-w-[10rem] overflow-visible whitespace-nowrap"
-          : internalEqual?.className ?? "min-w-[11rem]",
+        width: equalCol?.width ?? "11rem",
+        share: equalCol?.share ?? 1,
+        className: equalCol
+          ? `${equalCol.className} overflow-visible`
+          : "min-w-[11rem] overflow-visible whitespace-nowrap",
         render: (row) => {
           const showOpsCounts =
             !isPlanningProjectStatus(row.project.status) &&
@@ -480,10 +481,12 @@ export default function ProjectTable({
       {
         key: "cleaningType",
         title: t("pages.projects.cleaningType"),
-        width: STATUS_COLUMN_WIDTH,
-        share: isInternalTable ? 0 : 1,
+        width: equalCol?.width ?? STATUS_COLUMN_WIDTH,
+        share: equalCol?.share ?? 1,
         cellAlign: "center",
-        className: "min-w-[10rem] overflow-visible whitespace-nowrap",
+        className: equalCol
+          ? `${equalCol.className} overflow-visible`
+          : "min-w-[10rem] overflow-visible whitespace-nowrap",
         render: (row) => {
           const typeLines =
             localizeSubCategoryChipLines(row.project.subCategory, locale) ??
@@ -506,10 +509,12 @@ export default function ProjectTable({
       {
         key: "status",
         title: t("pages.projects.columns.status"),
-        width: STATUS_COLUMN_WIDTH,
-        share: isInternalTable ? 0 : 1,
+        width: equalCol?.width ?? STATUS_COLUMN_WIDTH,
+        share: equalCol?.share ?? 1,
         cellAlign: "center",
-        className: "min-w-[10rem] overflow-visible whitespace-nowrap",
+        className: equalCol
+          ? `${equalCol.className} overflow-visible`
+          : "min-w-[10rem] overflow-visible whitespace-nowrap",
         render: (row) => {
           const paymentDue =
             isPaymentDueRow(row) || filterView === "payment-due";
@@ -639,7 +644,7 @@ export default function ProjectTable({
         key: "actions",
         title: t("common.labels.actions"),
         width: PROJECT_ACTIONS_COLUMN_WIDTH,
-        share: 1,
+        share: 0,
         cellAlign: "center",
         className: "min-w-0 max-w-full overflow-hidden",
         render: (row) => (

@@ -243,7 +243,7 @@ function MenuItemRow({
     navKey,
     getSidebarItemExpanded,
     setSidebarItemExpanded,
-    true
+    false
   );
 
   return (

@@ -5094,6 +5094,12 @@ export const id = {
       breadcrumbAria: "Navigasi Shift",
       searchClients: "Cari Klien",
       searchProjects: "Cari Proyek",
+      cards: {
+        clients: "Klien",
+        projects: "Proyek",
+        internal: "Internal",
+        staff: "Staf"
+      },
       clientsSection: "Klien",
       clientsSectionDesc: "Situs proyek Berjalan dikelompokkan per klien.",
       internalSection: "Internal",
@@ -5156,6 +5162,11 @@ export const id = {
       selectShift: "Pilih Shift",
       unassignedShift: "Tidak Ada Shift",
       columns: {
+        client: "Klien",
+        project: "Proyek",
+        location: "Lokasi",
+        type: "Jenis",
+        staff: "Staf",
         employee: "Karyawan",
         employmentType: "Jenis Kepegawaian",
         shift: "Shift",

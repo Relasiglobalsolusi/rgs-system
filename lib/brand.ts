@@ -11,5 +11,8 @@ export const RGS_ONE_LOGO_HEIGHT = 682;
 /** Product name for browser chrome, auth, and sidebar. */
 export const RGS_ONE_PRODUCT_NAME = "RGS ONE";
 
+/** Browser tab label — pipe between the two words, never doubled. */
+export const RGS_TAB_TITLE = "RGS | ONE";
+
 /** Brand tagline shown under the RGS ONE logo. */
 export const RGS_ONE_SLOGAN = "ONE PLATFORM. COMPLETE VISIBILITY.";

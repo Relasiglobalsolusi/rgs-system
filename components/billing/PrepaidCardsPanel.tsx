@@ -176,32 +176,6 @@ export default function PrepaidCardsPanel({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        {canManageCards ? (
-          <Button
-            type="button"
-            variant="permissionsBadge"
-            size="badgeFlex"
-            className={directoryToolbarActionClass}
-            onClick={() => setCreateOpen(true)}
-          >
-            {t("pages.pettyCash.prepaidAddCard")}
-          </Button>
-        ) : null}
-        <Button
-          type="button"
-          variant="permissionsBadge"
-          size="badgeFlex"
-          className={directoryToolbarActionClass}
-          onClick={() => {
-            setSpendCardId(filterCardId !== "all" ? filterCardId : null);
-            setSpendOpen(true);
-          }}
-        >
-          {t("pages.pettyCash.prepaidSpend")}
-        </Button>
-      </div>
-
       <div className="grid gap-3 sm:grid-cols-3">
         <DirectoryStatCard
           compact
@@ -301,9 +275,37 @@ export default function PrepaidCardsPanel({
             </SelectItem>
           ))}
         </FilterSelect>
-        <a href={reportHref} className={directoryToolbarDownloadClass}>
-          {t("pages.pettyCash.downloadReport")}
-        </a>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {canManageCards ? (
+            <Button
+              type="button"
+              variant="permissionsBadge"
+              size="badgeFlex"
+              className={directoryToolbarActionClass}
+              onClick={() => setCreateOpen(true)}
+            >
+              {t("pages.pettyCash.prepaidAddCard")}
+            </Button>
+          ) : null}
+          <a href={reportHref} className={directoryToolbarDownloadClass}>
+            {t("pages.pettyCash.downloadReport")}
+          </a>
+        </div>
+        <Button
+          type="button"
+          variant="permissionsBadge"
+          size="badgeFlex"
+          className={directoryToolbarActionClass}
+          onClick={() => {
+            setSpendCardId(filterCardId !== "all" ? filterCardId : null);
+            setSpendOpen(true);
+          }}
+        >
+          {t("pages.pettyCash.prepaidSpend")}
+        </Button>
       </div>
 
       {visibleCards.length === 0 ? (
@@ -351,18 +353,7 @@ export default function PrepaidCardsPanel({
                   </div>
                 )
               }
-              status={
-                <button
-                  type="button"
-                  className="inline-flex min-h-8 items-center justify-center rounded-xl border border-border bg-elevated px-3 text-xs font-semibold text-text hover:bg-card-hover"
-                  onClick={() => {
-                    setSpendCardId(card.id);
-                    setSpendOpen(true);
-                  }}
-                >
-                  {t("pages.pettyCash.prepaidSpend")}
-                </button>
-              }
+              status={null}
               amount={formatContractPrice(card.currentBalance)}
             />
           ))}

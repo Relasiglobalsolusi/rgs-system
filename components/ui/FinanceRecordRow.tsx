@@ -10,7 +10,11 @@ import { cn } from "@/lib/utils";
 export const financeRecordListClassName = "flex min-w-0 flex-col gap-2";
 
 const financeRecordRowClassName =
-  "grid min-h-[4.25rem] min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-3 py-2.5 md:grid-cols-[minmax(0,1fr)_8.75rem_7.5rem] md:gap-x-8 md:px-4 md:py-2";
+  "grid min-h-[4.25rem] min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-3 py-2.5 md:gap-x-8 md:px-4 md:py-2";
+const financeRecordRowWithStatusClassName =
+  "md:grid-cols-[minmax(0,1fr)_8.75rem_7.5rem]";
+const financeRecordRowAmountOnlyClassName =
+  "md:grid-cols-[minmax(0,1fr)_7.5rem]";
 
 export const financeListStatusChipClassName =
   "box-border inline-flex h-auto min-h-8 w-full min-w-0 max-w-full items-center justify-center px-2.5 py-1.5 text-center text-[0.625rem] leading-none md:min-w-[7.5rem] md:px-3 md:text-[0.6875rem]";
@@ -51,14 +55,17 @@ function FinanceRecordStatusCell({
 function FinanceRecordAmountCell({
   children,
   className,
+  hasStatus,
 }: {
   children: ReactNode;
   className?: string;
+  hasStatus: boolean;
 }) {
   return (
     <div
       className={cn(
-        "col-start-2 row-start-1 w-full min-w-0 text-right text-[0.8125rem] font-semibold leading-none tabular-nums tracking-tight text-text md:col-start-3 md:text-sm",
+        "col-start-2 row-start-1 w-full min-w-0 text-right text-[0.8125rem] font-semibold leading-none tabular-nums tracking-tight text-text md:text-sm",
+        hasStatus ? "md:col-start-3" : "md:col-start-2",
         className
       )}
     >
@@ -82,16 +89,25 @@ export default function FinanceRecordRow({
   href,
   className,
 }: FinanceRecordRowProps) {
+  const hasStatus = status != null && status !== false && status !== "";
+
   const inner = (
     <>
       <FinanceRecordTitleCell>{title}</FinanceRecordTitleCell>
-      <FinanceRecordStatusCell>{status}</FinanceRecordStatusCell>
-      <FinanceRecordAmountCell>{amount}</FinanceRecordAmountCell>
+      {hasStatus ? (
+        <FinanceRecordStatusCell>{status}</FinanceRecordStatusCell>
+      ) : null}
+      <FinanceRecordAmountCell hasStatus={hasStatus}>
+        {amount}
+      </FinanceRecordAmountCell>
     </>
   );
 
   const rowClass = cn(
     financeRecordRowClassName,
+    hasStatus
+      ? financeRecordRowWithStatusClassName
+      : financeRecordRowAmountOnlyClassName,
     "transition hover:bg-card-hover/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan/40",
     className
   );

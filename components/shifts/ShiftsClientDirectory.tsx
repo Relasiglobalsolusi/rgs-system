@@ -1,153 +1,236 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Building2, ChevronRight, Landmark } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Building2, FolderKanban, Landmark, Users } from "lucide-react";
 
 import type {
   ShiftsClientRow,
   ShiftsInternalSummary,
 } from "@/lib/shifts-directory";
 import { SHIFTS_INTERNAL_ROUTE_CLIENT_ID } from "@/lib/shifts-directory";
+import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
+import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import DirectorySearchInput, {
   matchesDirectorySearch,
 } from "@/components/ui/DirectorySearchInput";
 import EmptyState from "@/components/ui/EmptyState";
+import StatusBadge from "@/components/ui/StatusBadge";
 import { useT } from "@/lib/i18n/use-t";
+
+type DirectoryRow = {
+  id: string;
+  name: string;
+  projectCount: number;
+  staffCount: number;
+  kind: "internal" | "client";
+  href: string;
+};
 
 type Props = {
   clients: ShiftsClientRow[];
   internal?: ShiftsInternalSummary | null;
 };
 
+function CountCell({ value }: { value: number }) {
+  return (
+    <span
+      className={
+        value > 0
+          ? "text-lg font-semibold tabular-nums text-text"
+          : "text-lg tabular-nums text-subtle"
+      }
+    >
+      {value}
+    </span>
+  );
+}
+
 export default function ShiftsClientDirectory({
   clients,
   internal = null,
 }: Props) {
   const { t } = useT();
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
 
-  const showInternal = Boolean(
-    internal &&
-      matchesDirectorySearch(
-        searchQuery,
-        t("pages.shifts.internalSection"),
-        t("pages.shifts.internalSiteHint"),
-        ...internal.siteNames
-      )
-  );
+  const stats = useMemo(() => {
+    const clientProjects = clients.reduce(
+      (sum, client) => sum + client.projectCount,
+      0
+    );
+    const clientStaff = clients.reduce(
+      (sum, client) => sum + client.staffCount,
+      0
+    );
+    return {
+      clients: clients.length,
+      projects: clientProjects + (internal?.projectCount ?? 0),
+      internal: internal?.projectCount ?? 0,
+      staff: clientStaff + (internal?.staffCount ?? 0),
+    };
+  }, [clients, internal]);
 
-  const visibleClients = useMemo(
-    () =>
-      clients.filter((client) =>
-        matchesDirectorySearch(searchQuery, client.name)
-      ),
-    [clients, searchQuery]
+  const rows = useMemo(() => {
+    const next: DirectoryRow[] = [];
+    if (internal) {
+      next.push({
+        id: SHIFTS_INTERNAL_ROUTE_CLIENT_ID,
+        name: t("pages.shifts.internalSection"),
+        projectCount: internal.projectCount,
+        staffCount: internal.staffCount,
+        kind: "internal",
+        href: `/shifts/${SHIFTS_INTERNAL_ROUTE_CLIENT_ID}`,
+      });
+    }
+    for (const client of clients) {
+      next.push({
+        id: client.id,
+        name: client.name,
+        projectCount: client.projectCount,
+        staffCount: client.staffCount,
+        kind: "client",
+        href: `/shifts/${client.id}`,
+      });
+    }
+    return next;
+  }, [clients, internal, t]);
+
+  const visible = useMemo(() => {
+    return rows.filter((row) => {
+      if (row.kind === "internal" && internal) {
+        return matchesDirectorySearch(
+          searchQuery,
+          t("pages.shifts.internalSection"),
+          t("pages.shifts.internalSiteHint"),
+          ...internal.siteNames
+        );
+      }
+      return matchesDirectorySearch(searchQuery, row.name);
+    });
+  }, [internal, rows, searchQuery, t]);
+
+  const columns = useMemo(() => {
+    const cols: DataTableColumn<DirectoryRow>[] = [
+      {
+        key: "name",
+        title: t("pages.shifts.columns.client"),
+        width: "12rem",
+        share: 1.25,
+        className: "min-w-[12rem]",
+        render: (row) => <p className="font-semibold text-text">{row.name}</p>,
+      },
+      {
+        key: "type",
+        title: t("pages.shifts.columns.type"),
+        width: "10rem",
+        share: 1,
+        cellAlign: "center",
+        className: "min-w-[10rem] overflow-visible",
+        render: (row) => (
+          <StatusBadge
+            status={row.kind === "internal" ? "info" : "success"}
+            compact
+          >
+            {row.kind === "internal"
+              ? t("pages.shifts.internalSection")
+              : t("pages.shifts.clientsSection")}
+          </StatusBadge>
+        ),
+      },
+      {
+        key: "projects",
+        title: t("pages.shifts.columns.project"),
+        width: "9rem",
+        share: 1,
+        cellAlign: "right",
+        className: "min-w-[9rem] whitespace-nowrap",
+        render: (row) => <CountCell value={row.projectCount} />,
+      },
+      {
+        key: "staff",
+        title: t("pages.shifts.columns.staff"),
+        width: "9rem",
+        share: 1,
+        cellAlign: "right",
+        className: "min-w-[9rem] whitespace-nowrap",
+        render: (row) => <CountCell value={row.staffCount} />,
+      },
+    ];
+    return cols;
+  }, [t]);
+
+  const statsGrid = (
+    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <DirectoryStatCard
+        compact
+        tinted
+        title={t("pages.shifts.cards.clients")}
+        value={stats.clients}
+        accent="success"
+        icon={<Building2 size={18} />}
+      />
+      <DirectoryStatCard
+        compact
+        tinted
+        title={t("pages.shifts.cards.projects")}
+        value={stats.projects}
+        accent="info"
+        icon={<FolderKanban size={18} />}
+      />
+      <DirectoryStatCard
+        compact
+        tinted
+        title={t("pages.shifts.cards.internal")}
+        value={stats.internal}
+        accent="primary"
+        icon={<Landmark size={18} />}
+      />
+      <DirectoryStatCard
+        compact
+        tinted
+        title={t("pages.shifts.cards.staff")}
+        value={stats.staff}
+        accent="warning"
+        icon={<Users size={18} />}
+      />
+    </div>
   );
 
   if (clients.length === 0 && !internal) {
     return (
-      <EmptyState
-        title={t("pages.shifts.noClients")}
-        description={t("pages.shifts.noClientsDesc")}
-      />
+      <div className="space-y-4">
+        {statsGrid}
+        <EmptyState
+          title={t("pages.shifts.noClients")}
+          description={t("pages.shifts.noClientsDesc")}
+        />
+      </div>
     );
   }
 
-  const noMatches = !showInternal && visibleClients.length === 0;
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      {statsGrid}
       <DirectorySearchInput
         value={searchQuery}
         onChange={setSearchQuery}
         placeholder={t("pages.shifts.searchClients")}
       />
 
-      {noMatches ? (
+      {visible.length === 0 ? (
         <EmptyState
           title={t("common.labels.noResults")}
           description={t("pages.shifts.noClientsMatch")}
         />
       ) : (
-        <>
-          {showInternal && internal ? (
-            <section className="space-y-3">
-              <div>
-                <h2 className="text-base font-semibold text-text">
-                  {t("pages.shifts.internalSection")}
-                </h2>
-                <p className="mt-1 text-sm text-subtle">
-                  {t("pages.shifts.internalSectionDesc")}
-                </p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                <Link
-                  href={`/shifts/${SHIFTS_INTERNAL_ROUTE_CLIENT_ID}`}
-                  className="group flex items-center gap-4 rounded-2xl border border-border bg-card px-4 py-4 transition hover:border-border-strong hover:bg-elevated/40"
-                >
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-inset text-muted">
-                    <Landmark className="h-5 w-5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold text-text">
-                      {t("pages.shifts.internalSection")}
-                    </p>
-                    <p className="mt-0.5 text-xs text-subtle">
-                      {t(
-                        internal.projectCount === 1
-                          ? "pages.shifts.projectCountOne"
-                          : "pages.shifts.projectCountOther",
-                        { count: internal.projectCount }
-                      )}
-                    </p>
-                  </div>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-muted transition group-hover:text-text" />
-                </Link>
-              </div>
-            </section>
-          ) : null}
-
-          {visibleClients.length > 0 ? (
-            <section className="space-y-3">
-              <div>
-                <h2 className="text-base font-semibold text-text">
-                  {t("pages.shifts.clientsSection")}
-                </h2>
-                <p className="mt-1 text-sm text-subtle">
-                  {t("pages.shifts.clientsSectionDesc")}
-                </p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {visibleClients.map((client) => (
-                  <Link
-                    key={client.id}
-                    href={`/shifts/${client.id}`}
-                    className="group flex items-center gap-4 rounded-2xl border border-border bg-card px-4 py-4 transition hover:border-border-strong hover:bg-elevated/40"
-                  >
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-inset text-muted">
-                      <Building2 className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold text-text">
-                        {client.name}
-                      </p>
-                      <p className="mt-0.5 text-xs text-subtle">
-                        {t(
-                          client.projectCount === 1
-                            ? "pages.shifts.projectCountOne"
-                            : "pages.shifts.projectCountOther",
-                          { count: client.projectCount }
-                        )}
-                      </p>
-                    </div>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-muted transition group-hover:text-text" />
-                  </Link>
-                ))}
-              </div>
-            </section>
-          ) : null}
-        </>
+        <DataTable
+          columns={columns}
+          data={visible}
+          getRowKey={(row) => row.id}
+          onRowClick={(row) => router.push(row.href)}
+          emptyMessage={t("pages.shifts.noClients")}
+        />
       )}
     </div>
   );
