@@ -5,6 +5,7 @@ import { BriefcaseBusiness } from "lucide-react";
 import { updatePosition } from "@/app/positions/actions";
 import PositionDeleteDialog from "@/components/positions/PositionDeleteDialog";
 import PositionModuleAccessFields from "@/components/positions/PositionModuleAccessFields";
+import PositionSystemGuideButton from "@/components/positions/PositionSystemGuideButton";
 import {
   EmployeeDialogShell,
   EmployeePrimaryButton,
@@ -19,7 +20,7 @@ import { localizeDepartmentLabel } from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
 import {
   getEmployeeModuleOverrides,
-  type ModuleKey,
+  type ModuleAccessFlags,
 } from "@/lib/permissions";
 import { titleCaseWords } from "@/lib/text-case";
 
@@ -43,7 +44,7 @@ export type PositionRow = {
 
 function positionDefaultModuleAccess(
   position: PositionRow
-): Record<ModuleKey, boolean> {
+): ModuleAccessFlags {
   return getEmployeeModuleOverrides({
     jobPosition: {
       slug: position.slug,
@@ -68,7 +69,7 @@ export default function PositionEditDialog({
 }) {
   const { t, locale } = useT();
   const [active, setActive] = useState(position.active);
-  const [moduleAccess, setModuleAccess] = useState<Record<ModuleKey, boolean>>(
+  const [moduleAccess, setModuleAccess] = useState<ModuleAccessFlags>(
     () => positionDefaultModuleAccess(position)
   );
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -177,6 +178,15 @@ export default function PositionEditDialog({
                 value={moduleAccess}
                 onChange={setModuleAccess}
                 disabled={pending}
+                headerAction={
+                  <PositionSystemGuideButton
+                    formId="edit-position-form"
+                    fallbackName={position.name}
+                    departmentLabel={departmentLabel}
+                    moduleAccess={moduleAccess}
+                    disabled={pending}
+                  />
+                }
               />
             </div>
           </form>

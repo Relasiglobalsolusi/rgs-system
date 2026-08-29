@@ -112,7 +112,7 @@ function VendorRowActions({
 
   return (
     <>
-      <div className="flex flex-col items-stretch justify-center gap-2">
+      <div className="flex flex-col items-center justify-center gap-2">
         {showTrashActions ? (
           <TrashRestoreChip
             onClick={(event) => {

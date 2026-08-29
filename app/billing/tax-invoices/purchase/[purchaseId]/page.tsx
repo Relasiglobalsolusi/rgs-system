@@ -22,7 +22,8 @@ import { formatTaxInvoiceSerial } from "@/lib/tax-invoice-serial";
 
 const metaLabelClassName =
   "w-36 shrink-0 px-4 py-2.5 text-left align-top text-xs font-semibold uppercase tracking-[0.12em] text-subtle sm:w-52 sm:px-5";
-const metaValueClassName = "px-4 py-2.5 align-top text-text sm:px-5";
+const metaValueClassName =
+  "min-w-0 break-words px-4 py-2.5 align-top text-text sm:px-5";
 const sectionTitleClassName = "text-base font-semibold tracking-tight text-text";
 
 function money(value: number | null | undefined): string {

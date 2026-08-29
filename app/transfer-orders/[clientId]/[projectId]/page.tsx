@@ -9,6 +9,7 @@ import {
 import TransferOrderBreadcrumbs from "@/components/transfer-orders/TransferOrderBreadcrumbs";
 import TransferOrderDetailCard from "@/components/transfer-orders/TransferOrderDetailCard";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
 import { CheckCircle2, Package, Truck } from "lucide-react";
@@ -67,7 +68,7 @@ export default async function TransferOrdersProjectQueuePage({
         </p>
       </div>
 
-      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <DirectoryStatGrid className="mb-5">
         <DirectoryStatCard
           compact
           tinted
@@ -92,7 +93,7 @@ export default async function TransferOrdersProjectQueuePage({
           accent="success"
           icon={<CheckCircle2 size={18} />}
         />
-      </div>
+      </DirectoryStatGrid>
 
       {data.orders.length === 0 ? (
         <SectionCard className="p-5 sm:p-6">

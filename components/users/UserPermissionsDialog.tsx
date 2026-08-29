@@ -29,14 +29,19 @@ import {
 } from "@/components/ui/use-directory-dialog-open";
 import { useT } from "@/lib/i18n/use-t";
 import {
+  ADVANCE_CASH_CHILD_KEYS,
   PORTAL_BLOCKED_MODULES,
   buildOverridesFromToggle,
   expandLegacyFinanceOverrides,
   getAccountType,
   getAccountTypeBaselineModules,
+  getAdvanceCashAccess,
   getAllModuleAccessStates,
   getEmployeeModuleOverrides,
   getVisibleModules,
+  setAdvanceCashOverrideTargets,
+  type AdvanceCashChildKey,
+  type ModuleAccessFlags,
   type ModuleKey,
   type PermissionUser,
 } from "@/lib/permissions";
@@ -81,22 +86,26 @@ function ModuleToggle({
   defaultOffLabel,
   overriddenLabel,
   accessAriaLabel,
+  compact = false,
 }: {
-  module: ModuleKey;
+  module: ModuleKey | AdvanceCashChildKey;
   moduleLabel: string;
   enabled: boolean;
   isOverridden: boolean;
   defaultValue: boolean;
   disabled: boolean;
-  onToggle: (module: ModuleKey, enabled: boolean) => void;
+  onToggle: (module: ModuleKey | AdvanceCashChildKey, enabled: boolean) => void;
   defaultOnLabel: string;
   defaultOffLabel: string;
   overriddenLabel: string;
   accessAriaLabel: string;
+  compact?: boolean;
 }) {
   return (
     <div
-      className={`flex items-center justify-between rounded-xl border px-4 py-3 transition ${
+      className={`flex items-center justify-between rounded-xl border transition ${
+        compact ? "px-2.5 py-2" : "px-4 py-3"
+      } ${
         enabled
           ? "border-primary/25 bg-card-tint-emerald"
           : "border-border bg-elevated"
@@ -147,7 +156,7 @@ export default function UserPermissionsDialog({
   );
 
   const accountType = useMemo(() => getAccountType(user), [user]);
-  const baseline = useMemo(
+  const baseline: ModuleAccessFlags = useMemo(
     () =>
       user.employee
         ? getEmployeeModuleOverrides({
@@ -183,6 +192,10 @@ export default function UserPermissionsDialog({
     () => getAllModuleAccessStates(permissionUser, baseline),
     [permissionUser, baseline]
   );
+  const advanceCash = useMemo(
+    () => getAdvanceCashAccess(permissionUser),
+    [permissionUser]
+  );
 
   // Portal accounts never receive HO directory / CMS modules — hide toggles.
   // Vendors also never get Progress Reports (locked product rule).
@@ -196,8 +209,10 @@ export default function UserPermissionsDialog({
     });
   }, [isPortalUser, accountType]);
   const overrideCount = Object.keys(overrides).length;
-  const enabledCount = visibleModules.filter(
-    (module) => accessStates[module].effective
+  const enabledCount = visibleModules.filter((module) =>
+    module === "pettyCash"
+      ? advanceCash.petty || advanceCash.prepaid
+      : accessStates[module].effective
   ).length;
   const totalCount = visibleModules.length;
 
@@ -227,7 +242,32 @@ export default function UserPermissionsDialog({
     }
   }
 
-  function handleToggle(module: ModuleKey, enabled: boolean) {
+  function handleToggle(
+    module: ModuleKey | AdvanceCashChildKey,
+    enabled: boolean
+  ) {
+    if (module === "pettyCash") {
+      setOverrides((current) =>
+        setAdvanceCashOverrideTargets(current, baseline, {
+          petty: enabled,
+          prepaid: enabled,
+        })
+      );
+      return;
+    }
+    if (module === "pettyCashPetty" || module === "pettyCashPrepaid") {
+      setOverrides((current) => {
+        const access = getAdvanceCashAccess({
+          ...permissionUser,
+          moduleOverrides: current,
+        });
+        return setAdvanceCashOverrideTargets(current, baseline, {
+          petty: module === "pettyCashPetty" ? enabled : access.petty,
+          prepaid: module === "pettyCashPrepaid" ? enabled : access.prepaid,
+        });
+      });
+      return;
+    }
     setOverrides((current) =>
       buildOverridesFromToggle(
         permissionUser,
@@ -341,6 +381,62 @@ export default function UserPermissionsDialog({
             {visibleModules.map((module) => {
               const state = accessStates[module];
               const moduleLabel = t(`modules.${module}`);
+              const toggleProps = {
+                disabled: pending,
+                onToggle: handleToggle,
+                defaultOnLabel: t("pages.users.permissionsDefaultOn"),
+                defaultOffLabel: t("pages.users.permissionsDefaultOff"),
+                overriddenLabel: t("pages.users.permissionsOverridden"),
+              };
+              if (module === "pettyCash") {
+                const parentEnabled = advanceCash.petty || advanceCash.prepaid;
+                return (
+                  <div key={module} className="flex min-w-0 flex-col gap-1.5">
+                    <ModuleToggle
+                      module={module}
+                      moduleLabel={moduleLabel}
+                      enabled={parentEnabled}
+                      isOverridden={
+                        state.override !== null ||
+                        ADVANCE_CASH_CHILD_KEYS.some((child) => child in overrides)
+                      }
+                      defaultValue={state.default}
+                      accessAriaLabel={t(
+                        "pages.users.permissionsModuleAccessAria",
+                        { module: moduleLabel }
+                      )}
+                      {...toggleProps}
+                    />
+                    {parentEnabled ? (
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {ADVANCE_CASH_CHILD_KEYS.map((child) => {
+                          const childEnabled =
+                            child === "pettyCashPetty"
+                              ? advanceCash.petty
+                              : advanceCash.prepaid;
+                          const childLabel = t(`modules.${child}`);
+                          return (
+                            <ModuleToggle
+                              key={child}
+                              compact
+                              module={child}
+                              moduleLabel={childLabel}
+                              enabled={childEnabled}
+                              isOverridden={child in overrides}
+                              defaultValue={baseline[child]}
+                              accessAriaLabel={t(
+                                "pages.users.permissionsModuleAccessAria",
+                                { module: childLabel }
+                              )}
+                              {...toggleProps}
+                            />
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              }
               return (
                 <ModuleToggle
                   key={module}
@@ -349,15 +445,11 @@ export default function UserPermissionsDialog({
                   enabled={state.effective}
                   isOverridden={state.override !== null}
                   defaultValue={state.default}
-                  disabled={pending}
-                  onToggle={handleToggle}
-                  defaultOnLabel={t("pages.users.permissionsDefaultOn")}
-                  defaultOffLabel={t("pages.users.permissionsDefaultOff")}
-                  overriddenLabel={t("pages.users.permissionsOverridden")}
                   accessAriaLabel={t(
                     "pages.users.permissionsModuleAccessAria",
                     { module: moduleLabel }
                   )}
+                  {...toggleProps}
                 />
               );
             })}

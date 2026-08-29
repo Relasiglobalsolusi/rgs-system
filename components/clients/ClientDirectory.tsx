@@ -7,12 +7,14 @@ import ClientBulkActionDialog from "@/components/clients/ClientBulkActionDialog"
 import ClientBulkCreateDialog from "@/components/clients/ClientBulkCreateDialog";
 import ClientBulkReactivateDialog from "@/components/clients/ClientBulkReactivateDialog";
 import ClientDialog from "@/components/clients/ClientDialog";
+import ClientSystemGuideButton from "@/components/clients/ClientSystemGuideButton";
 import ClientTable, { type ClientRow } from "@/components/clients/ClientTable";
 import DirectoryAddButton from "@/components/ui/DirectoryAddButton";
 import DirectorySearchInput, {
   matchesDirectorySearch,
 } from "@/components/ui/DirectorySearchInput";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import EmptyState from "@/components/ui/EmptyState";
 import BulkActionBar from "@/components/ui/BulkActionBar";
 import SectionCard from "@/components/ui/SectionCard";
@@ -195,7 +197,7 @@ export default function ClientDirectory({
 
   return (
     <>
-      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <DirectoryStatGrid className="mb-5">
         <DirectoryStatCard
           title={t("pages.clients.active")}
           value={stats.active}
@@ -214,17 +216,17 @@ export default function ClientDirectory({
           selected={activeTab === "trash"}
           onClick={() => selectTab("trash")}
         />
-      </div>
+      </DirectoryStatGrid>
 
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <DirectorySearchInput
           value={searchQuery}
           onChange={handleSearchChange}
           placeholder={t("pages.clients.searchPlaceholder")}
-          className="min-w-[12rem] w-auto max-w-none flex-1"
+          className="min-w-0 w-full max-w-none sm:max-w-xs sm:flex-1"
         />
         {showAdd ? (
-          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:justify-end">
             <DirectoryAddButton
               label={t("pages.clients.addClient")}
               onClick={() => setCreateOpen(true)}
@@ -235,6 +237,7 @@ export default function ClientDirectory({
               icon={<ListPlus className="h-3.5 w-3.5 shrink-0" />}
               onClick={() => setBulkImportOpen(true)}
             />
+            <ClientSystemGuideButton clients={activeClients} />
           </div>
         ) : null}
       </div>

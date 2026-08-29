@@ -10,6 +10,7 @@ import PurchaseInvoiceUploadDialog from "@/components/billing/PurchaseInvoiceUpl
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/ui/EmptyState";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import SectionCard from "@/components/ui/SectionCard";
 import { formatDisplayDate } from "@/lib/format-date";
 import { getServerLocale } from "@/lib/i18n/locale";
@@ -291,7 +292,7 @@ export default async function PurchaseInvoicesPage({
       </div>
 
       {purchaseView ? null : (
-        <div className="mb-4 grid min-w-0 grid-cols-2 gap-2 xl:grid-cols-4">
+        <DirectoryStatGrid className="mb-4" gapClassName="gap-2">
           <DirectoryStatCard
             compact
             title={t("pages.billing.purchaseCardTotal")}
@@ -324,7 +325,7 @@ export default async function PurchaseInvoicesPage({
             icon={<Ship size={18} />}
             accent={incompleteCount > 0 ? "info" : "muted"}
           />
-        </div>
+        </DirectoryStatGrid>
       )}
 
       {rows.length === 0 ? (

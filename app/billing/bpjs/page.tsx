@@ -8,6 +8,7 @@ import PageIntro from "@/components/i18n/PageIntro";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import { financeToolbarActionClass } from "@/components/billing/finance-toolbar";
 import {
   currentBpjsPeriod,
@@ -85,7 +86,7 @@ export default async function BpjsPage({
         </div>
       </div>
 
-      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <DirectoryStatGrid className="mb-5">
         <DirectoryStatCard
           compact
           title={t("pages.bpjs.alreadyPaid")}
@@ -110,7 +111,7 @@ export default async function BpjsPage({
           }
           accent={snapshot.overdueAmount > 0 ? "danger" : "muted"}
         />
-      </div>
+      </DirectoryStatGrid>
 
       <p className="mb-5 text-sm text-muted">
         {t("pages.bpjs.enrolled", { count: String(enrolledCount) })}

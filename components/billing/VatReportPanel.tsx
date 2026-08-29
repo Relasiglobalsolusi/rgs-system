@@ -12,6 +12,7 @@ import { employeeSelectTriggerClass } from "@/components/employees/employee-dial
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import DirectoryFilterTab from "@/components/ui/DirectoryFilterTab";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -326,7 +327,7 @@ export default function VatReportPanel({
       </div>
 
       {isOther ? (
-        <div className="grid gap-3 sm:grid-cols-3">
+        <DirectoryStatGrid>
           <DirectoryStatCard
             title={t("pages.vat.otherRemittanceTotal")}
             value={formatContractPrice(otherRemittanceTotal)}
@@ -348,9 +349,9 @@ export default function VatReportPanel({
             icon={<Scale size={18} />}
             accent="primary"
           />
-        </div>
+        </DirectoryStatGrid>
       ) : isIncome ? (
-        <div className="grid gap-3 sm:grid-cols-3">
+        <DirectoryStatGrid>
           <DirectoryStatCard
             title={t("pages.vat.incomeImportTotal")}
             value={formatContractPrice(incomeImportTotal)}
@@ -372,9 +373,9 @@ export default function VatReportPanel({
             icon={<Scale size={18} />}
             accent="primary"
           />
-        </div>
+        </DirectoryStatGrid>
       ) : (
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <DirectoryStatGrid>
         <DirectoryStatCard
           title={t("pages.vat.outputTotal")}
           value={formatContractPrice(outputTotal)}
@@ -419,7 +420,7 @@ export default function VatReportPanel({
           icon={<Wallet size={18} />}
           accent={creditBroughtForward > 0 ? "success" : "primary"}
         />
-      </div>
+      </DirectoryStatGrid>
       )}
 
       <div className="flex flex-wrap gap-2">

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import StatusBadge from "@/components/ui/StatusBadge";
 import SectionCard from "@/components/ui/SectionCard";
 import { formatDisplayDate } from "@/lib/format-date";
@@ -75,7 +76,7 @@ export default function LoanFacilityOverview({
             </StatusBadge>
           </div>
 
-          <div className="grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-3 xl:grid-cols-4">
+          <DirectoryStatGrid gapClassName="gap-x-8 gap-y-5">
             <LoanFact
               label={t("pages.loans.source")}
               value={
@@ -112,7 +113,7 @@ export default function LoanFacilityOverview({
                 value={facility.bankAccountLabel}
               />
             ) : null}
-          </div>
+          </DirectoryStatGrid>
 
           <div className="overflow-x-auto rounded-2xl border border-border">
             <table className="min-w-full text-left text-sm">

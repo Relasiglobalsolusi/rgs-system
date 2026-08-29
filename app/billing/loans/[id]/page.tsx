@@ -10,6 +10,7 @@ import AppShell from "@/components/layout/AppShell";
 import BillingBreadcrumbs from "@/components/billing/BillingBreadcrumbs";
 import SectionCard from "@/components/ui/SectionCard";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import { listCompanyBankAccountOptions } from "@/lib/company-bank-accounts";
 import { formatDisplayDate } from "@/lib/format-date";
 import { getServerLocale } from "@/lib/i18n/locale";
@@ -44,12 +45,6 @@ export default async function LoanFacilityDetailPage({
   const showInstallment = isTerm && facility.monthlyInstallment != null;
   const showCommitment =
     isStandby && facility.commitmentFeeApplies;
-  const cardCount =
-    2 +
-    (showUnused ? 1 : 0) +
-    (showInstallment ? 1 : 0) +
-    (showCommitment ? 1 : 0);
-
   return (
     <AppShell title={facility.name}>
       <BillingBreadcrumbs
@@ -96,11 +91,7 @@ export default async function LoanFacilityDetailPage({
           }
         />
 
-        <div
-          className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${
-            cardCount > 3 ? "xl:grid-cols-4" : "xl:grid-cols-3"
-          }`}
-        >
+        <DirectoryStatGrid gapClassName="gap-4">
           <DirectoryStatCard
             compact
             title={t("pages.loans.outstandingPrincipal")}
@@ -135,7 +126,7 @@ export default async function LoanFacilityDetailPage({
               accent="info"
             />
           ) : null}
-        </div>
+        </DirectoryStatGrid>
 
         {isStandby ? (
           <SectionCard>

@@ -245,7 +245,7 @@ export default function BillingDocumentVerifyDialog({
 
           <DialogFooter
             className={cn(
-              "mt-0 shrink-0 flex-col gap-3 rounded-none border-t border-border bg-strip py-6 sm:flex-col sm:py-7",
+              "mx-0 mb-0 mt-0 shrink-0 flex-col gap-3 rounded-none border-t border-border bg-strip py-6 sm:flex-col sm:py-7",
               employeeDialogInsetClass
             )}
           >

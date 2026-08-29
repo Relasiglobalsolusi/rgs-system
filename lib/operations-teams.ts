@@ -7,26 +7,8 @@ import {
   markEmployeesOnProject,
   releaseEmployeesFromProject,
 } from "@/lib/workforce-crew";
-import {
-  OPERATIONS_TEAM_KINDS,
-  isOperationsTeamKind,
-  legacyKindForCatalogArea,
-  operationsTeamKindForSubCategory,
-  teamKindMatchesProjectSubCategory,
-  teamMatchesProjectServiceArea,
-  type OperationsTeamKindValue,
-} from "@/lib/operations-team-kind";
+import { teamMatchesProjectServiceArea } from "@/lib/operations-team-kind";
 import { syncTeamEquipmentToProject } from "@/lib/team-equipment";
-
-export {
-  OPERATIONS_TEAM_KINDS,
-  isOperationsTeamKind,
-  legacyKindForCatalogArea,
-  operationsTeamKindForSubCategory,
-  teamKindMatchesProjectSubCategory,
-  teamMatchesProjectServiceArea,
-};
-export type { OperationsTeamKindValue };
 
 export const OPEN_TEAM_PROJECT_STATUSES = [
   "PLANNED",
@@ -55,7 +37,7 @@ export type TeamOccupancyWindow = {
   status: string;
 };
 
-export function occupancyWindowsFromLinks(
+function occupancyWindowsFromLinks(
   links: Array<{
     project: {
       id: string;
@@ -84,7 +66,7 @@ export function occupancyWindowsFromLinks(
     }));
 }
 
-export function occupancyWindowsFromVisitAssignments(
+function occupancyWindowsFromVisitAssignments(
   assignments: Array<{
     visit: {
       startDate: Date;

@@ -40,7 +40,7 @@ export type BpjsLine = {
   employeeAmount: number;
 };
 
-export type BpjsBreakdown = {
+type BpjsBreakdown = {
   lines: BpjsLine[];
   employeeDeduction: number;
   companyContribution: number;
@@ -146,7 +146,7 @@ export function parseCheckboxFlag(raw: FormDataEntryValue | null): boolean {
   return value === "1" || value === "true" || value === "on" || value === "yes";
 }
 
-export type ParsedEmployeeFinance = {
+type ParsedEmployeeFinance = {
   basePay: number;
   bpjsKesehatanEnabled: boolean;
   bpjsKetenagakerjaanEnabled: boolean;

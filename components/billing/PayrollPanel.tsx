@@ -397,7 +397,7 @@ export default function PayrollPanel({
               className={cn(
                 "grid w-full gap-2 sm:shrink-0",
                 periodLocked && canUnlock
-                  ? "grid-cols-2 sm:w-[22rem]"
+                  ? "grid-cols-1 sm:w-[22rem] sm:grid-cols-2"
                   : "grid-cols-1 sm:ml-auto sm:w-[11rem]"
               )}
             >
@@ -851,25 +851,33 @@ export default function PayrollPanel({
       ) : null}
 
       <Dialog open={unlockOpen} onOpenChange={setUnlockOpen}>
-        <DialogContent className="sm:max-w-lg p-6 text-base">
-          <DialogHeader>
-            <DialogTitle className="text-xl">
+        <DialogContent className="max-h-[min(90dvh,40rem)] gap-0 overflow-hidden rounded-2xl border border-border bg-panel p-0 text-base text-text ring-0 sm:max-w-2xl">
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-6 pb-6 sm:px-10 sm:pt-8 sm:pb-7">
+          <DialogHeader className="gap-4">
+            <DialogTitle className="text-2xl">
               {t("pages.payroll.unlockPeriod")}
             </DialogTitle>
-            <DialogDescription className="text-sm leading-6">
+            <DialogDescription className="text-base leading-7">
               {t("pages.payroll.unlockPeriodDesc")}
             </DialogDescription>
           </DialogHeader>
-          <label className="text-sm font-semibold text-text">
-            {t("pages.payroll.unlockReason")}
-          </label>
-          <Textarea
-            value={unlockReason}
-            onChange={(event) => setUnlockReason(event.target.value)}
-            rows={6}
-            className="min-h-32"
-          />
-          <DialogFooter>
+          <div className="mt-6 flex flex-col gap-4">
+            <label
+              htmlFor="payroll-unlock-reason"
+              className="text-sm font-semibold leading-6 text-text"
+            >
+              {t("pages.payroll.unlockReason")}
+            </label>
+            <Textarea
+              id="payroll-unlock-reason"
+              value={unlockReason}
+              onChange={(event) => setUnlockReason(event.target.value)}
+              rows={8}
+              className="mt-0 min-h-48"
+            />
+          </div>
+          </div>
+          <DialogFooter className="mx-0 mb-0 mt-0 flex-col gap-3 rounded-none border-t border-border bg-strip px-4 py-5 sm:flex-col sm:justify-stretch sm:px-10 sm:py-6">
             <Button
               type="button"
               variant="outline"

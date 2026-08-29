@@ -1,7 +1,18 @@
 import { notFound } from "next/navigation";
+import {
+  Banknote,
+  Building2,
+  CalendarDays,
+  Landmark,
+  TrendingDown,
+  TrendingUp,
+  Wallet,
+} from "lucide-react";
 
 import AppShell from "@/components/layout/AppShell";
 import BillingBreadcrumbs from "@/components/billing/BillingBreadcrumbs";
+import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
 import {
@@ -105,38 +116,71 @@ export default async function EmployeePayslipMonthPage({ params }: Props) {
           />
         ) : (
           <>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <SummaryTile
-                label={t("pages.payslips.daysWorked")}
-                value={String(detail.row.daysWorked)}
-              />
-              <SummaryTile
-                label={t("pages.payslips.earnings")}
-                value={formatContractPrice(detail.earnings)}
-              />
-              <SummaryTile
-                label={t("pages.payslips.deductions")}
-                value={formatContractPrice(detail.deductions)}
-              />
-              <SummaryTile
-                label={t("pages.payslips.bpjsEmployee")}
-                value={formatContractPrice(detail.bpjsEmployee)}
-              />
-              <SummaryTile
-                label={t("pages.payslips.bpjsCompany")}
-                value={formatContractPrice(detail.bpjsCompany)}
-              />
-              <SummaryTile
-                label={t("pages.payslips.columns.amountOwed")}
-                value={formatContractPrice(detail.balanceDueToCompany)}
-                danger={detail.balanceDueToCompany > 0}
-              />
-              <SummaryTile
-                label={t("pages.payslips.netPay")}
+            <DirectoryStatGrid gapClassName="gap-2">
+              <DirectoryStatCard
+                compact
+                tinted
+                title={t("pages.payslips.netPay")}
                 value={formatContractPrice(detail.row.netPay)}
-                emphasize
+                subtitle={t("pages.payslips.cards.netPaySubtitle")}
+                icon={<Banknote size={16} />}
+                accent="primary"
               />
-            </div>
+              <DirectoryStatCard
+                compact
+                tinted
+                title={t("pages.payslips.earnings")}
+                value={formatContractPrice(detail.earnings)}
+                subtitle={t("pages.payslips.cards.earningsSubtitle")}
+                icon={<TrendingUp size={16} />}
+                accent="success"
+              />
+              <DirectoryStatCard
+                compact
+                tinted
+                title={t("pages.payslips.deductions")}
+                value={formatContractPrice(detail.deductions)}
+                subtitle={t("pages.payslips.cards.deductionsSubtitle")}
+                icon={<TrendingDown size={16} />}
+                accent="danger"
+              />
+              <DirectoryStatCard
+                compact
+                tinted
+                title={t("pages.payslips.daysWorked")}
+                value={detail.row.daysWorked}
+                subtitle={t("pages.payslips.cards.daysSubtitle")}
+                icon={<CalendarDays size={16} />}
+                accent="info"
+              />
+              <DirectoryStatCard
+                compact
+                tinted
+                title={t("pages.payslips.columns.amountOwed")}
+                value={formatContractPrice(detail.balanceDueToCompany)}
+                subtitle={t("pages.payslips.cards.amountOwedSubtitle")}
+                icon={<Wallet size={16} />}
+                accent={detail.balanceDueToCompany > 0 ? "danger" : "muted"}
+              />
+              <DirectoryStatCard
+                compact
+                tinted
+                title={t("pages.payslips.bpjsEmployee")}
+                value={formatContractPrice(detail.bpjsEmployee)}
+                subtitle={t("pages.payslips.cards.bpjsEmployeeSubtitle")}
+                icon={<Landmark size={16} />}
+                accent="warning"
+              />
+              <DirectoryStatCard
+                compact
+                tinted
+                title={t("pages.payslips.bpjsCompany")}
+                value={formatContractPrice(detail.bpjsCompany)}
+                subtitle={t("pages.payslips.cards.bpjsCompanySubtitle")}
+                icon={<Building2 size={16} />}
+                accent="muted"
+              />
+            </DirectoryStatGrid>
 
             {detail.row.deductions.length > 0 ? (
               <div>
@@ -173,7 +217,7 @@ export default async function EmployeePayslipMonthPage({ params }: Props) {
                 </p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="min-w-full text-left text-sm">
+                  <table className="w-full min-w-[40rem] text-left text-sm">
                     <thead className="border-b border-border text-xs uppercase tracking-wide text-muted">
                       <tr>
                         <th className="px-3 py-2 font-medium">
@@ -233,34 +277,5 @@ export default async function EmployeePayslipMonthPage({ params }: Props) {
         )}
       </SectionCard>
     </AppShell>
-  );
-}
-
-function SummaryTile({
-  label,
-  value,
-  emphasize,
-  danger,
-}: {
-  label: string;
-  value: string;
-  emphasize?: boolean;
-  danger?: boolean;
-}) {
-  return (
-    <div className="rounded-xl border border-border bg-elevated/40 px-3 py-3">
-      <p className="text-xs text-muted">{label}</p>
-      <p
-        className={
-          danger
-            ? "mt-1 font-semibold tabular-nums text-danger"
-            : emphasize
-              ? "mt-1 text-lg font-semibold tabular-nums text-text"
-              : "mt-1 font-medium tabular-nums text-text"
-        }
-      >
-        {value}
-      </p>
-    </div>
   );
 }

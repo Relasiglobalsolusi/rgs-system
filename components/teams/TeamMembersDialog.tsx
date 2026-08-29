@@ -232,7 +232,7 @@ export default function TeamMembersDialog({
               {visible.length === 0 ? (
                 <p className="text-sm text-muted">{emptyMessage}</p>
               ) : (
-                <div className="flex gap-2">
+                <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
                   <select
                     id="team-add-member"
                     className={employeeSelectTriggerClass}

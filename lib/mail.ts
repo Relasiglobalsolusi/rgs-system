@@ -9,7 +9,7 @@ type NodemailerModule = {
   };
 };
 
-export type SendMailResult =
+type SendMailResult =
   | { sent: true; reason: "sent" }
   | {
       sent: false;

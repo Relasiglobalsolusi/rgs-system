@@ -18,6 +18,7 @@ import BillingBreadcrumbs from "@/components/billing/BillingBreadcrumbs";
 import FinancialReportFilters from "@/components/billing/FinancialReportFilters";
 import FinancialReportProjectDirectory from "@/components/billing/FinancialReportProjectDirectory";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import {
   financialReportHref,
   financialReportQueryString,
@@ -72,54 +73,60 @@ export default async function FinancialReportClientPage({
         bankAccounts={bankAccounts}
       />
 
-      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <DirectoryStatGrid className="mb-5" gapClassName="gap-2">
         <DirectoryStatCard
+          compact
           title={t("pages.financialReport.totalContractValue")}
           value={formatContractPrice(data.totalContractValue)}
           subtitle={t("pages.financialReport.contractValueHint")}
-          icon={<Wallet size={18} />}
+          icon={<Wallet size={16} />}
           accent="info"
         />
         <DirectoryStatCard
+          compact
           title={t("pages.financialReport.moneyOut")}
           value={formatContractPrice(data.totalSpending)}
           subtitle={t("pages.financialReport.spendingHint")}
-          icon={<Package size={18} />}
+          icon={<Package size={16} />}
           accent="warning"
         />
         <DirectoryStatCard
+          compact
           title={t("pages.financialReport.profit")}
           value={formatContractPrice(data.profit)}
           subtitle={t("pages.financialReport.profitHint")}
-          icon={<TrendingUp size={18} />}
+          icon={<TrendingUp size={16} />}
           accent={data.profit < 0 ? "danger" : "success"}
         />
         <DirectoryStatCard
+          compact
           title={t("pages.financialReport.netPosition")}
           value={formatContractPrice(data.netPosition)}
           subtitle={t("pages.financialReport.netPositionHint")}
-          icon={<Scale size={18} />}
+          icon={<Scale size={16} />}
           accent={data.netPosition < 0 ? "danger" : "success"}
         />
         <DirectoryStatCard
+          compact
           title={t("pages.financialReport.clientsStillOwe")}
           value={formatContractPrice(data.clientsOwe.unpaid)}
           subtitle={t("pages.financialReport.accountsReceivableHint", {
             overdue: formatContractPrice(data.clientsOwe.overdue),
           })}
-          icon={<Banknote size={18} />}
+          icon={<Banknote size={16} />}
           accent={data.clientsOwe.overdue > 0 ? "warning" : "muted"}
         />
         <DirectoryStatCard
+          compact
           title={t("pages.financialReport.weStillOweVendors")}
           value={formatContractPrice(data.vendorsOwe.unpaid)}
           subtitle={t("pages.financialReport.accountsPayableHint", {
             overdue: formatContractPrice(data.vendorsOwe.overdue),
           })}
-          icon={<Landmark size={18} />}
+          icon={<Landmark size={16} />}
           accent={data.vendorsOwe.overdue > 0 ? "warning" : "muted"}
         />
-      </div>
+      </DirectoryStatGrid>
 
       <FinancialReportProjectDirectory
         clientId={clientId}

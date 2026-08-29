@@ -35,6 +35,7 @@ import DirectorySearchInput, {
   matchesDirectorySearch,
 } from "@/components/ui/DirectorySearchInput";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
@@ -224,7 +225,7 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
             cellAlign: "center" as const,
             className: "min-w-[12.5rem] overflow-visible",
             render: (row: InventoryCatalogItem) => (
-              <div className="flex flex-col items-stretch justify-center gap-2">
+              <div className="flex flex-col items-center justify-center gap-2">
                 <Button
                   type="button"
                   size="badge"
@@ -254,7 +255,7 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
 
   return (
     <>
-      <div className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-3">
+      <DirectoryStatGrid className="mb-5">
         <DirectoryStatCard
           compact
           tinted
@@ -284,8 +285,8 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
           icon={<Package size={18} />}
           accent="info"
         />
-      </div>
-      <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      </DirectoryStatGrid>
+      <DirectoryStatGrid className="mb-5">
         {INVENTORY_CATEGORY_DISPLAY_ORDER.map((key) => (
           <DirectoryStatCard
             key={key}
@@ -297,20 +298,20 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
             icon={categoryMeta[key].icon}
           />
         ))}
-      </div>
+      </DirectoryStatGrid>
 
       <p className="mb-3 text-sm text-subtle">
         {t("pages.itemCatalog.deleteHint")}
       </p>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <DirectorySearchInput
           value={searchQuery}
           onChange={setSearchQuery}
           placeholder={t("pages.itemCatalog.searchPlaceholder")}
-          className="min-w-[12rem] w-auto max-w-none flex-1"
+          className="min-w-0 w-full max-w-none sm:max-w-xs sm:flex-1"
         />
         {canManage ? (
-          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:justify-end">
             <DirectoryAddButton
               label={t("pages.itemCatalog.addItem")}
               onClick={() => setCreateItemOpen(true)}

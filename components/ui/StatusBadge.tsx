@@ -45,11 +45,11 @@ type StatusBadgeProps = {
  * No optical pb nudges or display-mode swaps — those fight Inter caps.
  */
 export const compactChipClassName =
-  "box-border inline-flex h-[2.75rem] min-h-[2.75rem] w-auto min-w-[7.5rem] max-w-none shrink-0 items-center justify-center overflow-hidden whitespace-nowrap rounded-md px-2.5 py-0 text-xs font-bold uppercase leading-none tracking-[0.04em]";
+  "box-border inline-flex h-[2.75rem] min-h-[2.75rem] w-fit min-w-0 max-w-full shrink-0 items-center justify-center overflow-hidden whitespace-nowrap rounded-md px-2.5 py-0 text-xs font-bold uppercase leading-none tracking-[0.04em] sm:min-w-[7.5rem] sm:max-w-none";
 
 /** Larger identity chips — project detail status / cleaning type overview. */
 export const largeChipClassName =
-  "box-border inline-flex h-[3.5rem] min-h-[3.5rem] w-auto min-w-[9.75rem] max-w-none shrink-0 items-center justify-center overflow-hidden whitespace-nowrap rounded-md px-3.5 py-0 text-sm font-bold uppercase leading-none tracking-[0.04em]";
+  "box-border inline-flex h-[3.5rem] min-h-[3.5rem] w-fit min-w-0 max-w-full shrink-0 items-center justify-center overflow-hidden whitespace-nowrap rounded-md px-3.5 py-0 text-sm font-bold uppercase leading-none tracking-[0.04em] sm:min-w-[9.75rem] sm:max-w-none";
 
 const chipSizeClassName: Record<StatusBadgeSize, string> = {
   md: compactChipClassName,

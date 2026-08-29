@@ -17,7 +17,7 @@ const financeRecordRowAmountOnlyClassName =
   "md:grid-cols-[minmax(0,1fr)_7.5rem]";
 
 export const financeListStatusChipClassName =
-  "box-border inline-flex h-auto min-h-8 w-full min-w-0 max-w-full items-center justify-center px-2.5 py-1.5 text-center text-[0.625rem] leading-none md:min-w-[7.5rem] md:px-3 md:text-[0.6875rem]";
+  "box-border inline-flex h-auto min-h-8 w-fit min-w-0 max-w-full shrink-0 items-center justify-center px-2.5 py-1.5 text-center text-[0.625rem] leading-none md:min-w-[7.5rem] md:px-3 md:text-[0.6875rem]";
 
 function FinanceRecordTitleCell({
   children,
@@ -43,7 +43,7 @@ function FinanceRecordStatusCell({
   return (
     <div
       className={cn(
-        "col-span-2 row-start-2 flex h-full w-full min-w-0 items-center justify-start text-center md:col-span-1 md:col-start-2 md:row-start-1 md:justify-center",
+        "col-span-2 row-start-2 flex w-fit max-w-full min-w-0 items-center justify-start text-center md:col-span-1 md:col-start-2 md:row-start-1 md:w-full md:justify-center",
         className
       )}
     >

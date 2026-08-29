@@ -5,6 +5,7 @@ import { BriefcaseBusiness } from "lucide-react";
 import { createPosition } from "@/app/positions/actions";
 import type { EmployeeCategoryOption } from "@/components/employees/EmployeeFormFields";
 import PositionModuleAccessFields from "@/components/positions/PositionModuleAccessFields";
+import PositionSystemGuideButton from "@/components/positions/PositionSystemGuideButton";
 import {
   EmployeeDialogShell,
   EmployeePrimaryButton,
@@ -26,7 +27,10 @@ import {
 import { showRejectionFromError } from "@/components/ui/rejection-notice";
 import { localizeDepartmentLabel } from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
-import { getEmployeeModuleOverrides, type ModuleKey } from "@/lib/permissions";
+import {
+  getEmployeeModuleOverrides,
+  type ModuleAccessFlags,
+} from "@/lib/permissions";
 import { titleCaseWords } from "@/lib/text-case";
 
 export default function PositionDialog({
@@ -41,7 +45,7 @@ export default function PositionDialog({
   const { t, locale } = useT();
   const [open, setOpen] = useState(false);
   const [categoryId, setCategoryId] = useState("");
-  const [moduleAccess, setModuleAccess] = useState<Record<ModuleKey, boolean>>(
+  const [moduleAccess, setModuleAccess] = useState<ModuleAccessFlags>(
     () => getEmployeeModuleOverrides()
   );
   const [pending, startTransition] = useTransition();
@@ -80,6 +84,9 @@ export default function PositionDialog({
     value: category.id,
     label: formatDepartmentLabel(category),
   }));
+  const selectedCategory = selectableCategories.find(
+    (category) => category.id === categoryId
+  );
 
   function submit(formData: FormData) {
     formData.set("categoryId", categoryId);
@@ -185,6 +192,19 @@ export default function PositionDialog({
               value={moduleAccess}
               onChange={setModuleAccess}
               disabled={pending}
+              headerAction={
+                <PositionSystemGuideButton
+                  formId="create-position-form"
+                  fallbackName=""
+                  departmentLabel={
+                    selectedCategory
+                      ? formatDepartmentLabel(selectedCategory)
+                      : ""
+                  }
+                  moduleAccess={moduleAccess}
+                  disabled={pending}
+                />
+              }
             />
           </div>
         </form>

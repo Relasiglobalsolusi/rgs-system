@@ -35,6 +35,8 @@ export const en = {
     rejectionNotice: {
       title: "Action could not be completed",
       description: "Review the issue below, revise as needed, then try again.",
+      successTitle: "Action Confirmed",
+      successDescription: "This step completed successfully.",
       acknowledge: "OK",
       importTitle: "Import rows need attention",
       importDescription:
@@ -403,6 +405,7 @@ export const en = {
     },
     jobTitle: {
       ceo: "CEO",
+      director: "Director",
       directorOfOperations: "Director of Operations",
       operationsManager: "Operations Manager",
       areaManager: "Area Manager",
@@ -423,6 +426,15 @@ export const en = {
       homeowner: "Homeowner",
       buildingManager: "Building Manager",
       exportManager: "Export Manager",
+      admin: "Admin",
+      accountant: "Accountant",
+      financeAdmin: "Finance Admin",
+      inHouseCleaningStaff: "In-House Cleaning Staff",
+      warehouseSupervisor: "Warehouse Supervisor",
+      warehouseStaff: "Warehouse Staff",
+      gcStaff: "GC Staff",
+      securityStaff: "Security Staff",
+      parkingStaff: "Parking Staff"
     }
   },
 
@@ -513,6 +525,16 @@ export const en = {
       paymentDueTitle: "Payment Due",
       openBilling: "Open Billing",
       completedTitle: "Completed Projects",
+      completedPageDesc:
+        "Closed jobs are finished and settled. Regular contracts stay open — only their paid billing periods appear in the second table.",
+      closedProjectsSection: "Closed Projects",
+      closedProjectsSectionDesc:
+        "One-time jobs and contracts that have ended. Work is finished and payment is settled.",
+      regularContractsSection: "Regular Contracts",
+      regularContractsSectionDesc:
+        "These contracts are still ongoing. Each row is a paid billing period. The site remains In Progress.",
+      emptyClosedProjects: "No closed projects yet",
+      emptyRegularPeriods: "No paid regular periods yet",
       addProject: "Add Project",
       bankAccount: "Bank Account",
       bankAccountHint:
@@ -751,8 +773,9 @@ export const en = {
       emptyPaymentDue: "No payment due",
       emptyPaymentDueDesc:
         "Each issued invoice period appears here until payment is verified. The same project can appear more than once. Regular Cleaning projects stay In Progress while a cycle is due.",
-      emptyCompleted: "No completed projects",
-      emptyCompletedDesc: "Finished and fully paid projects appear here.",
+      emptyCompleted: "Nothing to show yet",
+      emptyCompletedDesc:
+        "Closed jobs appear in the first table. After you mark a Regular contract period paid, that period appears under Regular Contracts. The site stays In Progress.",
       moveToInProgress: "Move to In Progress",
       contractProof: "Signed Contract Proof",
       contractProofHint:
@@ -907,7 +930,7 @@ export const en = {
       removeDoubleShiftSaving: "Removing…",
       assignBackup: "Assign Backup",
       assignBackupDesc:
-        "Assign a part-time employee to cover a named shift when no regular employee can take a double shift. They check in and check out from the start date through the end date. After the end date the backup ends and that shift is the regular employee's again. Petty Cash is debited when they check out — the operational manager pays them daily.",
+        "Assign a part-time employee to cover a named shift when no regular employee can take a double shift. They check in and check out from the start date through the end date. After the end date the backup ends and that shift is the regular employee's again. After check-out the wage floats on Petty Cash as unpaid until someone clicks Pay. That person's Petty Cash is deducted.",
       assignBackupConfirm: "Assign Backup",
       assignBackupSaving: "Assigning…",
       assignBackupFailed: "Could not assign the backup.",
@@ -921,13 +944,13 @@ export const en = {
       backupCoverEmpty:
         "Assign regular staff to a named shift first, then assign a backup to cover that person.",
       backupCoverHint:
-        "Choose the regular employee and named shift being covered. Dates are the days this backup is booked. Petty Cash is debited after they check in and check out.",
+        "Choose the regular employee and named shift being covered. Dates are the days this backup is booked. After they check in and check out, the wage waits on Petty Cash until someone clicks Pay.",
       backupStart: "Start Date",
       backupEnd: "End Date",
       backupDailyRate: "Daily Rate",
       backupDailyRatePlaceholder: "e.g. 100000",
       backupDailyRateHint:
-        "Petty Cash is debited this amount when they check out that day. Days they do not work are not taken.",
+        "This amount floats on Petty Cash after they check out that day. It is deducted from the person who clicks Pay. Days they do not work are not taken.",
       removeBackup: "Remove Backup",
       removeBackupConfirm:
         "Remove this backup from the project? Days not yet paid will not be taken from Petty Cash.",
@@ -1061,6 +1084,17 @@ export const en = {
         doubleShiftCoverChip:
           "Covered {shift} on {date} ({name} Absent)",
         noStaff: "No staff assigned yet.",
+        staffHistory: "Staff history",
+        staffHistoryHint:
+          "These people were assigned while the job was open. They are no longer on this site and cannot be managed here.",
+        noStaffHistory: "No staff history recorded.",
+        equipmentHistory: "Equipment history",
+        equipmentHistoryHint:
+          "Units used on this job. They have been returned to the warehouse pool and cannot be managed here.",
+        noEquipmentHistory: "No equipment was assigned to this job.",
+        equipmentReturned: "Returned",
+        settledTermsLocked:
+          "This job is closed. Contract amount, bank account, and other terms are locked.",
         availableAfterInProgress: " · Available after Move to In Progress",
         siteLocation: "Site Location",
         cicoSiteLocation: "CICO Site Location",
@@ -1335,6 +1369,16 @@ export const en = {
         "Each line is a full client record. There are no shared terms.",
       editClient: "Edit Client",
       searchPlaceholder: "Search clients...",
+      downloadSystemGuide: "Download System Guide",
+      downloadingSystemGuide: "Downloading...",
+      downloadSystemGuideFailed: "Could not download the system guide.",
+      downloadSystemGuideEmpty:
+        "No client portal modules are available for the system guide.",
+      systemGuidePickClient: "Select a Client",
+      systemGuideForClient: "System Guide For",
+      systemGuidePickDescription:
+        "Every client portal uses the same modules. Choose which client name appears on the first page of the handbook.",
+      systemGuidePortalLabel: "Client Portal",
       deleted: "Deleted",
       active: "Active",
       activeSubtitle: "Client organizations currently enabled",
@@ -1977,6 +2021,7 @@ export const en = {
         placement: "Placement",
         portalLogin: "Portal Login",
         securityDeposit: "Security Deposit",
+        moduleAccess: "Module Access",
         actions: "Actions"
       },
       manageDepartments: "Manage Departments",
@@ -1993,7 +2038,7 @@ export const en = {
           "Add a job position for a department and set the default module access for new logins.",
         moduleAccess: "Default Module Access",
         moduleAccessHint:
-          "New portal logins for this position start with these modules. To give one person more access, use Users → Permissions.",
+          "New portal logins for this position start with these modules. Advance Cash can grant Petty Cash, Prepaid Cards, or both. To give one person more access, use Users → Permissions.",
         createButton: "Add Position",
         creating: "Adding…",
         editTitle: "Edit Position",
@@ -2013,7 +2058,15 @@ export const en = {
         deleteDescEmpty: "This position has no employees.",
         employeesReassignedOne: "{count} employee will be reassigned.",
         employeesReassignedOther: "{count} employees will be reassigned.",
-        selectReplacement: "Select Replacement Position"
+        selectReplacement: "Select Replacement Position",
+        downloadSystemGuide: "Download System Guide",
+        downloadingSystemGuide: "Preparing Guide…",
+        downloadSystemGuideHint:
+          "Uses the modules turned on above. You do not need to save first. The PDF follows the language of this screen.",
+        downloadSystemGuideEmpty:
+          "Turn on at least one module before downloading the system guide.",
+        downloadSystemGuideFailed: "Could not download the system guide.",
+        moduleAccessCount: "{enabled} of {total}"
       },
       deptDialog: {
         createTitle: "Create Department",
@@ -2719,18 +2772,22 @@ export const en = {
       advanceCashKindPetty: "Petty Cash",
       advanceCashKindPrepaid: "Prepaid Card",
       advanceCashPettyHint:
-        "Cash float top-up. Prepaid cards are topped up under Vehicle → Prepaid Card. Employee cash advance under Employee Payments is a different thing.",
+        "Choose which employee receives this cash. That employee's Petty Cash balance goes up. Prepaid cards are topped up under Vehicle → Prepaid Card.",
+      pettyCashRecipient: "Who Receives This Top Up",
+      pettyCashRecipientPlaceholder: "Select employee",
+      pettyCashRecipientRequired: "Select which employee receives this Petty Cash.",
       advanceCashPrepaidHint:
         "Top up a vehicle prepaid card under Vehicle → Prepaid Card. Fuel, toll, and parking spends are recorded under Advance Cash → Prepaid Cards.",
       prepaidCard: "Prepaid Card",
       prepaidCardRequired: "Choose the prepaid card to top up.",
       prepaidCardEmpty: "Add a prepaid card under Advance Cash first.",
-      prepaidCardHint: "One card belongs to one vehicle. This top-up adds to that card’s balance.",
+      prepaidCardHint: "This top-up adds to that Card’s balance. Vehicle Cards stay under Vehicle. Open Cards are Head Office.",
+      purchaseCategoryOpenCard: "Open Card",
       purchaseCategoryGovernment: "Government",
       purchaseCategoryBankLoan: "Loan",
       purchaseCategoryEmployee: "Employee Payments",
       purchaseCategoryHint:
-        "A product becomes warehouse stock. A vehicle is bought locally and recorded under Inventory → Vehicles. Top up a prepaid card under Vehicle → Prepaid Card. Service, Petty Cash, Government, Loan, and Employee Payments are not stock.",
+        "A product becomes warehouse stock. A vehicle is bought locally and recorded under Inventory → Vehicles. Top up a Vehicle Card under Vehicle → Prepaid Card. Top up an Open Card here under Open Card. Service, Petty Cash, Government, Loan, and Employee Payments are not stock.",
       employeePaymentKind: "Payment Type",
       employeePaymentKindHint:
         "Record Internal Payroll, THR, or a cash advance paid before payday.",
@@ -2973,7 +3030,7 @@ export const en = {
       vehicleExpenseKindPrepaid: "Prepaid Card",
       vehicleExpenseKindRequired: "Choose what this vehicle expense is for.",
       vehiclePrepaidSpendHint:
-        "This top-up is paid from the company bank and adds to the prepaid card balance. Fuel, toll, and parking spends are recorded under Advance Cash → Prepaid Cards.",
+        "This top-up is paid from the company bank and adds to the Card balance. Spends are recorded under Advance Cash → Prepaid Cards.",
       vehiclePrepaidCardRequired: "Choose which prepaid card to top up.",
       payFromPending: "Not chosen yet — select the company account when you pay.",
       payToPending: "Not chosen yet — select the vendor account when you pay.",
@@ -3296,6 +3353,10 @@ export const en = {
       filterSubcategory: "Filter by subcategory",
       overdueCount: "{count} overdue",
       unpaidCount: "{count} unpaid",
+      overdue: "Overdue",
+      unpaid: "Unpaid",
+      open: "Open",
+      late: "Late",
       allSettled: "All settled",
       paidInvoiceOne: "{count} paid invoice",
       paidInvoiceOther: "{count} paid invoices",
@@ -3503,7 +3564,9 @@ export const en = {
       savedPrice: "Saved: {price}",
       invoiceTotalWithTax: "Invoice Total With Tax: {amount}",
       contractPriceMonthlyHint:
-        "Type the price exclude tax. The invoice adds the tax you chose on this project.",
+        "Type the price exclude tax. The invoice adds the tax you chose on this project. Paid periods stay as paid — this rate applies to the next unpaid cycle.",
+      contractPriceSettledHint:
+        "Contract price is locked because this job is closed.",
       contractPriceMilestoneHint:
         "Type the price exclude tax. Changing it recalculates remaining unpaid invoices from what is still owed, then adds the project tax. Paid amounts stay as paid.",
       periods: "Periods",
@@ -3798,6 +3861,10 @@ export const en = {
         thr: "THR",
         pettyCashTopUp: "Top Up Petty Cash",
         prepaidCardTopUp: "Top Up Prepaid Card",
+        prepaidVehicleCardTopUp: "Top up Vehicle Card",
+        prepaidOpenCardTopUp: "Top up Open Card",
+        prepaidCardReplacementFee: "Card replacement fee",
+        prepaidCardReturn: "Return lost Card",
         transferFee: "Transfer Fee",
         incident: "Project Expense",
         depositReturned: "Deposit Refunded",
@@ -4077,6 +4144,10 @@ export const en = {
       historyTitle: "Monthly Pay History",
       historyDesc:
         "Open a month to see days worked, earnings, and deductions. Preview is the unlocked draft. Issued is the locked official payslip.",
+      ownTitle: "Your Payslips",
+      ownHistoryTitle: "Your Monthly Payslips",
+      ownHistoryDesc:
+        "Only you can see this. Open a month for days worked, earnings, and deductions.",
       previewHint: "Pay is calculated, but this month is not locked yet.",
       issuedHint: "Internal Payroll is locked. This is the official payslip.",
       clickEmployee: "Open payslip history",
@@ -4096,6 +4167,38 @@ export const en = {
       backToEmployee: "Back To Payslips",
       filterYear: "Year",
       filterApply: "Apply",
+      cards: {
+        employees: "Employees",
+        employeesSubtitle: "Active staff with a payslip record",
+        amountOwed: "Balance Due",
+        amountOwedSubtitle: "Still owed to the company",
+        deposits: "Deposits Held",
+        depositsSubtitle: "Security deposits on hand",
+        bpjsHeld: "BPJS Held",
+        bpjsHeldSubtitle: "Employee BPJS share held back",
+        months: "Months",
+        monthsSubtitle: "Pay months in this year",
+        issued: "Issued",
+        issuedSubtitle: "Locked official payslips",
+        preview: "Preview",
+        previewSubtitle: "Unlocked draft months",
+        yearNet: "Year Net Pay",
+        yearNetSubtitle: "Total for the selected year",
+        yourYearNet: "Your Net Pay",
+        yourYearNetSubtitle: "Take-home for the selected year",
+        youOwe: "You Owe",
+        youOweSubtitle: "Still owed to the company",
+        yourDeposit: "Your Deposit",
+        yourDepositSubtitle: "Security deposit held for you",
+        yourBpjs: "Your BPJS Held",
+        yourBpjsSubtitle: "Your BPJS share held back",
+        daysSubtitle: "Attendance days this month",
+        earningsSubtitle: "Gross pay for the month",
+        deductionsSubtitle: "Taken from this payslip",
+        bpjsEmployeeSubtitle: "Employee share this month",
+        bpjsCompanySubtitle: "Company share this month",
+        netPaySubtitle: "Take-home for this month"
+      },
       columns: {
         employee: "Employee",
         amountOwed: "Balance Due To Company",
@@ -4318,13 +4421,15 @@ export const en = {
       title: "Advance Cash",
       tabPetty: "Petty Cash",
       tabPrepaid: "Prepaid Cards",
-      prepaidCreate: "Add Prepaid Card",
+      tabVehicleCards: "Vehicle Cards",
+      tabOpenCards: "Open Cards",
+      prepaidCreate: "Add Card",
       prepaidCreateDesc:
-        "One card belongs to one vehicle. It can only pay fuel, toll, and parking.",
-      prepaidCreateFailed: "Could not save this prepaid card.",
-      prepaidEmptyTitle: "No Prepaid Cards Yet",
+        "Choose Vehicle Card or Open Card, enter the number, and assign it now or leave it Standby.",
+      prepaidCreateFailed: "Could not save this Card.",
+      prepaidEmptyTitle: "No Cards Yet",
       prepaidEmptyDesc:
-        "Add a card and choose the vehicle it belongs to. Top-ups go through Expenses → Vehicle → Prepaid Card.",
+        "Add a Card to the list. Top up a Vehicle Card under Expenses → Vehicle → Prepaid Card, or an Open Card under Expenses → Open Card.",
       prepaidSpend: "Record Spend",
       prepaidSpendDesc: "Upload the fuel, toll, or parking bill.",
       prepaidSpendConfirm: "Debit Prepaid Card",
@@ -4350,6 +4455,7 @@ export const en = {
       updateFailed: "Could not save this prepaid card.",
       entriesTitle: "Card Activity",
       entriesEmpty: "No Prepaid Card Activity In This Filter.",
+      cardEntriesEmpty: "No activity on this Card yet.",
       prepaidChooseCard: "Choose which prepaid card this spend is for.",
       prepaidChooseVehicle: "Choose the vehicle this spend is for.",
       prepaidCardForVehicle:
@@ -4365,21 +4471,141 @@ export const en = {
       spendFuel: "Fuel",
       spendToll: "Toll",
       spendParking: "Parking",
+      spendOther: "Other",
+      kindVehicle: "Vehicle Card",
+      kindOpen: "Open Card",
+      cardType: "Card Type",
+      personInCharge: "Person In Charge",
+      assignCard: "Assign Card",
+      assignCardDesc: "Assign this Standby Card to a vehicle or person in charge.",
+      reassignCard: "Change Assignment",
+      reassignCardDesc: "The Card stays live. History keeps the old and new names.",
+      returnToList: "Return To List",
+      returnToListConfirm: "Return this Card to the list as Standby? Leftover stays on the Card.",
+      markDamaged: "Mark Damaged",
+      markDamagedDesc: "Spend is blocked. Assign a new Card now, or keep this Damaged Card on the same vehicle or person.",
+      assignNewNow: "Assign A New Card Now",
+      keepDamagedAssigned: "Keep On This Assignment",
+      keepDamagedHint: "This Card stays Damaged on the same vehicle or person. Spend stays blocked until Card replaced.",
+      replacementCard: "Standby Card To Assign",
+      cardReplaced: "Card Replaced",
+      cardReplacedDesc: "Record the replacement fee each time, then continue on this Card or move leftover to another Card.",
+      continueSameCard: "Same Card Continues",
+      moveLeftover: "Move Leftover To Another Card",
+      destinationCard: "Card That Receives Leftover",
+      replacementFee: "Replacement Fee",
+      feeFromLeftover: "From Leftover",
+      feeFromBank: "From Company Bank",
+      reportLost: "Lost / Stolen",
+      reportLostDesc: "Nothing can be recovered from the bank. Leftover leaves the Card. The vehicle or person has no Card until you assign one from the list.",
+      lostLeftover: "Leftover On This Card",
+      companyWriteOff: "Company Write-Off",
+      employeeCovers: "An Employee Will Cover It",
+      recoveryMethod: "How It Was Footed",
+      recoveryCompany: "Company write-off",
+      recoveryNextPay: "Next Paycheck",
+      recoveryInstallments: "10 Installments",
+      recoveryPayNow: "Pay Now",
+      companyBank: "Company Bank Account",
+      department: "Department",
+      filterAllDepartments: "All Departments",
+      assignNow: "Assign Now",
+      assignNowYes: "Assign Now",
+      leaveStandby: "Leave Standby",
+      writtenOff: "Written Off",
+      writtenOffTitle: "Written Off",
+      writtenOffEmpty: "No Written Off Amounts",
+      writtenOffEmptyDesc: "Lost Card leftovers appear here when they are written off or still being recovered.",
+      backToWrittenOff: "Back To Written Off",
+      backToList: "Back To Card List",
+      footedBy: "Footed By",
+      footedByCompany: "Head Office",
+      footedByEmployee: "Employee",
+      amountRecovered: "Amount Recovered",
+      amountLeft: "Amount Left",
+      installmentHistory: "Installment History",
+      installmentTaken: "Taken on Internal Payroll",
+      installmentScheduled: "Scheduled",
+      picHistory: "People In Charge",
+      picFilterHint: "Click a name to see the spends they were responsible for.",
+      statusStandby: "Standby",
+      statusActive: "Active",
+      statusDamaged: "Damaged",
+      statusLost: "Lost",
+      statusReplaced: "Replaced",
+      filterMovement: "Movement",
+      filterAllMovements: "All Movements",
+      filterMovementTopUp: "Top Up",
+      filterMovementSpend: "Spend",
+      filterMovementWrittenOff: "Written Off",
+      filterSpendKind: "Spend Kind",
+      filterAllSpendKinds: "All Spend Kinds",
+      filterCardType: "Card Type",
+      filterAllTypes: "All Types",
+      filterAssignment: "Assignment",
+      filterAllAssignments: "All Assignments",
+      filterAssigned: "Assigned",
+      filterStandby: "Standby",
+      assignment: "Assignment",
       description:
-        "Cash entrusted to field and operations staff for meals, client entertainment, emergencies, and daily part-time pay.",
+        "Cash given to a specific employee. Spend comes out of that employee's Petty Cash. A director can transfer leftover to a subordinate. Part-time wages float here after check-out until someone clicks Pay.",
       currentBalance: "Current balance",
       lifetimeIn: "Lifetime Petty Cash in",
       monthIn: "This month in",
       lifetimeOut: "Lifetime expenses",
       monthOut: "This month expenses",
       upcoming: "Scheduled part-time pay still ahead: {amount}",
+      unpaidBanner: "Part-time wages waiting to be paid: {amount}",
+      unpaidWageTag: "Part-time employee, wage not paid",
+      unpaidWagePay: "Pay",
+      unpaidWagePayTitle: "Pay Part-Time Wage",
+      unpaidWagePayDesc:
+        "Pay {name} {amount}. This comes out of the Petty Cash of the person who claims it.",
+      unpaidWagePayer: "Whose Petty Cash Paid This",
+      unpaidWagePayerPlaceholder: "Select employee",
+      unpaidWagePayerRequired: "Select whose Petty Cash paid this wage.",
+      unpaidWagePayerHint:
+        "That employee's Petty Cash goes down. This records who paid the part-time wage.",
+      unpaidWagePayerLockedHint:
+        "This deducts {name}'s Petty Cash ({amount}). You are claiming that you paid this wage.",
+      unpaidWageNegativeWarning:
+        "This payment is larger than the current Petty Cash. The balance will go below zero.",
+      unpaidWageFailed: "Could not record this payment.",
       negativeWarning:
         "Petty Cash is below zero. Record a Top Up under Expenses.",
+      negativeHolderWarning:
+        "This employee's Petty Cash is below zero. Top up under Expenses or transfer from another holder.",
       recordSpend: "Record Spend",
       spendTitle: "Record Petty Cash Spend",
       spendDesc:
-        "Upload the bill and enter the amount paid to debit Petty Cash.",
+        "Upload the bill and enter the amount. It comes out of the selected employee's Petty Cash.",
       spendConfirm: "Debit Petty Cash",
+      holder: "Whose Petty Cash",
+      holderPlaceholder: "Select employee",
+      holderRequired: "Select whose Petty Cash this spend comes from.",
+      holderHint: "The amount is taken from this employee's balance.",
+      holdersEmptyTitle: "No Employee Petty Cash Yet",
+      holdersEmptyDesc:
+        "Top up Petty Cash under Expenses and choose which employee receives it.",
+      holderEntriesEmpty: "No activity on this Petty Cash yet.",
+      holderRowHint: "Open to see top-ups, spends, and transfers.",
+      companyPool: "Company Pool",
+      companyPoolHint: "Older leftover sits here until allocated to an employee.",
+      backToHolders: "Back To Employees",
+      statusReady: "Ready",
+      statusNegative: "Below Zero",
+      transfer: "Transfer Petty Cash",
+      transferTitle: "Transfer Petty Cash",
+      transferDesc: "Move cash from {name} ({amount}) to another employee.",
+      transferConfirm: "Transfer Petty Cash",
+      transferFailed: "Could not transfer this Petty Cash.",
+      transferTo: "Transfer To",
+      transferToPlaceholder: "Select employee",
+      transferToRequired: "Select who receives this Petty Cash.",
+      transferNote: "Note",
+      transferNotePlaceholder: "Optional note",
+      transferHint:
+        "This reduces the sender's balance and tops up the receiver. It is not a new company expense.",
       spending: "Saving…",
       spendFailed: "Could not record this spend.",
       proof: "Bill / receipt",
@@ -4421,10 +4647,15 @@ export const en = {
       kind: {
         TOP_UP: "Top Up",
         SPEND: "Spend",
-        PART_TIME_PAY: "Part-time pay"
+        PART_TIME_PAY: "Part-time pay",
+        WRITE_OFF: "Written Off",
+        REPLACEMENT_FEE: "Card Replacement Fee",
+        TRANSFER_OUT: "Transfer Out",
+        TRANSFER_IN: "Transfer In"
       },
       status: {
         SCHEDULED: "Scheduled",
+        UNPAID: "Unpaid",
         POSTED: "Posted",
         VOIDED: "Voided"
       }
@@ -4982,6 +5213,22 @@ export const en = {
         "A check-out photo is required. Take a photo that shows you at this project site.",
       checkInFailed: "Check-in failed.",
       checkOutFailed: "Check-out failed.",
+      checkInFailedTitle: "Check-In Failed",
+      checkInFailedBody:
+        "Your check-in was not recorded. Read why below, fix the issue, then try again.",
+      checkOutFailedTitle: "Check-Out Failed",
+      checkOutFailedBody:
+        "Your check-out was not recorded. Read why below, fix the issue, then try again.",
+      checkInConfirmedTitle: "Check-In Confirmed",
+      checkInConfirmedBody:
+        "Your check-in was saved successfully. You are now checked in.",
+      checkInConfirmedDetail:
+        "Check-in confirmed for {site}. Your attendance has been recorded.",
+      checkOutConfirmedTitle: "Check-Out Confirmed",
+      checkOutConfirmedBody:
+        "Your check-out was saved successfully. You are now checked out.",
+      checkOutConfirmedDetail:
+        "Check-out confirmed for {site}. Your attendance has been recorded.",
       locationFailed:
         "Could not get your location. Allow GPS access and try again.",
       geolocationUnsupported: "Geolocation is not supported on this device.",
@@ -5295,7 +5542,7 @@ export const en = {
       leaveSectionDesc: "Pending leave and sick requests waiting for your decision.",
       ownPendingTitle: "Your request is waiting for another approver",
       ownPendingDesc:
-        "You cannot approve your own leave. Ask another HO admin / Director (e.g. manager) to review it in Approvals.",
+        "You cannot approve your own leave. The next person in the leave chain must review it in Approvals.",
       statusPending: "Pending",
       materialsSection: "Material Requests",
       materialsSectionDesc:
@@ -6214,6 +6461,49 @@ export const en = {
           actions: "Actions"
         }
       }
+    },
+    systemGuide: {
+      documentTitle: "System Guide",
+      documentKind: "RGS ONE operating handbook",
+      forPosition: "For the {position} Position",
+      forClient: "System Guide for {client}",
+      generatedOn: "Issued {date}",
+      contents: "Contents",
+      howToRead: "How to use this handbook",
+      howToReadBody:
+        "This handbook covers only the modules turned on for this Position. Sign in, open the sidebar, and follow each section in order. Status chips on screen tell you the next action. If a module is missing from the sidebar, Head Office has not given this Position that access.",
+      howToReadBodyClient:
+        "This handbook covers the client portal modules shared by every client organization. Sign in with the client portal login, open the sidebar, and follow each section in order. Status chips on screen tell you the next action.",
+      openAt: "Where to open it",
+      steps: "How to use it",
+      remember: "Keep in mind",
+      sectionTitle: "{number}. {name}",
+      internalUse: "Internal use - Relasi Global Solusi",
+      pageOf: "Page {page} of {total}",
+      moduleCountOne: "{count} module in this handbook",
+      moduleCountOther: "{count} modules in this handbook",
+      leaveChain: {
+        intro:
+          "Leave follows this chain. Open a row you are allowed to decide, then Approve or Reject.",
+        joiner: ", then ",
+        forTier: "{requester}: {approvers}.",
+        ownerPower:
+          "The Owner can approve any request and does not need anyone to approve their own leave.",
+        noSelf: "Nobody else can approve their own leave.",
+        requester: {
+          FIELD_CREW: "Field crew",
+          HO_STAFF: "Head Office staff",
+          AREA_MANAGER: "Area Manager",
+          OPERATIONS_MANAGER: "Operations Manager",
+          DIRECTOR: "Director",
+        },
+        approver: {
+          AM_MATCHING_PROJECTS: "their Area Manager for that project",
+          OM_MATCHING_AREA: "the Operations Manager for that service area",
+          DIRECTOR: "a Director",
+          OWNER: "the Owner",
+        }
+      }
     }
   },
 
@@ -6224,6 +6514,8 @@ export const en = {
     progress: "Progress Report",
     cico: "CICO",
     pettyCash: "Advance Cash",
+    pettyCashPetty: "Petty Cash",
+    pettyCashPrepaid: "Prepaid Cards",
     attendance: "Attendance Report",
     shifts: "Shifts",
     leaves: "Leave & Sick",
@@ -6328,6 +6620,12 @@ export const en = {
     highlightLeaves: "Leave requests and approvals",
     invalidCredentials: "Invalid username or password.",
     signInFailed: "We could not sign you in. Please try again.",
+    activeSessionTitle: "Account Already Signed In",
+    activeSessionDescription:
+      "This account is already signed in on another device or browser.",
+    activeSessionHint:
+      "Cancel to stay on this page, or close the other session to continue signing in here. The other device will be signed out.",
+    closeOtherSession: "Close Other Session",
     passwordUpdated: "Your password has been updated. You can sign in now.",
     forgotTitle: "Forgot password",
     forgotSubtitle:

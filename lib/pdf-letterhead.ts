@@ -3,12 +3,6 @@ import { readFile } from "fs/promises";
 import path from "path";
 import type PDFDocument from "pdfkit";
 
-export {
-  DISPLAY_COMPANY_NAME,
-  LEGAL_COMPANY_NAME,
-  LETTERHEAD,
-} from "@/lib/company-identity";
-
 export const PAGE_MARGIN = 48;
 export const PAGE_WIDTH = 595.28;
 export const PAGE_HEIGHT = 841.89;
@@ -83,7 +77,7 @@ function fitSize(
   };
 }
 
-export function resolveBrandLogoPath(): string | null {
+function resolveBrandLogoPath(): string | null {
   // Prefer the tightly cropped letterhead mark (no 1920×1080 padding).
   const root = path.join(/*turbopackIgnore: true*/ process.cwd());
   const candidates = [

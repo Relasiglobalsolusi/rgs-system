@@ -33,6 +33,7 @@ import DirectorySearchInput, {
   matchesDirectorySearch,
 } from "@/components/ui/DirectorySearchInput";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
 import { useT } from "@/lib/i18n/use-t";
@@ -469,9 +470,7 @@ export default function UserDirectory({
 
   return (
     <>
-      {/* Row 1: primary queues. Row 2: revoked + soft-deleted. */}
-      <div className="mb-4 space-y-2.5">
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+      <DirectoryStatGrid className="mb-4" gapClassName="gap-2.5">
           <DirectoryStatCard
             compact
             title={t("pages.users.active")}
@@ -492,8 +491,6 @@ export default function UserDirectory({
             selected={statView === "noPortalLogin"}
             onClick={() => selectStat("noPortalLogin")}
           />
-        </div>
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
           <DirectoryStatCard
             compact
             title={t("pages.users.revokedAccess")}
@@ -524,8 +521,7 @@ export default function UserDirectory({
             selected={statView === "deletedEmployee"}
             onClick={() => selectStat("deletedEmployee")}
           />
-        </div>
-      </div>
+      </DirectoryStatGrid>
 
       {isNoPortalLoginView ? (
         <WithoutPortalLoginView
@@ -536,7 +532,7 @@ export default function UserDirectory({
         />
       ) : (
         <>
-          <div className="mb-3 flex flex-wrap items-center gap-2">
+          <div className="mb-3 flex gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] sm:flex-wrap sm:overflow-visible sm:pb-0">
             {typeTabs
               .filter(
                 (tab) => tab.id === "all" || typeCounts[tab.id] > 0

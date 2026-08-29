@@ -179,7 +179,7 @@ export function localizeSubCategory(
   return translate(locale, `status.subcategory.${value}`);
 }
 
-export function localizeSubCategoryShort(
+function localizeSubCategoryShort(
   value: ProjectSubCategory | string | null | undefined,
   locale: AppLocale = getLocale()
 ): string {
@@ -317,7 +317,10 @@ export function localizeDepartmentLabel(
 const KNOWN_JOB_TITLE_KEYS: Record<string, string> = {
   ceo: "ceo",
   "chief executive officer": "ceo",
+  director: "director",
+  direktur: "director",
   "director of operations": "directorOfOperations",
+  "direktur operasi": "directorOfOperations",
   "operations manager": "operationsManager",
   "area manager": "areaManager",
   "cleaning staff": "cleaningStaff",
@@ -349,6 +352,23 @@ const KNOWN_JOB_TITLE_KEYS: Record<string, string> = {
   "manajer gedung": "buildingManager",
   "export manager": "exportManager",
   "manajer ekspor": "exportManager",
+  admin: "admin",
+  accountant: "accountant",
+  akuntan: "accountant",
+  "finance admin": "financeAdmin",
+  "admin keuangan": "financeAdmin",
+  "in-house cleaning staff": "inHouseCleaningStaff",
+  "staf kebersihan internal": "inHouseCleaningStaff",
+  "warehouse supervisor": "warehouseSupervisor",
+  "supervisor gudang": "warehouseSupervisor",
+  "warehouse staff": "warehouseStaff",
+  "staf gudang": "warehouseStaff",
+  "gc staff": "gcStaff",
+  "staf gc": "gcStaff",
+  "security staff": "securityStaff",
+  "staf keamanan": "securityStaff",
+  "parking staff": "parkingStaff",
+  "staf parkir": "parkingStaff",
 };
 
 export function localizeOperationsTeamKind(

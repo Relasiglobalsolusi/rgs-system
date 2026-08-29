@@ -295,13 +295,14 @@ export async function resolveShiftsProjectHref(
   });
 }
 
-export type ShiftsBoardData = {
+type ShiftsBoardData = {
   routeClientId: string;
   clientName: string;
   isInternal: boolean;
   canManage: boolean;
   canAssignCover: boolean;
   siteOpen: boolean;
+  canEditShifts: boolean;
   project: {
     id: string;
     name: string;
@@ -610,8 +611,10 @@ export async function getShiftsBoardData(
     projectShifts,
     usesNamedShifts: projectUsesNamedShifts(project.subCategory),
     canAddShift:
+      siteOpen &&
       projectUsesNamedShifts(project.subCategory) &&
       projectShifts.length < MAX_PROJECT_SHIFTS,
+    canEditShifts: canManage && siteOpen,
     assignments: regularAssignments.map((row) => ({
       id: row.id,
       shiftId: row.shiftId,

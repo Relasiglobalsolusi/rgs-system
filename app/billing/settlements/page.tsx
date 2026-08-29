@@ -5,6 +5,7 @@ import { FileText, Landmark, ShoppingBag, Wallet } from "lucide-react";
 import SettlementsApMarkPaidButton from "@/components/billing/SettlementsApMarkPaidButton";
 import AppShell from "@/components/layout/AppShell";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import EmptyState from "@/components/ui/EmptyState";
 import FinanceRecordRow, {
   financeListStatusChipClassName,
@@ -189,7 +190,7 @@ export default async function SettlementsPage() {
       titleKey="pages.billing.settlementsTitle"
     >
       <div className="space-y-6">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <DirectoryStatGrid>
           <DirectoryStatCard
             compact
             title={t("pages.billing.settlementsCardAr")}
@@ -226,7 +227,7 @@ export default async function SettlementsPage() {
             icon={<ShoppingBag size={18} />}
             accent={apOverdue > 0 ? "danger" : "muted"}
           />
-        </div>
+        </DirectoryStatGrid>
         <SectionCard>
           <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
             <div className="min-w-0">
@@ -363,7 +364,7 @@ export default async function SettlementsPage() {
                       </>
                     }
                     status={
-                      <div className="flex w-full flex-col items-stretch gap-1.5">
+                      <div className="flex w-full min-w-0 flex-col items-start gap-1.5">
                         <StatusBadge
                           status={row.isOverdue ? "danger" : "info"}
                           className={financeListStatusChipClassName}

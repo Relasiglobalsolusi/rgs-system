@@ -15,14 +15,6 @@ export function formatVehicleIdentityLabel(parts: {
   return [plate, cardOrName, sku].filter(Boolean).join(" - ");
 }
 
-export function formatVehicleNameWithPlate(
-  name: string,
-  plate?: string | null,
-  sku?: string | null
-): string {
-  return formatVehicleIdentityLabel({ plate, name, sku });
-}
-
 export function normalizeVehiclePlate(raw: string): string {
   return raw
     .trim()

@@ -441,7 +441,7 @@ export default function EquipmentProductPage({
         ) : null}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         <Stat
           label={t("pages.inventory.product.newInWarehouse")}
           value={formatInventoryQty(uncodedNew)}

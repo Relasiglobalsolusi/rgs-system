@@ -14,14 +14,7 @@ import {
 } from "@/lib/progress-directory";
 import { requireModule } from "@/lib/session";
 
-export {
-  PROGRESS_INTERNAL_ROUTE_CLIENT_ID,
-  progressRouteClientId,
-  type ProgressClientRow,
-  type ProgressDirectory,
-  type ProgressInternalSummary,
-  type ProgressProjectRow,
-} from "@/lib/progress-directory";
+export { progressRouteClientId } from "@/lib/progress-directory";
 
 function progressProjectWhere(
   projectWhere: Awaited<ReturnType<typeof getProjectWhereForUser>>

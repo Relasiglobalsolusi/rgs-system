@@ -136,6 +136,7 @@ export default function FinancialReportClientDirectory({
           value={searchQuery}
           onChange={setSearchQuery}
           placeholder={t("pages.financialReport.searchClients")}
+          className="min-w-0 w-full max-w-none sm:max-w-xs"
         />
       </div>
 

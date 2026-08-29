@@ -85,6 +85,7 @@ import { getNextVendorShortCode } from "../lib/vendor-short-code";
 
 import { termMonthlyInstallment } from "../lib/bank-loan";
 
+import { seedDemoCompletedProjects } from "./seed-demo-completed-projects";
 import { seedDemoImportEquipment } from "./seed-demo-import-equipment";
 import { seedDemoPendingTransferOrders } from "./seed-demo-pending-transfer-orders";
 import { seedSampleVendors } from "./seed-vendors";
@@ -2714,83 +2715,172 @@ export async function seedDemoAllModules(prisma: Db) {
     });
   }
 
-  const pettyPurchase = await prisma.purchaseInvoice.findUnique({
-    where: { id: "demo-mod-pi-petty" },
+  await prisma.pettyCashEntry.deleteMany({
+    where: { companyId: company.id },
   });
-  if (!pettyPurchase) {
-    const filePath = await writeUpload(
-      "purchase-invoices",
-      "demo-mod-petty-topup.pdf"
-    );
-    await prisma.purchaseInvoice.create({
-      data: {
-        id: "demo-mod-pi-petty",
+
+  const pettyTopUpFile = await writeUpload(
+    "purchase-invoices",
+    "demo-mod-petty-topup.pdf"
+  );
+  async function ensurePettyTopUpInvoice(opts: {
+    id: string;
+    invoiceRef: string;
+    amount: number;
+    employeeId: string;
+    employeeName: string;
+  }) {
+    await prisma.purchaseInvoice.upsert({
+      where: { id: opts.id },
+      update: {
+        amount: toDecimal(opts.amount),
+        employeeId: opts.employeeId,
+        notes: `Petty Cash top-up · ${opts.employeeName}`,
+      },
+      create: {
+        id: opts.id,
         companyId: company.id,
-        supplierName: "Petty Cash Float",
-        invoiceRef: "PC-TOPUP-2026-08",
+        supplierName: "Petty Cash",
+        invoiceRef: opts.invoiceRef,
         invoiceDate: utcDate(2026, 8, 1),
-        amount: toDecimal(5_000_000),
-        filePath,
-        notes: "Demo field float top-up",
+        amount: toDecimal(opts.amount),
+        filePath: pettyTopUpFile,
+        notes: `Petty Cash top-up · ${opts.employeeName}`,
         includesPpn: false,
         purchaseCategory: PurchaseCategory.PETTY_CASH,
         purpose: PurchasePurpose.PETTY_CASH,
         paidAt: utcDate(2026, 8, 1),
         paidById: vicko.id,
         createdById: vicko.id,
+        employeeId: opts.employeeId,
       },
     });
   }
+
+  await ensurePettyTopUpInvoice({
+    id: "demo-mod-pi-petty",
+    invoiceRef: "PC-TOPUP-2026-08",
+    amount: 3_000_000,
+    employeeId: empVicko.id,
+    employeeName: "Vicko Liem",
+  });
+  await ensurePettyTopUpInvoice({
+    id: "demo-mod-pi-petty-om",
+    invoiceRef: "PC-TOPUP-2026-08-OM",
+    amount: 1_500_000,
+    employeeId: empOm.id,
+    employeeName: "Rina Operations",
+  });
+  await ensurePettyTopUpInvoice({
+    id: "demo-mod-pi-petty-am",
+    invoiceRef: "PC-TOPUP-2026-08-AM",
+    amount: 800_000,
+    employeeId: empAm.id,
+    employeeName: "Andi Pratama",
+  });
+
   const pettyProof = await writeUpload("petty-cash", "demo-mod-spend-proof.pdf");
-  await prisma.pettyCashEntry.upsert({
-    where: { id: "demo-mod-pc-topup" },
-    update: {},
-    create: {
-      id: "demo-mod-pc-topup",
-      companyId: company.id,
-      kind: PettyCashEntryKind.TOP_UP,
-      status: PettyCashEntryStatus.POSTED,
-      amount: toDecimal(5_000_000),
-      entryDate: utcDate(2026, 8, 1),
-      description: "Field float top-up",
-      purchaseInvoiceId: "demo-mod-pi-petty",
-      createdById: vicko.id,
-      postedAt: utcDate(2026, 8, 1),
-    },
-  });
-  await prisma.pettyCashEntry.upsert({
-    where: { id: "demo-mod-pc-spend" },
-    update: {},
-    create: {
-      id: "demo-mod-pc-spend",
-      companyId: company.id,
-      kind: PettyCashEntryKind.SPEND,
-      status: PettyCashEntryStatus.POSTED,
-      amount: toDecimal(185_000),
-      entryDate: utcDate(2026, 8, 12),
-      description: "Site drinking water and trash bags",
-      projectId: periodProject.id,
-      createdById: vicko.id,
-      postedAt: utcDate(2026, 8, 12),
-      proofPath: pettyProof,
-    },
-  });
-  await prisma.pettyCashEntry.upsert({
-    where: { id: "demo-mod-pc-ptpay" },
-    update: {},
-    create: {
-      id: "demo-mod-pc-ptpay",
-      companyId: company.id,
-      kind: PettyCashEntryKind.PART_TIME_PAY,
-      status: PettyCashEntryStatus.POSTED,
-      amount: toDecimal(180_000),
-      entryDate: utcDate(2026, 8, 13),
-      description: "Part-time daily pay — Lina",
-      projectId: periodProject.id,
-      employeeId: empPt.id,
-      createdById: vicko.id,
-      postedAt: utcDate(2026, 8, 13),
-    },
+  await prisma.pettyCashEntry.createMany({
+    data: [
+      {
+        id: "demo-mod-pc-topup-vicko",
+        companyId: company.id,
+        kind: PettyCashEntryKind.TOP_UP,
+        status: PettyCashEntryStatus.POSTED,
+        amount: toDecimal(3_000_000),
+        entryDate: utcDate(2026, 8, 1),
+        description: "Top Up Petty Cash · Vicko Liem · PC-TOPUP-2026-08",
+        purchaseInvoiceId: "demo-mod-pi-petty",
+        employeeId: empVicko.id,
+        holderEmployeeId: empVicko.id,
+        createdById: vicko.id,
+        postedAt: utcDate(2026, 8, 1),
+      },
+      {
+        id: "demo-mod-pc-topup-om",
+        companyId: company.id,
+        kind: PettyCashEntryKind.TOP_UP,
+        status: PettyCashEntryStatus.POSTED,
+        amount: toDecimal(1_500_000),
+        entryDate: utcDate(2026, 8, 1),
+        description: "Top Up Petty Cash · Rina Operations · PC-TOPUP-2026-08-OM",
+        purchaseInvoiceId: "demo-mod-pi-petty-om",
+        employeeId: empOm.id,
+        holderEmployeeId: empOm.id,
+        createdById: vicko.id,
+        postedAt: utcDate(2026, 8, 1),
+      },
+      {
+        id: "demo-mod-pc-topup-am",
+        companyId: company.id,
+        kind: PettyCashEntryKind.TOP_UP,
+        status: PettyCashEntryStatus.POSTED,
+        amount: toDecimal(800_000),
+        entryDate: utcDate(2026, 8, 1),
+        description: "Top Up Petty Cash · Andi Pratama · PC-TOPUP-2026-08-AM",
+        purchaseInvoiceId: "demo-mod-pi-petty-am",
+        employeeId: empAm.id,
+        holderEmployeeId: empAm.id,
+        createdById: vicko.id,
+        postedAt: utcDate(2026, 8, 1),
+      },
+      {
+        id: "demo-mod-pc-spend",
+        companyId: company.id,
+        kind: PettyCashEntryKind.SPEND,
+        status: PettyCashEntryStatus.POSTED,
+        amount: toDecimal(185_000),
+        entryDate: utcDate(2026, 8, 12),
+        description: "Site drinking water and trash bags",
+        projectId: periodProject.id,
+        employeeId: empAm.id,
+        holderEmployeeId: empAm.id,
+        createdById: vicko.id,
+        postedAt: utcDate(2026, 8, 12),
+        proofPath: pettyProof,
+      },
+      {
+        id: "demo-mod-pc-transfer-out",
+        companyId: company.id,
+        kind: PettyCashEntryKind.TRANSFER_OUT,
+        status: PettyCashEntryStatus.POSTED,
+        amount: toDecimal(200_000),
+        entryDate: utcDate(2026, 8, 10),
+        description: "Transfer Petty Cash to Andi Pratama",
+        employeeId: empVicko.id,
+        holderEmployeeId: empVicko.id,
+        relatedEmployeeId: empAm.id,
+        createdById: vicko.id,
+        postedAt: utcDate(2026, 8, 10),
+      },
+      {
+        id: "demo-mod-pc-transfer-in",
+        companyId: company.id,
+        kind: PettyCashEntryKind.TRANSFER_IN,
+        status: PettyCashEntryStatus.POSTED,
+        amount: toDecimal(200_000),
+        entryDate: utcDate(2026, 8, 10),
+        description: "Transfer Petty Cash from Vicko Liem",
+        employeeId: empAm.id,
+        holderEmployeeId: empAm.id,
+        relatedEmployeeId: empVicko.id,
+        createdById: vicko.id,
+        postedAt: utcDate(2026, 8, 10),
+      },
+      {
+        id: "demo-mod-pc-ptpay",
+        companyId: company.id,
+        kind: PettyCashEntryKind.PART_TIME_PAY,
+        status: PettyCashEntryStatus.UNPAID,
+        amount: toDecimal(180_000),
+        entryDate: utcDate(2026, 8, 13),
+        description: "Backup · Demo — Twin Period Tower · Lina Part Time · Daily rate Rp 180.000",
+        projectId: periodProject.id,
+        employeeId: empPt.id,
+        createdById: vicko.id,
+        postedAt: null,
+      },
+    ],
   });
 
   await prisma.projectExpense.upsert({
@@ -3426,6 +3516,7 @@ export async function seedDemoAllModules(prisma: Db) {
 
   await seedDemoImportEquipment(prisma);
   await seedDemoPendingTransferOrders(prisma);
+  await seedDemoCompletedProjects(prisma);
 
   console.log("✅ Demo all-modules seed complete");
   console.log("");

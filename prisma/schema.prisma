@@ -543,6 +543,7 @@ model Company {
   operationsTeams     OperationsTeam[]
   pettyCashEntries    PettyCashEntry[]
   prepaidCards        PrepaidCard[]
+  prepaidCardLosses   PrepaidCardLoss[]
   loanFacilities      LoanFacility[]
   bpjsRemittances     BpjsRemittance[]
   projectServiceAreas ProjectServiceAreaCatalog[]
@@ -570,6 +571,9 @@ model CompanyBankAccount {
   purchaseInvoices PurchaseInvoice[]
   loanFacilities   LoanFacility[]
   loanMovements    LoanMovement[]
+  prepaidCardEntries PrepaidCardEntry[]
+  prepaidCardLosses  PrepaidCardLoss[]
+  prepaidCardRecoveries PrepaidCardLossRecovery[]
 
   @@index([companyId, sortOrder])
 }
@@ -766,7 +770,12 @@ model Employee {
   payrollManagementDayDecisions PayrollManagementDayDecision[]
   projectExpenses    ProjectExpense[]
   pettyCashEntries   PettyCashEntry[]
+  pettyCashHeldEntries PettyCashEntry[] @relation("PettyCashHolder")
+  pettyCashTransferEntries PettyCashEntry[] @relation("PettyCashTransferCounterparty")
   purchaseInvoices   PurchaseInvoice[]
+  prepaidCards       PrepaidCard[] @relation("PrepaidCardCustodian")
+  prepaidCardAssignments PrepaidCardAssignment[]
+  prepaidCardLosses  PrepaidCardLoss[]
 
   /// Manual directory order (lower = higher in lists).
   sortOrder Int @default(0)
@@ -794,6 +803,9 @@ model User {
   sidebarOrder     Json?
   /// Manual directory order (lower = higher in lists).
   sortOrder        Int     @default(0)
+  /// Active JWT login session id — only one device may hold a live session.
+  sessionToken     String?
+  sessionIssuedAt  DateTime?
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -1482,6 +1494,9 @@ model PurchaseInvoice {
   pettyCashEntry PettyCashEntry?
   bpjsRemittances BpjsRemittance[]
   payrollDeductions PayrollDeduction[]
+  prepaidCardId String?
+  prepaidCard   PrepaidCard? @relation(fields: [prepaidCardId], references: [id], onDelete: SetNull)
+  prepaidCardEntries PrepaidCardEntry[]
 
   reversedAt DateTime?
   reversedById String?
@@ -1504,6 +1519,7 @@ model PurchaseInvoice {
   @@index([taxInvoiceIssuedAt, amount])
   @@index([projectId])
   @@index([companyId, purpose])
+  @@index([prepaidCardId])
 }
 
 /// Bank or shareholder facility. Draws are funding in. Returns reduce the payable.
@@ -1714,10 +1730,13 @@ enum PettyCashEntryKind {
   TOP_UP
   SPEND
   PART_TIME_PAY
+  TRANSFER_OUT
+  TRANSFER_IN
 }
 
 enum PettyCashEntryStatus {
   SCHEDULED
+  UNPAID
   POSTED
   VOIDED
 }
@@ -1750,6 +1769,14 @@ model PettyCashEntry {
   employeeId String?
   employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
 
+  /// Wallet this movement belongs to. Null only while a part-time wage is unpaid.
+  holderEmployeeId String?
+  holderEmployee   Employee? @relation("PettyCashHolder", fields: [holderEmployeeId], references: [id], onDelete: SetNull)
+
+  /// Other employee on a transfer.
+  relatedEmployeeId String?
+  relatedEmployee   Employee? @relation("PettyCashTransferCounterparty", fields: [relatedEmployeeId], references: [id], onDelete: SetNull)
+
   assignmentId String?
   assignment   ProjectAssignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
 
@@ -1772,54 +1799,170 @@ model PettyCashEntry {
   @@index([projectId])
   @@index([clientId])
   @@index([prepaidCardId])
+  @@index([holderEmployeeId])
+  @@index([relatedEmployeeId])
+}
+
+enum PrepaidCardKind {
+  VEHICLE
+  OPEN
+}
+
+enum PrepaidCardStatus {
+  STANDBY
+  ACTIVE
+  DAMAGED
+  LOST
+  REPLACED
 }
 
 enum PrepaidCardSpendKind {
   FUEL
   TOLL
   PARKING
+  OTHER
 }
 
 enum PrepaidCardEntryKind {
   TOP_UP
   SPEND
+  WRITE_OFF
+  REPLACEMENT_FEE
+  TRANSFER_OUT
+  TRANSFER_IN
 }
 
-/// One prepaid card per company vehicle. Fuel, toll, and parking only.
+enum PrepaidCardLossRecoveryKind {
+  COMPANY
+  NEXT_PAY
+  INSTALLMENTS
+  PAY_NOW
+}
+
+enum PrepaidCardRecoverySource {
+  PAYROLL
+  PAY_NOW
+}
+
+/// Plastic lives on the Card list forever. Numbers stay reserved.
 model PrepaidCard {
-  id             String   @id @default(cuid())
-  companyId      String
-  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  cardNumber     String
-  vehicleItemId  String
-  vehicleItem    InventoryItem @relation(fields: [vehicleItemId], references: [id], onDelete: Restrict)
-  currentBalance Decimal  @default(0) @db.Decimal(14, 2)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  entries        PrepaidCardEntry[]
-  pettyCashEntries PettyCashEntry[]
+  id                   String            @id @default(cuid())
+  companyId            String
+  company              Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  cardNumber           String
+  kind                 PrepaidCardKind @default(VEHICLE)
+  status               PrepaidCardStatus @default(STANDBY)
+  vehicleItemId        String?
+  vehicleItem          InventoryItem?    @relation(fields: [vehicleItemId], references: [id], onDelete: Restrict)
+  custodianEmployeeId  String?
+  custodianEmployee    Employee?         @relation("PrepaidCardCustodian", fields: [custodianEmployeeId], references: [id], onDelete: SetNull)
+  replacedByCardId     String?
+  replacedByCard       PrepaidCard?      @relation("PrepaidCardReplacement", fields: [replacedByCardId], references: [id], onDelete: SetNull)
+  replacesCards        PrepaidCard[]     @relation("PrepaidCardReplacement")
+  currentBalance       Decimal           @default(0) @db.Decimal(14, 2)
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  entries              PrepaidCardEntry[]
+  relatedEntries       PrepaidCardEntry[] @relation("PrepaidCardTransfer")
+  assignments          PrepaidCardAssignment[]
+  losses               PrepaidCardLoss[]
+  pettyCashEntries     PettyCashEntry[]
+  purchaseInvoices     PurchaseInvoice[]
 
   @@unique([companyId, cardNumber])
-  @@unique([companyId, vehicleItemId])
-  @@index([companyId])
+  @@index([companyId, kind, status])
+  @@index([companyId, vehicleItemId])
+  @@index([companyId, custodianEmployeeId])
+}
+
+model PrepaidCardAssignment {
+  id                    String      @id @default(cuid())
+  prepaidCardId         String
+  prepaidCard           PrepaidCard @relation(fields: [prepaidCardId], references: [id], onDelete: Cascade)
+  vehicleItemId         String?
+  vehicleItem           InventoryItem? @relation(fields: [vehicleItemId], references: [id], onDelete: SetNull)
+  custodianEmployeeId   String?
+  custodianEmployee     Employee?   @relation(fields: [custodianEmployeeId], references: [id], onDelete: SetNull)
+  startedAt             DateTime
+  endedAt               DateTime?
+  createdAt             DateTime    @default(now())
+  entries               PrepaidCardEntry[]
+
+  @@index([prepaidCardId, startedAt])
+  @@index([custodianEmployeeId])
+  @@index([vehicleItemId])
 }
 
 model PrepaidCardEntry {
-  id               String               @id @default(cuid())
+  id               String                @id @default(cuid())
   prepaidCardId    String
-  prepaidCard      PrepaidCard          @relation(fields: [prepaidCardId], references: [id], onDelete: Cascade)
+  prepaidCard      PrepaidCard           @relation(fields: [prepaidCardId], references: [id], onDelete: Cascade)
   kind             PrepaidCardEntryKind
   spendKind        PrepaidCardSpendKind?
-  amount           Decimal              @db.Decimal(14, 2)
-  previousBalance  Decimal              @db.Decimal(14, 2)
-  resultingBalance Decimal              @db.Decimal(14, 2)
+  amount           Decimal               @db.Decimal(14, 2)
+  previousBalance  Decimal               @db.Decimal(14, 2)
+  resultingBalance Decimal               @db.Decimal(14, 2)
   proofPath        String?
-  entryDate        DateTime             @db.Date
+  entryDate        DateTime              @db.Date
   description      String
   createdById      String?
-  createdAt        DateTime             @default(now())
+  createdAt        DateTime              @default(now())
+  assignmentId     String?
+  assignment       PrepaidCardAssignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+  purchaseInvoiceId String?
+  purchaseInvoice   PurchaseInvoice?     @relation(fields: [purchaseInvoiceId], references: [id], onDelete: SetNull)
+  lossId           String?
+  loss             PrepaidCardLoss?      @relation(fields: [lossId], references: [id], onDelete: SetNull)
+  relatedCardId    String?
+  relatedCard      PrepaidCard?          @relation("PrepaidCardTransfer", fields: [relatedCardId], references: [id], onDelete: SetNull)
+  bankAccountId    String?
+  bankAccount      CompanyBankAccount?   @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
 
   @@index([prepaidCardId, entryDate])
+  @@index([assignmentId])
+  @@index([purchaseInvoiceId])
+  @@index([lossId])
+}
+
+model PrepaidCardLoss {
+  id              String                     @id @default(cuid())
+  companyId       String
+  company         Company                    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  prepaidCardId   String
+  prepaidCard     PrepaidCard                @relation(fields: [prepaidCardId], references: [id], onDelete: Cascade)
+  leftoverAmount  Decimal                    @db.Decimal(14, 2)
+  recoveryKind    PrepaidCardLossRecoveryKind
+  employeeId      String?
+  employee        Employee?                  @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  bankAccountId   String?
+  bankAccount     CompanyBankAccount?        @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  writtenOffAt    DateTime
+  createdAt       DateTime                   @default(now())
+  recoveries      PrepaidCardLossRecovery[]
+  payrollDeductions PayrollDeduction[]
+  entries         PrepaidCardEntry[]
+
+  @@index([companyId, writtenOffAt])
+  @@index([prepaidCardId])
+  @@index([employeeId])
+}
+
+model PrepaidCardLossRecovery {
+  id                 String                   @id @default(cuid())
+  lossId             String
+  loss               PrepaidCardLoss          @relation(fields: [lossId], references: [id], onDelete: Cascade)
+  source             PrepaidCardRecoverySource
+  amount             Decimal                  @db.Decimal(14, 2)
+  recoveredAt        DateTime
+  bankAccountId      String?
+  bankAccount        CompanyBankAccount?      @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  payrollDeductionId String?                  @unique
+  payrollDeduction   PayrollDeduction?        @relation(fields: [payrollDeductionId], references: [id], onDelete: SetNull)
+  description        String
+  createdAt          DateTime                 @default(now())
+
+  @@index([lossId])
+  @@index([bankAccountId])
 }
 
 /// Permanent operations team for one project service area (catalog type).
@@ -2228,6 +2371,7 @@ model InventoryItem {
   transferOrderLines   TransferOrderLine[]
   payrollDeductions    PayrollDeduction[]
   prepaidCards         PrepaidCard[]
+  prepaidCardAssignments PrepaidCardAssignment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2556,12 +2700,17 @@ model PayrollDeduction {
   purchaseInvoiceId String?
   purchaseInvoice   PurchaseInvoice? @relation(fields: [purchaseInvoiceId], references: [id], onDelete: SetNull)
 
+  prepaidCardLossId String?
+  prepaidCardLoss   PrepaidCardLoss? @relation(fields: [prepaidCardLossId], references: [id], onDelete: SetNull)
+  prepaidCardLossRecovery PrepaidCardLossRecovery?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([employeeId, year, month])
   @@index([companyId, year, month])
   @@index([projectId, type])
+  @@index([prepaidCardLossId])
 }
 
 /// Company paid a client for a site incident (e.g. stolen property). Project expense.

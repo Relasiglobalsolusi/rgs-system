@@ -12,6 +12,7 @@ import type { FinancialReportProjectDetail } from "@/app/billing/financial-repor
 import { matchInventoryItemType } from "@/components/inventory/inventory-category";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
 import { formatDisplayDate } from "@/lib/format-date";
@@ -193,38 +194,43 @@ export default function FinancialReportProjectPanel({ detail }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <DirectoryStatGrid gapClassName="gap-2">
         <DirectoryStatCard
+          compact
           title={t("pages.financialReport.moneyIn")}
           value={formatContractPrice(detail.moneyIn)}
           subtitle={t("pages.financialReport.moneyInHint")}
-          icon={<ArrowDownLeft size={18} />}
+          icon={<ArrowDownLeft size={16} />}
           accent="success"
         />
         <DirectoryStatCard
-          title={t("pages.financialReport.moneyOut")}
-          value={formatContractPrice(detail.moneyOut)}
-          subtitle={t("pages.financialReport.moneyOutHint")}
-          icon={<ArrowUpRight size={18} />}
-          accent="warning"
-        />
-        <DirectoryStatCard
+          compact
           title={t("pages.financialReport.profit")}
           value={formatContractPrice(detail.profit)}
           subtitle={t("pages.financialReport.profitHint")}
-          icon={<TrendingUp size={18} />}
+          icon={<TrendingUp size={16} />}
           accent={detail.profit < 0 ? "danger" : "primary"}
         />
         <DirectoryStatCard
+          compact
+          title={t("pages.financialReport.moneyOut")}
+          value={formatContractPrice(detail.moneyOut)}
+          subtitle={t("pages.financialReport.moneyOutHint")}
+          icon={<ArrowUpRight size={16} />}
+          accent="warning"
+        />
+        <DirectoryStatCard
+          compact
           title={t("pages.financialReport.clientsStillOwe")}
           value={formatContractPrice(detail.clientsOwe.unpaid)}
           subtitle={t("pages.financialReport.accountsReceivableHint", {
             overdue: formatContractPrice(detail.clientsOwe.overdue),
           })}
-          icon={<Banknote size={18} />}
+          icon={<Banknote size={16} />}
           accent={detail.clientsOwe.overdue > 0 ? "warning" : "muted"}
         />
         <DirectoryStatCard
+          compact
           title={t("pages.financialReport.margin")}
           value={marginLabel}
           subtitle={
@@ -232,10 +238,10 @@ export default function FinancialReportProjectPanel({ detail }: Props) {
               ? `${t("pages.financialReport.contractValue")}: ${formatContractPrice(detail.contractValue)}`
               : t("pages.financialReport.marginHint")
           }
-          icon={<Percent size={18} />}
+          icon={<Percent size={16} />}
           accent="info"
         />
-      </div>
+      </DirectoryStatGrid>
 
       <SectionCard>
         <div className="mb-4">

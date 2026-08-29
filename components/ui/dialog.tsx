@@ -100,7 +100,7 @@ function UnsavedDiscardConfirm() {
         overlayClassName="z-[80]"
         className="z-[80] gap-0 overflow-hidden rounded-2xl border border-border bg-panel p-0 text-text ring-0 sm:max-w-sm"
       >
-        <div className="px-8 pt-8 pb-7 sm:px-10">
+        <div className="max-h-[min(90dvh,24rem)] overflow-y-auto px-4 pt-6 pb-6 sm:px-10 sm:pt-8 sm:pb-7">
           <DialogHeader className="items-center gap-4 text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-card-tint-amber ring-1 ring-amber-500/25">
               <AlertTriangle className="h-6 w-6 text-warning" />
@@ -115,7 +115,7 @@ function UnsavedDiscardConfirm() {
             </div>
           </DialogHeader>
         </div>
-        <DialogFooter className="mx-0 mb-0 mt-0 flex-col gap-3 rounded-none border-t border-border bg-strip px-8 py-6 sm:flex-col sm:justify-stretch sm:px-10">
+        <DialogFooter className="mx-0 mb-0 mt-0 flex-col gap-3 rounded-none border-t border-border bg-strip px-4 py-5 sm:flex-col sm:justify-stretch sm:px-10 sm:py-6">
           <button
             type="button"
             className="flex h-11 w-full items-center justify-center rounded-xl border border-danger/40 bg-card-tint-red text-sm font-semibold text-danger transition hover:bg-[color-mix(in_srgb,var(--color-card-tint-red),var(--color-danger)_12%)]"

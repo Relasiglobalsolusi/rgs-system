@@ -3,9 +3,9 @@ export type ParsedCoordinates = {
   lng: number;
 };
 
-export type PinSource = "place" | "query" | "camera" | "plain";
+type PinSource = "place" | "query" | "camera" | "plain";
 
-export type ExtractedPin = ParsedCoordinates & {
+type ExtractedPin = ParsedCoordinates & {
   source: PinSource;
 };
 

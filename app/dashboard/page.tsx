@@ -17,6 +17,7 @@ import {
 
 import AppShell from "@/components/layout/AppShell";
 import StatCard from "@/components/ui/StatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import DashboardSectionLabel from "@/components/dashboard/DashboardSectionLabel";
 import DashboardCompactStat from "@/components/dashboard/DashboardCompactStat";
 import DashboardAttendance from "@/components/dashboard/DashboardAttendance";
@@ -257,9 +258,9 @@ export default async function DashboardPage() {
               titleKey="pages.dashboard.todaysOperations"
               descriptionKey="pages.dashboard.workforcePresence"
             />
-            <div className="mb-6 grid grid-cols-1 gap-3 lg:mb-8 lg:grid-cols-2 lg:gap-4 xl:grid-cols-4">
+            <DirectoryStatGrid className="mb-6 lg:mb-8" gapClassName="gap-3 lg:gap-4">
               {statCards}
-            </div>
+            </DirectoryStatGrid>
           </>
         )}
 
@@ -433,9 +434,9 @@ export default async function DashboardPage() {
               titleKey="pages.dashboard.yourProjects"
               descriptionKey="pages.dashboard.yourProjectsDesc"
             />
-            <div className="mb-6 grid grid-cols-1 gap-3 lg:mb-8 lg:grid-cols-2 lg:gap-4 xl:grid-cols-3">
+            <DirectoryStatGrid className="mb-6 lg:mb-8" gapClassName="gap-3 lg:gap-4">
               {clientStatCards}
-            </div>
+            </DirectoryStatGrid>
           </>
         )}
 
@@ -574,9 +575,9 @@ export default async function DashboardPage() {
           titleKey="pages.dashboard.yourBilling"
           descriptionKey="pages.dashboard.yourBillingDesc"
         />
-        <div className="mb-6 grid grid-cols-1 gap-3 lg:mb-8 lg:grid-cols-2 lg:gap-4 xl:grid-cols-4">
+        <DirectoryStatGrid className="mb-6 lg:mb-8" gapClassName="gap-3 lg:gap-4">
           {vendorStatCards}
-        </div>
+        </DirectoryStatGrid>
         <div className="flex flex-wrap gap-2">
           <Link
             href="/billing/purchase-invoices"
@@ -843,9 +844,9 @@ export default async function DashboardPage() {
             titleKey="pages.dashboard.todaysOperations"
             descriptionKey="pages.dashboard.todaysOperationsDesc"
           />
-          <div className="mb-6 grid grid-cols-1 gap-3 lg:mb-8 lg:grid-cols-2 lg:gap-4 xl:grid-cols-4">
+          <DirectoryStatGrid className="mb-6 lg:mb-8" gapClassName="gap-3 lg:gap-4">
             {adminStatCards}
-          </div>
+          </DirectoryStatGrid>
         </>
       )}
 
@@ -855,9 +856,9 @@ export default async function DashboardPage() {
             titleKey="pages.dashboard.systemOverview"
             descriptionKey="pages.dashboard.systemOverviewDesc"
           />
-          <div className="mb-6 grid grid-cols-1 gap-3 lg:mb-8 lg:grid-cols-2 lg:gap-4 xl:grid-cols-4">
+          <DirectoryStatGrid className="mb-6 lg:mb-8" gapClassName="gap-3 lg:gap-4">
             {systemOverviewStats}
-          </div>
+          </DirectoryStatGrid>
         </>
       )}
 

@@ -45,7 +45,7 @@ export default function PositionManageDialog({
           icon={BriefcaseBusiness}
           title={t("pages.employees.managePositions")}
           description={t("pages.employees.employeePositionsDescription")}
-          maxWidth="lg"
+          maxWidth="xl"
           footer={
             <EmployeeSecondaryButton onClick={() => setOpen(false)}>
               {t("common.actions.close")}

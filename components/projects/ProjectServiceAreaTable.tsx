@@ -29,7 +29,7 @@ type Props = {
 
 /** Same box as Add Subcategory — do not size these with the dialog wrapper. */
 const catalogToolbarPairClass =
-  "box-border h-[2.75rem] min-h-[2.75rem] w-full min-w-0 sm:w-[12.75rem] sm:min-w-[12.75rem] sm:max-w-[12.75rem]";
+  "box-border h-[2.75rem] min-h-[2.75rem] w-fit max-w-full min-w-0 sm:w-[12.75rem] sm:min-w-[12.75rem] sm:max-w-[12.75rem]";
 
 function CatalogRowActions({
   onEdit,
@@ -45,7 +45,7 @@ function CatalogRowActions({
   }
 
   return (
-    <div className="flex flex-col items-stretch justify-center gap-2.5 sm:flex-row sm:items-center">
+    <div className="flex flex-col items-center justify-center gap-2.5 sm:flex-row">
       <Button
         type="button"
         size="badge"

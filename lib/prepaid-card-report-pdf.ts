@@ -8,6 +8,7 @@ import {
   type AppLocale,
 } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
+import { formatPrepaidCardNumber } from "@/lib/prepaid-card";
 import { formatContractPrice } from "@/lib/project-billing";
 import {
   CONTENT_WIDTH,
@@ -27,11 +28,12 @@ const HEADER_H = 22;
 export type PrepaidCardReportEntry = {
   entryDate: Date;
   cardNumber: string;
-  vehicleName: string;
-  kind: "TOP_UP" | "SPEND";
-  spendKind: "FUEL" | "TOLL" | "PARKING" | null;
+  assignmentLabel: string;
+  kind: string;
+  spendKind: string | null;
   amount: number;
   description: string;
+  footedBy?: string | null;
 };
 
 export async function buildPrepaidCardReportPdfBuffer(input: {
@@ -39,6 +41,7 @@ export async function buildPrepaidCardReportPdfBuffer(input: {
   entries: PrepaidCardReportEntry[];
   totalTopUp: number;
   totalSpend: number;
+  totalWrittenOff: number;
   company?: CompanyForPdf | null;
   locale?: AppLocale;
 }): Promise<Buffer> {
@@ -90,6 +93,12 @@ export async function buildPrepaidCardReportPdfBuffer(input: {
       { width: CONTENT_WIDTH }
     );
     doc.text(
+      `${translate(locale, "pages.pettyCash.writtenOff")}: ${formatContractPrice(input.totalWrittenOff)}`,
+      PAGE_MARGIN,
+      doc.y + 4,
+      { width: CONTENT_WIDTH }
+    );
+    doc.text(
       `${translate(locale, "pages.pettyCash.netPosition")}: ${formatContractPrice(input.totalTopUp - input.totalSpend)}`,
       PAGE_MARGIN,
       doc.y + 4,
@@ -98,11 +107,11 @@ export async function buildPrepaidCardReportPdfBuffer(input: {
     doc.moveDown(1.2);
 
     const cols = {
-      date: { x: 0, w: 78 },
-      card: { x: 78, w: 90 },
-      vehicle: { x: 168, w: 110 },
-      kind: { x: 278, w: 90 },
-      amount: { x: 368, w: CONTENT_WIDTH - 368 },
+      date: { x: 0, w: 70 },
+      card: { x: 70, w: 88 },
+      assignment: { x: 158, w: 110 },
+      kind: { x: 268, w: 80 },
+      amount: { x: 348, w: CONTENT_WIDTH - 348 },
     };
 
     const drawHeader = () => {
@@ -112,7 +121,7 @@ export async function buildPrepaidCardReportPdfBuffer(input: {
       const labels = [
         { col: cols.date, text: translate(locale, "pages.pettyCash.columns.date") },
         { col: cols.card, text: translate(locale, "pages.pettyCash.cardNumber") },
-        { col: cols.vehicle, text: translate(locale, "pages.pettyCash.vehicle") },
+        { col: cols.assignment, text: translate(locale, "pages.pettyCash.assignment") },
         { col: cols.kind, text: translate(locale, "pages.pettyCash.columns.kind") },
         { col: cols.amount, text: translate(locale, "pages.pettyCash.columns.amount") },
       ];
@@ -145,22 +154,37 @@ export async function buildPrepaidCardReportPdfBuffer(input: {
         const kindLabel =
           entry.kind === "TOP_UP"
             ? translate(locale, "pages.pettyCash.kind.TOP_UP")
-            : entry.spendKind === "TOLL"
-              ? translate(locale, "pages.pettyCash.spendToll")
-              : entry.spendKind === "PARKING"
-                ? translate(locale, "pages.pettyCash.spendParking")
-                : translate(locale, "pages.pettyCash.spendFuel");
+            : entry.kind === "WRITE_OFF"
+              ? translate(locale, "pages.pettyCash.kind.WRITE_OFF")
+              : entry.kind === "REPLACEMENT_FEE"
+                ? translate(locale, "pages.pettyCash.kind.REPLACEMENT_FEE")
+                : entry.kind === "TRANSFER_OUT"
+                  ? translate(locale, "pages.pettyCash.kind.TRANSFER_OUT")
+                  : entry.kind === "TRANSFER_IN"
+                    ? translate(locale, "pages.pettyCash.kind.TRANSFER_IN")
+                    : entry.spendKind === "TOLL"
+                      ? translate(locale, "pages.pettyCash.spendToll")
+                      : entry.spendKind === "PARKING"
+                        ? translate(locale, "pages.pettyCash.spendParking")
+                        : entry.spendKind === "OTHER"
+                          ? translate(locale, "pages.pettyCash.spendOther")
+                          : translate(locale, "pages.pettyCash.spendFuel");
+        const sign =
+          entry.kind === "TOP_UP" || entry.kind === "TRANSFER_IN" ? "+" : "−";
         const cells = [
           {
             col: cols.date,
             text: formatDisplayDate(entry.entryDate, { timeZone: JAKARTA_TZ }, bcp47),
           },
-          { col: cols.card, text: entry.cardNumber },
-          { col: cols.vehicle, text: entry.vehicleName },
-          { col: cols.kind, text: kindLabel },
+          { col: cols.card, text: formatPrepaidCardNumber(entry.cardNumber) },
+          { col: cols.assignment, text: entry.assignmentLabel },
+          {
+            col: cols.kind,
+            text: entry.footedBy ? `${kindLabel} · ${entry.footedBy}` : kindLabel,
+          },
           {
             col: cols.amount,
-            text: `${entry.kind === "TOP_UP" ? "+" : "−"}${formatContractPrice(entry.amount)}`,
+            text: `${sign}${formatContractPrice(entry.amount)}`,
           },
         ];
         doc.font("Helvetica").fontSize(8).fillColor(BRAND.ink);

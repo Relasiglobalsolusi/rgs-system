@@ -47,8 +47,11 @@ import { operatingPurchaseAmount } from "@/lib/purchase-operating-cost";
 import { jakartaYearMonth } from "@/lib/vat";
 import {
   isPettyCashTopUpInvoice,
+  isPrepaidCardReplacementFeeInvoice,
   isPrepaidCardTopUpInvoice,
+  isPrepaidOpenCardTopUpInvoice,
 } from "@/lib/advance-cash-expense";
+import { formatPrepaidCardNumber } from "@/lib/prepaid-card";
 
 const JAKARTA_TZ = "Asia/Jakarta";
 const ROW_H = 22;
@@ -92,6 +95,10 @@ export type FinancialReportSource =
   | "thr"
   | "pettyCashTopUp"
   | "prepaidCardTopUp"
+  | "prepaidVehicleCardTopUp"
+  | "prepaidOpenCardTopUp"
+  | "prepaidCardReplacementFee"
+  | "prepaidCardReturn"
   | "transferFee"
   | "incident"
   | "depositReturned"
@@ -155,6 +162,8 @@ const PURCHASE_SELECT = {
   loanAdminFeeAmount: true,
   loanProvisionAmount: true,
   project: { select: { name: true } },
+  prepaidCard: { select: { cardNumber: true, kind: true } },
+  employee: { select: { firstName: true, lastName: true } },
 } as const;
 
 function inUtcRange(
@@ -224,8 +233,13 @@ function purchaseLineSource(invoice: {
   purchaseCategory?: string | null;
   supplierName?: string | null;
   invoiceRef?: string | null;
+  prepaidCard?: { kind?: string | null } | null;
 }): FinancialReportSource {
-  if (isPrepaidCardTopUpInvoice(invoice)) return "prepaidCardTopUp";
+  if (isPrepaidCardReplacementFeeInvoice(invoice)) {
+    return "prepaidCardReplacementFee";
+  }
+  if (isPrepaidOpenCardTopUpInvoice(invoice)) return "prepaidOpenCardTopUp";
+  if (isPrepaidCardTopUpInvoice(invoice)) return "prepaidVehicleCardTopUp";
   if (isPettyCashTopUpInvoice(invoice)) return "pettyCashTopUp";
   return "purchase";
 }
@@ -239,19 +253,35 @@ function pushPurchaseLines(
     purpose?: string | null;
     purchaseCategory?: string | null;
     project: { name: string } | null;
+    prepaidCard?: { cardNumber: string; kind: string } | null;
+    employee?: { firstName: string; lastName: string } | null;
   } & Parameters<typeof purchaseAmount>[0]>
 ) {
   for (const invoice of invoices) {
     const amount = purchaseAmount(invoice);
     if (amount === 0) continue;
+    const source = purchaseLineSource(invoice);
+    const cardNumber = invoice.prepaidCard?.cardNumber
+      ? formatPrepaidCardNumber(invoice.prepaidCard.cardNumber)
+      : null;
+    const holderName = invoice.employee
+      ? formatEmployeeName(invoice.employee)
+      : null;
     target.push({
       date: invoice.paidAt,
-      source: purchaseLineSource(invoice),
-      detail: joinDetail(
-        invoice.supplierName,
-        invoice.invoiceRef,
-        invoice.project?.name
-      ),
+      source,
+      detail:
+        source === "prepaidVehicleCardTopUp" ||
+        source === "prepaidOpenCardTopUp" ||
+        source === "prepaidCardReplacementFee"
+          ? joinDetail(cardNumber, invoice.invoiceRef)
+          : source === "pettyCashTopUp"
+            ? joinDetail(holderName, invoice.invoiceRef)
+            : joinDetail(
+                invoice.supplierName,
+                invoice.invoiceRef,
+                invoice.project?.name
+              ),
       amount,
     });
   }
@@ -407,6 +437,7 @@ export async function loadFinancialReportPdfData(
     arPeriods,
     apInvoices,
     pettyCashPurchases,
+    prepaidReturns,
   ] = await Promise.all([
     getFinancialReportOverviewData(companyId, selection),
     prisma.projectInvoicePeriod.findMany({
@@ -699,6 +730,28 @@ export async function loadFinancialReportPdfData(
       select: PURCHASE_SELECT,
       orderBy: { paidAt: "asc" },
     }),
+    prisma.prepaidCardLossRecovery.findMany({
+      where: {
+        loss: { companyId },
+        source: "PAY_NOW",
+        ...bankAccountWhere(bank),
+        recoveredAt: {
+          ...(calendar.from ? { gte: calendar.from } : {}),
+          ...(calendar.toExclusive ? { lt: calendar.toExclusive } : {}),
+        },
+      },
+      select: {
+        recoveredAt: true,
+        amount: true,
+        description: true,
+        loss: {
+          select: {
+            prepaidCard: { select: { cardNumber: true } },
+          },
+        },
+      },
+      orderBy: { recoveredAt: "asc" },
+    }),
   ]);
 
   const moneyInLines: FinancialReportPdfLine[] = [];
@@ -782,6 +835,20 @@ export async function loadFinancialReportPdfData(
       date: when,
       source: "depositKept",
       detail: joinDetail(formatEmployeeName(row), row.employeeNo),
+      amount,
+    });
+  }
+
+  for (const row of prepaidReturns) {
+    const amount = decimalToNumber(row.amount) ?? 0;
+    if (amount === 0) continue;
+    moneyInLines.push({
+      date: row.recoveredAt,
+      source: "prepaidCardReturn",
+      detail: joinDetail(
+        formatPrepaidCardNumber(row.loss.prepaidCard.cardNumber),
+        row.description
+      ),
       amount,
     });
   }

@@ -109,18 +109,14 @@ export default function TeamAvailabilityBoard({
                   <p className="text-sm text-muted">{team.typeLabel}</p>
                 </div>
                 {team.occupiedProjectName ? (
-                  <StatusBadge
-                    status="warning"
-                    compact
-                    className="h-auto min-h-[2.75rem] w-auto max-w-[16rem] min-w-0 shrink whitespace-normal px-2.5 py-1.5 leading-snug"
-                  >
-                    <span className="flex min-w-0 max-w-full flex-col items-center justify-center gap-0.5 text-center">
-                      <span>{t("pages.teams.statusOnSite")}</span>
-                      <span className="max-w-full break-words leading-snug">
-                        {team.occupiedProjectName}
-                      </span>
+                  <div className="flex min-w-0 max-w-[16rem] flex-col items-end gap-1">
+                    <StatusBadge status="warning" compact className="w-fit shrink-0">
+                      {t("pages.teams.statusOnSite")}
+                    </StatusBadge>
+                    <span className="max-w-full break-words text-right text-xs leading-snug text-muted">
+                      {team.occupiedProjectName}
                     </span>
-                  </StatusBadge>
+                  </div>
                 ) : (
                   <StatusBadge
                     status="active"
@@ -131,10 +127,11 @@ export default function TeamAvailabilityBoard({
                   </StatusBadge>
                 )}
               </div>
+              <div className="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
               <div
-                className="grid gap-1"
+                className="grid min-w-[36rem] gap-1"
                 style={{
-                  gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))`,
+                  gridTemplateColumns: `repeat(${days.length}, minmax(1.75rem, 1fr))`,
                 }}
               >
                 {days.map((day) => {
@@ -156,6 +153,7 @@ export default function TeamAvailabilityBoard({
                     </div>
                   );
                 })}
+              </div>
               </div>
             </SectionCard>
           );

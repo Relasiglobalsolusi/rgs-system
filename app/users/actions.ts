@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { persistCompanyScopedReorder } from "@/lib/persist-reorder";
 import { requireModule } from "@/lib/session";
 import {
+  ADVANCE_CASH_CHILD_KEYS,
   expandLegacyFinanceOverrides,
   isHoAdminAccount,
   MODULES,
@@ -1000,6 +1001,12 @@ export async function updateUserModuleOverrides(
       continue;
     }
     sanitized[moduleKey] = Boolean(expanded[moduleKey]);
+  }
+  if (!isPortalUser) {
+    for (const childKey of ADVANCE_CASH_CHILD_KEYS) {
+      if (!(childKey in expanded)) continue;
+      sanitized[childKey] = Boolean(expanded[childKey]);
+    }
   }
 
   await prisma.user.update({

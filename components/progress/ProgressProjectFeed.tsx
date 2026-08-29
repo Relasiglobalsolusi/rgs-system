@@ -460,7 +460,7 @@ export default function ProgressProjectFeed({
               <p className="text-sm font-medium text-text">
                 {t("pages.progress.filterByMonth")}
               </p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Select
                   value={String(month)}
                   onValueChange={(value) => {

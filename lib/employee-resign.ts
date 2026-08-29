@@ -20,6 +20,7 @@ export async function applyResignIfLastDayReached(
     where: { id: employeeId },
     select: {
       id: true,
+      companyId: true,
       status: true,
       lastWorkingDay: true,
       resignAccordingToProcedure: true,
@@ -45,6 +46,14 @@ export async function applyResignIfLastDayReached(
       status: "RESIGNED",
       resignedAt: employee.resignedAt ?? new Date(),
     },
+  });
+
+  const { returnOpenCardsForEmployee } = await import(
+    "@/lib/prepaid-card-lifecycle"
+  );
+  await returnOpenCardsForEmployee(db, {
+    companyId: employee.companyId,
+    employeeId,
   });
 
   const { writeOffUnrecoveredEmployeeDebt } = await import(

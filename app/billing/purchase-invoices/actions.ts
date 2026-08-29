@@ -59,7 +59,12 @@ import {
 } from "@/lib/purchase-purpose";
 import { requireSession, toPermissionUser } from "@/lib/session";
 import { creditPrepaidCardFromExpense } from "@/lib/advance-cash-expense";
-import { nextPettyCashTopUpRef } from "@/lib/petty-cash";
+import { prepaidTopUpLabel } from "@/lib/prepaid-card";
+import { formatEmployeeName } from "@/lib/employee-user-link";
+import {
+  nextPettyCashTopUpRef,
+  pettyCashTopUpDescription,
+} from "@/lib/petty-cash";
 import { writeRecordChange } from "@/lib/record-change";
 import { capitalizeProper, titleCaseWords } from "@/lib/text-case";
 import {
@@ -653,11 +658,17 @@ export async function listEmployeesForExpense() {
 export async function listPrepaidCardsForExpense() {
   const session = await requirePurchaseManageAccess();
   const cards = await prisma.prepaidCard.findMany({
-    where: { companyId: session.user.companyId },
+    where: {
+      companyId: session.user.companyId,
+      status: { in: ["STANDBY", "ACTIVE"] },
+    },
     select: {
       id: true,
       cardNumber: true,
+      kind: true,
+      status: true,
       currentBalance: true,
+      custodianEmployee: { select: { firstName: true, lastName: true } },
       vehicleItem: {
         select: {
           name: true,
@@ -674,13 +685,20 @@ export async function listPrepaidCardsForExpense() {
   return cards.map((card) => ({
     id: card.id,
     cardNumber: card.cardNumber,
+    kind: card.kind,
+    status: card.status,
     currentBalance: decimalToNumber(card.currentBalance) ?? 0,
-    vehicleName: card.vehicleItem.name,
-    vehicleSku: card.vehicleItem.sku,
-    vehiclePlate: card.vehicleItem.equipmentAssets
-      .map((asset) => asset.assetCode)
-      .filter(Boolean)
-      .join(" / "),
+    custodianName: card.custodianEmployee
+      ? `${card.custodianEmployee.firstName} ${card.custodianEmployee.lastName}`.trim()
+      : null,
+    vehicleName: card.vehicleItem?.name ?? null,
+    vehicleSku: card.vehicleItem?.sku ?? null,
+    vehiclePlate: card.vehicleItem
+      ? card.vehicleItem.equipmentAssets
+          .map((asset) => asset.assetCode)
+          .filter(Boolean)
+          .join(" / ")
+      : null,
   }));
 }
 
@@ -846,6 +864,22 @@ export async function createPurchaseInvoice(formData: FormData) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(invoiceDateRaw)) {
       throw new Error("Date is required.");
     }
+    const holderEmployeeId = String(formData.get("employeeId") ?? "").trim();
+    if (!holderEmployeeId) {
+      throw new Error("Select which employee receives this Petty Cash top-up.");
+    }
+    const holder = await prisma.employee.findFirst({
+      where: {
+        id: holderEmployeeId,
+        companyId: session.user.companyId,
+        archivedFromDirectory: false,
+        status: { in: ["ACTIVE", "ON_LEAVE"] },
+      },
+      select: { id: true, firstName: true, lastName: true },
+    });
+    if (!holder) {
+      throw new Error("Select a valid employee.");
+    }
     const notesRaw = String(formData.get("notes") ?? "").trim();
     const invoiceDate = taxInvoiceDateToUtcDate(invoiceDateRaw);
     const invoiceRef = nextPettyCashTopUpRef();
@@ -863,6 +897,12 @@ export async function createPurchaseInvoice(formData: FormData) {
         })
       : "";
 
+    const holderName = formatEmployeeName(holder);
+    const topUpDescription = pettyCashTopUpDescription({
+      employeeName: holderName,
+      invoiceRef,
+      notes: notesRaw,
+    });
     await prisma.$transaction(async (tx) => {
       const invoice = await tx.purchaseInvoice.create({
         data: {
@@ -873,7 +913,7 @@ export async function createPurchaseInvoice(formData: FormData) {
           invoiceDate,
           amount,
           filePath,
-          notes: notesRaw || "Petty Cash top-up",
+          notes: notesRaw || `Petty Cash top-up · ${holderName}`,
           includesPpn: false,
           purchaseCategory: "PETTY_CASH",
           purpose: "PETTY_CASH",
@@ -881,6 +921,7 @@ export async function createPurchaseInvoice(formData: FormData) {
           bankAccountId,
           createdById: session.user.id,
           transferFeeIdr,
+          employeeId: holder.id,
         },
       });
       await tx.pettyCashEntry.create({
@@ -890,11 +931,13 @@ export async function createPurchaseInvoice(formData: FormData) {
           status: "POSTED",
           amount,
           entryDate: invoiceDate,
-          description: notesRaw || `Petty Cash top-up ${invoiceRef}`,
+          description: topUpDescription,
           purchaseInvoiceId: invoice.id,
           createdById: session.user.id,
           postedAt: new Date(),
           proofPath: filePath || null,
+          employeeId: holder.id,
+          holderEmployeeId: holder.id,
         },
       });
     });
@@ -908,9 +951,11 @@ export async function createPurchaseInvoice(formData: FormData) {
   const vehicleExpenseKindEarly = String(formData.get("vehicleExpenseKind") ?? "")
     .trim()
     .toUpperCase();
+  const openCardTopUpEarly = String(formData.get("openCardTopUp") ?? "") === "1";
   if (
-    purchaseCategoryRawEarly === "VEHICLE" &&
-    vehicleExpenseKindEarly === "PREPAID_CARD"
+    (purchaseCategoryRawEarly === "VEHICLE" &&
+      vehicleExpenseKindEarly === "PREPAID_CARD") ||
+    openCardTopUpEarly
   ) {
     if (session.user.vendorId) {
       throw new Error("Prepaid card top-ups are recorded by Head Office only.");
@@ -930,7 +975,28 @@ export async function createPurchaseInvoice(formData: FormData) {
     }
     const notesRaw = String(formData.get("notes") ?? "").trim();
     const invoiceDate = taxInvoiceDateToUtcDate(invoiceDateRaw);
-    const invoiceRef = nextPettyCashTopUpRef().replace(/^PC-/, "PPC-");
+    const selectedCard = await prisma.prepaidCard.findFirst({
+      where: { id: prepaidCardId, companyId: session.user.companyId },
+      select: { id: true, kind: true, cardNumber: true, status: true },
+    });
+    if (!selectedCard) {
+      throw new Error("Choose the prepaid card to top up.");
+    }
+    if (openCardTopUpEarly && selectedCard.kind !== "OPEN") {
+      throw new Error("Choose an Open Card to top up.");
+    }
+    if (
+      purchaseCategoryRawEarly === "VEHICLE" &&
+      vehicleExpenseKindEarly === "PREPAID_CARD" &&
+      selectedCard.kind !== "VEHICLE"
+    ) {
+      throw new Error("Choose a Vehicle Card to top up.");
+    }
+    const isOpen = selectedCard.kind === "OPEN";
+    const invoiceRef = nextPettyCashTopUpRef().replace(
+      /^PC-/,
+      isOpen ? "OPC-" : "PPC-"
+    );
     const file = optionalImageOrPdfUpload(formData.get("document"), {
       sizeMessage: "File must be 10 MB or smaller.",
       typeMessage: "Upload an image or PDF.",
@@ -946,17 +1012,7 @@ export async function createPurchaseInvoice(formData: FormData) {
       : "";
 
     await prisma.$transaction(async (tx) => {
-      const card = await creditPrepaidCardFromExpense(tx, {
-        companyId: session.user.companyId,
-        userId: session.user.id,
-        prepaidCardId,
-        amount,
-        invoiceRef,
-        invoiceDate,
-        notes: notesRaw,
-        filePath,
-      });
-      await tx.purchaseInvoice.create({
+      const invoice = await tx.purchaseInvoice.create({
         data: {
           companyId: session.user.companyId,
           supplierName: "Prepaid Card",
@@ -965,15 +1021,27 @@ export async function createPurchaseInvoice(formData: FormData) {
           invoiceDate,
           amount,
           filePath,
-          notes: notesRaw || `Prepaid card top-up ${card.cardNumber}`,
+          notes: notesRaw || prepaidTopUpLabel(selectedCard.kind, selectedCard.cardNumber),
           includesPpn: false,
-          purchaseCategory: "VEHICLE",
-          purpose: "STOCK",
+          purchaseCategory: isOpen ? "SERVICE" : "VEHICLE",
+          purpose: isOpen ? "INTERNAL" : "STOCK",
           paidAt: new Date(),
           bankAccountId,
           createdById: session.user.id,
           transferFeeIdr,
+          prepaidCardId: selectedCard.id,
         },
+      });
+      await creditPrepaidCardFromExpense(tx, {
+        companyId: session.user.companyId,
+        userId: session.user.id,
+        prepaidCardId: selectedCard.id,
+        amount,
+        invoiceRef,
+        invoiceDate,
+        notes: notesRaw,
+        filePath,
+        purchaseInvoiceId: invoice.id,
       });
     });
 

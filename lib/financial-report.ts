@@ -41,7 +41,7 @@ import {
  *   plus Return of security deposit).
  */
 
-export type PaidPeriodAmountInput = {
+type PaidPeriodAmountInput = {
   amount: Parameters<typeof decimalToNumber>[0];
   revisedInvoiceAmount?: Parameters<typeof decimalToNumber>[0];
   projectContractPrice?: Parameters<typeof decimalToNumber>[0];

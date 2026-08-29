@@ -361,41 +361,45 @@ export default function InventorySoldOffDetailDialog({
             </div>
 
             {/* Financial strip — full width, balanced */}
-            <div className="grid grid-cols-2 border-t border-border sm:grid-cols-3 lg:grid-cols-5">
-              <div className="border-b border-border sm:border-b-0 sm:border-r lg:border-b-0">
-                <MoneyStat
-                  label={t("pages.inventory.columns.saleTotal")}
-                  value={formatContractPrice(row.totalPrice)}
-                  emphasize
-                />
+            <div className="border-t border-border">
+              <div className="grid grid-cols-2">
+                <div className="border-b border-r border-border">
+                  <MoneyStat
+                    label={t("pages.inventory.columns.saleTotal")}
+                    value={formatContractPrice(row.totalPrice)}
+                    emphasize
+                  />
+                </div>
+                <div className="border-b border-border">
+                  <MoneyStat
+                    label={t("pages.inventory.columns.saleSubtotal")}
+                    value={formatContractPrice(row.subtotal)}
+                  />
+                </div>
               </div>
-              <div className="border-b border-l border-border sm:border-b-0 sm:border-r lg:border-b-0">
-                <MoneyStat
-                  label={t("pages.inventory.columns.saleSubtotal")}
-                  value={formatContractPrice(row.subtotal)}
-                />
-              </div>
-              <div className="border-b border-border sm:border-b-0 sm:border-r lg:border-b-0 lg:border-r">
-                <MoneyStat
-                  label={t("pages.inventory.columns.costBasis")}
-                  value={formatContractPrice(row.costBasis)}
-                />
-              </div>
-              <div className="border-l border-border sm:border-l-0 lg:border-r">
-                <MoneyStat
-                  label={t("pages.inventory.form.taxRate")}
-                  value={
-                    row.taxRatePercent != null
-                      ? `${row.taxRatePercent}%`
-                      : "—"
-                  }
-                />
-              </div>
-              <div className="col-span-2 border-t border-border sm:col-span-3 lg:col-span-1 lg:border-t-0">
-                <MoneyStat
-                  label={t("pages.inventory.form.saleTaxAmount")}
-                  value={formatContractPrice(row.taxAmount)}
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-3">
+                <div className="border-b border-border sm:border-b-0 sm:border-r">
+                  <MoneyStat
+                    label={t("pages.inventory.columns.costBasis")}
+                    value={formatContractPrice(row.costBasis)}
+                  />
+                </div>
+                <div className="border-b border-border sm:border-b-0 sm:border-r">
+                  <MoneyStat
+                    label={t("pages.inventory.form.taxRate")}
+                    value={
+                      row.taxRatePercent != null
+                        ? `${row.taxRatePercent}%`
+                        : "—"
+                    }
+                  />
+                </div>
+                <div>
+                  <MoneyStat
+                    label={t("pages.inventory.form.saleTaxAmount")}
+                    value={formatContractPrice(row.taxAmount)}
+                  />
+                </div>
               </div>
             </div>
             <p className="border-t border-border px-4 py-2 text-[11px] leading-4 text-muted sm:px-5">

@@ -5,6 +5,7 @@ import BpjsEmployeeTable from "@/components/billing/BpjsEmployeeTable";
 import BpjsPaidTable from "@/components/billing/BpjsPaidTable";
 import AppShell from "@/components/layout/AppShell";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import {
   currentBpjsPeriod,
   getBpjsFinanceProgramDetail,
@@ -95,7 +96,7 @@ export default async function BpjsProgramDetailPage({
         </p>
       </div>
 
-      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <DirectoryStatGrid className="mb-5">
         <DirectoryStatCard
           compact
           title={t("pages.bpjs.alreadyPaid")}
@@ -114,7 +115,7 @@ export default async function BpjsProgramDetailPage({
           value={formatContractPrice(detail.line.remaining)}
           accent={detail.line.remaining > 0 ? "warning" : "muted"}
         />
-      </div>
+      </DirectoryStatGrid>
 
       <p className="mb-5 text-sm text-muted">
         {t("pages.bpjs.payInExpensesHint")}

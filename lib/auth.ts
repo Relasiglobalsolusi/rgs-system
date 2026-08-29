@@ -5,6 +5,12 @@ import bcrypt from "bcryptjs";
 
 import { normalizeUsername } from "@/lib/username";
 import {
+  AUTH_ACTIVE_SESSION_CODE,
+  claimLoginSession,
+  clearLoginSession,
+  isLiveLoginSession,
+} from "@/lib/auth-session";
+import {
   needsRecoveryEmail,
   normalizeRecoveryEmail,
   syncRecoverablePasswordOnLogin,
@@ -34,12 +40,19 @@ export const authOptions: NextAuthOptions = {
           label: "Password",
           type: "password",
         },
+        forceCloseOtherSession: {
+          label: "Force Close Other Session",
+          type: "text",
+        },
       },
 
       async authorize(credentials) {
         const loginId = credentials?.username?.trim() ?? "";
         const username = loginId ? normalizeUsername(loginId) : "";
         const password = credentials?.password;
+        const forceCloseOtherSession =
+          String(credentials?.forceCloseOtherSession ?? "").toLowerCase() ===
+          "true";
 
         if (!username || !password) {
           return null;
@@ -73,7 +86,9 @@ export const authOptions: NextAuthOptions = {
                 category: {
                   select: { name: true, prefix: true, slug: true },
                 },
-                jobPosition: { select: { slug: true, name: true } },
+                jobPosition: {
+                  select: { slug: true, name: true, defaultModuleAccess: true },
+                },
               },
             },
           },
@@ -126,6 +141,15 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
+        if (
+          isLiveLoginSession(user.sessionToken, user.sessionIssuedAt) &&
+          !forceCloseOtherSession
+        ) {
+          throw new Error(AUTH_ACTIVE_SESSION_CODE);
+        }
+
+        const { sessionToken } = await claimLoginSession(user.id);
+
         await syncRecoverablePasswordOnLogin(
           user.id,
           {
@@ -172,6 +196,7 @@ export const authOptions: NextAuthOptions = {
           sidebarOrder,
           mustSetPassword: user.mustSetPassword,
           mustSetRecoveryEmail: needsRecoveryEmail(user.email),
+          sessionToken,
         };
       },
     }),
@@ -186,6 +211,21 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
     maxAge: 8 * 60 * 60,
+  },
+
+  events: {
+    async signOut(message) {
+      const token =
+        "token" in message && message.token
+          ? (message.token as { id?: unknown; sessionToken?: unknown })
+          : null;
+      const userId = token?.id ? String(token.id) : "";
+      if (!userId) return;
+      const sessionToken = token?.sessionToken
+        ? String(token.sessionToken)
+        : null;
+      await clearLoginSession(userId, sessionToken);
+    },
   },
 
   callbacks: {
@@ -208,13 +248,18 @@ export const authOptions: NextAuthOptions = {
               prefix: string;
               slug?: string | null;
             } | null;
-            jobPosition?: { slug: string; name: string } | null;
+            jobPosition?: {
+              slug: string;
+              name: string;
+              defaultModuleAccess?: unknown;
+            } | null;
           } | null;
           employeeType?: EmployeeType | null;
           moduleOverrides?: Record<string, boolean> | null;
           sidebarOrder?: SidebarOrder | null;
           mustSetPassword?: boolean;
           mustSetRecoveryEmail?: boolean;
+          sessionToken?: string | null;
         };
 
         token.id = authenticatedUser.id;
@@ -240,6 +285,7 @@ export const authOptions: NextAuthOptions = {
         token.mustSetPassword = authenticatedUser.mustSetPassword ?? false;
         token.mustSetRecoveryEmail =
           authenticatedUser.mustSetRecoveryEmail ?? false;
+        token.sessionToken = authenticatedUser.sessionToken ?? null;
         delete token.error;
       } else if (trigger === "update" && session) {
         // Client session.update() — apply payload first so sidebarOrder
@@ -263,6 +309,13 @@ export const authOptions: NextAuthOptions = {
       if (token.id && !token.error) {
         const access = await fetchSessionAccessState(String(token.id));
         if (!access.allowed) {
+          return { ...token, error: "AccessRevoked" };
+        }
+        // Another device claimed this account — invalidate this JWT.
+        if (
+          access.sessionToken &&
+          (!token.sessionToken || access.sessionToken !== token.sessionToken)
+        ) {
           return { ...token, error: "AccessRevoked" };
         }
         // Keep permissions / sidebar prefs in sync after DB changes.

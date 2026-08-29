@@ -31,6 +31,7 @@ import {
   type CardTintAccent,
 } from "@/components/ui/card-tint";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PhoneInput } from "@/components/ui/PhoneInput";
@@ -169,7 +170,7 @@ export default function CompanyDetailsForm({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <DirectoryStatGrid>
         <DirectoryStatCard
           compact
           tinted
@@ -212,7 +213,7 @@ export default function CompanyDetailsForm({
           accent={bankAccounts.length > 0 ? "success" : "muted"}
           icon={<Wallet size={18} />}
         />
-      </div>
+      </DirectoryStatGrid>
 
       <form
         onSubmit={(event) =>

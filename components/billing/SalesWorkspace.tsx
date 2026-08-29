@@ -22,6 +22,7 @@ import type {
 import DirectoryAddButton from "@/components/ui/DirectoryAddButton";
 import DirectorySearchInput from "@/components/ui/DirectorySearchInput";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import { useT } from "@/lib/i18n/use-t";
 import type { CompanyBankAccountOption } from "@/lib/company-bank-accounts";
 import { formatContractPrice } from "@/lib/project-billing";
@@ -113,7 +114,7 @@ export default function SalesWorkspace({
         ) : null}
       </div>
 
-      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <DirectoryStatGrid className="mb-5">
         <DirectoryStatCard
           compact
           title={t("pages.sales.totalSales")}
@@ -153,14 +154,14 @@ export default function SalesWorkspace({
           icon={<Receipt size={18} />}
           accent="info"
         />
-      </div>
+      </DirectoryStatGrid>
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <DirectorySearchInput
           value={searchQuery}
           onChange={setSearchQuery}
           placeholder={t("pages.sales.searchPlaceholder")}
-          className="min-w-[12rem] w-auto max-w-none flex-1"
+          className="min-w-0 w-full max-w-none sm:min-w-[12rem] sm:flex-1"
         />
       </div>
 

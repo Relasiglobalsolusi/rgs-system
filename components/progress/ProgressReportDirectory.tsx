@@ -14,6 +14,7 @@ import {
 } from "@/components/employees/employee-dialog-ui";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import ImageLightbox from "@/components/ui/ImageLightbox";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -156,7 +157,7 @@ export default function ProgressReportDirectory({
 
   return (
     <>
-      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <DirectoryStatGrid className="mb-5">
         <DirectoryStatCard
           compact
           tinted
@@ -181,7 +182,7 @@ export default function ProgressReportDirectory({
           accent="warning"
           icon={<Camera size={18} />}
         />
-      </div>
+      </DirectoryStatGrid>
 
       <div className="space-y-6">
         {projects.map((project) => {

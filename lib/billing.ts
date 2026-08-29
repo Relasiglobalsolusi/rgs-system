@@ -184,6 +184,42 @@ export function projectHistoryWhere(): Prisma.ProjectWhereInput {
 }
 
 /**
+ * Live contracts (Regular Cleaning and the rest) that already have a paid
+ * billing period. The project stays In Progress; the period belongs in
+ * Completed Projects → Completed Periods.
+ */
+export function completedPaidPeriodProjectWhere(): Prisma.ProjectWhereInput {
+  return {
+    status: { notIn: ["CANCELLED", "COMPLETED", "PLANNED"] as ProjectStatus[] },
+    invoicePeriods: { some: { status: "PAID" } },
+  };
+}
+
+/** Ended contracts plus live contracts that have at least one paid period. */
+export function completedDirectoryWhere(): Prisma.ProjectWhereInput {
+  return {
+    OR: [projectHistoryWhere(), completedPaidPeriodProjectWhere()],
+  };
+}
+
+/** Paid billing periods, newest cycle first. */
+export function listCompletedPaidPeriods<
+  T extends {
+    status: string;
+    periodEnd?: Date | string | null;
+    paidAt?: Date | string | null;
+  },
+>(periods: T[]): T[] {
+  return [...periods]
+    .filter((period) => period.status === "PAID")
+    .sort((a, b) => {
+      const endDiff = periodStartMs(b.periodEnd) - periodStartMs(a.periodEnd);
+      if (endDiff !== 0) return endDiff;
+      return periodStartMs(b.paidAt) - periodStartMs(a.paidAt);
+    });
+}
+
+/**
  * Prisma filter: projects that belong in Invoice and Billing directories.
  * In Progress always; COMPLETED only while collection / issuing remains.
  * Planning is excluded — invoicing starts after Move to In Progress.

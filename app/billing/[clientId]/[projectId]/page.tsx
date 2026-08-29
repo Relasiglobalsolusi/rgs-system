@@ -229,6 +229,7 @@ export default async function BillingProjectPage({
                       paymentTermsDays={project.paymentTermsDays}
                       canManage={canManage}
                       isClientPortal={Boolean(session.user.clientId)}
+                      projectStatus={project.status}
                       subCategory={project.subCategory}
                       contractExtensions={project.contractExtensions.map(
                         (row) => ({
@@ -357,6 +358,7 @@ export default async function BillingProjectPage({
           paymentTermsDays={project.paymentTermsDays}
           canManage={canManage}
           isClientPortal={Boolean(session.user.clientId)}
+          projectStatus={project.status}
           subCategory={project.subCategory}
           contractExtensions={project.contractExtensions.map((row) => ({
             id: row.id,

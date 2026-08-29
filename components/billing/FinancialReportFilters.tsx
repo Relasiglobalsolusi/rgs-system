@@ -80,7 +80,7 @@ export default function FinancialReportFilters({
 
   return (
     <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-      <label className="grid min-w-[11rem] gap-1.5">
+      <label className="grid min-w-0 w-full gap-1.5 sm:min-w-[11rem] sm:w-auto">
         <span className="text-xs font-semibold uppercase tracking-wide text-subtle">
           {t("pages.financialReport.filterPeriod")}
         </span>
@@ -130,7 +130,7 @@ export default function FinancialReportFilters({
         </Select>
       </label>
 
-      <label className="grid min-w-[7rem] gap-1.5">
+      <label className="grid min-w-0 w-full gap-1.5 sm:min-w-[7rem] sm:w-auto">
         <span className="text-xs font-semibold uppercase tracking-wide text-subtle">
           {t("pages.financialReport.filterYear")}
         </span>
@@ -162,7 +162,7 @@ export default function FinancialReportFilters({
         </Select>
       </label>
 
-      <label className="grid min-w-[14rem] flex-1 gap-1.5">
+      <label className="grid min-w-0 w-full flex-1 gap-1.5 sm:min-w-[14rem]">
         <span className="text-xs font-semibold uppercase tracking-wide text-subtle">
           {t("pages.financialReport.filterReport")}
         </span>
@@ -205,7 +205,7 @@ export default function FinancialReportFilters({
         </Select>
       </label>
 
-      <label className="grid min-w-[14rem] gap-1.5">
+      <label className="grid min-w-0 w-full gap-1.5 sm:min-w-[14rem]">
         <span className="text-xs font-semibold uppercase tracking-wide text-subtle">
           {t("pages.financialReport.filterBank")}
         </span>

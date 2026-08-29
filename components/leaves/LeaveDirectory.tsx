@@ -9,6 +9,7 @@ import LeaveRequestTable, {
 } from "@/components/leaves/LeaveRequestTable";
 import DirectoryFilterTab from "@/components/ui/DirectoryFilterTab";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
 import { useT } from "@/lib/i18n/use-t";
@@ -95,7 +96,7 @@ export default function LeaveDirectory({
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+      <DirectoryStatGrid gapClassName="gap-2.5">
         <DirectoryStatCard
           compact
           title={t("pages.leaves.stats.permissionTitle")}
@@ -136,7 +137,7 @@ export default function LeaveDirectory({
           selected={statusFilter === "APPROVED"}
           onClick={() => toggleStatus("APPROVED")}
         />
-      </div>
+      </DirectoryStatGrid>
 
       <div className="flex flex-wrap items-center gap-2">
         <DirectoryFilterTab
@@ -164,7 +165,7 @@ export default function LeaveDirectory({
           {t("pages.leaves.sickSection")}
         </DirectoryFilterTab>
         {canSubmit ? (
-          <div className="ml-auto">
+          <div className="w-full sm:ml-auto sm:w-auto">
             <LeaveDialog />
           </div>
         ) : null}

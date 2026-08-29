@@ -34,7 +34,11 @@ import {
   usesInvoicePeriods,
 } from "@/lib/project-billing";
 import { isContractCycleSubCategory } from "@/lib/project-contract";
-import { shouldCompleteProjectAfterSettlement } from "@/lib/project-settlement";
+import {
+  assertProjectTermsEditable,
+  shouldCompleteProjectAfterSettlement,
+} from "@/lib/project-settlement";
+import { releaseAllProjectCrew } from "@/lib/workforce-crew";
 import { OPEN_COLLECTION_STATUSES } from "@/lib/billing";
 import {
   customDayCyclePeriodBounds,
@@ -897,6 +901,7 @@ export async function updateProjectContractPrice(formData: FormData) {
     select: {
       id: true,
       clientId: true,
+      status: true,
       billingMode: true,
       subCategory: true,
       serviceArea: true,
@@ -919,6 +924,7 @@ export async function updateProjectContractPrice(formData: FormData) {
   });
 
   if (!project) throw new Error("Project not found.");
+  assertProjectTermsEditable(project.status);
 
   await assertCanApproveProjectServiceArea({
     userId: session.user.id,
@@ -1861,8 +1867,11 @@ async function applyInvoicePeriodPaid(
           status: "ONGOING",
         },
       });
-      // Crew already released on last-pack approve or End Contract. Do not
-      // release on Mark Paid.
+      // Last invoice collected: crew/equipment leave the live pool. Keep
+      // assignment rows so Completed Projects can show staff history.
+      await releaseAllProjectCrew(tx, project.id, {
+        keepAssignmentHistory: true,
+      });
     });
   } else if (
     project.billingMode === "MONTHLY" &&

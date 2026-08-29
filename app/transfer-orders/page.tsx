@@ -7,6 +7,7 @@ import TransferOrderBreadcrumbs from "@/components/transfer-orders/TransferOrder
 import TransferOrderClientDirectory from "@/components/transfer-orders/TransferOrderClientDirectory";
 import TransferOrderPendingCards from "@/components/transfer-orders/TransferOrderPendingCards";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import { createTranslator } from "@/lib/i18n/translate";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { requireModule } from "@/lib/session";
@@ -29,7 +30,7 @@ export default async function TransferOrdersPage() {
         descriptionKey="pages.transferOrders.description"
       />
 
-      <div className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <DirectoryStatGrid className="mb-5">
         <DirectoryStatCard
           compact
           tinted
@@ -62,7 +63,7 @@ export default async function TransferOrdersPage() {
           accent="primary"
           icon={<Landmark size={18} />}
         />
-      </div>
+      </DirectoryStatGrid>
 
       <TransferOrderPendingCards orders={directory.pendingOrders} />
 

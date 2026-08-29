@@ -77,6 +77,7 @@ import { toActionError } from "@/lib/prisma-errors";
 import { canManageInventory, canManageItemCatalog } from "@/lib/project-access";
 import { writeRecordChange } from "@/lib/record-change";
 import { decimalToNumber } from "@/lib/project-billing";
+import { assertProjectWorkforceEditable } from "@/lib/project-settlement";
 import { requireModule, requireSession, toPermissionUser } from "@/lib/session";
 import { capitalizeProper, titleCaseWords } from "@/lib/text-case";
 import { formatUserDisplayLabel } from "@/lib/user-display";
@@ -613,31 +614,6 @@ export async function updateInventoryItem(formData: FormData) {
   }
 }
 
-export async function deactivateInventoryItem(formData: FormData) {
-  const locale = await getServerLocale();
-  try {
-    await assertCanManageItemCatalog(locale);
-    const id = String(formData.get("id") ?? "").trim();
-    const company = await requireCompany(locale);
-    const item = await prisma.inventoryItem.findFirst({
-      where: { id, companyId: company.id, deletedAt: null },
-    });
-    if (!item) {
-      throw new Error(translate(locale, "pages.inventory.itemNotFound"));
-    }
-    await prisma.inventoryItem.update({
-      where: { id },
-      data: { active: false },
-    });
-    revalidateInventory();
-  } catch (error) {
-    throw toActionError(
-      error,
-      translate(locale, "pages.inventory.deactivateItemFailed")
-    );
-  }
-}
-
 /**
  * Delete catalog item: hard-delete only when unused (no purchases, movements, assets).
  * If history exists, soft-delete (`deletedAt` + inactive) so purchase/issue history remains.
@@ -681,31 +657,6 @@ export async function deleteInventoryItem(formData: FormData) {
     throw toActionError(
       error,
       translate(locale, "pages.inventory.deleteItemFailed")
-    );
-  }
-}
-
-export async function reactivateInventoryItem(formData: FormData) {
-  const locale = await getServerLocale();
-  try {
-    await assertCanManageItemCatalog(locale);
-    const id = String(formData.get("id") ?? "").trim();
-    const company = await requireCompany(locale);
-    const item = await prisma.inventoryItem.findFirst({
-      where: { id, companyId: company.id, deletedAt: null },
-    });
-    if (!item) {
-      throw new Error(translate(locale, "pages.inventory.itemNotFound"));
-    }
-    await prisma.inventoryItem.update({
-      where: { id },
-      data: { active: true },
-    });
-    revalidateInventory();
-  } catch (error) {
-    throw toActionError(
-      error,
-      translate(locale, "pages.inventory.reactivateItemFailed")
     );
   }
 }
@@ -1875,6 +1826,16 @@ export async function createInventorySoldOff(formData: FormData) {
         }
         throw error;
       }
+
+      if (isVehicleItemType(item.itemType)) {
+        const { returnVehicleCardsToPool } = await import(
+          "@/lib/prepaid-card-lifecycle"
+        );
+        await returnVehicleCardsToPool(tx, {
+          companyId: company.id,
+          vehicleItemId: item.id,
+        });
+      }
     });
 
     revalidateSales();
@@ -2335,6 +2296,14 @@ export async function voidProjectInventoryIssue(formData: FormData) {
     });
     if (!movement || !movement.projectId) {
       throw new Error(translate(locale, "pages.inventory.movementNotFound"));
+    }
+
+    const project = await prisma.project.findFirst({
+      where: { id: movement.projectId, companyId: company.id },
+      select: { status: true },
+    });
+    if (project) {
+      assertProjectWorkforceEditable(project.status);
     }
 
     // ISSUE_TO_PROJECT quantities are stored negative — restore with abs

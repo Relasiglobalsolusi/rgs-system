@@ -228,7 +228,11 @@ export default function LeaveDialog() {
         disablePointerDismissal
       >
         <DialogTrigger asChild>
-          <Button variant="successBadge" size="badgeFlex">
+          <Button
+            variant="successBadge"
+            size="badgeFlex"
+            className="w-fit max-w-full shrink-0"
+          >
             <Plus className="h-3.5 w-3.5 shrink-0" />
             {t("pages.leaves.newRequest")}
           </Button>
@@ -259,7 +263,7 @@ export default function LeaveDialog() {
                 {t("pages.leaves.requestType")}
               </label>
               <div
-                className="grid grid-cols-2 gap-2.5"
+                className="grid grid-cols-1 gap-2.5 sm:grid-cols-2"
                 role="radiogroup"
                 aria-label={t("pages.leaves.requestType")}
               >

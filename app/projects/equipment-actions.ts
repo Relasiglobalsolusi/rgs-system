@@ -20,6 +20,7 @@ import { translate } from "@/lib/i18n/translate";
 import { requireModule, toPermissionUser } from "@/lib/session";
 import { canManageInventory } from "@/lib/project-access";
 import { decimalToNumber } from "@/lib/project-billing";
+import { assertProjectWorkforceEditable } from "@/lib/project-settlement";
 import type { AppLocale } from "@/lib/i18n/locale";
 
 async function assertCanAssignEquipment(locale: AppLocale) {
@@ -75,6 +76,15 @@ export async function releaseEquipmentAssetFromProject(formData: FormData) {
     if (!projectId) {
       throw new Error(translate(locale, "pages.inventory.projectRequired"));
     }
+
+    const project = await prisma.project.findFirst({
+      where: { id: projectId, companyId: company.id },
+      select: { status: true },
+    });
+    if (!project) {
+      throw new Error(translate(locale, "pages.inventory.projectRequired"));
+    }
+    assertProjectWorkforceEditable(project.status);
 
     await prisma.$transaction(async (tx) => {
       const asset = await tx.equipmentAsset.findFirst({

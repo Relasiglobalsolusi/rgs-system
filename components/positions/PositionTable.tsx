@@ -18,7 +18,32 @@ import {
   localizeJobTitle,
 } from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
+import {
+  getEmployeeModuleOverrides,
+  getVisibleModules,
+  type ModuleKey,
+} from "@/lib/permissions";
 import { titleCaseWords } from "@/lib/text-case";
+
+const VISIBLE_MODULES = getVisibleModules();
+
+function positionModuleAccessCount(position: PositionRow): {
+  enabled: number;
+  total: number;
+} {
+  const access = getEmployeeModuleOverrides({
+    jobPosition: {
+      slug: position.slug,
+      name: position.name,
+      defaultModuleAccess: position.defaultModuleAccess,
+    },
+  });
+  return {
+    enabled: VISIBLE_MODULES.filter((module: ModuleKey) => access[module])
+      .length,
+    total: VISIBLE_MODULES.length,
+  };
+}
 
 const ALL_DEPARTMENTS = "all";
 
@@ -175,6 +200,21 @@ export default function PositionTable({
       ),
     },
     {
+      key: "moduleAccess",
+      title: t("pages.employees.columns.moduleAccess"),
+      render: (position) => {
+        const { enabled, total } = positionModuleAccessCount(position);
+        return (
+          <span className="text-muted">
+            {t("pages.employees.positionDialog.moduleAccessCount", {
+              enabled,
+              total,
+            })}
+          </span>
+        );
+      },
+    },
+    {
       key: "status",
       title: t("common.labels.status"),
       cellAlign: "center",
@@ -190,7 +230,7 @@ export default function PositionTable({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-sm text-subtle">
           <BriefcaseBusiness className="h-4 w-4 text-cyan-400" />
           {t(

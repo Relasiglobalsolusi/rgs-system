@@ -31,6 +31,7 @@ export default function ContractPriceEditor({
   isGovernmentContract = false,
   canManage,
   milestone = false,
+  lockedHint = null,
 }: {
   projectId: string;
   contractPrice: number | null;
@@ -40,6 +41,7 @@ export default function ContractPriceEditor({
   isGovernmentContract?: boolean | null;
   canManage: boolean;
   milestone?: boolean;
+  lockedHint?: string | null;
 }) {
   const { t } = useT();
   const router = useRouter();
@@ -131,9 +133,14 @@ export default function ContractPriceEditor({
           </p>
         </div>
       ) : (
-        <p className="mt-1 text-lg font-semibold text-text">
-          {formatContractPrice(contractPrice)}
-        </p>
+        <div className="mt-1 space-y-1">
+          <p className="text-lg font-semibold text-text">
+            {formatContractPrice(contractPrice)}
+          </p>
+          {lockedHint ? (
+            <p className="text-xs text-subtle">{lockedHint}</p>
+          ) : null}
+        </div>
       )}
     </div>
   );

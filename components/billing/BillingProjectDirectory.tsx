@@ -180,18 +180,24 @@ export default function BillingProjectDirectory({
                 {statusLines ? undefined : statusLabel}
               </StatusBadge>
               {project.openInvoices > 0 ? (
-                <StatusBadge status="warning" compact>
-                  {t("pages.billing.openCount", {
-                    count: project.openInvoices,
-                  })}
-                </StatusBadge>
+                <div className="flex flex-col items-center gap-1">
+                  <StatusBadge status="warning" compact className="w-fit shrink-0">
+                    {t("pages.billing.open")}
+                  </StatusBadge>
+                  <span className="text-xs tabular-nums text-muted">
+                    {project.openInvoices}
+                  </span>
+                </div>
               ) : null}
               {project.lateInvoices > 0 ? (
-                <StatusBadge status="danger" compact>
-                  {t("pages.billing.lateCount", {
-                    count: project.lateInvoices,
-                  })}
-                </StatusBadge>
+                <div className="flex flex-col items-center gap-1">
+                  <StatusBadge status="danger" compact className="w-fit shrink-0">
+                    {t("pages.billing.late")}
+                  </StatusBadge>
+                  <span className="text-xs tabular-nums text-muted">
+                    {project.lateInvoices}
+                  </span>
+                </div>
               ) : null}
             </div>
           );
@@ -246,7 +252,7 @@ export default function BillingProjectDirectory({
               aria-label={t("pages.billing.filterSubcategory")}
               className={cn(
                 directoryFilterSelectTriggerClass,
-                "w-full min-w-[12rem] sm:w-[14rem]"
+                "min-w-0 w-full sm:min-w-[12rem] sm:w-[14rem]"
               )}
             >
               <SelectValue>
@@ -273,7 +279,7 @@ export default function BillingProjectDirectory({
             value={searchQuery}
             onChange={setSearchQuery}
             placeholder={t("pages.billing.searchProjects")}
-            className="max-w-none sm:max-w-xs"
+            className="min-w-0 w-full max-w-none sm:max-w-xs sm:flex-1"
           />
         </div>
       </div>

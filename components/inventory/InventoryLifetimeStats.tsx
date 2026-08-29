@@ -61,40 +61,44 @@ export default function InventoryLifetimeStats({
     loading || value == null ? "—" : formatInventoryQtyWithUnit(value, unit);
 
   return (
-    <div className="grid grid-cols-2 border-t border-border sm:grid-cols-3 lg:grid-cols-5">
-      <div className="border-b border-border sm:border-b-0 sm:border-r lg:border-b-0">
-        <QtyStat
-          label={t("pages.inventory.stockDetailBought")}
-          value={qty(totalBought)}
-          emphasize
-        />
+    <div className="border-t border-border">
+      <div className="grid grid-cols-2">
+        <div className="border-b border-r border-border">
+          <QtyStat
+            label={t("pages.inventory.stockDetailBought")}
+            value={qty(totalBought)}
+            emphasize
+          />
+        </div>
+        <div className="border-b border-border">
+          <QtyStat
+            label={t("pages.inventory.stockDetailInStock")}
+            value={formatInventoryQtyWithUnit(currentStock, unit)}
+            emphasize
+            tone={lowStock ? "text-warning" : undefined}
+          />
+        </div>
       </div>
-      <div className="border-b border-border sm:border-b-0 sm:border-r lg:border-b-0">
-        <QtyStat
-          label={t("pages.inventory.stockDetailInStock")}
-          value={formatInventoryQtyWithUnit(currentStock, unit)}
-          emphasize
-          tone={lowStock ? "text-warning" : undefined}
-        />
-      </div>
-      <div className="border-b border-border sm:border-b-0 sm:border-r lg:border-b-0">
-        <QtyStat
-          label={t("pages.inventory.stockDetailAssigned")}
-          value={qty(totalAssigned)}
-          emphasize
-        />
-      </div>
-      <div className="border-b border-border sm:border-b-0 sm:border-r lg:border-b-0">
-        <QtyStat
-          label={t("pages.inventory.stockDetailSold")}
-          value={qty(totalSold)}
-        />
-      </div>
-      <div>
-        <QtyStat
-          label={t("pages.inventory.stockDetailWrittenOff")}
-          value={qty(totalWrittenOff)}
-        />
+      <div className="grid grid-cols-1 sm:grid-cols-3">
+        <div className="border-b border-border sm:border-b-0 sm:border-r">
+          <QtyStat
+            label={t("pages.inventory.stockDetailAssigned")}
+            value={qty(totalAssigned)}
+            emphasize
+          />
+        </div>
+        <div className="border-b border-border sm:border-b-0 sm:border-r">
+          <QtyStat
+            label={t("pages.inventory.stockDetailSold")}
+            value={qty(totalSold)}
+          />
+        </div>
+        <div>
+          <QtyStat
+            label={t("pages.inventory.stockDetailWrittenOff")}
+            value={qty(totalWrittenOff)}
+          />
+        </div>
       </div>
     </div>
   );

@@ -32,7 +32,7 @@ export type SidebarOrder = {
 };
 
 /** Default category order from the canonical menu definition. */
-export const DEFAULT_SECTION_ORDER: string[] = menu.map(
+const DEFAULT_SECTION_ORDER: string[] = menu.map(
   (section) => section.title
 );
 

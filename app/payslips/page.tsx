@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Landmark, Shield, Users, Wallet } from "lucide-react";
 
 import { financeToolbarActionClass } from "@/components/billing/finance-toolbar";
 import AppShell from "@/components/layout/AppShell";
 import PageIntro from "@/components/i18n/PageIntro";
+import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
 import { getEmployeeCompanyBalances } from "@/lib/employee-company-balance";
@@ -49,6 +52,14 @@ export default async function PayslipsPage() {
       heldBpjsShare: balance?.heldBpjsShare ?? 0,
     };
   });
+  const totals = rows.reduce(
+    (sum, row) => ({
+      amountOwed: sum.amountOwed + row.amountOwed,
+      depositHeld: sum.depositHeld + row.depositHeld,
+      heldBpjsShare: sum.heldBpjsShare + row.heldBpjsShare,
+    }),
+    { amountOwed: 0, depositHeld: 0, heldBpjsShare: 0 }
+  );
 
   return (
     <AppShell titleKey="pages.payslips.title">
@@ -56,6 +67,44 @@ export default async function PayslipsPage() {
         titleKey="pages.payslips.directoryTitle"
         descriptionKey="pages.payslips.directoryDesc"
       />
+      <DirectoryStatGrid className="mb-5" gapClassName="gap-2">
+        <DirectoryStatCard
+          compact
+          tinted
+          title={t("pages.payslips.cards.employees")}
+          value={rows.length}
+          subtitle={t("pages.payslips.cards.employeesSubtitle")}
+          icon={<Users size={16} />}
+          accent="primary"
+        />
+        <DirectoryStatCard
+          compact
+          tinted
+          title={t("pages.payslips.cards.amountOwed")}
+          value={formatContractPrice(totals.amountOwed)}
+          subtitle={t("pages.payslips.cards.amountOwedSubtitle")}
+          icon={<Wallet size={16} />}
+          accent={totals.amountOwed > 0 ? "danger" : "muted"}
+        />
+        <DirectoryStatCard
+          compact
+          tinted
+          title={t("pages.payslips.cards.deposits")}
+          value={formatContractPrice(totals.depositHeld)}
+          subtitle={t("pages.payslips.cards.depositsSubtitle")}
+          icon={<Shield size={16} />}
+          accent="info"
+        />
+        <DirectoryStatCard
+          compact
+          tinted
+          title={t("pages.payslips.cards.bpjsHeld")}
+          value={formatContractPrice(totals.heldBpjsShare)}
+          subtitle={t("pages.payslips.cards.bpjsHeldSubtitle")}
+          icon={<Landmark size={16} />}
+          accent="warning"
+        />
+      </DirectoryStatGrid>
       <div className="mb-4 flex justify-end">
         <Link href="/billing/payroll" className={financeToolbarActionClass}>
           {t("pages.payslips.openPayroll")}
@@ -72,7 +121,7 @@ export default async function PayslipsPage() {
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full table-fixed text-left text-sm">
+            <table className="w-full min-w-[36rem] text-left text-sm">
               <thead className="border-b border-border text-xs font-medium text-muted">
                 <tr>
                   <th className="px-3 py-2 text-left font-medium">

@@ -1,9 +1,11 @@
 import {
+  listCompletedPaidPeriods,
   listPaymentDuePeriods,
   listPendingApprovalPeriods,
 } from "@/lib/billing";
 import { formatDisplayDate } from "@/lib/format-date";
 import { decimalToNumber } from "@/lib/project-billing";
+import { isContractCycleSubCategory } from "@/lib/project-contract";
 import { PROJECT_SITE_WORK_STATUSES } from "@/lib/project-status";
 
 export type ProjectDirectoryView =
@@ -20,6 +22,7 @@ export type ProjectDirectoryRowKind =
   | "pending-approval"
   | "payment-due"
   | "completed"
+  | "completed-period"
   | "other";
 
 type DirectoryPeriodBase = {
@@ -27,6 +30,7 @@ type DirectoryPeriodBase = {
   status: string;
   clientReviewStatus?: string | null;
   dueAt?: Date | string | null;
+  paidAt?: Date | string | null;
   periodStart?: Date | string | null;
   periodEnd?: Date | string | null;
   label?: string | null;
@@ -35,6 +39,7 @@ type DirectoryPeriodBase = {
 type DirectoryProjectBase = {
   id: string;
   status: string;
+  subCategory?: string | null;
   invoicePeriods: DirectoryPeriodBase[];
 };
 
@@ -153,7 +158,11 @@ export type ProjectDirectoryItem<P extends DirectoryProjectBase> = {
 export function isDirectoryPeriodRow(
   kind: ProjectDirectoryRowKind
 ): boolean {
-  return kind === "pending-approval" || kind === "payment-due";
+  return (
+    kind === "pending-approval" ||
+    kind === "payment-due" ||
+    kind === "completed-period"
+  );
 }
 
 export function invoicePeriodElementId(periodId: string): string {
@@ -215,6 +224,8 @@ function kindForProjectStatus(status: string): ProjectDirectoryRowKind {
  * - In Progress / live contract: one row per project (full contract dates).
  * - Pending Approval: one row per real period awaiting approval.
  * - Payment Due: one row per real unpaid issued period.
+ * - Completed: one row per closed job, plus one row per paid period on a
+ *   still-running regular / monthly contract.
  * Same project may appear in those three *tabs* at once. All Projects stays
  * one row per project — queue period rows do not stack under it.
  */
@@ -282,12 +293,25 @@ export function buildProjectDirectoryItems<P extends DirectoryProjectBase>(
     }
 
     if (view === "completed") {
-      items.push({
-        key: project.id,
-        project,
-        kind: "completed",
-        focusPeriod: null,
-      });
+      if (project.status === "COMPLETED") {
+        items.push({
+          key: project.id,
+          project,
+          kind: "completed",
+          focusPeriod: null,
+        });
+        continue;
+      }
+      if (isContractCycleSubCategory(project.subCategory)) {
+        for (const period of listCompletedPaidPeriods(project.invoicePeriods)) {
+          items.push({
+            key: `${project.id}:${period.id}`,
+            project,
+            kind: "completed-period",
+            focusPeriod: period,
+          });
+        }
+      }
       continue;
     }
 
@@ -320,7 +344,9 @@ export function itemsForDirectoryView<T extends { kind: ProjectDirectoryRowKind 
     return items.filter((item) => item.kind === "planning");
   }
   if (view === "completed") {
-    return items.filter((item) => item.kind === "completed");
+    return items.filter(
+      (item) => item.kind === "completed" || item.kind === "completed-period"
+    );
   }
   return items.filter((item) => !isDirectoryPeriodRow(item.kind));
 }

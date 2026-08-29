@@ -739,6 +739,7 @@ async function periodPnl(
     vehiclePurchases,
     importFx,
     pettyCashTopUps,
+    prepaidReturns,
   ] = await Promise.all([
     sumPaidInvoices(companyId, from, toExclusive, bank),
     sumSoldOff(companyId, from, toExclusive, bank),
@@ -769,6 +770,18 @@ async function periodPnl(
     sumPurchases(companyId, { purchaseCategory: "VEHICLE" }, from, toExclusive),
     sumImportRateDifferences(companyId, from, toExclusive),
     sumPurchases(companyId, { purpose: "PETTY_CASH" }, from, toExclusive),
+    prisma.prepaidCardLossRecovery.aggregate({
+      where: {
+        loss: { companyId },
+        source: "PAY_NOW",
+        ...bankAccountWhere(bank),
+        recoveredAt: {
+          ...(from ? { gte: from } : {}),
+          ...(toExclusive ? { lt: toExclusive } : {}),
+        },
+      },
+      _sum: { amount: true },
+    }),
   ]);
 
   const commercialWages = [...wages.entries()]
@@ -793,10 +806,13 @@ async function periodPnl(
       importFx.expense,
   };
 
+  const prepaidReturnIn = decimalToNumber(prepaidReturns._sum.amount) ?? 0;
   const moneyIn =
     (bank === FINANCIAL_REPORT_ALL_BANKS
       ? paidIn + soldOff + payroll.moneyIn + parking.moneyIn + keptIncome
-      : paidIn + soldOff) + importFx.income;
+      : paidIn + soldOff) +
+    importFx.income +
+    prepaidReturnIn;
   const moneyOut =
     inventoryOut +
     projectPurchases +

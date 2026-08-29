@@ -65,3 +65,8 @@ export function setSidebarSectionExpanded(
   state.sections[sectionTitle] = expanded;
   writeState(state);
 }
+
+/** Start every login with all sections and nested items collapsed. */
+export function resetSidebarCollapse() {
+  writeState(emptyState());
+}

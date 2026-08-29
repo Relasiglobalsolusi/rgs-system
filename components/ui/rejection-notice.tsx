@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CircleAlert } from "lucide-react";
+import { CheckCircle2, CircleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -50,6 +50,8 @@ export type ShowRejectionOptions = {
   description?: string;
   /** One or more reasons — what failed and what to revise. */
   reasons: string | string[];
+  /** Visual tone. Default danger (failure). Success for confirmed actions. */
+  tone?: "danger" | "success";
 };
 
 type RejectionNoticeState = {
@@ -57,11 +59,13 @@ type RejectionNoticeState = {
   title?: string;
   description?: string;
   reasons: string[];
+  tone: "danger" | "success";
 };
 
 const EMPTY: RejectionNoticeState = {
   open: false,
   reasons: [],
+  tone: "danger",
 };
 
 let noticeState: RejectionNoticeState = EMPTY;
@@ -85,13 +89,20 @@ function normalizeReasons(reasons: string | string[]): string[] {
  */
 export function showRejection(options: ShowRejectionOptions) {
   const reasons = normalizeReasons(options.reasons);
+  const tone = options.tone === "success" ? "success" : "danger";
   if (reasons.length === 0) {
-    const fallback = translate(getLocale(), "ui.rejectionNotice.title");
+    const fallback = translate(
+      getLocale(),
+      tone === "success"
+        ? "ui.rejectionNotice.successTitle"
+        : "ui.rejectionNotice.title"
+    );
     noticeState = {
       open: true,
       title: options.title?.trim() || undefined,
       description: options.description?.trim() || undefined,
       reasons: [fallback],
+      tone,
     };
     emit();
     return;
@@ -102,8 +113,14 @@ export function showRejection(options: ShowRejectionOptions) {
     title: options.title?.trim() || undefined,
     description: options.description?.trim() || undefined,
     reasons,
+    tone,
   };
   emit();
+}
+
+/** Confirmed outcome — same host dialog as failures, success styling. */
+export function showSuccess(options: ShowRejectionOptions) {
+  showRejection({ ...options, tone: "success" });
 }
 
 /** Convenience for `catch` blocks that currently used `showRejection({ reasons: error.message })`. */
@@ -319,9 +336,17 @@ export function RejectionNoticeHost() {
     };
   }, []);
 
-  const title = state.title ?? t("ui.rejectionNotice.title");
+  const isSuccess = state.tone === "success";
+  const title =
+    state.title ??
+    t(isSuccess ? "ui.rejectionNotice.successTitle" : "ui.rejectionNotice.title");
   const description =
-    state.description ?? t("ui.rejectionNotice.description");
+    state.description ??
+    t(
+      isSuccess
+        ? "ui.rejectionNotice.successDescription"
+        : "ui.rejectionNotice.description"
+    );
 
   return (
     <Dialog
@@ -338,10 +363,24 @@ export function RejectionNoticeHost() {
           "z-[70] flex w-[calc(100%-1.5rem)] max-w-md flex-col gap-0 overflow-hidden rounded-2xl border border-border bg-panel p-0 text-text shadow-[0_24px_48px_-28px_rgba(0,0,0,0.65)] ring-0 sm:max-w-md"
         )}
       >
-        <div className="shrink-0 border-b border-border bg-panel px-5 py-5 pr-12">
+        <div className="shrink-0 border-b border-border bg-panel px-4 py-5 pr-12 sm:px-10">
           <DialogHeader className="gap-3 text-left">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-rose-500/12 ring-1 ring-rose-500/25">
-              <CircleAlert className="h-5 w-5 text-rose-300" aria-hidden />
+            <div
+              className={cn(
+                "flex h-11 w-11 items-center justify-center rounded-xl ring-1",
+                isSuccess
+                  ? "bg-emerald-500/12 ring-emerald-500/25"
+                  : "bg-rose-500/12 ring-rose-500/25"
+              )}
+            >
+              {isSuccess ? (
+                <CheckCircle2
+                  className="h-5 w-5 text-emerald-300"
+                  aria-hidden
+                />
+              ) : (
+                <CircleAlert className="h-5 w-5 text-rose-300" aria-hidden />
+              )}
             </div>
             <DialogTitle className="text-base font-semibold text-text">
               {title}
@@ -352,7 +391,7 @@ export function RejectionNoticeHost() {
           </DialogHeader>
         </div>
 
-        <div className="max-h-[min(50vh,22rem)] min-h-0 overflow-y-auto px-5 py-4">
+        <div className="max-h-[min(50vh,22rem)] min-h-0 overflow-y-auto px-4 py-4 sm:px-10">
           {state.reasons.length === 1 ? (
             <p className="text-sm leading-6 text-text">{state.reasons[0]}</p>
           ) : (
@@ -363,7 +402,10 @@ export function RejectionNoticeHost() {
                   className="flex gap-2.5 text-sm leading-6 text-text"
                 >
                   <span
-                    className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-rose-300/80"
+                    className={cn(
+                      "mt-2 h-1.5 w-1.5 shrink-0 rounded-full",
+                      isSuccess ? "bg-emerald-300/80" : "bg-rose-300/80"
+                    )}
                     aria-hidden
                   />
                   <span>{reason}</span>
@@ -373,7 +415,7 @@ export function RejectionNoticeHost() {
           )}
         </div>
 
-        <DialogFooter className="mt-0 rounded-none border-t border-border bg-strip px-5 py-4 sm:justify-end">
+        <DialogFooter className="mx-0 mb-0 mt-0 flex-col gap-3 rounded-none border-t border-border bg-strip px-4 py-5 sm:flex-col sm:justify-stretch sm:px-10 sm:py-6">
           <Button
             type="button"
             variant="default"

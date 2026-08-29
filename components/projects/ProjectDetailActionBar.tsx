@@ -172,7 +172,7 @@ export default function ProjectDetailActionBar({
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const showBilling = canManage && !inPlanning && Boolean(billingHref);
-  const showEdit = canManage;
+  const showEdit = canManage && editProject.status !== "COMPLETED";
   const showEndContract = canEndContract;
   const showDelete = canDelete || Boolean(deleteBlockedReason);
   const deleteBlocked = Boolean(deleteBlockedReason);

@@ -1,17 +1,7 @@
-import type { Position, Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 
 import { getNextEmployeeNumber } from "@/lib/employee-number";
 import { titleCaseWords } from "@/lib/text-case";
-
-export type PositionOption = Pick<
-  Position,
-  "id" | "name" | "slug" | "description" | "sortOrder" | "active" | "categoryId"
->;
-
-export type PositionRow = PositionOption & {
-  category: { id: string; name: string; slug: string; prefix: string };
-  _count: { employees: number };
-};
 
 type CategoryDb = Pick<
   Prisma.TransactionClient,

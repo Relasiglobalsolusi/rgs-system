@@ -238,7 +238,7 @@ export default function FinancialReportProjectDirectory({
               aria-label={t("pages.financialReport.filterSubcategory")}
               className={cn(
                 directoryFilterSelectTriggerClass,
-                "w-full min-w-[12rem] sm:w-[14rem]"
+                "min-w-0 w-full sm:min-w-[12rem] sm:w-[14rem]"
               )}
             >
               <SelectValue>
@@ -265,7 +265,7 @@ export default function FinancialReportProjectDirectory({
             value={searchQuery}
             onChange={setSearchQuery}
             placeholder={t("pages.financialReport.searchProjects")}
-            className="max-w-none sm:w-auto sm:max-w-xs"
+            className="min-w-0 w-full max-w-none sm:w-auto sm:max-w-xs"
           />
         </div>
       </div>

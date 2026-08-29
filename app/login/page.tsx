@@ -9,6 +9,7 @@ import {
   Eye,
   EyeOff,
   LockKeyhole,
+  MonitorSmartphone,
   ShieldCheck,
   UserRound,
 } from "lucide-react";
@@ -16,8 +17,16 @@ import {
 import AuthLanguageSwitcher from "@/components/auth/AuthLanguageSwitcher";
 import AuthThemeSwitcher from "@/components/auth/AuthThemeSwitcher";
 import AuthLogo from "@/components/auth/AuthLogo";
+import {
+  EmployeeDialogShell,
+  EmployeePrimaryButton,
+  EmployeeSecondaryButton,
+} from "@/components/employees/employee-dialog-ui";
+import { Dialog } from "@/components/ui/dialog";
+import { AUTH_ACTIVE_SESSION_CODE } from "@/lib/auth-session";
 import { RGS_ONE_SLOGAN } from "@/lib/brand";
 import { useT } from "@/lib/i18n/use-t";
+import { resetSidebarCollapse } from "@/lib/sidebar-collapse";
 
 export default function LoginPage() {
   return (
@@ -52,12 +61,50 @@ function LoginContent() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [activeSessionOpen, setActiveSessionOpen] = useState(false);
 
   const highlights = [
     t("auth.highlightProjects"),
     t("auth.highlightProgress"),
     t("auth.highlightLeaves"),
   ];
+
+  async function completeSignIn(forceCloseOtherSession: boolean) {
+    const result = await signIn("credentials", {
+      username: username.trim().toLowerCase(),
+      password,
+      forceCloseOtherSession: forceCloseOtherSession ? "true" : "false",
+      redirect: false,
+      callbackUrl,
+    });
+
+    if (!result?.ok) {
+      const raw = result?.error?.replace(/^Error:\s*/, "") ?? "";
+      if (raw === AUTH_ACTIVE_SESSION_CODE) {
+        setActiveSessionOpen(true);
+        return;
+      }
+      const isAuthFailure =
+        !raw ||
+        raw === "CredentialsSignin" ||
+        raw === "CallbackRouteError" ||
+        /credential/i.test(raw);
+      setErrorMessage(isAuthFailure ? t("auth.invalidCredentials") : raw);
+      return;
+    }
+
+    setActiveSessionOpen(false);
+    resetSidebarCollapse();
+    const session = await getSession();
+    if (session?.user?.mustSetPassword) {
+      router.push("/set-password");
+    } else if (session?.user?.mustSetRecoveryEmail) {
+      router.push("/set-recovery-email");
+    } else {
+      router.push(callbackUrl);
+    }
+    router.refresh();
+  }
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -67,37 +114,22 @@ function LoginContent() {
     setErrorMessage("");
 
     try {
-      const result = await signIn("credentials", {
-        username: username.trim().toLowerCase(),
-        password,
-        redirect: false,
-        callbackUrl,
-      });
-
-      if (!result?.ok) {
-        const raw = result?.error?.replace(/^Error:\s*/, "") ?? "";
-        const isAuthFailure =
-          !raw ||
-          raw === "CredentialsSignin" ||
-          raw === "CallbackRouteError" ||
-          /credential/i.test(raw);
-        setErrorMessage(
-          isAuthFailure ? t("auth.invalidCredentials") : raw
-        );
-        return;
-      }
-
-      const session = await getSession();
-      if (session?.user?.mustSetPassword) {
-        router.push("/set-password");
-      } else if (session?.user?.mustSetRecoveryEmail) {
-        router.push("/set-recovery-email");
-      } else {
-        router.push(callbackUrl);
-      }
-      router.refresh();
+      await completeSignIn(false);
     } catch {
       setErrorMessage(t("auth.signInFailed"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleCloseOtherSession() {
+    setLoading(true);
+    setErrorMessage("");
+    try {
+      await completeSignIn(true);
+    } catch {
+      setErrorMessage(t("auth.signInFailed"));
+      setActiveSessionOpen(false);
     } finally {
       setLoading(false);
     }
@@ -255,12 +287,10 @@ function LoginContent() {
                 </Link>
               </div>
 
-              <div className="auth-text-footer mt-8 text-center text-xs">
-                RGS ONE
-                <span className="mx-3">•</span>
-                {t("auth.enterpriseEdition")}
-                <span className="mx-3">•</span>
-                {t("auth.version", { version: "1.0" })}
+              <div className="auth-text-footer mt-8 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-xs">
+                <span>RGS ONE</span>
+                <span>{t("auth.enterpriseEdition")}</span>
+                <span>{t("auth.version", { version: "1.0" })}</span>
               </div>
             </div>
           </div>
@@ -308,6 +338,47 @@ function LoginContent() {
           </div>
         </section>
       </div>
+
+      <Dialog
+        skipUnsavedGuard
+        open={activeSessionOpen}
+        onOpenChange={(open) => {
+          if (loading) return;
+          setActiveSessionOpen(open);
+        }}
+      >
+        <EmployeeDialogShell
+          icon={MonitorSmartphone}
+          title={t("auth.activeSessionTitle")}
+          description={t("auth.activeSessionDescription")}
+          maxWidth="sm"
+          footer={
+            <div className="flex w-full flex-col gap-3 sm:flex-row sm:justify-end">
+              <EmployeeSecondaryButton
+                disabled={loading}
+                onClick={() => setActiveSessionOpen(false)}
+              >
+                {t("common.actions.cancel")}
+              </EmployeeSecondaryButton>
+              <EmployeePrimaryButton
+                type="button"
+                disabled={loading}
+                onClick={() => {
+                  void handleCloseOtherSession();
+                }}
+              >
+                {loading
+                  ? t("auth.signingIn")
+                  : t("auth.closeOtherSession")}
+              </EmployeePrimaryButton>
+            </div>
+          }
+        >
+          <p className="text-sm leading-6 text-muted">
+            {t("auth.activeSessionHint")}
+          </p>
+        </EmployeeDialogShell>
+      </Dialog>
     </main>
   );
 }

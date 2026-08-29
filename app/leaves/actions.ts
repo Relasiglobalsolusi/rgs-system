@@ -22,6 +22,7 @@ import {
   isEmployeeActiveForOperations,
   syncEmployeeLeaveEmploymentStatus,
 } from "@/lib/leave-employment-status";
+import { isOwnerAccount } from "@/lib/permissions";
 import { toPermissionUser } from "@/lib/session";
 
 async function leaveError(key: string) {
@@ -63,16 +64,26 @@ export async function createLeaveRequest(formData: FormData) {
     proofUrl = await saveUpload(proof, "proofs");
   }
 
-  await prisma.leaveRequest.create({
-    data: {
-      employeeId: employee.id,
-      type: type as "PERMISSION" | "SICK",
-      startDate: start,
-      endDate: end,
-      reason,
-      proofUrl,
-      status: "PENDING",
-    },
+  const ownerLeave = isOwnerAccount(session.user);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.leaveRequest.create({
+      data: {
+        employeeId: employee.id,
+        type: type as "PERMISSION" | "SICK",
+        startDate: start,
+        endDate: end,
+        reason,
+        proofUrl,
+        status: ownerLeave ? "APPROVED" : "PENDING",
+        reviewedById: ownerLeave ? session.user.id : undefined,
+        reviewedAt: ownerLeave ? new Date() : undefined,
+      },
+    });
+
+    if (ownerLeave) {
+      await syncEmployeeLeaveEmploymentStatus(tx, employee.id);
+    }
   });
 
   revalidatePath("/leaves");

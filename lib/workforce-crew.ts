@@ -454,7 +454,11 @@ export async function releaseIdleEmployeesToUnassignedPool(
 
   for (const employee of employees) {
     const remaining = await db.projectAssignment.count({
-      where: { employeeId: employee.id },
+      where: {
+        employeeId: employee.id,
+        AND: [occupyingProjectAssignmentWhere()],
+        project: { status: { notIn: ["COMPLETED", "CANCELLED"] } },
+      },
     });
     if (remaining > 0) continue;
 
@@ -495,7 +499,8 @@ export async function releaseIdleEmployeesToUnassignedPool(
 export async function releaseEmployeesFromProject(
   db: Prisma.TransactionClient,
   projectId: string,
-  employeeIds: string[]
+  employeeIds: string[],
+  options?: { keepAssignmentRows?: boolean }
 ) {
   const uniqueIds = [...new Set(employeeIds.filter(Boolean))];
   if (uniqueIds.length === 0) return;
@@ -503,9 +508,11 @@ export async function releaseEmployeesFromProject(
   const { voidScheduledPartTimePays } = await import("@/lib/petty-cash");
   await voidScheduledPartTimePays(db, { projectId, employeeIds: uniqueIds });
 
-  await db.projectAssignment.deleteMany({
-    where: { projectId, employeeId: { in: uniqueIds } },
-  });
+  if (!options?.keepAssignmentRows) {
+    await db.projectAssignment.deleteMany({
+      where: { projectId, employeeId: { in: uniqueIds } },
+    });
+  }
 
   await releaseIdleEmployeesToUnassignedPool(db, uniqueIds);
 }
@@ -517,7 +524,8 @@ export async function releaseEmployeesFromProject(
  */
 export async function releaseAllProjectCrew(
   db: Prisma.TransactionClient,
-  projectId: string
+  projectId: string,
+  options?: { keepAssignmentHistory?: boolean }
 ) {
   const assignments = await db.projectAssignment.findMany({
     where: { projectId },
@@ -526,7 +534,8 @@ export async function releaseAllProjectCrew(
   await releaseEmployeesFromProject(
     db,
     projectId,
-    assignments.map((row) => row.employeeId)
+    assignments.map((row) => row.employeeId),
+    { keepAssignmentRows: options?.keepAssignmentHistory }
   );
   await releaseProjectEquipmentToInventory(db, projectId);
 }

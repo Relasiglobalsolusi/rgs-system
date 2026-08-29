@@ -112,6 +112,7 @@ type Props = {
   doubleShifts?: ShiftDoubleRow[];
   toolbar?: ReactNode;
   canAssignCover?: boolean;
+  canEditShifts?: boolean;
   projectMissing?: boolean;
   usesNamedShifts?: boolean;
 };
@@ -120,10 +121,12 @@ function ShiftWindowForm({
   row,
   shifts,
   canRemove,
+  canEdit,
 }: {
   row: ShiftWindowRow;
   shifts: ShiftWindowRow[];
   canRemove: boolean;
+  canEdit: boolean;
 }) {
   const { t } = useT();
   const [pending, startTransition] = useTransition();
@@ -175,44 +178,54 @@ function ShiftWindowForm({
         {formatProjectShiftLabel({ number: row.number })}
       </td>
       <td className="w-1/3 px-3 py-3 text-left align-middle">
-        <div className="flex flex-wrap items-center justify-start gap-2">
-          <input
-            type="time"
-            value={start}
-            onChange={(event) => setStart(event.target.value)}
-            className="h-9 rounded-lg border border-border bg-elevated px-2 text-sm text-text"
-            aria-label={t("pages.shifts.shiftStart")}
-          />
-          <span className="text-muted">–</span>
-          <input
-            type="time"
-            value={end}
-            onChange={(event) => setEnd(event.target.value)}
-            className="h-9 rounded-lg border border-border bg-elevated px-2 text-sm text-text"
-            aria-label={t("pages.shifts.shiftEnd")}
-          />
-        </div>
+        {canEdit ? (
+          <div className="flex flex-wrap items-center justify-start gap-2">
+            <input
+              type="time"
+              value={start}
+              onChange={(event) => setStart(event.target.value)}
+              className="h-9 rounded-lg border border-border bg-elevated px-2 text-sm text-text"
+              aria-label={t("pages.shifts.shiftStart")}
+            />
+            <span className="text-muted">–</span>
+            <input
+              type="time"
+              value={end}
+              onChange={(event) => setEnd(event.target.value)}
+              className="h-9 rounded-lg border border-border bg-elevated px-2 text-sm text-text"
+              aria-label={t("pages.shifts.shiftEnd")}
+            />
+          </div>
+        ) : (
+          <p className="text-sm text-text">
+            {row.startTime} – {row.endTime}
+          </p>
+        )}
       </td>
       <td className="w-1/3 px-3 py-3 text-center align-middle">
-        <div className="flex flex-col items-center justify-center gap-2">
-          <Button
-            type="button"
-            size="badge"
-            variant="successBadge"
-            disabled={pending || !dirty}
-            onClick={save}
-          >
-            {pending ? t("pages.shifts.saving") : t("pages.shifts.save")}
-          </Button>
-          {canRemove ? (
-            <ShiftsRemoveShiftChip
-              shiftId={row.id}
-              number={row.number}
-              startTime={row.startTime}
-              endTime={row.endTime}
-            />
-          ) : null}
-        </div>
+        {canEdit ? (
+          <div className="flex flex-col items-center justify-center gap-2">
+            <Button
+              type="button"
+              size="badge"
+              variant="successBadge"
+              disabled={pending || !dirty}
+              onClick={save}
+            >
+              {pending ? t("pages.shifts.saving") : t("pages.shifts.save")}
+            </Button>
+            {canRemove ? (
+              <ShiftsRemoveShiftChip
+                shiftId={row.id}
+                number={row.number}
+                startTime={row.startTime}
+                endTime={row.endTime}
+              />
+            ) : null}
+          </div>
+        ) : (
+          <span className="text-xs text-muted">—</span>
+        )}
       </td>
     </tr>
   );
@@ -223,12 +236,14 @@ function StaffShiftForm({
   shifts,
   doubleShifts,
   canAssignCover,
+  canEdit,
   hideShift = false,
 }: {
   row: ShiftAssignmentRow;
   shifts: ShiftWindowRow[];
   doubleShifts: ShiftDoubleRow[];
   canAssignCover: boolean;
+  canEdit: boolean;
   hideShift?: boolean;
 }) {
   const { t, locale } = useT();
@@ -283,6 +298,7 @@ function StaffShiftForm({
       </td>
       {hideShift ? null : (
       <td className="px-3 py-3 align-middle">
+        {canEdit ? (
         <Select
           value={selected}
           onValueChange={(value) => {
@@ -290,7 +306,7 @@ function StaffShiftForm({
           }}
           disabled={pending}
         >
-          <SelectTrigger className={cn(employeeSelectTriggerClass, "min-w-[16rem]")}>
+          <SelectTrigger className={cn(employeeSelectTriggerClass, "min-w-0 w-full sm:min-w-[16rem]")}>
             <SelectValue>
               {selectedShift
                 ? formatProjectShiftLabel(selectedShift)
@@ -308,6 +324,13 @@ function StaffShiftForm({
             ))}
           </SelectContent>
         </Select>
+        ) : (
+          <p className="text-sm text-text">
+            {selectedShift
+              ? formatProjectShiftLabel(selectedShift)
+              : t("pages.shifts.unassignedShift")}
+          </p>
+        )}
       </td>
       )}
     </tr>
@@ -322,6 +345,7 @@ export default function ShiftsDirectory({
   doubleShifts = [],
   toolbar,
   canAssignCover = false,
+  canEditShifts = false,
   projectMissing = false,
   usesNamedShifts = true,
 }: Props) {
@@ -373,7 +397,7 @@ export default function ShiftsDirectory({
           </div>
         ) : (
           <div className="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
-            <table className="w-full min-w-[56rem] table-fixed text-left text-sm">
+            <table className="w-full min-w-[28rem] table-fixed text-left text-sm sm:min-w-[40rem]">
               <thead>
                 <tr className="border-b border-border bg-elevated/60 text-xs uppercase tracking-wide text-muted">
                   <th className="w-1/3 px-3 py-2.5 text-left font-semibold">
@@ -393,7 +417,8 @@ export default function ShiftsDirectory({
                     key={row.id}
                     row={row}
                     shifts={shifts}
-                    canRemove={shifts.length > MIN_PROJECT_SHIFTS}
+                    canRemove={canEditShifts && shifts.length > MIN_PROJECT_SHIFTS}
+                    canEdit={canEditShifts}
                   />
                 ))}
               </tbody>
@@ -414,7 +439,7 @@ export default function ShiftsDirectory({
             value={query}
             onChange={setQuery}
             placeholder={t("pages.shifts.searchEmployeesPlaceholder")}
-            className="min-w-[12rem] w-auto max-w-none flex-1"
+            className="min-w-0 w-full max-w-none sm:min-w-[12rem] sm:flex-1"
           />
         </div>
 
@@ -436,7 +461,7 @@ export default function ShiftsDirectory({
         ) : (
           <SectionCard className="overflow-hidden p-0">
             <div className="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
-              <table className="w-full min-w-[48rem] text-left text-sm">
+              <table className="w-full min-w-[28rem] text-left text-sm sm:min-w-[40rem]">
                 <thead>
                   <tr className="border-b border-border bg-elevated/60 text-xs uppercase tracking-wide text-muted">
                     <th className="px-3 py-2.5 text-left font-semibold">
@@ -460,6 +485,7 @@ export default function ShiftsDirectory({
                       shifts={shifts}
                       doubleShifts={doubleShifts}
                       canAssignCover={canAssignCover}
+                      canEdit={canEditShifts}
                       hideShift={!usesNamedShifts}
                     />
                   ))}
@@ -477,7 +503,7 @@ export default function ShiftsDirectory({
           </h2>
           <SectionCard className="overflow-hidden p-0">
             <div className="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
-              <table className="w-full min-w-[48rem] text-left text-sm">
+              <table className="w-full min-w-[28rem] text-left text-sm sm:min-w-[40rem]">
                 <thead>
                   <tr className="border-b border-border bg-elevated/60 text-xs uppercase tracking-wide text-muted">
                     <th className="px-3 py-2.5 text-left font-semibold">

@@ -106,6 +106,7 @@ import { todayDateInput } from "@/lib/project-contract";
 import { vendorMatchesPurchaseOrigin } from "@/lib/vendor-type";
 import { formatContractPrice, parseContractPrice } from "@/lib/project-billing";
 import { cn } from "@/lib/utils";
+import { formatPrepaidCardNumber } from "@/lib/prepaid-card";
 import { formatVehicleIdentityLabel } from "@/lib/vehicle-plate";
 import { outlineChipTones } from "@/components/ui/StatusBadge";
 import {
@@ -129,7 +130,8 @@ type PurchaseCategoryChoice =
   | "GOVERNMENT"
   | "VEHICLE"
   | "BANK_LOAN"
-  | "EMPLOYEE_PAYMENT";
+  | "EMPLOYEE_PAYMENT"
+  | "OPEN_CARD";
 type PurchaseOriginChoice = "LOCAL" | "IMPORT";
 type GovernmentTaxKindChoice = GovernmentTaxKind;
 
@@ -332,9 +334,12 @@ function PurchaseInvoiceUploadDialogInner({
     Array<{
       id: string;
       cardNumber: string;
+      kind: "VEHICLE" | "OPEN";
+      status: string;
       currentBalance: number;
-      vehicleName: string;
-      vehicleSku: string;
+      custodianName: string | null;
+      vehicleName: string | null;
+      vehicleSku: string | null;
       vehiclePlate?: string | null;
     }>
   >([]);
@@ -343,7 +348,9 @@ function PurchaseInvoiceUploadDialogInner({
   const isGovernment = purchaseCategory === "GOVERNMENT";
   const isService = purchaseCategory === "SERVICE";
   const isVehicle = purchaseCategory === "VEHICLE";
+  const isOpenCardPrepaid = purchaseCategory === "OPEN_CARD";
   const isVehiclePrepaid = isVehicle && vehicleExpenseKind === "PREPAID_CARD";
+  const isPrepaidTopUp = isVehiclePrepaid || isOpenCardPrepaid;
   const isBankLoan = purchaseCategory === "BANK_LOAN";
   const isEmployeePayment = purchaseCategory === "EMPLOYEE_PAYMENT";
   const isShareholderLoan = isBankLoan && loanSource === "SHAREHOLDER";
@@ -354,17 +361,19 @@ function PurchaseInvoiceUploadDialogInner({
     !isPettyCash &&
     !isGovernment &&
     !isVehicle &&
+    !isOpenCardPrepaid &&
     !isBankLoan &&
     !isEmployeePayment;
   const showInvoiceFields =
     !isEmployeePayment &&
-    !isVehiclePrepaid &&
+    !isPrepaidTopUp &&
     (!isFreeOfCharge || hasInvoice === "Yes");
   const showShippingCost = isFreeOfCharge && addShippingCost === "Yes";
   const requiresVendorBank =
     !isPettyCash &&
     !isGovernment &&
     !isVehicle &&
+    !isOpenCardPrepaid &&
     !isBankLoan &&
     !isEmployeePayment;
   const allowCustomsFees =
@@ -718,6 +727,8 @@ function PurchaseInvoiceUploadDialogInner({
         setTaxFile(null);
       setFreeOfCharge("No");
       setFreeOfChargeReason("");
+      setEmployeeId("");
+      setEmployeeSearch("");
     }
     if (value === "GOVERNMENT") {
       setPurchasePurpose("INTERNAL");
@@ -728,6 +739,17 @@ function PurchaseInvoiceUploadDialogInner({
       setIncludedTaxKind("");
       setTaxFile(null);
       setVendorChoice("");
+    }
+    if (value === "OPEN_CARD") {
+      setPurchasePurpose("INTERNAL");
+      setProjectId("");
+      setIncludesPpn("No");
+      setFreeOfCharge("No");
+      setFreeOfChargeReason("");
+      setIncludedTaxKind("");
+      setTaxFile(null);
+      setVendorChoice("");
+      setPrepaidCardId("");
     }
     if (value === "EMPLOYEE_PAYMENT") {
       setPurchasePurpose("INTERNAL");
@@ -771,7 +793,7 @@ function PurchaseInvoiceUploadDialogInner({
 
     const form = event.currentTarget;
     const extraMissing: string[] = [];
-    if (isVehiclePrepaid && !prepaidCardId) {
+    if (isPrepaidTopUp && !prepaidCardId) {
       extraMissing.push(t("pages.billing.prepaidCard"));
     }
     if (isVehicle && !vehicleExpenseKind) {
@@ -790,10 +812,10 @@ function PurchaseInvoiceUploadDialogInner({
     if (!isPettyCash && showInvoiceFields && !documentFile) {
       extraMissing.push(t("pages.billing.purchaseDocument"));
     }
-    if ((isPettyCash || isVehiclePrepaid) && !amount.trim()) {
+    if ((isPettyCash || isPrepaidTopUp) && !amount.trim()) {
       extraMissing.push(t("pages.billing.purchaseAmount"));
     }
-    if (isVehiclePrepaid && (!documentFile || documentFile.size === 0)) {
+    if (isPrepaidTopUp && (!documentFile || documentFile.size === 0)) {
       extraMissing.push(t("pages.billing.purchaseDocument"));
     }
     if (!usesImportFlow && withPpn && taxFile && taxFile.size > 0) {
@@ -994,17 +1016,32 @@ function PurchaseInvoiceUploadDialogInner({
         return;
       }
     }
-    if (isPettyCash || isGovernment || isVehiclePrepaid) {
+    if (isPettyCash || isGovernment || isPrepaidTopUp) {
       formData.set("amount", amount.trim());
       formData.set("bankAccountId", bankAccountId);
-      if (isVehiclePrepaid) {
+      if (isPettyCash) {
+        if (!employeeId) {
+          showRejection({
+            reasons: t("pages.billing.pettyCashRecipientRequired"),
+          });
+          return;
+        }
+        formData.set("employeeId", employeeId);
+      }
+      if (isPrepaidTopUp) {
         if (!prepaidCardId) {
           showRejection({ reasons: t("pages.billing.vehiclePrepaidCardRequired") });
           return;
         }
         formData.set("prepaidCardId", prepaidCardId);
-        formData.set("vehicleExpenseKind", "PREPAID_CARD");
-        formData.set("purchaseCategory", "VEHICLE");
+        if (isOpenCardPrepaid) {
+          formData.set("openCardTopUp", "1");
+          formData.set("purchaseCategory", "SERVICE");
+          formData.set("purchasePurpose", "INTERNAL");
+        } else {
+          formData.set("vehicleExpenseKind", "PREPAID_CARD");
+          formData.set("purchaseCategory", "VEHICLE");
+        }
         if (!documentFile || documentFile.size === 0) {
           setError(t("pages.loans.proofRequired"));
           return;
@@ -1452,7 +1489,7 @@ function PurchaseInvoiceUploadDialogInner({
                 id="purchase-category"
                 role="radiogroup"
                 aria-labelledby="purchase-category-label"
-                className={choiceGridClassForCount(7)}
+                className={choiceGridClassForCount(8)}
               >
                 {(
                   [
@@ -1468,6 +1505,7 @@ function PurchaseInvoiceUploadDialogInner({
                       t("pages.billing.purchaseCategoryPettyCash"),
                     ],
                     ["VEHICLE", t("pages.billing.purchaseCategoryVehicle")],
+                    ["OPEN_CARD", t("pages.billing.purchaseCategoryOpenCard")],
                     [
                       "EMPLOYEE_PAYMENT",
                       t("pages.billing.purchaseCategoryEmployee"),
@@ -1503,6 +1541,50 @@ function PurchaseInvoiceUploadDialogInner({
                 <p className={employeeDialogHintClass}>
                   {t("pages.billing.advanceCashPettyHint")}
                 </p>
+              ) : null}
+              {isPettyCash ? (
+                <div className="mt-4 space-y-2">
+                  <label className={employeeDialogLabelClass}>
+                    {t("pages.billing.pettyCashRecipient")}
+                    <span className="text-red-400"> *</span>
+                  </label>
+                  <Input
+                    value={employeeSearch}
+                    onChange={(event) => setEmployeeSearch(event.target.value)}
+                    placeholder={t("pages.billing.employeePaymentEmployeeSearch")}
+                    className={employeeInputClass}
+                  />
+                  <Select
+                    value={employeeId || null}
+                    onValueChange={(value) => setEmployeeId(value ?? "")}
+                    disabled={busy}
+                  >
+                    <SelectTrigger className={cn(employeeSelectTriggerClass, "mt-2")}>
+                      <SelectValue
+                        placeholder={t("pages.billing.pettyCashRecipientPlaceholder")}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {expenseEmployees
+                        .filter((employee) => {
+                          const query = employeeSearch.trim().toLowerCase();
+                          if (!query) return true;
+                          const name =
+                            `${employee.firstName} ${employee.lastName}`.toLowerCase();
+                          return (
+                            name.includes(query) ||
+                            employee.employeeNo.toLowerCase().includes(query)
+                          );
+                        })
+                        .map((employee) => (
+                          <SelectItem key={employee.id} value={employee.id}>
+                            {employee.firstName} {employee.lastName} ·{" "}
+                            {employee.employeeNo}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               ) : null}
             </div>
 
@@ -1565,13 +1647,15 @@ function PurchaseInvoiceUploadDialogInner({
               </div>
             ) : null}
 
-            {isVehiclePrepaid ? (
+            {isPrepaidTopUp ? (
               <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
                 <label className={employeeDialogLabelClass}>
                   {t("pages.billing.prepaidCard")}
                   <span className="text-red-400"> *</span>
                 </label>
-                {prepaidCards.length === 0 ? (
+                {prepaidCards.filter((card) =>
+                  isOpenCardPrepaid ? card.kind === "OPEN" : card.kind === "VEHICLE"
+                ).length === 0 ? (
                   <p className={employeeDialogHintClass}>
                     {t("pages.billing.prepaidCardEmpty")}
                   </p>
@@ -1585,24 +1669,40 @@ function PurchaseInvoiceUploadDialogInner({
                       <SelectValue>
                         {(value) => {
                           const card = prepaidCards.find((row) => row.id === value);
-                          return card
-                            ? formatVehicleIdentityLabel({
+                          if (!card) return t("pages.billing.prepaidCard");
+                          const number = formatPrepaidCardNumber(card.cardNumber);
+                          return card.kind === "OPEN"
+                            ? card.custodianName
+                              ? `${number} · ${card.custodianName}`
+                              : number
+                            : formatVehicleIdentityLabel({
                                 plate: card.vehiclePlate,
-                                cardNumber: card.cardNumber,
+                                name: card.vehicleName,
+                                cardNumber: number,
                                 sku: card.vehicleSku,
-                              })
-                            : t("pages.billing.prepaidCard");
+                              });
                         }}
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      {prepaidCards.map((card) => (
+                      {prepaidCards
+                        .filter((card) =>
+                          isOpenCardPrepaid
+                            ? card.kind === "OPEN"
+                            : card.kind === "VEHICLE"
+                        )
+                        .map((card) => (
                         <SelectItem key={card.id} value={card.id}>
-                          {formatVehicleIdentityLabel({
-                            plate: card.vehiclePlate,
-                            cardNumber: card.cardNumber,
-                            sku: card.vehicleSku,
-                          })}{" "}
+                          {card.kind === "OPEN"
+                            ? `${formatPrepaidCardNumber(card.cardNumber)}${
+                                card.custodianName ? ` · ${card.custodianName}` : ""
+                              }`
+                            : formatVehicleIdentityLabel({
+                                plate: card.vehiclePlate,
+                                name: card.vehicleName,
+                                cardNumber: formatPrepaidCardNumber(card.cardNumber),
+                                sku: card.vehicleSku,
+                              })}{" "}
                           · {formatContractPrice(card.currentBalance)}
                         </SelectItem>
                       ))}
@@ -2324,7 +2424,7 @@ function PurchaseInvoiceUploadDialogInner({
 
             {isPettyCash || isBpjsGovernment ? null : showInvoiceFields ||
             isEmployeePayment ||
-            isVehiclePrepaid ? (
+            isPrepaidTopUp ? (
             <div className="sm:col-span-2 space-y-2">
               <BillingDocumentFilePick
                 id="purchase-document"
@@ -2347,7 +2447,7 @@ function PurchaseInvoiceUploadDialogInner({
             </div>
             ) : null}
 
-            {isPettyCash || isVehiclePrepaid || isGovernment || isBankLoan || isEmployeePayment ? null : (
+            {isPettyCash || isPrepaidTopUp || isGovernment || isBankLoan || isEmployeePayment ? null : (
             <>
             <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
               <label
@@ -2517,12 +2617,12 @@ function PurchaseInvoiceUploadDialogInner({
             </div>
             )}
 
-            {isBpjsGovernment ? null : isPettyCash || isVehiclePrepaid || showInvoiceFields ? (
+            {isBpjsGovernment ? null : isPettyCash || isPrepaidTopUp || showInvoiceFields ? (
             <div
               className={cn(
                 employeeDialogFieldClass,
                 (isPettyCash ||
-                  isVehiclePrepaid ||
+                  isPrepaidTopUp ||
                   isGovernment ||
                   !showInvoiceFields) &&
                   "sm:col-span-2"
@@ -2534,7 +2634,7 @@ function PurchaseInvoiceUploadDialogInner({
               >
                 {isShareholderLoan || isBpjsGovernment
                   ? t("pages.billing.loanPaidDate")
-                  : isPettyCash || isVehiclePrepaid
+                  : isPettyCash || isPrepaidTopUp
                     ? t("pages.billing.purchaseDate")
                     : t("pages.billing.purchaseInvoiceDate")}
                 <span className="text-red-400"> *</span>
@@ -3488,7 +3588,7 @@ function PurchaseInvoiceUploadDialogInner({
 
             {isImport ||
             isPettyCash ||
-            isVehiclePrepaid ||
+            isPrepaidTopUp ||
             isGovernment ||
             isBankLoan ||
             isFreeOfCharge ? null : (
@@ -3523,7 +3623,7 @@ function PurchaseInvoiceUploadDialogInner({
 
             {taxIncluded &&
             !isPettyCash &&
-            !isVehiclePrepaid &&
+            !isPrepaidTopUp &&
             !isImport &&
             !isGovernment &&
             !isBankLoan ? (
@@ -3554,7 +3654,7 @@ function PurchaseInvoiceUploadDialogInner({
             {taxIncluded &&
             kindNeedsOtherName &&
             !isPettyCash &&
-            !isVehiclePrepaid &&
+            !isPrepaidTopUp &&
             !isImport ? (
               <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
                 <label
@@ -3583,7 +3683,7 @@ function PurchaseInvoiceUploadDialogInner({
             {taxIncluded &&
             kindNeedsRate &&
             !isPettyCash &&
-            !isVehiclePrepaid &&
+            !isPrepaidTopUp &&
             !isImport ? (
               <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
                 <label
@@ -3618,7 +3718,7 @@ function PurchaseInvoiceUploadDialogInner({
               </div>
             ) : null}
 
-            {withPpn && !isPettyCash && !isVehiclePrepaid && !isImport ? (
+            {withPpn && !isPettyCash && !isPrepaidTopUp && !isImport ? (
               <>
                 <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
                   <label

@@ -25,9 +25,9 @@ export default function DirectoryFilterTab({
   className,
 }: DirectoryFilterTabProps) {
   const classes = cn(
-    "inline-flex shrink-0 items-center whitespace-nowrap rounded-xl font-bold tracking-wide transition duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+    "inline-flex max-w-full shrink-0 items-center whitespace-nowrap rounded-xl font-bold tracking-wide transition duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
     size === "md"
-      ? "min-h-11 gap-2 px-5 py-3 text-sm"
+      ? "min-h-8 gap-1.5 px-3 py-1.5 text-xs sm:min-h-11 sm:gap-2 sm:px-5 sm:py-3 sm:text-sm"
       : "min-h-8 gap-1.5 px-3 py-1.5 text-xs",
     // !text-* beats global `a { color: inherit }` when rendered as <Link>.
     active

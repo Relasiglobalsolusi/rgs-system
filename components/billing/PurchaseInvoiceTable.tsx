@@ -97,7 +97,7 @@ function PurchaseInvoiceCard({ row }: { row: PurchaseInvoiceTableRow }) {
             }
             className={financeListStatusChipClassName}
           >
-            <span className="flex h-full w-full items-center justify-center text-center leading-none">
+            <span className="flex items-center justify-center text-center leading-none">
               {isPaid
                 ? t("pages.billing.vendorStatusPaid")
                 : row.paymentStatus === "overdue"

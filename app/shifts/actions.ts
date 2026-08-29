@@ -12,6 +12,7 @@ import {
   removeNamedProjectShift,
   saveProjectShiftTimes,
 } from "@/lib/project-shifts";
+import { assertProjectWorkforceEditable } from "@/lib/project-settlement";
 
 async function requireShiftsSession() {
   const session = await requireModule("shifts");
@@ -47,9 +48,10 @@ export async function updateProjectShiftWindow(
 
     const shift = await prisma.projectShift.findFirst({
       where: { id: shiftId, project: { companyId } },
-      select: { id: true, projectId: true },
+      select: { id: true, projectId: true, project: { select: { status: true } } },
     });
     if (!shift) throw new Error("Shift not found.");
+    assertProjectWorkforceEditable(shift.project.status);
 
     await saveProjectShiftTimes(prisma, {
       shiftId: shift.id,
@@ -77,9 +79,10 @@ export async function assignEmployeeShift(
         isBackup: false,
         project: { companyId },
       },
-      select: { id: true, projectId: true },
+      select: { id: true, projectId: true, project: { select: { status: true } } },
     });
     if (!assignment) throw new Error("Assignment not found.");
+    assertProjectWorkforceEditable(assignment.project.status);
 
     if (shiftId) {
       const shift = await prisma.projectShift.findFirst({
@@ -104,9 +107,10 @@ export async function addProjectShift(projectId: string, formData: FormData) {
     const { companyId } = await requireShiftsSession();
     const project = await prisma.project.findFirst({
       where: { id: projectId, companyId },
-      select: { id: true },
+      select: { id: true, status: true },
     });
     if (!project) throw new Error("Project not found.");
+    assertProjectWorkforceEditable(project.status);
 
     const startRaw = String(formData.get("startTime") ?? "").trim();
     const endRaw = String(formData.get("endTime") ?? "").trim();
@@ -133,9 +137,10 @@ export async function removeProjectShift(formData: FormData) {
 
     const shift = await prisma.projectShift.findFirst({
       where: { id: shiftId, project: { companyId } },
-      select: { id: true, projectId: true },
+      select: { id: true, projectId: true, project: { select: { status: true } } },
     });
     if (!shift) throw new Error("Shift not found.");
+    assertProjectWorkforceEditable(shift.project.status);
 
     await removeNamedProjectShift(prisma, shift.projectId, shift.id);
     revalidateShiftPaths(shift.projectId);

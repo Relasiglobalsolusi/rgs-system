@@ -32,6 +32,7 @@ import ContractExtensionsHistory, {
 } from "@/components/projects/ContractExtensionsHistory";
 import { findPriorOpenPeriodWarning } from "@/lib/billing";
 import { isContractCycleSubCategory } from "@/lib/project-contract";
+import { isClosedProject } from "@/lib/project-settlement";
 import { ChipCell } from "@/components/ui/DataTable";
 import StatusBadge, { StackedChipLabel } from "@/components/ui/StatusBadge";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -131,6 +132,8 @@ type Props = {
   /** Regular Cleaning only — Contract Extensions history. */
   subCategory?: ProjectSubCategory | string | null;
   contractExtensions?: ContractExtensionRow[];
+  /** Closed jobs freeze contract price; live regulars stay editable for the next cycle. */
+  projectStatus?: string | null;
 };
 
 function toDate(value: string | null): Date | null {
@@ -161,11 +164,13 @@ export default function ProjectBillingPanel({
   hasPortalAccess = true,
   subCategory = null,
   contractExtensions = [],
+  projectStatus = null,
 }: Props) {
   const { t, locale } = useT();
   const confirm = useConfirm();
   const showExtensions = isContractCycleSubCategory(subCategory);
   const showPeriodBasisUi = isContractCycleSubCategory(subCategory);
+  const termsLocked = isClosedProject(projectStatus);
   const [paymentDialogPeriodId, setPaymentDialogPeriodId] = useState<
     string | null
   >(null);
@@ -405,8 +410,11 @@ export default function ProjectBillingPanel({
           requiresTaxInvoice={requiresTaxInvoice}
           pphRatePercent={pphRatePercent}
           isGovernmentContract={isGovernmentContract}
-          canManage={canManage}
+          canManage={canManage && !termsLocked}
           milestone={isMilestone}
+          lockedHint={
+            termsLocked ? t("pages.billing.contractPriceSettledHint") : null
+          }
         />
         <div className="rounded-xl border border-border bg-elevated px-4 py-3">
           <p className="text-xs uppercase tracking-wider text-subtle">
@@ -540,7 +548,7 @@ export default function ProjectBillingPanel({
         </p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-border bg-card">
-          <table className="w-full min-w-[960px] text-left text-sm">
+          <table className="w-full min-w-[40rem] text-left text-sm sm:min-w-[60rem] lg:min-w-[960px]">
             <thead className="bg-elevated">
               <tr className="border-b border-border text-[11px] uppercase tracking-[0.14em] text-subtle">
                 <th className="h-11 px-4 py-3 text-left font-semibold">
@@ -677,7 +685,7 @@ export default function ProjectBillingPanel({
                     </td>
                     <td className="px-4 py-3.5 text-center">
                       <ChipCell>
-                      <div className="inline-flex max-w-full flex-wrap items-center justify-center gap-1.5">
+                      <div className="inline-flex max-w-full flex-col items-center gap-1.5 sm:flex-row sm:flex-wrap sm:justify-center">
                         {isMilestone &&
                         (period.status === "ONGOING" ||
                           period.status === "COMPILING") ? (

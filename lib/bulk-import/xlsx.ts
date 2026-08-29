@@ -16,7 +16,7 @@ import {
 
 export type SpreadsheetRow = Record<string, string>;
 
-export type WorksheetWithDataValidations = ExcelJS.Worksheet & {
+type WorksheetWithDataValidations = ExcelJS.Worksheet & {
   dataValidations: {
     add(
       address: string,
@@ -25,7 +25,7 @@ export type WorksheetWithDataValidations = ExcelJS.Worksheet & {
   };
 };
 
-export function worksheetWithDataValidations(
+function worksheetWithDataValidations(
   sheet: ExcelJS.Worksheet
 ): WorksheetWithDataValidations {
   return sheet as WorksheetWithDataValidations;
@@ -78,14 +78,14 @@ export type ColumnDef = {
 };
 
 /** Header cell text: title (+ optional *), optional subline on the next line. */
-export function formatColumnHeaderCellValue(column: ColumnDef): string {
+function formatColumnHeaderCellValue(column: ColumnDef): string {
   const title = column.required ? `${column.header}*` : column.header;
   const subline = column.headerSubline?.trim();
   return subline ? `${title}\n${subline}` : title;
 }
 
 /** Rich header value when a subline is present (title bold, subline smaller/lighter). */
-export function formatColumnHeaderCellRichValue(
+function formatColumnHeaderCellRichValue(
   column: ColumnDef
 ): string | ExcelJS.CellRichTextValue {
   const title = column.required ? `${column.header}*` : column.header;
@@ -122,7 +122,7 @@ function buildHeaderLookup(columns: ColumnDef[]) {
   return lookup;
 }
 
-export function cellToString(value: unknown): string {
+function cellToString(value: unknown): string {
   if (value == null) return "";
 
   if (value instanceof Date) {
@@ -181,7 +181,7 @@ export function cellToString(value: unknown): string {
   return text;
 }
 
-export function isRowEmpty(row: SpreadsheetRow, columns: ColumnDef[]): boolean {
+function isRowEmpty(row: SpreadsheetRow, columns: ColumnDef[]): boolean {
   return columns.every((column) => !row[column.key]?.trim());
 }
 
@@ -393,7 +393,7 @@ const COLUMN_WIDTH = {
 };
 
 /** Template column keys that share the scrollable CountryCodes named range. */
-export function isCountryCodeTemplateColumn(columnKey: string): boolean {
+function isCountryCodeTemplateColumn(columnKey: string): boolean {
   return (
     columnKey === "countryCode" ||
     columnKey === "contactPersonCountryCode" ||
@@ -432,7 +432,7 @@ function resolveColumnPlaceholder(column: ColumnDef): string | null {
  * Content hints: soft `column.width` (Excel units), capped placeholder /
  * example lengths. Dropdown / Lists option labels are excluded.
  */
-export function resolveImportColumnWidth(
+function resolveImportColumnWidth(
   column: ColumnDef,
   exampleValue?: string
 ): number {
@@ -557,7 +557,7 @@ function computeLogoRowOffset(
   return paddingPx / rowHeightPx;
 }
 
-export function columnIndexToLetter(index: number): string {
+function columnIndexToLetter(index: number): string {
   let letter = "";
   let value = index;
   while (value > 0) {
@@ -578,7 +578,7 @@ function resolveBrandLogoPath(): string | null {
   return candidates.find((candidate) => existsSync(candidate)) ?? null;
 }
 
-export type TemplateDataValidationContext = {
+type TemplateDataValidationContext = {
   workbook: ExcelJS.Workbook;
   dataSheet: ExcelJS.Worksheet;
   listsSheet: ExcelJS.Worksheet;
@@ -590,7 +590,7 @@ export type TemplateDataValidationContext = {
   nextListsColumn: number;
 };
 
-export type ProfessionalTemplateOptions = {
+type ProfessionalTemplateOptions = {
   columns: ColumnDef[];
   title: string;
   sheetName?: string;

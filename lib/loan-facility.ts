@@ -96,7 +96,7 @@ export function loanExpenseFeeKind(invoice: {
   return null;
 }
 
-export type LoanMovementLike = {
+type LoanMovementLike = {
   kind: "DRAW" | "REPAYMENT";
   amount?: number | null;
   principalAmount?: number | null;
@@ -104,7 +104,7 @@ export type LoanMovementLike = {
   reversedAt?: Date | string | null;
 };
 
-export function isActiveLoanMovement(movement: LoanMovementLike): boolean {
+function isActiveLoanMovement(movement: LoanMovementLike): boolean {
   return movement.reversedAt == null;
 }
 

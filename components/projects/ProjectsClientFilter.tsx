@@ -27,7 +27,7 @@ export default function ProjectsClientFilter({
   const router = useRouter();
 
   return (
-    <div className="grid min-w-[16rem] max-w-xl gap-1.5">
+    <div className="grid min-w-0 w-full max-w-xl gap-1.5 sm:min-w-[16rem]">
       <span className="text-xs font-semibold uppercase tracking-wide text-subtle">
         {t("pages.projects.filterClient")}
       </span>

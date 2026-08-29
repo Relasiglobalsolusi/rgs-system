@@ -468,24 +468,22 @@ export default function DataTable<T>({
         <div
           ref={scrollRef}
           className={cn(
-            "min-w-0 max-w-full overscroll-x-contain [-webkit-overflow-scrolling:touch] max-sm:overflow-x-auto",
-            needsHScroll ? "overflow-x-auto" : "sm:overflow-x-hidden"
+            "min-w-0 max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]",
+            !needsHScroll && "lg:overflow-x-hidden"
           )}
           style={{ WebkitOverflowScrolling: "touch" }}
         >
           {/*
-            width / max-width 100% + box-border: fill the card when rem
-            floors fit (no slider). min-width is the floor sum so a
-            narrow window still scrolls. Leftover share lives on <col>
-            only — min-width / overflow-visible on tds used to make
-            scrollWidth exceed clientWidth by a few pixels.
+            Wrapper must grow with the table’s rem floor sum. A clipped
+            overflow-hidden child used to keep scrollWidth == clientWidth,
+            so mobile had no horizontal scroller. w-max + min-w-full lets
+            floors expand the scrollport; leftover share stays on <col>.
           */}
           <Table
-            containerClassName="min-w-0 max-w-full overflow-hidden"
-            className="box-border w-full max-w-full min-w-0 table-fixed text-left"
+            containerClassName="min-w-0 w-max min-w-full overflow-visible"
+            className="box-border table-fixed text-left"
             style={{
-              width: "100%",
-              maxWidth: "100%",
+              width: `max(100%, ${tableMinWidth})`,
               minWidth: tableMinWidth,
               boxSizing: "border-box",
               tableLayout: "fixed",

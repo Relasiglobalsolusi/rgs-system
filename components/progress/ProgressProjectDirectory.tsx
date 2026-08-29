@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type { ProgressProjectRow } from "@/lib/progress-directory";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import DirectorySearchInput, {
   matchesDirectorySearch,
 } from "@/components/ui/DirectorySearchInput";
@@ -109,7 +110,7 @@ export default function ProgressProjectDirectory({ projects }: Props) {
   );
 
   const statsGrid = (
-    <div className="grid grid-cols-2 gap-3">
+    <DirectoryStatGrid>
       <DirectoryStatCard
         compact
         tinted
@@ -126,7 +127,7 @@ export default function ProgressProjectDirectory({ projects }: Props) {
         accent="warning"
         icon={<Camera size={18} />}
       />
-    </div>
+    </DirectoryStatGrid>
   );
 
   if (projects.length === 0) {

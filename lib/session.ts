@@ -3,6 +3,7 @@ import { getCurrentSession } from "@/lib/auth";
 import { fetchUserModuleOverrides } from "@/lib/module-overrides";
 import {
   canAccess,
+  getAdvanceCashAccess,
   isFinanceModuleKey,
   type ModuleKey,
   type PermissionUser,
@@ -20,7 +21,11 @@ export function toPermissionUser(session: {
     employee?: {
       employeeNo: string;
       employeeType?: EmployeeType | null;
-      jobPosition?: { slug?: string | null; name?: string | null } | null;
+      jobPosition?: {
+        slug?: string | null;
+        name?: string | null;
+        defaultModuleAccess?: unknown;
+      } | null;
     } | null;
   };
 }): PermissionUser & {
@@ -30,7 +35,11 @@ export function toPermissionUser(session: {
   employee?: {
     employeeNo: string;
     employeeType?: EmployeeType | null;
-    jobPosition?: { slug?: string | null; name?: string | null } | null;
+    jobPosition?: {
+      slug?: string | null;
+      name?: string | null;
+      defaultModuleAccess?: unknown;
+    } | null;
   } | null;
 } {
   return {
@@ -153,6 +162,24 @@ export async function requireFinanceChild(navKey: string) {
 /** Operations page: field float. Own module — not implied by Projects or Finance. */
 export async function requirePettyCashAccess() {
   return requireModule("pettyCash");
+}
+
+export async function requireAdvanceCashPettyAccess() {
+  const session = await requirePettyCashAccess();
+  const access = getAdvanceCashAccess(toPermissionUser(session));
+  if (!access.petty) {
+    redirect(access.prepaid ? "/billing/petty-cash?tab=prepaid" : "/dashboard");
+  }
+  return session;
+}
+
+export async function requireAdvanceCashPrepaidAccess() {
+  const session = await requirePettyCashAccess();
+  const access = getAdvanceCashAccess(toPermissionUser(session));
+  if (!access.prepaid) {
+    redirect(access.petty ? "/billing/petty-cash" : "/dashboard");
+  }
+  return session;
 }
 
 export async function getEmployeeForUser(userId: string) {

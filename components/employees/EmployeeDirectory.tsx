@@ -31,6 +31,7 @@ import DirectorySearchInput, {
   matchesDirectorySearch,
 } from "@/components/ui/DirectorySearchInput";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
 import type { EmployeeCreateActorTier } from "@/lib/employee-create-hierarchy";
@@ -445,7 +446,7 @@ export default function EmployeeDirectory({
 
   return (
     <>
-      <div className="mb-5 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-5">
+      <DirectoryStatGrid className="mb-5" gapClassName="gap-2.5">
         <DirectoryStatCard
           compact
           title={t("pages.employees.allEmployees")}
@@ -496,7 +497,7 @@ export default function EmployeeDirectory({
           selected={tab === "trash"}
           onClick={() => selectTab("trash")}
         />
-      </div>
+      </DirectoryStatGrid>
 
       {tab === "unassigned" ? (
         <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -521,7 +522,7 @@ export default function EmployeeDirectory({
 
       {departmentOptions.length > 0 ? (
         <div
-          className="mb-3 flex flex-wrap items-center gap-2"
+          className="mb-3 flex gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] sm:flex-wrap sm:overflow-visible sm:pb-0"
           role="group"
           aria-label={t("pages.employees.filterDepartment")}
         >
@@ -580,15 +581,15 @@ export default function EmployeeDirectory({
         </div>
       ) : null}
 
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <DirectorySearchInput
           value={query}
           onChange={handleSearchChange}
           placeholder={t("pages.employees.searchPlaceholder")}
-          className="min-w-[12rem] w-auto max-w-none flex-1"
+          className="min-w-0 w-full max-w-none sm:max-w-xs sm:flex-1"
         />
         {canManage ? (
-          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:justify-end">
             <DirectoryAddButton
               label={t("pages.employees.addEmployee")}
               onClick={() => setCreateOpen(true)}

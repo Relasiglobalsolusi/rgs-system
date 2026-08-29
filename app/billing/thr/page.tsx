@@ -8,6 +8,7 @@ import ThrYearControl from "@/components/billing/ThrYearControl";
 import AppShell from "@/components/layout/AppShell";
 import PageIntro from "@/components/i18n/PageIntro";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -103,7 +104,7 @@ export default async function ThrPage({
         </div>
       </div>
 
-      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <DirectoryStatGrid className="mb-5">
         <DirectoryStatCard
           compact
           title={t("pages.thr.targetYear")}
@@ -122,7 +123,7 @@ export default async function ThrPage({
           value={formatContractPrice(totalAmount)}
           accent={totalAmount > 0 ? "success" : "muted"}
         />
-      </div>
+      </DirectoryStatGrid>
 
       <SectionCard>
         <div className="mb-5">

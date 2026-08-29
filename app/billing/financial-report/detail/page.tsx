@@ -13,6 +13,7 @@ import BillingBreadcrumbs from "@/components/billing/BillingBreadcrumbs";
 import FinancialReportClientDirectory from "@/components/billing/FinancialReportClientDirectory";
 import FinancialReportFilters from "@/components/billing/FinancialReportFilters";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import SectionCard from "@/components/ui/SectionCard";
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -244,13 +245,7 @@ export default async function FinancialReportDetailPage({
         detailMetric={metric}
       />
 
-      <div
-        className={
-          depositMetric
-            ? "mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3"
-            : "mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
-        }
-      >
+      <DirectoryStatGrid className="mb-6">
         {metric === "periodNet" || metric === "moneyIn" || metric === "moneyOut" ? (
           <>
             {metric === "periodNet" ? (
@@ -424,11 +419,11 @@ export default async function FinancialReportDetailPage({
               title={t("pages.financialReport.depositsKept")}
               value={formatContractPrice(company.deposits.kept)}
               accent="success"
-              href={`/billing/financial-report/detail?metric=depositsKept&${queryString}`}
-            />
+            href={`/billing/financial-report/detail?metric=depositsKept&${queryString}`}
+          />
           </>
         ) : null}
-      </div>
+      </DirectoryStatGrid>
 
       {metric === "periodNet" || metric === "moneyIn" || metric === "moneyOut" ? (
         <FinancialReportClientDirectory
@@ -438,7 +433,7 @@ export default async function FinancialReportDetailPage({
       ) : null}
 
       {metric === "moneyOut" ? (
-        <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <DirectoryStatGrid className="mb-6">
           <DirectoryStatCard
             title={t("pages.financialReport.detail.overheadWages")}
             value={formatContractPrice(company.overhead.wages)}
@@ -458,10 +453,10 @@ export default async function FinancialReportDetailPage({
             )}
             accent="warning"
           />
-        </div>
+        </DirectoryStatGrid>
       ) : null}
       {metric === "moneyIn" ? (
-        <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <DirectoryStatGrid className="mb-6">
           <DirectoryStatCard
             title={t("pages.financialReport.detail.overheadRateDifferenceIncome")}
             value={formatContractPrice(
@@ -469,7 +464,7 @@ export default async function FinancialReportDetailPage({
             )}
             accent="success"
           />
-        </div>
+        </DirectoryStatGrid>
       ) : null}
 
       {metric === "warehouse" ? (

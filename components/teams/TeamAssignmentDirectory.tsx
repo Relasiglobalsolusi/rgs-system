@@ -6,6 +6,7 @@ import { MapPin, Pencil, Trash2, UserCheck, Users, Wrench } from "lucide-react";
 import DirectoryAddButton from "@/components/ui/DirectoryAddButton";
 import DirectoryFilterTab from "@/components/ui/DirectoryFilterTab";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import DirectorySearchInput, {
   matchesDirectorySearch,
 } from "@/components/ui/DirectorySearchInput";
@@ -14,7 +15,6 @@ import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/button";
-import { ACTIONS_SINGLE_CHIP_COLUMN_WIDTH } from "@/components/ui/trash-action-buttons";
 import TeamDeleteDialog from "@/components/teams/TeamDeleteDialog";
 import TeamFormDialog, {
   type TeamTypeOption,
@@ -98,22 +98,25 @@ export default function TeamAssignmentDirectory({
     return localizeOperationsTeamKind(team.kind, locale);
   }
 
+  const equalColumn = {
+    width: "11rem",
+    share: 1,
+    className: "min-w-[11rem]",
+  } as const;
+
   const columns: DataTableColumn<TeamAssignmentRow>[] = [
     {
       key: "name",
       title: t("pages.teams.columns.team"),
-      width: "12rem",
-      share: 1,
-      className: "min-w-[12rem]",
+      ...equalColumn,
       render: (team) => <p className="font-semibold text-text">{team.name}</p>,
     },
     {
       key: "kind",
       title: t("pages.teams.columns.type"),
-      width: "12rem",
-      share: 1,
+      ...equalColumn,
       cellAlign: "center",
-      className: "min-w-[12rem] overflow-visible",
+      className: "min-w-[11rem] overflow-visible",
       render: (team) => (
         <StatusBadge
           status={
@@ -132,9 +135,8 @@ export default function TeamAssignmentDirectory({
     {
       key: "members",
       title: t("pages.teams.columns.members"),
-      width: "12rem",
-      share: 1,
-      className: "min-w-[12rem]",
+      ...equalColumn,
+      cellAlign: "center",
       render: (team) => (
         <span className="text-muted">
           {team.memberCount === 1
@@ -146,10 +148,8 @@ export default function TeamAssignmentDirectory({
     {
       key: "status",
       title: t("pages.teams.columns.status"),
+      ...equalColumn,
       cellAlign: "center",
-      share: 1,
-      width: "12rem",
-      className: "min-w-[12rem]",
       render: (team) => {
         if (!team.occupiedProjectName) {
           return (
@@ -165,19 +165,13 @@ export default function TeamAssignmentDirectory({
           );
         }
         return (
-          <div className="flex w-full min-w-0 justify-center">
-            <StatusBadge
-              status="warning"
-              compact
-              className="h-auto min-h-[2.75rem] w-full max-w-full min-w-0 shrink whitespace-normal px-2.5 py-1.5 leading-snug"
-            >
-              <span className="flex min-w-0 max-w-full flex-col items-center justify-center gap-0.5 text-center">
-                <span>{t("pages.teams.statusOnSite")}</span>
-                <span className="max-w-full break-words leading-snug">
-                  {team.occupiedProjectName}
-                </span>
-              </span>
+          <div className="flex w-full min-w-0 flex-col items-center justify-center gap-1 px-2">
+            <StatusBadge status="warning" compact className="w-fit shrink-0">
+              {t("pages.teams.statusOnSite")}
             </StatusBadge>
+            <span className="max-w-full break-words text-center text-xs leading-snug text-muted">
+              {team.occupiedProjectName}
+            </span>
           </div>
         );
       },
@@ -187,16 +181,16 @@ export default function TeamAssignmentDirectory({
           {
             key: "actions",
             title: t("pages.teams.columns.actions"),
+            ...equalColumn,
             cellAlign: "center" as const,
-            width: ACTIONS_SINGLE_CHIP_COLUMN_WIDTH,
-            share: 0,
-            className: "min-w-[12.5rem] overflow-visible",
+            className: "min-w-[11rem] overflow-visible",
             render: (team: TeamAssignmentRow) => (
-              <div className="flex flex-col items-stretch justify-center gap-1.5">
+              <div className="grid w-full grid-cols-1 justify-items-center gap-1.5 sm:grid-cols-2">
                 <Button
                   type="button"
                   variant="infoBadge"
                   size="badgeFlex"
+                  className="h-auto min-h-[2.75rem] w-fit max-w-full shrink-0 whitespace-normal px-2 sm:w-full"
                   onClick={() => setMembersTeamId(team.id)}
                 >
                   <Users className="h-3.5 w-3.5" />
@@ -206,6 +200,7 @@ export default function TeamAssignmentDirectory({
                   type="button"
                   variant="infoBadge"
                   size="badgeFlex"
+                  className="h-auto min-h-[2.75rem] w-fit max-w-full shrink-0 whitespace-normal px-2 sm:w-full"
                   onClick={() => setEquipmentTeamId(team.id)}
                 >
                   <Wrench className="h-3.5 w-3.5" />
@@ -215,6 +210,7 @@ export default function TeamAssignmentDirectory({
                   type="button"
                   variant="infoBadge"
                   size="badgeFlex"
+                  className="h-auto min-h-[2.75rem] w-fit max-w-full shrink-0 whitespace-normal px-2 sm:w-full"
                   onClick={() => setEditTeamId(team.id)}
                 >
                   <Pencil className="h-3.5 w-3.5" />
@@ -224,6 +220,7 @@ export default function TeamAssignmentDirectory({
                   type="button"
                   variant="destructiveBadge"
                   size="badgeFlex"
+                  className="h-auto min-h-[2.75rem] w-fit max-w-full shrink-0 whitespace-normal px-2 sm:w-full"
                   disabled={team.isOnJob}
                   title={
                     team.isOnJob
@@ -247,7 +244,7 @@ export default function TeamAssignmentDirectory({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <DirectoryStatGrid>
         <DirectoryStatCard
           compact
           tinted
@@ -280,13 +277,13 @@ export default function TeamAssignmentDirectory({
           accent="info"
           icon={<Users size={18} />}
         />
-      </div>
+      </DirectoryStatGrid>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <DirectorySearchInput
           value={query}
           onChange={setQuery}
           placeholder={t("pages.teams.searchPlaceholder")}
-          className="min-w-[12rem] w-auto max-w-none flex-1"
+          className="min-w-0 w-full max-w-none sm:min-w-[12rem] sm:flex-1"
         />
         {canManage ? (
           <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
@@ -297,7 +294,7 @@ export default function TeamAssignmentDirectory({
           </div>
         ) : null}
       </div>
-      <div className="mb-3 flex flex-wrap gap-2">
+      <div className="mb-3 flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
         <DirectoryFilterTab
           active={filter === "all"}
           onClick={() => setFilter("all")}

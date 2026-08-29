@@ -54,23 +54,3 @@ export function isAttendanceInternalProject<
     project.serviceArea === "HEAD_OFFICE"
   );
 }
-
-export function partitionAttendanceProjects<
-  T extends { name: string; serviceArea?: string | null; subCategory?: string | null },
->(projects: T[]): { internal: T[]; projects: T[] } {
-  const internal: T[] = [];
-  const rest: T[] = [];
-  for (const project of projects) {
-    if (isAttendanceInternalProject(project)) {
-      internal.push(project);
-    } else {
-      rest.push(project);
-    }
-  }
-  internal.sort(
-    (a, b) =>
-      attendanceInternalSortRank(a.name) - attendanceInternalSortRank(b.name) ||
-      a.name.localeCompare(b.name)
-  );
-  return { internal, projects: rest };
-}

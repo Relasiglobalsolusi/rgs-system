@@ -1,6 +1,6 @@
 export const TEAM_CALENDAR_TIMEZONE = "Asia/Jakarta";
 
-export type CalendarDay = {
+type CalendarDay = {
   year: number;
   month: number;
   day: number;

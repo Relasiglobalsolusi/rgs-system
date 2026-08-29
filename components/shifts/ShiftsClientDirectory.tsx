@@ -11,6 +11,7 @@ import type {
 import { SHIFTS_INTERNAL_ROUTE_CLIENT_ID } from "@/lib/shifts-directory";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import DirectorySearchInput, {
   matchesDirectorySearch,
 } from "@/components/ui/DirectorySearchInput";
@@ -161,40 +162,40 @@ export default function ShiftsClientDirectory({
   }, [t]);
 
   const statsGrid = (
-    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+    <DirectoryStatGrid>
       <DirectoryStatCard
-        compact
+        featured
         tinted
         title={t("pages.shifts.cards.clients")}
         value={stats.clients}
         accent="success"
-        icon={<Building2 size={18} />}
+        icon={<Building2 size={22} />}
       />
       <DirectoryStatCard
-        compact
+        featured
         tinted
         title={t("pages.shifts.cards.projects")}
         value={stats.projects}
         accent="info"
-        icon={<FolderKanban size={18} />}
+        icon={<FolderKanban size={22} />}
       />
       <DirectoryStatCard
-        compact
+        featured
         tinted
         title={t("pages.shifts.cards.internal")}
         value={stats.internal}
         accent="primary"
-        icon={<Landmark size={18} />}
+        icon={<Landmark size={22} />}
       />
       <DirectoryStatCard
-        compact
+        featured
         tinted
         title={t("pages.shifts.cards.staff")}
         value={stats.staff}
         accent="warning"
-        icon={<Users size={18} />}
+        icon={<Users size={22} />}
       />
-    </div>
+    </DirectoryStatGrid>
   );
 
   if (clients.length === 0 && !internal) {

@@ -4,8 +4,13 @@ import { isRosterActiveEmployeeStatus } from "@/lib/user-directory-status";
 
 export type SessionAccessState = {
   allowed: boolean;
+  sessionToken: string | null;
   moduleOverrides: Record<string, boolean> | null;
-  jobPosition: { slug: string; name: string } | null;
+  jobPosition: {
+    slug: string;
+    name: string;
+    defaultModuleAccess?: unknown;
+  } | null;
 };
 
 /**
@@ -18,13 +23,19 @@ export async function fetchSessionAccessState(
   userId: string
 ): Promise<SessionAccessState> {
   if (!userId) {
-    return { allowed: false, moduleOverrides: null, jobPosition: null };
+    return {
+      allowed: false,
+      sessionToken: null,
+      moduleOverrides: null,
+      jobPosition: null,
+    };
   }
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
       active: true,
+      sessionToken: true,
       moduleOverrides: true,
       client: { select: { active: true } },
       vendor: { select: { active: true } },
@@ -32,22 +43,39 @@ export async function fetchSessionAccessState(
         select: {
           status: true,
           archivedFromDirectory: true,
-          jobPosition: { select: { slug: true, name: true } },
+          jobPosition: {
+            select: { slug: true, name: true, defaultModuleAccess: true },
+          },
         },
       },
     },
   });
 
   if (!user || !user.active) {
-    return { allowed: false, moduleOverrides: null, jobPosition: null };
+    return {
+      allowed: false,
+      sessionToken: null,
+      moduleOverrides: null,
+      jobPosition: null,
+    };
   }
 
   if (user.client && user.client.active === false) {
-    return { allowed: false, moduleOverrides: null, jobPosition: null };
+    return {
+      allowed: false,
+      sessionToken: null,
+      moduleOverrides: null,
+      jobPosition: null,
+    };
   }
 
   if (user.vendor && user.vendor.active === false) {
-    return { allowed: false, moduleOverrides: null, jobPosition: null };
+    return {
+      allowed: false,
+      sessionToken: null,
+      moduleOverrides: null,
+      jobPosition: null,
+    };
   }
 
   if (
@@ -55,11 +83,17 @@ export async function fetchSessionAccessState(
     (user.employee.archivedFromDirectory ||
       !isRosterActiveEmployeeStatus(user.employee.status))
   ) {
-    return { allowed: false, moduleOverrides: null, jobPosition: null };
+    return {
+      allowed: false,
+      sessionToken: null,
+      moduleOverrides: null,
+      jobPosition: null,
+    };
   }
 
   return {
     allowed: true,
+    sessionToken: user.sessionToken ?? null,
     moduleOverrides: parseModuleOverrides(user.moduleOverrides),
     jobPosition: user.employee?.jobPosition ?? null,
   };

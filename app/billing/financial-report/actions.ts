@@ -107,7 +107,7 @@ export type FinancialReportProjectRow = {
   clientsOwe: OwedBucket;
 };
 
-export type FinancialReportPaidLine = {
+type FinancialReportPaidLine = {
   id: string;
   label: string | null;
   amount: number;

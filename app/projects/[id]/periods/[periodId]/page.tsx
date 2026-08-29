@@ -51,7 +51,8 @@ const sectionTitleClassName =
 const sectionCardClassName = "p-5 sm:p-6";
 const metaLabelClassName =
   "w-36 shrink-0 px-4 py-2.5 text-left align-top text-xs font-semibold uppercase tracking-[0.12em] text-subtle sm:w-44 sm:px-5";
-const metaValueClassName = "px-4 py-2.5 align-top text-text sm:px-5";
+const metaValueClassName =
+  "min-w-0 break-words px-4 py-2.5 align-top text-text sm:px-5";
 
 export default async function ProjectPeriodPage({
   params,
@@ -332,7 +333,7 @@ export default async function ProjectPeriodPage({
       <div className="space-y-5">
         <SectionCard className="overflow-hidden p-0">
           <div className="flex flex-wrap items-center gap-x-8 gap-y-2 border-b border-border px-4 py-3.5 sm:px-5">
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <div className="flex min-w-0 flex-col items-start gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-1">
               <span className="text-xs font-semibold uppercase tracking-[0.12em] text-subtle">
                 {t("pages.projects.detail.status")}
               </span>

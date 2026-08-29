@@ -1,4 +1,4 @@
-export type VendorBankAccountLabel = {
+type VendorBankAccountLabel = {
   bankName: string;
   accountNumber: string;
   accountHolder: string;

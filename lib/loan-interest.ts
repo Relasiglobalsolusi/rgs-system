@@ -61,7 +61,7 @@ function principalDelta(movement: DatedPrincipalMovement): number {
   return -Math.max(0, Number(movement.principalAmount ?? 0));
 }
 
-export function sortDatedMovements(
+function sortDatedMovements(
   movements: DatedPrincipalMovement[]
 ): DatedPrincipalMovement[] {
   return [...movements]
@@ -77,17 +77,6 @@ export function sortDatedMovements(
         : 0;
       return leftCreated - rightCreated;
     });
-}
-
-/** Unused plafon after every draw/return on this date (end of day). */
-export function unusedAtEndOfDay(
-  facilityLimit: number,
-  movements: DatedPrincipalMovement[],
-  day: Date
-): number {
-  const limit = Math.max(0, Number(facilityLimit) || 0);
-  if (limit <= 0) return 0;
-  return Math.max(0, roundIdr(limit - outstandingAtEndOfDay(movements, day)));
 }
 
 /**
@@ -161,7 +150,7 @@ export function standbyCommitmentFeeForDateRange(input: {
 }
 
 /** End-of-day outstanding: draws and returns on this date already applied. */
-export function outstandingAtEndOfDay(
+function outstandingAtEndOfDay(
   movements: DatedPrincipalMovement[],
   day: Date
 ): number {
@@ -174,12 +163,12 @@ export function outstandingAtEndOfDay(
   return Math.max(0, outstanding);
 }
 
-export function daysInUtcMonth(year: number, month: number): number {
+function daysInUtcMonth(year: number, month: number): number {
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
 
 /** Daily decimal rate for one Jakarta calendar day. */
-export function dailyInterestRate(
+function dailyInterestRate(
   ratePercent: number,
   basis: LoanInterestBasis | null | undefined,
   daysInMonth: number
@@ -192,7 +181,7 @@ export function dailyInterestRate(
   return percent / 100 / LOAN_DAY_COUNT_YEAR;
 }
 
-export function eachUtcDateInclusive(from: Date, to: Date): Date[] {
+function eachUtcDateInclusive(from: Date, to: Date): Date[] {
   const start = utcDay(from);
   const end = utcDay(to);
   const days: Date[] = [];

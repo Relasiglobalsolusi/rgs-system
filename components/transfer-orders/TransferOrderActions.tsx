@@ -153,7 +153,7 @@ export function ManagerNeedsAttentionActions({
   }
 
   return (
-    <div className="flex w-full min-w-[16rem] flex-col gap-2 sm:max-w-md">
+    <div className="flex w-full min-w-0 flex-col gap-2 sm:max-w-md">
       <div className="text-sm text-subtle">
         <span className="mb-1 block font-medium text-text">
           {t("pages.transferOrders.assignToProject")}

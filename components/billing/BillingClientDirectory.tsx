@@ -15,6 +15,7 @@ import DirectorySearchInput, {
   matchesDirectorySearch,
 } from "@/components/ui/DirectorySearchInput";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import EmptyState from "@/components/ui/EmptyState";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { STATUS_COLUMN_WIDTH } from "@/components/ui/trash-action-buttons";
@@ -143,21 +144,27 @@ export default function BillingClientDirectory({
         render: (client) => (
           <div className="flex max-w-full flex-col items-center justify-center gap-1.5">
             {client.lateInvoices > 0 ? (
-              <StatusBadge status="danger" compact>
-                {t("pages.billing.overdueCount", {
-                  count: client.lateInvoices,
-                })}
-              </StatusBadge>
+              <div className="flex flex-col items-center gap-1">
+                <StatusBadge status="danger" compact className="w-fit shrink-0">
+                  {t("pages.billing.overdue")}
+                </StatusBadge>
+                <span className="text-xs tabular-nums text-muted">
+                  {client.lateInvoices}
+                </span>
+              </div>
             ) : null}
             {client.openInvoices > 0 ? (
-              <StatusBadge status="warning" compact>
-                {t("pages.billing.unpaidCount", {
-                  count: client.openInvoices,
-                })}
-              </StatusBadge>
+              <div className="flex flex-col items-center gap-1">
+                <StatusBadge status="warning" compact className="w-fit shrink-0">
+                  {t("pages.billing.unpaid")}
+                </StatusBadge>
+                <span className="text-xs tabular-nums text-muted">
+                  {client.openInvoices}
+                </span>
+              </div>
             ) : null}
             {client.openInvoices === 0 && client.lateInvoices === 0 ? (
-              <StatusBadge status="success" compact>
+              <StatusBadge status="success" compact className="w-fit shrink-0">
                 {t("pages.billing.allSettled")}
               </StatusBadge>
             ) : null}
@@ -170,7 +177,7 @@ export default function BillingClientDirectory({
 
   return (
     <>
-      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <DirectoryStatGrid className="mb-5">
         <DirectoryStatCard
           title={t("pages.billing.totalClients")}
           value={stats.total}
@@ -197,7 +204,7 @@ export default function BillingClientDirectory({
           icon={<AlertTriangle size={18} />}
           accent="danger"
         />
-      </div>
+      </DirectoryStatGrid>
 
       {alerts ? <div className="mb-5 space-y-5">{alerts}</div> : null}
 
@@ -211,6 +218,7 @@ export default function BillingClientDirectory({
           value={searchQuery}
           onChange={setSearchQuery}
           placeholder={t("pages.billing.searchClients")}
+          className="min-w-0 w-full max-w-none sm:max-w-xs"
         />
       </div>
 

@@ -7,14 +7,16 @@ import {
   financePeriodRange,
   parseFinancePeriod,
 } from "@/lib/finance-period";
+import { formatEmployeeName } from "@/lib/employee-user-link";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
-import { canAccess } from "@/lib/permissions";
+import { canAccessAdvanceCashPrepaid } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { buildPrepaidCardReportPdfBuffer } from "@/lib/prepaid-card-report-pdf";
+import { vehicleAssignmentLabel } from "@/lib/prepaid-card-lifecycle";
 import { decimalToNumber } from "@/lib/project-billing";
-import { formatVehicleIdentityLabel } from "@/lib/vehicle-plate";
 import { toPermissionUser } from "@/lib/session";
+import type { PrepaidCardEntryKind, PrepaidCardKind, PrepaidCardSpendKind } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
   const session = await getCurrentSession();
@@ -25,7 +27,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
   const user = toPermissionUser(session);
-  if (!canAccess(user, "pettyCash")) {
+  if (!canAccessAdvanceCashPrepaid(user)) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
 
@@ -36,6 +38,25 @@ export async function GET(request: NextRequest) {
     day: searchParams.get("day") ?? undefined,
   });
   const cardId = searchParams.get("card")?.trim() || null;
+  const movementRaw = searchParams.get("movement")?.trim() || "all";
+  const spendKindRaw = searchParams.get("spendKind")?.trim() || "all";
+  const cardTypeRaw = searchParams.get("cardType")?.trim() || "all";
+  const assignment = searchParams.get("assignment")?.trim() || "all";
+  const movement: PrepaidCardEntryKind | "all" =
+    movementRaw === "TOP_UP" ||
+    movementRaw === "SPEND" ||
+    movementRaw === "WRITE_OFF"
+      ? movementRaw
+      : "all";
+  const spendKind: PrepaidCardSpendKind | "all" =
+    spendKindRaw === "FUEL" ||
+    spendKindRaw === "TOLL" ||
+    spendKindRaw === "PARKING" ||
+    spendKindRaw === "OTHER"
+      ? spendKindRaw
+      : "all";
+  const cardType: PrepaidCardKind | "all" =
+    cardTypeRaw === "VEHICLE" || cardTypeRaw === "OPEN" ? cardTypeRaw : "all";
   const { start, endExclusive } = financePeriodRange(period);
   const locale = await getServerLocale();
   const t = createTranslator(locale);
@@ -46,13 +67,36 @@ export async function GET(request: NextRequest) {
         prepaidCard: {
           companyId: session.user.companyId,
           ...(cardId ? { id: cardId } : {}),
+          ...(cardType === "VEHICLE" || cardType === "OPEN"
+            ? { kind: cardType }
+            : {}),
+          ...(assignment === "standby" ? { status: "STANDBY" } : {}),
+          ...(assignment === "assigned"
+            ? {
+                OR: [
+                  { vehicleItemId: { not: null } },
+                  { custodianEmployeeId: { not: null } },
+                ],
+              }
+            : {}),
         },
         entryDate: { gte: start, lt: endExclusive },
+        ...(movement === "TOP_UP" ||
+        movement === "SPEND" ||
+        movement === "WRITE_OFF"
+          ? { kind: movement }
+          : {}),
+        ...(spendKind !== "all" &&
+        (movement === "SPEND" || movement === "all")
+          ? { spendKind }
+          : {}),
       },
       include: {
         prepaidCard: {
           select: {
             cardNumber: true,
+            kind: true,
+            custodianEmployee: { select: { firstName: true, lastName: true } },
             vehicleItem: {
               select: {
                 name: true,
@@ -65,33 +109,79 @@ export async function GET(request: NextRequest) {
             },
           },
         },
+        assignment: {
+          select: {
+            custodianEmployee: { select: { firstName: true, lastName: true } },
+            vehicleItem: {
+              select: {
+                name: true,
+                sku: true,
+                equipmentAssets: {
+                  select: { assetCode: true },
+                  orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+                },
+              },
+            },
+          },
+        },
+        loss: {
+          select: {
+            recoveryKind: true,
+            employee: { select: { firstName: true, lastName: true } },
+          },
+        },
       },
       orderBy: [{ entryDate: "desc" }, { createdAt: "desc" }],
     }),
     loadCompanyForPdf(session.user.companyId),
   ]);
 
-  const rows = entries.map((entry) => ({
-    entryDate: entry.entryDate,
-    cardNumber: entry.prepaidCard.cardNumber,
-    vehicleName: formatVehicleIdentityLabel({
-      plate: entry.prepaidCard.vehicleItem.equipmentAssets
-        .map((asset) => asset.assetCode)
-        .filter(Boolean)
-        .join(" / "),
-      name: entry.prepaidCard.vehicleItem.name,
-      sku: entry.prepaidCard.vehicleItem.sku,
-    }),
-    kind: entry.kind,
-    spendKind: entry.spendKind,
-    amount: decimalToNumber(entry.amount) ?? 0,
-    description: entry.description,
-  }));
+  const rows = entries
+    .filter((entry) => {
+      if (movement === "all" && spendKind !== "all" && entry.kind !== "SPEND") {
+        return false;
+      }
+      return true;
+    })
+    .map((entry) => {
+      const assignmentRow = entry.assignment;
+      const assignmentLabel =
+        assignmentRow?.custodianEmployee
+          ? formatEmployeeName(assignmentRow.custodianEmployee)
+          : assignmentRow?.vehicleItem
+            ? vehicleAssignmentLabel(assignmentRow.vehicleItem)
+            : entry.prepaidCard.custodianEmployee
+              ? formatEmployeeName(entry.prepaidCard.custodianEmployee)
+              : entry.prepaidCard.vehicleItem
+                ? vehicleAssignmentLabel(entry.prepaidCard.vehicleItem)
+                : t("pages.pettyCash.statusStandby");
+      const footedBy =
+        entry.kind === "WRITE_OFF"
+          ? entry.loss?.recoveryKind === "COMPANY"
+            ? t("pages.pettyCash.footedByCompany")
+            : entry.loss?.employee
+              ? formatEmployeeName(entry.loss.employee)
+              : null
+          : null;
+      return {
+        entryDate: entry.entryDate,
+        cardNumber: entry.prepaidCard.cardNumber,
+        assignmentLabel,
+        kind: entry.kind,
+        spendKind: entry.spendKind,
+        amount: decimalToNumber(entry.amount) ?? 0,
+        description: entry.description,
+        footedBy,
+      };
+    });
   const totalTopUp = rows
     .filter((row) => row.kind === "TOP_UP")
     .reduce((sum, row) => sum + row.amount, 0);
   const totalSpend = rows
     .filter((row) => row.kind === "SPEND")
+    .reduce((sum, row) => sum + row.amount, 0);
+  const totalWrittenOff = rows
+    .filter((row) => row.kind === "WRITE_OFF")
     .reduce((sum, row) => sum + row.amount, 0);
 
   const periodLabel =
@@ -106,6 +196,7 @@ export async function GET(request: NextRequest) {
     entries: rows,
     totalTopUp,
     totalSpend,
+    totalWrittenOff,
     company,
     locale,
   });

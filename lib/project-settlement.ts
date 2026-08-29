@@ -6,6 +6,35 @@ import {
 } from "@/lib/project-billing";
 import { isExtendableContractSubCategory } from "@/lib/project-contract";
 
+/** Job has ended — commercial terms, staff, equipment, and shifts are frozen. */
+export function isClosedProject(
+  status: string | null | undefined
+): boolean {
+  return status === "COMPLETED";
+}
+
+export const CLOSED_PROJECT_TERMS_LOCKED_MESSAGE =
+  "This project is closed. Contract amount, bank account, and other terms cannot be changed.";
+
+export const CLOSED_PROJECT_WORKFORCE_LOCKED_MESSAGE =
+  "This project is closed. Assigned staff, equipment, and shifts cannot be changed.";
+
+export function assertProjectTermsEditable(
+  status: string | null | undefined
+): void {
+  if (isClosedProject(status)) {
+    throw new Error(CLOSED_PROJECT_TERMS_LOCKED_MESSAGE);
+  }
+}
+
+export function assertProjectWorkforceEditable(
+  status: string | null | undefined
+): void {
+  if (isClosedProject(status)) {
+    throw new Error(CLOSED_PROJECT_WORKFORCE_LOCKED_MESSAGE);
+  }
+}
+
 export const ISSUED_OR_COLLECTED_STATUSES = [
   "AWAITING_PAYMENT",
   "OVERDUE",

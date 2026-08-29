@@ -21,6 +21,7 @@ import { STATUS_COLUMN_WIDTH } from "@/components/ui/trash-action-buttons";
 import { formatDisplayDate } from "@/lib/format-date";
 import {
   localizeBillingChipLines,
+  localizeBillingStatus,
   localizeSubCategory,
   localizeSubCategoryChipLines,
   localizeWorkflowChipLines,
@@ -28,6 +29,7 @@ import {
 } from "@/lib/i18n/labels";
 import type { AppLocale } from "@/lib/i18n/locale";
 import { useT } from "@/lib/i18n/use-t";
+import { cn } from "@/lib/utils";
 import { isRgsInternalProject } from "@/lib/project-subcategory";
 import {
   isDirectoryPeriodRow,
@@ -139,6 +141,8 @@ export type ProjectTableRow = {
   canMarkPaid: boolean;
   billingHref: string | null;
   detailHref: string;
+  /** Paid date for this row (this period, or latest on an ended project). */
+  paidAt?: Date | string | null;
   /** Catalog or localized type name (keeps Regular / General / Internal truthful). */
   typeLabel?: string;
 };
@@ -174,40 +178,39 @@ function isPaymentDueRow(row: ProjectTableRow): boolean {
  */
 function paymentDueMetaContent(
   row: ProjectTableRow,
-  t: (key: string, params?: Record<string, string | number>) => string,
   locale: AppLocale
 ): {
   status: "info" | "warning";
+  kind: "status" | "date" | "late-days" | "stage";
   lines?: readonly [string, string];
   text?: string;
+  daysOverdue?: number;
 } | null {
   if (!row.paymentStage) {
     if (row.invoiceCycleDue) {
       return {
         status: "warning",
+        kind: "status",
         lines: localizeBillingChipLines("invoiceDue", locale),
       };
     }
     if (row.stageLabel) {
-      return { status: "warning", text: row.stageLabel };
+      return { status: "warning", kind: "stage", text: row.stageLabel };
     }
     return null;
   }
 
   if (row.paymentStage.isLate) {
-    const overdue =
-      row.paymentStage.daysOverdue != null
-        ? ` · ${row.paymentStage.daysOverdue}d`
-        : "";
-    // Keep "Late · 3d" as one line when days are present; otherwise stack.
-    if (overdue) {
+    if (row.paymentStage.daysOverdue != null) {
       return {
         status: "warning",
-        text: `${t("pages.projects.late")}${overdue}`,
+        kind: "late-days",
+        daysOverdue: row.paymentStage.daysOverdue,
       };
     }
     return {
       status: "warning",
+      kind: "status",
       lines: localizeBillingChipLines("latePayment", locale),
     };
   }
@@ -215,6 +218,7 @@ function paymentDueMetaContent(
   if (row.paymentStage.kind === "awaiting_invoice") {
     return {
       status: "info",
+      kind: "status",
       lines: localizeBillingChipLines("awaitingInvoice", locale),
     };
   }
@@ -222,6 +226,7 @@ function paymentDueMetaContent(
   if (row.paymentStage.kind === "verifying") {
     return {
       status: "warning",
+      kind: "status",
       lines: localizeBillingChipLines("verifyingPayment", locale),
     };
   }
@@ -229,12 +234,14 @@ function paymentDueMetaContent(
   if (row.paymentStage.dueAt != null) {
     return {
       status: "warning",
+      kind: "date",
       text: formatDisplayDate(row.paymentStage.dueAt, { timeZone: "UTC" }),
     };
   }
 
   return {
     status: "warning",
+    kind: "status",
     lines: localizeBillingChipLines("awaitingPayment", locale),
   };
 }
@@ -250,26 +257,46 @@ function PaymentDueMetaChip({
   t: (key: string, params?: Record<string, string | number>) => string;
   locale: AppLocale;
 }) {
-  const meta = paymentDueMetaContent(row, t, locale);
+  const meta = paymentDueMetaContent(row, locale);
   if (!meta) return null;
 
-  // Prefer stacked lines (same metrics as PEMBAYARAN); text only for dates / late+days.
-  if (meta.lines) {
+  if (meta.kind === "status" && meta.lines) {
     return (
       <StatusBadge
         status={meta.status}
         compact
-        className={className}
+        className={cn("w-fit shrink-0", className)}
         lines={meta.lines}
       />
     );
   }
 
-  return (
-    <StatusBadge status={meta.status} compact className={className}>
-      {meta.text}
-    </StatusBadge>
-  );
+  if (meta.kind === "late-days") {
+    return (
+      <div className="inline-flex flex-col items-center gap-1">
+        <StatusBadge
+          status="warning"
+          compact
+          className={cn("w-fit shrink-0", className)}
+        >
+          {t("pages.projects.late")}
+        </StatusBadge>
+        {meta.daysOverdue != null ? (
+          <span className="text-xs text-muted">{meta.daysOverdue}d</span>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (meta.text) {
+    return (
+      <span className="max-w-full break-words text-center text-xs text-muted">
+        {meta.text}
+      </span>
+    );
+  }
+
+  return null;
 }
 
 /**
@@ -300,9 +327,7 @@ function PaidDateChip({ value }: { value: Date | string | null }) {
   }
 
   return (
-    <StatusBadge status="success" compact>
-      {formatDisplayDate(value)}
-    </StatusBadge>
+    <span className="text-xs text-muted">{formatDisplayDate(value)}</span>
   );
 }
 
@@ -358,6 +383,9 @@ export default function ProjectTable({
   const showPaymentDueColumn = filterView === "payment-due";
   /** Completed Projects: when payment was received (latest period paidAt). */
   const showPaidColumn = filterView === "completed";
+  const showPeriodExpander =
+    showPaidColumn &&
+    viewRows.some((row) => row.rowKind === "completed");
   /** Period queues expand one project into multiple rows — skip DnD there. */
   const reorderable =
     canManage &&
@@ -516,6 +544,13 @@ export default function ProjectTable({
           ? `${equalCol.className} overflow-visible`
           : "min-w-[10rem] overflow-visible whitespace-nowrap",
         render: (row) => {
+          if (row.rowKind === "completed-period") {
+            return (
+              <StatusBadge status="success" compact>
+                {localizeBillingStatus("PAID", locale)}
+              </StatusBadge>
+            );
+          }
           const paymentDue =
             isPaymentDueRow(row) || filterView === "payment-due";
           const pendingApproval =
@@ -543,7 +578,7 @@ export default function ProjectTable({
           const showMetaUnderStatus =
             paymentDue &&
             !showPaymentDueColumn &&
-            paymentDueMetaContent(row, t, locale) != null;
+            paymentDueMetaContent(row, locale) != null;
 
           return (
             <div className="inline-flex shrink-0 flex-col items-center gap-1">
@@ -589,10 +624,15 @@ export default function ProjectTable({
         className: "min-w-[9rem] overflow-visible whitespace-nowrap",
         render: (row) => (
           <div className="flex w-full items-center justify-center">
-            <PaidDateChip value={latestPaidAt(row.project.invoicePeriods)} />
+            <PaidDateChip
+              value={
+                row.paidAt ?? latestPaidAt(row.project.invoicePeriods)
+              }
+            />
           </div>
         ),
       });
+      if (showPeriodExpander) {
       cols.push({
         key: "periods",
         title: t("pages.reconciliation.completedPeriodsTitle"),
@@ -637,6 +677,7 @@ export default function ProjectTable({
           );
         },
       });
+      }
     }
 
     if (showActions) {
@@ -686,6 +727,7 @@ export default function ProjectTable({
     locale,
     showActions,
     showPaidColumn,
+    showPeriodExpander,
     showPaymentDueColumn,
     t,
     teams,

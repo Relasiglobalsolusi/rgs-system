@@ -81,6 +81,22 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
+  // Another device closed this session by signing in — clear the stale cookie.
+  const cookieSessionToken = token.sessionToken
+    ? String(token.sessionToken)
+    : "";
+  if (
+    access.sessionToken &&
+    (!cookieSessionToken || access.sessionToken !== cookieSessionToken)
+  ) {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("callbackUrl", pathname);
+    const response = NextResponse.redirect(loginUrl);
+    response.cookies.delete("next-auth.session-token");
+    response.cookies.delete("__Secure-next-auth.session-token");
+    return response;
+  }
+
   const moduleOverrides = access.moduleOverrides;
   const jobPosition =
     access.jobPosition ?? token.employee?.jobPosition ?? null;

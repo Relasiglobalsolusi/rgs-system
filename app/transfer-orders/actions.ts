@@ -527,7 +527,7 @@ export async function getTransferOrderProjectsForClient(
   };
 }
 
-export type TransferOrderQueueItem = {
+type TransferOrderQueueItem = {
   id: string;
   status: TransferOrderStatus;
   notes: string | null;
@@ -1163,7 +1163,7 @@ export async function escalateTransferOrderNeedsAttention(formData: FormData) {
   }
 }
 
-export type TransferOrderNeedsAttentionRow = TransferOrderQueueItem & {
+type TransferOrderNeedsAttentionRow = TransferOrderQueueItem & {
   clientName: string;
 };
 

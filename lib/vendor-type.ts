@@ -1,4 +1,4 @@
-export const VENDOR_TYPES = ["COMPANY", "INDIVIDUAL", "OVERSEAS"] as const;
+const VENDOR_TYPES = ["COMPANY", "INDIVIDUAL", "OVERSEAS"] as const;
 
 export type VendorTypeValue = (typeof VENDOR_TYPES)[number];
 

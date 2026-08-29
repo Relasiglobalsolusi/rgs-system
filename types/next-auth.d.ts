@@ -23,7 +23,11 @@ declare module "next-auth" {
           prefix: string;
           slug?: string | null;
         } | null;
-        jobPosition: { slug: string; name: string } | null;
+        jobPosition: {
+          slug: string;
+          name: string;
+          defaultModuleAccess?: unknown;
+        } | null;
       } | null;
       employeeType: EmployeeType | null;
       moduleOverrides: Record<string, boolean> | null;
@@ -50,13 +54,18 @@ declare module "next-auth" {
         prefix: string;
         slug?: string | null;
       } | null;
-      jobPosition?: { slug: string; name: string } | null;
+      jobPosition?: {
+        slug: string;
+        name: string;
+        defaultModuleAccess?: unknown;
+      } | null;
     } | null;
     employeeType?: EmployeeType | null;
     moduleOverrides?: Record<string, boolean> | null;
     sidebarOrder?: SidebarOrder | null;
     mustSetPassword?: boolean;
     mustSetRecoveryEmail?: boolean;
+    sessionToken?: string | null;
   }
 }
 
@@ -79,13 +88,19 @@ declare module "next-auth/jwt" {
         prefix: string;
         slug?: string | null;
       } | null;
-      jobPosition: { slug: string; name: string } | null;
+      jobPosition: {
+        slug: string;
+        name: string;
+        defaultModuleAccess?: unknown;
+      } | null;
     } | null;
     employeeType: EmployeeType | null;
     moduleOverrides: Record<string, boolean> | null;
     sidebarOrder: SidebarOrder | null;
     mustSetPassword: boolean;
     mustSetRecoveryEmail: boolean;
+    sessionToken?: string | null;
+    error?: string;
   }
 }
 

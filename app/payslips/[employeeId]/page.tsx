@@ -1,10 +1,22 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
+import {
+  CalendarDays,
+  CircleDollarSign,
+  FileCheck,
+  FileClock,
+  Landmark,
+  Shield,
+  Wallet,
+} from "lucide-react";
 
 import AppShell from "@/components/layout/AppShell";
 import BillingBreadcrumbs from "@/components/billing/BillingBreadcrumbs";
+import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
+import { getEmployeeCompanyBalance } from "@/lib/employee-company-balance";
 import {
   loadEmployeePayslipHistory,
   payslipStatusKey,
@@ -69,27 +81,127 @@ export default async function EmployeePayslipsPage({
   const yearRows = months
     .filter((row) => row.year === selectedYear)
     .sort((a, b) => b.month - a.month);
+  const issuedCount = yearRows.filter((row) => payslipStatusKey(row) === "issued").length;
+  const previewCount = yearRows.filter((row) => payslipStatusKey(row) === "preview").length;
+  const yearNetPay = yearRows.reduce((sum, row) => sum + (row.netPay ?? 0), 0);
+  const isOwnAccount = !access.canManageAll;
+  const ownBalance = isOwnAccount
+    ? await getEmployeeCompanyBalance(prisma, employee.id)
+    : null;
 
   const directoryHref = access.canManageAll ? "/payslips" : undefined;
 
   return (
-    <AppShell title={formatEmployeeName(employee)}>
+    <AppShell
+      title={
+        isOwnAccount
+          ? t("pages.payslips.ownTitle")
+          : formatEmployeeName(employee)
+      }
+    >
       <BillingBreadcrumbs
-        items={[
-          ...(directoryHref
-            ? [{ label: t("pages.payslips.title"), href: directoryHref }]
-            : [{ label: t("pages.payslips.title") }]),
-          { label: formatEmployeeName(employee) },
-        ]}
+        items={
+          isOwnAccount
+            ? [{ label: t("pages.payslips.ownTitle") }]
+            : [
+                ...(directoryHref
+                  ? [{ label: t("pages.payslips.title"), href: directoryHref }]
+                  : [{ label: t("pages.payslips.title") }]),
+                { label: formatEmployeeName(employee) },
+              ]
+        }
       />
+      {isOwnAccount ? (
+        <DirectoryStatGrid className="mb-5">
+          <DirectoryStatCard
+            tinted
+            title={t("pages.payslips.cards.yourYearNet")}
+            value={formatContractPrice(yearNetPay)}
+            subtitle={t("pages.payslips.cards.yourYearNetSubtitle")}
+            icon={<CircleDollarSign size={20} />}
+            accent="primary"
+          />
+          <DirectoryStatCard
+            tinted
+            title={t("pages.payslips.cards.youOwe")}
+            value={formatContractPrice(ownBalance?.amountOwed ?? 0)}
+            subtitle={t("pages.payslips.cards.youOweSubtitle")}
+            icon={<Wallet size={20} />}
+            accent={(ownBalance?.amountOwed ?? 0) > 0 ? "danger" : "muted"}
+          />
+          <DirectoryStatCard
+            tinted
+            title={t("pages.payslips.cards.yourDeposit")}
+            value={formatContractPrice(ownBalance?.depositHeld ?? 0)}
+            subtitle={t("pages.payslips.cards.yourDepositSubtitle")}
+            icon={<Shield size={20} />}
+            accent="info"
+          />
+          <DirectoryStatCard
+            tinted
+            title={t("pages.payslips.cards.yourBpjs")}
+            value={formatContractPrice(ownBalance?.heldBpjsShare ?? 0)}
+            subtitle={t("pages.payslips.cards.yourBpjsSubtitle")}
+            icon={<Landmark size={20} />}
+            accent="warning"
+          />
+        </DirectoryStatGrid>
+      ) : (
+        <DirectoryStatGrid className="mb-5" gapClassName="gap-2">
+          <DirectoryStatCard
+            compact
+            tinted
+            title={t("pages.payslips.cards.months")}
+            value={yearRows.length}
+            subtitle={t("pages.payslips.cards.monthsSubtitle")}
+            icon={<CalendarDays size={16} />}
+            accent="primary"
+          />
+          <DirectoryStatCard
+            compact
+            tinted
+            title={t("pages.payslips.cards.issued")}
+            value={issuedCount}
+            subtitle={t("pages.payslips.cards.issuedSubtitle")}
+            icon={<FileCheck size={16} />}
+            accent="success"
+          />
+          <DirectoryStatCard
+            compact
+            tinted
+            title={t("pages.payslips.cards.preview")}
+            value={previewCount}
+            subtitle={t("pages.payslips.cards.previewSubtitle")}
+            icon={<FileClock size={16} />}
+            accent="warning"
+          />
+          <DirectoryStatCard
+            compact
+            tinted
+            title={t("pages.payslips.cards.yearNet")}
+            value={formatContractPrice(yearNetPay)}
+            subtitle={t("pages.payslips.cards.yearNetSubtitle")}
+            icon={<CircleDollarSign size={16} />}
+            accent="info"
+          />
+        </DirectoryStatGrid>
+      )}
       <SectionCard>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-text">
-              {t("pages.payslips.historyTitle")}
+              {t(
+                isOwnAccount
+                  ? "pages.payslips.ownHistoryTitle"
+                  : "pages.payslips.historyTitle"
+              )}
             </h2>
             <p className="mt-1 text-sm text-muted">
-              {t("pages.payslips.historyDesc")}
+              {t(
+                isOwnAccount
+                  ? "pages.payslips.ownHistoryDesc"
+                  : "pages.payslips.historyDesc"
+              )}
             </p>
             <p className="mt-1 font-mono text-xs text-subtle">
               {employee.employeeNo}
@@ -127,12 +239,16 @@ export default async function EmployeePayslipsPage({
           <div className="mt-5">
             <EmptyState
               title={t("pages.payslips.emptyMonths")}
-              description={t("pages.payslips.historyDesc")}
+              description={t(
+                isOwnAccount
+                  ? "pages.payslips.ownHistoryDesc"
+                  : "pages.payslips.historyDesc"
+              )}
             />
           </div>
         ) : (
           <div className="mt-5 overflow-x-auto">
-            <table className="min-w-full table-fixed text-left text-sm">
+            <table className="w-full min-w-[28rem] text-left text-sm">
               <thead className="border-b border-border text-xs font-medium text-muted">
                 <tr>
                   <th className="px-3 py-2 text-left font-medium">

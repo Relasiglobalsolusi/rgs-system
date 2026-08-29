@@ -96,6 +96,10 @@ import {
   PROJECT_LIST_VIEW_PATHS,
   PROJECT_PLANNING_STATUS,
 } from "@/lib/project-status";
+import {
+  assertProjectTermsEditable,
+  assertProjectWorkforceEditable,
+} from "@/lib/project-settlement";
 import type { BillingMode, ProjectStatus } from "@prisma/client";
 import {
   assertEmployeesNotOnOtherProject,
@@ -1480,9 +1484,10 @@ export async function updateProjectBankAccount(
 
     const existing = await prisma.project.findFirst({
       where: { id: projectId, companyId },
-      select: { id: true, clientId: true, serviceArea: true },
+      select: { id: true, clientId: true, serviceArea: true, status: true },
     });
     if (!existing) throw new Error("Project not found.");
+    assertProjectTermsEditable(existing.status);
     await assertCanWriteProject({
       userId: session.user.id,
       username: session.user.username,
@@ -1567,6 +1572,7 @@ export async function updateProject(id: string, formData: FormData) {
     if (!existing) {
       throw new Error("Project not found.");
     }
+    assertProjectTermsEditable(existing.status);
     await assertCanWriteProject({
       userId: session.user.id,
       username: session.user.username,
@@ -2043,6 +2049,7 @@ export async function assignProjectStaff(formData: FormData) {
     if (isPlanningProjectStatus(existing.status)) {
       throw new Error("Assign staff after the project is In Progress.");
     }
+    assertProjectWorkforceEditable(existing.status);
 
     const nextIds = await prisma.$transaction(async (tx) =>
       mergeBackupEmployeeIds(
@@ -2230,7 +2237,7 @@ export async function clearProjectHistory(ids: string[]) {
   };
 }
 
-export type FinishProjectResult = {
+type FinishProjectResult = {
   invoice: {
     compiled: number;
     error: string | null;
@@ -2239,7 +2246,7 @@ export type FinishProjectResult = {
   };
 };
 
-export type ReconcileProjectResult = {
+type ReconcileProjectResult = {
   reconcile: {
     reconciled: number;
     error: string | null;
@@ -2871,8 +2878,8 @@ export async function finishProject(
         ...(actualEndDate ? { endDate: actualEndDate } : {}),
       },
     });
-    // End Contract / Finish: release all crew → Unassigned (AVAILABLE) + portal.
-    await releaseAllProjectCrew(tx, id);
+    // Crew leaves the live pool; assignment rows stay as closed-job history.
+    await releaseAllProjectCrew(tx, id, { keepAssignmentHistory: true });
   });
 
   const billingPath = project.clientId
@@ -4020,9 +4027,13 @@ export async function saveProjectVisitAssignment(formData: FormData) {
   const locale = await getServerLocale();
   const visit = await prisma.projectVisit.findFirst({
     where: { id: visitId, project: { companyId } },
-    select: { projectId: true, project: { select: { clientId: true, serviceArea: true } } },
+    select: {
+      projectId: true,
+      project: { select: { clientId: true, serviceArea: true, status: true } },
+    },
   });
   if (!visit) throw new Error("Visit not found.");
+  assertProjectWorkforceEditable(visit.project.status);
   await assertSessionCanWriteProject(session, {
     id: visit.projectId,
     serviceArea: visit.project.serviceArea,
@@ -4063,9 +4074,13 @@ export async function clearProjectVisitAssignment(formData: FormData) {
   const locale = await getServerLocale();
   const visit = await prisma.projectVisit.findFirst({
     where: { id: visitId, project: { companyId } },
-    select: { projectId: true, project: { select: { clientId: true, serviceArea: true } } },
+    select: {
+      projectId: true,
+      project: { select: { clientId: true, serviceArea: true, status: true } },
+    },
   });
   if (!visit) throw new Error("Visit not found.");
+  assertProjectWorkforceEditable(visit.project.status);
   await assertSessionCanWriteProject(session, {
     id: visit.projectId,
     serviceArea: visit.project.serviceArea,

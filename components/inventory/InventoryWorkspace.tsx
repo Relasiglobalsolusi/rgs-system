@@ -36,6 +36,7 @@ import DirectorySearchInput, {
   matchesDirectorySearch,
 } from "@/components/ui/DirectorySearchInput";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
@@ -370,8 +371,7 @@ export default function InventoryWorkspace({
 
   return (
     <>
-      <div className="mb-5 space-y-3">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <DirectoryStatGrid className="mb-5">
           <DirectoryStatCard
             compact
             title={t("pages.inventory.tabs.stock")}
@@ -409,8 +409,6 @@ export default function InventoryWorkspace({
             selected={tab === "vehicles"}
             onClick={() => selectTab("vehicles")}
           />
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <DirectoryStatCard
             compact
             title={t("pages.inventory.tabs.issues")}
@@ -451,8 +449,7 @@ export default function InventoryWorkspace({
             selected={tab === "factoryReturns"}
             onClick={() => selectTab("factoryReturns")}
           />
-        </div>
-      </div>
+      </DirectoryStatGrid>
 
       <p className="mb-4 text-sm text-muted">
         {t("pages.inventory.costingNote")}
@@ -463,7 +460,7 @@ export default function InventoryWorkspace({
           value={searchQuery}
           onChange={setSearchQuery}
           placeholder={searchPlaceholder}
-          className="min-w-[12rem] w-auto max-w-none flex-1"
+          className="min-w-0 w-full max-w-none sm:min-w-[12rem] sm:flex-1"
         />
         {canManage ? (
           <div className="ml-auto flex flex-wrap items-center justify-end gap-2">

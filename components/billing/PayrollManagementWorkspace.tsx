@@ -48,6 +48,7 @@ import {
 } from "@/lib/format-date";
 import { formatContractPrice, parseContractPrice } from "@/lib/project-billing";
 import { formatHoursWorked } from "@/lib/shift-pay";
+import { cn } from "@/lib/utils";
 import type { PayrollDayRow } from "@/lib/internal-payroll-days";
 import { showRejectionFromError } from "@/components/ui/rejection-notice";
 
@@ -401,8 +402,8 @@ export default function PayrollManagementWorkspace({
               {t("pages.billing.payrollMgmt.periodDesc")}
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge status={statusTone(status)}>
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
+            <StatusBadge status={statusTone(status)} className="w-fit shrink-0">
               {localizeKnownKey(
                 `pages.billing.payrollMgmt.status.${status}`,
                 locale
@@ -417,7 +418,7 @@ export default function PayrollManagementWorkspace({
               }}
               disabled={pending}
             >
-              <SelectTrigger className={employeeSelectTriggerClass}>
+              <SelectTrigger className={cn(employeeSelectTriggerClass, "min-w-0 sm:w-[12rem]")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -925,7 +926,7 @@ export default function PayrollManagementWorkspace({
             </p>
           ) : (
             <div className="mt-4 flex flex-wrap items-end gap-3">
-              <div className="min-w-[16rem] flex-1">
+              <div className="min-w-0 w-full flex-1 sm:min-w-[16rem]">
                 <FileDropField
                   id="payroll-wages-paid-proof"
                   label={t("pages.billing.payrollMgmt.wagesPaidProof")}
@@ -947,22 +948,33 @@ export default function PayrollManagementWorkspace({
       ) : null}
 
       <Dialog open={unlockOpen} onOpenChange={setUnlockOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("pages.payroll.unlockPeriod")}</DialogTitle>
-            <DialogDescription>
+        <DialogContent className="max-h-[min(90dvh,40rem)] gap-0 overflow-hidden rounded-2xl border border-border bg-panel p-0 text-base text-text ring-0 sm:max-w-2xl">
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-6 pb-6 sm:px-10 sm:pt-8 sm:pb-7">
+          <DialogHeader className="gap-4">
+            <DialogTitle className="text-2xl">
+              {t("pages.payroll.unlockPeriod")}
+            </DialogTitle>
+            <DialogDescription className="text-base leading-7">
               {t("pages.payroll.unlockPeriodDesc")}
             </DialogDescription>
           </DialogHeader>
-          <label className="text-sm font-semibold text-text">
-            {t("pages.payroll.unlockReason")}
-          </label>
-          <Textarea
-            value={unlockReason}
-            onChange={(event) => setUnlockReason(event.target.value)}
-            rows={4}
-          />
-          <DialogFooter>
+          <div className="mt-6 flex flex-col gap-4">
+            <label
+              htmlFor="payroll-mgmt-unlock-reason"
+              className="text-sm font-semibold leading-6 text-text"
+            >
+              {t("pages.payroll.unlockReason")}
+            </label>
+            <Textarea
+              id="payroll-mgmt-unlock-reason"
+              value={unlockReason}
+              onChange={(event) => setUnlockReason(event.target.value)}
+              rows={8}
+              className="mt-0 min-h-48"
+            />
+          </div>
+          </div>
+          <DialogFooter className="mx-0 mb-0 mt-0 flex-col gap-3 rounded-none border-t border-border bg-strip px-4 py-5 sm:flex-col sm:justify-stretch sm:px-10 sm:py-6">
             <Button
               type="button"
               variant="outline"

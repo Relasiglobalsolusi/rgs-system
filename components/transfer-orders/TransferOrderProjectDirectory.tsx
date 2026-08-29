@@ -10,6 +10,7 @@ import {
 } from "@/lib/attendance-internal-sites";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import DirectorySearchInput, {
   matchesDirectorySearch,
 } from "@/components/ui/DirectorySearchInput";
@@ -154,7 +155,7 @@ export default function TransferOrderProjectDirectory({
   }, [locale, t]);
 
   const statsGrid = (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <DirectoryStatGrid>
       <DirectoryStatCard
         compact
         tinted
@@ -179,7 +180,7 @@ export default function TransferOrderProjectDirectory({
         accent="info"
         icon={<Truck size={18} />}
       />
-    </div>
+    </DirectoryStatGrid>
   );
 
   if (projects.length === 0) {

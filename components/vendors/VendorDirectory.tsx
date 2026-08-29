@@ -13,6 +13,7 @@ import DirectorySearchInput, {
   matchesDirectorySearch,
 } from "@/components/ui/DirectorySearchInput";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import EmptyState from "@/components/ui/EmptyState";
 import BulkActionBar from "@/components/ui/BulkActionBar";
 import SectionCard from "@/components/ui/SectionCard";
@@ -195,7 +196,7 @@ export default function VendorDirectory({
 
   return (
     <>
-      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <DirectoryStatGrid className="mb-5">
         <DirectoryStatCard
           title={t("pages.vendors.active")}
           value={stats.active}
@@ -214,17 +215,17 @@ export default function VendorDirectory({
           selected={activeTab === "trash"}
           onClick={() => selectTab("trash")}
         />
-      </div>
+      </DirectoryStatGrid>
 
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <DirectorySearchInput
           value={searchQuery}
           onChange={handleSearchChange}
           placeholder={t("pages.vendors.searchPlaceholder")}
-          className="min-w-[12rem] w-auto max-w-none flex-1"
+          className="min-w-0 w-full max-w-none sm:max-w-xs sm:flex-1"
         />
         {showAdd ? (
-          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:justify-end">
             <DirectoryAddButton
               label={t("pages.vendors.addVendor")}
               onClick={() => setCreateOpen(true)}

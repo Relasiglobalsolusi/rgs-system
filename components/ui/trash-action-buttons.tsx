@@ -18,7 +18,7 @@ export { permanentDeleteLabelClassName, stackedChipLabelClassName };
  * Important overrides beat any leftover content-sized badge utilities.
  */
 export const trashActionChipClassName =
-  "!box-border !inline-flex !h-[2.75rem] !min-h-[2.75rem] !w-[7.5rem] !min-w-[7.5rem] !max-w-[7.5rem] shrink-0 !items-center !justify-center !overflow-visible !px-2 !py-0";
+  "!box-border !inline-flex !h-[2.75rem] !min-h-[2.75rem] !w-auto !min-w-0 !max-w-full shrink-0 !items-center !justify-center !overflow-visible !px-2 !py-0 sm:!w-[7.5rem] sm:!min-w-[7.5rem] sm:!max-w-[7.5rem]";
 
 /**
  * Toolbar CTAs that keep the shared chip height but may grow wider
@@ -29,7 +29,7 @@ export const trashActionChipClassName =
  * of size="badge" are unreliable.
  */
 export const flexibleBadgeChipClassName =
-  "!box-border !inline-flex !h-[2.75rem] !min-h-[2.75rem] !w-auto !min-w-[7.5rem] !max-w-none shrink-0 !items-center !justify-center !gap-1.5 !overflow-visible !px-3.5 !py-0";
+  "!box-border !inline-flex !h-[2.75rem] !min-h-[2.75rem] !w-auto !min-w-0 !max-w-full shrink-0 !items-center !justify-center !gap-1.5 !overflow-visible !px-3.5 !py-0 sm:!min-w-[7.5rem]";
 
 /**
  * "Permissions" label only — smaller type inside the same 7.5×2.75 chip box.

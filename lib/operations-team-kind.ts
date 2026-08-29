@@ -1,18 +1,12 @@
 /** Client-safe team type helpers. Do not import server modules here. */
 
-export const OPERATIONS_TEAM_KINDS = [
+const OPERATIONS_TEAM_KINDS = [
   "GENERAL_CLEANING",
   "FACADE_CLEANING",
   "LANDSCAPING",
 ] as const;
 
 export type OperationsTeamKindValue = (typeof OPERATIONS_TEAM_KINDS)[number];
-
-export function isOperationsTeamKind(
-  value: string | null | undefined
-): value is OperationsTeamKindValue {
-  return OPERATIONS_TEAM_KINDS.includes(value as OperationsTeamKindValue);
-}
 
 /** Legacy enum for Cleaning / Landscaping catalog rows. Custom areas have no kind. */
 export function legacyKindForCatalogArea(area: {
@@ -29,7 +23,7 @@ export function legacyKindForCatalogArea(area: {
 }
 
 /** Legacy kind that used to gate one-time General / Facade / Landscaping jobs. */
-export function operationsTeamKindForSubCategory(
+function operationsTeamKindForSubCategory(
   subCategory: string | null | undefined
 ): OperationsTeamKindValue | null {
   if (subCategory === "GENERAL_CLEANING") return "GENERAL_CLEANING";
@@ -38,7 +32,7 @@ export function operationsTeamKindForSubCategory(
   return null;
 }
 
-export function teamKindMatchesProjectSubCategory(
+function teamKindMatchesProjectSubCategory(
   kind: string | null | undefined,
   subCategory: string | null | undefined
 ): boolean {

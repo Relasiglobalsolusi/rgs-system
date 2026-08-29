@@ -10,6 +10,7 @@ import type {
 import { PROGRESS_INTERNAL_ROUTE_CLIENT_ID } from "@/lib/progress-directory";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import DirectorySearchInput, {
   matchesDirectorySearch,
 } from "@/components/ui/DirectorySearchInput";
@@ -161,7 +162,7 @@ export default function ProgressClientDirectory({
   }, [t]);
 
   const statsGrid = (
-    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+    <DirectoryStatGrid>
       <DirectoryStatCard
         compact
         tinted
@@ -194,7 +195,7 @@ export default function ProgressClientDirectory({
         accent="warning"
         icon={<Camera size={18} />}
       />
-    </div>
+    </DirectoryStatGrid>
   );
 
   if (clients.length === 0 && !internal) {

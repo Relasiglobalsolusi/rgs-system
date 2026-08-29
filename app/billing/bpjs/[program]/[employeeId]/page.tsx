@@ -4,6 +4,7 @@ import BillingBreadcrumbs from "@/components/billing/BillingBreadcrumbs";
 import AppShell from "@/components/layout/AppShell";
 import SectionCard from "@/components/ui/SectionCard";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import {
   currentBpjsPeriod,
   getBpjsFinanceEmployeeDetail,
@@ -110,7 +111,7 @@ export default async function BpjsEmployeeDetailPage({
         </p>
       </div>
 
-      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <DirectoryStatGrid className="mb-5">
         <DirectoryStatCard
           compact
           title={t("pages.bpjs.columns.employeeShare")}
@@ -128,7 +129,7 @@ export default async function BpjsEmployeeDetailPage({
           title={t("pages.bpjs.columns.total")}
           value={formatContractPrice(employee.total)}
         />
-      </div>
+      </DirectoryStatGrid>
 
       <SectionCard className="mb-5 p-5 sm:p-6">
         <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">

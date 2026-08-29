@@ -585,7 +585,7 @@ function FactoryCurrencyAmountField({
       <label htmlFor={id} className={employeeDialogLabelClass}>
         {label}
       </label>
-      <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[6.5rem_minmax(0,1fr)]">
         <div
           className={cn(
             employeeSelectTriggerClass,
@@ -694,7 +694,7 @@ function OptionalInvoiceFeeField({
       <label htmlFor={id} className={employeeDialogLabelClass}>
         {label}
       </label>
-      <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[6.5rem_minmax(0,1fr)]">
         {separate ? (
           <Select
             value={currency || null}
@@ -748,7 +748,9 @@ function OptionalInvoiceFeeField({
         <div
           className={cn(
             "mt-2 grid gap-2",
-            showBankRate && showCustomsRate ? "grid-cols-2" : "grid-cols-1"
+            showBankRate && showCustomsRate
+              ? "grid-cols-1 sm:grid-cols-2"
+              : "grid-cols-1"
           )}
         >
           {showBankRate ? (
@@ -1065,7 +1067,7 @@ export default function PurchaseImportCostFields({
             {t("pages.billing.purchaseFactoryInvoice")}
             <span className="text-red-400"> *</span>
           </label>
-          <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[6.5rem_minmax(0,1fr)]">
             <Select
               value={draft.currency || null}
               onValueChange={(value) => {

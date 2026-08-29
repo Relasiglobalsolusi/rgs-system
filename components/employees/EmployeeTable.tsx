@@ -442,7 +442,7 @@ export default function EmployeeTable({
         cellAlign: "center",
         className: "overflow-visible max-xl:px-2",
         render: (employee) => (
-          <div className="flex flex-col items-stretch justify-center gap-2">
+          <div className="flex flex-col items-center justify-center gap-2">
             {isTrash ? (
               <>
                 <TrashRestoreChip

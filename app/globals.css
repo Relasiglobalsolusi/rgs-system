@@ -502,10 +502,13 @@ body {
   }
 
   .header-controls-row__mid {
-    position: absolute;
-    left: 50%;
+    position: static;
+    left: auto;
     z-index: 1;
-    transform: translateX(-50%);
+    flex: 1 1 auto;
+    min-width: 0;
+    transform: none;
+    justify-content: center;
   }
 
   .header-controls-row__profile {

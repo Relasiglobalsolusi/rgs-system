@@ -123,13 +123,13 @@ export default function DashboardActivityFeed({
                           project: item.project.name,
                         })}
                       </p>
-                      <StatusBadge status="success" className="w-fit shrink-0">
+                      <span className="w-fit shrink-0 text-xs text-muted">
                         {photoCount === 1
                           ? t("pages.dashboard.photoOne", { count: photoCount })
                           : t("pages.dashboard.photoOther", {
                               count: photoCount,
                             })}
-                      </StatusBadge>
+                      </span>
                     </div>
                     <p className="mt-1.5 text-xs leading-relaxed text-subtle">
                       {item.employee.firstName} {item.employee.lastName} ·{" "}

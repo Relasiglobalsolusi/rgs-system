@@ -25,6 +25,37 @@ export type LeaveRequesterTier =
   | "HO_STAFF"
   | "FIELD_CREW";
 
+/** Who may approve a leave request, in order. Handbook text is generated from this. */
+export type LeaveApproverKind =
+  | "AM_MATCHING_PROJECTS"
+  | "OM_MATCHING_AREA"
+  | "DIRECTOR"
+  | "OWNER";
+
+export const LEAVE_APPROVER_RULES: Record<
+  LeaveRequesterTier,
+  readonly LeaveApproverKind[]
+> = {
+  FIELD_CREW: [
+    "AM_MATCHING_PROJECTS",
+    "OM_MATCHING_AREA",
+    "DIRECTOR",
+    "OWNER",
+  ],
+  HO_STAFF: ["OM_MATCHING_AREA", "DIRECTOR", "OWNER"],
+  AREA_MANAGER: ["OM_MATCHING_AREA", "DIRECTOR", "OWNER"],
+  OPERATIONS_MANAGER: ["DIRECTOR", "OWNER"],
+  DIRECTOR: ["OWNER"],
+};
+
+export const LEAVE_REQUESTER_TIER_ORDER: readonly LeaveRequesterTier[] = [
+  "FIELD_CREW",
+  "HO_STAFF",
+  "AREA_MANAGER",
+  "OPERATIONS_MANAGER",
+  "DIRECTOR",
+];
+
 export type LeaveRequesterProfile = {
   employeeId: string;
   userId?: string | null;
@@ -248,14 +279,7 @@ function amCanApproveRequesterProjects(
 
 /**
  * Whether `reviewer` may approve a leave request from `requester`.
- *
- * | Requester tier   | Main HO admin | Director | OM (matching area) | Area Manager |
- * |------------------|---------------|----------|----------------------|--------------|
- * | Field crew       | yes           | yes      | yes                  | their projects |
- * | HO staff         | yes           | yes      | Head Office only     | no |
- * | Area Manager     | yes           | yes      | yes                  | no |
- * | Operations Mgr   | yes           | yes      | no                   | no |
- * | Director         | yes           | no       | no                   | no |
+ * Rules live in {@link LEAVE_APPROVER_RULES} so the System Guide stays in sync.
  */
 export function canApproveLeaveRequest(
   requester: LeaveRequesterProfile,
@@ -272,35 +296,26 @@ export function canApproveLeaveRequest(
 
   if (reviewer.isHoAdmin) return true;
 
-  const tier = getLeaveRequesterTier(requester);
-  const isDirector = isReviewerDirector(reviewer);
-
-  switch (tier) {
-    case "DIRECTOR":
-      return false;
-    case "OPERATIONS_MANAGER":
-      return isDirector;
-    case "AREA_MANAGER":
-    case "HO_STAFF":
-      return (
-        isDirector ||
-        omCanApproveRequesterAreas(
-          reviewer,
-          getLeaveRequesterServiceAreas(requester)
-        )
-      );
-    case "FIELD_CREW":
-      return (
-        isDirector ||
-        omCanApproveRequesterAreas(
-          reviewer,
-          getLeaveRequesterServiceAreas(requester)
-        ) ||
-        amCanApproveRequesterProjects(reviewer, requester.projectIds ?? [])
-      );
-    default:
-      return false;
+  const rules = LEAVE_APPROVER_RULES[getLeaveRequesterTier(requester)];
+  for (const rule of rules) {
+    if (rule === "DIRECTOR" && isReviewerDirector(reviewer)) return true;
+    if (
+      rule === "OM_MATCHING_AREA" &&
+      omCanApproveRequesterAreas(
+        reviewer,
+        getLeaveRequesterServiceAreas(requester)
+      )
+    ) {
+      return true;
+    }
+    if (
+      rule === "AM_MATCHING_PROJECTS" &&
+      amCanApproveRequesterProjects(reviewer, requester.projectIds ?? [])
+    ) {
+      return true;
+    }
   }
+  return false;
 }
 
 export async function resolveLeaveReviewerProfile(options: {

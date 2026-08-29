@@ -52,7 +52,7 @@ export function getIdulFitriDate(year: number): Date | null {
 }
 
 /** Rolling Gregorian years that have a computable Idul Fitri date (UI / validation). */
-export function listKnownIdulFitriYears(
+function listKnownIdulFitriYears(
   aroundYear: number = new Date().getUTCFullYear()
 ): number[] {
   const start = Math.max(IDUL_FITRI_MIN_YEAR, aroundYear - 1);
@@ -104,7 +104,7 @@ export function utcToday(): Date {
   );
 }
 
-export function addUtcDays(date: Date, days: number): Date {
+function addUtcDays(date: Date, days: number): Date {
   const next = new Date(date);
   next.setUTCDate(next.getUTCDate() + days);
   return next;

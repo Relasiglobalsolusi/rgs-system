@@ -9,6 +9,7 @@ import { setInitialPassword } from "@/app/first-login/actions";
 import AuthLogo from "@/components/auth/AuthLogo";
 import BackLink from "@/components/ui/BackLink";
 import { useT } from "@/lib/i18n/use-t";
+import { resetSidebarCollapse } from "@/lib/sidebar-collapse";
 
 export default function FirstLoginForm() {
   const { t } = useT();
@@ -83,6 +84,7 @@ export default function FirstLoginForm() {
           return;
         }
 
+        resetSidebarCollapse();
         router.push("/dashboard");
         router.refresh();
       } catch {

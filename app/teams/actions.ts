@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import type { OperationsTeamKind } from "@prisma/client";
 
+import { legacyKindForCatalogArea } from "@/lib/operations-team-kind";
 import {
   eligibleTeamMemberWhere,
-  legacyKindForCatalogArea,
   OPEN_TEAM_PROJECT_STATUSES,
   releaseTeamMemberFromOpenJobs,
   syncTeamMemberOntoOpenJobs,

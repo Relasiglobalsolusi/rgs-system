@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { saveParkingMonthlyRevenue } from "@/app/billing/parking-actions";
 import type { ParkingMonthEconomics } from "@/lib/parking-economics";
 import { employeeSelectTriggerClass } from "@/components/employees/employee-dialog-ui";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import SectionCard from "@/components/ui/SectionCard";
 import { Button } from "@/components/ui/button";
 import { MoneyInput } from "@/components/ui/MoneyInput";
@@ -257,7 +258,7 @@ export default function ParkingWorkspace({
             ))}
           </ul>
         )}
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <DirectoryStatGrid className="mt-4">
           <div className="rounded-lg border border-border bg-elevated/40 p-3">
             <p className="text-xs text-muted">
               {t("pages.billing.parking.casualRevenue")}
@@ -310,7 +311,7 @@ export default function ParkingWorkspace({
               {formatContractPrice(economics.netProfit)}
             </p>
           </div>
-        </div>
+        </DirectoryStatGrid>
       </SectionCard>
     </div>
   );

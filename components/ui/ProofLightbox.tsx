@@ -54,7 +54,7 @@ export default function ProofLightbox({
         overlayClassName="z-[60]"
         className="z-[60] flex max-h-[min(96vh,56rem)] w-[calc(100%-1.5rem)] max-w-[min(96vw,56rem)] flex-col gap-0 overflow-hidden rounded-2xl border border-border bg-panel p-0 text-text shadow-[0_24px_48px_-28px_rgba(0,0,0,0.65)] ring-0 sm:max-w-[min(96vw,56rem)]"
       >
-        <div className="shrink-0 border-b border-border bg-panel px-5 py-4 pr-12">
+        <div className="shrink-0 border-b border-border bg-panel px-4 py-4 pr-12 sm:px-10">
           <DialogHeader className="gap-1 text-left">
             <DialogTitle className="text-base font-semibold text-text">
               {label}
@@ -73,7 +73,7 @@ export default function ProofLightbox({
                 title={label}
                 className="h-[min(72vh,42rem)] w-full bg-elevated"
               />
-              <div className="flex shrink-0 justify-end border-t border-border bg-strip px-5 py-3">
+              <div className="flex shrink-0 justify-end border-t border-border bg-strip px-4 py-3 sm:px-10">
                 <a
                   href={src}
                   download
@@ -96,7 +96,7 @@ export default function ProofLightbox({
                   priority
                 />
               </div>
-              <div className="flex shrink-0 justify-end border-t border-border bg-strip px-5 py-3">
+              <div className="flex shrink-0 justify-end border-t border-border bg-strip px-4 py-3 sm:px-10">
                 <a
                   href={src}
                   download

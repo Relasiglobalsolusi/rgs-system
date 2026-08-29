@@ -3,6 +3,7 @@
 import {
   showRejection,
   showRejectionFromError,
+  showSuccess,
 } from "@/components/ui/rejection-notice";
 import {
   useEffect,
@@ -234,7 +235,11 @@ export default function CicoActions({
 
   async function handleCheckIn() {
     if (!photoFile) {
-      showRejection({ reasons: t("pages.cico.photoRequiredAlert") });
+      showRejection({
+        title: t("pages.cico.checkInFailedTitle"),
+        description: t("pages.cico.checkInFailedBody"),
+        reasons: t("pages.cico.photoRequiredAlert"),
+      });
       return;
     }
 
@@ -253,13 +258,29 @@ export default function CicoActions({
         try {
           await checkIn(formData);
           clearPhoto();
+          const siteName =
+            assignedProjects.find((project) => project.id === projectId)?.name ??
+            "";
+          showSuccess({
+            title: t("pages.cico.checkInConfirmedTitle"),
+            description: t("pages.cico.checkInConfirmedBody"),
+            reasons: siteName
+              ? t("pages.cico.checkInConfirmedDetail", { site: siteName })
+              : t("pages.cico.checkInConfirmedBody"),
+          });
           router.refresh();
         } catch (error) {
-          showRejectionFromError(error, t("pages.cico.checkInFailed"));
+          showRejectionFromError(error, t("pages.cico.checkInFailed"), {
+            title: t("pages.cico.checkInFailedTitle"),
+            description: t("pages.cico.checkInFailedBody"),
+          });
         }
       });
     } catch (error) {
-      showRejectionFromError(error, t("pages.cico.locationFailed"));
+      showRejectionFromError(error, t("pages.cico.locationFailed"), {
+        title: t("pages.cico.checkInFailedTitle"),
+        description: t("pages.cico.checkInFailedBody"),
+      });
     } finally {
       setLocating(false);
     }
@@ -270,7 +291,7 @@ export default function CicoActions({
     if (needsProgressBeforeCheckout) {
       setProgressOpen(true);
       showRejection({
-        title: t("pages.cico.progressRequiredTitle"),
+        title: t("pages.cico.checkOutFailedTitle"),
         description: t("pages.cico.progressRequiredBody"),
         reasons: t("pages.cico.errors.progressRequiredBeforeCheckOut"),
       });
@@ -278,7 +299,11 @@ export default function CicoActions({
     }
 
     if (!photoFile) {
-      showRejection({ reasons: t("pages.cico.checkOutPhotoRequiredAlert") });
+      showRejection({
+        title: t("pages.cico.checkOutFailedTitle"),
+        description: t("pages.cico.checkOutFailedBody"),
+        reasons: t("pages.cico.checkOutPhotoRequiredAlert"),
+      });
       return;
     }
 
@@ -308,6 +333,14 @@ export default function CicoActions({
         try {
           await checkOut(formData);
           clearPhoto();
+          const siteName = actionRecord?.project?.name ?? shift?.name ?? "";
+          showSuccess({
+            title: t("pages.cico.checkOutConfirmedTitle"),
+            description: t("pages.cico.checkOutConfirmedBody"),
+            reasons: siteName
+              ? t("pages.cico.checkOutConfirmedDetail", { site: siteName })
+              : t("pages.cico.checkOutConfirmedBody"),
+          });
           router.refresh();
         } catch (error) {
           const message =
@@ -318,18 +351,24 @@ export default function CicoActions({
           if (progressBlocked) {
             setProgressOpen(true);
             showRejection({
-              title: t("pages.cico.progressRequiredTitle"),
+              title: t("pages.cico.checkOutFailedTitle"),
               description: t("pages.cico.progressRequiredBody"),
               reasons:
                 message || t("pages.cico.errors.progressRequiredBeforeCheckOut"),
             });
             return;
           }
-          showRejectionFromError(error, t("pages.cico.checkOutFailed"));
+          showRejectionFromError(error, t("pages.cico.checkOutFailed"), {
+            title: t("pages.cico.checkOutFailedTitle"),
+            description: t("pages.cico.checkOutFailedBody"),
+          });
         }
       });
     } catch (error) {
-      showRejectionFromError(error, t("pages.cico.locationFailed"));
+      showRejectionFromError(error, t("pages.cico.locationFailed"), {
+        title: t("pages.cico.checkOutFailedTitle"),
+        description: t("pages.cico.checkOutFailedBody"),
+      });
     } finally {
       setLocating(false);
     }
@@ -397,7 +436,7 @@ export default function CicoActions({
                       value={projectSearch}
                       onChange={setProjectSearch}
                       placeholder={t("common.labels.searchProjects")}
-                      className="max-w-none"
+                      className="min-w-0 w-full max-w-none"
                     />
                   }
                 >
@@ -739,14 +778,19 @@ export default function CicoActions({
       ) : null}
 
       <Dialog skipUnsavedGuard open={earlyConfirmOpen} onOpenChange={setEarlyConfirmOpen}>
-        <DialogContent>
+        <DialogContent
+          showCloseButton={false}
+          className="gap-0 overflow-hidden rounded-2xl border border-border bg-panel p-0 text-text ring-0 sm:max-w-sm"
+        >
+          <div className="max-h-[min(90dvh,24rem)] overflow-y-auto px-4 pt-6 pb-6 sm:px-10 sm:pt-8 sm:pb-7">
           <DialogHeader>
             <DialogTitle>{t("pages.cico.earlyCheckoutTitle")}</DialogTitle>
             <DialogDescription>
               {t("pages.cico.earlyCheckoutBody")}
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
+          </div>
+          <DialogFooter className="mx-0 mb-0 mt-0 flex-col gap-3 rounded-none border-t border-border bg-strip px-4 py-5 sm:flex-col sm:justify-stretch sm:px-10 sm:py-6">
             <Button
               type="button"
               variant="outline"

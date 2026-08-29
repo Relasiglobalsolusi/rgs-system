@@ -1,15 +1,27 @@
 import { Prisma } from "@prisma/client";
 
+import {
+  canTopUpPrepaidCard,
+  prepaidTopUpLabel,
+} from "@/lib/prepaid-card";
+import { currentPrepaidAssignment, writePrepaidCardEntry } from "@/lib/prepaid-card-lifecycle";
 import { decimalToNumber } from "@/lib/project-billing";
 
 type AdvanceCashDb = Prisma.TransactionClient;
 
-export function prepaidTopUpDescription(
-  invoiceRef: string,
-  notes?: string | null
-) {
-  const trimmed = notes?.trim() ?? "";
-  return trimmed ? `${trimmed} · ${invoiceRef}` : `Top-up ${invoiceRef}`;
+export function isPrepaidCardReplacementFeeInvoice(invoice: {
+  invoiceRef?: string | null;
+}) {
+  return (invoice.invoiceRef ?? "").startsWith("CRF-");
+}
+
+export function isPrepaidOpenCardTopUpInvoice(invoice: {
+  invoiceRef?: string | null;
+  purchaseCategory?: string | null;
+  prepaidCard?: { kind?: string | null } | null;
+}) {
+  if (invoice.prepaidCard?.kind === "OPEN") return true;
+  return (invoice.invoiceRef ?? "").startsWith("OPC-");
 }
 
 export function isPrepaidCardTopUpInvoice(invoice: {
@@ -17,11 +29,15 @@ export function isPrepaidCardTopUpInvoice(invoice: {
   purchaseCategory?: string | null;
   supplierName?: string | null;
   invoiceRef?: string | null;
+  prepaidCard?: { kind?: string | null } | null;
 }) {
-  return (
-    invoice.supplierName === "Prepaid Card" ||
-    (invoice.invoiceRef ?? "").startsWith("PPC-")
-  );
+  if (isPrepaidCardReplacementFeeInvoice(invoice)) return false;
+  if ((invoice.invoiceRef ?? "").startsWith("PPC-")) return true;
+  if ((invoice.invoiceRef ?? "").startsWith("OPC-")) return true;
+  if (invoice.prepaidCard?.kind === "OPEN" || invoice.prepaidCard?.kind === "VEHICLE") {
+    return true;
+  }
+  return invoice.supplierName === "Prepaid Card";
 }
 
 export function isPettyCashTopUpInvoice(invoice: {
@@ -48,32 +64,32 @@ export async function creditPrepaidCardFromExpense(
     invoiceDate: Date;
     notes?: string | null;
     filePath?: string | null;
+    purchaseInvoiceId?: string | null;
   }
 ) {
   const card = await tx.prepaidCard.findFirst({
     where: { id: options.prepaidCardId, companyId: options.companyId },
   });
   if (!card) throw new Error("Prepaid card not found.");
+  if (!canTopUpPrepaidCard(card.status)) {
+    throw new Error("This Card cannot be topped up.");
+  }
   const amount = decimalToNumber(options.amount) ?? 0;
   if (amount <= 0) throw new Error("Enter a valid amount.");
-  const previous = decimalToNumber(card.currentBalance) ?? 0;
-  const resulting = previous + amount;
-  await tx.prepaidCard.update({
-    where: { id: card.id },
-    data: { currentBalance: new Prisma.Decimal(resulting) },
-  });
-  await tx.prepaidCardEntry.create({
-    data: {
-      prepaidCardId: card.id,
-      kind: "TOP_UP",
-      amount: options.amount,
-      previousBalance: previous,
-      resultingBalance: resulting,
-      proofPath: options.filePath || null,
-      entryDate: options.invoiceDate,
-      description: prepaidTopUpDescription(options.invoiceRef, options.notes),
-      createdById: options.userId,
-    },
+  const assignment = await currentPrepaidAssignment(tx, card.id);
+  const label = prepaidTopUpLabel(card.kind, card.cardNumber);
+  const note = options.notes?.trim();
+  await writePrepaidCardEntry(tx, {
+    cardId: card.id,
+    kind: "TOP_UP",
+    amount,
+    balanceDelta: amount,
+    entryDate: options.invoiceDate,
+    description: note ? `${label} · ${note}` : label,
+    createdById: options.userId,
+    proofPath: options.filePath || null,
+    assignmentId: assignment?.id ?? null,
+    purchaseInvoiceId: options.purchaseInvoiceId ?? null,
   });
   return card;
 }
@@ -84,13 +100,20 @@ export async function unwindPrepaidTopUpFromInvoice(
   invoice: { id: string; invoiceRef: string; amount: Prisma.Decimal | number }
 ) {
   const amount = decimalToNumber(invoice.amount) ?? 0;
-  const entries = await tx.prepaidCardEntry.findMany({
-    where: {
-      kind: "TOP_UP",
-      description: { contains: invoice.invoiceRef },
-    },
+  const byInvoice = await tx.prepaidCardEntry.findMany({
+    where: { kind: "TOP_UP", purchaseInvoiceId: invoice.id },
     select: { id: true, prepaidCardId: true, amount: true },
   });
+  const entries =
+    byInvoice.length > 0
+      ? byInvoice
+      : await tx.prepaidCardEntry.findMany({
+          where: {
+            kind: "TOP_UP",
+            description: { contains: invoice.invoiceRef },
+          },
+          select: { id: true, prepaidCardId: true, amount: true },
+        });
   for (const entry of entries) {
     const card = await tx.prepaidCard.findUnique({
       where: { id: entry.prepaidCardId },
@@ -125,6 +148,8 @@ export async function applyMissingExpenseTopUps(
         { purpose: "PETTY_CASH", purchaseCategory: "PETTY_CASH" },
         { purchaseCategory: "VEHICLE", supplierName: "Prepaid Card" },
         { invoiceRef: { startsWith: "PPC-" } },
+        { invoiceRef: { startsWith: "OPC-" } },
+        { prepaidCardId: { not: null } },
       ],
     },
     select: {
@@ -138,6 +163,8 @@ export async function applyMissingExpenseTopUps(
       purchaseCategory: true,
       purpose: true,
       createdById: true,
+      prepaidCardId: true,
+      employeeId: true,
       pettyCashEntry: { select: { id: true } },
     },
   });
@@ -145,37 +172,52 @@ export async function applyMissingExpenseTopUps(
   for (const invoice of invoices) {
     const amount = decimalToNumber(invoice.amount) ?? 0;
     if (amount <= 0) continue;
+    if (isPrepaidCardReplacementFeeInvoice(invoice)) continue;
 
     if (isPrepaidCardTopUpInvoice(invoice)) {
       const already = await tx.prepaidCardEntry.findFirst({
         where: {
           kind: "TOP_UP",
-          description: { contains: invoice.invoiceRef },
+          OR: [
+            { purchaseInvoiceId: invoice.id },
+            { description: { contains: invoice.invoiceRef } },
+          ],
         },
         select: { id: true },
       });
       if (already) continue;
 
+      const card =
+        invoice.prepaidCardId
+          ? await tx.prepaidCard.findFirst({
+              where: { id: invoice.prepaidCardId, companyId: options.companyId },
+              select: { id: true },
+            })
+          : null;
       const cardNumber =
         invoice.notes?.match(/Prepaid card top-up\s+(.+)$/i)?.[1]?.trim() ??
+        invoice.notes?.match(/Top up (?:Vehicle|Open) Card\s+(.+)$/i)?.[1]?.replace(/\s+/g, "") ??
         "";
-      const card = cardNumber
-        ? await tx.prepaidCard.findFirst({
-            where: { companyId: options.companyId, cardNumber },
-            select: { id: true, currentBalance: true },
-          })
-        : null;
-      if (!card) continue;
+      const byNumber =
+        card ??
+        (cardNumber
+          ? await tx.prepaidCard.findFirst({
+              where: { companyId: options.companyId, cardNumber },
+              select: { id: true },
+            })
+          : null);
+      if (!byNumber) continue;
 
       await creditPrepaidCardFromExpense(tx, {
         companyId: options.companyId,
         userId: invoice.createdById ?? options.userId,
-        prepaidCardId: card.id,
+        prepaidCardId: byNumber.id,
         amount: invoice.amount,
         invoiceRef: invoice.invoiceRef,
         invoiceDate: invoice.invoiceDate,
         notes: invoice.notes,
         filePath: invoice.filePath,
+        purchaseInvoiceId: invoice.id,
       });
       continue;
     }
@@ -194,6 +236,8 @@ export async function applyMissingExpenseTopUps(
         createdById: invoice.createdById ?? options.userId,
         postedAt: new Date(),
         proofPath: invoice.filePath || null,
+        employeeId: invoice.employeeId,
+        holderEmployeeId: invoice.employeeId,
       },
     });
   }

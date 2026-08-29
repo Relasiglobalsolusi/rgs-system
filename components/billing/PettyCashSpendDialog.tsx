@@ -50,7 +50,7 @@ type ClientOption = {
   name: string;
 };
 
-type BillForEmployee = {
+export type PettyCashHolderOption = {
   id: string;
   name: string;
 };
@@ -60,15 +60,27 @@ type ChargeType = "client" | "project";
 export default function PettyCashSpendDialog({
   projects,
   clients,
-  billForEmployees,
+  holders,
+  preferredHolderId = null,
+  lockHolder = false,
+  open: controlledOpen,
+  onOpenChange,
+  showTrigger = true,
 }: {
   projects: ProjectOption[];
   clients: ClientOption[];
-  billForEmployees: BillForEmployee[];
+  holders: PettyCashHolderOption[];
+  preferredHolderId?: string | null;
+  lockHolder?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  showTrigger?: boolean;
 }) {
   const { t } = useT();
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = onOpenChange ?? setUncontrolledOpen;
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
@@ -78,7 +90,9 @@ export default function PettyCashSpendDialog({
   const [chargeType, setChargeType] = useState<ChargeType | "">("");
   const [projectId, setProjectId] = useState("");
   const [clientId, setClientId] = useState("");
-  const [employeeId, setEmployeeId] = useState("");
+  const [holderEmployeeId, setHolderEmployeeId] = useState(
+    preferredHolderId ?? ""
+  );
 
   const typedAmount = Number(amount.replace(/[^\d]/g, ""));
 
@@ -91,15 +105,18 @@ export default function PettyCashSpendDialog({
     setChargeType("");
     setProjectId("");
     setClientId("");
-    setEmployeeId("");
+    setHolderEmployeeId(preferredHolderId ?? "");
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    const holderId = lockHolder
+      ? preferredHolderId || holderEmployeeId
+      : holderEmployeeId;
     const extraMissing: string[] = [];
     if (!documentFile) extraMissing.push(t("pages.pettyCash.proof"));
-    if (!employeeId) extraMissing.push(t("pages.pettyCash.billIsForRequired"));
+    if (!holderId) extraMissing.push(t("pages.pettyCash.holderRequired"));
     if (!chargeType) extraMissing.push(t("pages.pettyCash.chargeTypeRequired"));
     if (chargeType === "client" && !clientId) {
       extraMissing.push(t("pages.pettyCash.chargeTypeRequired"));
@@ -110,7 +127,7 @@ export default function PettyCashSpendDialog({
     if (showMissingRequiredFields(event.currentTarget, extraMissing)) {
       return;
     }
-    if (!documentFile || !chargeType) return;
+    if (!documentFile || !chargeType || !holderId) return;
 
     const formData = new FormData(event.currentTarget);
     formData.set("document", documentFile);
@@ -120,7 +137,7 @@ export default function PettyCashSpendDialog({
     formData.set("chargeType", chargeType);
     formData.set("projectId", chargeType === "project" ? projectId : "");
     formData.set("clientId", chargeType === "client" ? clientId : "");
-    formData.set("employeeId", employeeId);
+    formData.set("holderEmployeeId", holderId);
 
     setPending(true);
     try {
@@ -142,15 +159,18 @@ export default function PettyCashSpendDialog({
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
+        if (next && preferredHolderId) setHolderEmployeeId(preferredHolderId);
         if (!next) reset();
       }}
     >
-      <DialogTrigger asChild>
-        <Button type="button" variant="permissionsBadge" size="badgeFlex">
-          <Receipt className="h-3.5 w-3.5" aria-hidden />
-          {t("pages.pettyCash.recordSpend")}
-        </Button>
-      </DialogTrigger>
+      {showTrigger ? (
+        <DialogTrigger asChild>
+          <Button type="button" variant="permissionsBadge" size="badgeFlex">
+            <Receipt className="h-3.5 w-3.5" aria-hidden />
+            {t("pages.pettyCash.recordSpend")}
+          </Button>
+        </DialogTrigger>
+      ) : null}
       <EmployeeDialogShell
         icon={Receipt}
         title={t("pages.pettyCash.spendTitle")}
@@ -199,6 +219,42 @@ export default function PettyCashSpendDialog({
                 {t("pages.pettyCash.proofHint")}
               </p>
             </div>
+
+            {lockHolder ? (
+              <input
+                type="hidden"
+                name="holderEmployeeId"
+                value={preferredHolderId ?? ""}
+              />
+            ) : (
+              <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+                <label className={employeeDialogLabelClass}>
+                  {t("pages.pettyCash.holder")}
+                  <span className="text-red-400"> *</span>
+                </label>
+                <Select
+                  value={holderEmployeeId || undefined}
+                  onValueChange={(value) => setHolderEmployeeId(value ?? "")}
+                  disabled={pending}
+                >
+                  <SelectTrigger className={employeeSelectTriggerClass}>
+                    <SelectValue
+                      placeholder={t("pages.pettyCash.holderPlaceholder")}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {holders.map((holder) => (
+                      <SelectItem key={holder.id} value={holder.id}>
+                        {holder.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className={employeeDialogHintClass}>
+                  {t("pages.pettyCash.holderHint")}
+                </p>
+              </div>
+            )}
 
             <div className={employeeDialogFieldClass}>
               <label
@@ -262,49 +318,11 @@ export default function PettyCashSpendDialog({
             </div>
 
             <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
-              <label className={employeeDialogLabelClass}>
-                {t("pages.pettyCash.billIsFor")}
-                <span className="text-red-400"> *</span>
-              </label>
-              <Select
-                value={employeeId || undefined}
-                onValueChange={(value) => setEmployeeId(value ?? "")}
-                disabled={pending}
-              >
-                <SelectTrigger className={employeeSelectTriggerClass}>
-                  <SelectValue
-                    placeholder={t("pages.pettyCash.billIsForPlaceholder")}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {billForEmployees.map((employee) => (
-                    <SelectItem key={employee.id} value={employee.id}>
-                      {employee.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className={employeeDialogHintClass}>
-                {t("pages.pettyCash.billIsForHint")}
-              </p>
-            </div>
-
-            <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
               <p className={employeeDialogLabelClass}>
                 {t("pages.pettyCash.chargeType")}
                 <span className="text-red-400"> *</span>
               </p>
               <div className="flex flex-wrap items-center gap-2">
-                <DirectoryFilterTab
-                  size="sm"
-                  active={chargeType === "client"}
-                  onClick={() => {
-                    setChargeType("client");
-                    setProjectId("");
-                  }}
-                >
-                  {t("pages.pettyCash.chargeTypeClient")}
-                </DirectoryFilterTab>
                 <DirectoryFilterTab
                   size="sm"
                   active={chargeType === "project"}
@@ -315,28 +333,18 @@ export default function PettyCashSpendDialog({
                 >
                   {t("pages.pettyCash.chargeTypeProject")}
                 </DirectoryFilterTab>
+                <DirectoryFilterTab
+                  size="sm"
+                  active={chargeType === "client"}
+                  onClick={() => {
+                    setChargeType("client");
+                    setProjectId("");
+                  }}
+                >
+                  {t("pages.pettyCash.chargeTypeClient")}
+                </DirectoryFilterTab>
               </div>
             </div>
-
-            {chargeType === "client" ? (
-              <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
-                <label className={employeeDialogLabelClass}>
-                  {t("pages.pettyCash.client")}
-                  <span className="text-red-400"> *</span>
-                </label>
-                <SearchableClientSelect
-                  value={clientId}
-                  onValueChange={setClientId}
-                  clients={clients}
-                  placeholder={t("pages.pettyCash.clientPlaceholder")}
-                  disabled={pending}
-                  required
-                />
-                <p className={employeeDialogHintClass}>
-                  {t("pages.pettyCash.clientHint")}
-                </p>
-              </div>
-            ) : null}
 
             {chargeType === "project" ? (
               <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
@@ -345,12 +353,11 @@ export default function PettyCashSpendDialog({
                   <span className="text-red-400"> *</span>
                 </label>
                 <SearchableProjectSelect
+                  projects={projects}
                   value={projectId}
                   onValueChange={setProjectId}
-                  projects={projects}
-                  placeholder={t("pages.pettyCash.projectPlaceholder")}
                   disabled={pending}
-                  required
+                  placeholder={t("pages.pettyCash.projectPlaceholder")}
                 />
                 <p className={employeeDialogHintClass}>
                   {t("pages.pettyCash.projectHint")}
@@ -358,9 +365,26 @@ export default function PettyCashSpendDialog({
               </div>
             ) : null}
 
-            {error ? (
-              <p className="sm:col-span-2 text-sm text-danger">{error}</p>
+            {chargeType === "client" ? (
+              <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+                <label className={employeeDialogLabelClass}>
+                  {t("pages.pettyCash.client")}
+                  <span className="text-red-400"> *</span>
+                </label>
+                <SearchableClientSelect
+                  clients={clients}
+                  value={clientId}
+                  onValueChange={setClientId}
+                  disabled={pending}
+                  placeholder={t("pages.pettyCash.clientPlaceholder")}
+                />
+                <p className={employeeDialogHintClass}>
+                  {t("pages.pettyCash.clientHint")}
+                </p>
+              </div>
             ) : null}
+
+            {error ? <p className="sm:col-span-2 text-sm text-danger">{error}</p> : null}
           </div>
         </form>
       </EmployeeDialogShell>

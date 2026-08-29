@@ -20,7 +20,7 @@ function toStartOfLocalDay(value: Date): Date {
  * Calendar-accurate years / months / days from `start` to `end` (inclusive of
  * whole calendar units only — remaining days are exact day count).
  */
-export function getCalendarTenure(
+function getCalendarTenure(
   start: Date,
   end: Date = new Date()
 ): TenureParts {

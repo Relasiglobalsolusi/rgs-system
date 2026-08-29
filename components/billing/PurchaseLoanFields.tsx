@@ -133,7 +133,7 @@ export default function PurchaseLoanFields({
           <div
             role="radiogroup"
             aria-labelledby="loan-payment-for-label"
-            className="mt-2 grid grid-cols-2 gap-2"
+            className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2"
           >
             {(
               [

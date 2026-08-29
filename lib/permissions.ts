@@ -77,6 +77,8 @@ import {
  * 2. Add a sidebar item with `module` set to that key
  * 3. Add the path in `ROUTE_MODULE_MAP`
  * 4. Add `modules.<key>` in the EN and ID dictionaries
+ * 5. Add EN+ID how-to copy in `lib/system-guide/copy.ts` (a generic
+ *    fallback is used until you do, so new modules are never omitted)
  * Presets below use `fillModuleFlags`, so a new key defaults to Off for
  * staff and portals and On for Admin. Set it to true in a preset if that
  * role should get it without a manual toggle.
@@ -155,11 +157,27 @@ export const MODULES = [
 
 export type ModuleKey = (typeof MODULES)[number];
 
+/** Stored under Advance Cash — not separate sidebar modules. */
+export const ADVANCE_CASH_CHILD_KEYS = [
+  "pettyCashPetty",
+  "pettyCashPrepaid",
+] as const;
+
+export type AdvanceCashChildKey = (typeof ADVANCE_CASH_CHILD_KEYS)[number];
+
+export type ModuleAccessFlags = Record<ModuleKey, boolean> &
+  Record<AdvanceCashChildKey, boolean>;
+
+export type AdvanceCashAccess = {
+  petty: boolean;
+  prepaid: boolean;
+};
+
 
 
 /** Legacy modules removed from navigation; kept for existing permission overrides. */
 
-export const HIDDEN_MODULES: ModuleKey[] = [
+const HIDDEN_MODULES: ModuleKey[] = [
   "departments",
   "settings",
   "website",
@@ -189,7 +207,11 @@ export type PermissionUser = {
   employee?: {
     employeeNo: string;
     employeeType?: EmployeeType | null;
-    jobPosition?: { slug?: string | null; name?: string | null } | null;
+    jobPosition?: {
+      slug?: string | null;
+      name?: string | null;
+      defaultModuleAccess?: unknown;
+    } | null;
   } | null;
 };
 
@@ -288,16 +310,40 @@ export type MenuSection = {
 
 
 
+function readAdvanceCashChildren(
+  record: Record<string, unknown> | null | undefined,
+  parentOn: boolean
+): Record<AdvanceCashChildKey, boolean> {
+  const hasPetty = typeof record?.pettyCashPetty === "boolean";
+  const hasPrepaid = typeof record?.pettyCashPrepaid === "boolean";
+  if (!hasPetty && !hasPrepaid) {
+    return { pettyCashPetty: parentOn, pettyCashPrepaid: parentOn };
+  }
+  return {
+    pettyCashPetty: record?.pettyCashPetty === true,
+    pettyCashPrepaid: record?.pettyCashPrepaid === true,
+  };
+}
+
 function fillModuleFlags(
   fill: boolean,
-  patch: Partial<Record<ModuleKey, boolean>> = {}
-): Record<ModuleKey, boolean> {
-  return {
+  patch: Partial<ModuleAccessFlags> = {}
+): ModuleAccessFlags {
+  const base = {
     ...(Object.fromEntries(MODULES.map((module) => [module, fill])) as Record<
       ModuleKey,
       boolean
     >),
     ...patch,
+  };
+  const children = readAdvanceCashChildren(
+    patch as Record<string, unknown>,
+    base.pettyCash === true
+  );
+  return {
+    ...base,
+    pettyCash: children.pettyCashPetty || children.pettyCashPrepaid,
+    ...children,
   };
 }
 
@@ -312,7 +358,7 @@ const ALL_MODULES = fillModuleFlags(true);
  * Client Report and Attendance Report are merged into Progress Report.
  * Existing client users keep stored overrides until Permissions is re-saved / reset.
  */
-export function getClientModuleOverrides(): Record<ModuleKey, boolean> {
+export function getClientModuleOverrides(): ModuleAccessFlags {
   return fillModuleFlags(false, {
     dashboard: true,
     projects: true,
@@ -323,11 +369,17 @@ export function getClientModuleOverrides(): Record<ModuleKey, boolean> {
   });
 }
 
+/** Modules covered by the client-portal system guide (same for every client). */
+export function getClientPortalGuideModules(): ModuleKey[] {
+  const flags = getClientModuleOverrides();
+  return getVisibleModules().filter((module) => flags[module]);
+}
+
 /**
  * Vendor portal logins are disabled product-wide (auth rejects vendorId users;
  * getAccessibleModules returns []). Kept for account-type baseline / legacy rows.
  */
-export function getVendorModuleOverrides(): Record<ModuleKey, boolean> {
+function getVendorModuleOverrides(): ModuleAccessFlags {
   return fillModuleFlags(false);
 }
 
@@ -451,7 +503,7 @@ export const FINANCE_MENU_ITEMS: MenuItem[] = [
  * (by {@link MenuItem.navKey}) while the parent `invoicing` module stays
  * accessible. Stored in `moduleOverrides` as `"invoicing:<navKey>": false`.
  */
-export function financeChildOverrideKey(navKey: string): string {
+function financeChildOverrideKey(navKey: string): string {
   return `invoicing:${navKey}`;
 }
 
@@ -460,7 +512,7 @@ export function financeChildOverrideKey(navKey: string): string {
  * Callers must also confirm the `invoicing` module itself is accessible —
  * this only gates which children are visible/reachable underneath it.
  */
-export function isFinanceChildAccessible(
+function isFinanceChildAccessible(
   overrides: Record<string, boolean> | null | undefined,
   navKey: string
 ): boolean {
@@ -553,23 +605,76 @@ type EmployeeModulePresetOptions = {
 /** Stored position `defaultModuleAccess` JSON → full module flag map. */
 export function parsePositionDefaultModuleAccess(
   raw: unknown
-): Record<ModuleKey, boolean> | null {
+): ModuleAccessFlags | null {
   return normalizeModuleAccessMap(raw);
 }
 
 function normalizeModuleAccessMap(
   raw: unknown
-): Record<ModuleKey, boolean> | null {
+): ModuleAccessFlags | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const record = raw as Record<string, unknown>;
   const hasAny = MODULES.some((key) => typeof record[key] === "boolean");
-  if (!hasAny) return null;
-  return fillModuleFlags(
-    false,
-    Object.fromEntries(
-      MODULES.map((key) => [key, record[key] === true])
-    ) as Partial<Record<ModuleKey, boolean>>
+  const hasChild = ADVANCE_CASH_CHILD_KEYS.some(
+    (key) => typeof record[key] === "boolean"
   );
+  if (!hasAny && !hasChild) return null;
+  const patch: Partial<ModuleAccessFlags> = Object.fromEntries(
+    MODULES.map((key) => [key, record[key] === true])
+  ) as Partial<ModuleAccessFlags>;
+  if (typeof record.pettyCashPetty === "boolean") {
+    patch.pettyCashPetty = record.pettyCashPetty;
+  }
+  if (typeof record.pettyCashPrepaid === "boolean") {
+    patch.pettyCashPrepaid = record.pettyCashPrepaid;
+  }
+  return fillModuleFlags(false, patch);
+}
+
+export function applyAdvanceCashParentToggle(
+  current: ModuleAccessFlags,
+  enabled: boolean
+): ModuleAccessFlags {
+  return {
+    ...current,
+    pettyCash: enabled,
+    pettyCashPetty: enabled,
+    pettyCashPrepaid: enabled,
+  };
+}
+
+export function applyAdvanceCashChildToggle(
+  current: ModuleAccessFlags,
+  child: AdvanceCashChildKey,
+  enabled: boolean
+): ModuleAccessFlags {
+  const next = {
+    ...current,
+    [child]: enabled,
+  };
+  next.pettyCash = next.pettyCashPetty || next.pettyCashPrepaid;
+  if (!next.pettyCash) {
+    next.pettyCashPetty = false;
+    next.pettyCashPrepaid = false;
+  }
+  return next;
+}
+
+export function setAdvanceCashOverrideTargets(
+  current: Record<string, boolean>,
+  baseline: ModuleAccessFlags,
+  targets: AdvanceCashAccess
+): Record<string, boolean> {
+  const next = { ...current };
+  const parent = targets.petty || targets.prepaid;
+  const apply = (key: string, desired: boolean, defaultValue: boolean) => {
+    if (desired === defaultValue) delete next[key];
+    else next[key] = desired;
+  };
+  apply("pettyCash", parent, baseline.pettyCash);
+  apply("pettyCashPetty", targets.petty, baseline.pettyCashPetty);
+  apply("pettyCashPrepaid", targets.prepaid, baseline.pettyCashPrepaid);
+  return next;
 }
 
 function isHeadOfficeEmployeePreset(options?: EmployeeModulePresetOptions) {
@@ -616,7 +721,7 @@ export const activeFieldStaffWhere = {
  */
 export function getEmployeeModuleOverrides(
   options?: EmployeeModulePresetOptions
-): Record<ModuleKey, boolean> {
+): ModuleAccessFlags {
   const rawAccess = options?.jobPosition?.defaultModuleAccess;
   const stored = normalizeModuleAccessMap(rawAccess);
   if (stored) {
@@ -732,7 +837,7 @@ export type ModuleAccessState = {
 
 
 
-export function getModuleAccessState(
+function getModuleAccessState(
   user: PermissionUser,
   module: ModuleKey,
   baseline: Record<ModuleKey, boolean> = ALL_MODULES
@@ -784,7 +889,11 @@ export function getAccessibleModules(
     employee?: {
       employeeNo: string;
       employeeType?: EmployeeType | null;
-      jobPosition?: { slug?: string | null; name?: string | null } | null;
+      jobPosition?: {
+        slug?: string | null;
+        name?: string | null;
+        defaultModuleAccess?: unknown;
+      } | null;
     } | null;
   }
 ): ModuleKey[] {
@@ -824,6 +933,10 @@ export function getAccessibleModules(
     }
     if (module === "shifts" && isApproverAccount(accountUser)) {
       return true;
+    }
+    if (module === "pettyCash") {
+      const access = getAdvanceCashAccess(user);
+      return access.petty || access.prepaid;
     }
     const override = resolveModuleOverride(overrides, module);
     if (override !== null) {
@@ -871,7 +984,11 @@ export type AccountTypeUser = PermissionUser & {
     placement?: Placement | null;
 
     /** Position slug/name — when present, OMs and Directors default to approvals. */
-    jobPosition?: { slug?: string | null; name?: string | null } | null;
+    jobPosition?: {
+      slug?: string | null;
+      name?: string | null;
+      defaultModuleAccess?: unknown;
+    } | null;
 
   } | null;
 
@@ -884,7 +1001,7 @@ export function isApproverAccount(user: AccountTypeUser): boolean {
 
 /** Modules restricted on employee/client portal presets. */
 
-export const ADMIN_SCOPE_MODULES: ModuleKey[] = [
+const ADMIN_SCOPE_MODULES: ModuleKey[] = [
 
   "users",
 
@@ -975,7 +1092,7 @@ export function getAccountTypeBadgeStatus(
  */
 export function getAccountTypeBaselineModules(
   user: AccountTypeUser
-): Record<ModuleKey, boolean> {
+): ModuleAccessFlags {
   const accountType = getAccountType(user);
 
   if (accountType === "Client") {
@@ -995,6 +1112,74 @@ export function getAccountTypeBaselineModules(
   }
 
   return { ...ALL_MODULES };
+}
+
+/**
+ * Petty Cash vs Prepaid Cards under Advance Cash.
+ * Legacy `pettyCash: true` with no child keys keeps both on.
+ * Missing child keys inherit the current position / account baseline.
+ */
+export function getAdvanceCashAccess(
+  user: PermissionUser
+): AdvanceCashAccess {
+  if (isHoAdminAccount(user)) {
+    return { petty: true, prepaid: true };
+  }
+  if (user.clientId || user.client || user.vendorId || user.vendor) {
+    return { petty: false, prepaid: false };
+  }
+
+  const overrides = user.moduleOverrides ?? {};
+  const baseline = getAccountTypeBaselineModules(user);
+  const parentOverride = resolveModuleOverride(overrides, "pettyCash");
+  const parentOn =
+    parentOverride !== null ? parentOverride : baseline.pettyCash === true;
+  if (!parentOn) {
+    return { petty: false, prepaid: false };
+  }
+
+  const hasChildKeys =
+    "pettyCashPetty" in overrides || "pettyCashPrepaid" in overrides;
+  if (!hasChildKeys) {
+    const storedAccess = user.employee?.jobPosition?.defaultModuleAccess;
+    const storedHasChildren =
+      storedAccess != null &&
+      typeof storedAccess === "object" &&
+      !Array.isArray(storedAccess) &&
+      ADVANCE_CASH_CHILD_KEYS.some(
+        (key) => key in (storedAccess as Record<string, unknown>)
+      );
+    if (storedHasChildren) {
+      return {
+        petty: baseline.pettyCashPetty === true,
+        prepaid: baseline.pettyCashPrepaid === true,
+      };
+    }
+    // Legacy Advance Cash grant = both pages.
+    return { petty: true, prepaid: true };
+  }
+
+  return {
+    petty:
+      "pettyCashPetty" in overrides
+        ? overrides.pettyCashPetty === true
+        : baseline.pettyCashPetty !== false,
+    prepaid:
+      "pettyCashPrepaid" in overrides
+        ? overrides.pettyCashPrepaid === true
+        : baseline.pettyCashPrepaid !== false,
+  };
+}
+
+export function canAccessAdvanceCashPrepaid(user: PermissionUser): boolean {
+  return getAdvanceCashAccess(user).prepaid;
+}
+
+export function advanceCashHref(access: AdvanceCashAccess): string {
+  if (access.prepaid && !access.petty) {
+    return "/billing/petty-cash?tab=prepaid";
+  }
+  return "/billing/petty-cash";
 }
 
 type SessionEmployeeCategory = {
@@ -1098,7 +1283,7 @@ export function canAccess(user: PermissionUser, module: ModuleKey): boolean {
 
 
 
-export const ROUTE_MODULE_MAP: Record<string, ModuleKey> = {
+const ROUTE_MODULE_MAP: Record<string, ModuleKey> = {
 
   "/dashboard": "dashboard",
 
@@ -1173,7 +1358,7 @@ export const ROUTE_MODULE_MAP: Record<string, ModuleKey> = {
 
 
 
-export function getModuleForPath(pathname: string): ModuleKey | null {
+function getModuleForPath(pathname: string): ModuleKey | null {
 
   const sortedRoutes = Object.keys(ROUTE_MODULE_MAP).sort(
 
@@ -1602,6 +1787,8 @@ export function getMenuForUser(
   const accessible = new Set(getAccessibleModules(user));
   const isClientPortal = Boolean(user.clientId || user.client);
   const overrides = user.moduleOverrides ?? null;
+  const advanceCash = getAdvanceCashAccess(user);
+  const pettyCashHref = advanceCashHref(advanceCash);
 
   return menu
     .map((section) => {
@@ -1618,19 +1805,23 @@ export function getMenuForUser(
         ...section,
         items: sectionItems
           .filter((item) => accessible.has(item.module))
-          .map((item) =>
-            item.children
-              ? {
-                  ...item,
-                  // Flat children only — never nest subcategory links under Projects.
-                  children: item.children.map(({ label, href, primary }) => ({
-                    label,
-                    href,
-                    ...(primary ? { primary } : {}),
-                  })),
-                }
-              : item
-          ),
+          .map((item) => {
+            const href =
+              item.module === "pettyCash" ? pettyCashHref : item.href;
+            if (item.children) {
+              return {
+                ...item,
+                href,
+                // Flat children only — never nest subcategory links under Projects.
+                children: item.children.map(({ label, href: childHref, primary }) => ({
+                  label,
+                  href: childHref,
+                  ...(primary ? { primary } : {}),
+                })),
+              };
+            }
+            return href === item.href ? item : { ...item, href };
+          }),
       };
     })
     .filter((section) => section.items.length > 0)

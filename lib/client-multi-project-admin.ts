@@ -20,13 +20,6 @@ import { canManageClients } from "@/lib/project-access";
 import { toPermissionUser } from "@/lib/session";
 import { capitalizeProper } from "@/lib/text-case";
 
-export type {
-  MultiProjectAdminState,
-  MultiProjectCodeDTO,
-  MultiProjectGroupDTO,
-  MultiProjectProjectDTO,
-} from "@/lib/client-multi-project-types";
-
 async function requireClientManager() {
   const session = await getCurrentSession();
   const locale = await getServerLocale();

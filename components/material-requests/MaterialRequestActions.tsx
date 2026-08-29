@@ -74,7 +74,7 @@ export function ReviewMaterialRequestButtons({ id }: { id: string }) {
   }
 
   return (
-    <div className="flex w-full min-w-[16rem] flex-col gap-2 sm:max-w-sm">
+    <div className="flex w-full min-w-0 flex-col gap-2 sm:max-w-sm">
       <textarea
         value={reviewNote}
         onChange={(e) => setReviewNote(e.target.value)}

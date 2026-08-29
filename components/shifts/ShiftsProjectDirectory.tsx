@@ -11,6 +11,7 @@ import {
 } from "@/lib/attendance-internal-sites";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import DirectorySearchInput, {
   matchesDirectorySearch,
 } from "@/components/ui/DirectorySearchInput";
@@ -132,24 +133,24 @@ export default function ShiftsProjectDirectory({ clientId, projects }: Props) {
   }, [locale, t]);
 
   const statsGrid = (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <DirectoryStatGrid>
       <DirectoryStatCard
-        compact
+        featured
         tinted
         title={t("pages.shifts.cards.projects")}
         value={stats.projects}
         accent="primary"
-        icon={<FolderKanban size={18} />}
+        icon={<FolderKanban size={22} />}
       />
       <DirectoryStatCard
-        compact
+        featured
         tinted
         title={t("pages.shifts.cards.staff")}
         value={stats.staff}
         accent="warning"
-        icon={<Users size={18} />}
+        icon={<Users size={22} />}
       />
-    </div>
+    </DirectoryStatGrid>
   );
 
   if (projects.length === 0) {

@@ -8,13 +8,13 @@
  *    COMPANY_BANK_ACCOUNT_NAME
  */
 
-export type CompanyBankSource = {
+type CompanyBankSource = {
   bankName?: string | null;
   bankAccountNumber?: string | null;
   bankAccountName?: string | null;
 };
 
-export type CompanyBankDetails = {
+type CompanyBankDetails = {
   /** Digits-only account number used for matching. */
   accountNumber: string;
   /** Display / original account string when available. */
@@ -24,7 +24,7 @@ export type CompanyBankDetails = {
 };
 
 /** Digits-only bank account; require a plausible length. */
-export function normalizeBankAccountNumber(
+function normalizeBankAccountNumber(
   value: string | null | undefined
 ): string | null {
   if (value == null) return null;

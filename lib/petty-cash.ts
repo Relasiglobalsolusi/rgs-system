@@ -14,6 +14,58 @@ function pettyCashDelegate(db?: PettyCashDb) {
 
 const OUTFLOW_KINDS = ["SPEND", "PART_TIME_PAY"] as const;
 const INFLOW_KINDS = ["TOP_UP"] as const;
+const HOLDER_INFLOW_KINDS = ["TOP_UP", "TRANSFER_IN"] as const;
+const HOLDER_OUTFLOW_KINDS = ["SPEND", "TRANSFER_OUT", "PART_TIME_PAY"] as const;
+
+export function pettyCashTopUpDescription(opts: {
+  employeeName: string;
+  invoiceRef: string;
+  notes?: string | null;
+}) {
+  const note = opts.notes?.trim() ?? "";
+  const base = `Top Up Petty Cash · ${opts.employeeName}`;
+  if (note && note !== "Petty Cash top-up") {
+    return `${base} · ${note} · ${opts.invoiceRef}`;
+  }
+  return `${base} · ${opts.invoiceRef}`;
+}
+
+export function pettyCashTransferOutDescription(toName: string, note?: string | null) {
+  const trimmed = note?.trim() ?? "";
+  return trimmed
+    ? `Transfer Petty Cash to ${toName} · ${trimmed}`
+    : `Transfer Petty Cash to ${toName}`;
+}
+
+export function pettyCashTransferInDescription(fromName: string, note?: string | null) {
+  const trimmed = note?.trim() ?? "";
+  return trimmed
+    ? `Transfer Petty Cash from ${fromName} · ${trimmed}`
+    : `Transfer Petty Cash from ${fromName}`;
+}
+
+export function pettyCashPartTimePaidDescription(opts: {
+  existingDescription: string;
+  payerName: string;
+}) {
+  const base = opts.existingDescription.replace(/\s·\sPaid from .+$/, "").trim();
+  return `${base} · Paid from ${opts.payerName}`;
+}
+
+export function holderBalanceFromEntries(
+  entries: Array<{ kind: string; status: string; amount: number }>
+): number {
+  return entries.reduce((sum, entry) => {
+    if (entry.status !== "POSTED") return sum;
+    if ((HOLDER_INFLOW_KINDS as readonly string[]).includes(entry.kind)) {
+      return sum + entry.amount;
+    }
+    if ((HOLDER_OUTFLOW_KINDS as readonly string[]).includes(entry.kind)) {
+      return sum - entry.amount;
+    }
+    return sum;
+  }, 0);
+}
 
 export function parsePettyCashAmount(raw: string): number {
   const cleaned = raw.replace(/[^\d.,-]/g, "").trim();
@@ -45,7 +97,7 @@ export function parsePettyCashAmount(raw: string): number {
 }
 
 
-export function eachUtcDateInclusive(start: Date, end: Date): Date[] {
+function eachUtcDateInclusive(start: Date, end: Date): Date[] {
   const days: Date[] = [];
   let cursor = toUtcDateOnly(start);
   const last = toUtcDateOnly(end);
@@ -189,9 +241,8 @@ function isBackupWorkDayInWindow(
 }
 
 /**
- * Debit Petty Cash for one backup day after complete check-in and check-out.
- * Checkout is the job-done signal. Scheduled rows post; if none exist, a
- * posted pay is created from the assignment daily rate.
+ * After complete check-in and check-out, the day's wage floats as UNPAID.
+ * Nobody's wallet is deducted until someone clicks Pay on Petty Cash.
  */
 export async function tryPostPartTimePayForCompletedDay(opts: {
   db?: PettyCashDb;
@@ -241,11 +292,13 @@ export async function tryPostPartTimePayForCompletedDay(opts: {
       },
       select: { id: true, status: true },
     });
-    if (existing?.status === "POSTED") return true;
+    if (existing?.status === "POSTED" || existing?.status === "UNPAID") {
+      return true;
+    }
     if (existing?.status === "SCHEDULED") {
       await entries.update({
         where: { id: existing.id },
-        data: { status: "POSTED", postedAt: new Date() },
+        data: { status: "UNPAID", postedAt: null },
       });
       return true;
     }
@@ -257,7 +310,7 @@ export async function tryPostPartTimePayForCompletedDay(opts: {
       data: {
         companyId: assignment.project.companyId,
         kind: "PART_TIME_PAY",
-        status: "POSTED",
+        status: "UNPAID",
         amount,
         entryDate: workDay,
         description: buildPartTimePayDescription({
@@ -269,7 +322,7 @@ export async function tryPostPartTimePayForCompletedDay(opts: {
         projectId: opts.projectId,
         employeeId: opts.employeeId,
         assignmentId: assignment.id,
-        postedAt: new Date(),
+        postedAt: null,
       },
     });
     return true;
@@ -371,6 +424,7 @@ export type PettyCashTotals = {
   lifetimeOut: number;
   monthOut: number;
   upcomingOut: number;
+  unpaidOut: number;
 };
 
 async function sumPosted(
@@ -401,26 +455,13 @@ async function sumPosted(
   return decimalToNumber(agg._sum.amount) ?? 0;
 }
 
-/** Posted top-ups minus spends as of the period end. Live when the end is still open. */
-export async function getPettyCashBalanceAsOf(
-  db: PettyCashDb,
-  companyId: string,
-  toExclusive?: Date
-): Promise<number> {
-  const [inflow, outflow] = await Promise.all([
-    sumPosted(db, companyId, INFLOW_KINDS, undefined, toExclusive),
-    sumPosted(db, companyId, OUTFLOW_KINDS, undefined, toExclusive),
-  ]);
-  return inflow - outflow;
-}
-
 export async function getPettyCashTotals(
   db: PettyCashDb,
   companyId: string,
   monthStart: Date,
   monthEndExclusive: Date
 ): Promise<PettyCashTotals> {
-  const [lifetimeIn, monthIn, lifetimeOut, monthOut, upcoming] = await Promise.all([
+  const [lifetimeIn, monthIn, lifetimeOut, monthOut, upcoming, unpaid] = await Promise.all([
     sumPosted(db, companyId, INFLOW_KINDS),
     sumPosted(db, companyId, INFLOW_KINDS, monthStart, monthEndExclusive),
     sumPosted(db, companyId, OUTFLOW_KINDS),
@@ -433,6 +474,14 @@ export async function getPettyCashTotals(
       },
       _sum: { amount: true },
     }) ?? Promise.resolve(null),
+    pettyCashDelegate(db)?.aggregate({
+      where: {
+        companyId,
+        kind: "PART_TIME_PAY",
+        status: "UNPAID",
+      },
+      _sum: { amount: true },
+    }) ?? Promise.resolve(null),
   ]);
   return {
     balance: lifetimeIn - lifetimeOut,
@@ -441,16 +490,8 @@ export async function getPettyCashTotals(
     lifetimeOut,
     monthOut,
     upcomingOut: decimalToNumber(upcoming?._sum.amount) ?? 0,
+    unpaidOut: decimalToNumber(unpaid?._sum.amount) ?? 0,
   };
-}
-
-export async function sumPostedPettyCashOutflows(
-  companyId: string,
-  db: PettyCashDb,
-  from?: Date,
-  toExclusive?: Date
-): Promise<number> {
-  return sumPosted(db, companyId, OUTFLOW_KINDS, from, toExclusive);
 }
 
 export async function getProjectPettyCashOutflowsByProjectIds(
@@ -532,4 +573,4 @@ export function nextPettyCashTopUpRef(date: Date = new Date()): string {
   return `PC-${day}-${suffix}`;
 }
 
-export { formatDateInput, parseDateInput };
+export { parseDateInput };

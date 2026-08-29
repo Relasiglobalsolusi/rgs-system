@@ -313,7 +313,7 @@ export default function LoanFacilityCreateDialog({
               <div
                 role="radiogroup"
                 aria-labelledby="loan-create-source"
-                className="mt-2 grid grid-cols-2 gap-2"
+                className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2"
               >
                 {(
                   [
@@ -352,7 +352,7 @@ export default function LoanFacilityCreateDialog({
                 <div
                   role="radiogroup"
                   aria-labelledby="loan-create-kind"
-                  className="mt-2 grid grid-cols-2 gap-2"
+                  className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2"
                 >
                   {(
                     [

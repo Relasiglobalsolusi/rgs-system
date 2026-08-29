@@ -218,7 +218,7 @@ function UserRowActions({
 
   return (
     <>
-      <div className="flex flex-col items-stretch justify-center gap-2">
+      <div className="flex flex-col items-center justify-center gap-2">
         <Button
           type="button"
           size="badge"

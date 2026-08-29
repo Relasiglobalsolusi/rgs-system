@@ -47,6 +47,8 @@ export const id = {
       title: "Tindakan tidak dapat diselesaikan",
       description:
         "Tinjau masalah di bawah, perbaiki sesuai petunjuk, lalu coba lagi.",
+      successTitle: "Tindakan Dikonfirmasi",
+      successDescription: "Langkah ini berhasil diselesaikan.",
       acknowledge: "OK",
       importTitle: "Baris impor perlu perhatian",
       importDescription:
@@ -415,6 +417,7 @@ export const id = {
     },
     jobTitle: {
       ceo: "Direktur Utama",
+      director: "Direktur",
       directorOfOperations: "Direktur Operasi",
       operationsManager: "Manajer Operasi",
       areaManager: "Manajer Area",
@@ -435,6 +438,15 @@ export const id = {
       homeowner: "Pemilik Rumah",
       buildingManager: "Manajer Gedung",
       exportManager: "Manajer Ekspor",
+      admin: "Admin",
+      accountant: "Akuntan",
+      financeAdmin: "Admin Keuangan",
+      inHouseCleaningStaff: "Staf Kebersihan Internal",
+      warehouseSupervisor: "Supervisor Gudang",
+      warehouseStaff: "Staf Gudang",
+      gcStaff: "Staf GC",
+      securityStaff: "Staf Keamanan",
+      parkingStaff: "Staf Parkir"
     }
   },
 
@@ -527,6 +539,16 @@ export const id = {
       paymentDueTitle: "Menunggu Pembayaran",
       openBilling: "Buka Penagihan",
       completedTitle: "Proyek Selesai",
+      completedPageDesc:
+        "Pekerjaan yang ditutup sudah selesai dan lunas. Kontrak rutin tetap berjalan — hanya periode penagihan yang sudah dibayar yang tampil di tabel kedua.",
+      closedProjectsSection: "Proyek Ditutup",
+      closedProjectsSectionDesc:
+        "Pekerjaan satu kali dan kontrak yang sudah berakhir. Pekerjaan selesai dan pembayaran sudah diselesaikan.",
+      regularContractsSection: "Kontrak Rutin",
+      regularContractsSectionDesc:
+        "Kontrak ini masih berjalan. Setiap baris adalah periode penagihan yang sudah dibayar. Situs tetap Berjalan.",
+      emptyClosedProjects: "Belum ada proyek yang ditutup",
+      emptyRegularPeriods: "Belum ada periode rutin yang dibayar",
       addProject: "Tambah Proyek",
       bankAccount: "Rekening Bank",
       bankAccountHint:
@@ -769,8 +791,9 @@ export const id = {
       emptyPaymentDue: "Tidak ada yang menunggu pembayaran",
       emptyPaymentDueDesc:
         "Setiap periode invoice yang sudah terbit muncul di sini hingga pembayaran diverifikasi. Proyek yang sama bisa muncul lebih dari sekali. Proyek Regular Cleaning tetap Berjalan selama siklus masih jatuh tempo.",
-      emptyCompleted: "Belum ada proyek selesai",
-      emptyCompletedDesc: "Proyek yang selesai dan lunas muncul di sini.",
+      emptyCompleted: "Belum ada yang ditampilkan",
+      emptyCompletedDesc:
+        "Pekerjaan yang ditutup muncul di tabel pertama. Setelah periode kontrak rutin ditandai dibayar, periode itu masuk di Kontrak Rutin. Situs tetap Berjalan.",
       moveToInProgress: "Pindah ke Berjalan",
       contractProof: "Bukti Kontrak Tertanda",
       contractProofHint:
@@ -926,7 +949,7 @@ export const id = {
       removeDoubleShiftSaving: "Menghapus…",
       assignBackup: "Tugaskan Cadangan",
       assignBackupDesc:
-        "Tugaskan karyawan paruh waktu untuk menutupi shift bernama jika tidak ada karyawan tetap yang dapat mengambil shift ganda. Mereka check-in dan check-out dari tanggal mulai sampai tanggal selesai. Setelah tanggal selesai, cadangan berakhir dan shift itu kembali ke karyawan tetap. Kas Kecil didebit saat mereka check-out — manajer operasional membayar harian.",
+        "Tugaskan karyawan paruh waktu untuk menutupi shift bernama jika tidak ada karyawan tetap yang dapat mengambil shift ganda. Mereka check-in dan check-out dari tanggal mulai sampai tanggal selesai. Setelah tanggal selesai, cadangan berakhir dan shift itu kembali ke karyawan tetap. Setelah check-out upah mengambang di Kas Kecil sebagai belum dibayar sampai seseorang klik Bayar. Kas Kecil orang itu yang dipotong.",
       assignBackupConfirm: "Tugaskan Cadangan",
       assignBackupSaving: "Menugaskan…",
       assignBackupFailed: "Tidak dapat menugaskan cadangan.",
@@ -940,13 +963,13 @@ export const id = {
       backupCoverEmpty:
         "Tugaskan staf tetap ke shift bernama terlebih dahulu, lalu tugaskan cadangan untuk menutupi orang itu.",
       backupCoverHint:
-        "Pilih karyawan tetap dan shift bernama yang ditutupi. Tanggal adalah hari cadangan ini dipesan. Kas Kecil didebit setelah mereka check-in dan check-out.",
+        "Pilih karyawan tetap dan shift bernama yang ditutupi. Tanggal adalah hari cadangan ini dipesan. Setelah check-in dan check-out, upah menunggu di Kas Kecil sampai seseorang klik Bayar.",
       backupStart: "Tanggal Mulai",
       backupEnd: "Tanggal Selesai",
       backupDailyRate: "Tarif Harian",
       backupDailyRatePlaceholder: "mis. 100000",
       backupDailyRateHint:
-        "Kas Kecil didebit sebesar ini saat mereka check-out hari itu. Hari yang tidak mereka kerjakan tidak diambil.",
+        "Jumlah ini mengambang di Kas Kecil setelah mereka check-out hari itu. Dipotong dari orang yang klik Bayar. Hari yang tidak mereka kerjakan tidak diambil.",
       removeBackup: "Lepas Cadangan",
       removeBackupConfirm:
         "Lepas cadangan ini dari proyek? Hari yang belum dibayar tidak akan diambil dari Kas Kecil.",
@@ -1081,6 +1104,17 @@ export const id = {
         doubleShiftCoverChip:
           "Menggantikan {shift} pada {date} ({name} Tidak Hadir)",
         noStaff: "Belum ada staf yang ditugaskan.",
+        staffHistory: "Riwayat staf",
+        staffHistoryHint:
+          "Orang-orang ini ditugaskan saat pekerjaan masih berjalan. Mereka sudah tidak di situs ini dan tidak dapat dikelola di sini.",
+        noStaffHistory: "Tidak ada riwayat staf.",
+        equipmentHistory: "Riwayat peralatan",
+        equipmentHistoryHint:
+          "Unit yang dipakai di pekerjaan ini. Sudah dikembalikan ke gudang dan tidak dapat dikelola di sini.",
+        noEquipmentHistory: "Tidak ada peralatan yang ditugaskan ke pekerjaan ini.",
+        equipmentReturned: "Dikembalikan",
+        settledTermsLocked:
+          "Pekerjaan ini sudah ditutup. Jumlah kontrak, rekening bank, dan syarat lain terkunci.",
         availableAfterInProgress: " · Tersedia setelah Pindah ke Berjalan",
         siteLocation: "Lokasi Situs",
         cicoSiteLocation: "Lokasi Situs CICO",
@@ -1355,6 +1389,16 @@ export const id = {
         "Setiap baris adalah catatan klien lengkap. Tidak ada ketentuan bersama.",
       editClient: "Ubah Klien",
       searchPlaceholder: "Cari klien...",
+      downloadSystemGuide: "Unduh Panduan Sistem",
+      downloadingSystemGuide: "Mengunduh...",
+      downloadSystemGuideFailed: "Tidak dapat mengunduh panduan sistem.",
+      downloadSystemGuideEmpty:
+        "Tidak ada modul portal klien untuk panduan sistem.",
+      systemGuidePickClient: "Pilih Klien",
+      systemGuideForClient: "Panduan Sistem Untuk",
+      systemGuidePickDescription:
+        "Setiap portal klien memakai modul yang sama. Pilih nama klien yang muncul di halaman pertama buku panduan.",
+      systemGuidePortalLabel: "Portal Klien",
       deleted: "Dihapus",
       active: "Aktif",
       activeSubtitle: "Organisasi klien yang sedang aktif",
@@ -2004,6 +2048,7 @@ export const id = {
         placement: "Penempatan",
         portalLogin: "Login Portal",
         securityDeposit: "Security Deposit",
+        moduleAccess: "Akses Modul",
         actions: "Tindakan"
       },
       manageDepartments: "Kelola Departemen",
@@ -2021,7 +2066,7 @@ export const id = {
           "Tambahkan jabatan untuk sebuah departemen dan atur akses modul bawaan untuk login baru.",
         moduleAccess: "Akses Modul Bawaan",
         moduleAccessHint:
-          "Login portal baru untuk jabatan ini mulai dengan modul ini. Untuk memberi satu orang akses lebih, gunakan Pengguna → Izin.",
+          "Login portal baru untuk jabatan ini mulai dengan modul ini. Kas Uang Muka bisa memberi Kas Kecil, Kartu Prabayar, atau keduanya. Untuk memberi satu orang akses lebih, gunakan Pengguna → Izin.",
         createButton: "Tambah Jabatan",
         creating: "Menambahkan…",
         editTitle: "Ubah Jabatan",
@@ -2041,7 +2086,15 @@ export const id = {
         deleteDescEmpty: "Jabatan ini tidak memiliki karyawan.",
         employeesReassignedOne: "{count} karyawan akan ditugaskan ulang.",
         employeesReassignedOther: "{count} karyawan akan ditugaskan ulang.",
-        selectReplacement: "Pilih Jabatan Pengganti"
+        selectReplacement: "Pilih Jabatan Pengganti",
+        downloadSystemGuide: "Unduh Panduan Sistem",
+        downloadingSystemGuide: "Menyiapkan Panduan…",
+        downloadSystemGuideHint:
+          "Memakai modul yang aktif di atas. Tidak perlu disimpan dulu. PDF mengikuti bahasa layar ini.",
+        downloadSystemGuideEmpty:
+          "Aktifkan minimal satu modul sebelum mengunduh panduan sistem.",
+        downloadSystemGuideFailed: "Tidak dapat mengunduh panduan sistem.",
+        moduleAccessCount: "{enabled} dari {total}"
       },
       deptDialog: {
         createTitle: "Buat Departemen",
@@ -2748,19 +2801,23 @@ export const id = {
       advanceCashKindPetty: "Kas Kecil",
       advanceCashKindPrepaid: "Kartu Prabayar",
       advanceCashPettyHint:
-        "Isi ulang kas kecil. Kartu prabayar diisi ulang lewat Kendaraan → Kartu Prabayar. Kasbon karyawan di Pembayaran Karyawan adalah hal yang berbeda.",
+        "Pilih karyawan yang menerima uang ini. Saldo Kas Kecil karyawan itu bertambah. Kartu prabayar diisi ulang lewat Kendaraan → Kartu Prabayar.",
+      pettyCashRecipient: "Siapa Yang Menerima Isi Ulang",
+      pettyCashRecipientPlaceholder: "Pilih karyawan",
+      pettyCashRecipientRequired: "Pilih karyawan yang menerima Kas Kecil ini.",
       advanceCashPrepaidHint:
         "Isi ulang kartu prabayar kendaraan lewat Kendaraan → Kartu Prabayar. Pengeluaran BBM, tol, dan parkir dicatat di Kas Uang Muka → Kartu Prabayar.",
       prepaidCard: "Kartu Prabayar",
       prepaidCardRequired: "Pilih kartu prabayar yang akan diisi ulang.",
       prepaidCardEmpty: "Tambah kartu prabayar di Kas Uang Muka terlebih dahulu.",
       prepaidCardHint:
-        "Satu kartu untuk satu kendaraan. Isi ulang ini menambah saldo kartu tersebut.",
+        "Isi ulang ini menambah saldo Card. Vehicle Card tetap di Kendaraan. Open Card adalah Head Office.",
+      purchaseCategoryOpenCard: "Open Card",
       purchaseCategoryGovernment: "Pemerintah",
       purchaseCategoryBankLoan: "Pinjaman",
       purchaseCategoryEmployee: "Pembayaran Karyawan",
       purchaseCategoryHint:
-        "Produk menjadi stok gudang. Kendaraan dibeli di dalam negeri dan dicatat di Inventaris → Kendaraan. Isi ulang kartu prabayar lewat Kendaraan → Kartu Prabayar. Jasa, Kas Kecil, Pemerintah, Pinjaman, dan Pembayaran Karyawan bukan stok.",
+        "Produk menjadi stok gudang. Kendaraan dibeli di dalam negeri dan dicatat di Inventaris → Kendaraan. Isi ulang Vehicle Card lewat Kendaraan → Kartu Prabayar. Isi ulang Open Card di Open Card. Jasa, Kas Kecil, Pemerintah, Pinjaman, dan Pembayaran Karyawan bukan stok.",
       employeePaymentKind: "Jenis Pembayaran",
       employeePaymentKindHint:
         "Catat Internal Payroll, THR, atau kasbon yang dibayar sebelum gajian.",
@@ -3329,6 +3386,10 @@ export const id = {
       filterSubcategory: "Filter berdasarkan subkategori",
       overdueCount: "{count} terlambat",
       unpaidCount: "{count} belum dibayar",
+      overdue: "Terlambat",
+      unpaid: "Belum dibayar",
+      open: "Terbuka",
+      late: "Terlambat",
       allSettled: "Semua lunas",
       paidInvoiceOne: "{count} invoice lunas",
       paidInvoiceOther: "{count} invoice lunas",
@@ -3538,7 +3599,9 @@ export const id = {
       savedPrice: "Tersimpan: {price}",
       invoiceTotalWithTax: "Total Invoice Termasuk Pajak: {amount}",
       contractPriceMonthlyHint:
-        "Ketik harga tidak termasuk pajak. Invoice menambahkan pajak yang dipilih pada proyek ini.",
+        "Ketik harga tidak termasuk pajak. Invoice menambahkan pajak yang dipilih pada proyek ini. Periode yang sudah dibayar tetap — tarif ini berlaku untuk siklus berikutnya yang belum dibayar.",
+      contractPriceSettledHint:
+        "Harga kontrak terkunci karena pekerjaan ini sudah ditutup.",
       contractPriceMilestoneHint:
         "Ketik harga tidak termasuk pajak. Mengubahnya menghitung ulang invoice yang belum dibayar dari sisa kewajiban, lalu menambahkan pajak proyek. Jumlah yang sudah dibayar tetap.",
       periods: "Periode",
@@ -3835,6 +3898,10 @@ export const id = {
         thr: "THR",
         pettyCashTopUp: "Isi Ulang Kas Kecil",
         prepaidCardTopUp: "Isi Ulang Kartu Prabayar",
+        prepaidVehicleCardTopUp: "Isi Ulang Vehicle Card",
+        prepaidOpenCardTopUp: "Isi Ulang Open Card",
+        prepaidCardReplacementFee: "Biaya penggantian Card",
+        prepaidCardReturn: "Pengembalian Card hilang",
         transferFee: "Biaya Transfer",
         incident: "Beban Proyek",
         depositReturned: "Deposit Dikembalikan",
@@ -4119,6 +4186,10 @@ export const id = {
       historyTitle: "Riwayat Gaji Bulanan",
       historyDesc:
         "Buka bulan untuk melihat hari kerja, penghasilan, dan potongan. Pratinjau adalah draf yang belum dikunci. Terbit adalah slip gaji resmi yang sudah dikunci.",
+      ownTitle: "Slip Gaji Anda",
+      ownHistoryTitle: "Slip Gaji Bulanan Anda",
+      ownHistoryDesc:
+        "Hanya Anda yang bisa melihat ini. Buka bulan untuk hari kerja, penghasilan, dan potongan.",
       previewHint: "Gaji sudah dihitung, tetapi bulan ini belum dikunci.",
       issuedHint: "Penggajian Internal sudah dikunci. Ini slip gaji resmi.",
       clickEmployee: "Buka riwayat slip gaji",
@@ -4138,6 +4209,38 @@ export const id = {
       backToEmployee: "Kembali Ke Slip Gaji",
       filterYear: "Tahun",
       filterApply: "Terapkan",
+      cards: {
+        employees: "Karyawan",
+        employeesSubtitle: "Staf aktif dengan catatan slip gaji",
+        amountOwed: "Saldo Terutang",
+        amountOwedSubtitle: "Masih terutang kepada perusahaan",
+        deposits: "Jaminan Ditahan",
+        depositsSubtitle: "Jaminan yang masih dipegang",
+        bpjsHeld: "BPJS Ditahan",
+        bpjsHeldSubtitle: "Bagian BPJS karyawan yang ditahan",
+        months: "Bulan",
+        monthsSubtitle: "Bulan gaji di tahun ini",
+        issued: "Terbit",
+        issuedSubtitle: "Slip gaji resmi yang terkunci",
+        preview: "Pratinjau",
+        previewSubtitle: "Draf bulan yang belum dikunci",
+        yearNet: "Gaji Bersih Tahunan",
+        yearNetSubtitle: "Total untuk tahun yang dipilih",
+        yourYearNet: "Gaji Bersih Anda",
+        yourYearNetSubtitle: "Yang Anda terima di tahun yang dipilih",
+        youOwe: "Anda Berutang",
+        youOweSubtitle: "Masih terutang kepada perusahaan",
+        yourDeposit: "Jaminan Anda",
+        yourDepositSubtitle: "Jaminan yang ditahan untuk Anda",
+        yourBpjs: "BPJS Anda Ditahan",
+        yourBpjsSubtitle: "Bagian BPJS Anda yang ditahan",
+        daysSubtitle: "Hari kehadiran bulan ini",
+        earningsSubtitle: "Penghasilan kotor bulan ini",
+        deductionsSubtitle: "Dipotong dari slip gaji ini",
+        bpjsEmployeeSubtitle: "Bagian karyawan bulan ini",
+        bpjsCompanySubtitle: "Bagian perusahaan bulan ini",
+        netPaySubtitle: "Gaji yang diterima bulan ini"
+      },
       columns: {
         employee: "Karyawan",
         amountOwed: "Saldo Terutang Kepada Perusahaan",
@@ -4360,13 +4463,15 @@ export const id = {
       title: "Kas Uang Muka",
       tabPetty: "Kas Kecil",
       tabPrepaid: "Kartu Prabayar",
-      prepaidCreate: "Tambah Kartu Prabayar",
+      tabVehicleCards: "Vehicle Card",
+      tabOpenCards: "Open Card",
+      prepaidCreate: "Tambah Card",
       prepaidCreateDesc:
-        "Satu kartu untuk satu kendaraan. Hanya untuk BBM, tol, dan parkir.",
-      prepaidCreateFailed: "Tidak dapat menyimpan kartu prabayar ini.",
-      prepaidEmptyTitle: "Belum Ada Kartu Prabayar",
+        "Pilih Vehicle Card atau Open Card, masukkan nomor, lalu tetapkan sekarang atau biarkan Standby.",
+      prepaidCreateFailed: "Tidak dapat menyimpan Card ini.",
+      prepaidEmptyTitle: "Belum Ada Card",
       prepaidEmptyDesc:
-        "Tambah kartu dan pilih kendaraannya. Isi ulang lewat Pengeluaran → Kendaraan → Kartu Prabayar.",
+        "Tambah Card ke daftar. Isi ulang Vehicle Card di Pengeluaran → Kendaraan → Kartu Prabayar, atau Open Card di Pengeluaran → Open Card.",
       prepaidSpend: "Catat Pengeluaran",
       prepaidSpendDesc: "Unggah nota BBM, tol, atau parkir.",
       prepaidSpendConfirm: "Debit Kartu Prabayar",
@@ -4392,6 +4497,7 @@ export const id = {
       updateFailed: "Tidak dapat menyimpan kartu prabayar ini.",
       entriesTitle: "Aktivitas Kartu",
       entriesEmpty: "Tidak Ada Aktivitas Kartu Pada Filter Ini.",
+      cardEntriesEmpty: "Belum ada aktivitas pada Card ini.",
       prepaidChooseCard: "Pilih kartu prabayar untuk belanja ini.",
       prepaidChooseVehicle: "Pilih kendaraan untuk belanja ini.",
       prepaidCardForVehicle:
@@ -4407,21 +4513,141 @@ export const id = {
       spendFuel: "BBM",
       spendToll: "Tol",
       spendParking: "Parkir",
+      spendOther: "Lainnya",
+      kindVehicle: "Vehicle Card",
+      kindOpen: "Open Card",
+      cardType: "Jenis Card",
+      personInCharge: "Penanggung Jawab",
+      assignCard: "Tetapkan Card",
+      assignCardDesc: "Tetapkan Card Standby ini ke kendaraan atau penanggung jawab.",
+      reassignCard: "Ubah Penugasan",
+      reassignCardDesc: "Card tetap aktif. Riwayat menyimpan nama lama dan baru.",
+      returnToList: "Kembalikan Ke Daftar",
+      returnToListConfirm: "Kembalikan Card ini ke daftar sebagai Standby? Sisa saldo tetap di Card.",
+      markDamaged: "Tandai Rusak",
+      markDamagedDesc: "Belanja diblokir. Tetapkan Card baru sekarang, atau biarkan Card Rusak ini pada kendaraan atau orang yang sama.",
+      assignNewNow: "Tetapkan Card Baru Sekarang",
+      keepDamagedAssigned: "Tetap Pada Penugasan Ini",
+      keepDamagedHint: "Card ini tetap Rusak pada kendaraan atau orang yang sama. Belanja tetap diblokir sampai Card Replaced.",
+      replacementCard: "Card Standby Yang Ditetapkan",
+      cardReplaced: "Card Replaced",
+      cardReplacedDesc: "Catat biaya penggantian setiap kali, lalu lanjutkan Card ini atau pindahkan sisa ke Card lain.",
+      continueSameCard: "Card Yang Sama Dilanjutkan",
+      moveLeftover: "Pindahkan Sisa Ke Card Lain",
+      destinationCard: "Card Penerima Sisa",
+      replacementFee: "Biaya Penggantian",
+      feeFromLeftover: "Dari Sisa",
+      feeFromBank: "Dari Bank Perusahaan",
+      reportLost: "Hilang / Dicuri",
+      reportLostDesc: "Tidak ada yang bisa dikembalikan dari bank. Sisa keluar dari Card. Kendaraan atau orang tidak punya Card sampai Anda menetapkan dari daftar.",
+      lostLeftover: "Sisa Pada Card Ini",
+      companyWriteOff: "Dihapusbukukan Perusahaan",
+      employeeCovers: "Karyawan Menanggung",
+      recoveryMethod: "Ditanggung Oleh",
+      recoveryCompany: "Dihapusbukukan perusahaan",
+      recoveryNextPay: "Gajian Berikutnya",
+      recoveryInstallments: "10 Cicilan",
+      recoveryPayNow: "Bayar Sekarang",
+      companyBank: "Rekening Bank Perusahaan",
+      department: "Departemen",
+      filterAllDepartments: "Semua Departemen",
+      assignNow: "Tetapkan Sekarang",
+      assignNowYes: "Tetapkan Sekarang",
+      leaveStandby: "Biarkan Standby",
+      writtenOff: "Written Off",
+      writtenOffTitle: "Written Off",
+      writtenOffEmpty: "Belum Ada Written Off",
+      writtenOffEmptyDesc: "Sisa Card hilang tampil di sini saat dihapusbukukan atau masih ditagih.",
+      backToWrittenOff: "Kembali Ke Written Off",
+      backToList: "Kembali Ke Daftar Card",
+      footedBy: "Ditanggung",
+      footedByCompany: "Head Office",
+      footedByEmployee: "Karyawan",
+      amountRecovered: "Jumlah Dipulihkan",
+      amountLeft: "Jumlah Tersisa",
+      installmentHistory: "Riwayat Cicilan",
+      installmentTaken: "Dipotong Internal Payroll",
+      installmentScheduled: "Dijadwalkan",
+      picHistory: "Penanggung Jawab",
+      picFilterHint: "Klik nama untuk melihat belanja yang menjadi tanggung jawabnya.",
+      statusStandby: "Standby",
+      statusActive: "Active",
+      statusDamaged: "Damaged",
+      statusLost: "Lost",
+      statusReplaced: "Replaced",
+      filterMovement: "Gerakan",
+      filterAllMovements: "Semua Gerakan",
+      filterMovementTopUp: "Isi Ulang",
+      filterMovementSpend: "Belanja",
+      filterMovementWrittenOff: "Written Off",
+      filterSpendKind: "Jenis Belanja",
+      filterAllSpendKinds: "Semua Jenis Belanja",
+      filterCardType: "Jenis Card",
+      filterAllTypes: "Semua Jenis",
+      filterAssignment: "Penugasan",
+      filterAllAssignments: "Semua Penugasan",
+      filterAssigned: "Ditugaskan",
+      filterStandby: "Standby",
+      assignment: "Penugasan",
       description:
-        "Uang tunai yang dipercayakan kepada staf lapangan dan operasional untuk makan, menjamu klien, darurat, dan upah harian paruh waktu.",
+        "Uang tunai yang diberikan ke karyawan tertentu. Belanja diambil dari Kas Kecil karyawan itu. Direktur bisa mentransfer sisa ke bawahan. Upah paruh waktu mengambang di sini setelah check-out sampai seseorang klik Bayar.",
       currentBalance: "Saldo saat ini",
       lifetimeIn: "Kas Kecil masuk (seumur hidup)",
       monthIn: "Masuk bulan ini",
       lifetimeOut: "Pengeluaran seumur hidup",
       monthOut: "Pengeluaran bulan ini",
       upcoming: "Upah paruh waktu yang masih dijadwalkan: {amount}",
+      unpaidBanner: "Upah paruh waktu menunggu dibayar: {amount}",
+      unpaidWageTag: "Karyawan paruh waktu, upah belum dibayar",
+      unpaidWagePay: "Bayar",
+      unpaidWagePayTitle: "Bayar Upah Paruh Waktu",
+      unpaidWagePayDesc:
+        "Bayar {name} sebesar {amount}. Diambil dari Kas Kecil orang yang mengklaim pembayaran ini.",
+      unpaidWagePayer: "Kas Kecil Siapa Yang Membayar",
+      unpaidWagePayerPlaceholder: "Pilih karyawan",
+      unpaidWagePayerRequired: "Pilih Kas Kecil karyawan mana yang membayar upah ini.",
+      unpaidWagePayerHint:
+        "Kas Kecil karyawan itu berkurang. Ini mencatat siapa yang membayar upah paruh waktu.",
+      unpaidWagePayerLockedHint:
+        "Ini memotong Kas Kecil {name} ({amount}). Anda mengklaim bahwa Anda yang membayar upah ini.",
+      unpaidWageNegativeWarning:
+        "Pembayaran ini lebih besar dari saldo Kas Kecil saat ini. Saldo akan di bawah nol.",
+      unpaidWageFailed: "Tidak dapat mencatat pembayaran ini.",
       negativeWarning:
         "Saldo Kas Kecil di bawah nol. Catat isi ulang di Pengeluaran.",
+      negativeHolderWarning:
+        "Kas Kecil karyawan ini di bawah nol. Isi ulang di Pengeluaran atau transfer dari pemegang lain.",
       recordSpend: "Catat Belanja",
       spendTitle: "Catat Belanja Kas Kecil",
       spendDesc:
-        "Unggah nota dan masukkan jumlah yang dibayar untuk mendebit Kas Kecil.",
+        "Unggah nota dan masukkan jumlah. Uang diambil dari Kas Kecil karyawan yang dipilih.",
       spendConfirm: "Debit Kas Kecil",
+      holder: "Kas Kecil Siapa",
+      holderPlaceholder: "Pilih karyawan",
+      holderRequired: "Pilih Kas Kecil karyawan mana yang dipakai.",
+      holderHint: "Jumlah ini diambil dari saldo karyawan tersebut.",
+      holdersEmptyTitle: "Belum Ada Kas Kecil Karyawan",
+      holdersEmptyDesc:
+        "Isi ulang Kas Kecil di Pengeluaran dan pilih karyawan yang menerimanya.",
+      holderEntriesEmpty: "Belum ada aktivitas pada Kas Kecil ini.",
+      holderRowHint: "Buka untuk melihat isi ulang, belanja, dan transfer.",
+      companyPool: "Kas Perusahaan",
+      companyPoolHint: "Sisa lama ada di sini sampai dialokasikan ke karyawan.",
+      backToHolders: "Kembali Ke Karyawan",
+      statusReady: "Siap",
+      statusNegative: "Di Bawah Nol",
+      transfer: "Transfer Kas Kecil",
+      transferTitle: "Transfer Kas Kecil",
+      transferDesc: "Pindahkan uang dari {name} ({amount}) ke karyawan lain.",
+      transferConfirm: "Transfer Kas Kecil",
+      transferFailed: "Tidak dapat mentransfer Kas Kecil ini.",
+      transferTo: "Transfer Ke",
+      transferToPlaceholder: "Pilih karyawan",
+      transferToRequired: "Pilih siapa yang menerima Kas Kecil ini.",
+      transferNote: "Catatan",
+      transferNotePlaceholder: "Catatan opsional",
+      transferHint:
+        "Ini mengurangi saldo pengirim dan mengisi saldo penerima. Bukan pengeluaran perusahaan baru.",
       spending: "Menyimpan…",
       spendFailed: "Tidak dapat mencatat belanja ini.",
       proof: "Nota / bukti",
@@ -4463,10 +4689,15 @@ export const id = {
       kind: {
         TOP_UP: "Isi Ulang",
         SPEND: "Belanja",
-        PART_TIME_PAY: "Upah paruh waktu"
+        PART_TIME_PAY: "Upah paruh waktu",
+        WRITE_OFF: "Written Off",
+        REPLACEMENT_FEE: "Biaya Penggantian Card",
+        TRANSFER_OUT: "Transfer Keluar",
+        TRANSFER_IN: "Transfer Masuk"
       },
       status: {
         SCHEDULED: "Dijadwalkan",
+        UNPAID: "Belum dibayar",
         POSTED: "Dicatat",
         VOIDED: "Dibatalkan"
       }
@@ -5032,6 +5263,22 @@ export const id = {
         "Foto check-out wajib. Ambil foto yang menunjukkan Anda di lokasi proyek ini.",
       checkInFailed: "Check-in gagal.",
       checkOutFailed: "Check-out gagal.",
+      checkInFailedTitle: "Check-In Gagal",
+      checkInFailedBody:
+        "Check-in Anda tidak tercatat. Baca penyebab di bawah, perbaiki, lalu coba lagi.",
+      checkOutFailedTitle: "Check-Out Gagal",
+      checkOutFailedBody:
+        "Check-out Anda tidak tercatat. Baca penyebab di bawah, perbaiki, lalu coba lagi.",
+      checkInConfirmedTitle: "Check-In Dikonfirmasi",
+      checkInConfirmedBody:
+        "Check-in Anda berhasil disimpan. Anda sekarang sudah check-in.",
+      checkInConfirmedDetail:
+        "Check-in dikonfirmasi untuk {site}. Kehadiran Anda sudah tercatat.",
+      checkOutConfirmedTitle: "Check-Out Dikonfirmasi",
+      checkOutConfirmedBody:
+        "Check-out Anda berhasil disimpan. Anda sekarang sudah check-out.",
+      checkOutConfirmedDetail:
+        "Check-out dikonfirmasi untuk {site}. Kehadiran Anda sudah tercatat.",
       locationFailed:
         "Tidak dapat mengambil lokasi Anda. Izinkan akses GPS lalu coba lagi.",
       geolocationUnsupported: "Geolokasi tidak didukung di perangkat ini.",
@@ -5347,7 +5594,7 @@ export const id = {
         "Permintaan izin dan sakit yang menunggu keputusan Anda.",
       ownPendingTitle: "Permintaan Anda menunggu peninjau lain",
       ownPendingDesc:
-        "Anda tidak dapat menyetujui izin sendiri. Minta HO admin / Direktur lain (mis. manager) meninjau di Approvals.",
+        "Anda tidak dapat menyetujui izin sendiri. Orang berikutnya dalam rantai izin harus meninjaunya di Persetujuan.",
       statusPending: "Menunggu",
       materialsSection: "Permintaan Material",
       materialsSectionDesc:
@@ -6286,6 +6533,49 @@ export const id = {
           actions: "Aksi"
         }
       }
+    },
+    systemGuide: {
+      documentTitle: "Panduan Sistem",
+      documentKind: "Buku panduan operasional RGS ONE",
+      forPosition: "Untuk Jabatan {position}",
+      forClient: "Panduan Sistem untuk {client}",
+      generatedOn: "Diterbitkan {date}",
+      contents: "Daftar isi",
+      howToRead: "Cara memakai buku ini",
+      howToReadBody:
+        "Buku ini hanya mencakup modul yang diaktifkan untuk Jabatan ini. Masuk, buka sidebar, dan ikuti setiap bagian berurutan. Chip status di layar menunjukkan langkah berikutnya. Jika sebuah modul tidak ada di sidebar, Kantor Pusat belum memberi akses itu pada Jabatan ini.",
+      howToReadBodyClient:
+        "Buku ini mencakup modul portal klien yang sama untuk setiap organisasi klien. Masuk dengan login portal klien, buka sidebar, dan ikuti setiap bagian berurutan. Chip status di layar menunjukkan langkah berikutnya.",
+      openAt: "Di mana membukanya",
+      steps: "Cara memakainya",
+      remember: "Perlu diingat",
+      sectionTitle: "{number}. {name}",
+      internalUse: "Untuk internal - Relasi Global Solusi",
+      pageOf: "Halaman {page} dari {total}",
+      moduleCountOne: "{count} modul dalam buku ini",
+      moduleCountOther: "{count} modul dalam buku ini",
+      leaveChain: {
+        intro:
+          "Izin mengikuti rantai ini. Buka baris yang boleh Anda putuskan, lalu Setujui atau Tolak.",
+        joiner: ", lalu ",
+        forTier: "{requester}: {approvers}.",
+        ownerPower:
+          "Pemilik dapat menyetujui permintaan apa pun dan tidak membutuhkan persetujuan orang lain untuk izinnya sendiri.",
+        noSelf: "Selain Pemilik, tidak ada yang dapat menyetujui izin sendiri.",
+        requester: {
+          FIELD_CREW: "Kru lapangan",
+          HO_STAFF: "Staf Kantor Pusat",
+          AREA_MANAGER: "Manajer Area",
+          OPERATIONS_MANAGER: "Manajer Operasi",
+          DIRECTOR: "Direktur",
+        },
+        approver: {
+          AM_MATCHING_PROJECTS: "Manajer Area mereka untuk proyek itu",
+          OM_MATCHING_AREA: "Manajer Operasi untuk area layanan itu",
+          DIRECTOR: "Direktur",
+          OWNER: "Pemilik",
+        }
+      }
     }
   },
 
@@ -6296,6 +6586,8 @@ export const id = {
     progress: "Laporan Progress",
     cico: "CICO",
     pettyCash: "Kas Uang Muka",
+    pettyCashPetty: "Kas Kecil",
+    pettyCashPrepaid: "Kartu Prabayar",
     attendance: "Laporan Kehadiran",
     shifts: "Shift",
     leaves: "Izin & Sakit",
@@ -6401,6 +6693,12 @@ export const id = {
     highlightLeaves: "Permintaan cuti dan persetujuan",
     invalidCredentials: "Nama pengguna atau kata sandi tidak valid.",
     signInFailed: "Kami tidak dapat memproses masuk Anda. Silakan coba lagi.",
+    activeSessionTitle: "Akun Sudah Masuk",
+    activeSessionDescription:
+      "Akun ini sedang masuk di perangkat atau browser lain.",
+    activeSessionHint:
+      "Batal untuk tetap di halaman ini, atau tutup sesi lain untuk lanjut masuk di sini. Perangkat lain akan keluar.",
+    closeOtherSession: "Tutup Sesi Lain",
     passwordUpdated: "Kata sandi Anda telah diperbarui. Anda dapat masuk sekarang.",
     forgotTitle: "Lupa kata sandi",
     forgotSubtitle:

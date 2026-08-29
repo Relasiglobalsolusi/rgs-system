@@ -216,7 +216,8 @@ export default function ProjectInventoryPanel({
           }
         }}
       >
-        <DialogContent>
+        <DialogContent className="flex max-h-[min(90dvh,32rem)] flex-col gap-0 overflow-hidden rounded-2xl border border-border bg-panel p-0 text-text ring-0 sm:max-w-md">
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-6 pb-6 sm:px-10 sm:pt-8 sm:pb-7">
           <DialogHeader>
             <DialogTitle>
               {t("pages.projects.detail.voidIssueTitle")}
@@ -226,7 +227,7 @@ export default function ProjectInventoryPanel({
             </DialogDescription>
           </DialogHeader>
           {voidTarget ? (
-            <div className="space-y-3">
+            <div className="mt-4 space-y-3">
               <p className="text-sm text-text">
                 {voidTarget.item.name} —{" "}
                 {formatInventoryQtyWithUnit(
@@ -248,7 +249,8 @@ export default function ProjectInventoryPanel({
               </label>
             </div>
           ) : null}
-          <DialogFooter>
+          </div>
+          <DialogFooter className="mx-0 mb-0 mt-0 flex-col gap-3 rounded-none border-t border-border bg-strip px-4 py-5 sm:flex-col sm:justify-stretch sm:px-10 sm:py-6">
             <Button
               type="button"
               variant="secondary"

@@ -10,6 +10,7 @@ type DirectoryAddButtonProps = {
   label: string;
   onClick: () => void;
   className?: string;
+  disabled?: boolean;
   /** Outline soft-tint chip tone. Default: primary Add* (emerald). */
   variant?: "successBadge" | "infoBadge" | "warningBadge";
   /** Leading icon. Default: Plus. */
@@ -24,6 +25,7 @@ export default function DirectoryAddButton({
   label,
   onClick,
   className,
+  disabled = false,
   variant = "successBadge",
   icon,
 }: DirectoryAddButtonProps) {
@@ -32,6 +34,7 @@ export default function DirectoryAddButton({
       type="button"
       variant={variant}
       size="badgeFlex"
+      disabled={disabled}
       onClick={onClick}
       className={cn(className)}
     >

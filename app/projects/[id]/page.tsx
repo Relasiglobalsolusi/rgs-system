@@ -132,10 +132,16 @@ import ProjectLocationMap from "@/components/projects/ProjectLocationMap";
 import ScrollToInvoicePeriod from "@/components/billing/ScrollToInvoicePeriod";
 import HoOfflineClientReviewPanel from "@/components/billing/HoOfflineClientReviewPanel";
 import { isAwaitingClientAction } from "@/lib/client-billing-review";
+import { isClosedProject } from "@/lib/project-settlement";
+import {
+  listProjectEquipmentHistory,
+  listProjectStaffHistory,
+} from "@/lib/project-site-history";
 
 const metaLabelClassName =
   "w-36 shrink-0 px-4 py-2.5 text-left align-top text-xs font-semibold uppercase tracking-[0.12em] text-subtle sm:w-44 sm:px-5";
-const metaValueClassName = "px-4 py-2.5 align-top text-text sm:px-5";
+const metaValueClassName =
+  "min-w-0 break-words px-4 py-2.5 align-top text-text sm:px-5";
 const sectionTitleClassName = "text-base font-semibold tracking-tight text-text";
 const sectionCardClassName = "p-5 sm:p-6";
 
@@ -466,11 +472,25 @@ export default async function ProjectDetailPage({
   // Never mint/assign on page load (caused ghost units like EQP-*-A6).
   // Repair: scripts/reconcile-equipment-stock.ts (release phantoms + hard-delete surplus).
 
+  const workforceLocked = isClosedProject(project.status);
+
   // Assigned equipment for display / release (issue only via Inventory → Project Issues).
   const assignedEquipmentAssets =
-    showInventoryCosts && isPlanningProjectStatus(project.status) === false
+    showInventoryCosts &&
+    !workforceLocked &&
+    isPlanningProjectStatus(project.status) === false
       ? await listProjectEquipmentAssets(project.companyId, project.id)
       : [];
+  const [staffHistory, equipmentHistory] = workforceLocked
+    ? await Promise.all([
+        listProjectStaffHistory(project.id),
+        showInventoryCosts
+          ? listProjectEquipmentHistory(project.id, {
+              companyId: project.companyId,
+            })
+          : Promise.resolve([]),
+      ])
+    : [[], []];
 
   const canViewInventory = canAccess(permissionUser, "inventory");
   const inventoryIssueViews = inventoryIssues.map((row) => ({
@@ -855,7 +875,7 @@ export default async function ProjectDetailPage({
                     href={`/progress?projectId=${project.id}`}
                     className={cn(
                       buttonVariants({ variant: "infoBadge", size: "badgeLg" }),
-                      "w-full whitespace-nowrap sm:ml-auto sm:w-auto"
+                      "w-fit max-w-full shrink-0 whitespace-nowrap sm:ml-auto"
                     )}
                     aria-label={t("pages.projects.detail.viewProgressReports")}
                   >
@@ -887,7 +907,7 @@ export default async function ProjectDetailPage({
                         projectId={project.id}
                         bankAccountId={project.bankAccountId}
                         accounts={bankAccounts}
-                        canEdit={canManage}
+                        canEdit={canManage && !workforceLocked}
                       />
                     </td>
                   </tr>
@@ -1241,7 +1261,7 @@ export default async function ProjectDetailPage({
               projectId={project.id}
               issues={inventoryIssueViews}
               canViewInventoryModule={canViewInventory}
-              canVoidIssue={canAssignStock}
+              canVoidIssue={canAssignStock && !workforceLocked}
             />
           ) : null}
 
@@ -1308,8 +1328,13 @@ export default async function ProjectDetailPage({
                   requiresTaxInvoice={project.requiresTaxInvoice}
                   pphRatePercent={decimalToNumber(project.pphRatePercent)}
                   isGovernmentContract={project.isGovernmentContract}
-                  canManage={canManage}
+                  canManage={canManage && !workforceLocked}
                   milestone={project.billingMode === "MILESTONE"}
+                  lockedHint={
+                    workforceLocked
+                      ? t("pages.billing.contractPriceSettledHint")
+                      : null
+                  }
                 />
               </div>
 
@@ -1507,10 +1532,19 @@ export default async function ProjectDetailPage({
           ) : !inPlanning ? (
             <SectionCard className={sectionCardClassName}>
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <h3 className={sectionTitleClassName}>
-                  {t("pages.projects.detail.staff")}
-                </h3>
-                {canAccess(permissionUser, "shifts") ? (
+                <div className="min-w-0">
+                  <h3 className={sectionTitleClassName}>
+                    {workforceLocked
+                      ? t("pages.projects.detail.staffHistory")
+                      : t("pages.projects.detail.staff")}
+                  </h3>
+                  {workforceLocked ? (
+                    <p className="mt-1 max-w-2xl text-sm text-subtle">
+                      {t("pages.projects.detail.staffHistoryHint")}
+                    </p>
+                  ) : null}
+                </div>
+                {!workforceLocked && canAccess(permissionUser, "shifts") ? (
                   <Link
                     href={shiftsProjectHref({
                       clientId: project.clientId,
@@ -1528,7 +1562,37 @@ export default async function ProjectDetailPage({
                 ) : null}
               </div>
 
-              {liveStaffAssignments.length === 0 ? (
+              {workforceLocked ? (
+                staffHistory.length === 0 ? (
+                  <p className="text-sm text-subtle">
+                    {t("pages.projects.detail.noStaffHistory")}
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {staffHistory.map((person) => (
+                      <div
+                        key={person.employeeId}
+                        className={cn(
+                          "w-auto max-w-full rounded-md px-3 py-2",
+                          outlineChipTones.emerald
+                        )}
+                      >
+                        <p className="text-sm font-semibold normal-case tracking-normal">
+                          {person.firstName} {person.lastName}
+                        </p>
+                        <p className="text-xs font-medium normal-case tracking-normal text-primary-dark/70">
+                          {person.employeeNo}
+                        </p>
+                        {person.shiftLabel ? (
+                          <p className="mt-0.5 text-xs font-medium normal-case tracking-normal text-primary-dark/80">
+                            {person.shiftLabel}
+                          </p>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : liveStaffAssignments.length === 0 ? (
                 <p className="text-sm text-subtle">
                   {t("pages.projects.detail.noStaff")}
                 </p>
@@ -1625,13 +1689,17 @@ export default async function ProjectDetailPage({
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0">
                   <h3 className={sectionTitleClassName}>
-                    {t("pages.projects.equipmentPicker.sectionTitle")}
+                    {workforceLocked
+                      ? t("pages.projects.detail.equipmentHistory")
+                      : t("pages.projects.equipmentPicker.sectionTitle")}
                   </h3>
                   <p className="mt-1 max-w-2xl text-sm text-subtle">
-                    {t("pages.projects.equipmentPicker.noAssignedAssetsHint")}
+                    {workforceLocked
+                      ? t("pages.projects.detail.equipmentHistoryHint")
+                      : t("pages.projects.equipmentPicker.noAssignedAssetsHint")}
                   </p>
                 </div>
-                {canAssignStock ? (
+                {!workforceLocked && canAssignStock ? (
                   <div className="flex items-center gap-1 shrink-0">
                     <span
                       className={cn(
@@ -1646,11 +1714,46 @@ export default async function ProjectDetailPage({
                   </div>
                 ) : null}
               </div>
-              <ProjectEquipmentPicker
-                projectId={project.id}
-                assignedAssets={assignedEquipmentAssets as AssignedEquipmentAsset[]}
-                canRelease={canAssignStock}
-              />
+              {workforceLocked ? (
+                equipmentHistory.length === 0 ? (
+                  <p className="text-sm text-subtle">
+                    {t("pages.projects.detail.noEquipmentHistory")}
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-3">
+                    {equipmentHistory.map((row) => (
+                      <div
+                        key={row.id}
+                        className={cn(
+                          "w-auto max-w-full rounded-md px-3 py-2",
+                          outlineChipTones.warning
+                        )}
+                      >
+                        <p className="text-sm font-semibold normal-case tracking-normal">
+                          {row.assetCode ?? row.itemName}
+                        </p>
+                        <p className="text-xs font-medium normal-case tracking-normal text-warning/70">
+                          {row.assetCode ? row.itemName : row.sku}
+                        </p>
+                        <p className="mt-0.5 text-xs font-medium normal-case tracking-normal text-warning/60">
+                          {formatDisplayDate(row.assignedOn)}
+                          {row.returned
+                            ? ` · ${t("pages.projects.detail.equipmentReturned")}`
+                            : ""}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : (
+                <ProjectEquipmentPicker
+                  projectId={project.id}
+                  assignedAssets={
+                    assignedEquipmentAssets as AssignedEquipmentAsset[]
+                  }
+                  canRelease={canAssignStock}
+                />
+              )}
             </SectionCard>
           ) : null}
         </div>

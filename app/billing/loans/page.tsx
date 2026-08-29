@@ -7,6 +7,7 @@ import PageIntro from "@/components/i18n/PageIntro";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
+import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import { listCompanyBankAccountOptions } from "@/lib/company-bank-accounts";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
@@ -57,7 +58,7 @@ export default async function LoansPage() {
         />
       </div>
 
-      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <DirectoryStatGrid className="mb-5">
         <DirectoryStatCard
           compact
           title={t("pages.loans.outstandingPrincipal")}
@@ -69,7 +70,7 @@ export default async function LoansPage() {
           title={t("pages.loans.interestPaidThisMonth")}
           value={formatContractPrice(interestPaidThisMonth)}
         />
-      </div>
+      </DirectoryStatGrid>
 
       {facilities.length === 0 ? (
         <SectionCard className="p-5 sm:p-6">

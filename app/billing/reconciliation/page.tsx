@@ -401,7 +401,7 @@ export default async function ReconciliationPage({
                             )}
                           </StatusBadge>
                         </div>
-                        <div className="flex min-w-[9.75rem] flex-col items-stretch gap-2 sm:items-end">
+                        <div className="flex w-full min-w-0 flex-col items-stretch gap-2 sm:w-auto sm:min-w-[9.75rem] sm:items-end">
                           <Link
                             href={detailHref}
                             className={cn(

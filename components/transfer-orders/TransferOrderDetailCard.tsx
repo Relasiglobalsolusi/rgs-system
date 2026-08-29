@@ -93,11 +93,11 @@ export default function TransferOrderDetailCard({
             })}
           </p>
           <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge status="info" compact>
+            <span className="text-sm text-muted">
               {t("pages.materialRequests.lineCount", {
                 count: order.lines.length,
               })}
-            </StatusBadge>
+            </span>
             <span className="text-sm text-muted">
               {formatDisplayDate(order.createdAt)}
             </span>

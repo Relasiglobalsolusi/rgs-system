@@ -37,8 +37,8 @@ export const employeeDialogLabelClass = "text-sm font-semibold text-text";
 /** Supporting hint / helper under a field. */
 export const employeeDialogHintClass = "text-xs leading-5 text-muted";
 
-/** Shared horizontal inset â€” header, body, and footer stay aligned. */
-export const employeeDialogInsetClass = "px-6 sm:px-10";
+/** Shared horizontal inset — header, body, and footer stay aligned. */
+export const employeeDialogInsetClass = "px-4 sm:px-10";
 
 /** Vertical stack for form fields inside the shell body (padding comes from the shell). */
 export const employeeDialogFormClass = "flex flex-col gap-6";
@@ -57,13 +57,13 @@ export const employeeDialogGridClass =
   "grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-x-8 sm:gap-y-5";
 
 /** Choice chips: each chip fills and centers in its grid cell. */
-export const employeeDialogChoiceGridClass = "grid grid-cols-2 gap-2";
+export const employeeDialogChoiceGridClass = "grid grid-cols-1 gap-2 sm:grid-cols-2";
 
 /** 2 → two columns, 3 → three columns, 4 → two-by-two, odd leftover spans full width. */
 export function choiceGridClassForCount(count: number) {
   if (count <= 1) return "grid grid-cols-1 gap-2";
   if (count === 3) return "grid grid-cols-1 gap-2 sm:grid-cols-3";
-  return "grid grid-cols-2 gap-2";
+  return "grid grid-cols-1 gap-2 sm:grid-cols-2";
 }
 
 /** Last chip spans the full row when a 2-column grid has an odd count. */
@@ -299,7 +299,7 @@ export function EmployeeDialogShell({
 
       <DialogFooter
         className={cn(
-          "mt-0 shrink-0 flex-col gap-3 rounded-none border-t border-border bg-strip py-6 sm:flex-col sm:py-7",
+          "mx-0 mb-0 mt-0 shrink-0 flex-col gap-3 rounded-none border-t border-border bg-strip py-6 sm:flex-col sm:py-7",
           employeeDialogInsetClass
         )}
       >
@@ -583,7 +583,7 @@ export function EmployeeUnsavedExitDialog({
         showCloseButton={false}
         className="gap-0 overflow-hidden rounded-2xl border border-border bg-panel p-0 text-text ring-0 sm:max-w-sm"
       >
-        <div className="px-8 pt-8 pb-7 sm:px-10">
+        <div className="max-h-[min(90dvh,24rem)] overflow-y-auto px-4 pt-6 pb-6 sm:px-10 sm:pt-8 sm:pb-7">
           <DialogHeader className="items-center gap-4 text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-card-tint-amber ring-1 ring-amber-500/25">
               <AlertTriangle className="h-6 w-6 text-warning" />
@@ -603,8 +603,8 @@ export function EmployeeUnsavedExitDialog({
 
         <DialogFooter
           className={cn(
-            // Cancel DialogFooterâ€™s default -mx-4/-mb-4 (meant for p-4 content).
-            "mx-0 mb-0 mt-0 flex-col gap-3 rounded-none border-t border-border bg-strip px-8 py-6 sm:flex-col sm:justify-stretch sm:px-10"
+            // Cancel DialogFooter's default -mx-4/-mb-4 (meant for p-4 content).
+            "mx-0 mb-0 mt-0 flex-col gap-3 rounded-none border-t border-border bg-strip px-4 py-5 sm:flex-col sm:justify-stretch sm:px-10 sm:py-6"
           )}
         >
           <EmployeePrimaryButton type="button" variant="danger" onClick={onConfirm}>

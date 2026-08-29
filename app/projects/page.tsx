@@ -40,10 +40,10 @@ import { isMilestoneSubCategory } from "@/lib/project-billing";
 import { localizeSubCategory } from "@/lib/i18n/labels";
 import ProjectServiceAreaManageDialog from "@/components/projects/ProjectServiceAreaManageDialog";
 import {
+  completedDirectoryWhere,
   getPaymentDueStage,
   paymentDueWhere,
   pendingApprovalWhere,
-  projectHistoryWhere,
 } from "@/lib/billing";
 import {
   decimalToNumber,
@@ -328,7 +328,7 @@ export default async function ProjectsPage({
           : filterView === "payment-due"
             ? paymentDueWhere()
             : filterView === "completed"
-              ? projectHistoryWhere()
+              ? completedDirectoryWhere()
               : { status: { in: [...PROJECT_ALL_LIST_STATUSES] } };
 
   const [projectsFetched, employees, clients, filterClient, dueMonthlyReminders, operationsTeams] =
@@ -692,6 +692,7 @@ export default async function ProjectsPage({
         moveBackBlockedByCollection,
         canMarkPaid,
         billingHref,
+        paidAt: focusPeriod?.paidAt ?? null,
         detailHref: focusPeriod?.id
           ? projectPeriodHref(project.id, focusPeriod.id)
           : projectDetailHref(project.id),
@@ -878,6 +879,13 @@ export default async function ProjectsPage({
     }))
     .filter((section) => section.rows.length > 0);
 
+  const completedProjectRows = tableRows.filter(
+    (row) => row.rowKind === "completed"
+  );
+  const completedPeriodRows = tableRows.filter(
+    (row) => row.rowKind === "completed-period"
+  );
+
   const usesItemCount =
     filterView === "payment-due" ||
     filterView === "pending-approval" ||
@@ -929,13 +937,17 @@ export default async function ProjectsPage({
         }
         actions={
           <>
-            {canManage && filterView === "completed" && projects.length > 0 ? (
+            {canManage &&
+            filterView === "completed" &&
+            projects.some((project) => project.status === "COMPLETED") ? (
               <ProjectHistoryClearAllDialog
-                projects={projects.map((project) => ({
-                  id: project.id,
-                  name: project.name,
-                  clientName: project.client?.name ?? null,
-                }))}
+                projects={projects
+                  .filter((project) => project.status === "COMPLETED")
+                  .map((project) => ({
+                    id: project.id,
+                    name: project.name,
+                    clientName: project.client?.name ?? null,
+                  }))}
               />
             ) : null}
             {canManage &&
@@ -1025,7 +1037,100 @@ export default async function ProjectsPage({
         </div>
       )}
 
-      {typeSections.length === 0 ? (
+      {filterView === "completed" &&
+      completedProjectRows.length === 0 &&
+      completedPeriodRows.length === 0 ? (
+        <SectionCard>
+          <EmptyState
+            titleKey="pages.projects.emptyCompleted"
+            descriptionKey="pages.projects.emptyCompletedDesc"
+          />
+        </SectionCard>
+      ) : filterView === "completed" ? (
+        <div className="space-y-8">
+          <p className="max-w-3xl text-sm text-muted">
+            {t("pages.projects.completedPageDesc")}
+          </p>
+          <section>
+            <div className="mb-3">
+              <h3 className="text-base font-semibold text-text">
+                {t("pages.projects.closedProjectsSection")}
+              </h3>
+              <p className="mt-0.5 text-sm text-muted">
+                {t("pages.projects.closedProjectsSectionDesc")}
+              </p>
+              {completedProjectRows.length > 0 ? (
+                <p className="mt-0.5 text-sm text-muted">
+                  {t(
+                    completedProjectRows.length === 1
+                      ? "pages.projects.projectOne"
+                      : "pages.projects.projectOther",
+                    { count: completedProjectRows.length }
+                  )}
+                </p>
+              ) : null}
+            </div>
+            {completedProjectRows.length === 0 ? (
+              <SectionCard>
+                <EmptyState
+                  titleKey="pages.projects.emptyClosedProjects"
+                  descriptionKey="pages.projects.closedProjectsSectionDesc"
+                />
+              </SectionCard>
+            ) : (
+              <ProjectTable
+                key="completed-projects"
+                rows={completedProjectRows}
+                filterView={filterView}
+                canManage={canManage}
+                canOpenBilling={canOpenBilling}
+                emptyMessage={t("pages.projects.emptyClosedProjects")}
+                employees={serializeDirectoryDecimals(staffEmployees)}
+                teams={serializeDirectoryDecimals(teamOptions)}
+              />
+            )}
+          </section>
+          <section>
+            <div className="mb-3">
+              <h3 className="text-base font-semibold text-text">
+                {t("pages.projects.regularContractsSection")}
+              </h3>
+              <p className="mt-0.5 text-sm text-muted">
+                {t("pages.projects.regularContractsSectionDesc")}
+              </p>
+              {completedPeriodRows.length > 0 ? (
+                <p className="mt-0.5 text-sm text-muted">
+                  {t(
+                    completedPeriodRows.length === 1
+                      ? "pages.projects.itemOne"
+                      : "pages.projects.itemOther",
+                    { count: completedPeriodRows.length }
+                  )}
+                </p>
+              ) : null}
+            </div>
+            {completedPeriodRows.length === 0 ? (
+              <SectionCard>
+                <EmptyState
+                  titleKey="pages.projects.emptyRegularPeriods"
+                  descriptionKey="pages.projects.regularContractsSectionDesc"
+                />
+              </SectionCard>
+            ) : (
+              <ProjectTable
+                key="completed-periods"
+                rows={completedPeriodRows}
+                filterView={filterView}
+                canManage={canManage}
+                canOpenBilling={canOpenBilling}
+                emptyMessage={t("pages.projects.emptyRegularPeriods")}
+                employees={serializeDirectoryDecimals(staffEmployees)}
+                teams={serializeDirectoryDecimals(teamOptions)}
+              />
+            )}
+          </section>
+        </div>
+      ) : typeSections.length === 0 ? (
         <SectionCard>
           <EmptyState
             titleKey={
@@ -1037,9 +1142,7 @@ export default async function ProjectsPage({
                     ? "pages.projects.emptyPendingApproval"
                     : filterView === "payment-due"
                       ? "pages.projects.emptyPaymentDue"
-                      : filterView === "completed"
-                        ? "pages.projects.emptyCompleted"
-                        : "pages.projects.emptyAll"
+                      : "pages.projects.emptyAll"
             }
             descriptionKey={
               filterView === "planning"
@@ -1050,9 +1153,7 @@ export default async function ProjectsPage({
                     ? "pages.projects.emptyPendingApprovalDesc"
                     : filterView === "payment-due"
                       ? "pages.projects.emptyPaymentDueDesc"
-                      : filterView === "completed"
-                        ? "pages.projects.emptyCompletedDesc"
-                        : "pages.projects.emptyAllDesc"
+                      : "pages.projects.emptyAllDesc"
             }
           />
         </SectionCard>
