@@ -25,6 +25,7 @@ import {
 import {
   parseRequiredVehiclePlate,
   parseRequiredVehicleYear,
+  formatVehicleIdentityLabel,
 } from "@/lib/vehicle-plate";
 import { unwindAndReversePurchaseInvoice } from "@/lib/purchase-invoice-reverse";
 import {
@@ -699,6 +700,37 @@ export async function listPrepaidCardsForExpense() {
           .filter(Boolean)
           .join(" / ")
       : null,
+  }));
+}
+
+/** Live inventory vehicles for servicing / modification / other vehicle costs. */
+export async function listVehiclesForExpense() {
+  const session = await requirePurchaseManageAccess();
+  const assets = await prisma.equipmentAsset.findMany({
+    where: {
+      companyId: session.user.companyId,
+      status: { not: "RETIRED" },
+      item: { itemType: { equals: "Vehicle", mode: "insensitive" } },
+    },
+    select: {
+      id: true,
+      assetCode: true,
+      vehicleYear: true,
+      item: { select: { name: true, sku: true } },
+    },
+    orderBy: [{ assetCode: "asc" }, { id: "asc" }],
+  });
+  return assets.map((asset) => ({
+    id: asset.id,
+    plate: asset.assetCode,
+    name: asset.item.name,
+    sku: asset.item.sku,
+    year: asset.vehicleYear,
+    label: formatVehicleIdentityLabel({
+      plate: asset.assetCode,
+      name: asset.item.name,
+      sku: asset.item.sku,
+    }),
   }));
 }
 
@@ -1536,9 +1568,18 @@ export async function createPurchaseInvoice(formData: FormData) {
       originRaw === "IMPORT")
       ? "IMPORT"
       : "LOCAL";
+  const vehicleExpenseKindRaw = String(formData.get("vehicleExpenseKind") ?? "")
+    .trim()
+    .toUpperCase();
+  const isVehiclePurchase =
+    purchaseCategory === "VEHICLE" && vehicleExpenseKindRaw === "PURCHASE";
+  const isVehicleOperatingCost =
+    purchaseCategory === "VEHICLE" &&
+    ["SERVICING", "MODIFICATION", "OTHER"].includes(vehicleExpenseKindRaw);
   const purpose = resolvePurchasePurpose({
     category: purchaseCategory,
     requested: parsePurchasePurpose(formData.get("purchasePurpose")),
+    vehicleExpenseKind: vehicleExpenseKindRaw,
   });
   const projectIdRaw =
     purchaseCategory === "SERVICE"
@@ -1549,9 +1590,9 @@ export async function createPurchaseInvoice(formData: FormData) {
   const portalVendorId = session.user.vendorId ?? null;
   let lines = parsePurchaseLinesJson(linesRaw, {
     requireCatalogItem:
-      purchaseCategory === "PRODUCT" || purchaseCategory === "VEHICLE",
+      purchaseCategory === "PRODUCT" || isVehiclePurchase,
   });
-  if (purchaseCategory === "VEHICLE" || purchaseCategory === "SERVICE") {
+  if (isVehiclePurchase || purchaseCategory === "SERVICE") {
     lines = lines.map((line) => ({ ...line, quantity: 1 }));
   }
   if (freeOfCharge && !hasCustomsFees) {
@@ -1707,8 +1748,9 @@ export async function createPurchaseInvoice(formData: FormData) {
       includesPpn = false;
     }
   }
-  // HO purchases must specify catalog lines; vendor portal may still send header-only.
-  if (!portalVendorId && lines.length === 0) {
+  // HO purchases must specify catalog lines except vehicle operating costs
+  // (servicing / modification / other), which use a single amount + inventory vehicle.
+  if (!portalVendorId && lines.length === 0 && !isVehicleOperatingCost) {
     throw new Error("Add at least one purchased item.");
   }
   let vendorId: string | null = null;
@@ -1844,7 +1886,7 @@ export async function createPurchaseInvoice(formData: FormData) {
           .filter((id): id is string => Boolean(id))
       ),
     ];
-    if (purchaseCategory === "PRODUCT" || purchaseCategory === "VEHICLE") {
+    if (purchaseCategory === "PRODUCT" || isVehiclePurchase) {
       const catalog = await prisma.inventoryItem.findMany({
         where: {
           companyId: session.user.companyId,
@@ -1857,7 +1899,7 @@ export async function createPurchaseInvoice(formData: FormData) {
       if (catalog.length !== itemIds.length) {
         throw new Error("One or more items are missing from the catalog.");
       }
-      if (purchaseCategory === "VEHICLE") {
+      if (isVehiclePurchase) {
         if (lines.length !== 1) {
           throw new Error(
             "Record one vehicle per expense. Use a separate expense for each number plate."
@@ -2093,9 +2135,47 @@ export async function createPurchaseInvoice(formData: FormData) {
   }
 
   const vehicleLease =
-    purchaseCategory === "VEHICLE"
+    isVehiclePurchase
       ? parseVehicleLeaseFromForm(formData)
       : parseVehicleLeaseFromForm(new FormData());
+
+  let vehicleAssetId: string | null = null;
+  let vehicleOtherCostDescription: string | null = null;
+  let linkedVehiclePlate: string | null = null;
+  let linkedVehicleYear: number | null = null;
+  if (isVehicleOperatingCost) {
+    const assetId = String(formData.get("vehicleAssetId") ?? "").trim();
+    if (!assetId) {
+      throw new Error("Choose which vehicle this expense is for.");
+    }
+    const asset = await prisma.equipmentAsset.findFirst({
+      where: {
+        id: assetId,
+        companyId: session.user.companyId,
+        status: { not: "RETIRED" },
+      },
+      select: {
+        id: true,
+        assetCode: true,
+        vehicleYear: true,
+        item: { select: { itemType: true } },
+      },
+    });
+    if (!asset || !isVehicleItemType(asset.item.itemType)) {
+      throw new Error("Choose which vehicle this expense is for.");
+    }
+    vehicleAssetId = asset.id;
+    linkedVehiclePlate = asset.assetCode;
+    linkedVehicleYear = asset.vehicleYear;
+    if (vehicleExpenseKindRaw === "OTHER") {
+      vehicleOtherCostDescription = String(
+        formData.get("vehicleOtherCostDescription") ?? ""
+      ).trim();
+      if (!vehicleOtherCostDescription) {
+        throw new Error("Describe the other vehicle costs.");
+      }
+    }
+  }
 
   try {
     const createdInvoiceId = await prisma.$transaction(async (tx) => {
@@ -2294,6 +2374,10 @@ export async function createPurchaseInvoice(formData: FormData) {
                     : null;
                 })()
               : null,
+          vehicleAssetId,
+          vehicleOtherCostDescription,
+          vehiclePlate: isVehicleOperatingCost ? linkedVehiclePlate : undefined,
+          vehicleYear: isVehicleOperatingCost ? linkedVehicleYear : undefined,
           isVehicleLease: vehicleLease.isVehicleLease,
           leaseOtrAmount: optionalDecimal(vehicleLease.otrAmount),
           leaseDownPayment: optionalDecimal(vehicleLease.downPayment),
@@ -2403,7 +2487,7 @@ export async function createPurchaseInvoice(formData: FormData) {
           },
         });
 
-        if (isVehicleItemType(item.itemType)) {
+        if (isVehiclePurchase && isVehicleItemType(item.itemType)) {
           if (mintedVehiclePlate) {
             throw new Error(
               "Record one vehicle per expense. Use a separate expense for each number plate."

@@ -2957,6 +2957,18 @@ export const id = {
       purchaseVehicleBought: "Kendaraan Dibeli",
       purchaseVehicleCatalogEmpty:
         "Tambah tipe Kendaraan di Katalog Barang terlebih dahulu, lalu pilih di sini.",
+      vehicleFor: "Kendaraan Ini Untuk",
+      vehicleForHint:
+        "Pilih kendaraan dari Inventaris. Pengeluaran ini untuk kendaraan itu, bukan pembelian baru.",
+      vehicleForEmpty:
+        "Belum ada kendaraan di Inventaris. Beli kendaraan dulu, lalu catat servis atau biaya lain untuk kendaraan itu.",
+      vehicleForRequired: "Pilih kendaraan untuk pengeluaran ini.",
+      vehicleOtherCostDescription: "Biaya Kendaraan Lain",
+      vehicleOtherCostDescriptionHint:
+        "Jelaskan biaya kendaraan lain ini. Wajib diisi.",
+      vehicleOtherCostDescriptionPlaceholder:
+        "mis. Biaya parkir April, penggantian tol, perpanjangan STNK…",
+      vehicleOtherCostRequired: "Jelaskan biaya kendaraan lain.",
       purchaseSelectItemDesc:
         "Pilih jenis item terlebih dahulu, lalu cari dan pilih item katalog.",
       purchaseSelectVehicleDesc:

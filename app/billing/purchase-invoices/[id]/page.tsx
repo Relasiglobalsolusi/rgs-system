@@ -173,7 +173,17 @@ export default async function PurchaseInvoiceDetailPage({
   const purposeLabel = isPrepaidCardTopUpInvoice(invoice)
     ? t("pages.billing.vehicleExpenseKindPrepaid")
     : invoice.purchaseCategory === "VEHICLE"
-      ? t("pages.billing.purchaseVehicleBought")
+      ? invoice.vehicleExpenseKind === "PURCHASE"
+        ? t("pages.billing.vehicleExpenseKindPurchase")
+        : invoice.vehicleExpenseKind === "SERVICING"
+          ? t("pages.billing.vehicleExpenseKindServicing")
+          : invoice.vehicleExpenseKind === "MODIFICATION"
+            ? t("pages.billing.vehicleExpenseKindModification")
+            : invoice.vehicleExpenseKind === "OTHER"
+              ? t("pages.billing.vehicleExpenseKindOther")
+              : invoice.vehicleExpenseKind === "FUEL"
+                ? t("pages.billing.vehicleExpenseKindFuel")
+                : t("pages.billing.purchaseCategoryVehicle")
       : invoice.purpose === "PROJECT"
         ? t("pages.billing.purchasePurposeProject")
         : invoice.purpose === "INTERNAL"
@@ -527,7 +537,10 @@ export default async function PurchaseInvoiceDetailPage({
               {invoice.vehiclePlate ? (
                 <tr className="border-b border-border">
                   <th scope="row" className={metaLabelClassName}>
-                    {t("pages.billing.purchaseVehiclePlate")}
+                    {invoice.vehicleExpenseKind === "PURCHASE" ||
+                    !invoice.vehicleExpenseKind
+                      ? t("pages.billing.purchaseVehiclePlate")
+                      : t("pages.billing.vehicleFor")}
                   </th>
                   <td className={`${metaValueClassName} font-mono`}>
                     {invoice.vehiclePlate}
@@ -540,6 +553,16 @@ export default async function PurchaseInvoiceDetailPage({
                     {t("pages.billing.purchaseVehicleYear")}
                   </th>
                   <td className={metaValueClassName}>{invoice.vehicleYear}</td>
+                </tr>
+              ) : null}
+              {invoice.vehicleOtherCostDescription ? (
+                <tr className="border-b border-border">
+                  <th scope="row" className={metaLabelClassName}>
+                    {t("pages.billing.vehicleOtherCostDescription")}
+                  </th>
+                  <td className={metaValueClassName}>
+                    {invoice.vehicleOtherCostDescription}
+                  </td>
                 </tr>
               ) : null}
               <tr className="border-b border-border">

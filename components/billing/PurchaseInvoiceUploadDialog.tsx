@@ -10,6 +10,7 @@ import {
   listEmployeesForExpense,
   listPrepaidCardsForExpense,
   listPurchasePayoutBankAccounts,
+  listVehiclesForExpense,
   listVendorBankAccountsForExpense,
 } from "@/app/billing/purchase-invoices/actions";
 import CompanyBankAccountField from "@/components/company-details/CompanyBankAccountField";
@@ -298,6 +299,19 @@ function PurchaseInvoiceUploadDialogInner({
   >("");
   const [handlingFeeFile, setHandlingFeeFile] = useState<File | null>(null);
   const [vehicleExpenseKind, setVehicleExpenseKind] = useState("");
+  const [vehicleAssetId, setVehicleAssetId] = useState("");
+  const [vehicleOtherCostDescription, setVehicleOtherCostDescription] =
+    useState("");
+  const [inventoryVehicles, setInventoryVehicles] = useState<
+    Array<{
+      id: string;
+      plate: string;
+      name: string;
+      sku: string;
+      year: number | null;
+      label: string;
+    }>
+  >([]);
   const [employeePaymentKind, setEmployeePaymentKind] = useState<
     "INTERNAL_PAYROLL" | "THR" | "CASH_ADVANCE" | ""
   >("");
@@ -348,6 +362,13 @@ function PurchaseInvoiceUploadDialogInner({
   const isGovernment = purchaseCategory === "GOVERNMENT";
   const isService = purchaseCategory === "SERVICE";
   const isVehicle = purchaseCategory === "VEHICLE";
+  const isVehiclePurchase = isVehicle && vehicleExpenseKind === "PURCHASE";
+  const isVehicleOperatingCost =
+    isVehicle &&
+    (vehicleExpenseKind === "SERVICING" ||
+      vehicleExpenseKind === "MODIFICATION" ||
+      vehicleExpenseKind === "OTHER");
+  const isVehicleOtherCost = isVehicle && vehicleExpenseKind === "OTHER";
   const isOpenCardPrepaid = purchaseCategory === "OPEN_CARD";
   const isVehiclePrepaid = isVehicle && vehicleExpenseKind === "PREPAID_CARD";
   const isPrepaidTopUp = isVehiclePrepaid || isOpenCardPrepaid;
@@ -404,10 +425,10 @@ function PurchaseInvoiceUploadDialogInner({
     )
   );
   const requireCatalogLines =
-    (purchaseCategory === "PRODUCT" || purchaseCategory === "VEHICLE") &&
+    (purchaseCategory === "PRODUCT" || isVehiclePurchase) &&
     !isVehiclePrepaid;
   const pickerCatalogItems = catalogItems.filter((item) =>
-    isVehicle
+    isVehiclePurchase
       ? isVehicleItemType(item.itemType)
       : !isVehicleItemType(item.itemType)
   );
@@ -471,7 +492,7 @@ function PurchaseInvoiceUploadDialogInner({
       importResult.stockLandedCostIdr
     : 0;
   const localLinesTotal = lines.reduce((sum, line) => {
-    const qty = isVehicle || isService ? 1 : Number(line.quantity);
+    const qty = isVehiclePurchase || isService ? 1 : Number(line.quantity);
     const price = parseContractPrice(line.unitPrice) ?? Number.NaN;
     if (!Number.isFinite(qty) || !Number.isFinite(price)) return sum;
     return sum + qty * price;
@@ -606,6 +627,9 @@ function PurchaseInvoiceUploadDialogInner({
         setPrepaidCardId((current) => current || cards[0]?.id || "");
       })
       .catch(() => setPrepaidCards([]));
+    listVehiclesForExpense()
+      .then(setInventoryVehicles)
+      .catch(() => setInventoryVehicles([]));
   }, [open]);
 
   useEffect(() => {
@@ -660,6 +684,9 @@ function PurchaseInvoiceUploadDialogInner({
       setHandlingFeeIdr("");
       setHandlingHasTaxInvoice("");
       setHandlingFeeFile(null);
+      setVehicleExpenseKind("");
+      setVehicleAssetId("");
+      setVehicleOtherCostDescription("");
       setEmployeePaymentKind("");
       setEmployeeDepartmentId("");
       setEmployeeId("");
@@ -812,8 +839,14 @@ function PurchaseInvoiceUploadDialogInner({
     if (!isPettyCash && showInvoiceFields && !documentFile) {
       extraMissing.push(t("pages.billing.purchaseDocument"));
     }
-    if ((isPettyCash || isPrepaidTopUp) && !amount.trim()) {
+    if ((isPettyCash || isPrepaidTopUp || isVehicleOperatingCost) && !amount.trim()) {
       extraMissing.push(t("pages.billing.purchaseAmount"));
+    }
+    if (isVehicleOperatingCost && !vehicleAssetId) {
+      extraMissing.push(t("pages.billing.vehicleFor"));
+    }
+    if (isVehicleOtherCost && !vehicleOtherCostDescription.trim()) {
+      extraMissing.push(t("pages.billing.vehicleOtherCostDescription"));
     }
     if (isPrepaidTopUp && (!documentFile || documentFile.size === 0)) {
       extraMissing.push(t("pages.billing.purchaseDocument"));
@@ -873,7 +906,7 @@ function PurchaseInvoiceUploadDialogInner({
       "purchasePurpose",
       isService
         ? purchasePurpose
-        : isGovernment || isBankLoan
+        : isGovernment || isBankLoan || isVehicleOperatingCost
           ? "INTERNAL"
           : "STOCK"
     );
@@ -1210,7 +1243,7 @@ function PurchaseInvoiceUploadDialogInner({
     if (requireItemLines) {
       if (requireCatalogLines && pickerCatalogItems.length === 0) {
         setError(
-          isVehicle
+          isVehiclePurchase
             ? t("pages.billing.purchaseVehicleCatalogEmpty")
             : t("pages.billing.purchaseCatalogEmpty")
         );
@@ -1235,7 +1268,7 @@ function PurchaseInvoiceUploadDialogInner({
           setError(t("pages.billing.purchaseServiceLineRequired", { n: i + 1 }));
           return;
         }
-        const quantity = isVehicle || isService ? 1 : Number(line.quantity);
+        const quantity = isVehiclePurchase || isService ? 1 : Number(line.quantity);
         if (!isService && (!Number.isFinite(quantity) || quantity <= 0)) {
           setError(t("pages.billing.purchaseLineQtyRequired", { n: i + 1 }));
           return;
@@ -1372,27 +1405,48 @@ function PurchaseInvoiceUploadDialogInner({
         return;
       }
       formData.set("vehicleExpenseKind", vehicleExpenseKind);
-      if (!vehicleLease.plateNumber.trim()) {
-        setError(t("pages.billing.purchaseVehiclePlateRequired"));
-        return;
-      }
-      if (!vehicleLease.vehicleYear.trim()) {
-        setError(t("pages.billing.purchaseVehicleYearRequired"));
-        return;
-      }
-      formData.set("vehiclePlate", vehicleLease.plateNumber);
-      formData.set("vehicleYear", vehicleLease.vehicleYear);
-      formData.set("isVehicleLease", vehicleLease.enabled ? "true" : "false");
-      if (vehicleLease.enabled) {
-        formData.set("leaseOtrAmount", vehicleLease.otrAmount);
-        formData.set("leaseDownPayment", vehicleLease.downPayment);
-        formData.set("leaseTenorMonths", vehicleLease.tenorMonths);
-        formData.set("leaseInterestPercentYear", vehicleLease.interestPercentYear);
-        formData.set("leaseAdminFee", vehicleLease.adminFee);
-        formData.set("leaseInsuranceAmount", vehicleLease.insuranceAmount);
-        formData.set("leaseFiduciaryFee", vehicleLease.fiduciaryFee);
-        formData.set("leaseProvisionFee", vehicleLease.provisionFee);
-        formData.set("leaseOtherFee", vehicleLease.otherFee);
+      if (isVehiclePurchase) {
+        if (!vehicleLease.plateNumber.trim()) {
+          setError(t("pages.billing.purchaseVehiclePlateRequired"));
+          return;
+        }
+        if (!vehicleLease.vehicleYear.trim()) {
+          setError(t("pages.billing.purchaseVehicleYearRequired"));
+          return;
+        }
+        formData.set("vehiclePlate", vehicleLease.plateNumber);
+        formData.set("vehicleYear", vehicleLease.vehicleYear);
+        formData.set("isVehicleLease", vehicleLease.enabled ? "true" : "false");
+        if (vehicleLease.enabled) {
+          formData.set("leaseOtrAmount", vehicleLease.otrAmount);
+          formData.set("leaseDownPayment", vehicleLease.downPayment);
+          formData.set("leaseTenorMonths", vehicleLease.tenorMonths);
+          formData.set(
+            "leaseInterestPercentYear",
+            vehicleLease.interestPercentYear
+          );
+          formData.set("leaseAdminFee", vehicleLease.adminFee);
+          formData.set("leaseInsuranceAmount", vehicleLease.insuranceAmount);
+          formData.set("leaseFiduciaryFee", vehicleLease.fiduciaryFee);
+          formData.set("leaseProvisionFee", vehicleLease.provisionFee);
+          formData.set("leaseOtherFee", vehicleLease.otherFee);
+        }
+      } else if (isVehicleOperatingCost) {
+        if (!vehicleAssetId) {
+          setError(t("pages.billing.vehicleForRequired"));
+          return;
+        }
+        formData.set("vehicleAssetId", vehicleAssetId);
+        if (isVehicleOtherCost) {
+          if (!vehicleOtherCostDescription.trim()) {
+            setError(t("pages.billing.vehicleOtherCostRequired"));
+            return;
+          }
+          formData.set(
+            "vehicleOtherCostDescription",
+            vehicleOtherCostDescription.trim()
+          );
+        }
       }
     }
 
@@ -1623,7 +1677,15 @@ function PurchaseInvoiceUploadDialogInner({
                       role="radio"
                       aria-checked={vehicleExpenseKind === value}
                       disabled={busy}
-                      onClick={() => setVehicleExpenseKind(value)}
+                      onClick={() => {
+                        setVehicleExpenseKind(value);
+                        setVehicleAssetId("");
+                        setVehicleOtherCostDescription("");
+                        if (value !== "PURCHASE") {
+                          setVehicleLease(emptyVehicleLeaseDraft());
+                          setLines([newPurchaseLine()]);
+                        }
+                      }}
                       className={cn(
                         "inline-flex min-h-8 w-full items-center justify-center rounded-xl px-3 py-1.5 text-xs font-semibold tracking-wide transition",
                         choiceGridSpanLastClass(index, options.length),
@@ -2126,6 +2188,109 @@ function PurchaseInvoiceUploadDialogInner({
                 }}
                 disabled={busy}
               />
+            ) : null}
+
+            {isVehicleOtherCost ? (
+              <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+                <label
+                  htmlFor="vehicle-other-cost-description"
+                  className={employeeDialogLabelClass}
+                >
+                  {t("pages.billing.vehicleOtherCostDescription")}
+                  <span className="text-red-400"> *</span>
+                </label>
+                <p className={employeeDialogHintClass}>
+                  {t("pages.billing.vehicleOtherCostDescriptionHint")}
+                </p>
+                <div className="mt-2 overflow-hidden rounded-xl border border-border">
+                  <table className="w-full text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-border bg-elevated/60 text-xs uppercase tracking-wide text-muted">
+                        <th className="px-3 py-2.5 font-semibold">
+                          {t("pages.billing.vehicleOtherCostDescription")}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="bg-card">
+                        <td className="p-3">
+                          <Textarea
+                            id="vehicle-other-cost-description"
+                            name="vehicleOtherCostDescription"
+                            disabled={busy}
+                            required
+                            data-required-label={t(
+                              "pages.billing.vehicleOtherCostDescription"
+                            )}
+                            value={vehicleOtherCostDescription}
+                            onChange={(event) =>
+                              setVehicleOtherCostDescription(event.target.value)
+                            }
+                            placeholder={t(
+                              "pages.billing.vehicleOtherCostDescriptionPlaceholder"
+                            )}
+                            className={cn(employeeInputClass, "min-h-24")}
+                          />
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
+
+            {isVehicleOperatingCost ? (
+              <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+                <label className={employeeDialogLabelClass}>
+                  {t("pages.billing.vehicleFor")}
+                  <span className="text-red-400"> *</span>
+                </label>
+                {inventoryVehicles.length === 0 ? (
+                  <p className={employeeDialogHintClass}>
+                    {t("pages.billing.vehicleForEmpty")}
+                  </p>
+                ) : (
+                  <Select
+                    value={vehicleAssetId || null}
+                    onValueChange={(value) => setVehicleAssetId(value ?? "")}
+                    disabled={busy}
+                  >
+                    <SelectTrigger className={employeeSelectTriggerClass}>
+                      <SelectValue placeholder={t("pages.billing.vehicleFor")}>
+                        {(value) => {
+                          if (!value) {
+                            return t("pages.billing.vehicleFor");
+                          }
+                          const row = inventoryVehicles.find(
+                            (vehicle) => vehicle.id === value
+                          );
+                          return row
+                            ? `${row.label}${row.year != null ? ` · ${row.year}` : ""}`
+                            : t("pages.billing.vehicleFor");
+                        }}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {inventoryVehicles.map((vehicle) => (
+                        <SelectItem key={vehicle.id} value={vehicle.id}>
+                          {vehicle.label}
+                          {vehicle.year != null ? ` · ${vehicle.year}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <input
+                  type="hidden"
+                  name="vehicleAssetId"
+                  value={vehicleAssetId}
+                  required
+                  data-required-label={t("pages.billing.vehicleFor")}
+                />
+                <p className={employeeDialogHintClass}>
+                  {t("pages.billing.vehicleForHint")}
+                </p>
+              </div>
             ) : null}
 
             <CompanyBankAccountField
@@ -2818,12 +2983,12 @@ function PurchaseInvoiceUploadDialogInner({
               <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <label className={employeeDialogLabelClass}>
-                    {isVehicle
+                    {isVehiclePurchase
                       ? t("pages.billing.purchaseVehicleBought")
                       : t("pages.billing.purchaseItemsBought")}
                     <span className="text-red-400"> *</span>
                   </label>
-                  {isVehicle ? null : (
+                  {isVehiclePurchase ? null : (
                   <Button
                     type="button"
                     variant="outline"
@@ -2841,7 +3006,7 @@ function PurchaseInvoiceUploadDialogInner({
                 </div>
                 {pickerCatalogItems.length === 0 ? (
                   <p className={employeeDialogHintClass}>
-                    {isVehicle
+                    {isVehiclePurchase
                       ? t("pages.billing.purchaseVehicleCatalogEmpty")
                       : t("pages.billing.purchaseCatalogEmpty")}
                   </p>
@@ -2851,7 +3016,7 @@ function PurchaseInvoiceUploadDialogInner({
                       const item = catalogItems.find(
                         (entry) => entry.id === line.itemId
                       );
-                      const qty = isVehicle ? 1 : Number(line.quantity);
+                      const qty = isVehiclePurchase ? 1 : Number(line.quantity);
                       const allocated = importAllocated[index];
                       const price = isImport
                         ? recordingArrivalNow
@@ -2929,7 +3094,7 @@ function PurchaseInvoiceUploadDialogInner({
                                       : "sm:grid-cols-[minmax(0,10rem)_8rem]"
                                 )}
                               >
-                                {isVehicle ? null : (
+                                {isVehiclePurchase ? null : (
                                   <div className="flex items-center gap-2">
                                     <Input
                                       type="number"
@@ -3035,7 +3200,7 @@ function PurchaseInvoiceUploadDialogInner({
                       })}
                     </p>
                     )}
-                    {isVehicle && lines.some((line) => line.itemId) ? (
+                    {isVehiclePurchase && lines.some((line) => line.itemId) ? (
                       <PurchaseVehicleLeaseFields
                         draft={vehicleLease}
                         onChange={setVehicleLease}
@@ -3052,7 +3217,7 @@ function PurchaseInvoiceUploadDialogInner({
                   selectedItemId={
                     lines.find((line) => line.key === pickingLineKey)?.itemId
                   }
-                  vehicleOnly={isVehicle}
+                  vehicleOnly={isVehiclePurchase}
                   onSelect={(selected) => {
                     if (!pickingLineKey) return;
                     setLines((current) =>
@@ -3063,7 +3228,7 @@ function PurchaseInvoiceUploadDialogInner({
                               itemId: selected.id,
                               unit: normalizeInventoryUnit(selected.unit),
                               packContents: "",
-                              quantity: isVehicle ? "1" : row.quantity,
+                              quantity: isVehiclePurchase ? "1" : row.quantity,
                               unitPrice: isImport
                                 ? row.unitPrice
                                 : selected.lastUnitCost != null

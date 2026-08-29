@@ -2927,6 +2927,18 @@ export const en = {
       purchaseVehicleBought: "Vehicle Bought",
       purchaseVehicleCatalogEmpty:
         "Add a Vehicle type in Goods Catalog first, then choose it here.",
+      vehicleFor: "Which Vehicle Is This For",
+      vehicleForHint:
+        "Choose the vehicle from Inventory. This expense is for that vehicle, not a new purchase.",
+      vehicleForEmpty:
+        "No vehicles are in Inventory yet. Buy a vehicle first, then record servicing or other costs against it.",
+      vehicleForRequired: "Choose which vehicle this expense is for.",
+      vehicleOtherCostDescription: "Other Vehicle Costs",
+      vehicleOtherCostDescriptionHint:
+        "Describe what these other vehicle costs are. This is required.",
+      vehicleOtherCostDescriptionPlaceholder:
+        "e.g. Parking fee for April, toll reimbursement, STNK renewal…",
+      vehicleOtherCostRequired: "Describe the other vehicle costs.",
       purchaseSelectItemDesc:
         "Choose the item type first, then search and pick the catalog item.",
       purchaseSelectVehicleDesc:

@@ -46,9 +46,16 @@ export function parsePurchaseCategory(
 export function resolvePurchasePurpose(options: {
   category: string;
   requested: PurchasePurpose;
+  /** Vehicle purchase mints stock/assets; other vehicle spend is operating cost. */
+  vehicleExpenseKind?: string | null;
 }): PurchasePurpose {
   if (options.category === "PRODUCT") return "STOCK";
-  if (options.category === "VEHICLE") return "STOCK";
+  if (options.category === "VEHICLE") {
+    const kind = String(options.vehicleExpenseKind ?? "")
+      .trim()
+      .toUpperCase();
+    return kind === "PURCHASE" ? "STOCK" : "INTERNAL";
+  }
   if (options.category === "SERVICE") {
     return options.requested === "PROJECT" ? "PROJECT" : "INTERNAL";
   }

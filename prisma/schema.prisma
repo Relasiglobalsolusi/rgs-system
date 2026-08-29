@@ -1416,6 +1416,13 @@ model PurchaseInvoice {
   /// Fuel, servicing, modification, purchase, or other vehicle spend.
   vehicleExpenseKind VehicleExpenseKind?
 
+  /// Existing inventory vehicle this servicing / modification / other cost is for.
+  vehicleAssetId String?
+  vehicleAsset   EquipmentAsset? @relation(fields: [vehicleAssetId], references: [id], onDelete: SetNull)
+
+  /// Required description when vehicleExpenseKind is OTHER.
+  vehicleOtherCostDescription String?
+
   /// Indonesian finance lease for a company vehicle (DP, tenor, interest, bank fees).
   isVehicleLease Boolean @default(false)
   leaseOtrAmount Decimal? @db.Decimal(14, 2)
@@ -2604,6 +2611,7 @@ model EquipmentAsset {
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   factoryReturns EquipmentFactoryReturn[]
+  purchaseInvoices PurchaseInvoice[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
