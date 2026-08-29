@@ -22,6 +22,7 @@ import PurchaseLoanFields, {
 import type { BankLoanKind } from "@/lib/bank-loan";
 import type { LoanPaymentPurpose, LoanSource } from "@/lib/loan-facility";
 import PurchaseVehicleLeaseFields, {
+  applyVehicleLeaseDraftToFormData,
   emptyVehicleLeaseDraft,
   type PurchaseVehicleLeaseDraft,
 } from "@/components/billing/PurchaseVehicleLeaseFields";
@@ -309,6 +310,7 @@ function PurchaseInvoiceUploadDialogInner({
       name: string;
       sku: string;
       year: number | null;
+      isVehicleLease?: boolean;
       label: string;
     }>
   >([]);
@@ -367,7 +369,13 @@ function PurchaseInvoiceUploadDialogInner({
     isVehicle &&
     (vehicleExpenseKind === "SERVICING" ||
       vehicleExpenseKind === "MODIFICATION" ||
-      vehicleExpenseKind === "OTHER");
+      vehicleExpenseKind === "OTHER" ||
+      vehicleExpenseKind === "LEASE_PAYMENT");
+  const isVehicleLeasePayment =
+    isVehicle && vehicleExpenseKind === "LEASE_PAYMENT";
+  const selectableVehicles = isVehicleLeasePayment
+    ? inventoryVehicles.filter((vehicle) => vehicle.isVehicleLease)
+    : inventoryVehicles;
   const isVehicleOtherCost = isVehicle && vehicleExpenseKind === "OTHER";
   const isOpenCardPrepaid = purchaseCategory === "OPEN_CARD";
   const isVehiclePrepaid = isVehicle && vehicleExpenseKind === "PREPAID_CARD";
@@ -1414,23 +1422,11 @@ function PurchaseInvoiceUploadDialogInner({
           setError(t("pages.billing.purchaseVehicleYearRequired"));
           return;
         }
-        formData.set("vehiclePlate", vehicleLease.plateNumber);
-        formData.set("vehicleYear", vehicleLease.vehicleYear);
-        formData.set("isVehicleLease", vehicleLease.enabled ? "true" : "false");
-        if (vehicleLease.enabled) {
-          formData.set("leaseOtrAmount", vehicleLease.otrAmount);
-          formData.set("leaseDownPayment", vehicleLease.downPayment);
-          formData.set("leaseTenorMonths", vehicleLease.tenorMonths);
-          formData.set(
-            "leaseInterestPercentYear",
-            vehicleLease.interestPercentYear
-          );
-          formData.set("leaseAdminFee", vehicleLease.adminFee);
-          formData.set("leaseInsuranceAmount", vehicleLease.insuranceAmount);
-          formData.set("leaseFiduciaryFee", vehicleLease.fiduciaryFee);
-          formData.set("leaseProvisionFee", vehicleLease.provisionFee);
-          formData.set("leaseOtherFee", vehicleLease.otherFee);
+        if (!vehicleLease.condition) {
+          setError(t("pages.billing.purchaseVehicleConditionRequired"));
+          return;
         }
+        applyVehicleLeaseDraftToFormData(formData, vehicleLease);
       } else if (isVehicleOperatingCost) {
         if (!vehicleAssetId) {
           setError(t("pages.billing.vehicleForRequired"));
@@ -1654,7 +1650,7 @@ function PurchaseInvoiceUploadDialogInner({
                 <div
                   role="radiogroup"
                   aria-labelledby="vehicle-expense-kind-label"
-                  className={cn("mt-2", choiceGridClassForCount(5))}
+                  className={cn("mt-2", choiceGridClassForCount(6))}
                 >
                   {(
                     [
@@ -1667,6 +1663,10 @@ function PurchaseInvoiceUploadDialogInner({
                       [
                         "MODIFICATION",
                         t("pages.billing.vehicleExpenseKindModification"),
+                      ],
+                      [
+                        "LEASE_PAYMENT",
+                        t("pages.billing.vehicleExpenseKindLeasePayment"),
                       ],
                       ["OTHER", t("pages.billing.vehicleExpenseKindOther")],
                     ] as const
@@ -2018,7 +2018,12 @@ function PurchaseInvoiceUploadDialogInner({
               </div>
             ) : null}
 
-            {isPettyCash || isGovernment || isVehicle || isBankLoan || isEmployeePayment ? null : (
+            {isPettyCash ||
+            isGovernment ||
+            isVehicle ||
+            isOpenCardPrepaid ||
+            isBankLoan ||
+            isEmployeePayment ? null : (
               <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
                 <label
                   id="purchase-free-of-charge-label"
@@ -2141,6 +2146,7 @@ function PurchaseInvoiceUploadDialogInner({
             {isPettyCash ||
             isGovernment ||
             isVehicle ||
+            isPrepaidTopUp ||
             isBankLoan ||
             isEmployeePayment ||
             isFreeOfCharge ||
@@ -2245,9 +2251,11 @@ function PurchaseInvoiceUploadDialogInner({
                   {t("pages.billing.vehicleFor")}
                   <span className="text-red-400"> *</span>
                 </label>
-                {inventoryVehicles.length === 0 ? (
+                {selectableVehicles.length === 0 ? (
                   <p className={employeeDialogHintClass}>
-                    {t("pages.billing.vehicleForEmpty")}
+                    {isVehicleLeasePayment
+                      ? t("pages.billing.vehicleForLeaseEmpty")
+                      : t("pages.billing.vehicleForEmpty")}
                   </p>
                 ) : (
                   <Select
@@ -2261,20 +2269,17 @@ function PurchaseInvoiceUploadDialogInner({
                           if (!value) {
                             return t("pages.billing.vehicleFor");
                           }
-                          const row = inventoryVehicles.find(
+                          const row = selectableVehicles.find(
                             (vehicle) => vehicle.id === value
                           );
-                          return row
-                            ? `${row.label}${row.year != null ? ` · ${row.year}` : ""}`
-                            : t("pages.billing.vehicleFor");
+                          return row?.label ?? t("pages.billing.vehicleFor");
                         }}
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      {inventoryVehicles.map((vehicle) => (
+                      {selectableVehicles.map((vehicle) => (
                         <SelectItem key={vehicle.id} value={vehicle.id}>
                           {vehicle.label}
-                          {vehicle.year != null ? ` · ${vehicle.year}` : ""}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -2288,7 +2293,9 @@ function PurchaseInvoiceUploadDialogInner({
                   data-required-label={t("pages.billing.vehicleFor")}
                 />
                 <p className={employeeDialogHintClass}>
-                  {t("pages.billing.vehicleForHint")}
+                  {isVehicleLeasePayment
+                    ? t("pages.billing.vehicleForLeaseHint")
+                    : t("pages.billing.vehicleForHint")}
                 </p>
               </div>
             ) : null}
@@ -2598,7 +2605,7 @@ function PurchaseInvoiceUploadDialogInner({
                     ? t("pages.billing.governmentBpjsDocument")
                     : isGovernment
                     ? t("pages.billing.governmentDocument")
-                    : isBankLoan || isEmployeePayment
+                    : isBankLoan || isEmployeePayment || isPrepaidTopUp
                       ? t("pages.billing.purchasePaymentProof")
                       : isImport
                         ? t("pages.billing.purchaseFactoryInvoice")

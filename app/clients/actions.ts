@@ -25,6 +25,11 @@ import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
 import { canManageClients } from "@/lib/project-access";
 import { provisionClientUser } from "@/lib/provision-linked-user";
+import {
+  getClientPortalManageableModules,
+  resolveClientModuleOverrides,
+  type ModuleKey,
+} from "@/lib/permissions";
 import { requireModule, toPermissionUser } from "@/lib/session";
 import { normalizeAndValidatePhone } from "@/lib/phone";
 import { capitalizeName, capitalizeProper } from "@/lib/text-case";
@@ -1009,4 +1014,63 @@ export async function bulkDeleteClients(
   }
 
   return result;
+}
+
+export async function getClientPortalModuleAccess() {
+  const locale = await getServerLocale();
+  await assertCanManageClients(locale);
+
+  const company = await prisma.company.findFirst({
+    select: { clientModuleOverrides: true },
+  });
+  if (!company) {
+    throw new Error(translate(locale, "pages.clients.companyNotFound"));
+  }
+
+  return resolveClientModuleOverrides(company.clientModuleOverrides);
+}
+
+export async function saveClientPortalModuleAccess(
+  moduleAccess: Record<string, boolean>
+) {
+  const locale = await getServerLocale();
+  try {
+    await assertCanManageClients(locale);
+
+    const company = await prisma.company.findFirst({ select: { id: true } });
+    if (!company) {
+      throw new Error(translate(locale, "pages.clients.companyNotFound"));
+    }
+
+    const normalized = resolveClientModuleOverrides(moduleAccess);
+    const manageable = new Set(getClientPortalManageableModules());
+    for (const module of Object.keys(normalized) as ModuleKey[]) {
+      if (!manageable.has(module)) {
+        normalized[module] = false;
+      }
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.company.update({
+        where: { id: company.id },
+        data: { clientModuleOverrides: normalized },
+      });
+      await tx.user.updateMany({
+        where: {
+          companyId: company.id,
+          clientId: { not: null },
+        },
+        data: { moduleOverrides: normalized },
+      });
+    });
+
+    revalidatePath("/clients");
+    revalidatePath("/users");
+    return { ok: true as const };
+  } catch (error) {
+    throw toActionError(
+      error,
+      translate(locale, "pages.clients.moduleAccessSaveFailed")
+    );
+  }
 }

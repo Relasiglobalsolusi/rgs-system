@@ -2,8 +2,8 @@ import type { EmployeeType, Placement, Prisma } from "@prisma/client";
 
 import { formatContactPersonName } from "@/lib/contact-person";
 import {
-  getClientModuleOverrides,
   getEmployeeModuleOverrides,
+  resolveClientModuleOverrides,
 } from "@/lib/permissions";
 import { nextSortOrderFromMax } from "@/lib/reorder";
 import { resolveNewAccountPassword } from "@/lib/user-account";
@@ -179,7 +179,13 @@ export async function provisionClientUser(
   });
 
   const { passwordHash } = await resolveNewAccountPassword("");
-  const moduleOverrides = getClientModuleOverrides();
+  const company = await tx.company.findUnique({
+    where: { id: options.companyId },
+    select: { clientModuleOverrides: true },
+  });
+  const moduleOverrides = resolveClientModuleOverrides(
+    company?.clientModuleOverrides
+  );
   const sortOrder = await nextUserSortOrder(tx, options.companyId);
 
   return tx.user.create({

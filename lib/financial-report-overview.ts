@@ -299,6 +299,7 @@ async function sumPurchases(
     where: {
       companyId,
       ...filter,
+      ...("purpose" in filter ? { purchaseCategory: { not: "VEHICLE" } } : {}),
       reversedAt: null,
       paidAt: {
         not: null,

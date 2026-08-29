@@ -113,6 +113,11 @@ export default function PositionModuleAccessFields({
               total: modules.length,
             })}
           </p>
+          {headerAction ? (
+            <p className="mt-1 text-xs text-muted">
+              {t("pages.employees.positionDialog.downloadSystemGuideHint")}
+            </p>
+          ) : null}
         </div>
         {headerAction ? (
           <div className="w-full shrink-0 sm:w-auto sm:pt-0.5">{headerAction}</div>

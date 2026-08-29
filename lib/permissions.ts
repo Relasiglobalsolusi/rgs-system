@@ -77,8 +77,14 @@ import {
  * 2. Add a sidebar item with `module` set to that key
  * 3. Add the path in `ROUTE_MODULE_MAP`
  * 4. Add `modules.<key>` in the EN and ID dictionaries
- * 5. Add EN+ID how-to copy in `lib/system-guide/copy.ts` (a generic
- *    fallback is used until you do, so new modules are never omitted)
+ * 5. Add EN+ID how-to copy in `lib/system-guide/copy.ts` (Head Office
+ *    baseline) and a reader-specific variant in
+ *    `lib/system-guide/copy-personas.ts` when the same module looks
+ *    different for cleaning staff, finance, warehouse, or the client
+ *    portal. A granted module always gets a chapter: client / field /
+ *    warehouse use a safe fallback until dedicated copy exists, so
+ *    turning a module on or off is enough to add or remove that
+ *    chapter. Head Office how-to is never used for those readers.
  * Presets below use `fillModuleFlags`, so a new key defaults to Off for
  * staff and portals and On for Admin. Set it to true in a preset if that
  * role should get it without a manual toggle.
@@ -369,10 +375,39 @@ export function getClientModuleOverrides(): ModuleAccessFlags {
   });
 }
 
-/** Modules covered by the client-portal system guide (same for every client). */
-export function getClientPortalGuideModules(): ModuleKey[] {
-  const flags = getClientModuleOverrides();
-  return getVisibleModules().filter((module) => flags[module]);
+/** Company-stored client portal module map, or the code default. */
+export function resolveClientModuleOverrides(
+  raw: unknown
+): ModuleAccessFlags {
+  return normalizeModuleAccessMap(raw) ?? getClientModuleOverrides();
+}
+
+/**
+ * Modules HO can grant to client portals (excludes portal-blocked directories).
+ */
+export function getClientPortalManageableModules(): ModuleKey[] {
+  return getVisibleModules().filter(
+    (module) =>
+      module !== "website" &&
+      module !== "settings" &&
+      !PORTAL_BLOCKED_MODULES.includes(module)
+  );
+}
+
+/**
+ * Modules covered by the client-portal system guide.
+ * Turn a module on in Manage Module Access and it is added to the next
+ * download. Turn it off and that chapter is removed. Never includes
+ * Head Office-only modules (Expenses, Payables, Users, ...).
+ */
+export function getClientPortalGuideModules(
+  storedOverrides?: unknown
+): ModuleKey[] {
+  const flags = resolveClientModuleOverrides(storedOverrides);
+  const blocked = new Set<string>(PORTAL_BLOCKED_MODULES);
+  return getVisibleModules().filter(
+    (module) => flags[module] === true && !blocked.has(module)
+  );
 }
 
 /**

@@ -5,6 +5,12 @@ import { prisma } from "@/lib/prisma";
 /** Thrown from authorize when another device already holds a live session. */
 export const AUTH_ACTIVE_SESSION_CODE = "ACTIVE_SESSION";
 
+/** JWT / session error when this device lost the login to another device. */
+export const AUTH_SESSION_REPLACED_ERROR = "SessionReplaced";
+
+/** Login `?reason=` when the user was kicked by a sign-in elsewhere. */
+export const AUTH_SESSION_REPLACED_REASON = "session_replaced";
+
 /** Matches NextAuth JWT maxAge (8 hours). */
 export const SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000;
 

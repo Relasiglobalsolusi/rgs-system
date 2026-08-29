@@ -6,7 +6,9 @@ import {
 import { canManageInventory } from "@/lib/project-access";
 import { decimalToNumber } from "@/lib/project-billing";
 import { inventoryQtyFromDecimal } from "@/lib/inventory";
+import { isVehicleItemType } from "@/lib/inventory-sku";
 import { requireModule, toPermissionUser } from "@/lib/session";
+import { summarizeVehicleLeaseProgress } from "@/lib/vehicle-lease";
 
 import AppShell from "@/components/layout/AppShell";
 import InventoryWorkspace from "@/components/inventory/InventoryWorkspace";
@@ -137,6 +139,18 @@ export default async function InventoryPage() {
           writeOffMovementId: true,
           soldOffMovementId: true,
           vehicleYear: true,
+          vehicleCondition: true,
+          isVehicleLease: true,
+          leaseOtrAmount: true,
+          leaseDownPayment: true,
+          leaseTenorMonths: true,
+          leaseInterestPercentYear: true,
+          leaseAdminFee: true,
+          leaseInsuranceAmount: true,
+          leaseFiduciaryFee: true,
+          leaseProvisionFee: true,
+          leaseOtherFee: true,
+          leaseMonthlyInstallment: true,
           createdAt: true,
           item: {
             select: { id: true, sku: true, name: true, itemType: true },
@@ -245,12 +259,73 @@ export default async function InventoryPage() {
     ])
   );
 
+  const leasedVehicles = assetRows.filter(
+    (row) =>
+      row.isVehicleLease &&
+      row.item?.id != null &&
+      isVehicleItemType(row.item.itemType)
+  );
+  const leasedVehicleIds = leasedVehicles.map((row) => row.id);
+  const leasedPlates = leasedVehicles.map((row) => row.assetCode);
+  const leasedExpenses =
+    leasedVehicleIds.length > 0
+      ? await prisma.purchaseInvoice.findMany({
+          where: {
+            companyId: company.id,
+            reversedAt: null,
+            OR: [
+              { vehicleAssetId: { in: leasedVehicleIds } },
+              {
+                AND: [
+                  { purchaseCategory: "VEHICLE" },
+                  { vehiclePlate: { in: leasedPlates } },
+                ],
+              },
+            ],
+          },
+          select: {
+            vehicleAssetId: true,
+            vehiclePlate: true,
+            vehicleExpenseKind: true,
+            amount: true,
+          },
+        })
+      : [];
+
   const overviewAssets = assetRows
     .filter((a) => a.item?.id != null)
     .map((a) => {
       const sale = a.soldOffMovementId
         ? saleByMovement.get(a.soldOffMovementId)
         : undefined;
+      const leaseProgress =
+        a.isVehicleLease && isVehicleItemType(a.item!.itemType)
+          ? summarizeVehicleLeaseProgress(
+              {
+                otrAmount: decimalToNumber(a.leaseOtrAmount) ?? 0,
+                downPayment: decimalToNumber(a.leaseDownPayment) ?? 0,
+                tenorMonths: a.leaseTenorMonths ?? 0,
+                interestPercentYear:
+                  decimalToNumber(a.leaseInterestPercentYear) ?? 0,
+                adminFee: decimalToNumber(a.leaseAdminFee) ?? 0,
+                insuranceAmount: decimalToNumber(a.leaseInsuranceAmount) ?? 0,
+                fiduciaryFee: decimalToNumber(a.leaseFiduciaryFee) ?? 0,
+                provisionFee: decimalToNumber(a.leaseProvisionFee) ?? 0,
+                otherFee: decimalToNumber(a.leaseOtherFee) ?? 0,
+                monthlyInstallment: decimalToNumber(a.leaseMonthlyInstallment),
+              },
+              leasedExpenses
+                .filter(
+                  (row) =>
+                    row.vehicleAssetId === a.id ||
+                    row.vehiclePlate === a.assetCode
+                )
+                .map((row) => ({
+                  kind: row.vehicleExpenseKind,
+                  amount: decimalToNumber(row.amount) ?? 0,
+                }))
+            )
+          : null;
       return {
         id: a.id,
         assetCode: a.assetCode,
@@ -264,6 +339,13 @@ export default async function InventoryPage() {
         soldBuyer: sale?.buyer ?? null,
         soldAt: sale?.soldAt ?? null,
         vehicleYear: a.vehicleYear,
+        vehicleCondition: a.vehicleCondition,
+        isVehicleLease: a.isVehicleLease,
+        leaseTenorMonths: a.leaseTenorMonths,
+        leaseMonthlyInstallment: decimalToNumber(a.leaseMonthlyInstallment),
+        leaseRemaining: leaseProgress?.remainingToPay ?? null,
+        leaseScheduledTotal: leaseProgress?.scheduledTotalCost ?? null,
+        leasePaidOff: leaseProgress?.paidOff ?? false,
         createdAt: a.createdAt.toISOString(),
         item: a.item!,
         project: a.project,

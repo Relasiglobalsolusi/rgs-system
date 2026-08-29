@@ -474,16 +474,16 @@ export default function DataTable<T>({
           style={{ WebkitOverflowScrolling: "touch" }}
         >
           {/*
-            Wrapper must grow with the table’s rem floor sum. A clipped
-            overflow-hidden child used to keep scrollWidth == clientWidth,
-            so mobile had no horizontal scroller. w-max + min-w-full lets
-            floors expand the scrollport; leftover share stays on <col>.
+            Width is the card (100%). minWidth is the rem-floor sum so a
+            narrow phone can scroll. Do not use w-max + width:max(100%,floors)
+            together — leftover `100%` then grows the table without bound
+            and paints an empty horizontal scrollbar.
           */}
           <Table
-            containerClassName="min-w-0 w-max min-w-full overflow-visible"
-            className="box-border table-fixed text-left"
+            containerClassName="min-w-0 w-full overflow-visible"
+            className="box-border w-full min-w-0 table-fixed text-left"
             style={{
-              width: `max(100%, ${tableMinWidth})`,
+              width: "100%",
               minWidth: tableMinWidth,
               boxSizing: "border-box",
               tableLayout: "fixed",

@@ -246,7 +246,14 @@ function drawCover(
     .fontSize(8)
     .fillColor(BRAND.muted)
     .text(
-      toPdfText(translate(locale, "pages.systemGuide.internalUse")),
+      toPdfText(
+        translate(
+          locale,
+          guide.audience === "client"
+            ? "pages.systemGuide.forClientUse"
+            : "pages.systemGuide.internalUse"
+        )
+      ),
       PAGE_MARGIN,
       PAGE_HEIGHT - 68,
       {
@@ -296,7 +303,8 @@ function drawContentsAndIntro(
       locale,
       guide.audience === "client"
         ? "pages.systemGuide.howToReadBodyClient"
-        : "pages.systemGuide.howToReadBody"
+        : "pages.systemGuide.howToReadBody",
+      { position: guide.positionName }
     ),
     { size: 10, color: BRAND.body, gapAfter: 16 }
   );

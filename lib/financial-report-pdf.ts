@@ -44,6 +44,10 @@ import {
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber, formatContractPrice } from "@/lib/project-billing";
 import { operatingPurchaseAmount } from "@/lib/purchase-operating-cost";
+import {
+  rankLeasePaymentsByVehicle,
+  vehicleExpenseNarrative,
+} from "@/lib/vehicle-expense";
 import { jakartaYearMonth } from "@/lib/vat";
 import {
   isPettyCashTopUpInvoice,
@@ -142,12 +146,28 @@ const COLS = {
 } as const;
 
 const PURCHASE_SELECT = {
+  id: true,
   paidAt: true,
   supplierName: true,
   invoiceRef: true,
   purpose: true,
   amount: true,
   purchaseCategory: true,
+  vehicleExpenseKind: true,
+  vehiclePlate: true,
+  vehicleOtherCostDescription: true,
+  isVehicleLease: true,
+  leaseTenorMonths: true,
+  vehicleAssetId: true,
+  lines: { select: { item: { select: { name: true } } }, take: 1 },
+  vehicleAsset: {
+    select: {
+      assetCode: true,
+      leaseTenorMonths: true,
+      isVehicleLease: true,
+      item: { select: { name: true } },
+    },
+  },
   governmentTaxKind: true,
   governmentOperatingAmount: true,
   origin: true,
@@ -247,16 +267,35 @@ function purchaseLineSource(invoice: {
 function pushPurchaseLines(
   target: FinancialReportPdfLine[],
   invoices: Array<{
+    id?: string;
     paidAt: Date | null;
     supplierName: string;
     invoiceRef: string | null;
     purpose?: string | null;
     purchaseCategory?: string | null;
+    vehicleExpenseKind?: string | null;
+    vehiclePlate?: string | null;
+    vehicleOtherCostDescription?: string | null;
+    isVehicleLease?: boolean;
+    leaseTenorMonths?: number | null;
+    vehicleAssetId?: string | null;
+    lines?: Array<{ item: { name: string } | null }>;
+    vehicleAsset?: {
+      assetCode: string;
+      leaseTenorMonths: number | null;
+      isVehicleLease: boolean;
+      item: { name: string } | null;
+    } | null;
     project: { name: string } | null;
     prepaidCard?: { cardNumber: string; kind: string } | null;
     employee?: { firstName: string; lastName: string } | null;
-  } & Parameters<typeof purchaseAmount>[0]>
+  } & Parameters<typeof purchaseAmount>[0]>,
+  options?: {
+    locale?: AppLocale;
+    leaseRanks?: Map<string, number>;
+  }
 ) {
+  const locale = options?.locale ?? DEFAULT_LOCALE;
   for (const invoice of invoices) {
     const amount = purchaseAmount(invoice);
     if (amount === 0) continue;
@@ -267,6 +306,32 @@ function pushPurchaseLines(
     const holderName = invoice.employee
       ? formatEmployeeName(invoice.employee)
       : null;
+    const plate =
+      invoice.vehicleAsset?.assetCode ?? invoice.vehiclePlate ?? "";
+    const vehicleName =
+      invoice.vehicleAsset?.item?.name ??
+      invoice.lines?.[0]?.item?.name ??
+      "";
+    const vehicleDetail =
+      invoice.purchaseCategory === "VEHICLE" && (plate || vehicleName)
+        ? vehicleExpenseNarrative({
+            locale,
+            kind: invoice.vehicleExpenseKind,
+            isLease:
+              invoice.isVehicleLease ||
+              invoice.vehicleAsset?.isVehicleLease === true,
+            vehicleName,
+            plate,
+            otherDescription: invoice.vehicleOtherCostDescription,
+            installmentNumber: invoice.id
+              ? options?.leaseRanks?.get(invoice.id) ?? null
+              : null,
+            tenorMonths:
+              invoice.leaseTenorMonths ??
+              invoice.vehicleAsset?.leaseTenorMonths ??
+              null,
+          })
+        : null;
     target.push({
       date: invoice.paidAt,
       source,
@@ -277,11 +342,13 @@ function pushPurchaseLines(
           ? joinDetail(cardNumber, invoice.invoiceRef)
           : source === "pettyCashTopUp"
             ? joinDetail(holderName, invoice.invoiceRef)
-            : joinDetail(
-                invoice.supplierName,
-                invoice.invoiceRef,
-                invoice.project?.name
-              ),
+            : vehicleDetail
+              ? joinDetail(vehicleDetail, invoice.invoiceRef)
+              : joinDetail(
+                  invoice.supplierName,
+                  invoice.invoiceRef,
+                  invoice.project?.name
+                ),
       amount,
     });
   }
@@ -536,6 +603,7 @@ export async function loadFinancialReportPdfData(
       where: {
         companyId,
         purpose: "PROJECT",
+        purchaseCategory: { not: "VEHICLE" },
         reversedAt: null,
         paidAt: {
           not: null,
@@ -550,6 +618,7 @@ export async function loadFinancialReportPdfData(
       where: {
         companyId,
         purpose: "INTERNAL",
+        purchaseCategory: { not: "VEHICLE" },
         reversedAt: null,
         paidAt: {
           not: null,
@@ -754,6 +823,23 @@ export async function loadFinancialReportPdfData(
     }),
   ]);
 
+  const leaseHistory = await prisma.purchaseInvoice.findMany({
+    where: {
+      companyId,
+      vehicleExpenseKind: "LEASE_PAYMENT",
+      reversedAt: null,
+    },
+    select: {
+      id: true,
+      invoiceDate: true,
+      vehicleAssetId: true,
+      vehiclePlate: true,
+    },
+    orderBy: [{ invoiceDate: "asc" }, { id: "asc" }],
+  });
+  const leaseRanks = rankLeasePaymentsByVehicle(leaseHistory);
+  const purchaseLineOptions = { locale, leaseRanks };
+
   const moneyInLines: FinancialReportPdfLine[] = [];
   const moneyOutLines: FinancialReportPdfLine[] = [];
   const fundingLines: FinancialReportPdfLine[] = [];
@@ -866,10 +952,10 @@ export async function loadFinancialReportPdfData(
     else moneyInLines.push(line);
   }
 
-  pushPurchaseLines(moneyOutLines, projectPurchases);
-  pushPurchaseLines(moneyOutLines, internalPurchases);
-  pushPurchaseLines(moneyOutLines, linkedExpensePurchases);
-  pushPurchaseLines(moneyOutLines, pettyCashPurchases);
+  pushPurchaseLines(moneyOutLines, projectPurchases, purchaseLineOptions);
+  pushPurchaseLines(moneyOutLines, internalPurchases, purchaseLineOptions);
+  pushPurchaseLines(moneyOutLines, linkedExpensePurchases, purchaseLineOptions);
+  pushPurchaseLines(moneyOutLines, pettyCashPurchases, purchaseLineOptions);
 
   for (const row of inventoryIssues) {
     const amount = decimalToNumber(row.totalCost) ?? 0;

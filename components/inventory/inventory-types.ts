@@ -154,9 +154,38 @@ export type InventoryOverviewAssetRow = {
   soldBuyer: string | null;
   soldAt: string | null;
   vehicleYear: number | null;
+  vehicleCondition?: "NEW" | "USED" | null;
+  isVehicleLease?: boolean;
+  leaseOtrAmount?: number | null;
+  leaseDownPayment?: number | null;
+  leaseTenorMonths?: number | null;
+  leaseInterestPercentYear?: number | null;
+  leaseAdminFee?: number | null;
+  leaseInsuranceAmount?: number | null;
+  leaseFiduciaryFee?: number | null;
+  leaseProvisionFee?: number | null;
+  leaseOtherFee?: number | null;
+  leaseMonthlyInstallment?: number | null;
+  leaseRemaining?: number | null;
+  leaseScheduledTotal?: number | null;
+  leasePaidOff?: boolean;
   createdAt: string;
   item: { id: string; sku: string; name: string; itemType: string } | null;
   project: { id: string; name: string } | null;
+};
+
+export type VehicleCostLogEntry = {
+  id: string;
+  invoiceDate: string;
+  kind: string | null;
+  description: string | null;
+  amount: number;
+  invoiceRef: string | null;
+  supplierName: string;
+  isVehicleLease?: boolean;
+  installmentNumber?: number | null;
+  tenorMonths?: number | null;
+  remainingAfter?: number | null;
 };
 
 export type InventoryFactoryReturnRow = {

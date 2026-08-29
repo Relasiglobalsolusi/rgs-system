@@ -25,6 +25,7 @@ import {
 import {
   parseRequiredVehiclePlate,
   parseRequiredVehicleYear,
+  parseVehicleCondition,
   formatVehicleIdentityLabel,
 } from "@/lib/vehicle-plate";
 import { unwindAndReversePurchaseInvoice } from "@/lib/purchase-invoice-reverse";
@@ -38,7 +39,14 @@ import {
   applyPurchaseLineStockIn,
   stockInPendingPurchaseLines,
 } from "@/lib/purchase-stock-in";
-import { calculateVehicleLease } from "@/lib/vehicle-lease";
+import {
+  isVehicleOperatingExpenseKind,
+  parseVehicleExpenseKind,
+} from "@/lib/vehicle-expense";
+import {
+  calculateVehicleLease,
+  parseVehicleLeaseFromForm,
+} from "@/lib/vehicle-lease";
 import {
   allowsDecimalInventoryQty,
   normalizeInventoryUnit,
@@ -290,88 +298,6 @@ function parsePurchasePaymentTermsDays(
     throw new Error("Select Cash or Net payment terms.");
   }
   return raw as PaymentTermsDaysOption;
-}
-
-function parseOptionalMoneyField(
-  formData: FormData,
-  key: string
-): number | null {
-  const raw = String(formData.get(key) ?? "").trim().replace(/,/g, "");
-  if (!raw) return null;
-  const value = Number(raw);
-  return Number.isFinite(value) && value >= 0 ? value : null;
-}
-
-function parseVehicleLeaseFromForm(formData: FormData): {
-  isVehicleLease: boolean;
-  otrAmount: number | null;
-  downPayment: number | null;
-  tenorMonths: number | null;
-  interestPercentYear: number | null;
-  adminFee: number | null;
-  insuranceAmount: number | null;
-  fiduciaryFee: number | null;
-  provisionFee: number | null;
-  otherFee: number | null;
-  monthlyInstallment: number | null;
-} {
-  const isVehicleLease = formData.get("isVehicleLease") === "true";
-  if (!isVehicleLease) {
-    return {
-      isVehicleLease: false,
-      otrAmount: null,
-      downPayment: null,
-      tenorMonths: null,
-      interestPercentYear: null,
-      adminFee: null,
-      insuranceAmount: null,
-      fiduciaryFee: null,
-      provisionFee: null,
-      otherFee: null,
-      monthlyInstallment: null,
-    };
-  }
-  const otrAmount = parseOptionalMoneyField(formData, "leaseOtrAmount");
-  const downPayment = parseOptionalMoneyField(formData, "leaseDownPayment") ?? 0;
-  const tenorMonths = Number(String(formData.get("leaseTenorMonths") ?? "").trim());
-  const interestPercentYear =
-    parseOptionalMoneyField(formData, "leaseInterestPercentYear") ?? 0;
-  const adminFee = parseOptionalMoneyField(formData, "leaseAdminFee") ?? 0;
-  const insuranceAmount =
-    parseOptionalMoneyField(formData, "leaseInsuranceAmount") ?? 0;
-  const fiduciaryFee = parseOptionalMoneyField(formData, "leaseFiduciaryFee") ?? 0;
-  const provisionFee = parseOptionalMoneyField(formData, "leaseProvisionFee") ?? 0;
-  const otherFee = parseOptionalMoneyField(formData, "leaseOtherFee") ?? 0;
-  if (otrAmount == null || otrAmount <= 0) {
-    throw new Error("Enter the vehicle On The Road price.");
-  }
-  if (!Number.isFinite(tenorMonths) || tenorMonths < 1) {
-    throw new Error("Enter the lease tenor in months.");
-  }
-  const schedule = calculateVehicleLease({
-    otrAmount,
-    downPayment,
-    tenorMonths,
-    interestPercentYear,
-    adminFee,
-    insuranceAmount,
-    fiduciaryFee,
-    provisionFee,
-    otherFee,
-  });
-  return {
-    isVehicleLease: true,
-    otrAmount,
-    downPayment,
-    tenorMonths,
-    interestPercentYear,
-    adminFee,
-    insuranceAmount,
-    fiduciaryFee,
-    provisionFee,
-    otherFee,
-    monthlyInstallment: schedule?.monthlyInstallment ?? null,
-  };
 }
 
 function parseHandlingHasTaxInvoice(formData: FormData): boolean | null {
@@ -716,6 +642,7 @@ export async function listVehiclesForExpense() {
       id: true,
       assetCode: true,
       vehicleYear: true,
+      isVehicleLease: true,
       item: { select: { name: true, sku: true } },
     },
     orderBy: [{ assetCode: "asc" }, { id: "asc" }],
@@ -726,10 +653,12 @@ export async function listVehiclesForExpense() {
     name: asset.item.name,
     sku: asset.item.sku,
     year: asset.vehicleYear,
+    isVehicleLease: asset.isVehicleLease,
     label: formatVehicleIdentityLabel({
       plate: asset.assetCode,
       name: asset.item.name,
       sku: asset.item.sku,
+      year: asset.vehicleYear,
     }),
   }));
 }
@@ -1575,7 +1504,24 @@ export async function createPurchaseInvoice(formData: FormData) {
     purchaseCategory === "VEHICLE" && vehicleExpenseKindRaw === "PURCHASE";
   const isVehicleOperatingCost =
     purchaseCategory === "VEHICLE" &&
-    ["SERVICING", "MODIFICATION", "OTHER"].includes(vehicleExpenseKindRaw);
+    isVehicleOperatingExpenseKind(vehicleExpenseKindRaw);
+  const vehicleLease = isVehiclePurchase
+    ? parseVehicleLeaseFromForm(formData)
+    : parseVehicleLeaseFromForm(new FormData());
+  const leasedCashOut =
+    isVehiclePurchase && vehicleLease.isVehicleLease
+      ? calculateVehicleLease({
+          otrAmount: vehicleLease.otrAmount ?? 0,
+          downPayment: vehicleLease.downPayment ?? 0,
+          tenorMonths: vehicleLease.tenorMonths ?? 0,
+          interestPercentYear: vehicleLease.interestPercentYear ?? 0,
+          adminFee: vehicleLease.adminFee ?? 0,
+          insuranceAmount: vehicleLease.insuranceAmount ?? 0,
+          fiduciaryFee: vehicleLease.fiduciaryFee ?? 0,
+          provisionFee: vehicleLease.provisionFee ?? 0,
+          otherFee: vehicleLease.otherFee ?? 0,
+        })?.upfrontAmount ?? null
+      : null;
   const purpose = resolvePurchasePurpose({
     category: purchaseCategory,
     requested: parsePurchasePurpose(formData.get("purchasePurpose")),
@@ -1927,6 +1873,8 @@ export async function createPurchaseInvoice(formData: FormData) {
       )
     : origin === "IMPORT" && importResult
       ? new Prisma.Decimal(importResult.invoiceAmountIdr)
+      : leasedCashOut != null && leasedCashOut > 0
+        ? new Prisma.Decimal(Math.round(leasedCashOut * 100) / 100)
       : lines.length > 0
         ? new Prisma.Decimal(Math.round(lineTotal * 100) / 100)
         : parseAmount(amountRaw);
@@ -2134,15 +2082,16 @@ export async function createPurchaseInvoice(formData: FormData) {
     }
   }
 
-  const vehicleLease =
-    isVehiclePurchase
-      ? parseVehicleLeaseFromForm(formData)
-      : parseVehicleLeaseFromForm(new FormData());
+  const vehicleCondition = isVehiclePurchase
+    ? parseVehicleCondition(formData.get("vehicleCondition"))
+    : null;
 
   let vehicleAssetId: string | null = null;
   let vehicleOtherCostDescription: string | null = null;
   let linkedVehiclePlate: string | null = null;
   let linkedVehicleYear: number | null = null;
+  let linkedVehicleLease = false;
+  let linkedLeaseTenorMonths: number | null = null;
   if (isVehicleOperatingCost) {
     const assetId = String(formData.get("vehicleAssetId") ?? "").trim();
     if (!assetId) {
@@ -2158,15 +2107,24 @@ export async function createPurchaseInvoice(formData: FormData) {
         id: true,
         assetCode: true,
         vehicleYear: true,
+        isVehicleLease: true,
+        leaseTenorMonths: true,
         item: { select: { itemType: true } },
       },
     });
     if (!asset || !isVehicleItemType(asset.item.itemType)) {
       throw new Error("Choose which vehicle this expense is for.");
     }
+    if (vehicleExpenseKindRaw === "LEASE_PAYMENT" && !asset.isVehicleLease) {
+      throw new Error(
+        translate(locale, "pages.billing.vehicleLeasePaymentNotLeased")
+      );
+    }
     vehicleAssetId = asset.id;
     linkedVehiclePlate = asset.assetCode;
     linkedVehicleYear = asset.vehicleYear;
+    linkedVehicleLease = asset.isVehicleLease;
+    linkedLeaseTenorMonths = asset.leaseTenorMonths;
     if (vehicleExpenseKindRaw === "OTHER") {
       vehicleOtherCostDescription = String(
         formData.get("vehicleOtherCostDescription") ?? ""
@@ -2354,34 +2312,17 @@ export async function createPurchaseInvoice(formData: FormData) {
           handlingFeeTaxInvoicePath,
           vehicleExpenseKind:
             purchaseCategory === "VEHICLE"
-              ? (() => {
-                  const raw = String(formData.get("vehicleExpenseKind") ?? "")
-                    .trim()
-                    .toUpperCase();
-                  return [
-                    "PURCHASE",
-                    "FUEL",
-                    "SERVICING",
-                    "MODIFICATION",
-                    "OTHER",
-                  ].includes(raw)
-                    ? (raw as
-                        | "PURCHASE"
-                        | "FUEL"
-                        | "SERVICING"
-                        | "MODIFICATION"
-                        | "OTHER")
-                    : null;
-                })()
+              ? parseVehicleExpenseKind(vehicleExpenseKindRaw)
               : null,
           vehicleAssetId,
           vehicleOtherCostDescription,
           vehiclePlate: isVehicleOperatingCost ? linkedVehiclePlate : undefined,
           vehicleYear: isVehicleOperatingCost ? linkedVehicleYear : undefined,
-          isVehicleLease: vehicleLease.isVehicleLease,
+          vehicleCondition,
+          isVehicleLease: vehicleLease.isVehicleLease || linkedVehicleLease,
           leaseOtrAmount: optionalDecimal(vehicleLease.otrAmount),
           leaseDownPayment: optionalDecimal(vehicleLease.downPayment),
-          leaseTenorMonths: vehicleLease.tenorMonths,
+          leaseTenorMonths: vehicleLease.tenorMonths ?? linkedLeaseTenorMonths,
           leaseInterestPercentYear: optionalDecimal(
             vehicleLease.interestPercentYear
           ),
@@ -2407,9 +2348,14 @@ export async function createPurchaseInvoice(formData: FormData) {
       let mintedVehiclePlate: string | null = null;
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i]!;
-        const totalPrice = line.quantity * line.unitPrice;
+        const totalPrice =
+          isVehiclePurchase && leasedCashOut != null && leasedCashOut > 0
+            ? leasedCashOut
+            : line.quantity * line.unitPrice;
         const purchaseUnitCost =
-          origin === "IMPORT"
+          isVehiclePurchase && leasedCashOut != null && leasedCashOut > 0
+            ? leasedCashOut
+            : origin === "IMPORT"
             ? line.unitPrice
             : ppnRate > 0
               ? exclusiveUnitCostFromInclusive(line.unitPrice, ppnRate)
@@ -2481,7 +2427,11 @@ export async function createPurchaseInvoice(formData: FormData) {
             unit: catalogUnit,
             packContents: null,
             quantity: toDecimal(line.quantity),
-            unitPrice: toDecimal(line.unitPrice),
+            unitPrice: toDecimal(
+              isVehiclePurchase && leasedCashOut != null && leasedCashOut > 0
+                ? purchaseUnitCost
+                : line.unitPrice
+            ),
             totalPrice: toDecimal(totalPrice),
             sortOrder: i,
           },
@@ -2504,18 +2454,25 @@ export async function createPurchaseInvoice(formData: FormData) {
           const mintedVehicleYear = parseRequiredVehicleYear(
             formData.get("vehicleYear")
           );
-          await mintVehicleAssetByPlate(
+          const minted = await mintVehicleAssetByPlate(
             tx,
             session.user.companyId,
             item.id,
             mintedVehiclePlate,
-            { unitCost: costUnitPrice, vehicleYear: mintedVehicleYear }
+            {
+              unitCost: costUnitPrice,
+              vehicleYear: mintedVehicleYear,
+              vehicleCondition,
+              lease: vehicleLease,
+            }
           );
           await tx.purchaseInvoice.update({
             where: { id: invoice.id },
             data: {
-              vehiclePlate: mintedVehiclePlate,
+              vehiclePlate: minted.plate,
               vehicleYear: mintedVehicleYear,
+              vehicleAssetId: minted.id,
+              vehicleCondition,
             },
           });
         }

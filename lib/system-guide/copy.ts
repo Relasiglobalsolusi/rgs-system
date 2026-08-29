@@ -2,7 +2,7 @@ import type { AppLocale } from "@/lib/i18n/locale";
 import type { ModuleKey } from "@/lib/permissions";
 import type { SystemGuideModuleCopy } from "@/lib/system-guide/types";
 
-function bilingual(
+export function bilingual(
   en: SystemGuideModuleCopy,
   id: SystemGuideModuleCopy
 ): Record<AppLocale, SystemGuideModuleCopy> {
@@ -10,8 +10,9 @@ function bilingual(
 }
 
 /**
- * How-to copy for every current module. New MODULES keys get a generic
- * fallback in resolve.ts until a pair is added here.
+ * Head Office / director how-to copy. Reader-specific variants live in
+ * copy-personas.ts and are picked in resolve.ts.
+ * New MODULES keys get a generic fallback until a pair is added here.
  * Keep this text WinAnsi-safe (no arrows, em dashes, or smart quotes).
  * Button and chip names must match the live UI in en.ts / id.ts.
  */
@@ -21,30 +22,30 @@ export const SYSTEM_GUIDE_COPY: Partial<
   dashboard: bilingual(
     {
       purpose:
-        "Dashboard is the first page after you sign in. It is a snapshot of today for your role: attendance, counts, recent activity, and projects you can see. Nothing is submitted here.",
+        "Dashboard is the first page after you sign in. For this Head Office login it is a snapshot of today: attendance, counts, recent activity, and projects you can see. Nothing is submitted here.",
       steps: [
         "Open Dashboard from the top of the sidebar.",
-        "Read Today's Attendance or My Attendance Today. Labels show Checked in, Checked in and out, or Not checked in yet.",
-        "If you are Head Office, read the count cards such as Staff Present Today, Pending Approvals, Active Projects, and Active Employees. A card appears only if that module is on for this login.",
+        "Read Today's Attendance. Labels show Checked In, Checked In And Out, or Not Checked In Yet.",
+        "Read the count cards such as Staff Present Today, Pending Approvals, Active Projects, and Active Employees. A card appears only if that module is on for this login.",
         "Use Progress Report in the attendance block to open live check-in monitoring.",
         "Scroll to Recent Activity for new Progress Reports and leave requests when those modules are on.",
       ],
       remember: [
-        "Field staff, Head Office, and client logins see different cards. A missing card means that module is off for this login, not that the page is broken.",
+        "A missing card means that module is off for this login, not that the page is broken.",
       ],
     },
     {
       purpose:
-        "Dasbor adalah halaman pertama setelah masuk. Ini ringkasan hari ini sesuai peran Anda: kehadiran, angka, aktivitas terbaru, dan proyek yang bisa dilihat. Tidak ada yang dikirim dari sini.",
+        "Dasbor adalah halaman pertama setelah masuk. Untuk login Kantor Pusat ini ringkasan hari ini: kehadiran, angka, aktivitas terbaru, dan proyek yang bisa dilihat. Tidak ada yang dikirim dari sini.",
       steps: [
         "Buka Dasbor dari bagian atas sidebar.",
-        "Baca Kehadiran Hari Ini atau Kehadiran Saya Hari Ini. Label menunjukkan sudah check-in, sudah check-in dan check-out, atau belum check-in.",
-        "Jika Anda Kantor Pusat, baca kartu angka seperti Staf Hadir Hari Ini, Persetujuan Menunggu, Proyek Aktif, dan Karyawan Aktif. Kartu muncul hanya jika modul itu aktif untuk login ini.",
+        "Baca Kehadiran Hari Ini. Label menunjukkan sudah Check-In, sudah Check-In dan Check-Out, atau belum Check-In.",
+        "Baca kartu angka seperti Staf Hadir Hari Ini, Persetujuan Menunggu, Proyek Aktif, dan Karyawan Aktif. Kartu muncul hanya jika modul itu aktif untuk login ini.",
         "Pakai Laporan Progress di blok kehadiran untuk memantau check-in yang berjalan.",
         "Gulir ke Aktivitas Terbaru untuk Laporan Progress dan permintaan cuti baru jika modul itu aktif.",
       ],
       remember: [
-        "Staf lapangan, Kantor Pusat, dan login klien melihat kartu yang berbeda. Kartu yang hilang berarti modul itu mati untuk login ini, bukan halaman rusak.",
+        "Kartu yang hilang berarti modul itu mati untuk login ini, bukan halaman rusak.",
       ],
     }
   ),
@@ -124,38 +125,34 @@ export const SYSTEM_GUIDE_COPY: Partial<
   progress: bilingual(
     {
       purpose:
-        "Progress Report is the daily write-up and photos from the site. There is no approval step. A report is on the project as soon as it is submitted. Managers and the client can only read it.",
+        "Progress Report is where you read daily write-ups and photos from the site. This Head Office login does not write staff reports. There is no approval step.",
       steps: [
-        "Open Progress Report. Field staff use My Progress Reports. Managers choose the client (or Internal), then the project.",
-        "Cleaning staff: check in with CICO on that project first. The report date is locked to that check-in day.",
-        "Click Submit Progress Report. Type the Service Area (for example Lobby), write what was done, and add at least one photo (JPG, PNG, WebP, or GIF, up to 10 MB each). You can send more than one report on the same day.",
-        "After you submit, the report shows on that project right away. Progress Report does not appear in Approvals.",
-        "To fix a mistake, open Edit on your own report the same day (Jakarta time). You can change the Service Area, notes, or photos. After that day ends, the report is locked.",
-        "Managers can Download Progress Report or Download Attendance for a finished day or a finished month on commercial jobs. The current day and the current month cannot be downloaded yet.",
-        "On a commercial monthly job, the report is attached to the current billing period. Later Head Office compiles that period. That is billing review, not an approval of each report.",
+        "Open Progress Report from the sidebar.",
+        "Choose the client (or Internal), then choose the project.",
+        "Open a day to read the reports and photos. You cannot edit a staff report.",
+        "On a finished day or a finished month of a commercial job, use Download Progress Report or Download Attendance. Today and the current month cannot be downloaded yet.",
+        "On a commercial monthly job, each report is stored on the current billing period. Invoice and Billing compiles that period later. That is billing review, not an approval of each report.",
       ],
       remember: [
-        "Cleaning staff who are not marked Exempt From Progress Report must submit at least one report before CICO Check Out.",
-        "Only the person who wrote the report can edit it. Managers and clients are view-only.",
-        "Contract Security staff can submit without an open CICO. One Time Security still needs check-in. Desk staff at Head Office cannot submit on commercial sites.",
+        "Staff write the report after they Check In. You only read it.",
+        "Progress Report does not appear in Approvals.",
+        "Desk staff at Head Office cannot submit on commercial sites.",
       ],
     },
     {
       purpose:
-        "Laporan Progress adalah catatan harian dan foto dari lokasi. Tidak ada langkah persetujuan. Laporan tampil di proyek segera setelah dikirim. Manajer dan klien hanya bisa membacanya.",
+        "Laporan Progress adalah tempat Anda membaca catatan harian dan foto dari lokasi. Login Kantor Pusat ini tidak menulis laporan staf. Tidak ada langkah persetujuan.",
       steps: [
-        "Buka Laporan Progress. Staf lapangan memakai Laporan Progress Saya. Manajer memilih klien (atau Internal), lalu proyek.",
-        "Staf cleaning: check-in dulu lewat CICO di proyek itu. Tanggal laporan terkunci ke hari check-in itu.",
-        "Klik Kirim Laporan Progress. Isi Area Layanan (misalnya Lobi), tulis pekerjaan hari itu, dan tambahkan minimal satu foto (JPG, PNG, WebP, atau GIF, maksimal 10 MB per file). Anda boleh mengirim lebih dari satu laporan di hari yang sama.",
-        "Setelah dikirim, laporan langsung tampil di proyek itu. Laporan Progress tidak muncul di Persetujuan.",
-        "Untuk memperbaiki kesalahan, buka Ubah Laporan Progress pada laporan Anda sendiri di hari yang sama (waktu Jakarta). Anda bisa mengubah Area Layanan, catatan, atau foto. Setelah hari itu berakhir, laporan terkunci.",
-        "Manajer dapat Unduh Laporan Progress atau Unduh Kehadiran untuk hari atau bulan yang sudah selesai pada pekerjaan komersial. Hari ini dan bulan berjalan belum bisa diunduh.",
-        "Pada pekerjaan bulanan komersial, laporan menempel pada periode tagihan yang sedang berjalan. Nanti Kantor Pusat menyusun periode itu. Itu tinjauan tagihan, bukan persetujuan tiap laporan.",
+        "Buka Laporan Progress dari sidebar.",
+        "Pilih klien (atau Internal), lalu pilih proyek.",
+        "Buka satu hari untuk membaca laporan dan foto. Anda tidak bisa mengubah laporan staf.",
+        "Pada hari atau bulan yang sudah selesai di pekerjaan komersial, pakai Unduh Laporan Progress atau Unduh Kehadiran. Hari ini dan bulan berjalan belum bisa diunduh.",
+        "Pada pekerjaan bulanan komersial, tiap laporan disimpan pada periode tagihan yang sedang berjalan. Invoice dan Penagihan menyusun periode itu nanti. Itu tinjauan tagihan, bukan persetujuan tiap laporan.",
       ],
       remember: [
-        "Staf cleaning yang tidak ditandai Bebas Laporan Progress wajib mengirim minimal satu laporan sebelum Check Out CICO.",
-        "Hanya penulis laporan yang bisa mengubahnya. Manajer dan klien hanya bisa melihat.",
-        "Staf Security kontrak dapat mengirim tanpa CICO terbuka. Security sekali tetap perlu check-in. Staf meja Kantor Pusat tidak bisa mengirim di lokasi komersial.",
+        "Staf menulis laporan setelah Check In. Anda hanya membacanya.",
+        "Laporan Progress tidak muncul di Persetujuan.",
+        "Staf meja Kantor Pusat tidak bisa mengirim di lokasi komersial.",
       ],
     }
   ),
@@ -465,10 +462,11 @@ export const SYSTEM_GUIDE_COPY: Partial<
         "Invoice and Billing is customer billing. Open a client, then a project, to compile the period, send it for review, issue the invoice, and collect payment.",
       steps: [
         "Open Invoice and Billing. Choose the client, then the project.",
-        "For a monthly contract (Regular Cleaning, Regular Landscaping, Security), wait until the day after the period end. When the row shows Ready to Reconcile, click Reconcile. Keep Amount or Adjust Amount, then Reconcile & Send or Adjust & Send.",
-        "For General Cleaning or Facade, use Send For Review (or Submit for Approval on the project). That compiles Progress Reports for the period. It is not an approval of each report.",
-        "If the client has a portal, they Approve or Revise in Reconciliation. Approve issues the invoice. If the client has no portal, use Download And Send, then Record Client Response (Approved or Revised).",
-        "When the client pays, they click Submit payment, or Head Office clicks Payment Received. If the status is Verifying Payment, Head Office clicks Confirm And Mark Paid.",
+        "For a monthly contract (Regular Cleaning, Regular Landscaping, Security), wait until the day after the period end. When the row shows Ready To Reconcile, click Reconcile. Keep Amount or Adjust Amount, then Reconcile & Send or Adjust & Send.",
+        "For General Cleaning or Facade, use Send For Review (or Submit For Approval on the project). That compiles Progress Reports for the period. It is not an approval of each report.",
+        "If this client has a portal: they Approve or Revise in Reconciliation. Approve issues the invoice.",
+        "If this client has no portal: use Download And Send, then Record Client Response (Approved or Revised).",
+        "When money arrives, click Payment Received. If the status is Verifying Payment, click Confirm And Mark Paid.",
         "If tax is required on that period, click Upload Tax Document. Finish or End Contract is blocked while required tax or unpaid invoices are still open.",
       ],
       remember: [
@@ -483,8 +481,9 @@ export const SYSTEM_GUIDE_COPY: Partial<
         "Buka Invoice dan Penagihan. Pilih klien, lalu proyek.",
         "Untuk kontrak bulanan (Regular Cleaning, Regular Landscaping, Security), tunggu hari setelah akhir periode. Saat baris menunjukkan Siap Rekonsiliasi, klik Rekonsiliasi. Pertahankan Jumlah atau Sesuaikan Jumlah, lalu Rekonsiliasi & Kirim atau Sesuaikan & Kirim.",
         "Untuk General Cleaning atau Facade, pakai Kirim Untuk Ditinjau (atau Ajukan Persetujuan di proyek). Itu menyusun Laporan Progress untuk periode itu. Bukan persetujuan tiap laporan.",
-        "Jika klien punya portal, mereka Setujui atau Revisi di Rekonsiliasi. Setujui menerbitkan invoice. Jika klien tidak punya portal, pakai Unduh Dan Kirim, lalu Catat Respons Klien (Disetujui atau Direvisi).",
-        "Saat klien bayar, mereka klik Kirim pembayaran, atau Kantor Pusat klik Pembayaran Diterima. Jika status Memverifikasi Pembayaran, Kantor Pusat klik Konfirmasi Dan Tandai Lunas.",
+        "Jika klien ini punya portal: mereka Setujui atau Revisi di Rekonsiliasi. Setujui menerbitkan invoice.",
+        "Jika klien ini tidak punya portal: pakai Unduh Dan Kirim, lalu Catat Respons Klien (Disetujui atau Direvisi).",
+        "Saat uang masuk, klik Pembayaran Diterima. Jika status Memverifikasi Pembayaran, klik Konfirmasi Dan Tandai Lunas.",
         "Jika pajak wajib pada periode itu, klik Unggah Dokumen Pajak. Selesai atau Akhiri Kontrak diblokir selama pajak wajib atau invoice belum lunas masih terbuka.",
       ],
       remember: [
@@ -497,13 +496,12 @@ export const SYSTEM_GUIDE_COPY: Partial<
   reconciliation: bilingual(
     {
       purpose:
-        "Reconciliation is the client and Head Office review inbox before an invoice is issued. It covers Regular CICO reconcile reports, General or Facade Progress Report packages, and Payroll Management wage sheets.",
+        "Reconciliation is the Head Office review inbox before an invoice is issued. It covers Regular CICO reconcile reports, General or Facade Progress Report packages, and Payroll Management wage sheets.",
       steps: [
         "Open Reconciliation.",
-        "A client with a portal opens a period, clicks View report, then Approve or Revise. Revise needs a Revision Request Reason and a different Adjusted Amount.",
-        "Approve generates the invoice automatically.",
-        "Head Office uses the Revised tab when the client asked for a change. Click Approve revision and enter the Revised invoice amount, or Reject revision and Send rejection to client.",
-        "If the client has no portal, Head Office uses Record Client Response after sending the report outside the ERP.",
+        "When a client with a portal sent a revise request, open the Revised tab. Click Approve Revision and enter the Revised Invoice Amount, or Reject Revision and Send Rejection To Client.",
+        "If the client has no portal, use Record Client Response after you send the report outside the ERP (Approved or Revised).",
+        "Approve from a client portal issues the invoice automatically. You do not click Approve for them.",
       ],
       remember: [
         "This is not an approval of each Progress Report. The client reviews the compiled period pack.",
@@ -512,13 +510,12 @@ export const SYSTEM_GUIDE_COPY: Partial<
     },
     {
       purpose:
-        "Rekonsiliasi adalah kotak tinjauan klien dan Kantor Pusat sebelum invoice terbit. Mencakup laporan rekonsiliasi CICO Regular, paket Laporan Progress General atau Facade, dan lembar upah Payroll Management.",
+        "Rekonsiliasi adalah kotak tinjauan Kantor Pusat sebelum invoice terbit. Mencakup laporan rekonsiliasi CICO Regular, paket Laporan Progress General atau Facade, dan lembar upah Payroll Management.",
       steps: [
         "Buka Rekonsiliasi.",
-        "Klien dengan portal membuka periode, klik Lihat laporan, lalu Setujui atau Revisi. Revisi membutuhkan Alasan Permintaan Revisi dan Jumlah Disesuaikan yang berbeda.",
-        "Setujui membuat invoice secara otomatis.",
-        "Kantor Pusat memakai tab Direvisi saat klien meminta perubahan. Klik Setujui revisi dan isi jumlah invoice revisi, atau Tolak revisi dan Kirim penolakan ke klien.",
-        "Jika klien tidak punya portal, Kantor Pusat memakai Catat Respons Klien setelah mengirim laporan di luar ERP.",
+        "Saat klien dengan portal mengirim permintaan revisi, buka tab Direvisi. Klik Setujui Revisi dan isi Jumlah Invoice Revisi, atau Tolak Revisi dan Kirim Penolakan Ke Klien.",
+        "Jika klien tidak punya portal, pakai Catat Respons Klien setelah Anda mengirim laporan di luar ERP (Disetujui atau Direvisi).",
+        "Setujui dari portal klien menerbitkan invoice otomatis. Anda tidak mengklik Setujui untuk mereka.",
       ],
       remember: [
         "Ini bukan persetujuan tiap Laporan Progress. Klien meninjau paket periode yang sudah disusun.",
@@ -691,28 +688,30 @@ export const SYSTEM_GUIDE_COPY: Partial<
   vendorPayments: bilingual(
     {
       purpose:
-        "Payment & Settlement has two lists: Collections (unpaid client invoices) and Payables (open supplier bills). Head Office sees both. A client portal sees Collections only.",
+        "Payment & Settlement has two lists: Collections (unpaid client invoices) and Payables (open supplier bills). This Head Office login sees both.",
       steps: [
         "Open Payment & Settlement.",
         "For supplier bills, open Payables. An overdue chip means the due date has passed. Click Mark Paid (or open the bill in Expenses), attach proof, then Confirm Paid.",
         "Import bills that still need a Bank Rate must have that rate before you can Confirm Paid.",
-        "For customer invoices, open Collections, then Open Invoice & Billing on that project. The client clicks Submit payment, or Head Office clicks Payment Received, then Confirm And Mark Paid if the payment is still being verified.",
+        "For customer invoices, open Collections, then Open Invoice & Billing on that project. Click Payment Received, then Confirm And Mark Paid if the payment is still being verified.",
       ],
       remember: [
         "Paid supplier bills leave the Payables list. Reverse only if the payment was posted by mistake.",
+        "A client portal never sees Payables.",
       ],
     },
     {
       purpose:
-        "Pembayaran dan Pelunasan punya dua daftar: Penagihan (invoice klien belum lunas) dan Utang (tagihan pemasok terbuka). Kantor Pusat melihat keduanya. Portal klien hanya melihat Penagihan.",
+        "Pembayaran dan Pelunasan punya dua daftar: Penagihan (invoice klien belum lunas) dan Utang (tagihan pemasok terbuka). Login Kantor Pusat ini melihat keduanya.",
       steps: [
         "Buka Pembayaran dan Pelunasan.",
         "Untuk tagihan pemasok, buka Utang. Chip terlambat berarti tanggal jatuh tempo sudah lewat. Klik Tandai Dibayar (atau buka tagihan di Pengeluaran), lampirkan bukti, lalu Konfirmasi Lunas.",
         "Tagihan impor yang masih butuh Kurs Bank harus diisi kursnya sebelum dapat Konfirmasi Lunas.",
-        "Untuk invoice pelanggan, buka Penagihan, lalu Buka Invoice dan Penagihan pada proyek itu. Klien klik Kirim pembayaran, atau Kantor Pusat klik Pembayaran Diterima, lalu Konfirmasi dan Tandai Lunas jika pembayaran masih diverifikasi.",
+        "Untuk invoice pelanggan, buka Penagihan, lalu Buka Invoice dan Penagihan pada proyek itu. Klik Pembayaran Diterima, lalu Konfirmasi Dan Tandai Lunas jika pembayaran masih diverifikasi.",
       ],
       remember: [
         "Tagihan pemasok yang lunas keluar dari daftar Utang. Batalkan hanya jika pembayaran tercatat karena kesalahan.",
+        "Portal klien tidak pernah melihat Utang.",
       ],
     }
   ),
@@ -948,6 +947,98 @@ export const SYSTEM_GUIDE_COPY: Partial<
     }
   ),
 };
+
+export function clientFallbackSystemGuideCopy(
+  moduleName: string,
+  locale: AppLocale
+): SystemGuideModuleCopy {
+  if (locale === "id") {
+    return {
+      purpose: `${moduleName} ada di sidebar portal klien jika Kantor Pusat mengaktifkannya untuk login ini. Anda hanya melihat catatan organisasi Anda.`,
+      steps: [
+        `Buka ${moduleName} dari sidebar.`,
+        "Pakai pencarian dan filter untuk menemukan catatan Anda.",
+        "Ikuti label di layar. Anda hanya dapat membaca dan bertindak pada data milik organisasi Anda.",
+      ],
+      remember: [
+        "Buku ini tidak mencakup pekerjaan Kantor Pusat seperti membayar pemasok, menugaskan staf, atau menyusun invoice.",
+      ],
+    };
+  }
+  return {
+    purpose: `${moduleName} is in the client portal sidebar when Head Office turns it on for this login. You only see your organization's records.`,
+    steps: [
+      `Open ${moduleName} from the sidebar.`,
+      "Use search and filters to find your records.",
+      "Follow the labels on screen. You can read and act only on what belongs to your organization.",
+    ],
+    remember: [
+      "This handbook does not cover Head Office work such as paying suppliers, assigning staff, or compiling invoices.",
+    ],
+  };
+}
+
+/** Field crew: module is on, but never teach Head Office actions. */
+export function fieldStaffFallbackSystemGuideCopy(
+  moduleName: string,
+  locale: AppLocale
+): SystemGuideModuleCopy {
+  if (locale === "id") {
+    return {
+      purpose: `${moduleName} ada di sidebar untuk login ini jika Kantor Pusat mengaktifkannya. Ikuti label di layar untuk pekerjaan lapangan Anda.`,
+      steps: [
+        `Buka ${moduleName} dari sidebar.`,
+        "Pakai pencarian dan filter untuk menemukan catatan Anda.",
+        "Ikuti label di layar. Jangan memakai Tambah, Setujui, Rekonsiliasi, atau Tandai Dibayar kecuali tombol itu memang tampil di login Anda dan manajer Anda menunjukkannya.",
+      ],
+      remember: [
+        "Buku ini tidak mengajarkan pekerjaan Kantor Pusat seperti menyusun invoice, membayar pemasok, atau menambah proyek.",
+      ],
+    };
+  }
+  return {
+    purpose: `${moduleName} is in the sidebar for this login when Head Office turns it on. Follow the labels on screen for your field work.`,
+    steps: [
+      `Open ${moduleName} from the sidebar.`,
+      "Use search and filters to find your records.",
+      "Follow the labels on screen. Do not use Add, Approve, Reconcile, or Mark Paid unless that button is on your login and a manager showed you.",
+    ],
+    remember: [
+      "This handbook does not teach Head Office work such as compiling invoices, paying suppliers, or adding a project.",
+    ],
+  };
+}
+
+/** Warehouse: module is on, but never teach billing or payroll. */
+export function warehouseFallbackSystemGuideCopy(
+  moduleName: string,
+  locale: AppLocale
+): SystemGuideModuleCopy {
+  if (locale === "id") {
+    return {
+      purpose: `${moduleName} ada di sidebar untuk login gudang ini jika modulnya diaktifkan. Pakai untuk stok, transfer, dan CICO kantor.`,
+      steps: [
+        `Buka ${moduleName} dari sidebar.`,
+        "Pakai pencarian dan filter untuk menemukan baris gudang.",
+        "Ikuti label di layar. Jangan menyusun invoice, menandai tagihan lunas, atau mengubah gaji.",
+      ],
+      remember: [
+        "Tagihan klien, payroll, dan direktori pengguna adalah pekerjaan Kantor Pusat atau Keuangan.",
+      ],
+    };
+  }
+  return {
+    purpose: `${moduleName} is in the sidebar for this warehouse login when the module is on. Use it for stock, transfers, and office CICO.`,
+    steps: [
+      `Open ${moduleName} from the sidebar.`,
+      "Use search and filters to find warehouse rows.",
+      "Follow the labels on screen. Do not compile invoices, mark bills paid, or change payroll.",
+    ],
+    remember: [
+      "Client billing, payroll, and the user directory are Head Office or Finance actions.",
+    ],
+  };
+}
 
 export function fallbackSystemGuideCopy(
   moduleName: string,

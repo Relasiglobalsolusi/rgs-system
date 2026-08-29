@@ -1373,11 +1373,19 @@ export const en = {
       downloadingSystemGuide: "Downloading...",
       downloadSystemGuideFailed: "Could not download the system guide.",
       downloadSystemGuideEmpty:
-        "No client portal modules are available for the system guide.",
+        "Turn on at least one client portal module before downloading the system guide.",
+      manageModuleAccess: "Manage Module Access",
+      manageModuleAccessDescription:
+        "Choose which modules every client portal can open.",
+      manageModuleAccessHint:
+        "Turn a module on and it is added to the client handbook. Turn it off and that chapter is removed. The download uses the toggles on this screen. You do not need to save first. Saving still updates every client portal login.",
+      moduleAccessEmpty: "Turn on at least one module for client portals.",
+      moduleAccessLoadFailed: "Could not load client module access.",
+      moduleAccessSaveFailed: "Could not save client module access.",
       systemGuidePickClient: "Select a Client",
       systemGuideForClient: "System Guide For",
       systemGuidePickDescription:
-        "Every client portal uses the same modules. Choose which client name appears on the first page of the handbook.",
+        "This handbook follows the client portal modules that are currently saved. It only describes what a client can do. Choose which client name appears on the first page.",
       systemGuidePortalLabel: "Client Portal",
       deleted: "Deleted",
       active: "Active",
@@ -2038,7 +2046,7 @@ export const en = {
           "Add a job position for a department and set the default module access for new logins.",
         moduleAccess: "Default Module Access",
         moduleAccessHint:
-          "New portal logins for this position start with these modules. Advance Cash can grant Petty Cash, Prepaid Cards, or both. To give one person more access, use Users → Permissions.",
+          "New portal logins for this position start with these modules. Advance Cash can grant Petty Cash, Prepaid Cards, or both. The system guide adds or removes one chapter per module you turn on or off, written for this position only. To give one person more access, use Users → Permissions.",
         createButton: "Add Position",
         creating: "Adding…",
         editTitle: "Edit Position",
@@ -2062,7 +2070,7 @@ export const en = {
         downloadSystemGuide: "Download System Guide",
         downloadingSystemGuide: "Preparing Guide…",
         downloadSystemGuideHint:
-          "Uses the modules turned on above. You do not need to save first. The PDF follows the language of this screen.",
+          "Uses the modules turned on above. Each chapter is written for this position only. You do not need to save first. The PDF follows the language of this screen.",
         downloadSystemGuideEmpty:
           "Turn on at least one module before downloading the system guide.",
         downloadSystemGuideFailed: "Could not download the system guide.",
@@ -2307,6 +2315,15 @@ export const en = {
       permissionsTitle: "Module Permissions",
       savePermissions: "Save Permissions",
       resetPermissions: "Reset To Defaults",
+      downloadSystemGuide: "Download System Guide",
+      downloadingSystemGuide: "Preparing Guide…",
+      downloadSystemGuideHint:
+        "Uses the modules turned on above. Each chapter is written for this login only. You do not need to save first.",
+      downloadSystemGuideEmpty:
+        "Turn on at least one module before downloading the system guide.",
+      downloadSystemGuideFailed: "Could not download the system guide.",
+      downloadSystemGuideVendor:
+        "Vendor portal logins do not have a system guide.",
       generatePortalLogin: "Generate Portal Login",
       revokeAccessTitle: "Revoke Access?",
       revokeAccessDescription:
@@ -2691,11 +2708,17 @@ export const en = {
         "Customs use the CIF already recorded and their own Customs Rate. Enter that rate, the charges that apply, the Billing ID, and the duties invoice.",
       purchaseVehicleLease: "Vehicle Lease",
       purchaseVehicleLeaseHint:
-        "Indonesian finance lease: down payment now, then monthly installments. Bank fees are usually paid up front.",
+        "The amount on this expense is only the money that leaves the account now: the down payment and any bank fees paid up front. The On The Road price is not an expense. Record each monthly installment later as a Lease Payment.",
       purchaseVehicleLeaseToggle: "This vehicle is leased",
       purchaseVehicleIdentity: "Vehicle Identity",
       purchaseVehicleIdentityHint:
-        "Enter the number plate and year. The plate is this vehicle’s identity. One vehicle per expense.",
+        "Enter the number plate, year, and whether the vehicle is new or used. Year, new or used, and lease stay as recorded here. The plate can be changed later in Inventory if it is re-registered. One vehicle per expense.",
+      purchaseVehicleCondition: "New Or Used",
+      purchaseVehicleConditionHint:
+        "Choose whether this unit was bought new or used. This cannot be changed after the purchase is saved.",
+      purchaseVehicleConditionNew: "New",
+      purchaseVehicleConditionUsed: "Used",
+      purchaseVehicleConditionRequired: "Choose whether this vehicle is new or used.",
       purchaseVehiclePlate: "Number Plate",
       purchaseVehiclePlatePlaceholder: "e.g. B 1234 ABC",
       purchaseVehiclePlateHint:
@@ -2930,9 +2953,15 @@ export const en = {
       vehicleFor: "Which Vehicle Is This For",
       vehicleForHint:
         "Choose the vehicle from Inventory. This expense is for that vehicle, not a new purchase.",
+      vehicleForLeaseHint:
+        "Choose the leased vehicle this monthly installment is for. The payment is linked to that vehicle's remaining lease.",
       vehicleForEmpty:
         "No vehicles are in Inventory yet. Buy a vehicle first, then record servicing or other costs against it.",
+      vehicleForLeaseEmpty:
+        "No leased vehicles are in Inventory yet. Record a leased purchase first, then add monthly lease payments.",
       vehicleForRequired: "Choose which vehicle this expense is for.",
+      vehicleLeasePaymentNotLeased:
+        "This vehicle is not leased. Record a Lease Payment only for a leased vehicle.",
       vehicleOtherCostDescription: "Other Vehicle Costs",
       vehicleOtherCostDescriptionHint:
         "Describe what these other vehicle costs are. This is required.",
@@ -3040,7 +3069,22 @@ export const en = {
       vehicleExpenseKindModification: "Modifications",
       vehicleExpenseKindOther: "Other Vehicle Cost",
       vehicleExpenseKindPrepaid: "Prepaid Card",
+      vehicleExpenseKindLeasePayment: "Lease Payment",
+      vehicleExpenseKindDownPayment: "Down Payment",
       vehicleExpenseKindRequired: "Choose what this vehicle expense is for.",
+      vehicleNarrative: {
+        downPayment: "Down Payment for {vehicle}, plate {plate}",
+        purchase: "Purchase for {vehicle}, plate {plate}",
+        monthly: "Monthly Payment {current} of {tenor} for {vehicle}, plate {plate}",
+        monthlyOpen: "Monthly Payment {current} for {vehicle}, plate {plate}",
+        monthlyBare: "Monthly Payment for {vehicle}, plate {plate}",
+        servicing: "Servicing for {vehicle}, plate {plate}",
+        modification: "Modifications for {vehicle}, plate {plate}",
+        fuel: "Fuel for {vehicle}, plate {plate}",
+        other: "{description} for {vehicle}, plate {plate}",
+        otherFallback: "Other Vehicle Cost for {vehicle}, plate {plate}",
+        generic: "Vehicle Expense for {vehicle}, plate {plate}"
+      },
       vehiclePrepaidSpendHint:
         "This top-up is paid from the company bank and adds to the Card balance. Spends are recorded under Advance Cash → Prepaid Cards.",
       vehiclePrepaidCardRequired: "Choose which prepaid card to top up.",
@@ -6045,13 +6089,44 @@ export const en = {
         soldNewRow: "{qty} Sold — New, no asset code"
       },
       vehicles: {
-        clickHint: "Click a vehicle to see and edit its plate, year, and details.",
+        clickHint:
+          "Click a vehicle to see its plate, purchase facts, lease progress, and cost log. Only the plate can be edited.",
         back: "Back To Inventory",
         locationCompany: "Company",
         updated: "Vehicle updated.",
         updateFailed: "Could not update this vehicle.",
         notFound: "Vehicle not found.",
-        plateTaken: "This number plate is already on file."
+        plateTaken: "This number plate is already on file.",
+        purchaseFactsHint:
+          "Year, new or used, and lease were set when this vehicle was bought. They cannot be changed here.",
+        leaseTitle: "Lease",
+        leaseProgress: "Lease Progress",
+        leaseOtr: "On The Road Price",
+        leasePrincipal: "Financed Amount",
+        leaseUpfrontFees: "Upfront Fees",
+        leaseScheduledTotal: "Scheduled Total Cost",
+        leasePaymentsCount: "{paid} of {tenor} payments",
+        leasePaid: "Paid On This Lease",
+        leaseRemaining: "Remaining",
+        leasePaidOff: "Paid Off",
+        leaseInProgress: "In Progress",
+        leaseOtherSpend: "Other Vehicle Spend",
+        leaseCarTotal: "Total Cost of This Car",
+        leaseCarTotalHint:
+          "This is the full lease: down payment, bank fees, and every monthly installment. Each payment reduces Remaining. Servicing and other costs are extra.",
+        leaseCarTotalDone:
+          "This lease is paid off. The total cost of this car is the down payment, bank fees, and every installment. Servicing and other costs are extra.",
+        costLog: "Vehicle Cost Log",
+        costLogHint:
+          "Every expense that left the account for this vehicle. For a lease, the purchase is the down payment. Each monthly payment reduces Remaining. The total cost of this car is the full lease.",
+        costLogEmpty: "No expenses are linked to this vehicle yet.",
+        costLogDate: "Date",
+        costLogKind: "Kind",
+        costLogSupplier: "Supplier",
+        costLogAmount: "Amount",
+        costLogRemaining: "Remaining After",
+        costLogTotal: "Total Spent",
+        costLogKindUnknown: "Vehicle Expense"
       },
       factoryReturn: {
         title: "Return To Vendor",
@@ -6138,6 +6213,10 @@ export const en = {
         invoice: "Invoice",
         project: "Project",
         unitCost: "Unit Cost",
+        vehicleCost: "Cost",
+        lease: "Lease",
+        monthly: "Monthly",
+        remaining: "Remaining",
         projectCost: "Project Cost",
         totalCost: "Total Cost",
         onHand: "On Hand",
@@ -6178,12 +6257,12 @@ export const en = {
         vehiclePlate: "Number Plate",
         vehiclePlatePlaceholder: "e.g. B 1234 ABC",
         vehiclePlateEditHint:
-          "Change the plate here. The same type of vehicle can have many plates.",
+          "Change the plate if the vehicle is re-registered. Year, new or used, and lease stay as recorded at purchase.",
         vehicleYear: "Vehicle Year",
         vehicleYearPlaceholder: "e.g. 2024",
         vehicleYearHint: "The model year of this vehicle.",
         catalogOnlyVehicleHint:
-          "This creates the vehicle type only. Record each plate and year when you add the expense, then edit them under Inventory → Vehicles.",
+          "This creates the vehicle type only. Record the plate, year, new or used, and lease when you add the purchase expense.",
         sku: "SKU",
         skuHint:
           "System-generated from Item Type when you save (e.g. TOOL-001, CNS-002). Not entered manually.",
@@ -6483,9 +6562,10 @@ export const en = {
       contents: "Contents",
       howToRead: "How to use this handbook",
       howToReadBody:
-        "This handbook covers only the modules turned on for this Position. Sign in, open the sidebar, and follow each section in order. Status chips on screen tell you the next action. If a module is missing from the sidebar, Head Office has not given this Position that access.",
+        "This handbook is written for the {position} login. It describes only what this position can do. Another position with the same module will see different steps. Sign in, open the sidebar, and follow each section in order. Status chips on screen tell you the next action. If a module is missing from the sidebar, Head Office has not given this position that access.",
       howToReadBodyClient:
-        "This handbook covers the client portal modules shared by every client organization. Sign in with the client portal login, open the sidebar, and follow each section in order. Status chips on screen tell you the next action.",
+        "This handbook is written for a client portal login. It describes only what you can do: read your sites, review a billing period, and pay invoices you owe. It does not cover Head Office work such as paying suppliers, assigning staff, or compiling invoices. Sign in with the client portal login, open the sidebar, and follow each section in order.",
+      forClientUse: "For the client portal - Relasi Global Solusi",
       openAt: "Where to open it",
       steps: "How to use it",
       remember: "Keep in mind",
@@ -6638,6 +6718,8 @@ export const en = {
     activeSessionHint:
       "Cancel to stay on this page, or close the other session to continue signing in here. The other device will be signed out.",
     closeOtherSession: "Close Other Session",
+    signedOutOtherDevice:
+      "You were signed out because this account signed in on another device.",
     passwordUpdated: "Your password has been updated. You can sign in now.",
     forgotTitle: "Forgot password",
     forgotSubtitle:

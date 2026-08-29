@@ -1,10 +1,11 @@
 "use client";
 
 import {
+  showRejection,
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
 import { useMemo, useState, useTransition } from "react";
-import { RotateCcw, ShieldCheck } from "lucide-react";
+import { FileDown, RotateCcw, ShieldCheck } from "lucide-react";
 import type {
   EmployeeType,
   EmploymentType,
@@ -13,6 +14,7 @@ import type {
 } from "@prisma/client";
 
 import { updateUserModuleOverrides } from "@/app/users/actions";
+import { downloadSystemGuidePdf } from "@/components/system-guide/download-guide";
 import {
   EmployeeDialogShell,
   EmployeePrimaryButton,
@@ -45,6 +47,10 @@ import {
   type ModuleKey,
   type PermissionUser,
 } from "@/lib/permissions";
+import {
+  enabledClientGuideModules,
+  enabledGuideModules,
+} from "@/lib/system-guide/access";
 
 type UserForPermissions = {
   id: string;
@@ -67,6 +73,7 @@ type UserForPermissions = {
       slug?: string | null;
       defaultModuleAccess?: unknown;
     } | null;
+    category?: { name: string; prefix?: string } | null;
   } | null;
 };
 
@@ -154,6 +161,7 @@ export default function UserPermissionsDialog({
   const [overrides, setOverrides] = useState<Record<string, boolean>>(() =>
     expandLegacyFinanceOverrides(user.moduleOverrides ?? {})
   );
+  const [downloadingGuide, setDownloadingGuide] = useState(false);
 
   const accountType = useMemo(() => getAccountType(user), [user]);
   const baseline: ModuleAccessFlags = useMemo(
@@ -284,6 +292,64 @@ export default function UserPermissionsDialog({
     setOverrides({});
   }
 
+  const liveGuideModules = visibleModules.filter((module) =>
+    module === "pettyCash"
+      ? advanceCash.petty || advanceCash.prepaid
+      : accessStates[module].effective
+  );
+
+  async function downloadGuide() {
+    if (accountType === "Vendor") {
+      showRejection({
+        reasons: t("pages.users.downloadSystemGuideVendor"),
+      });
+      return;
+    }
+    const modules =
+      accountType === "Client"
+        ? enabledClientGuideModules(
+            Object.fromEntries(liveGuideModules.map((module) => [module, true]))
+          )
+        : enabledGuideModules(
+            Object.fromEntries(liveGuideModules.map((module) => [module, true]))
+          );
+    if (modules.length === 0) {
+      showRejection({
+        reasons: t("pages.users.downloadSystemGuideEmpty"),
+      });
+      return;
+    }
+    setDownloadingGuide(true);
+    try {
+      if (accountType === "Client") {
+        await downloadSystemGuidePdf({
+          url: "/api/clients/system-guide",
+          body: {
+            clientId: user.clientId ?? user.client?.id ?? "",
+            modules,
+          },
+          fallbackFilename: "RGS-ONE-System-Guide.pdf",
+          failedMessage: t("pages.users.downloadSystemGuideFailed"),
+        });
+        return;
+      }
+      await downloadSystemGuidePdf({
+        url: "/api/positions/system-guide",
+        body: {
+          positionName: user.employee?.jobPosition?.name || user.name,
+          departmentLabel: user.employee?.category?.name ?? "",
+          modules,
+        },
+        fallbackFilename: "RGS-ONE-System-Guide.pdf",
+        failedMessage: t("pages.users.downloadSystemGuideFailed"),
+      });
+    } catch (error) {
+      showRejectionFromError(error, t("pages.users.downloadSystemGuideFailed"));
+    } finally {
+      setDownloadingGuide(false);
+    }
+  }
+
   function handleSave() {
     startTransition(async () => {
       try {
@@ -375,6 +441,25 @@ export default function UserPermissionsDialog({
                   )}`
                 : null}
             </p>
+            <p className="mt-2 text-xs text-muted">
+              {t("pages.users.downloadSystemGuideHint")}
+            </p>
+            <div className="mt-3">
+              <EmployeeSecondaryButton
+                closesDialog={false}
+                disabled={pending || downloadingGuide}
+                onClick={() => {
+                  void downloadGuide();
+                }}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <FileDown className="h-4 w-4" />
+                  {downloadingGuide
+                    ? t("pages.users.downloadingSystemGuide")
+                    : t("pages.users.downloadSystemGuide")}
+                </span>
+              </EmployeeSecondaryButton>
+            </div>
           </div>
 
           <div className={employeeDialogGridClass}>

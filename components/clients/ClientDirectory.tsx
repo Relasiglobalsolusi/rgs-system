@@ -7,6 +7,7 @@ import ClientBulkActionDialog from "@/components/clients/ClientBulkActionDialog"
 import ClientBulkCreateDialog from "@/components/clients/ClientBulkCreateDialog";
 import ClientBulkReactivateDialog from "@/components/clients/ClientBulkReactivateDialog";
 import ClientDialog from "@/components/clients/ClientDialog";
+import ClientModuleAccessButton from "@/components/clients/ClientModuleAccessButton";
 import ClientSystemGuideButton from "@/components/clients/ClientSystemGuideButton";
 import ClientTable, { type ClientRow } from "@/components/clients/ClientTable";
 import DirectoryAddButton from "@/components/ui/DirectoryAddButton";
@@ -218,15 +219,15 @@ export default function ClientDirectory({
         />
       </DirectoryStatGrid>
 
-      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
         <DirectorySearchInput
           value={searchQuery}
           onChange={handleSearchChange}
           placeholder={t("pages.clients.searchPlaceholder")}
-          className="min-w-0 w-full max-w-none sm:max-w-xs sm:flex-1"
+          className="min-w-0 w-full max-w-none flex-1"
         />
         {showAdd ? (
-          <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:justify-end">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:ml-0 sm:w-auto sm:shrink-0 sm:justify-end">
             <DirectoryAddButton
               label={t("pages.clients.addClient")}
               onClick={() => setCreateOpen(true)}
@@ -237,6 +238,7 @@ export default function ClientDirectory({
               icon={<ListPlus className="h-3.5 w-3.5 shrink-0" />}
               onClick={() => setBulkImportOpen(true)}
             />
+            <ClientModuleAccessButton />
             <ClientSystemGuideButton clients={activeClients} />
           </div>
         ) : null}

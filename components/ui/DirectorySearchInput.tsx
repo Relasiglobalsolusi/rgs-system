@@ -33,7 +33,7 @@ export default function DirectorySearchInput({
 }: DirectorySearchInputProps) {
   const { t } = useT();
   return (
-    <div className={cn("relative w-full min-w-0 max-w-md", className, "min-w-0")}>
+    <div className={cn("relative w-full min-w-0", className)}>
       <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-subtle" />
       <input
         type="search"

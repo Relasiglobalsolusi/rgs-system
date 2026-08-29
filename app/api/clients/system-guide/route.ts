@@ -4,15 +4,22 @@ import { getCurrentSession } from "@/lib/auth";
 import { loadCompanyForPdf } from "@/lib/company-for-pdf";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
-import { getClientPortalGuideModules } from "@/lib/permissions";
+import {
+  getClientPortalGuideModules,
+  PORTAL_BLOCKED_MODULES,
+} from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { canManageClients } from "@/lib/project-access";
 import { toPermissionUser } from "@/lib/session";
+import { enabledClientGuideModules } from "@/lib/system-guide/access";
 import {
   buildSystemGuidePdfBuffer,
   systemGuideFilename,
 } from "@/lib/system-guide/pdf";
-import { resolveSystemGuideDocument } from "@/lib/system-guide/resolve";
+import {
+  parseRequestedGuideModules,
+  resolveSystemGuideDocument,
+} from "@/lib/system-guide/resolve";
 
 export async function POST(request: NextRequest) {
   const session = await getCurrentSession();
@@ -44,31 +51,43 @@ export async function POST(request: NextRequest) {
   const record =
     body && typeof body === "object" ? (body as Record<string, unknown>) : {};
   const clientId = String(record.clientId ?? "").trim();
-  if (!clientId) {
-    return NextResponse.json(
-      { error: t("pages.clients.systemGuidePickClient") },
-      { status: 400 }
-    );
-  }
+  const requestedModules = parseRequestedGuideModules(record.modules).filter(
+    (module) => !PORTAL_BLOCKED_MODULES.includes(module)
+  );
 
   const companyId = session.user.companyId;
-  const client = await prisma.client.findFirst({
-    where: {
-      id: clientId,
-      companyId,
-      active: true,
-    },
-    select: { id: true, name: true },
-  });
+  let coverName = t("pages.clients.systemGuidePortalLabel");
 
-  if (!client) {
-    return NextResponse.json(
-      { error: t("pages.clients.notFound") },
-      { status: 404 }
-    );
+  if (clientId) {
+    const client = await prisma.client.findFirst({
+      where: {
+        id: clientId,
+        companyId,
+        active: true,
+      },
+      select: { id: true, name: true },
+    });
+    if (!client) {
+      return NextResponse.json(
+        { error: t("pages.clients.notFound") },
+        { status: 404 }
+      );
+    }
+    coverName = client.name;
   }
 
-  const modules = getClientPortalGuideModules();
+  const companyAccess = companyId
+    ? await prisma.company.findFirst({
+        where: { id: companyId },
+        select: { clientModuleOverrides: true },
+      })
+    : null;
+  const modules =
+    requestedModules.length > 0
+      ? enabledClientGuideModules(
+          Object.fromEntries(requestedModules.map((module) => [module, true]))
+        )
+      : getClientPortalGuideModules(companyAccess?.clientModuleOverrides);
   if (modules.length === 0) {
     return NextResponse.json(
       { error: t("pages.clients.downloadSystemGuideEmpty") },
@@ -81,12 +100,12 @@ export async function POST(request: NextRequest) {
     const guide = resolveSystemGuideDocument({
       locale,
       audience: "client",
-      positionName: client.name,
+      positionName: coverName,
       departmentLabel: t("pages.clients.systemGuidePortalLabel"),
       modules,
     });
     const buffer = await buildSystemGuidePdfBuffer({ guide, company });
-    const filename = systemGuideFilename(client.name, locale);
+    const filename = systemGuideFilename(coverName, locale);
 
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,

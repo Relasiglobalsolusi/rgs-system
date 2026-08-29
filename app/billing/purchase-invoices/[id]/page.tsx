@@ -36,6 +36,10 @@ import { formatVendorBankAccountLabel } from "@/lib/vendor-bank-accounts";
 import { listPurchaseDocumentSlots } from "@/lib/purchase-invoice-documents";
 import { formatTaxInvoiceSerial } from "@/lib/tax-invoice-serial";
 import {
+  rankLeasePayments,
+  vehicleExpenseNarrative,
+} from "@/lib/vehicle-expense";
+import {
   getPurchaseRecordStatus,
   purchaseRecordStatusLabelKey,
 } from "@/lib/purchase-record-status";
@@ -117,6 +121,14 @@ export default async function PurchaseInvoiceDetailPage({
           },
         },
       },
+      vehicleAsset: {
+        select: {
+          assetCode: true,
+          leaseTenorMonths: true,
+          isVehicleLease: true,
+          item: { select: { name: true } },
+        },
+      },
     },
   });
 
@@ -170,20 +182,49 @@ export default async function PurchaseInvoiceDetailPage({
     hasCustomsFees: invoice.hasCustomsFees,
   });
 
+  let vehicleInstallmentNumber: number | null = null;
+  if (
+    invoice.purchaseCategory === "VEHICLE" &&
+    invoice.vehicleExpenseKind === "LEASE_PAYMENT"
+  ) {
+    const siblings = await prisma.purchaseInvoice.findMany({
+      where: {
+        companyId: session.user.companyId,
+        vehicleExpenseKind: "LEASE_PAYMENT",
+        reversedAt: null,
+        ...(invoice.vehicleAssetId
+          ? { vehicleAssetId: invoice.vehicleAssetId }
+          : invoice.vehiclePlate
+            ? { vehiclePlate: invoice.vehiclePlate }
+            : { id: invoice.id }),
+      },
+      select: { id: true, invoiceDate: true },
+      orderBy: [{ invoiceDate: "asc" }, { id: "asc" }],
+    });
+    vehicleInstallmentNumber = rankLeasePayments(siblings).get(invoice.id) ?? null;
+  }
+
   const purposeLabel = isPrepaidCardTopUpInvoice(invoice)
     ? t("pages.billing.vehicleExpenseKindPrepaid")
     : invoice.purchaseCategory === "VEHICLE"
-      ? invoice.vehicleExpenseKind === "PURCHASE"
-        ? t("pages.billing.vehicleExpenseKindPurchase")
-        : invoice.vehicleExpenseKind === "SERVICING"
-          ? t("pages.billing.vehicleExpenseKindServicing")
-          : invoice.vehicleExpenseKind === "MODIFICATION"
-            ? t("pages.billing.vehicleExpenseKindModification")
-            : invoice.vehicleExpenseKind === "OTHER"
-              ? t("pages.billing.vehicleExpenseKindOther")
-              : invoice.vehicleExpenseKind === "FUEL"
-                ? t("pages.billing.vehicleExpenseKindFuel")
-                : t("pages.billing.purchaseCategoryVehicle")
+      ? vehicleExpenseNarrative({
+          locale,
+          kind: invoice.vehicleExpenseKind,
+          isLease:
+            invoice.isVehicleLease ||
+            invoice.vehicleAsset?.isVehicleLease === true,
+          vehicleName:
+            invoice.vehicleAsset?.item?.name ??
+            invoice.lines[0]?.item?.name ??
+            "",
+          plate: invoice.vehicleAsset?.assetCode ?? invoice.vehiclePlate ?? "",
+          otherDescription: invoice.vehicleOtherCostDescription,
+          installmentNumber: vehicleInstallmentNumber,
+          tenorMonths:
+            invoice.leaseTenorMonths ??
+            invoice.vehicleAsset?.leaseTenorMonths ??
+            null,
+        })
       : invoice.purpose === "PROJECT"
         ? t("pages.billing.purchasePurposeProject")
         : invoice.purpose === "INTERNAL"
@@ -1275,7 +1316,9 @@ export default async function PurchaseInvoiceDetailPage({
                     {t("pages.billing.purchaseLeaseInterest")}
                   </th>
                   <td className={metaValueClassName}>
-                    {decimalToNumber(invoice.leaseInterestPercentYear) ?? "—"}
+                    {decimalToNumber(invoice.leaseInterestPercentYear) != null
+                      ? `${decimalToNumber(invoice.leaseInterestPercentYear)}%`
+                      : "—"}
                   </td>
                 </tr>
               </tbody>

@@ -369,6 +369,14 @@ enum VehicleExpenseKind {
   SERVICING
   MODIFICATION
   OTHER
+  /// Monthly installment on a leased vehicle (after the purchase down payment).
+  LEASE_PAYMENT
+}
+
+/// New or used when the company acquires a vehicle.
+enum VehicleCondition {
+  NEW
+  USED
 }
 
 /// What a government expense is settling (DJP / other state bills).
@@ -514,6 +522,9 @@ model Company {
   bpjsKesehatanVirtualAccount String?
   /// Company BPJS Ketenagakerjaan virtual account (prefilled on government expenses).
   bpjsKetenagakerjaanVirtualAccount String?
+
+  /// Default module access for all client portal logins (synced to existing portals when saved).
+  clientModuleOverrides Json?
 
   users               User[]
   employees           Employee[]
@@ -1413,7 +1424,7 @@ model PurchaseInvoice {
   /// Handling vendor / fee / invoice will be recorded when import duties are paid.
   handlingDueWithDuties Boolean @default(false)
 
-  /// Fuel, servicing, modification, purchase, or other vehicle spend.
+  /// Purchase, fuel, servicing, modification, lease installment, or other vehicle spend.
   vehicleExpenseKind VehicleExpenseKind?
 
   /// Existing inventory vehicle this servicing / modification / other cost is for.
@@ -1422,6 +1433,9 @@ model PurchaseInvoice {
 
   /// Required description when vehicleExpenseKind is OTHER.
   vehicleOtherCostDescription String?
+
+  /// New or used at purchase. Not editable later on the inventory vehicle.
+  vehicleCondition VehicleCondition?
 
   /// Indonesian finance lease for a company vehicle (DP, tenor, interest, bank fees).
   isVehicleLease Boolean @default(false)
@@ -2604,8 +2618,23 @@ model EquipmentAsset {
   /// Manufacturer / physical serial number (optional, user-set).
   serialNo String?
   notes    String?
-  /// Model year for vehicle assets. Unused for equipment.
+  /// Model year for vehicle assets. Set only when the vehicle is bought in Expenses.
   vehicleYear Int?
+  /// New or used. Set only when the vehicle is bought in Expenses.
+  vehicleCondition VehicleCondition?
+
+  /// Lease snapshot. Set only when the vehicle is bought in Expenses.
+  isVehicleLease Boolean @default(false)
+  leaseOtrAmount Decimal? @db.Decimal(14, 2)
+  leaseDownPayment Decimal? @db.Decimal(14, 2)
+  leaseTenorMonths Int?
+  leaseInterestPercentYear Decimal? @db.Decimal(6, 3)
+  leaseAdminFee Decimal? @db.Decimal(14, 2)
+  leaseInsuranceAmount Decimal? @db.Decimal(14, 2)
+  leaseFiduciaryFee Decimal? @db.Decimal(14, 2)
+  leaseProvisionFee Decimal? @db.Decimal(14, 2)
+  leaseOtherFee Decimal? @db.Decimal(14, 2)
+  leaseMonthlyInstallment Decimal? @db.Decimal(14, 2)
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)

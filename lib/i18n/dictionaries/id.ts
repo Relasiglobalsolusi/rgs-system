@@ -1393,11 +1393,19 @@ export const id = {
       downloadingSystemGuide: "Mengunduh...",
       downloadSystemGuideFailed: "Tidak dapat mengunduh panduan sistem.",
       downloadSystemGuideEmpty:
-        "Tidak ada modul portal klien untuk panduan sistem.",
+        "Aktifkan minimal satu modul portal klien sebelum mengunduh panduan sistem.",
+      manageModuleAccess: "Kelola Akses Modul",
+      manageModuleAccessDescription:
+        "Pilih modul yang dapat dibuka setiap portal klien.",
+      manageModuleAccessHint:
+        "Aktifkan modul dan bab itu ditambahkan ke buku klien. Matikan dan bab itu dihapus. Unduhan memakai sakelar di layar ini. Anda tidak perlu menyimpan dulu. Menyimpan tetap memperbarui semua login portal klien.",
+      moduleAccessEmpty: "Aktifkan setidaknya satu modul untuk portal klien.",
+      moduleAccessLoadFailed: "Tidak dapat memuat akses modul klien.",
+      moduleAccessSaveFailed: "Tidak dapat menyimpan akses modul klien.",
       systemGuidePickClient: "Pilih Klien",
       systemGuideForClient: "Panduan Sistem Untuk",
       systemGuidePickDescription:
-        "Setiap portal klien memakai modul yang sama. Pilih nama klien yang muncul di halaman pertama buku panduan.",
+        "Buku ini mengikuti modul portal klien yang sudah disimpan. Isinya hanya apa yang bisa dilakukan klien. Pilih nama klien yang muncul di halaman pertama.",
       systemGuidePortalLabel: "Portal Klien",
       deleted: "Dihapus",
       active: "Aktif",
@@ -2066,7 +2074,7 @@ export const id = {
           "Tambahkan jabatan untuk sebuah departemen dan atur akses modul bawaan untuk login baru.",
         moduleAccess: "Akses Modul Bawaan",
         moduleAccessHint:
-          "Login portal baru untuk jabatan ini mulai dengan modul ini. Kas Uang Muka bisa memberi Kas Kecil, Kartu Prabayar, atau keduanya. Untuk memberi satu orang akses lebih, gunakan Pengguna → Izin.",
+          "Login portal baru untuk jabatan ini mulai dengan modul ini. Kas Uang Muka bisa memberi Kas Kecil, Kartu Prabayar, atau keduanya. Panduan sistem menambah atau menghapus satu bab per modul yang Anda hidupkan atau matikan, ditulis hanya untuk jabatan ini. Untuk memberi satu orang akses lebih, gunakan Pengguna → Izin.",
         createButton: "Tambah Jabatan",
         creating: "Menambahkan…",
         editTitle: "Ubah Jabatan",
@@ -2090,7 +2098,7 @@ export const id = {
         downloadSystemGuide: "Unduh Panduan Sistem",
         downloadingSystemGuide: "Menyiapkan Panduan…",
         downloadSystemGuideHint:
-          "Memakai modul yang aktif di atas. Tidak perlu disimpan dulu. PDF mengikuti bahasa layar ini.",
+          "Memakai modul yang aktif di atas. Tiap bab ditulis hanya untuk jabatan ini. Tidak perlu disimpan dulu. PDF mengikuti bahasa layar ini.",
         downloadSystemGuideEmpty:
           "Aktifkan minimal satu modul sebelum mengunduh panduan sistem.",
         downloadSystemGuideFailed: "Tidak dapat mengunduh panduan sistem.",
@@ -2336,6 +2344,15 @@ export const id = {
       permissionsTitle: "Izin Modul",
       savePermissions: "Simpan Izin",
       resetPermissions: "Kembali Ke Bawaan",
+      downloadSystemGuide: "Unduh Panduan Sistem",
+      downloadingSystemGuide: "Menyiapkan Panduan…",
+      downloadSystemGuideHint:
+        "Memakai modul yang aktif di atas. Tiap bab ditulis hanya untuk login ini. Anda tidak perlu menyimpan dulu.",
+      downloadSystemGuideEmpty:
+        "Aktifkan minimal satu modul sebelum mengunduh panduan sistem.",
+      downloadSystemGuideFailed: "Tidak dapat mengunduh panduan sistem.",
+      downloadSystemGuideVendor:
+        "Login portal pemasok tidak punya panduan sistem.",
       generatePortalLogin: "Buat Login Portal",
       revokeAccessTitle: "Cabut Akses?",
       revokeAccessDescription:
@@ -2720,11 +2737,17 @@ export const id = {
         "Bea Cukai memakai CIF yang sudah dicatat dan Kurs Pajak mereka sendiri. Isi kurs itu, pungutan yang berlaku, Billing ID, dan faktur bea.",
       purchaseVehicleLease: "Sewa Guna Usaha Kendaraan",
       purchaseVehicleLeaseHint:
-        "Finance lease Indonesia: uang muka sekarang, lalu cicilan bulanan. Biaya bank biasanya dibayar di awal.",
+        "Jumlah pada pengeluaran ini hanya uang yang keluar dari rekening sekarang: uang muka dan biaya bank yang dibayar di awal. Harga On The Road bukan beban. Catat tiap cicilan bulanan nanti sebagai Pembayaran Sewa.",
       purchaseVehicleLeaseToggle: "Kendaraan ini dibiayai leasing",
       purchaseVehicleIdentity: "Identitas Kendaraan",
       purchaseVehicleIdentityHint:
-        "Masukkan nomor plat dan tahun. Plat adalah identitas kendaraan ini. Satu kendaraan per pengeluaran.",
+        "Masukkan nomor plat, tahun, dan apakah kendaraan baru atau bekas. Tahun, baru atau bekas, dan sewa tetap seperti yang dicatat di sini. Plat dapat diubah nanti di Inventaris jika diganti. Satu kendaraan per pengeluaran.",
+      purchaseVehicleCondition: "Baru Atau Bekas",
+      purchaseVehicleConditionHint:
+        "Pilih apakah unit ini dibeli baru atau bekas. Ini tidak dapat diubah setelah pembelian disimpan.",
+      purchaseVehicleConditionNew: "Baru",
+      purchaseVehicleConditionUsed: "Bekas",
+      purchaseVehicleConditionRequired: "Pilih apakah kendaraan ini baru atau bekas.",
       purchaseVehiclePlate: "Nomor Plat",
       purchaseVehiclePlatePlaceholder: "mis. B 1234 ABC",
       purchaseVehiclePlateHint:
@@ -2960,8 +2983,14 @@ export const id = {
       vehicleFor: "Kendaraan Ini Untuk",
       vehicleForHint:
         "Pilih kendaraan dari Inventaris. Pengeluaran ini untuk kendaraan itu, bukan pembelian baru.",
+      vehicleForLeaseHint:
+        "Pilih kendaraan sewa yang cicilan bulanannya ini. Pembayaran tertaut ke sisa sewa kendaraan itu.",
       vehicleForEmpty:
         "Belum ada kendaraan di Inventaris. Beli kendaraan dulu, lalu catat servis atau biaya lain untuk kendaraan itu.",
+      vehicleForLeaseEmpty:
+        "Belum ada kendaraan sewa di Inventaris. Catat pembelian sewa dulu, lalu tambah cicilan bulanan.",
+      vehicleLeasePaymentNotLeased:
+        "Kendaraan ini tidak dibiayai sewa. Catat Pembayaran Sewa hanya untuk kendaraan sewa.",
       vehicleForRequired: "Pilih kendaraan untuk pengeluaran ini.",
       vehicleOtherCostDescription: "Biaya Kendaraan Lain",
       vehicleOtherCostDescriptionHint:
@@ -3071,7 +3100,22 @@ export const id = {
       vehicleExpenseKindModification: "Modifikasi",
       vehicleExpenseKindOther: "Biaya Kendaraan Lain",
       vehicleExpenseKindPrepaid: "Kartu Prabayar",
+      vehicleExpenseKindLeasePayment: "Pembayaran Sewa",
+      vehicleExpenseKindDownPayment: "Uang Muka",
       vehicleExpenseKindRequired: "Pilih keperluan beban kendaraan ini.",
+      vehicleNarrative: {
+        downPayment: "Uang Muka untuk {vehicle}, plat {plate}",
+        purchase: "Pembelian untuk {vehicle}, plat {plate}",
+        monthly: "Cicilan {current} dari {tenor} untuk {vehicle}, plat {plate}",
+        monthlyOpen: "Cicilan {current} untuk {vehicle}, plat {plate}",
+        monthlyBare: "Cicilan untuk {vehicle}, plat {plate}",
+        servicing: "Servis untuk {vehicle}, plat {plate}",
+        modification: "Modifikasi untuk {vehicle}, plat {plate}",
+        fuel: "Bahan Bakar untuk {vehicle}, plat {plate}",
+        other: "{description} untuk {vehicle}, plat {plate}",
+        otherFallback: "Biaya Kendaraan Lain untuk {vehicle}, plat {plate}",
+        generic: "Beban Kendaraan untuk {vehicle}, plat {plate}"
+      },
       vehiclePrepaidSpendHint:
         "Isi ulang ini dibayar dari rekening perusahaan dan menambah saldo kartu prabayar. Pengeluaran BBM, tol, dan parkir dicatat di Kas Uang Muka → Kartu Prabayar.",
       vehiclePrepaidCardRequired: "Pilih kartu prabayar yang akan diisi ulang.",
@@ -6107,13 +6151,43 @@ export const id = {
       },
       vehicles: {
         clickHint:
-          "Klik kendaraan untuk melihat dan mengedit plat, tahun, dan detailnya.",
+          "Klik kendaraan untuk melihat plat, data pembelian, progres sewa, dan log biaya. Hanya plat yang dapat diubah.",
         back: "Kembali Ke Inventaris",
         locationCompany: "Perusahaan",
         updated: "Kendaraan diperbarui.",
         updateFailed: "Tidak dapat memperbarui kendaraan ini.",
         notFound: "Kendaraan tidak ditemukan.",
-        plateTaken: "Nomor plat ini sudah tercatat."
+        plateTaken: "Nomor plat ini sudah tercatat.",
+        purchaseFactsHint:
+          "Tahun, baru atau bekas, dan sewa ditetapkan saat kendaraan dibeli. Tidak dapat diubah di sini.",
+        leaseTitle: "Sewa Guna Usaha",
+        leaseProgress: "Progres Sewa",
+        leaseOtr: "Harga On The Road",
+        leasePrincipal: "Jumlah Dibiayai",
+        leaseUpfrontFees: "Biaya Di Awal",
+        leaseScheduledTotal: "Total Biaya Terjadwal",
+        leasePaymentsCount: "{paid} dari {tenor} cicilan",
+        leasePaid: "Sudah Dibayar Pada Sewa Ini",
+        leaseRemaining: "Sisa",
+        leasePaidOff: "Lunas",
+        leaseInProgress: "Berjalan",
+        leaseOtherSpend: "Pengeluaran Kendaraan Lain",
+        leaseCarTotal: "Total Biaya Kendaraan Ini",
+        leaseCarTotalHint:
+          "Ini adalah seluruh sewa: uang muka, biaya bank, dan setiap cicilan bulanan. Setiap pembayaran mengurangi Sisa. Servis dan biaya lain terpisah.",
+        leaseCarTotalDone:
+          "Sewa ini sudah lunas. Total biaya kendaraan ini adalah uang muka, biaya bank, dan seluruh cicilan. Servis dan biaya lain terpisah.",
+        costLog: "Log Biaya Kendaraan",
+        costLogHint:
+          "Setiap pengeluaran yang keluar dari rekening untuk kendaraan ini. Untuk sewa, pembelian adalah uang muka. Setiap cicilan bulanan mengurangi Sisa. Total biaya kendaraan ini adalah seluruh sewa.",
+        costLogEmpty: "Belum ada pengeluaran yang tertaut ke kendaraan ini.",
+        costLogDate: "Tanggal",
+        costLogKind: "Jenis",
+        costLogSupplier: "Pemasok",
+        costLogAmount: "Jumlah",
+        costLogRemaining: "Sisa Setelah",
+        costLogTotal: "Total Dikeluarkan",
+        costLogKindUnknown: "Beban Kendaraan"
       },
       factoryReturn: {
         title: "Kembali Ke Pemasok",
@@ -6206,6 +6280,10 @@ export const id = {
         invoice: "Invoice",
         project: "Proyek",
         unitCost: "Biaya Satuan",
+        vehicleCost: "Biaya",
+        lease: "Sewa",
+        monthly: "Bulanan",
+        remaining: "Sisa",
         projectCost: "Biaya Proyek",
         totalCost: "Total Biaya",
         onHand: "Stok",
@@ -6246,12 +6324,12 @@ export const id = {
         vehiclePlate: "Nomor Plat",
         vehiclePlatePlaceholder: "mis. B 1234 ABC",
         vehiclePlateEditHint:
-          "Ubah plat di sini. Tipe kendaraan yang sama bisa punya banyak plat.",
+          "Ubah plat jika kendaraan diganti nomor. Tahun, baru atau bekas, dan sewa tetap seperti saat pembelian.",
         vehicleYear: "Tahun Kendaraan",
         vehicleYearPlaceholder: "mis. 2024",
         vehicleYearHint: "Tahun model kendaraan ini.",
         catalogOnlyVehicleHint:
-          "Ini hanya membuat tipe kendaraan. Catat setiap plat dan tahun saat menambah pengeluaran, lalu edit di Inventaris → Kendaraan.",
+          "Ini hanya membuat tipe kendaraan. Catat plat, tahun, baru atau bekas, dan sewa saat menambah pengeluaran pembelian.",
         sku: "SKU",
         skuHint:
           "Dibuat sistem dari Jenis Item saat disimpan (mis. TOOL-001, CNS-002). Tidak diisi manual.",
@@ -6555,9 +6633,10 @@ export const id = {
       contents: "Daftar isi",
       howToRead: "Cara memakai buku ini",
       howToReadBody:
-        "Buku ini hanya mencakup modul yang diaktifkan untuk Jabatan ini. Masuk, buka sidebar, dan ikuti setiap bagian berurutan. Chip status di layar menunjukkan langkah berikutnya. Jika sebuah modul tidak ada di sidebar, Kantor Pusat belum memberi akses itu pada Jabatan ini.",
+        "Buku ini ditulis untuk login {position}. Isinya hanya apa yang bisa dilakukan jabatan ini. Jabatan lain dengan modul yang sama akan melihat langkah yang berbeda. Masuk, buka sidebar, dan ikuti setiap bagian berurutan. Chip status di layar menunjukkan langkah berikutnya. Jika sebuah modul tidak ada di sidebar, Kantor Pusat belum memberi akses itu pada jabatan ini.",
       howToReadBodyClient:
-        "Buku ini mencakup modul portal klien yang sama untuk setiap organisasi klien. Masuk dengan login portal klien, buka sidebar, dan ikuti setiap bagian berurutan. Chip status di layar menunjukkan langkah berikutnya.",
+        "Buku ini ditulis untuk login portal klien. Isinya hanya apa yang bisa Anda lakukan: membaca lokasi Anda, meninjau periode tagihan, dan membayar invoice yang masih Anda bayar. Buku ini tidak mencakup pekerjaan Kantor Pusat seperti membayar pemasok, menugaskan staf, atau menyusun invoice. Masuk dengan login portal klien, buka sidebar, dan ikuti setiap bagian berurutan.",
+      forClientUse: "Untuk portal klien - Relasi Global Solusi",
       openAt: "Di mana membukanya",
       steps: "Cara memakainya",
       remember: "Perlu diingat",
@@ -6711,6 +6790,8 @@ export const id = {
     activeSessionHint:
       "Batal untuk tetap di halaman ini, atau tutup sesi lain untuk lanjut masuk di sini. Perangkat lain akan keluar.",
     closeOtherSession: "Tutup Sesi Lain",
+    signedOutOtherDevice:
+      "Anda keluar karena akun ini masuk di perangkat lain.",
     passwordUpdated: "Kata sandi Anda telah diperbarui. Anda dapat masuk sekarang.",
     forgotTitle: "Lupa kata sandi",
     forgotSubtitle:

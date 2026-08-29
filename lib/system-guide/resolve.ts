@@ -3,16 +3,29 @@ import { localizeJobTitle, localizeNavLabel } from "@/lib/i18n/labels";
 import { localeToBcp47, type AppLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
 import {
+  CLIENT_FINANCE_MENU_ITEMS,
   getVisibleModules,
   menu,
   MODULES,
+  PORTAL_BLOCKED_MODULES,
   type ModuleKey,
 } from "@/lib/permissions";
 import {
+  clientFallbackSystemGuideCopy,
   fallbackSystemGuideCopy,
+  fieldStaffFallbackSystemGuideCopy,
   SYSTEM_GUIDE_COPY,
+  warehouseFallbackSystemGuideCopy,
 } from "@/lib/system-guide/copy";
+import { SYSTEM_GUIDE_PERSONA_COPY } from "@/lib/system-guide/copy-personas";
 import { liveLeaveHierarchyCopy } from "@/lib/system-guide/leave-hierarchy";
+import {
+  isFieldSystemGuidePersona,
+  personaFallsBackToHeadOfficeCopy,
+  personaUsesLeaveApproverCopy,
+  resolveSystemGuidePersona,
+  type SystemGuidePersona,
+} from "@/lib/system-guide/persona";
 import type {
   SystemGuideDocument,
   SystemGuideModuleCopy,
@@ -25,10 +38,19 @@ function isModuleKey(value: string): value is ModuleKey {
 
 function moduleSidebarLocation(
   module: ModuleKey,
-  locale: AppLocale
+  locale: AppLocale,
+  audience: SystemGuideDocument["audience"]
 ): { section: string; openAt: string } {
   const moduleName = translate(locale, `modules.${module}`);
-  for (const section of menu) {
+  const catalog =
+    audience === "client"
+      ? menu.map((section) =>
+          section.title === "Finance"
+            ? { ...section, items: CLIENT_FINANCE_MENU_ITEMS }
+            : section
+        )
+      : menu;
+  for (const section of catalog) {
     const matches = section.items.filter((item) => item.module === module);
     if (matches.length === 0) continue;
     const sectionLabel = section.bare
@@ -62,12 +84,92 @@ export function parseRequestedGuideModules(
   return getVisibleModules().filter((module) => seen.has(module));
 }
 
+function localeCopy(
+  pair: Record<AppLocale, SystemGuideModuleCopy> | undefined,
+  locale: AppLocale
+): SystemGuideModuleCopy | undefined {
+  return pair?.[locale];
+}
+
+/**
+ * Warehouse may reuse Head Office steps for stock and office work.
+ * Billing, payroll, and the user directory stay on the warehouse fallback.
+ */
+const WAREHOUSE_MAY_USE_HEAD_OFFICE = new Set<ModuleKey>([
+  "dashboard",
+  "projects",
+  "teams",
+  "progress",
+  "cico",
+  "pettyCash",
+  "shifts",
+  "leaves",
+  "approvals",
+  "materialRequests",
+  "transferOrders",
+  "inventory",
+  "itemCatalog",
+]);
+
+/**
+ * One chapter per granted module. Copy is written for this reader only.
+ * Client and field crew never inherit Head Office how-to steps.
+ * Field crew can share Cleaning Staff chapters when they have no override.
+ */
+function resolveModuleCopy(
+  key: ModuleKey,
+  persona: SystemGuidePersona,
+  locale: AppLocale,
+  moduleName: string
+): SystemGuideModuleCopy {
+  if (persona === "client") {
+    return (
+      localeCopy(SYSTEM_GUIDE_PERSONA_COPY.client?.[key], locale) ??
+      clientFallbackSystemGuideCopy(moduleName, locale)
+    );
+  }
+
+  const own = localeCopy(SYSTEM_GUIDE_PERSONA_COPY[persona]?.[key], locale);
+  if (own) return own;
+
+  if (isFieldSystemGuidePersona(persona)) {
+    return (
+      localeCopy(SYSTEM_GUIDE_PERSONA_COPY.cleaningStaff?.[key], locale) ??
+      fieldStaffFallbackSystemGuideCopy(moduleName, locale)
+    );
+  }
+
+  if (persona === "warehouse") {
+    if (WAREHOUSE_MAY_USE_HEAD_OFFICE.has(key)) {
+      return (
+        localeCopy(SYSTEM_GUIDE_COPY[key], locale) ??
+        warehouseFallbackSystemGuideCopy(moduleName, locale)
+      );
+    }
+    return warehouseFallbackSystemGuideCopy(moduleName, locale);
+  }
+
+  if (personaFallsBackToHeadOfficeCopy(persona)) {
+    return (
+      localeCopy(SYSTEM_GUIDE_COPY[key], locale) ??
+      fallbackSystemGuideCopy(moduleName, locale)
+    );
+  }
+
+  return fallbackSystemGuideCopy(moduleName, locale);
+}
+
 function withLiveLeaveHierarchy(
   key: ModuleKey,
   copy: SystemGuideModuleCopy,
-  locale: AppLocale
+  locale: AppLocale,
+  persona: SystemGuidePersona
 ): SystemGuideModuleCopy {
   if (key !== "approvals" && key !== "leaves") return copy;
+  if (!personaUsesLeaveApproverCopy(persona)) return copy;
+  if (key === "leaves" && persona !== "director" && persona !== "opsManager") {
+    return copy;
+  }
   const live = liveLeaveHierarchyCopy(locale);
   if (key === "approvals") {
     return {
@@ -92,28 +194,39 @@ export function resolveSystemGuideDocument(input: {
 }): SystemGuideDocument {
   const locale = input.locale;
   const audience = input.audience ?? "position";
+  const persona = resolveSystemGuidePersona({
+    audience,
+    positionName: input.positionName,
+    departmentLabel: input.departmentLabel,
+  });
   const rawName = input.positionName.trim();
   const localizedName =
     audience === "client"
       ? rawName || "-"
       : localizeJobTitle(rawName, locale) || rawName || "-";
-  const modules: SystemGuideResolvedModule[] = input.modules.map((key) => {
+  const requestedModules =
+    audience === "client"
+      ? input.modules.filter(
+          (key) => !PORTAL_BLOCKED_MODULES.includes(key)
+        )
+      : input.modules;
+  const modules: SystemGuideResolvedModule[] = requestedModules.map((key) => {
     const name = translate(locale, `modules.${key}`);
-    const location = moduleSidebarLocation(key, locale);
-    const pair = SYSTEM_GUIDE_COPY[key];
-    const copy = pair?.[locale] ?? fallbackSystemGuideCopy(name, locale);
+    const location = moduleSidebarLocation(key, locale, audience);
+    const copy = resolveModuleCopy(key, persona, locale, name);
     return {
       key,
       name,
       section: location.section,
       openAt: location.openAt,
-      copy: withLiveLeaveHierarchy(key, copy, locale),
+      copy: withLiveLeaveHierarchy(key, copy, locale, persona),
     };
   });
 
   return {
     locale,
     audience,
+    persona,
     positionName: localizedName,
     departmentLabel: input.departmentLabel.trim(),
     generatedOn: formatDisplayDate(

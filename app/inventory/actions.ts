@@ -20,10 +20,7 @@ import {
   getNextInventorySku,
   isVehicleItemType,
 } from "@/lib/inventory-sku";
-import {
-  parseRequiredVehiclePlate,
-  parseRequiredVehicleYear,
-} from "@/lib/vehicle-plate";
+import { parseRequiredVehiclePlate } from "@/lib/vehicle-plate";
 import {
   defaultUnitForItemType,
   normalizeInventoryUnit,
@@ -388,7 +385,6 @@ export async function updateVehicleAsset(formData: FormData) {
     }
 
     const plate = parseRequiredVehiclePlate(formData.get("vehiclePlate"));
-    const vehicleYear = parseRequiredVehicleYear(formData.get("vehicleYear"));
 
     const asset = await prisma.equipmentAsset.findFirst({
       where: { id: assetId, companyId: company.id },
@@ -420,24 +416,18 @@ export async function updateVehicleAsset(formData: FormData) {
         data: {
           assetCode: plate,
           serialNo: plate,
-          vehicleYear,
         },
       });
       if (asset.assetCode !== plate) {
         await tx.purchaseInvoice.updateMany({
           where: {
             companyId: company.id,
-            vehiclePlate: asset.assetCode,
+            OR: [
+              { vehicleAssetId: asset.id },
+              { vehiclePlate: asset.assetCode },
+            ],
           },
-          data: { vehiclePlate: plate, vehicleYear },
-        });
-      } else {
-        await tx.purchaseInvoice.updateMany({
-          where: {
-            companyId: company.id,
-            vehiclePlate: plate,
-          },
-          data: { vehicleYear },
+          data: { vehiclePlate: plate },
         });
       }
     });

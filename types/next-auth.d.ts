@@ -5,6 +5,8 @@ import type { SidebarOrder } from "@/lib/sidebar-order";
 
 declare module "next-auth" {
   interface Session {
+    /** Set when this JWT was invalidated (other device / revoke). */
+    error?: "SessionReplaced" | "AccessRevoked";
     user: {
       id: string;
       username?: string;
@@ -100,7 +102,7 @@ declare module "next-auth/jwt" {
     mustSetPassword: boolean;
     mustSetRecoveryEmail: boolean;
     sessionToken?: string | null;
-    error?: string;
+    error?: "SessionReplaced" | "AccessRevoked" | string;
   }
 }
 

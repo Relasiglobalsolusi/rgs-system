@@ -1,0 +1,20 @@
+﻿# Generated / vendor — do not index (keeps Cursor responsive)
+.next/
+node_modules/
+out/
+build/
+coverage/
+.turbo/
+**/*.tsbuildinfo
+
+# Local uploads and scratch
+public/uploads/
+public/proofs/
+public/progress/
+public/prepaid-card-proofs/
+tmp/
+tmp-*/
+assets/
+
+# Prisma engines / generated
+app/generated/

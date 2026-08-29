@@ -31,6 +31,7 @@ export default function InventoryVehicleList({ vehicles, searchQuery }: Props) {
           row.item?.name,
           row.item?.sku,
           row.vehicleYear != null ? String(row.vehicleYear) : "",
+          row.isVehicleLease ? "lease" : "",
           row.project?.name
         )
       ),
@@ -68,12 +69,47 @@ export default function InventoryVehicleList({ vehicles, searchQuery }: Props) {
       render: (row) => formatDisplayDate(row.createdAt),
     },
     {
-      key: "unitCost",
-      title: t("pages.inventory.columns.unitCost"),
+      key: "lease",
+      title: t("pages.inventory.columns.lease"),
+      width: "7.5rem",
+      render: (row) => {
+        if (!row.isVehicleLease) return t("common.actions.no");
+        return row.leasePaidOff
+          ? t("pages.inventory.vehicles.leasePaidOff")
+          : t("pages.inventory.vehicles.leaseInProgress");
+      },
+    },
+    {
+      key: "monthly",
+      title: t("pages.inventory.columns.monthly"),
       width: "8rem",
       align: "right",
       render: (row) =>
-        row.unitCost != null ? formatContractPrice(row.unitCost) : "—",
+        row.isVehicleLease && row.leaseMonthlyInstallment != null
+          ? formatContractPrice(row.leaseMonthlyInstallment)
+          : "—",
+    },
+    {
+      key: "remaining",
+      title: t("pages.inventory.columns.remaining"),
+      width: "8rem",
+      align: "right",
+      render: (row) =>
+        row.isVehicleLease && row.leaseRemaining != null
+          ? formatContractPrice(row.leaseRemaining)
+          : "—",
+    },
+    {
+      key: "unitCost",
+      title: t("pages.inventory.columns.vehicleCost"),
+      width: "8.5rem",
+      align: "right",
+      render: (row) => {
+        if (row.isVehicleLease && row.leaseScheduledTotal != null) {
+          return formatContractPrice(row.leaseScheduledTotal);
+        }
+        return row.unitCost != null ? formatContractPrice(row.unitCost) : "—";
+      },
     },
   ];
 

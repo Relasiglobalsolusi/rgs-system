@@ -15,6 +15,7 @@ import {
   showRejection,
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
+import { downloadSystemGuidePdf } from "@/components/system-guide/download-guide";
 import { useT } from "@/lib/i18n/use-t";
 
 type ClientOption = {
@@ -51,36 +52,16 @@ export default function ClientSystemGuideButton({
 
     setPending(true);
     try {
-      const response = await fetch("/api/clients/system-guide", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId }),
+      const ok = await downloadSystemGuidePdf({
+        url: "/api/clients/system-guide",
+        body: { clientId },
+        fallbackFilename: "RGS-ONE-System-Guide.pdf",
+        failedMessage: t("pages.clients.downloadSystemGuideFailed"),
       });
-      if (!response.ok) {
-        let message = t("pages.clients.downloadSystemGuideFailed");
-        try {
-          const payload = (await response.json()) as { error?: string };
-          if (payload.error) message = payload.error;
-        } catch {
-          /* keep default */
-        }
-        showRejection({ reasons: message });
-        return;
+      if (ok) {
+        setOpen(false);
+        setClientId("");
       }
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      const header = response.headers.get("Content-Disposition") ?? "";
-      const match = header.match(/filename="([^"]+)"/);
-      link.href = url;
-      link.download = match?.[1] ?? "RGS-ONE-System-Guide.pdf";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-      setOpen(false);
-      setClientId("");
     } catch (error) {
       showRejectionFromError(
         error,

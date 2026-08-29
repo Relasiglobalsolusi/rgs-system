@@ -8,13 +8,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import YesNoChoiceCards from "@/components/ui/YesNoChoiceCards";
 import {
+  employeeDialogChoiceChipClass,
+  employeeDialogChoiceGridClass,
   employeeDialogHintClass,
   employeeDialogLabelClass,
   employeeInputClass,
   employeeSelectTriggerClass,
 } from "@/components/employees/employee-dialog-ui";
 import { Input } from "@/components/ui/input";
+import { outlineChipTones } from "@/components/ui/StatusBadge";
 import { formatContractPrice } from "@/lib/project-billing";
 import {
   calculateVehicleLease,
@@ -23,9 +27,12 @@ import {
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 
+export type VehicleConditionChoice = "" | "NEW" | "USED";
+
 export type PurchaseVehicleLeaseDraft = {
   plateNumber: string;
   vehicleYear: string;
+  condition: VehicleConditionChoice;
   enabled: boolean;
   otrAmount: string;
   downPayment: string;
@@ -42,6 +49,7 @@ export function emptyVehicleLeaseDraft(): PurchaseVehicleLeaseDraft {
   return {
     plateNumber: "",
     vehicleYear: "",
+    condition: "",
     enabled: false,
     otrAmount: "",
     downPayment: "",
@@ -55,10 +63,41 @@ export function emptyVehicleLeaseDraft(): PurchaseVehicleLeaseDraft {
   };
 }
 
+export function applyVehicleLeaseDraftToFormData(
+  formData: FormData,
+  draft: PurchaseVehicleLeaseDraft
+) {
+  if (draft.plateNumber.trim()) {
+    formData.set("vehiclePlate", draft.plateNumber);
+  }
+  if (draft.vehicleYear.trim()) {
+    formData.set("vehicleYear", draft.vehicleYear);
+  }
+  if (draft.condition) {
+    formData.set("vehicleCondition", draft.condition);
+  }
+  formData.set("isVehicleLease", draft.enabled ? "true" : "false");
+  if (draft.enabled) {
+    formData.set("leaseOtrAmount", draft.otrAmount);
+    formData.set("leaseDownPayment", draft.downPayment);
+    formData.set("leaseTenorMonths", draft.tenorMonths);
+    formData.set("leaseInterestPercentYear", draft.interestPercentYear);
+    formData.set("leaseAdminFee", draft.adminFee);
+    formData.set("leaseInsuranceAmount", draft.insuranceAmount);
+    formData.set("leaseFiduciaryFee", draft.fiduciaryFee);
+    formData.set("leaseProvisionFee", draft.provisionFee);
+    formData.set("leaseOtherFee", draft.otherFee);
+  }
+}
+
 type Props = {
   draft: PurchaseVehicleLeaseDraft;
   onChange: (draft: PurchaseVehicleLeaseDraft) => void;
   disabled?: boolean;
+  /** Hide plate and year when those fields live on the parent form. */
+  showIdentity?: boolean;
+  /** Show the required mark on New Or Used. Default true. */
+  requireCondition?: boolean;
 };
 
 function moneyNumber(raw: string): number {
@@ -70,6 +109,8 @@ export default function PurchaseVehicleLeaseFields({
   draft,
   onChange,
   disabled,
+  showIdentity = true,
+  requireCondition = true,
 }: Props) {
   const { t } = useT();
   const schedule = draft.enabled
@@ -92,69 +133,128 @@ export default function PurchaseVehicleLeaseFields({
 
   return (
     <div className="space-y-3 rounded-xl border border-border bg-elevated/40 p-3">
+      {showIdentity ? (
+        <>
+          <div>
+            <p className="text-sm font-semibold text-text">
+              {t("pages.billing.purchaseVehicleIdentity")}
+            </p>
+            <p className={employeeDialogHintClass}>
+              {t("pages.billing.purchaseVehicleIdentityHint")}
+            </p>
+          </div>
+          <div>
+            <label className={employeeDialogLabelClass} htmlFor="vehicle-plate">
+              {t("pages.billing.purchaseVehiclePlate")}
+              <span className="text-danger"> *</span>
+            </label>
+            <Input
+              id="vehicle-plate"
+              disabled={disabled}
+              value={draft.plateNumber}
+              onChange={(event) => patch({ plateNumber: event.target.value })}
+              className={employeeInputClass}
+              placeholder={t("pages.billing.purchaseVehiclePlatePlaceholder")}
+              autoComplete="off"
+            />
+            <p className={employeeDialogHintClass}>
+              {t("pages.billing.purchaseVehiclePlateHint")}
+            </p>
+          </div>
+          <div>
+            <label className={employeeDialogLabelClass} htmlFor="vehicle-year">
+              {t("pages.billing.purchaseVehicleYear")}
+              <span className="text-danger"> *</span>
+            </label>
+            <Input
+              id="vehicle-year"
+              disabled={disabled}
+              inputMode="numeric"
+              value={draft.vehicleYear}
+              onChange={(event) => patch({ vehicleYear: event.target.value })}
+              className={employeeInputClass}
+              placeholder={t("pages.billing.purchaseVehicleYearPlaceholder")}
+              autoComplete="off"
+            />
+            <p className={employeeDialogHintClass}>
+              {t("pages.billing.purchaseVehicleYearHint")}
+            </p>
+          </div>
+        </>
+      ) : null}
+
       <div>
-        <p className="text-sm font-semibold text-text">
-          {t("pages.billing.purchaseVehicleIdentity")}
+        <p
+          id="vehicle-condition-label"
+          className="text-sm font-semibold text-text"
+        >
+          {t("pages.billing.purchaseVehicleCondition")}
+          {requireCondition ? <span className="text-danger"> *</span> : null}
         </p>
         <p className={employeeDialogHintClass}>
-          {t("pages.billing.purchaseVehicleIdentityHint")}
+          {t("pages.billing.purchaseVehicleConditionHint")}
         </p>
       </div>
-      <div>
-        <label className={employeeDialogLabelClass} htmlFor="vehicle-plate">
-          {t("pages.billing.purchaseVehiclePlate")}
-          <span className="text-danger"> *</span>
-        </label>
-        <Input
-          id="vehicle-plate"
-          disabled={disabled}
-          value={draft.plateNumber}
-          onChange={(event) => patch({ plateNumber: event.target.value })}
-          className={employeeInputClass}
-          placeholder={t("pages.billing.purchaseVehiclePlatePlaceholder")}
-          autoComplete="off"
-        />
-        <p className={employeeDialogHintClass}>
-          {t("pages.billing.purchaseVehiclePlateHint")}
-        </p>
+      <div
+        role="radiogroup"
+        aria-labelledby="vehicle-condition-label"
+        className={employeeDialogChoiceGridClass}
+      >
+        {(
+          [
+            ["NEW", "pages.billing.purchaseVehicleConditionNew"],
+            ["USED", "pages.billing.purchaseVehicleConditionUsed"],
+          ] as const
+        ).map(([value, labelKey]) => {
+          const active = draft.condition === value;
+          return (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              disabled={disabled}
+              onClick={() => {
+                if (!disabled) patch({ condition: value });
+              }}
+              className={cn(
+                employeeDialogChoiceChipClass,
+                "gap-1.5 duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                active &&
+                  value === "NEW" &&
+                  outlineChipTones.emeraldInteractive,
+                active &&
+                  value === "USED" &&
+                  outlineChipTones.warningInteractive,
+                !active &&
+                  "border border-border bg-elevated text-muted hover:border-border-strong hover:bg-card-hover hover:text-text",
+                disabled && "cursor-not-allowed opacity-60"
+              )}
+            >
+              {t(labelKey)}
+            </button>
+          );
+        })}
       </div>
+
       <div>
-        <label className={employeeDialogLabelClass} htmlFor="vehicle-year">
-          {t("pages.billing.purchaseVehicleYear")}
-          <span className="text-danger"> *</span>
-        </label>
-        <Input
-          id="vehicle-year"
-          disabled={disabled}
-          inputMode="numeric"
-          value={draft.vehicleYear}
-          onChange={(event) => patch({ vehicleYear: event.target.value })}
-          className={employeeInputClass}
-          placeholder={t("pages.billing.purchaseVehicleYearPlaceholder")}
-          autoComplete="off"
-        />
-        <p className={employeeDialogHintClass}>
-          {t("pages.billing.purchaseVehicleYearHint")}
-        </p>
-      </div>
-      <div>
-        <p className="text-sm font-semibold text-text">
+        <p
+          id="vehicle-lease-label"
+          className="text-sm font-semibold text-text"
+        >
           {t("pages.billing.purchaseVehicleLease")}
         </p>
         <p className={employeeDialogHintClass}>
           {t("pages.billing.purchaseVehicleLeaseHint")}
         </p>
       </div>
-      <label className="flex items-center gap-2 text-sm text-text">
-        <input
-          type="checkbox"
-          className="h-4 w-4 accent-primary"
-          checked={draft.enabled}
-          disabled={disabled}
-          onChange={(event) => patch({ enabled: event.target.checked })}
-        />
-        {t("pages.billing.purchaseVehicleLeaseToggle")}
-      </label>
+      <YesNoChoiceCards
+        id="vehicle-lease-choice"
+        labelledBy="vehicle-lease-label"
+        value={draft.enabled ? "Yes" : "No"}
+        disabled={disabled}
+        onChange={(value) => patch({ enabled: value === "Yes" })}
+      />
       {draft.enabled ? (
         <>
           <div className="grid gap-3 sm:grid-cols-2">

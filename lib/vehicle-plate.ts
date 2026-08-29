@@ -2,15 +2,21 @@
 
 import { jakartaYearMonth } from "@/lib/vat";
 
-/** Number plate - card or vehicle name - catalog vehicle code. */
+/** Number plate - year + type - catalog vehicle code. */
 export function formatVehicleIdentityLabel(parts: {
   plate?: string | null;
   name?: string | null;
   sku?: string | null;
+  year?: number | string | null;
   cardNumber?: string | null;
 }): string {
   const plate = parts.plate?.trim() || "";
-  const cardOrName = parts.cardNumber?.trim() || parts.name?.trim() || "";
+  const year =
+    parts.year != null && String(parts.year).trim() !== ""
+      ? String(parts.year).trim()
+      : "";
+  const typeName = parts.cardNumber?.trim() || parts.name?.trim() || "";
+  const cardOrName = [year, typeName].filter(Boolean).join(" ");
   const sku = parts.sku?.trim() || "";
   return [plate, cardOrName, sku].filter(Boolean).join(" - ");
 }
@@ -33,6 +39,14 @@ export function parseRequiredVehiclePlate(raw: unknown): string {
 }
 
 const MIN_VEHICLE_YEAR = 1980;
+
+export type VehicleConditionValue = "NEW" | "USED";
+
+export function parseVehicleCondition(raw: unknown): VehicleConditionValue {
+  const value = String(raw ?? "").trim().toUpperCase();
+  if (value === "NEW" || value === "USED") return value;
+  throw new Error("Choose whether this vehicle is new or used.");
+}
 
 export function parseRequiredVehicleYear(
   raw: unknown,

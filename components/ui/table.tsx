@@ -23,7 +23,7 @@ function Table({
       <table
         data-slot="table"
         className={cn(
-          "box-border w-full min-w-max max-w-full caption-bottom text-left text-sm",
+          "box-border w-full caption-bottom text-left text-sm",
           className
         )}
         {...props}

@@ -5,8 +5,10 @@ import { FileDown } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { showRejection, showRejectionFromError } from "@/components/ui/rejection-notice";
+import { downloadSystemGuidePdf } from "@/components/system-guide/download-guide";
 import { useT } from "@/lib/i18n/use-t";
-import { getVisibleModules, type ModuleKey } from "@/lib/permissions";
+import { type ModuleKey } from "@/lib/permissions";
+import { enabledGuideModules } from "@/lib/system-guide/access";
 
 type Props = {
   formId: string;
@@ -34,9 +36,7 @@ export default function PositionSystemGuideButton({
 }: Props) {
   const { t } = useT();
   const [pending, setPending] = useState(false);
-  const enabledModules = getVisibleModules().filter(
-    (module) => moduleAccess[module]
-  );
+  const enabledModules = enabledGuideModules(moduleAccess);
 
   async function download() {
     const positionName = readPositionName(formId, fallbackName);
@@ -55,38 +55,18 @@ export default function PositionSystemGuideButton({
 
     setPending(true);
     try {
-      const response = await fetch("/api/positions/system-guide", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      await downloadSystemGuidePdf({
+        url: "/api/positions/system-guide",
+        body: {
           positionName,
           departmentLabel,
           modules: enabledModules,
-        }),
+        },
+        fallbackFilename: "RGS-ONE-System-Guide.pdf",
+        failedMessage: t(
+          "pages.employees.positionDialog.downloadSystemGuideFailed"
+        ),
       });
-      if (!response.ok) {
-        let message = t("pages.employees.positionDialog.downloadSystemGuideFailed");
-        try {
-          const payload = (await response.json()) as { error?: string };
-          if (payload.error) message = payload.error;
-        } catch {
-          /* keep default */
-        }
-        showRejection({ reasons: message });
-        return;
-      }
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      const header = response.headers.get("Content-Disposition") ?? "";
-      const match = header.match(/filename="([^"]+)"/);
-      link.href = url;
-      link.download = match?.[1] ?? "RGS-ONE-System-Guide.pdf";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
     } catch (error) {
       showRejectionFromError(
         error,

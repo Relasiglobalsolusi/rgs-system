@@ -23,7 +23,7 @@ import {
   EmployeeSecondaryButton,
 } from "@/components/employees/employee-dialog-ui";
 import { Dialog } from "@/components/ui/dialog";
-import { AUTH_ACTIVE_SESSION_CODE } from "@/lib/auth-session";
+import { AUTH_ACTIVE_SESSION_CODE, AUTH_SESSION_REPLACED_REASON } from "@/lib/auth-session";
 import { RGS_ONE_SLOGAN } from "@/lib/brand";
 import { useT } from "@/lib/i18n/use-t";
 import { resetSidebarCollapse } from "@/lib/sidebar-collapse";
@@ -54,6 +54,8 @@ function LoginContent() {
 
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
   const resetSuccess = searchParams.get("reset") === "success";
+  const sessionReplaced =
+    searchParams.get("reason") === AUTH_SESSION_REPLACED_REASON;
   const authError = searchParams.get("error");
 
   const [username, setUsername] = useState("");
@@ -176,6 +178,15 @@ function LoginContent() {
                 {resetSuccess && (
                   <div role="status" className="auth-alert-success rounded-xl px-4 py-3 text-sm">
                     {t("auth.passwordUpdated")}
+                  </div>
+                )}
+
+                {sessionReplaced && (
+                  <div
+                    role="status"
+                    className="auth-alert-warning rounded-xl px-4 py-3 text-sm"
+                  >
+                    {t("auth.signedOutOtherDevice")}
                   </div>
                 )}
 

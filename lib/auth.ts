@@ -316,7 +316,7 @@ export const authOptions: NextAuthOptions = {
           access.sessionToken &&
           (!token.sessionToken || access.sessionToken !== token.sessionToken)
         ) {
-          return { ...token, error: "AccessRevoked" };
+          return { ...token, error: "SessionReplaced" };
         }
         // Keep permissions / sidebar prefs in sync after DB changes.
         const prefs = await fetchUserNavPreferences(String(token.id));
@@ -341,9 +341,23 @@ export const authOptions: NextAuthOptions = {
     },
 
     async session({ session, token }) {
+      if (token.error === "SessionReplaced") {
+        return {
+          ...session,
+          user: undefined,
+          error: "SessionReplaced" as const,
+        };
+      }
       if (token.error === "AccessRevoked" || !token.id) {
         // Force unauthenticated so middleware / requireSession redirect to login.
-        return { ...session, user: undefined };
+        return {
+          ...session,
+          user: undefined,
+          error:
+            token.error === "AccessRevoked"
+              ? ("AccessRevoked" as const)
+              : undefined,
+        };
       }
 
       if (session.user) {

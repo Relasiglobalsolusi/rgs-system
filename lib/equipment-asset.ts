@@ -167,6 +167,56 @@ export async function mintEquipmentAssets(
  * Mint one vehicle unit whose asset code is the number plate.
  * Catalog SKU stays VEH-###; the plate is the physical identity.
  */
+type VehicleLeaseMint = {
+  isVehicleLease: boolean;
+  otrAmount: number | null;
+  downPayment: number | null;
+  tenorMonths: number | null;
+  interestPercentYear: number | null;
+  adminFee: number | null;
+  insuranceAmount: number | null;
+  fiduciaryFee: number | null;
+  provisionFee: number | null;
+  otherFee: number | null;
+  monthlyInstallment: number | null;
+};
+
+function optionalLeaseDecimal(value: number | null | undefined) {
+  if (value == null || !Number.isFinite(value)) return null;
+  return toDecimal(value);
+}
+
+function vehicleLeaseAssetFields(lease?: VehicleLeaseMint | null) {
+  if (!lease || !lease.isVehicleLease) {
+    return {
+      isVehicleLease: false,
+      leaseOtrAmount: null,
+      leaseDownPayment: null,
+      leaseTenorMonths: null,
+      leaseInterestPercentYear: null,
+      leaseAdminFee: null,
+      leaseInsuranceAmount: null,
+      leaseFiduciaryFee: null,
+      leaseProvisionFee: null,
+      leaseOtherFee: null,
+      leaseMonthlyInstallment: null,
+    };
+  }
+  return {
+    isVehicleLease: true,
+    leaseOtrAmount: optionalLeaseDecimal(lease.otrAmount),
+    leaseDownPayment: optionalLeaseDecimal(lease.downPayment),
+    leaseTenorMonths: lease.tenorMonths,
+    leaseInterestPercentYear: optionalLeaseDecimal(lease.interestPercentYear),
+    leaseAdminFee: optionalLeaseDecimal(lease.adminFee),
+    leaseInsuranceAmount: optionalLeaseDecimal(lease.insuranceAmount),
+    leaseFiduciaryFee: optionalLeaseDecimal(lease.fiduciaryFee),
+    leaseProvisionFee: optionalLeaseDecimal(lease.provisionFee),
+    leaseOtherFee: optionalLeaseDecimal(lease.otherFee),
+    leaseMonthlyInstallment: optionalLeaseDecimal(lease.monthlyInstallment),
+  };
+}
+
 export async function mintVehicleAssetByPlate(
   db: DbClient,
   companyId: string,
@@ -175,9 +225,11 @@ export async function mintVehicleAssetByPlate(
   options?: {
     unitCost?: number | null;
     vehicleYear?: number | null;
+    vehicleCondition?: "NEW" | "USED" | null;
+    lease?: VehicleLeaseMint | null;
     status?: "AVAILABLE" | "IN_TRANSIT";
   }
-): Promise<string> {
+): Promise<{ plate: string; id: string }> {
   const plate = parseRequiredVehiclePlate(plateNumber);
 
   const item = await db.inventoryItem.findFirst({
@@ -196,23 +248,23 @@ export async function mintVehicleAssetByPlate(
     if (existing.itemId !== item.id) {
       throw new Error("This number plate is already on file as a vehicle asset.");
     }
-    const existingPatch: {
-      unitCost?: ReturnType<typeof toDecimal>;
-      vehicleYear?: number;
-    } = {};
+    const existingPatch: Prisma.EquipmentAssetUpdateInput = {
+      ...vehicleLeaseAssetFields(options?.lease),
+    };
     if (options?.unitCost != null && Number.isFinite(options.unitCost)) {
       existingPatch.unitCost = toDecimal(options.unitCost);
     }
     if (options?.vehicleYear != null) {
       existingPatch.vehicleYear = options.vehicleYear;
     }
-    if (Object.keys(existingPatch).length > 0) {
-      await db.equipmentAsset.update({
-        where: { id: existing.id },
-        data: existingPatch,
-      });
+    if (options?.vehicleCondition) {
+      existingPatch.vehicleCondition = options.vehicleCondition;
     }
-    return plate;
+    await db.equipmentAsset.update({
+      where: { id: existing.id },
+      data: existingPatch,
+    });
+    return { plate, id: existing.id };
   }
 
   const lockedUnitCost =
@@ -220,7 +272,7 @@ export async function mintVehicleAssetByPlate(
       ? toDecimal(options.unitCost)
       : null;
 
-  await db.equipmentAsset.create({
+  const created = await db.equipmentAsset.create({
     data: {
       companyId,
       itemId: item.id,
@@ -229,9 +281,11 @@ export async function mintVehicleAssetByPlate(
       status: options?.status ?? "AVAILABLE",
       unitCost: lockedUnitCost,
       vehicleYear: options?.vehicleYear ?? null,
+      vehicleCondition: options?.vehicleCondition ?? null,
+      ...vehicleLeaseAssetFields(options?.lease),
     },
   });
-  return plate;
+  return { plate, id: created.id };
 }
 
 /**

@@ -1,6 +1,7 @@
 import { getToken } from "next-auth/jwt";
 import { NextRequest, NextResponse } from "next/server";
 
+import { AUTH_SESSION_REPLACED_REASON } from "@/lib/auth-session";
 import { fetchSessionAccessState } from "@/lib/session-access";
 import { canAccessRoute, type PermissionUser } from "@/lib/permissions";
 import type { EmployeeType, UserRole } from "@prisma/client";
@@ -91,6 +92,7 @@ export async function proxy(request: NextRequest) {
   ) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
+    loginUrl.searchParams.set("reason", AUTH_SESSION_REPLACED_REASON);
     const response = NextResponse.redirect(loginUrl);
     response.cookies.delete("next-auth.session-token");
     response.cookies.delete("__Secure-next-auth.session-token");
