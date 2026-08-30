@@ -6742,7 +6742,7 @@ export const en = {
     activeSessionDescription:
       "This account is already signed in on another device or browser.",
     activeSessionHint:
-      "Cancel to stay on this page, or close the other session to continue signing in here. The other device will be signed out.",
+      "Cancel to stay on this page, or close the other session to continue signing in here. The other device is signed out immediately.",
     closeOtherSession: "Close Other Session",
     signedOutOtherDevice:
       "You were signed out because this account signed in on another device.",

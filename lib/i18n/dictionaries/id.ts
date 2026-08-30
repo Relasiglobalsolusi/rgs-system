@@ -6813,7 +6813,7 @@ export const id = {
     activeSessionDescription:
       "Akun ini sedang masuk di perangkat atau browser lain.",
     activeSessionHint:
-      "Batal untuk tetap di halaman ini, atau tutup sesi lain untuk lanjut masuk di sini. Perangkat lain akan keluar.",
+      "Batal untuk tetap di halaman ini, atau tutup sesi lain untuk lanjut masuk di sini. Perangkat lain langsung keluar.",
     closeOtherSession: "Tutup Sesi Lain",
     signedOutOtherDevice:
       "Anda keluar karena akun ini masuk di perangkat lain.",

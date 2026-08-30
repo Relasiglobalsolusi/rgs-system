@@ -1101,7 +1101,7 @@ export function firstLoginSystemGuideCopy(
         remember: [
           "Jangan bagikan kata sandi atau Login ID.",
           "Email pemulihan bukan kotak surat harian. Hanya untuk reset kata sandi.",
-          "Masuk di perangkat lain mengeluarkan perangkat ini, dengan pesan bahwa akun masuk di perangkat lain.",
+          "Masuk di perangkat lain langsung mengeluarkan perangkat ini, dengan pesan bahwa akun masuk di perangkat lain.",
         ],
       };
     }
@@ -1123,7 +1123,7 @@ export function firstLoginSystemGuideCopy(
       remember: [
         "Do not share your password or Login ID.",
         "Recovery email is not a daily inbox. It is only for password reset.",
-        "Signing in on another device signs this one out, with a message that the account signed in elsewhere.",
+        "Signing in on another device signs this one out immediately, with a message that the account signed in elsewhere.",
       ],
     };
   }
@@ -1147,7 +1147,7 @@ export function firstLoginSystemGuideCopy(
       remember: [
         "Jangan bagikan kata sandi.",
         "Email pemulihan bukan kotak surat harian. Hanya untuk reset kata sandi.",
-        "Masuk di perangkat lain mengeluarkan perangkat ini, dengan pesan bahwa akun masuk di perangkat lain.",
+        "Masuk di perangkat lain langsung mengeluarkan perangkat ini, dengan pesan bahwa akun masuk di perangkat lain.",
         "Jika administrator mereset akun, selesaikan Siapkan akun Anda sekali lagi.",
       ],
     };
@@ -1171,7 +1171,7 @@ export function firstLoginSystemGuideCopy(
     remember: [
       "Do not share your password.",
       "Recovery email is not a daily inbox. It is only for password reset.",
-      "Signing in on another device signs this one out, with a message that the account signed in elsewhere.",
+      "Signing in on another device signs this one out immediately, with a message that the account signed in elsewhere.",
       "If an administrator resets the account, complete Set up your account again.",
     ],
   };

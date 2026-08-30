@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 
 import { prisma } from "@/lib/prisma";
+import { notifyLoginSessionClaimed } from "@/lib/session-watch";
 
 /** Thrown from authorize when another device already holds a live session. */
 export const AUTH_ACTIVE_SESSION_CODE = "ACTIVE_SESSION";
@@ -34,6 +35,7 @@ export async function claimLoginSession(userId: string) {
     where: { id: userId },
     data: { sessionToken, sessionIssuedAt },
   });
+  notifyLoginSessionClaimed(userId, sessionToken);
   return { sessionToken, sessionIssuedAt };
 }
 
