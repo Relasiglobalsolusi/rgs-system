@@ -260,9 +260,8 @@ async function findContainingSitePlace(
     })
     .sort((a, b) => bboxArea(b.boundingbox) - bboxArea(a.boundingbox));
 
-  const best = containing[0];
-  if (!best?.display_name?.trim()) return null;
-  return best.display_name.trim();
+  const bestName = containing[0]?.display_name?.trim();
+  return bestName || null;
 }
 
 export async function reverseGeocodeNominatim(
@@ -291,8 +290,9 @@ export async function reverseGeocodeNominatim(
     nominatim = null;
   }
 
-  if (nominatim && !isTenantScalePlace(nominatim)) {
-    return nominatim.display_name.trim();
+  const nominatimName = nominatim?.display_name?.trim();
+  if (nominatim && !isTenantScalePlace(nominatim) && nominatimName) {
+    return nominatimName;
   }
 
   try {
@@ -326,11 +326,12 @@ async function searchNominatim(
   );
   if (!result.ok || !Array.isArray(result.json)) return null;
   const hit = (result.json as NominatimPlace[])[0];
-  if (!hit?.lat || !hit?.lon || !hit.display_name?.trim()) return null;
+  const displayName = hit?.display_name?.trim();
+  if (!hit?.lat || !hit?.lon || !displayName) return null;
   const lat = Number(hit.lat);
   const lng = Number(hit.lon);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  return { lat, lng, displayName: hit.display_name.trim() };
+  return { lat, lng, displayName };
 }
 
 async function searchPhoton(
