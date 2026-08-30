@@ -14,6 +14,7 @@ import {
   drawPdfPageFooter,
   letterheadFromCompany,
   loadBrandLogoBuffer,
+  loadRgsOneLogoBuffer,
   type CompanyForPdf,
   type LetterheadInfo,
 } from "@/lib/pdf-letterhead";
@@ -111,34 +112,29 @@ function drawCover(
   const locale = guide.locale;
   drawBrandAccentBar(doc, 0, true);
 
-  let y = 88;
+  let y = 72;
   if (logo) {
-    const natural = pngSize(logo) ?? { width: 320, height: 80 };
-    const size = fitSize(natural.width, natural.height, 220, 72);
+    const natural = pngSize(logo) ?? { width: 1024, height: 682 };
+    const size = fitSize(natural.width, natural.height, 280, 168);
     doc.image(logo, PAGE_MARGIN + (CONTENT_WIDTH - size.width) / 2, y, size);
-    y += size.height + 28;
+    y += size.height + 18;
   } else {
     doc
       .font("Helvetica-Bold")
       .fontSize(28)
       .fillColor(BRAND.ink)
-      .text("RGS", PAGE_MARGIN, y, { width: CONTENT_WIDTH, align: "center" });
-    y = doc.y + 18;
+      .text(RGS_ONE_PRODUCT_NAME, PAGE_MARGIN, y, {
+        width: CONTENT_WIDTH,
+        align: "center",
+      });
+    y = doc.y + 12;
   }
 
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(13)
-    .fillColor(BRAND.tealDeep)
-    .text(RGS_ONE_PRODUCT_NAME, PAGE_MARGIN, y, {
-      width: CONTENT_WIDTH,
-      align: "center",
-    });
   doc
     .font("Helvetica")
     .fontSize(8)
     .fillColor(BRAND.muted)
-    .text(RGS_ONE_SLOGAN, PAGE_MARGIN, doc.y + 6, {
+    .text(RGS_ONE_SLOGAN, PAGE_MARGIN, y, {
       width: CONTENT_WIDTH,
       align: "center",
     });
@@ -480,7 +476,8 @@ export async function buildSystemGuidePdfBuffer(input: {
   const letterhead = letterheadFromCompany(
     await ensureCompanyForPdf(input.company)
   );
-  const logo = await loadBrandLogoBuffer();
+  const letterheadLogo = await loadBrandLogoBuffer();
+  const coverLogo = (await loadRgsOneLogoBuffer()) ?? letterheadLogo;
   const { guide } = input;
   const locale = guide.locale;
 
@@ -500,10 +497,10 @@ export async function buildSystemGuidePdfBuffer(input: {
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
 
-    drawCover(doc, guide, letterhead, logo);
-    drawContentsAndIntro(doc, guide, letterhead, logo);
+    drawCover(doc, guide, letterhead, coverLogo);
+    drawContentsAndIntro(doc, guide, letterhead, letterheadLogo);
     guide.modules.forEach((_, index) => {
-      drawModuleSection(doc, guide, letterhead, logo, index);
+      drawModuleSection(doc, guide, letterhead, letterheadLogo, index);
     });
 
     const range = doc.bufferedPageRange();

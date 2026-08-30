@@ -6587,10 +6587,10 @@ export const en = {
       howToReadBody:
         "Start with First-Time Login, then follow each section in order. This handbook is written for the {position} login. It describes only what this position can do. Another position with the same module will see different steps. Status chips on screen tell you the next action. If a module is missing from the sidebar, Head Office has not given this position that access.",
       howToReadBodyClient:
-        "Start with First-Time Login, then follow each section in order. This handbook is written for a client portal login. It describes only what you can do: read your sites, review a billing period, and pay invoices you owe. It does not cover Head Office work such as paying suppliers, assigning staff, or compiling invoices.",
+        "Start with First-Time Login, then follow each section in order. This handbook is written for a client portal login. It describes only what you can do: read your sites, review a billing period, and pay invoices you owe.",
       firstLoginChapter: "First-Time Login",
-      firstLoginOpenAt: "Sign-In Page > First time signing in?",
-      firstLoginOpenAtClient: "Client Portal Sign-In Page > First time signing in?",
+      firstLoginOpenAt: "Sign-In Page > [First Time Signing In]",
+      firstLoginOpenAtClient: "Client Portal Sign-In Page > [First Time Signing In]",
       forClientUse: "For the client portal - Relasi Global Solusi",
       openAt: "Where to open it",
       steps: "How to use it",
@@ -6767,7 +6767,7 @@ export const en = {
     requestNewResetLink: "Request a new reset link",
     firstLoginTitle: "Set up your account",
     firstLoginSubtitle:
-      "First time signing in? Choose a password and recovery email to finish setting up your account.",
+      "Choose a password and recovery email to finish setting up your account.",
     finishSetupTitle: "Finish account setup",
     createPasswordTitle: "Create your password",
     welcomeName: "Welcome, {name}.",

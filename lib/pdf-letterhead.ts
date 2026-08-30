@@ -102,6 +102,31 @@ export async function loadBrandLogoBuffer(): Promise<Buffer | null> {
   }
 }
 
+function resolveRgsOneLogoPath(): string | null {
+  const root = path.join(/*turbopackIgnore: true*/ process.cwd());
+  const candidates = [
+    path.join(root, "public", "brand", "rgs-one-logo-on-light.png"),
+    path.join(root, "public", "rgs-one-logo-on-light.png"),
+    path.join(root, "public", "brand", "rgs-one-logo.png"),
+    path.join(root, "public", "rgs-one-logo.png"),
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+/** Product mark for light paper (system guide cover). Letterhead stays on other pages. */
+export async function loadRgsOneLogoBuffer(): Promise<Buffer | null> {
+  const logoPath = resolveRgsOneLogoPath();
+  if (!logoPath) return null;
+  try {
+    return await readFile(logoPath);
+  } catch {
+    return null;
+  }
+}
+
 function linesFromMultiline(value: string): string[] {
   return value
     .split(/\r?\n/)

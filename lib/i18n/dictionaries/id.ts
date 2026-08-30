@@ -6657,10 +6657,10 @@ export const id = {
       howToReadBody:
         "Mulai dari Login Pertama Kali, lalu ikuti setiap bagian berurutan. Buku ini ditulis untuk login {position}. Isinya hanya apa yang bisa dilakukan jabatan ini. Jabatan lain dengan modul yang sama akan melihat langkah yang berbeda. Chip status di layar menunjukkan langkah berikutnya. Jika sebuah modul tidak ada di sidebar, Kantor Pusat belum memberi akses itu pada jabatan ini.",
       howToReadBodyClient:
-        "Mulai dari Login Pertama Kali, lalu ikuti setiap bagian berurutan. Buku ini ditulis untuk login portal klien. Isinya hanya apa yang bisa Anda lakukan: membaca lokasi Anda, meninjau periode tagihan, dan membayar invoice yang masih Anda bayar. Buku ini tidak mencakup pekerjaan Kantor Pusat seperti membayar pemasok, menugaskan staf, atau menyusun invoice.",
+        "Mulai dari Login Pertama Kali, lalu ikuti setiap bagian berurutan. Buku ini ditulis untuk login portal klien. Isinya hanya apa yang bisa Anda lakukan: membaca lokasi Anda, meninjau periode tagihan, dan membayar invoice yang masih Anda bayar.",
       firstLoginChapter: "Login Pertama Kali",
-      firstLoginOpenAt: "Halaman Masuk > Pertama kali masuk?",
-      firstLoginOpenAtClient: "Halaman Masuk Portal Klien > Pertama kali masuk?",
+      firstLoginOpenAt: "Halaman Masuk > [Pertama Kali Masuk]",
+      firstLoginOpenAtClient: "Halaman Masuk Portal Klien > [Pertama Kali Masuk]",
       forClientUse: "Untuk portal klien - Relasi Global Solusi",
       openAt: "Di mana membukanya",
       steps: "Cara memakainya",
@@ -6838,7 +6838,7 @@ export const id = {
     requestNewResetLink: "Minta tautan reset baru",
     firstLoginTitle: "Siapkan akun Anda",
     firstLoginSubtitle:
-      "Pertama kali masuk? Pilih kata sandi dan email pemulihan untuk menyelesaikan pengaturan akun.",
+      "Pilih kata sandi dan email pemulihan untuk menyelesaikan pengaturan akun.",
     finishSetupTitle: "Selesaikan pengaturan akun",
     createPasswordTitle: "Buat kata sandi Anda",
     welcomeName: "Selamat datang, {name}.",

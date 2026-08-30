@@ -181,7 +181,6 @@ export const SYSTEM_GUIDE_PERSONA_COPY: Partial<
         ],
         remember: [
           "You only see which of your projects still have an unpaid invoice.",
-          "Supplier bills are not in the client portal.",
         ],
       },
       {
@@ -195,7 +194,6 @@ export const SYSTEM_GUIDE_PERSONA_COPY: Partial<
         ],
         remember: [
           "Anda hanya melihat proyek Anda yang invoice-nya belum lunas.",
-          "Tagihan pemasok tidak ada di portal klien.",
         ],
       }
     ),

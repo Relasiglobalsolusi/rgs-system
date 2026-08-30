@@ -3,11 +3,13 @@
 import { revalidatePath } from "next/cache";
 
 import { appPublicBaseUrl, sendTransactionalEmail } from "@/lib/mail";
+import { passwordResetEmail } from "@/lib/transactional-email";
 import { prisma } from "@/lib/prisma";
 import {
   createPasswordResetToken,
   getPasswordResetExpiry,
 } from "@/lib/password-reset";
+import { notifyLoginSessionClaimed } from "@/lib/session-watch";
 import { resolvePasswordChange } from "@/lib/user-account";
 import { normalizeUsername } from "@/lib/username";
 
@@ -56,19 +58,12 @@ export async function requestPasswordReset(
   });
 
   const resetUrl = `${appPublicBaseUrl()}/reset-password?token=${encodeURIComponent(token)}`;
+  const mailBody = passwordResetEmail({ username, resetUrl });
   const mail = await sendTransactionalEmail({
     to: user.email,
-    subject: "Reset your RGS ONE password",
-    text: `We received a request to reset your RGS ONE password.
-
-Open this link to choose a new password (expires in 1 hour):
-
-${resetUrl}
-
-If you did not request this, you can ignore this email.`,
-    html: `<p>We received a request to reset your RGS ONE password.</p>
-<p><a href="${resetUrl}">Choose a new password</a> (expires in 1 hour).</p>
-<p>If you did not request this, you can ignore this email.</p>`,
+    subject: mailBody.subject,
+    text: mailBody.text,
+    html: mailBody.html,
   });
 
   if (!mail.sent) {
@@ -128,12 +123,17 @@ export async function resetPassword(
   await prisma.$transaction([
     prisma.user.update({
       where: { id: resetToken.userId },
-      data: credentials,
+      data: {
+        ...credentials,
+        sessionToken: null,
+        sessionIssuedAt: null,
+      },
     }),
     prisma.passwordResetToken.delete({
       where: { id: resetToken.id },
     }),
   ]);
+  notifyLoginSessionClaimed(resetToken.userId, "");
 
   revalidatePath("/login");
   revalidatePath("/employees");
