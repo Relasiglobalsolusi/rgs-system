@@ -16,6 +16,8 @@ import {
   localizeSubCategory,
   localizeSubCategoryChipLines,
 } from "@/lib/i18n/labels";
+import { formatDisplayDate } from "@/lib/format-date";
+import { parseDateInput } from "@/lib/invoice-period";
 import { useT } from "@/lib/i18n/use-t";
 import { Camera, FolderKanban } from "lucide-react";
 
@@ -33,7 +35,11 @@ export default function ProgressProjectDirectory({ projects }: Props) {
     if (!normalized) return projects;
     return projects.filter(
       (project) =>
-        matchesDirectorySearch(searchQuery, project.name) ||
+        matchesDirectorySearch(
+          searchQuery,
+          project.name,
+          project.startedOn
+        ) ||
         project.location?.toLowerCase().includes(normalized)
     );
   }, [projects, searchQuery]);
@@ -47,7 +53,16 @@ export default function ProgressProjectDirectory({ projects }: Props) {
         share: 1.25,
         className: "min-w-[12rem]",
         render: (project) => (
-          <p className="font-semibold text-text">{project.name}</p>
+          <div className="min-w-0">
+            <p className="font-semibold text-text">{project.name}</p>
+            <p className="mt-1 text-xs text-subtle">
+              {t("pages.progress.startedOn", {
+                date: formatDisplayDate(parseDateInput(project.startedOn), {
+                  timeZone: "UTC",
+                }),
+              })}
+            </p>
+          </div>
         ),
       },
       {

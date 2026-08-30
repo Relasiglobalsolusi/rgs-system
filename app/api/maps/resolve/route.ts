@@ -11,6 +11,7 @@ type ResolveSuccess = {
   latitude: number;
   longitude: number;
   resolvedUrl: string;
+  address?: string;
 };
 
 type ResolveError = {

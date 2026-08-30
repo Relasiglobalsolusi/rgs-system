@@ -162,6 +162,24 @@ export function localizeBillingChipLines(
   ];
 }
 
+/** Stacked chip: "3 Days" / "Late" (or "1 Day" / "Late"). */
+export function localizeLateDaysChipLines(
+  days: number,
+  locale: AppLocale = getLocale()
+): readonly [string, string] {
+  const count = Math.max(1, Math.round(Number(days) || 0));
+  return [
+    translate(
+      locale,
+      count === 1
+        ? "status.billingChip.lateDays1One"
+        : "status.billingChip.lateDays1Other",
+      { count }
+    ),
+    translate(locale, "status.billingChip.lateDays2"),
+  ];
+}
+
 export function localizeLeaveStatus(
   status: string,
   locale: AppLocale = getLocale()

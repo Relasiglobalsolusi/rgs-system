@@ -301,11 +301,12 @@ export const SYSTEM_GUIDE_COPY: Partial<
         "Approvals is the manager inbox. It has three sections on one page: Leave & Sick, Needs Attention (item returns from Transfer Orders), and Material Requests.",
       steps: [
         "Open Approvals.",
-        "Under Leave & Sick, open a row you are allowed to decide. Read the dates, reason, and proof. Click Approve or Reject. There is no reject-reason box for leave.",
+        "Under Leave & Sick, open a row you are allowed to decide. Read the dates, reason, and proof. Click Approve or Reject. For sick leave, Approve then asks No Deduction or Deduct (type an amount for Internal Payroll). There is no reject-reason box.",
         "Under Material Requests, read the items and stock. You may add a review note. Approve creates a Transfer Order. Reject sends it back to the requester.",
         "Under Needs Attention, resolve a stuck item return with Write Off Stock, Assign To Project, or Assign To Stock.",
       ],
       remember: [
+        "Sick leave Deduct is a manual amount on Internal Payroll. The system does not calculate a fine.",
         "Approving a material request does not issue stock by itself. Warehouse still has to Mark Sent on Transfer Orders.",
       ],
     },
@@ -314,11 +315,12 @@ export const SYSTEM_GUIDE_COPY: Partial<
         "Persetujuan adalah kotak masuk manajer. Ada tiga bagian di satu halaman: Izin & Sakit, Perlu Perhatian (retur barang dari Transfer Barang), dan Permintaan Material.",
       steps: [
         "Buka Persetujuan.",
-        "Di Izin & Sakit, buka baris yang boleh Anda putuskan. Baca tanggal, alasan, dan bukti. Klik Setujui atau Tolak. Tidak ada kotak alasan penolakan untuk cuti.",
+        "Di Izin & Sakit, buka baris yang boleh Anda putuskan. Baca tanggal, alasan, dan bukti. Klik Setujui atau Tolak. Untuk cuti sakit, Setujui lalu menanyakan Tanpa Potong atau Potong (ketik jumlah untuk Penggajian Internal). Tidak ada kotak alasan penolakan.",
         "Di Permintaan Material, baca item dan stok. Anda boleh menambah catatan tinjauan. Setujui membuat Transfer Barang. Tolak mengembalikannya ke pemohon.",
         "Di Perlu Perhatian, selesaikan retur yang macet dengan Hapus Stok, Tetapkan Ke Proyek, atau Tetapkan Ke Stok.",
       ],
       remember: [
+        "Potong pada cuti sakit adalah jumlah manual di Penggajian Internal. Sistem tidak menghitung denda.",
         "Menyetujui permintaan material tidak mengeluarkan stok sendiri. Gudang masih harus Tandai Terkirim di Transfer Barang.",
       ],
     }
@@ -1070,6 +1072,107 @@ export function fallbackSystemGuideCopy(
     ],
     remember: [
       "Detailed steps for this module have not been written yet. Follow the labels on screen. Head Office can update this guide.",
+    ],
+  };
+}
+
+/** Always chapter 1. Same screens for every login; wording follows the reader. */
+export function firstLoginSystemGuideCopy(
+  locale: AppLocale,
+  audience: "position" | "client"
+): SystemGuideModuleCopy {
+  if (audience === "client") {
+    if (locale === "id") {
+      return {
+        purpose:
+          "Login pertama menyiapkan kata sandi portal klien dan email pemulihan. Setelah itu Anda masuk dengan Login ID organisasi dan kata sandi yang Anda pilih.",
+        steps: [
+          "Buka halaman masuk yang diberikan Relasi Global Solusi.",
+          "Pakai pemilih bahasa di atas judul jika Anda ingin English atau Bahasa Indonesia.",
+          "Klik Pertama kali masuk?",
+          "Pada Siapkan akun Anda, ketik Username. Itu adalah Login ID portal delapan huruf yang diberikan Kantor Pusat untuk organisasi Anda.",
+          "Isi Kata sandi baru (minimal 8 karakter) dan ketik Konfirmasi kata sandi yang sama.",
+          "Isi Email pemulihan. Dipakai hanya untuk Lupa kata sandi?",
+          "Klik Simpan dan masuk. Setelah itu Anda melihat catatan organisasi Anda saja.",
+          "Kunjungan berikutnya: masuk dengan Username dan kata sandi itu. Jangan memakai Pertama kali masuk? lagi.",
+          "Jika muncul Akun Sudah Masuk, pilih Batal atau Tutup Sesi Lain. Hanya satu perangkat yang boleh tetap masuk.",
+          "Jika lupa kata sandi, klik Lupa kata sandi? dan pakai Username. Tautan reset dikirim ke Email pemulihan.",
+        ],
+        remember: [
+          "Jangan bagikan kata sandi atau Login ID.",
+          "Email pemulihan bukan kotak surat harian. Hanya untuk reset kata sandi.",
+          "Masuk di perangkat lain mengeluarkan perangkat ini, dengan pesan bahwa akun masuk di perangkat lain.",
+        ],
+      };
+    }
+    return {
+      purpose:
+        "First-time login sets the client portal password and recovery email. After that you sign in with your organization's Login ID and the password you chose.",
+      steps: [
+        "Open the sign-in page Relasi Global Solusi gave you.",
+        "Use the language switcher above the title if you want English or Bahasa Indonesia.",
+        "Click First time signing in?",
+        "On Set up your account, type Username. That is the eight-letter portal Login ID Head Office gave your organization.",
+        "Enter New password (at least 8 characters) and type Confirm password the same way.",
+        "Enter Recovery email. It is used only for Forgot password?",
+        "Click Save and sign in. After that you see only your organization's records.",
+        "Later visits: sign in with Username and that password. Do not use First time signing in? again.",
+        "If you see Account Already Signed In, choose Cancel or Close Other Session. Only one device can stay signed in.",
+        "If you forget the password, click Forgot password? and use your Username. The reset link goes to Recovery email.",
+      ],
+      remember: [
+        "Do not share your password or Login ID.",
+        "Recovery email is not a daily inbox. It is only for password reset.",
+        "Signing in on another device signs this one out, with a message that the account signed in elsewhere.",
+      ],
+    };
+  }
+
+  if (locale === "id") {
+    return {
+      purpose:
+        "Login pertama menyiapkan kata sandi RGS ONE dan email pemulihan. Setelah itu Anda masuk dengan Username yang diberikan Kantor Pusat dan kata sandi yang Anda pilih.",
+      steps: [
+        "Buka halaman masuk yang diberikan administrator Anda.",
+        "Pakai pemilih bahasa di atas judul jika Anda ingin English atau Bahasa Indonesia.",
+        "Klik Pertama kali masuk?",
+        "Pada Siapkan akun Anda, ketik Username yang diberikan Kantor Pusat.",
+        "Isi Kata sandi baru (minimal 8 karakter) dan ketik Konfirmasi kata sandi yang sama.",
+        "Isi Email pemulihan. Dipakai hanya untuk Lupa kata sandi?",
+        "Klik Simpan dan masuk. Setelah itu Anda dibawa ke Dasbor, atau halaman pertama yang boleh dibuka login ini.",
+        "Kunjungan berikutnya: masuk dengan Username dan kata sandi itu. Jangan memakai Pertama kali masuk? lagi.",
+        "Jika muncul Akun Sudah Masuk, pilih Batal atau Tutup Sesi Lain. Hanya satu perangkat yang boleh tetap masuk.",
+        "Jika lupa kata sandi, klik Lupa kata sandi? dan pakai Username. Tautan reset dikirim ke Email pemulihan.",
+      ],
+      remember: [
+        "Jangan bagikan kata sandi.",
+        "Email pemulihan bukan kotak surat harian. Hanya untuk reset kata sandi.",
+        "Masuk di perangkat lain mengeluarkan perangkat ini, dengan pesan bahwa akun masuk di perangkat lain.",
+        "Jika administrator mereset akun, selesaikan Siapkan akun Anda sekali lagi.",
+      ],
+    };
+  }
+
+  return {
+    purpose:
+      "First-time login sets your RGS ONE password and recovery email. After that you sign in with the Username Head Office gave you and the password you chose.",
+    steps: [
+      "Open the sign-in page your administrator gave you.",
+      "Use the language switcher above the title if you want English or Bahasa Indonesia.",
+      "Click First time signing in?",
+      "On Set up your account, type the Username Head Office gave you.",
+      "Enter New password (at least 8 characters) and type Confirm password the same way.",
+      "Enter Recovery email. It is used only for Forgot password?",
+      "Click Save and sign in. After that you are taken to Dashboard, or the first page this login can open.",
+      "Later visits: sign in with Username and that password. Do not use First time signing in? again.",
+      "If you see Account Already Signed In, choose Cancel or Close Other Session. Only one device can stay signed in.",
+      "If you forget the password, click Forgot password? and use your Username. The reset link goes to Recovery email.",
+    ],
+    remember: [
+      "Do not share your password.",
+      "Recovery email is not a daily inbox. It is only for password reset.",
+      "Signing in on another device signs this one out, with a message that the account signed in elsewhere.",
+      "If an administrator resets the account, complete Set up your account again.",
     ],
   };
 }

@@ -78,191 +78,197 @@ export default function FinancialReportFilters({
     });
   }
 
+  const fieldLabelClass =
+    "text-xs font-semibold uppercase tracking-wide text-subtle";
+  const triggerClass = cn(directoryFilterSelectTriggerClass, "w-full");
+
   return (
-    <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-      <label className="grid min-w-0 w-full gap-1.5 sm:min-w-[11rem] sm:w-auto">
-        <span className="text-xs font-semibold uppercase tracking-wide text-subtle">
-          {t("pages.financialReport.filterPeriod")}
-        </span>
-        <Select
-          value={periodValue}
-          onValueChange={(value) => {
-            if (value == null) return;
-            navigate(
-              {
-                ...selection,
-                year: selection.year,
-                month:
+    <div
+      className={cn(
+        "mb-6 flex flex-col gap-3 lg:flex-row lg:items-end",
+        pending && "pointer-events-none opacity-70"
+      )}
+    >
+      <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <label className="grid min-w-0 gap-1.5">
+          <span className={fieldLabelClass}>
+            {t("pages.financialReport.filterPeriod")}
+          </span>
+          <Select
+            value={periodValue}
+            onValueChange={(value) => {
+              if (value == null) return;
+              navigate(
+                {
+                  ...selection,
+                  year: selection.year,
+                  month:
+                    value === FINANCIAL_REPORT_YEARLY_MONTH
+                      ? null
+                      : Number(value),
+                },
+                scopeClientId
+              );
+            }}
+          >
+            <SelectTrigger
+              aria-label={t("pages.financialReport.filterPeriod")}
+              className={triggerClass}
+            >
+              <SelectValue>
+                {(value) =>
                   value === FINANCIAL_REPORT_YEARLY_MONTH
-                    ? null
-                    : Number(value),
-              },
-              scopeClientId
-            );
-          }}
-        >
-          <SelectTrigger
-            aria-label={t("pages.financialReport.filterPeriod")}
-            className={cn(directoryFilterSelectTriggerClass, "w-full sm:w-[14rem]")}
+                    ? t("pages.financialReport.filterPeriodYearly")
+                    : value
+                      ? t(`pages.reports.months.${value}`)
+                      : t("pages.financialReport.filterPeriod")
+                }
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={FINANCIAL_REPORT_YEARLY_MONTH}>
+                {t("pages.financialReport.filterPeriodYearly")}
+              </SelectItem>
+              {Array.from({ length: 12 }, (_, index) => String(index + 1)).map(
+                (month) => (
+                  <SelectItem key={month} value={month}>
+                    {t(`pages.reports.months.${month}`)}
+                  </SelectItem>
+                )
+              )}
+            </SelectContent>
+          </Select>
+        </label>
+
+        <label className="grid min-w-0 gap-1.5">
+          <span className={fieldLabelClass}>
+            {t("pages.financialReport.filterYear")}
+          </span>
+          <Select
+            value={String(selection.year)}
+            onValueChange={(value) => {
+              if (value == null) return;
+              navigate(
+                { ...selection, year: Number(value), month: selection.month },
+                scopeClientId
+              );
+            }}
           >
-            <SelectValue>
-              {(value) =>
-                value === FINANCIAL_REPORT_YEARLY_MONTH
-                  ? t("pages.financialReport.filterPeriodYearly")
-                  : value
-                    ? t(`pages.reports.months.${value}`)
-                    : t("pages.financialReport.filterPeriod")
-              }
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={FINANCIAL_REPORT_YEARLY_MONTH}>
-              {t("pages.financialReport.filterPeriodYearly")}
-            </SelectItem>
-            {Array.from({ length: 12 }, (_, index) => String(index + 1)).map(
-              (month) => (
-                <SelectItem key={month} value={month}>
-                  {t(`pages.reports.months.${month}`)}
+            <SelectTrigger
+              aria-label={t("pages.financialReport.filterYear")}
+              className={triggerClass}
+            >
+              <SelectValue>
+                {(value) => value ?? t("pages.financialReport.filterYear")}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {yearOptions.map((year) => (
+                <SelectItem key={year} value={String(year)}>
+                  {year}
                 </SelectItem>
-              )
-            )}
-          </SelectContent>
-        </Select>
-      </label>
+              ))}
+            </SelectContent>
+          </Select>
+        </label>
 
-      <label className="grid min-w-0 w-full gap-1.5 sm:min-w-[7rem] sm:w-auto">
-        <span className="text-xs font-semibold uppercase tracking-wide text-subtle">
-          {t("pages.financialReport.filterYear")}
-        </span>
-        <Select
-          value={String(selection.year)}
-          onValueChange={(value) => {
-            if (value == null) return;
-            navigate(
-              { ...selection, year: Number(value), month: selection.month },
-              scopeClientId
-            );
-          }}
-        >
-          <SelectTrigger
-            aria-label={t("pages.financialReport.filterYear")}
-            className={cn(directoryFilterSelectTriggerClass, "w-full sm:w-[7.5rem]")}
+        <label className="grid min-w-0 gap-1.5">
+          <span className={fieldLabelClass}>
+            {t("pages.financialReport.filterReport")}
+          </span>
+          <Select
+            value={scopeValue}
+            onValueChange={(value) => {
+              if (value == null) return;
+              navigate(
+                selection,
+                value === FINANCIAL_REPORT_GENERAL_SCOPE ? null : value
+              );
+            }}
           >
-            <SelectValue>
-              {(value) => value ?? t("pages.financialReport.filterYear")}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {yearOptions.map((year) => (
-              <SelectItem key={year} value={String(year)}>
-                {year}
+            <SelectTrigger
+              aria-label={t("pages.financialReport.filterReport")}
+              className={triggerClass}
+            >
+              <SelectValue>
+                {(value) => {
+                  if (!value || value === FINANCIAL_REPORT_GENERAL_SCOPE) {
+                    return t("pages.financialReport.filterReportGeneral");
+                  }
+                  return (
+                    clients.find((client) => client.id === value)?.name ??
+                    t("pages.financialReport.filterReport")
+                  );
+                }}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={FINANCIAL_REPORT_GENERAL_SCOPE}>
+                {t("pages.financialReport.filterReportGeneral")}
               </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </label>
+              {clients.map((client) => (
+                <SelectItem key={client.id} value={client.id}>
+                  {client.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </label>
 
-      <label className="grid min-w-0 w-full flex-1 gap-1.5 sm:min-w-[14rem]">
-        <span className="text-xs font-semibold uppercase tracking-wide text-subtle">
-          {t("pages.financialReport.filterReport")}
-        </span>
-        <Select
-          value={scopeValue}
-          onValueChange={(value) => {
-            if (value == null) return;
-            navigate(
-              selection,
-              value === FINANCIAL_REPORT_GENERAL_SCOPE ? null : value
-            );
-          }}
-        >
-          <SelectTrigger
-            aria-label={t("pages.financialReport.filterReport")}
-            className={cn(directoryFilterSelectTriggerClass, "w-full")}
+        <label className="grid min-w-0 gap-1.5">
+          <span className={fieldLabelClass}>
+            {t("pages.financialReport.filterBank")}
+          </span>
+          <Select
+            value={bankValue}
+            onValueChange={(value) => {
+              if (value == null) return;
+              navigate({ ...selection, bank: value }, scopeClientId);
+            }}
           >
-            <SelectValue>
-              {(value) => {
-                if (!value || value === FINANCIAL_REPORT_GENERAL_SCOPE) {
-                  return t("pages.financialReport.filterReportGeneral");
-                }
-                return (
-                  clients.find((client) => client.id === value)?.name ??
-                  t("pages.financialReport.filterReport")
-                );
-              }}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={FINANCIAL_REPORT_GENERAL_SCOPE}>
-              {t("pages.financialReport.filterReportGeneral")}
-            </SelectItem>
-            {clients.map((client) => (
-              <SelectItem key={client.id} value={client.id}>
-                {client.name}
+            <SelectTrigger
+              aria-label={t("pages.financialReport.filterBank")}
+              className={triggerClass}
+            >
+              <SelectValue>
+                {(value) => {
+                  if (!value || value === FINANCIAL_REPORT_ALL_BANKS) {
+                    return t("pages.financialReport.filterBankAll");
+                  }
+                  if (value === FINANCIAL_REPORT_UNASSIGNED_BANK) {
+                    return t("pages.financialReport.filterBankUnassigned");
+                  }
+                  const account = bankAccounts.find((row) => row.id === value);
+                  return account
+                    ? formatBankAccountOptionLabel(account)
+                    : t("pages.financialReport.filterBank");
+                }}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={FINANCIAL_REPORT_ALL_BANKS}>
+                {t("pages.financialReport.filterBankAll")}
               </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </label>
+              <SelectItem value={FINANCIAL_REPORT_UNASSIGNED_BANK}>
+                {t("pages.financialReport.filterBankUnassigned")}
+              </SelectItem>
+              {bankAccounts.map((account) => (
+                <SelectItem key={account.id} value={account.id}>
+                  {formatBankAccountOptionLabel(account)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </label>
+      </div>
 
-      <label className="grid min-w-0 w-full gap-1.5 sm:min-w-[14rem]">
-        <span className="text-xs font-semibold uppercase tracking-wide text-subtle">
-          {t("pages.financialReport.filterBank")}
-        </span>
-        <Select
-          value={bankValue}
-          onValueChange={(value) => {
-            if (value == null) return;
-            navigate({ ...selection, bank: value }, scopeClientId);
-          }}
-        >
-          <SelectTrigger
-            aria-label={t("pages.financialReport.filterBank")}
-            className={cn(directoryFilterSelectTriggerClass, "w-full sm:w-[16rem]")}
-          >
-            <SelectValue>
-              {(value) => {
-                if (!value || value === FINANCIAL_REPORT_ALL_BANKS) {
-                  return t("pages.financialReport.filterBankAll");
-                }
-                if (value === FINANCIAL_REPORT_UNASSIGNED_BANK) {
-                  return t("pages.financialReport.filterBankUnassigned");
-                }
-                const account = bankAccounts.find((row) => row.id === value);
-                return account
-                  ? formatBankAccountOptionLabel(account)
-                  : t("pages.financialReport.filterBank");
-              }}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={FINANCIAL_REPORT_ALL_BANKS}>
-              {t("pages.financialReport.filterBankAll")}
-            </SelectItem>
-            <SelectItem value={FINANCIAL_REPORT_UNASSIGNED_BANK}>
-              {t("pages.financialReport.filterBankUnassigned")}
-            </SelectItem>
-            {bankAccounts.map((account) => (
-              <SelectItem key={account.id} value={account.id}>
-                {formatBankAccountOptionLabel(account)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </label>
       {action ? (
-        <div className="grid gap-1.5">
-          <span
-            className="invisible text-xs font-semibold uppercase tracking-wide"
-            aria-hidden
-          >
+        <div className="grid shrink-0 gap-1.5">
+          <span className={cn(fieldLabelClass, "hidden lg:invisible lg:block")} aria-hidden>
             {t("pages.financialReport.downloadReport")}
           </span>
           {action}
         </div>
-      ) : null}
-      {pending ? (
-        <p className="text-sm text-subtle">{t("common.actions.loading")}</p>
       ) : null}
     </div>
   );

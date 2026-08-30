@@ -403,18 +403,6 @@ export default async function ReconciliationPage({
                         </div>
                         <div className="flex w-full min-w-0 flex-col items-stretch gap-2 sm:w-auto sm:min-w-[9.75rem] sm:items-end">
                           <Link
-                            href={detailHref}
-                            className={cn(
-                              buttonVariants({
-                                variant: "default",
-                                size: "sm",
-                              }),
-                              "w-full justify-center sm:w-[9.75rem]"
-                            )}
-                          >
-                            {t("pages.reconciliation.openDetails")}
-                          </Link>
-                          <Link
                             href={billingHref}
                             className={cn(
                               buttonVariants({

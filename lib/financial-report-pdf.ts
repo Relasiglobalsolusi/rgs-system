@@ -78,6 +78,7 @@ const DEDUCTION_LABEL: Record<PayrollDeductionType, string> = {
   CLIENT_COMPENSATION: "pages.payroll.deductionTypes.clientCompensation",
   FORFEITED_WAGES: "pages.payroll.deductionTypes.forfeitedWages",
   CASH_ADVANCE: "pages.payroll.deductionTypes.cashAdvance",
+  SICK_LEAVE: "pages.payroll.deductionTypes.sickLeave",
 };
 
 export type FinancialReportSource =

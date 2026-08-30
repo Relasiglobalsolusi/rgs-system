@@ -2,23 +2,23 @@
 
 import { jakartaYearMonth } from "@/lib/vat";
 
-/** Number plate - year + type - catalog vehicle code. */
+/** Plate - year + type (catalog code). */
 export function formatVehicleIdentityLabel(parts: {
   plate?: string | null;
   name?: string | null;
   sku?: string | null;
   year?: number | string | null;
-  cardNumber?: string | null;
 }): string {
   const plate = parts.plate?.trim() || "";
   const year =
     parts.year != null && String(parts.year).trim() !== ""
       ? String(parts.year).trim()
       : "";
-  const typeName = parts.cardNumber?.trim() || parts.name?.trim() || "";
-  const cardOrName = [year, typeName].filter(Boolean).join(" ");
+  const typeName = parts.name?.trim() || "";
+  const titled = [year, typeName].filter(Boolean).join(" ");
   const sku = parts.sku?.trim() || "";
-  return [plate, cardOrName, sku].filter(Boolean).join(" - ");
+  const model = sku ? (titled ? `${titled} (${sku})` : `(${sku})`) : titled;
+  return [plate, model].filter(Boolean).join(" - ");
 }
 
 export function normalizeVehiclePlate(raw: string): string {

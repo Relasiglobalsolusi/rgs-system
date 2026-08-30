@@ -266,6 +266,8 @@ export function payrollDeductionTypeLabel(
       return translate(locale, "pages.payroll.deductionTypes.forfeitedWages");
     case "CASH_ADVANCE":
       return translate(locale, "pages.payroll.deductionTypes.cashAdvance");
+    case "SICK_LEAVE":
+      return translate(locale, "pages.payroll.deductionTypes.sickLeave");
     default:
       return type;
   }

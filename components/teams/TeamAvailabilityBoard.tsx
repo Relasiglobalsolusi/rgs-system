@@ -109,11 +109,11 @@ export default function TeamAvailabilityBoard({
                   <p className="text-sm text-muted">{team.typeLabel}</p>
                 </div>
                 {team.occupiedProjectName ? (
-                  <div className="flex min-w-0 max-w-[16rem] flex-col items-end gap-1">
+                  <div className="flex min-w-0 max-w-[16rem] flex-col items-end gap-2.5">
                     <StatusBadge status="warning" compact className="w-fit shrink-0">
                       {t("pages.teams.statusOnSite")}
                     </StatusBadge>
-                    <span className="max-w-full break-words text-right text-xs leading-snug text-muted">
+                    <span className="max-w-full break-words text-right text-sm font-medium leading-snug text-text">
                       {team.occupiedProjectName}
                     </span>
                   </div>

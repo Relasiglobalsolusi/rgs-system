@@ -97,11 +97,10 @@ export default function PendingLeaveTable({ data }: Props) {
       {
         key: "actions",
         title: t("common.labels.actions"),
-        // Two 7.5rem chips + gap-2 + pl-4 + pr-10. The directory 24rem
-        // parking width would keep a slider on a 1440 laptop + sidebar.
+        // Two 7.5rem chips + gap-2. Sick leave asks about deduction after Approve.
         width: "19rem",
         cellAlign: "center",
-        render: (row) => <ApprovalActions id={row.id} />,
+        render: (row) => <ApprovalActions id={row.id} type={row.type} />,
       },
     ],
     [t]

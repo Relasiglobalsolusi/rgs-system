@@ -1141,12 +1141,13 @@ export const SYSTEM_GUIDE_PERSONA_COPY: Partial<
           "Approvals is your inbox. It has three sections on one page: Leave & Sick, Needs Attention (item returns from Transfer Orders), and Material Requests.",
         steps: [
           "Open Approvals from the sidebar.",
-          "Open a Leave & Sick row you are allowed to decide, then Approve or Reject.",
+          "Open a Leave & Sick row you are allowed to decide, then Approve or Reject. For sick leave, Approve then asks No Deduction or Deduct.",
           "Open Needs Attention when a site marked Did Not Receive on a transfer.",
           "Open Material Requests to approve or reject a warehouse request from the crew.",
         ],
         remember: [
           "You cannot approve your own leave.",
+          "Sick leave Deduct is a manual amount. The system does not calculate a fine.",
           "The leave chain in the next steps is the live company rule.",
         ],
       },
@@ -1155,12 +1156,13 @@ export const SYSTEM_GUIDE_PERSONA_COPY: Partial<
           "Persetujuan adalah kotak masuk Anda. Ada tiga bagian di satu halaman: Izin & Sakit, Perlu Perhatian (retur barang dari Transfer Barang), dan Permintaan Material.",
         steps: [
           "Buka Persetujuan dari sidebar.",
-          "Buka baris Izin & Sakit yang boleh Anda putuskan, lalu Setujui atau Tolak.",
+          "Buka baris Izin & Sakit yang boleh Anda putuskan, lalu Setujui atau Tolak. Untuk cuti sakit, Setujui lalu menanyakan Tanpa Potong atau Potong.",
           "Buka Perlu Perhatian saat lokasi menandai Tidak Diterima pada transfer.",
           "Buka Permintaan Material untuk menyetujui atau menolak permintaan gudang dari kru.",
         ],
         remember: [
           "Anda tidak bisa menyetujui cuti sendiri.",
+          "Potong pada cuti sakit adalah jumlah manual. Sistem tidak menghitung denda.",
           "Rantai cuti di langkah berikutnya adalah aturan perusahaan yang berlaku.",
         ],
       }

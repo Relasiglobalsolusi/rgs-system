@@ -331,6 +331,14 @@ export default function InventorySoldOffDetailDialog({
                   ) : null}
                 </p>
                 <p className="mt-2 text-xs text-muted">
+                  {row.invoiceNumber ? (
+                    <>
+                      <span className="font-medium text-text">
+                        {row.invoiceNumber}
+                      </span>
+                      <span className="mx-1.5 text-border-strong">·</span>
+                    </>
+                  ) : null}
                   {formatDisplayDate(row.soldAt)}
                   {soldByLabel ? (
                     <>
@@ -441,9 +449,19 @@ export default function InventorySoldOffDetailDialog({
             )}
 
             <div className="space-y-2 border-t border-border pt-4">
-              <h4 className="text-sm font-semibold text-text">
-                {t("pages.inventory.saleDetailsDocuments")}
-              </h4>
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h4 className="text-sm font-semibold text-text">
+                  {t("pages.inventory.saleDetailsDocuments")}
+                </h4>
+                {row.invoiceNumber ? (
+                  <p className="text-sm font-medium tabular-nums text-text">
+                    <span className="mr-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-subtle">
+                      {t("pages.inventory.saleDetailsInvoice")}
+                    </span>
+                    {row.invoiceNumber}
+                  </p>
+                ) : null}
+              </div>
               {docs.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {docs.map((doc) => (

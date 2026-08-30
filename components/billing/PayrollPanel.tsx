@@ -105,6 +105,10 @@ function deductionLabelKey(type: PayrollDeductionRow["type"]) {
       return "pages.payroll.deductionTypes.clientCompensation" as const;
     case "FORFEITED_WAGES":
       return "pages.payroll.deductionTypes.forfeitedWages" as const;
+    case "CASH_ADVANCE":
+      return "pages.payroll.deductionTypes.cashAdvance" as const;
+    case "SICK_LEAVE":
+      return "pages.payroll.deductionTypes.sickLeave" as const;
     default:
       return "pages.payroll.deductionTypes.other" as const;
   }

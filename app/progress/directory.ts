@@ -7,12 +7,40 @@ import { prisma } from "@/lib/prisma";
 import { getProjectWhereForUser } from "@/lib/project-access";
 import { PROJECT_SITE_WORK_STATUSES } from "@/lib/project-status";
 import { PROGRESS_ELIGIBLE_PROJECT_SUB_CATEGORIES } from "@/lib/project-subcategory";
+import { formatDateInput } from "@/lib/invoice-period";
 import {
   PROGRESS_INTERNAL_ROUTE_CLIENT_ID,
   type ProgressDirectory,
   type ProgressProjectRow,
 } from "@/lib/progress-directory";
+import { resolveProjectWorkStartDate } from "@/lib/report-period-bounds";
 import { requireModule } from "@/lib/session";
+
+const progressProjectDateSelect = {
+  startDate: true,
+  estimatedStartDate: true,
+  createdAt: true,
+} as const;
+
+function toProgressProjectRow(project: {
+  id: string;
+  name: string;
+  location: string | null;
+  subCategory: ProgressProjectRow["subCategory"];
+  startDate: Date | null;
+  estimatedStartDate: Date | null;
+  createdAt: Date;
+  _count: { progressReports: number };
+}): ProgressProjectRow {
+  return {
+    id: project.id,
+    name: project.name,
+    location: project.location,
+    subCategory: project.subCategory,
+    reportCount: project._count.progressReports,
+    startedOn: formatDateInput(resolveProjectWorkStartDate(project)),
+  };
+}
 
 export { progressRouteClientId } from "@/lib/progress-directory";
 
@@ -156,6 +184,7 @@ export async function getProgressProjectsForClient(clientId: string): Promise<{
         location: true,
         serviceArea: true,
         subCategory: true,
+        ...progressProjectDateSelect,
         _count: { select: { progressReports: true } },
       },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -167,13 +196,7 @@ export async function getProgressProjectsForClient(clientId: string): Promise<{
       clientName: "Internal",
       isInternal: true,
       routeClientId: PROGRESS_INTERNAL_ROUTE_CLIENT_ID,
-      projects: internal.map((project) => ({
-        id: project.id,
-        name: project.name,
-        location: project.location,
-        subCategory: project.subCategory,
-        reportCount: project._count.progressReports,
-      })),
+      projects: internal.map(toProgressProjectRow),
     };
   }
 
@@ -194,6 +217,7 @@ export async function getProgressProjectsForClient(clientId: string): Promise<{
           name: true,
           location: true,
           subCategory: true,
+          ...progressProjectDateSelect,
           _count: { select: { progressReports: true } },
         },
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -206,12 +230,6 @@ export async function getProgressProjectsForClient(clientId: string): Promise<{
     clientName: client.name,
     isInternal: false,
     routeClientId: client.id,
-    projects: client.projects.map((project) => ({
-      id: project.id,
-      name: project.name,
-      location: project.location,
-      subCategory: project.subCategory,
-      reportCount: project._count.progressReports,
-    })),
+    projects: client.projects.map(toProgressProjectRow),
   };
 }

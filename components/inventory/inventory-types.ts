@@ -112,6 +112,7 @@ export type InventorySoldOffRow = {
   buyerTaxId: string | null;
   buyerRegistration: string | null;
   buyerIdentityDocUrl: string | null;
+  invoiceNumber: string | null;
   invoiceUrl: string | null;
   paymentProofUrl: string | null;
   paidAt: string | null;

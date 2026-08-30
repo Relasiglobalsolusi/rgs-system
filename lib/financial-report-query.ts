@@ -62,9 +62,10 @@ export function parseFinancialReportSelection(
 ): FinancialReportSelection {
   const current = jakartaYearMonth(now);
   const yearRaw = Number(firstParam(params.year));
-  const year = Number.isFinite(yearRaw)
-    ? Math.max(2000, Math.min(2100, Math.round(yearRaw)))
-    : current.year;
+  const year =
+    Number.isFinite(yearRaw) && yearRaw >= 2000 && yearRaw <= 2100
+      ? Math.round(yearRaw)
+      : current.year;
 
   const bankRaw = firstParam(params.bank);
   const bank = bankRaw || FINANCIAL_REPORT_ALL_BANKS;

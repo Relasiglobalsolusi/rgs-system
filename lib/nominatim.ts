@@ -46,7 +46,119 @@ type NominatimPlace = {
   lat?: string;
   lon?: string;
   error?: string;
+  osm_type?: string;
+  category?: string;
+  class?: string;
+  type?: string;
+  name?: string;
+  address?: Record<string, string | undefined>;
+  boundingbox?: string[];
 };
+
+/** Buildings / institutions we keep as the site name. Tenant shops are dropped. */
+const SITE_SCALE_TYPES = new Set([
+  "mall",
+  "supermarket",
+  "department_store",
+  "wholesale",
+  "hospital",
+  "clinic",
+  "school",
+  "university",
+  "college",
+  "townhall",
+  "police",
+  "fire_station",
+  "place_of_worship",
+  "community_centre",
+  "library",
+  "theatre",
+  "cinema",
+  "parking",
+  "bus_station",
+  "ferry_terminal",
+  "hotel",
+  "hostel",
+  "motel",
+]);
+
+function isTenantCategory(category: string, type: string): boolean {
+  if (category !== "amenity" && category !== "shop" && category !== "craft") {
+    return false;
+  }
+  return !SITE_SCALE_TYPES.has(type);
+}
+
+function isTenantScalePlace(place: NominatimPlace): boolean {
+  const category = (place.category ?? place.class ?? "").toLowerCase();
+  const type = (place.type ?? "").toLowerCase();
+  return isTenantCategory(category, type);
+}
+
+function isTenantPhoton(props: PhotonProperties): boolean {
+  const category = (props.osm_key ?? "").toLowerCase();
+  const type = (props.osm_value ?? "").toLowerCase();
+  return isTenantCategory(category, type);
+}
+
+/** Nominatim bbox is south, north, west, east. */
+function bboxContains(
+  bbox: string[] | undefined,
+  lat: number,
+  lng: number
+): boolean {
+  if (!bbox || bbox.length < 4) return false;
+  const south = Number(bbox[0]);
+  const north = Number(bbox[1]);
+  const west = Number(bbox[2]);
+  const east = Number(bbox[3]);
+  if (![south, north, west, east].every(Number.isFinite)) return false;
+  return (
+    lat >= Math.min(south, north) &&
+    lat <= Math.max(south, north) &&
+    lng >= Math.min(west, east) &&
+    lng <= Math.max(west, east)
+  );
+}
+
+function bboxArea(bbox: string[] | undefined): number {
+  if (!bbox || bbox.length < 4) return 0;
+  return (
+    Math.abs(Number(bbox[1]) - Number(bbox[0])) *
+    Math.abs(Number(bbox[3]) - Number(bbox[2]))
+  );
+}
+
+function joinAddressParts(parts: Array<string | undefined | null>): string | null {
+  const deduped: string[] = [];
+  for (const part of parts) {
+    const trimmed = part?.trim();
+    if (!trimmed) continue;
+    if (deduped.some((existing) => existing.toLowerCase() === trimmed.toLowerCase())) {
+      continue;
+    }
+    deduped.push(trimmed);
+  }
+  return deduped.length ? deduped.join(", ") : null;
+}
+
+function formatNominatimStreetAddress(
+  address: Record<string, string | undefined> | undefined
+): string | null {
+  if (!address) return null;
+  return joinAddressParts([
+    [address.house_number, address.road].filter(Boolean).join(" "),
+    address.city_block,
+    address.neighbourhood,
+    address.quarter,
+    address.village,
+    address.suburb,
+    address.city_district,
+    address.city || address.town,
+    address.postcode,
+    address.country,
+  ]);
+}
 
 type PhotonProperties = {
   name?: string;
@@ -59,6 +171,8 @@ type PhotonProperties = {
   postcode?: string;
   locality?: string;
   county?: string;
+  osm_key?: string;
+  osm_value?: string;
 };
 
 type PhotonFeature = {
@@ -71,39 +185,25 @@ function formatPhotonAddress(props: PhotonProperties): string | null {
     .filter(Boolean)
     .join(" ")
     .trim();
-  const parts = [
-    streetLine || props.name,
+  return joinAddressParts([
+    props.name,
+    streetLine,
     props.district || props.locality,
     props.city || props.county,
-    props.state,
     props.postcode,
     props.country,
-  ].filter((p): p is string => Boolean(p?.trim()));
-
-  // Deduplicate consecutive identical labels (e.g. name === district)
-  const deduped: string[] = [];
-  for (const part of parts) {
-    const trimmed = part.trim();
-    if (!trimmed) continue;
-    if (
-      deduped.length &&
-      deduped[deduped.length - 1].toLowerCase() === trimmed.toLowerCase()
-    ) {
-      continue;
-    }
-    deduped.push(trimmed);
-  }
-  return deduped.length ? deduped.join(", ") : null;
+  ]);
 }
 
 async function reverseNominatim(
   lat: number,
   lng: number
-): Promise<string | null> {
+): Promise<NominatimPlace | null> {
   const params = new URLSearchParams({
     lat: String(lat),
     lon: String(lng),
-    format: "json",
+    format: "jsonv2",
+    addressdetails: "1",
   });
   const result = await fetchJson(
     `${NOMINATIM_BASE}/reverse?${params.toString()}`,
@@ -112,10 +212,13 @@ async function reverseNominatim(
   if (!result.ok || !result.json || typeof result.json !== "object") return null;
   const data = result.json as NominatimPlace;
   if (data.error || !data.display_name?.trim()) return null;
-  return data.display_name.trim();
+  return data;
 }
 
-async function reversePhoton(lat: number, lng: number): Promise<string | null> {
+async function reversePhoton(
+  lat: number,
+  lng: number
+): Promise<PhotonProperties | null> {
   const params = new URLSearchParams({
     lat: String(lat),
     lon: String(lng),
@@ -125,9 +228,41 @@ async function reversePhoton(lat: number, lng: number): Promise<string | null> {
   );
   if (!result.ok || !result.json || typeof result.json !== "object") return null;
   const collection = result.json as { features?: PhotonFeature[] };
-  const props = collection.features?.[0]?.properties;
-  if (!props) return null;
-  return formatPhotonAddress(props);
+  return collection.features?.[0]?.properties ?? null;
+}
+
+/** Mall / institution outline that actually contains the pin — not a tenant shop. */
+async function findContainingSitePlace(
+  lat: number,
+  lng: number
+): Promise<string | null> {
+  const span = 0.003;
+  const params = new URLSearchParams({
+    q: "mall",
+    format: "jsonv2",
+    addressdetails: "1",
+    bounded: "1",
+    limit: "8",
+    viewbox: `${lng - span},${lat + span},${lng + span},${lat - span}`,
+  });
+  const result = await fetchJson(
+    `${NOMINATIM_BASE}/search?${params.toString()}`,
+    { "User-Agent": nominatimUserAgent() }
+  );
+  if (!result.ok || !Array.isArray(result.json)) return null;
+
+  const containing = (result.json as NominatimPlace[])
+    .filter((place) => {
+      const type = (place.type ?? "").toLowerCase();
+      const category = (place.category ?? place.class ?? "").toLowerCase();
+      if (!SITE_SCALE_TYPES.has(type) && category !== "building") return false;
+      return bboxContains(place.boundingbox, lat, lng);
+    })
+    .sort((a, b) => bboxArea(b.boundingbox) - bboxArea(a.boundingbox));
+
+  const best = containing[0];
+  if (!best?.display_name?.trim()) return null;
+  return best.display_name.trim();
 }
 
 export async function reverseGeocodeNominatim(
@@ -137,18 +272,44 @@ export async function reverseGeocodeNominatim(
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
   if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
 
+  let photon: PhotonProperties | null = null;
   try {
-    const fromNominatim = await reverseNominatim(lat, lng);
-    if (fromNominatim) return fromNominatim;
+    photon = await reversePhoton(lat, lng);
   } catch {
-    // fall through to Photon
+    photon = null;
+  }
+
+  if (photon && !isTenantPhoton(photon)) {
+    const fromPhoton = formatPhotonAddress(photon);
+    if (fromPhoton) return fromPhoton;
+  }
+
+  let nominatim: NominatimPlace | null = null;
+  try {
+    nominatim = await reverseNominatim(lat, lng);
+  } catch {
+    nominatim = null;
+  }
+
+  if (nominatim && !isTenantScalePlace(nominatim)) {
+    return nominatim.display_name.trim();
   }
 
   try {
-    return await reversePhoton(lat, lng);
+    const containing = await findContainingSitePlace(lat, lng);
+    if (containing) return containing;
   } catch {
-    return null;
+    // street fallback
   }
+
+  return (
+    formatNominatimStreetAddress(nominatim?.address) ||
+    formatPhotonAddress(
+      photon ? { ...photon, name: undefined } : {}
+    ) ||
+    nominatim?.display_name?.trim() ||
+    null
+  );
 }
 
 async function searchNominatim(

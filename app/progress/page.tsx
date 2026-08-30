@@ -46,6 +46,7 @@ import { yearMonthFromDateInput } from "@/lib/closed-report-period";
 import {
   clampReportPeriod,
   getReportPeriodBounds,
+  resolveProjectWorkStartDate,
 } from "@/lib/report-period-bounds";
 
 /** YYYY-MM-DD for the project feed; invalid values fall back to today (Asia/Jakarta). */
@@ -258,7 +259,11 @@ export default async function ProgressPage({
           titleKey="pages.progress.title"
         >
           <ProgressProjectFeed
-            project={{ id: project.id, name: project.name }}
+            project={{
+              id: project.id,
+              name: project.name,
+              startedOn: formatDateInput(resolveProjectWorkStartDate(project)),
+            }}
             reports={reports}
             employees={Array.from(employeeMap.values())}
             selectedEmployeeId={employeeIdFilter}
@@ -285,6 +290,7 @@ export default async function ProgressPage({
         location: project.location,
         subCategory: project.subCategory,
         reportCount: project._count.progressReports,
+        startedOn: formatDateInput(resolveProjectWorkStartDate(project)),
       }));
 
       return (

@@ -69,6 +69,7 @@ import {
   localizeBillingChipLines,
   localizeBillingMode,
   localizeBillingStatus,
+  localizeLateDaysChipLines,
   localizeSubCategory,
   localizeSubCategoryChipLines,
   localizeWorkflowChipLines,
@@ -1383,18 +1384,23 @@ export default async function ProjectDetailPage({
                             ),
                             isGovernmentContract: project.isGovernmentContract,
                           });
-                        const statusChipLines = display.chipLines
-                          ? localizeBillingChipLines(
-                              display.key === "LATE"
-                                ? "latePayment"
-                                : display.key === "PENDING_VERIFICATION"
-                                  ? "verifyingPayment"
-                                  : display.key === "AWAITING_CLIENT_REVIEW"
-                                    ? "awaitingClientReview"
-                                    : "awaitingPayment",
-                              locale
-                            )
-                          : undefined;
+                        const statusChipLines =
+                          display.key === "LATE" &&
+                          display.daysOverdue != null
+                            ? localizeLateDaysChipLines(
+                                display.daysOverdue,
+                                locale
+                              )
+                            : display.chipLines
+                              ? localizeBillingChipLines(
+                                  display.key === "PENDING_VERIFICATION"
+                                    ? "verifyingPayment"
+                                    : display.key === "AWAITING_CLIENT_REVIEW"
+                                      ? "awaitingClientReview"
+                                      : "awaitingPayment",
+                                  locale
+                                )
+                              : undefined;
 
                         return (
                           <tr

@@ -45,16 +45,19 @@ export default function ProjectLocationMap({
       L.marker([latitude, longitude]).addTo(map);
 
       if (radiusMeters && radiusMeters > 0) {
-        L.circle([latitude, longitude], {
+        const circle = L.circle([latitude, longitude], {
           radius: radiusMeters,
           color: "#22d3ee",
           fillColor: "#22d3ee",
           fillOpacity: 0.12,
           weight: 2,
         }).addTo(map);
+        map.fitBounds(circle.getBounds(), {
+          padding: [24, 24],
+          maxZoom: 18,
+        });
       }
 
-      // Recalc size after layout — avoids 0-height init expanding wrongly
       const activeMap = map;
       requestAnimationFrame(() => {
         if (!cancelled) activeMap.invalidateSize();
@@ -64,7 +67,7 @@ export default function ProjectLocationMap({
       }, 100);
     }
 
-    initMap();
+    void initMap();
 
     return () => {
       cancelled = true;

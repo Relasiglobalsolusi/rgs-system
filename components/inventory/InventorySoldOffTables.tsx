@@ -50,6 +50,7 @@ export default function InventorySoldOffTables({
             searchQuery,
             row.item?.name,
             row.item?.sku,
+            row.invoiceNumber,
             row.buyer,
             row.buyerPicName,
             row.buyerPhone,
@@ -125,40 +126,14 @@ export default function InventorySoldOffTables({
       render: (row) => formatContractPrice(row.totalPrice),
     },
     {
-      key: "documents",
-      title: t("pages.sales.columns.documents"),
+      key: "invoiceNumber",
+      title: t("pages.sales.columns.invoice"),
       share: 1.2,
-      render: (row) => {
-        const invoice = Boolean(row.invoiceUrl?.trim());
-        const payment = Boolean(row.paymentProofUrl?.trim());
-        const taxNeeded = row.buyerType === "COMPANY";
-        const tax = Boolean(row.buyerIdentityDocUrl?.trim());
-        const parts = [
-          invoice
-            ? t("pages.sales.docInvoiceReady")
-            : t("pages.sales.docInvoiceMissing"),
-          payment
-            ? t("pages.sales.docPaymentReady")
-            : t("pages.sales.docPaymentMissing"),
-        ];
-        if (taxNeeded) {
-          parts.push(
-            tax
-              ? t("pages.sales.docTaxReady")
-              : t("pages.sales.docTaxMissing")
-          );
-        }
-        const complete = invoice && (!taxNeeded || tax);
-        return (
-          <span
-            className={
-              complete ? "text-xs text-muted" : "text-xs font-medium text-warning"
-            }
-          >
-            {parts.join(" · ")}
-          </span>
-        );
-      },
+      render: (row) => (
+        <span className="font-medium tabular-nums text-text">
+          {row.invoiceNumber || "—"}
+        </span>
+      ),
     },
     {
       key: "createdBy",

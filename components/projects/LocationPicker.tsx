@@ -19,8 +19,8 @@ import {
 } from "@/lib/google-maps-url";
 import { employeeInputClass } from "@/components/employees/employee-dialog-ui";
 import {
-  CICO_GEOFENCE_RADIUS_METERS,
   DEFAULT_LOCATION_RADIUS_METERS,
+  MAX_LOCATION_RADIUS_METERS,
   MIN_LOCATION_RADIUS_METERS,
 } from "@/lib/geo";
 import { useT } from "@/lib/i18n/use-t";
@@ -43,6 +43,31 @@ type Props = {
 };
 
 const DEFAULT_CENTER = { lat: -6.1754, lng: 106.8272 };
+
+const SITE_RADIUS_CIRCLE = {
+  color: "#22d3ee",
+  fillColor: "#22d3ee",
+  fillOpacity: 0.12,
+  weight: 2,
+} as const;
+
+function liveSiteRadiusMeters(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) {
+    return DEFAULT_LOCATION_RADIUS_METERS;
+  }
+  return value;
+}
+
+function fitMapToRadiusCircle(
+  map: import("leaflet").Map,
+  circle: import("leaflet").Circle
+) {
+  map.fitBounds(circle.getBounds(), {
+    padding: [28, 28],
+    maxZoom: 18,
+    animate: false,
+  });
+}
 
 function formatCoord(n: number | null): string {
   if (n == null) return "—";
@@ -101,7 +126,7 @@ async function searchAddressApi(
 async function resolveMapsShortLink(
   raw: string,
   shortLinkError: string
-): Promise<{ lat: number; lng: number } | { error: string }> {
+): Promise<{ lat: number; lng: number; address?: string } | { error: string }> {
   const url = normalizeGoogleMapsUrl(raw);
   if (!url) {
     return { error: shortLinkError };
@@ -117,6 +142,7 @@ async function resolveMapsShortLink(
     const data = (await response.json()) as {
       latitude?: number;
       longitude?: number;
+      address?: string;
       error?: string;
     };
 
@@ -124,7 +150,11 @@ async function resolveMapsShortLink(
       return { error: data.error?.trim() || shortLinkError };
     }
 
-    return { lat: data.latitude, lng: data.longitude };
+    return {
+      lat: data.latitude,
+      lng: data.longitude,
+      address: data.address?.trim() || undefined,
+    };
   } catch {
     return { error: shortLinkError };
   }
@@ -141,6 +171,7 @@ export default function LocationPicker({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import("leaflet").Map | null>(null);
   const markerRef = useRef<import("leaflet").Marker | null>(null);
+  const circleRef = useRef<import("leaflet").Circle | null>(null);
   const valueRef = useRef(value);
   valueRef.current = value;
 
@@ -204,7 +235,7 @@ export default function LocationPicker({
   async function applyLatLng(
     lat: number,
     lng: number,
-    hint?: string
+    options: { hint?: string; fillAddress?: boolean } = {}
   ): Promise<boolean> {
     const prev = valueRef.current;
     const withCoords: LocationValue = {
@@ -212,19 +243,26 @@ export default function LocationPicker({
       latitude: lat,
       longitude: lng,
       locationRadiusMeters: prev.locationRadiusMeters || DEFAULT_LOCATION_RADIUS_METERS,
-      // Keep existing location text until reverse succeeds
-      location: prev.location,
     };
 
     setPasteError(null);
-    setPasteHint(
-      hint ?? t("pages.projects.locationPicker.coordsLookingUp")
-    );
     setLookupFailed(null);
     onChange(withCoords);
 
-    await fillAddressFromCoords(lat, lng, withCoords);
+    if (!options.fillAddress) {
+      setPasteHint(
+        options.hint ?? t("pages.projects.locationPicker.coordsAppliedAdjust")
+      );
+      setPasteText("");
+      return true;
+    }
 
+    setPasteHint(
+      options.hint ?? t("pages.projects.locationPicker.pinSetLookingUp")
+    );
+    await fillAddressFromCoords(lat, lng, withCoords, {
+      successHint: t("pages.projects.locationPicker.addressFilled"),
+    });
     setPasteText("");
     return true;
   }
@@ -281,11 +319,7 @@ export default function LocationPicker({
         setPasteHint(null);
         return false;
       }
-      return applyLatLng(
-        resolved.lat,
-        resolved.lng,
-        t("pages.projects.locationPicker.shortLinkLookingUp")
-      );
+      return applyLatLng(resolved.lat, resolved.lng);
     }
 
     if (parsed) {
@@ -334,27 +368,34 @@ export default function LocationPicker({
       }).addTo(map);
 
       const marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+      const circle = L.circle([lat, lng], {
+        radius: liveSiteRadiusMeters(valueRef.current.locationRadiusMeters),
+        ...SITE_RADIUS_CIRCLE,
+      }).addTo(map);
 
       marker.on("dragend", () => {
         const pos = marker.getLatLng();
-        void applyLatLng(
-          pos.lat,
-          pos.lng,
-          t("pages.projects.locationPicker.pinMovedLookingUp")
-        );
+        void applyLatLng(pos.lat, pos.lng, {
+          hint: t("pages.projects.locationPicker.pinMovedLookingUp"),
+          fillAddress: true,
+        });
       });
 
       map.on("click", (event) => {
         marker.setLatLng(event.latlng);
-        void applyLatLng(
-          event.latlng.lat,
-          event.latlng.lng,
-          t("pages.projects.locationPicker.pinSetLookingUp")
-        );
+        void applyLatLng(event.latlng.lat, event.latlng.lng, {
+          hint: t("pages.projects.locationPicker.pinSetLookingUp"),
+          fillAddress: true,
+        });
       });
 
       mapRef.current = map;
       markerRef.current = marker;
+      circleRef.current = circle;
+
+      if (valueRef.current.latitude != null && valueRef.current.longitude != null) {
+        fitMapToRadiusCircle(map, circle);
+      }
 
       requestAnimationFrame(() => {
         if (!cancelled) map.invalidateSize();
@@ -364,7 +405,7 @@ export default function LocationPicker({
       }, 100);
     }
 
-    initMap();
+    void initMap();
 
     return () => {
       cancelled = true;
@@ -372,18 +413,27 @@ export default function LocationPicker({
       mapRef.current?.remove();
       mapRef.current = null;
       markerRef.current = null;
+      circleRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (!mapRef.current || !markerRef.current) return;
+    const map = mapRef.current;
+    const marker = markerRef.current;
+    const circle = circleRef.current;
+    if (!map || !marker || !circle) return;
+
+    const radius = liveSiteRadiusMeters(value.locationRadiusMeters);
+    circle.setRadius(radius);
+
     if (value.latitude == null || value.longitude == null) return;
 
     const latLng: [number, number] = [value.latitude, value.longitude];
-    markerRef.current.setLatLng(latLng);
-    mapRef.current.setView(latLng, Math.max(mapRef.current.getZoom(), 15));
-  }, [value.latitude, value.longitude]);
+    marker.setLatLng(latLng);
+    circle.setLatLng(latLng);
+    fitMapToRadiusCircle(map, circle);
+  }, [value.latitude, value.longitude, value.locationRadiusMeters]);
 
   async function searchAddress() {
     const query = value.location.trim();
@@ -560,7 +610,7 @@ export default function LocationPicker({
           <Input
             type="number"
             min={MIN_LOCATION_RADIUS_METERS}
-            max={CICO_GEOFENCE_RADIUS_METERS}
+            max={MAX_LOCATION_RADIUS_METERS}
             value={value.locationRadiusMeters}
             onChange={(event) =>
               onChange({

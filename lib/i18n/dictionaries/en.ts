@@ -313,6 +313,9 @@ export const en = {
       taxInvoiceDone2: "Uploaded",
       latePayment1: "Late",
       latePayment2: "Payment",
+      lateDays1One: "1 Day",
+      lateDays1Other: "{count} Days",
+      lateDays2: "Late",
       paymentDue1: "Payment",
       paymentDue2: "Due",
       invoiceDue1: "Invoice",
@@ -1252,19 +1255,18 @@ export const en = {
         radiusPlaceholder: "Radius (m)",
         internalCicoHint:
           "Set the map pin and site radius for office CICO at this Internal site (Head Office or Warehouse).",
-        pasteLabel: "Paste Google Maps coordinates / link",
-        pastePlaceholder:
-          "-6.200000, 106.816666 or Google Maps / share.google URL",
+        pasteLabel: "Google Maps Coordinates",
+        pastePlaceholder: "-6.200000, 106.816666",
         parseError:
           "Could not parse. Paste decimal coords (e.g. -6.2, 106.8) or a Google Maps link.",
         shortLinkError:
-          "Could not resolve that Maps short link. In Google Maps, right-click the pin → copy the decimal coordinates and paste those instead.",
+          "That link does not include the exact pin. In Google Maps, right-click the red pin → copy the decimal coordinates and paste those here.",
         coordsAppliedFilled: "Coordinates applied and address filled.",
-        coordsLookingUp: "Coordinates applied — looking up address…",
+        coordsAppliedAdjust:
+          "Coordinates applied. Drag or click the map to set the exact pin — the address fills after that.",
         retryingLookup: "Retrying address lookup…",
         addressFilled: "Address filled.",
         resolvingShortLink: "Resolving Maps short link…",
-        shortLinkLookingUp: "Short link resolved — looking up address…",
         pinMovedLookingUp: "Pin moved — looking up address…",
         pinSetLookingUp: "Pin set — looking up address…",
         urlNotAddress:
@@ -1276,7 +1278,8 @@ export const en = {
           "Coordinates applied; address lookup failed — using coordinates as placeholder.",
         retrying: " Retrying…",
         retryLookup: "Retry address lookup",
-        pinHelp: "Pin updates from paste. Drag or click the map to fine-tune."
+        pinHelp:
+          "Coordinates move the pin. Drag or click to set the exact point — the address fills from that drop. The circle is the check-in radius."
       },
       finish: {
         confirmInvoice:
@@ -3411,8 +3414,12 @@ export const en = {
       unpaidCount: "{count} unpaid",
       overdue: "Overdue",
       unpaid: "Unpaid",
+      overdueChip: "{count} Overdue",
+      unpaidChip: "{count} Unpaid",
       open: "Open",
       late: "Late",
+      openChip: "{count} Open",
+      lateChip: "{count} Late",
       allSettled: "All settled",
       paidInvoiceOne: "{count} paid invoice",
       paidInvoiceOther: "{count} paid invoices",
@@ -3844,7 +3851,7 @@ export const en = {
       saleCount: "{count} Sales",
       saleCountOne: "1 Sale",
       thisYear: "This year {amount}",
-      searchPlaceholder: "Search all sales: item, SKU, buyer, notes…",
+      searchPlaceholder: "Search all sales: invoice, item, SKU, buyer, notes…",
       addSale: "Generate Sales Invoice",
       bankAccount: "Bank Account",
       bankAccountEmpty: "Add a bank account in Company Details first.",
@@ -3862,7 +3869,7 @@ export const en = {
       attachFailed: "Could not save sale documents.",
       saveDocuments: "Save Documents",
       columns: {
-        documents: "Documents"
+        invoice: "Invoice"
       },
       docInvoiceReady: "Invoice",
       docInvoiceMissing: "Invoice missing",
@@ -4821,7 +4828,8 @@ export const en = {
         returnOfSecurityDeposit: "Return Of Security Deposit",
         clientCompensation: "Client Compensation",
         forfeitedWages: "Remaining Wage Not Paid",
-        cashAdvance: "Cash Advance"
+        cashAdvance: "Cash Advance",
+        sickLeave: "Sick Leave"
       },
       depositStatus: {
         none: "None",
@@ -4878,7 +4886,6 @@ export const en = {
       emptyTitle: "Nothing here",
       emptyDescription: "No reconciliation or progress reviews in this list yet.",
       openBilling: "Open billing",
-      openDetails: "Open details",
       viewReport: "View report",
       detailTitle: "Reconciliation Detail",
       revisionReason: "Revision Request Reason",
@@ -4984,7 +4991,8 @@ export const en = {
       chooseProjectHint:
         "View-only feed — open a project to monitor reports as photos are uploaded.",
       chooseProjectHintClient:
-        "Open a project to view notes and photos for your sites.",
+        "Open a project to view notes and photos for your sites. The start date shows which month reports begin.",
+      startedOn: "Started {date}",
       searchClients: "Search Clients",
       searchProjects: "Search Projects",
       cards: {
@@ -5559,7 +5567,9 @@ export const en = {
         companyNotFound: "Company not found.",
         leaveNotFound: "Leave request not found.",
         alreadyReviewed: "This request has already been reviewed.",
-        notAllowedToApprove: "You are not allowed to approve this request."
+        notAllowedToApprove: "You are not allowed to approve this request.",
+        deductSickOnly: "A payroll deduction can only be added when approving sick leave.",
+        deductAmountRequired: "Please enter a Rupiah amount greater than zero."
       },
       requestType: "Request Type",
       startDate: "Start Date",
@@ -5595,7 +5605,19 @@ export const en = {
       emptyNeedsAttentionDescription:
         "Unresolved item returns appear here for a manager decision.",
       leaveSection: "Leave & Sick",
-      leaveSectionDesc: "Pending leave and sick requests waiting for your decision.",
+      leaveSectionDesc:
+        "Approve or Reject. Sick leave then asks whether to add a payroll deduction.",
+      approveSickTitle: "Approve Sick Leave",
+      approveSickDescription:
+        "Leave will be approved. Choose whether to add a payroll deduction. The amount is not calculated automatically.",
+      deductionChoice: "Deduction",
+      noDeduction: "No Deduction",
+      noDeductionHint:
+        "They are not paid for those days. No extra amount is taken from Internal Payroll.",
+      sickDeduct: "Deduct",
+      deductAmount: "Amount",
+      deductHint:
+        "This line appears on the employee's Internal Payroll for the leave start period.",
       ownPendingTitle: "Your request is waiting for another approver",
       ownPendingDesc:
         "You cannot approve your own leave. The next person in the leave chain must review it in Approvals.",
@@ -5898,6 +5920,7 @@ export const en = {
       viewBuyerIdentityDoc: "View Tax Invoice",
       saleDetailsTitle: "Sale Details",
       saleDetailsDesc: "Full details for this sale record.",
+      saleDetailsInvoice: "Invoice",
       saleDetailsLinkedClient: "Linked Client",
       saleDetailsDocuments: "Documents",
       saleDetailsTaxInvoice: "Tax Invoice",
@@ -6562,9 +6585,12 @@ export const en = {
       contents: "Contents",
       howToRead: "How to use this handbook",
       howToReadBody:
-        "This handbook is written for the {position} login. It describes only what this position can do. Another position with the same module will see different steps. Sign in, open the sidebar, and follow each section in order. Status chips on screen tell you the next action. If a module is missing from the sidebar, Head Office has not given this position that access.",
+        "Start with First-Time Login, then follow each section in order. This handbook is written for the {position} login. It describes only what this position can do. Another position with the same module will see different steps. Status chips on screen tell you the next action. If a module is missing from the sidebar, Head Office has not given this position that access.",
       howToReadBodyClient:
-        "This handbook is written for a client portal login. It describes only what you can do: read your sites, review a billing period, and pay invoices you owe. It does not cover Head Office work such as paying suppliers, assigning staff, or compiling invoices. Sign in with the client portal login, open the sidebar, and follow each section in order.",
+        "Start with First-Time Login, then follow each section in order. This handbook is written for a client portal login. It describes only what you can do: read your sites, review a billing period, and pay invoices you owe. It does not cover Head Office work such as paying suppliers, assigning staff, or compiling invoices.",
+      firstLoginChapter: "First-Time Login",
+      firstLoginOpenAt: "Sign-In Page > First time signing in?",
+      firstLoginOpenAtClient: "Client Portal Sign-In Page > First time signing in?",
       forClientUse: "For the client portal - Relasi Global Solusi",
       openAt: "Where to open it",
       steps: "How to use it",
@@ -6572,8 +6598,8 @@ export const en = {
       sectionTitle: "{number}. {name}",
       internalUse: "Internal use - Relasi Global Solusi",
       pageOf: "Page {page} of {total}",
-      moduleCountOne: "{count} module in this handbook",
-      moduleCountOther: "{count} modules in this handbook",
+      moduleCountOne: "{count} chapter in this handbook",
+      moduleCountOther: "{count} chapters in this handbook",
       leaveChain: {
         intro:
           "Leave follows this chain. Open a row you are allowed to decide, then Approve or Reject.",

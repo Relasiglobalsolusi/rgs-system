@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
                 name: true,
                 sku: true,
                 equipmentAssets: {
-                  select: { assetCode: true },
+                  select: { assetCode: true, vehicleYear: true },
                   orderBy: [{ createdAt: "asc" }, { id: "asc" }],
                 },
               },
@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
                 name: true,
                 sku: true,
                 equipmentAssets: {
-                  select: { assetCode: true },
+                  select: { assetCode: true, vehicleYear: true },
                   orderBy: [{ createdAt: "asc" }, { id: "asc" }],
                 },
               },

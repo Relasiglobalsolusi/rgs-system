@@ -64,6 +64,8 @@ enum PayrollDeductionType {
   FORFEITED_WAGES
   /// Cash borrowed before payday and recovered on Internal Payroll.
   CASH_ADVANCE
+  /// Manual amount entered when approving sick leave (not a calculated fine).
+  SICK_LEAVE
 }
 
 /// Operational Manager decision when CICO is under 9 hours (or 18 on a double shift).
@@ -2347,6 +2349,7 @@ model LeaveRequest {
   reviewedAt   DateTime?
 
   approvalAcks LeaveApprovalAck[]
+  payrollDeduction PayrollDeduction?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2740,6 +2743,10 @@ model PayrollDeduction {
   prepaidCardLossId String?
   prepaidCardLoss   PrepaidCardLoss? @relation(fields: [prepaidCardLossId], references: [id], onDelete: SetNull)
   prepaidCardLossRecovery PrepaidCardLossRecovery?
+
+  /// Set when this line was created from a sick-leave Deduct approval.
+  leaveRequestId String?       @unique
+  leaveRequest   LeaveRequest? @relation(fields: [leaveRequestId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

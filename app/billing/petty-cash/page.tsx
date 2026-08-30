@@ -142,7 +142,7 @@ export default async function PettyCashPage({
         itemType: true,
         equipmentAssets: {
           where: { companyId: session.user.companyId },
-          select: { id: true, assetCode: true },
+          select: { id: true, assetCode: true, vehicleYear: true },
           orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         },
       },
@@ -231,6 +231,9 @@ export default async function PettyCashPage({
                 .map((asset) => asset.assetCode)
                 .filter(Boolean)
                 .join(" / "),
+              year:
+                item.equipmentAssets.find((asset) => asset.vehicleYear != null)
+                  ?.vehicleYear ?? null,
             }))}
         />
       ) : (

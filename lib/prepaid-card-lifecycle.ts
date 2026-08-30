@@ -329,8 +329,9 @@ export async function recordReplacementFeeOnCard(
 export function vehicleAssignmentLabel(vehicle: {
   name: string;
   sku?: string | null;
-  equipmentAssets?: { assetCode: string | null }[];
+  equipmentAssets?: { assetCode: string | null; vehicleYear?: number | null }[];
   plate?: string | null;
+  year?: number | string | null;
 }) {
   const plate =
     vehicle.plate ??
@@ -338,9 +339,15 @@ export function vehicleAssignmentLabel(vehicle: {
       .map((asset) => asset.assetCode)
       .filter(Boolean)
       .join(" / ");
+  const year =
+    vehicle.year ??
+    (vehicle.equipmentAssets ?? []).find((asset) => asset.vehicleYear != null)
+      ?.vehicleYear ??
+    null;
   return formatVehicleIdentityLabel({
     plate,
     name: vehicle.name,
     sku: vehicle.sku,
+    year,
   });
 }

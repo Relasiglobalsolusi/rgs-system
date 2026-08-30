@@ -22,8 +22,16 @@ import {
   isEmployeeActiveForOperations,
   syncEmployeeLeaveEmploymentStatus,
 } from "@/lib/leave-employment-status";
+import { assertInternalPayrollPeriodUnlocked } from "@/lib/internal-payroll-lock";
+import { payrollPeriodFromJakartaDate } from "@/lib/internal-payroll-period";
+import { toDecimal } from "@/lib/inventory";
 import { isOwnerAccount } from "@/lib/permissions";
 import { toPermissionUser } from "@/lib/session";
+
+export type ReviewLeaveOptions = {
+  /** Manual Internal Payroll amount. Only valid when approving sick leave. */
+  deductAmount?: number;
+};
 
 async function leaveError(key: string) {
   const locale = await getServerLocale();
@@ -95,9 +103,11 @@ export async function createLeaveRequest(formData: FormData) {
 export async function reviewLeaveRequest(
   id: string,
   approved: boolean,
-  reviewNote?: string
+  reviewNote?: string,
+  options?: ReviewLeaveOptions
 ) {
   const session = await requireModule("approvals");
+  const locale = await getServerLocale();
   const companyId = session.user.companyId;
   if (!companyId) throw await leaveError("companyNotFound");
 
@@ -108,6 +118,9 @@ export async function reviewLeaveRequest(
     },
     select: {
       status: true,
+      type: true,
+      startDate: true,
+      reason: true,
       employeeId: true,
       employee: { select: leaveRequestEmployeeSelect },
     },
@@ -133,6 +146,34 @@ export async function reviewLeaveRequest(
     throw await leaveError("notAllowedToApprove");
   }
 
+  const deductAmount =
+    options?.deductAmount == null
+      ? null
+      : Math.round(Number(options.deductAmount));
+  const shouldDeduct = approved && deductAmount != null;
+
+  if (shouldDeduct) {
+    if (existing.type !== "SICK") {
+      throw await leaveError("deductSickOnly");
+    }
+    if (!Number.isFinite(deductAmount) || deductAmount <= 0) {
+      throw await leaveError("deductAmountRequired");
+    }
+  }
+
+  const payrollPeriod = shouldDeduct
+    ? payrollPeriodFromJakartaDate(existing.startDate)
+    : null;
+
+  if (payrollPeriod) {
+    await assertInternalPayrollPeriodUnlocked(
+      companyId,
+      payrollPeriod.year,
+      payrollPeriod.month,
+      translate(locale, "pages.payroll.errors.periodLocked")
+    );
+  }
+
   await prisma.$transaction(async (tx) => {
     await tx.leaveRequest.update({
       where: { id },
@@ -144,6 +185,22 @@ export async function reviewLeaveRequest(
       },
     });
 
+    if (shouldDeduct && payrollPeriod && deductAmount != null) {
+      await tx.payrollDeduction.create({
+        data: {
+          companyId,
+          employeeId: existing.employeeId,
+          year: payrollPeriod.year,
+          month: payrollPeriod.month,
+          type: "SICK_LEAVE",
+          amount: toDecimal(deductAmount),
+          reason: existing.reason || null,
+          leaveRequestId: id,
+          createdById: session.user.id,
+        },
+      });
+    }
+
     await syncEmployeeLeaveEmploymentStatus(tx, existing.employeeId);
   });
 
@@ -152,6 +209,8 @@ export async function reviewLeaveRequest(
   revalidatePath("/dashboard");
   revalidatePath("/employees");
   revalidatePath("/cico");
+  revalidatePath("/billing/payroll");
+  revalidatePath("/billing/financial-report");
 }
 
 /** Persist dismissal of leave-approved dashboard notification(s) for the signed-in user. */

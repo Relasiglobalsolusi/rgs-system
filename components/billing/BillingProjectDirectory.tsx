@@ -180,24 +180,18 @@ export default function BillingProjectDirectory({
                 {statusLines ? undefined : statusLabel}
               </StatusBadge>
               {project.openInvoices > 0 ? (
-                <div className="flex flex-col items-center gap-1">
-                  <StatusBadge status="warning" compact className="w-fit shrink-0">
-                    {t("pages.billing.open")}
-                  </StatusBadge>
-                  <span className="text-xs tabular-nums text-muted">
-                    {project.openInvoices}
-                  </span>
-                </div>
+                <StatusBadge status="warning" compact className="w-fit shrink-0">
+                  {t("pages.billing.openChip", {
+                    count: project.openInvoices,
+                  })}
+                </StatusBadge>
               ) : null}
               {project.lateInvoices > 0 ? (
-                <div className="flex flex-col items-center gap-1">
-                  <StatusBadge status="danger" compact className="w-fit shrink-0">
-                    {t("pages.billing.late")}
-                  </StatusBadge>
-                  <span className="text-xs tabular-nums text-muted">
-                    {project.lateInvoices}
-                  </span>
-                </div>
+                <StatusBadge status="danger" compact className="w-fit shrink-0">
+                  {t("pages.billing.lateChip", {
+                    count: project.lateInvoices,
+                  })}
+                </StatusBadge>
               ) : null}
             </div>
           );

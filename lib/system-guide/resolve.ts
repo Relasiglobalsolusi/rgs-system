@@ -14,6 +14,7 @@ import {
   clientFallbackSystemGuideCopy,
   fallbackSystemGuideCopy,
   fieldStaffFallbackSystemGuideCopy,
+  firstLoginSystemGuideCopy,
   SYSTEM_GUIDE_COPY,
   warehouseFallbackSystemGuideCopy,
 } from "@/lib/system-guide/copy";
@@ -210,18 +211,33 @@ export function resolveSystemGuideDocument(input: {
           (key) => !PORTAL_BLOCKED_MODULES.includes(key)
         )
       : input.modules;
-  const modules: SystemGuideResolvedModule[] = requestedModules.map((key) => {
-    const name = translate(locale, `modules.${key}`);
-    const location = moduleSidebarLocation(key, locale, audience);
-    const copy = resolveModuleCopy(key, persona, locale, name);
-    return {
-      key,
-      name,
-      section: location.section,
-      openAt: location.openAt,
-      copy: withLiveLeaveHierarchy(key, copy, locale, persona),
-    };
-  });
+  const firstLogin: SystemGuideResolvedModule = {
+    key: "firstLogin",
+    name: translate(locale, "pages.systemGuide.firstLoginChapter"),
+    section: translate(locale, "pages.systemGuide.firstLoginChapter"),
+    openAt: translate(
+      locale,
+      audience === "client"
+        ? "pages.systemGuide.firstLoginOpenAtClient"
+        : "pages.systemGuide.firstLoginOpenAt"
+    ),
+    copy: firstLoginSystemGuideCopy(locale, audience),
+  };
+  const modules: SystemGuideResolvedModule[] = [
+    firstLogin,
+    ...requestedModules.map((key) => {
+      const name = translate(locale, `modules.${key}`);
+      const location = moduleSidebarLocation(key, locale, audience);
+      const copy = resolveModuleCopy(key, persona, locale, name);
+      return {
+        key,
+        name,
+        section: location.section,
+        openAt: location.openAt,
+        copy: withLiveLeaveHierarchy(key, copy, locale, persona),
+      };
+    }),
+  ];
 
   return {
     locale,

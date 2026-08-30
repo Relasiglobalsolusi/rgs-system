@@ -357,6 +357,7 @@ function PurchaseInvoiceUploadDialogInner({
       vehicleName: string | null;
       vehicleSku: string | null;
       vehiclePlate?: string | null;
+      vehicleYear?: number | null;
     }>
   >([]);
   const [prepaidCardId, setPrepaidCardId] = useState("");
@@ -1737,12 +1738,12 @@ function PurchaseInvoiceUploadDialogInner({
                             ? card.custodianName
                               ? `${number} · ${card.custodianName}`
                               : number
-                            : formatVehicleIdentityLabel({
+                            : `${number} · ${formatVehicleIdentityLabel({
                                 plate: card.vehiclePlate,
                                 name: card.vehicleName,
-                                cardNumber: number,
                                 sku: card.vehicleSku,
-                              });
+                                year: card.vehicleYear,
+                              })}`;
                         }}
                       </SelectValue>
                     </SelectTrigger>
@@ -1759,12 +1760,12 @@ function PurchaseInvoiceUploadDialogInner({
                             ? `${formatPrepaidCardNumber(card.cardNumber)}${
                                 card.custodianName ? ` · ${card.custodianName}` : ""
                               }`
-                            : formatVehicleIdentityLabel({
+                            : `${formatPrepaidCardNumber(card.cardNumber)} · ${formatVehicleIdentityLabel({
                                 plate: card.vehiclePlate,
                                 name: card.vehicleName,
-                                cardNumber: formatPrepaidCardNumber(card.cardNumber),
                                 sku: card.vehicleSku,
-                              })}{" "}
+                                year: card.vehicleYear,
+                              })}`}{" "}
                           · {formatContractPrice(card.currentBalance)}
                         </SelectItem>
                       ))}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowDownLeft,
@@ -91,6 +91,7 @@ type VehicleOption = {
   name: string;
   sku: string;
   plate: string | null;
+  year?: number | null;
 };
 
 type BankOption = { id: string; label: string };
@@ -102,12 +103,37 @@ function cardSubtitle(card: PrepaidCardView, standbyLabel: string) {
         plate: card.vehiclePlate,
         name: card.vehicleName,
         sku: card.vehicleSku,
+        year: card.vehicleYear,
       });
     }
     const last = card.assignments[0];
     return last?.vehicleLabel || standbyLabel;
   }
   return card.custodianName || card.assignments[0]?.custodianName || standbyLabel;
+}
+
+/** Vehicle / PIC first — people recognize the car, not the digits. */
+function CardIdentityStack({
+  card,
+  standbyLabel,
+  titleClassName,
+  numberClassName,
+}: {
+  card: PrepaidCardView;
+  standbyLabel: string;
+  titleClassName?: string;
+  numberClassName?: string;
+}) {
+  return (
+    <span className="flex min-w-0 flex-col items-start text-left">
+      <span className={cn("min-w-0 truncate font-semibold text-text", titleClassName)}>
+        {cardSubtitle(card, standbyLabel)}
+      </span>
+      <span className={cn("min-w-0 truncate text-xs text-subtle", numberClassName)}>
+        {formatPrepaidCardNumber(card.cardNumber)}
+      </span>
+    </span>
+  );
 }
 
 function statusTone(
@@ -470,33 +496,51 @@ export default function PrepaidCardsPanel({
             label={t("pages.pettyCash.filterCard")}
             value={filterCardId}
             onChange={setFilterCardId}
-            className="min-w-0 w-full sm:min-w-[16rem]"
+            className="w-[13.5rem] max-w-full"
+            triggerClassName={
+              filterCardId !== "all" ? "h-auto min-h-9 py-1.5" : undefined
+            }
             formatValue={(value) => {
               if (value === "all") return t("pages.pettyCash.filterAllCards");
               const card = cards.find((row) => row.id === value);
-              return card
-                ? `${formatPrepaidCardNumber(card.cardNumber)} · ${cardSubtitle(card, t("pages.pettyCash.statusStandby"))}`
-                : t("pages.pettyCash.filterAllCards");
+              return card ? (
+                <CardIdentityStack
+                  card={card}
+                  standbyLabel={t("pages.pettyCash.statusStandby")}
+                  titleClassName="text-sm"
+                />
+              ) : (
+                t("pages.pettyCash.filterAllCards")
+              );
             }}
           >
             <SelectItem value="all">{t("pages.pettyCash.filterAllCards")}</SelectItem>
             {kindCards.map((card) => (
-              <SelectItem key={card.id} value={card.id}>
-                {formatPrepaidCardNumber(card.cardNumber)} ·{" "}
-                {cardSubtitle(card, t("pages.pettyCash.statusStandby"))}
+              <SelectItem
+                key={card.id}
+                value={card.id}
+                className="items-start whitespace-normal"
+              >
+                <CardIdentityStack
+                  card={card}
+                  standbyLabel={t("pages.pettyCash.statusStandby")}
+                />
               </SelectItem>
             ))}
           </FilterSelect>
         </div>
-        <div className="flex flex-wrap items-end gap-2">
-          <a href={reportHref} className={directoryToolbarDownloadClass}>
+        <div className="flex w-full flex-row items-center gap-2 lg:w-auto">
+          <a
+            href={reportHref}
+            className={`${directoryToolbarDownloadClass} min-w-0 flex-1 justify-center lg:flex-none`}
+          >
             {t("pages.pettyCash.downloadReport")}
           </a>
           <Button
             type="button"
             variant="permissionsBadge"
             size="badgeFlex"
-            className={directoryToolbarActionClass}
+            className={`${directoryToolbarActionClass} min-w-0 flex-1 justify-center lg:flex-none`}
             onClick={() => setSpendOpen(true)}
           >
             {t("pages.pettyCash.prepaidSpend")}
@@ -542,10 +586,10 @@ export default function PrepaidCardsPanel({
                   onClick={() => setSelectedCardId(card.id)}
                 >
                   <h3 className="text-left text-sm font-semibold leading-snug tracking-tight text-text">
-                    {formatPrepaidCardNumber(card.cardNumber)}
+                    {cardSubtitle(card, t("pages.pettyCash.statusStandby"))}
                   </h3>
                   <p className="mt-1 truncate text-xs leading-none text-subtle">
-                    {cardSubtitle(card, t("pages.pettyCash.statusStandby"))}
+                    {formatPrepaidCardNumber(card.cardNumber)}
                   </p>
                 </button>
               }
@@ -710,10 +754,10 @@ function CardDetail({
             {t("pages.pettyCash.backToList")}
           </button>
           <h2 className="mt-2 text-lg font-semibold tracking-tight text-text">
-            {formatPrepaidCardNumber(card.cardNumber)}
+            {cardSubtitle(card, t("pages.pettyCash.statusStandby"))}
           </h2>
           <p className="mt-1 text-sm text-subtle">
-            {cardSubtitle(card, t("pages.pettyCash.statusStandby"))}
+            {formatPrepaidCardNumber(card.cardNumber)}
           </p>
         </div>
         <StatusBadge status={statusTone(card.status)}>
@@ -1027,13 +1071,15 @@ function FilterSelect({
   children,
   formatValue,
   className,
+  triggerClassName,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
-  children: React.ReactNode;
-  formatValue: (value: string) => string;
+  children: ReactNode;
+  formatValue: (value: string) => ReactNode;
   className?: string;
+  triggerClassName?: string;
 }) {
   return (
     <label className={cn("grid min-w-[8rem] gap-1.5", className)}>
@@ -1041,7 +1087,9 @@ function FilterSelect({
         {label}
       </span>
       <Select value={value} onValueChange={(next) => onChange(next ?? value)}>
-        <SelectTrigger className={employeeSelectTriggerClass}>
+        <SelectTrigger
+          className={cn(employeeSelectTriggerClass, triggerClassName)}
+        >
           <SelectValue>{() => formatValue(value)}</SelectValue>
         </SelectTrigger>
         <SelectContent>{children}</SelectContent>
@@ -1265,20 +1313,36 @@ function PrepaidCardSpendDialog({
         <label className={employeeDialogFieldClass}>
           <span className={employeeDialogLabelClass}>{t("pages.pettyCash.filterCard")}</span>
           <Select value={cardId || null} onValueChange={(value) => setCardId(value ?? "")}>
-            <SelectTrigger className={employeeSelectTriggerClass}>
+            <SelectTrigger
+              className={cn(
+                employeeSelectTriggerClass,
+                card ? "h-auto min-h-9 py-1.5" : null
+              )}
+            >
               <SelectValue>
                 {() =>
-                  card
-                    ? `${formatPrepaidCardNumber(card.cardNumber)} · ${cardSubtitle(card, t("pages.pettyCash.statusStandby"))}`
-                    : t("pages.pettyCash.filterCard")
+                  card ? (
+                    <CardIdentityStack
+                      card={card}
+                      standbyLabel={t("pages.pettyCash.statusStandby")}
+                    />
+                  ) : (
+                    t("pages.pettyCash.filterCard")
+                  )
                 }
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {cards.map((row) => (
-                <SelectItem key={row.id} value={row.id}>
-                  {formatPrepaidCardNumber(row.cardNumber)} ·{" "}
-                  {cardSubtitle(row, t("pages.pettyCash.statusStandby"))}
+                <SelectItem
+                  key={row.id}
+                  value={row.id}
+                  className="items-start whitespace-normal"
+                >
+                  <CardIdentityStack
+                    card={row}
+                    standbyLabel={t("pages.pettyCash.statusStandby")}
+                  />
                 </SelectItem>
               ))}
             </SelectContent>
@@ -1961,21 +2025,37 @@ function CardSelect({
     <label className={employeeDialogFieldClass}>
       <span className={employeeDialogLabelClass}>{label}</span>
       <Select value={value || null} onValueChange={(next) => onChange(next ?? "")}>
-        <SelectTrigger className={employeeSelectTriggerClass}>
+        <SelectTrigger
+          className={cn(
+            employeeSelectTriggerClass,
+            value ? "h-auto min-h-9 py-1.5" : null
+          )}
+        >
           <SelectValue>
             {() => {
               const card = cards.find((row) => row.id === value);
-              return card
-                ? formatPrepaidCardNumber(card.cardNumber)
-                : label;
+              return card ? (
+                <CardIdentityStack
+                  card={card}
+                  standbyLabel={t("pages.pettyCash.statusStandby")}
+                />
+              ) : (
+                label
+              );
             }}
           </SelectValue>
         </SelectTrigger>
         <SelectContent>
           {cards.map((card) => (
-            <SelectItem key={card.id} value={card.id}>
-              {formatPrepaidCardNumber(card.cardNumber)} ·{" "}
-              {cardSubtitle(card, t("pages.pettyCash.statusStandby"))}
+            <SelectItem
+              key={card.id}
+              value={card.id}
+              className="items-start whitespace-normal"
+            >
+              <CardIdentityStack
+                card={card}
+                standbyLabel={t("pages.pettyCash.statusStandby")}
+              />
             </SelectItem>
           ))}
         </SelectContent>

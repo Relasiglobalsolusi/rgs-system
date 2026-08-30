@@ -1940,6 +1940,7 @@ function mapSoldOffRow(row: {
     buyerTaxId: row.buyerTaxId,
     buyerRegistration: row.buyerRegistration,
     buyerIdentityDocUrl: row.buyerIdentityDocUrl,
+    invoiceNumber: null,
     invoiceUrl: row.invoiceUrl,
     paymentProofUrl: row.paymentProofUrl,
     paidAt: row.paidAt?.toISOString() ?? null,
@@ -1950,6 +1951,37 @@ function mapSoldOffRow(row: {
     assets: row.movement?.equipmentAssetsFromSoldOff ?? [],
     item: row.item,
   };
+}
+
+async function withResolvedInvoiceNumbers(
+  companyId: string,
+  raw: Array<Parameters<typeof mapSoldOffRow>[0]>,
+  mapped: NonNullable<ReturnType<typeof mapSoldOffRow>>[]
+) {
+  if (mapped.length === 0) return mapped;
+
+  const ranked = await prisma.inventorySale.findMany({
+    where: { companyId },
+    select: { id: true },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+  });
+  const sequenceById = new Map(
+    ranked.map((row, index) => [row.id, index + 1])
+  );
+  const rawById = new Map(raw.map((row) => [row.id, row]));
+
+  return mapped.map((row) => {
+    const source = rawById.get(row.id);
+    if (!source?.item) return row;
+    return {
+      ...row,
+      invoiceNumber: saleInvoiceNumber({
+        sequence: sequenceById.get(row.id) ?? 1,
+        soldAt: source.soldAt,
+        itemType: source.item.itemType,
+      }),
+    };
+  });
 }
 
 /** Search active clients for Sold Off buyer linking, filtered by buyer/client type. */
@@ -2054,9 +2086,37 @@ export async function searchInventorySoldOffs(query: string) {
       take: SOLD_OFF_SEARCH_LIMIT,
     });
 
-    return rows
-      .map(mapSoldOffRow)
-      .filter((row): row is NonNullable<typeof row> => row != null);
+    const mapped = await withResolvedInvoiceNumbers(
+      company.id,
+      rows,
+      rows
+        .map(mapSoldOffRow)
+        .filter((row): row is NonNullable<typeof row> => row != null)
+    );
+    const extraRows = await prisma.inventorySale.findMany({
+      where: {
+        companyId: company.id,
+        movement: { voidedAt: null },
+      },
+      include: soldOffInclude,
+      orderBy: { soldAt: "desc" },
+      take: SOLD_OFF_SEARCH_LIMIT,
+    });
+    const extraMapped = await withResolvedInvoiceNumbers(
+      company.id,
+      extraRows,
+      extraRows
+        .map(mapSoldOffRow)
+        .filter((row): row is NonNullable<typeof row> => row != null)
+    );
+    const needle = q.toLowerCase();
+    const byId = new Map(mapped.map((row) => [row.id, row]));
+    for (const row of extraMapped) {
+      if (row.invoiceNumber?.toLowerCase().includes(needle)) {
+        byId.set(row.id, row);
+      }
+    }
+    return [...byId.values()];
   } catch (error) {
     throw toActionError(
       error,
@@ -2087,9 +2147,13 @@ export async function listInventorySales(options?: {
       orderBy: { soldAt: "desc" },
       take: options?.take ?? 500,
     });
-    return rows
-      .map(mapSoldOffRow)
-      .filter((row): row is NonNullable<typeof row> => row != null);
+    return withResolvedInvoiceNumbers(
+      company.id,
+      rows,
+      rows
+        .map(mapSoldOffRow)
+        .filter((row): row is NonNullable<typeof row> => row != null)
+    );
   } catch (error) {
     throw toActionError(
       error,

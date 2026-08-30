@@ -77,8 +77,9 @@ function parseCameraAt(text: string): ParsedCoordinates | null {
 }
 
 function parseQueryCoords(text: string): ParsedCoordinates | null {
+  // Destination / dropped-pin query only — not map viewport (ll, center, sll).
   const queryMatch = text.match(
-    /[?&](?:q|query|ll|center|daddr|sll|pt)=(-?\d+(?:\.\d+)?)[,+\s]+(-?\d+(?:\.\d+)?)/i
+    /[?&](?:q|query|daddr|pt)=(-?\d+(?:\.\d+)?)[,+\s]+(-?\d+(?:\.\d+)?)/i
   );
   if (queryMatch) {
     return validateCoordinates(Number(queryMatch[1]), Number(queryMatch[2]));
@@ -92,6 +93,14 @@ function parseQueryCoords(text: string): ParsedCoordinates | null {
   }
 
   return null;
+}
+
+function parseViewportCoords(text: string): ParsedCoordinates | null {
+  const viewportMatch = text.match(
+    /[?&](?:ll|center|sll)=(-?\d+(?:\.\d+)?)[,+\s]+(-?\d+(?:\.\d+)?)/i
+  );
+  if (!viewportMatch) return null;
+  return validateCoordinates(Number(viewportMatch[1]), Number(viewportMatch[2]));
 }
 
 /**
@@ -114,18 +123,14 @@ export function extractGoogleMapsPin(input: string): ExtractedPin | null {
     return { ...picked, source: "place" };
   }
 
+  // Dropped-pin / extra place: !3dlat!4dlng. Do NOT use !2d!3d — Maps
+  // protobuf uses !1m3!1d…!2dlng!3dlat for the camera (neighborhood center).
   const latLngPins = collectPairs(
     decoded,
     /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/,
     "latlng"
   );
-  const lngLatPins = collectPairs(
-    decoded,
-    /!2d(-?\d+(?:\.\d+)?)!3d(-?\d+(?:\.\d+)?)/,
-    "lnglat"
-  );
-  const consecutive = [...latLngPins, ...lngLatPins];
-  const place = pickPlacePair(consecutive, camera);
+  const place = pickPlacePair(latLngPins, camera);
   if (place) {
     return { ...place, source: "place" };
   }
@@ -139,6 +144,11 @@ export function extractGoogleMapsPin(input: string): ExtractedPin | null {
     return { ...camera, source: "camera" };
   }
 
+  const viewport = parseViewportCoords(decoded);
+  if (viewport) {
+    return { ...viewport, source: "camera" };
+  }
+
   return null;
 }
 
@@ -146,6 +156,11 @@ export function extractGoogleMapsPin(input: string): ExtractedPin | null {
 export function hasReliablePinCoordsInUrl(url: string): boolean {
   const pin = extractGoogleMapsPin(url);
   return pin?.source === "place" || pin?.source === "query";
+}
+
+/** True when the URL has Google's shared place pin (`!8m2!3dlat!4dlng`). */
+export function hasPlaceDataPinInUrl(url: string): boolean {
+  return /!8m2!3d-?\d+(?:\.\d+)?!4d-?\d+(?:\.\d+)?/.test(decodeMapsText(url));
 }
 
 function dmsToDecimal(

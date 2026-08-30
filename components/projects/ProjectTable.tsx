@@ -22,6 +22,7 @@ import { formatDisplayDate } from "@/lib/format-date";
 import {
   localizeBillingChipLines,
   localizeBillingStatus,
+  localizeLateDaysChipLines,
   localizeSubCategory,
   localizeSubCategoryChipLines,
   localizeWorkflowChipLines,
@@ -180,11 +181,10 @@ function paymentDueMetaContent(
   row: ProjectTableRow,
   locale: AppLocale
 ): {
-  status: "info" | "warning";
-  kind: "status" | "date" | "late-days" | "stage";
+  status: "info" | "warning" | "danger";
+  kind: "status" | "date" | "stage";
   lines?: readonly [string, string];
   text?: string;
-  daysOverdue?: number;
 } | null {
   if (!row.paymentStage) {
     if (row.invoiceCycleDue) {
@@ -201,17 +201,13 @@ function paymentDueMetaContent(
   }
 
   if (row.paymentStage.isLate) {
-    if (row.paymentStage.daysOverdue != null) {
-      return {
-        status: "warning",
-        kind: "late-days",
-        daysOverdue: row.paymentStage.daysOverdue,
-      };
-    }
     return {
-      status: "warning",
+      status: "danger",
       kind: "status",
-      lines: localizeBillingChipLines("latePayment", locale),
+      lines:
+        row.paymentStage.daysOverdue != null
+          ? localizeLateDaysChipLines(row.paymentStage.daysOverdue, locale)
+          : localizeBillingChipLines("latePayment", locale),
     };
   }
 
@@ -249,12 +245,10 @@ function paymentDueMetaContent(
 function PaymentDueMetaChip({
   row,
   className,
-  t,
   locale,
 }: {
   row: ProjectTableRow;
   className?: string;
-  t: (key: string, params?: Record<string, string | number>) => string;
   locale: AppLocale;
 }) {
   const meta = paymentDueMetaContent(row, locale);
@@ -268,23 +262,6 @@ function PaymentDueMetaChip({
         className={cn("w-fit shrink-0", className)}
         lines={meta.lines}
       />
-    );
-  }
-
-  if (meta.kind === "late-days") {
-    return (
-      <div className="inline-flex flex-col items-center gap-1">
-        <StatusBadge
-          status="warning"
-          compact
-          className={cn("w-fit shrink-0", className)}
-        >
-          {t("pages.projects.late")}
-        </StatusBadge>
-        {meta.daysOverdue != null ? (
-          <span className="text-xs text-muted">{meta.daysOverdue}d</span>
-        ) : null}
-      </div>
     );
   }
 
@@ -590,7 +567,7 @@ export default function ProjectTable({
                 {lines ? undefined : label}
               </StatusBadge>
               {showMetaUnderStatus ? (
-                <PaymentDueMetaChip row={row} t={t} locale={locale} />
+                <PaymentDueMetaChip row={row} locale={locale} />
               ) : null}
             </div>
           );
@@ -608,7 +585,7 @@ export default function ProjectTable({
         className: "min-w-[9rem] overflow-visible whitespace-nowrap",
         render: (row) => (
           <div className="flex w-full items-center justify-center">
-            <PaymentDueMetaChip row={row} t={t} locale={locale} />
+            <PaymentDueMetaChip row={row} locale={locale} />
           </div>
         ),
       });

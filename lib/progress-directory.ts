@@ -23,6 +23,8 @@ export type ProgressProjectRow = {
   location: string | null;
   subCategory: ProjectSubCategory;
   reportCount: number;
+  /** YYYY-MM-DD — contract start, else planning estimate, else created. */
+  startedOn: string;
 };
 
 export type ProgressInternalSummary = {

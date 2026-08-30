@@ -601,7 +601,7 @@ export async function listPrepaidCardsForExpense() {
           name: true,
           sku: true,
           equipmentAssets: {
-            select: { assetCode: true },
+            select: { assetCode: true, vehicleYear: true },
             orderBy: [{ createdAt: "asc" }, { id: "asc" }],
           },
         },
@@ -626,6 +626,9 @@ export async function listPrepaidCardsForExpense() {
           .filter(Boolean)
           .join(" / ")
       : null,
+    vehicleYear:
+      card.vehicleItem?.equipmentAssets.find((asset) => asset.vehicleYear != null)
+        ?.vehicleYear ?? null,
   }));
 }
 

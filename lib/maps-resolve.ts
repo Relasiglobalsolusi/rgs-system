@@ -1,18 +1,26 @@
 /**
  * Server-side Google Maps / share.google short-link resolution.
- * Follows redirects and scrapes coords from final URLs / HTML.
+ * Follows redirects and scrapes the shared place pin only.
+ *
+ * Never use the Maps camera / APP_INITIALIZATION_STATE / !2dlng!3dlat
+ * viewport — that is the neighborhood center (often a road or river),
+ * not the red pin. CICO uses a tight site radius, so a guessed pin fails check-in.
+ *
+ * Reliable pins: !8m2!3dlat!4dlng, or q=lat,lng dropped pins.
+ * share.google Search shares often omit those; ask for coordinates instead.
  */
 
 import {
   extractGoogleMapsPin,
   parseCoordinates,
   type ParsedCoordinates,
+  hasPlaceDataPinInUrl,
   hasReliablePinCoordsInUrl,
 } from "@/lib/parse-coordinates";
 import { isAllowedGoogleMapsHost } from "@/lib/google-maps-url";
 
 export const MAPS_RESOLVE_NO_COORDS_MESSAGE =
-  "Resolved the link but could not find coordinates. In Google Maps, right-click the pin → copy the decimal coordinates (e.g. -6.200000, 106.816666) and paste those instead.";
+  "That link does not include the exact pin. In Google Maps, right-click the red pin → copy the decimal coordinates (e.g. -6.121412, 106.778304) and paste those instead.";
 
 const MAX_REDIRECTS = 12;
 const FETCH_TIMEOUT_MS = 12_000;
@@ -24,6 +32,8 @@ export type MapsResolveSuccess = {
   latitude: number;
   longitude: number;
   resolvedUrl: string;
+  /** Street / place text from the shared link, when Google landed on Search. */
+  address?: string;
 };
 
 function validateCoords(
@@ -36,8 +46,27 @@ function validateCoords(
   return { lat, lng };
 }
 
+function toAbsoluteGoogleUrl(raw: string, baseUrl: string): string | null {
+  try {
+    const resolved = new URL(raw.replace(/&amp;/g, "&").trim(), baseUrl);
+    if (!isAllowedGoogleMapsHost(resolved.hostname)) return null;
+    if (resolved.toString() === baseUrl) return null;
+    return resolved.toString();
+  } catch {
+    return null;
+  }
+}
+
 /** Extract next navigation URL from HTML (canonical, og:url, meta refresh, anchors). */
 export function extractUrlFromHtml(html: string, baseUrl: string): string | null {
+  const preferred = html.match(
+    /(?:https?:\/\/(?:(?:www|maps)\.)?google\.[^\s"'<>\\]+)?\/(?:maps\/place\/[^"'<\s]+|search\?[^"'<\s]*[?&]q=[^"'<\s]+)/i
+  );
+  if (preferred?.[0]) {
+    const fromPreferred = toAbsoluteGoogleUrl(preferred[0], baseUrl);
+    if (fromPreferred) return fromPreferred;
+  }
+
   const patterns = [
     /<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i,
     /<link[^>]+href=["']([^"']+)["'][^>]+rel=["']canonical["']/i,
@@ -53,43 +82,36 @@ export function extractUrlFromHtml(html: string, baseUrl: string): string | null
   for (const pattern of patterns) {
     const match = html.match(pattern);
     if (!match?.[1]) continue;
-    try {
-      const resolved = new URL(
-        match[1].replace(/&amp;/g, "&").trim(),
-        baseUrl
-      ).toString();
-      if (resolved && resolved !== baseUrl) return resolved;
-    } catch {
-      // ignore invalid extracted URLs
-    }
+    const resolved = toAbsoluteGoogleUrl(match[1], baseUrl);
+    if (resolved) return resolved;
   }
 
-  // Any absolute Google Maps / search URL embedded in the document
   const embedded = html.match(
     /https?:\/\/(?:(?:www|maps)\.)?google\.[^\s"'<>\\]+\/(?:maps|search)[^\s"'<>\\]*/i
   );
   if (embedded?.[0]) {
-    try {
-      return new URL(embedded[0].replace(/&amp;/g, "&")).toString();
-    } catch {
-      // ignore
-    }
+    return toAbsoluteGoogleUrl(embedded[0], baseUrl);
   }
 
   return null;
 }
 
 /**
- * Pull lat/lng out of Maps / share HTML:
- * - !3dlat!4dlng pin data
- * - @lat,lng camera
- * - window.APP_INITIALIZATION_STATE (lng, lat order)
- * - JSON-ish "lat"/"lng" pairs
+ * Pull lat/lng out of Maps / share HTML.
+ * Prefers the shared place pin (!8m2 / q=lat,lng). Viewport tokens
+ * (@camera, center=, APP_INITIALIZATION_STATE, loose JSON) are optional —
+ * share.google Search pages put the mini-map center in the neighborhood,
+ * not on the street pin.
  *
  * Do NOT run the full parseCoordinates() loose-pair heuristics on raw HTML —
  * Maps blobs contain numbers like 31736.182…,106.78… that falsely match.
  */
-export function extractCoordsFromHtml(html: string): ParsedCoordinates | null {
+export function extractCoordsFromHtml(
+  html: string,
+  options: { allowViewport?: boolean } = {}
+): ParsedCoordinates | null {
+  const allowViewport = options.allowViewport === true;
+
   const embeddedMapsUrls = html.match(
     /https?:\/\/(?:(?:www|maps)\.)?google\.[^\s"'<>\\]+\/maps[^\s"'<>\\]*/gi
   );
@@ -107,7 +129,17 @@ export function extractCoordsFromHtml(html: string): ParsedCoordinates | null {
     return { lat: fromBlob.lat, lng: fromBlob.lng };
   }
 
-  // APP_INITIALIZATION_STATE=[[[zoomFactor, lng, lat], ...
+  // Destination-style q=lat,lng only — not center=/ll= viewport.
+  const queryMatch = html.match(
+    /[?&](?:q|query|daddr|pt)=(-?\d+(?:\.\d+)?)[,+\s]+(-?\d+(?:\.\d+)?)/i
+  );
+  if (queryMatch) {
+    const parsed = validateCoords(Number(queryMatch[1]), Number(queryMatch[2]));
+    if (parsed) return parsed;
+  }
+
+  if (!allowViewport) return null;
+
   const appInit = html.match(
     /APP_INITIALIZATION_STATE\s*=\s*\[\[\[\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/
   );
@@ -118,7 +150,6 @@ export function extractCoordsFromHtml(html: string): ParsedCoordinates | null {
     if (parsed) return parsed;
   }
 
-  // ["lat",-6.12] style or "latitude":-6.12,"longitude":106.78
   const jsonLatLng = html.match(
     /"(?:latitude|lat)"\s*:\s*(-?\d+(?:\.\d+)?)\s*,\s*"(?:longitude|lng|lon)"\s*:\s*(-?\d+(?:\.\d+)?)/i
   );
@@ -135,15 +166,6 @@ export function extractCoordsFromHtml(html: string): ParsedCoordinates | null {
     if (parsed) return parsed;
   }
 
-  // Query-style coords if a Maps URL is embedded in HTML
-  const queryMatch = html.match(
-    /[?&](?:q|query|ll|center|daddr|sll|pt)=(-?\d+(?:\.\d+)?)[,+\s]+(-?\d+(?:\.\d+)?)/i
-  );
-  if (queryMatch) {
-    const parsed = validateCoords(Number(queryMatch[1]), Number(queryMatch[2]));
-    if (parsed) return parsed;
-  }
-
   if (fromBlob?.source === "camera") {
     return { lat: fromBlob.lat, lng: fromBlob.lng };
   }
@@ -151,7 +173,103 @@ export function extractCoordsFromHtml(html: string): ParsedCoordinates | null {
   return null;
 }
 
-/** If URL is google /search?q=Address (common share.google landing), return the address. */
+function decodeQueryText(raw: string): string {
+  try {
+    return decodeURIComponent(raw.replace(/\+/g, " ")).trim();
+  } catch {
+    return raw.replace(/\+/g, " ").trim();
+  }
+}
+
+export function looksLikePlaceAddress(text: string): boolean {
+  const value = text.trim();
+  if (value.length < 8 || value.length > 350) return false;
+  if (parseCoordinates(value)) return false;
+  if (/^https?:\/\//i.test(value)) return false;
+  if (!/[a-zA-Z\u00C0-\u024F\u1E00-\u1EFF]/.test(value)) {
+    return false;
+  }
+  return /[,]|(\b(jl\.?|jalan|street|no\.?|rt\.?|rw\.?)\b)|\d/i.test(value);
+}
+
+/** Address / place name buried in share.google or Search HTML. */
+export function extractAddressFromHtml(html: string): string | null {
+  const searchLinks = html.matchAll(
+    /(?:https?:\/\/(?:(?:www|maps)\.)?google\.[^"'<\s]+)?\/search\?[^"'<\s]*?[?&]q=([^&"'<\s]+)/gi
+  );
+  for (const match of searchLinks) {
+    const text = decodeQueryText(match[1] ?? "");
+    if (looksLikePlaceAddress(text)) return text;
+  }
+
+  const placePaths = html.matchAll(/\/maps\/place\/([^/@"'<\s]+)/gi);
+  for (const match of placePaths) {
+    const text = decodeQueryText(match[1] ?? "");
+    if (looksLikePlaceAddress(text)) return text;
+  }
+
+  const title =
+    html.match(/<title[^>]*>([^<]+)/i)?.[1] ??
+    html.match(/property=["']og:title["'][^>]+content=["']([^"']+)/i)?.[1] ??
+    html.match(/content=["']([^"']+)["'][^>]+property=["']og:title["']/i)?.[1];
+  if (title) {
+    const cleaned = decodeQueryText(title)
+      .replace(/\s+[–|—-]\s+Google(?:\s+Search|\s+Maps)?\s*$/i, "")
+      .trim();
+    if (looksLikePlaceAddress(cleaned)) return cleaned;
+  }
+
+  return null;
+}
+
+function pinFromResolvedUrl(url: string): ParsedCoordinates | null {
+  const pin = extractGoogleMapsPin(url);
+  if (!pin || pin.source === "camera") return null;
+  if (pin.source === "place" || pin.source === "query") {
+    return { lat: pin.lat, lng: pin.lng };
+  }
+  return null;
+}
+
+/** Maps place URLs that carry a hex place id or an already-expanded pin. */
+export function extractMapsPlaceFollowUrls(
+  html: string,
+  baseUrl: string
+): string[] {
+  const urls: string[] = [];
+  const seen = new Set<string>();
+
+  const add = (raw: string) => {
+    const abs = toAbsoluteGoogleUrl(raw, baseUrl);
+    if (!abs || seen.has(abs)) return;
+    seen.add(abs);
+    urls.push(abs);
+  };
+
+  for (const match of html.matchAll(
+    /https?:\/\/(?:(?:www|maps)\.)?google\.[^\s"'<>\\]+\/maps\/place\/[^\s"'<>\\]+/gi
+  )) {
+    add(match[0]);
+  }
+  for (const match of html.matchAll(/\/maps\/place\/[^\s"'<>\\]+/gi)) {
+    add(match[0]);
+  }
+  for (const match of html.matchAll(/1s(0x[0-9a-f]+:0x[0-9a-f]+)/gi)) {
+    add(`https://www.google.com/maps/place/data=!4m2!3m1!1s${match[1]}`);
+  }
+
+  urls.sort((a, b) => {
+    const score = (url: string) =>
+      (hasPlaceDataPinInUrl(url) ? 4 : 0) +
+      (hasReliablePinCoordsInUrl(url) ? 2 : 0) +
+      (/1s0x/i.test(url) ? 1 : 0);
+    return score(b) - score(a);
+  });
+
+  return urls;
+}
+
+/** If URL is google /search?q=Address or /maps/place/Name, return the address. */
 export function extractAddressFromSearchUrl(urlString: string): string | null {
   let url: URL;
   try {
@@ -166,24 +284,26 @@ export function extractAddressFromSearchUrl(urlString: string): string | null {
   const isSearch = path === "/search" || path.startsWith("/search?");
   const isMapsQuery =
     path.includes("/maps") &&
-    (url.searchParams.has("q") || url.searchParams.has("query"));
-
-  if (!isSearch && !isMapsQuery) return null;
+    (url.searchParams.has("q") ||
+      url.searchParams.has("query") ||
+      url.searchParams.has("destination"));
 
   const raw =
     url.searchParams.get("q") ||
     url.searchParams.get("query") ||
     url.searchParams.get("destination");
-  if (!raw?.trim()) return null;
+  if ((isSearch || isMapsQuery) && raw?.trim()) {
+    const text = raw.trim();
+    if (looksLikePlaceAddress(text)) return text;
+  }
 
-  const text = raw.trim();
-  // Skip if q is already coordinates or another URL
-  if (parseCoordinates(text)) return null;
-  if (/^https?:\/\//i.test(text)) return null;
-  // Need some letter content to look like an address / place name
-  if (!/[a-zA-Z\u00C0-\u024F\u1E00-\u1EFF]/.test(text)) return null;
+  const placePath = url.pathname.match(/\/maps\/place\/([^/]+)/i);
+  if (placePath?.[1]) {
+    const text = decodeQueryText(placePath[1]);
+    if (looksLikePlaceAddress(text)) return text;
+  }
 
-  return text;
+  return null;
 }
 
 async function fetchOnce(url: string): Promise<Response> {
@@ -201,6 +321,7 @@ async function fetchOnce(url: string): Promise<Response> {
         "Accept-Language": "en-US,en;q=0.9",
         "User-Agent": BROWSER_UA,
         "Upgrade-Insecure-Requests": "1",
+        Cookie: "CONSENT=YES+;",
       },
     });
   } finally {
@@ -232,65 +353,88 @@ export function assertAllowedMapsUrl(urlString: string): URL {
 async function coordsFromMapsQuery(
   address: string
 ): Promise<{ coords: ParsedCoordinates; url: string } | null> {
-  const mapsUrl = `https://www.google.com/maps?q=${encodeURIComponent(address)}`;
-  assertAllowedMapsUrl(mapsUrl);
+  const startUrls = [
+    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`,
+    `https://www.google.com/maps?q=${encodeURIComponent(address)}`,
+  ];
 
-  const response = await fetchOnce(mapsUrl);
-  // Follow one redirect if present
-  let finalUrl = mapsUrl;
-  let html: string;
+  for (const startUrl of startUrls) {
+    let current = startUrl;
+    const seen = new Set<string>();
 
-  if (response.status >= 300 && response.status < 400) {
-    const location = response.headers.get("location");
-    if (!location) return null;
-    finalUrl = new URL(location, mapsUrl).toString();
-    assertAllowedMapsUrl(finalUrl);
+    for (let hop = 0; hop < 8; hop++) {
+      assertAllowedMapsUrl(current);
+      if (seen.has(current)) break;
+      seen.add(current);
 
-    const fromRedirect = parseCoordinates(finalUrl);
-    if (fromRedirect && hasReliablePinCoordsInUrl(finalUrl)) {
-      return { coords: fromRedirect, url: finalUrl };
-    }
+      const fromCurrent = pinFromResolvedUrl(current);
+      if (fromCurrent && (hasPlaceDataPinInUrl(current) || hasReliablePinCoordsInUrl(current))) {
+        return { coords: fromCurrent, url: current };
+      }
 
-    const nested = await fetchOnce(finalUrl);
-    if (!nested.ok && !(nested.status >= 300 && nested.status < 400)) {
-      return null;
-    }
-    if (nested.status >= 300 && nested.status < 400) {
-      const loc2 = nested.headers.get("location");
-      if (loc2) {
-        finalUrl = new URL(loc2, finalUrl).toString();
-        const parsed = parseCoordinates(finalUrl);
-        if (parsed && hasReliablePinCoordsInUrl(finalUrl)) {
-          return { coords: parsed, url: finalUrl };
+      const response = await fetchOnce(current);
+
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get("location");
+        if (!location) break;
+        current = new URL(location, current).toString();
+        continue;
+      }
+
+      if (!response.ok) break;
+
+      const html = await response.text();
+      // Only Google's shared place pin (!8m2). Viewport / nearby POIs are not CICO-safe.
+      if (/!8m2!3d-?\d/.test(html)) {
+        const placePin = extractGoogleMapsPin(html);
+        if (placePin?.source === "place") {
+          return {
+            coords: { lat: placePin.lat, lng: placePin.lng },
+            url: current,
+          };
         }
       }
-      return null;
+
+      const placeUrls = extractMapsPlaceFollowUrls(html, current);
+      for (const next of placeUrls) {
+        const fromNext = pinFromResolvedUrl(next);
+        if (fromNext && hasPlaceDataPinInUrl(next)) {
+          return { coords: fromNext, url: next };
+        }
+      }
+      if (placeUrls[0] && !seen.has(placeUrls[0])) {
+        current = placeUrls[0];
+        continue;
+      }
+
+      const next = extractUrlFromHtml(html, current);
+      if (next && !seen.has(next)) {
+        const fromNext = pinFromResolvedUrl(next);
+        if (fromNext && hasPlaceDataPinInUrl(next)) {
+          return { coords: fromNext, url: next };
+        }
+        current = next;
+        continue;
+      }
+
+      break;
     }
-    html = await nested.text();
-  } else if (response.ok) {
-    html = await response.text();
-  } else {
-    return null;
-  }
-
-  const fromUrl = parseCoordinates(finalUrl);
-  if (fromUrl && hasReliablePinCoordsInUrl(finalUrl)) {
-    return { coords: fromUrl, url: finalUrl };
-  }
-
-  const fromHtml = extractCoordsFromHtml(html);
-  if (fromHtml) return { coords: fromHtml, url: finalUrl };
-
-  // Camera @ coords from redirect URL — only after HTML pin extraction fails
-  if (fromUrl) return { coords: fromUrl, url: finalUrl };
-
-  const next = extractUrlFromHtml(html, finalUrl);
-  if (next) {
-    const nestedCoords = parseCoordinates(next);
-    if (nestedCoords) return { coords: nestedCoords, url: next };
   }
 
   return null;
+}
+
+async function resolveSharedAddress(
+  address: string
+): Promise<MapsResolveSuccess | null> {
+  const fromMaps = await coordsFromMapsQuery(address);
+  if (!fromMaps) return null;
+  return {
+    latitude: fromMaps.coords.lat,
+    longitude: fromMaps.coords.lng,
+    resolvedUrl: fromMaps.url,
+    address,
+  };
 }
 
 /**
@@ -310,8 +454,8 @@ export async function resolveMapsUrl(
     }
     seen.add(current);
 
-    const fromUrl = parseCoordinates(current);
-    if (fromUrl && hasReliablePinCoordsInUrl(current)) {
+    const fromUrl = pinFromResolvedUrl(current);
+    if (fromUrl && (hasPlaceDataPinInUrl(current) || hasReliablePinCoordsInUrl(current))) {
       return {
         latitude: fromUrl.lat,
         longitude: fromUrl.lng,
@@ -319,17 +463,11 @@ export async function resolveMapsUrl(
       };
     }
 
-    // share.google often lands on /search?q=Address — open Maps with that query
-    const address = extractAddressFromSearchUrl(current);
-    if (address) {
-      const fromMaps = await coordsFromMapsQuery(address);
-      if (fromMaps) {
-        return {
-          latitude: fromMaps.coords.lat,
-          longitude: fromMaps.coords.lng,
-          resolvedUrl: fromMaps.url,
-        };
-      }
+    // Address text is for the form. Never geocode it via OSM — that misses the pin.
+    const addressFromUrl = extractAddressFromSearchUrl(current);
+    if (addressFromUrl) {
+      const resolved = await resolveSharedAddress(addressFromUrl);
+      if (resolved) return resolved;
     }
 
     const response = await fetchOnce(current);
@@ -351,36 +489,60 @@ export async function resolveMapsUrl(
 
     const html = await response.text();
 
+    const addressFromHtml =
+      extractAddressFromSearchUrl(current) ?? extractAddressFromHtml(html);
+
+    const placeUrls = extractMapsPlaceFollowUrls(html, current);
+    for (const placeUrl of placeUrls) {
+      const fromPlace = pinFromResolvedUrl(placeUrl);
+      if (fromPlace && hasPlaceDataPinInUrl(placeUrl)) {
+        return {
+          latitude: fromPlace.lat,
+          longitude: fromPlace.lng,
+          resolvedUrl: placeUrl,
+          ...(addressFromHtml ? { address: addressFromHtml } : {}),
+        };
+      }
+    }
+
+    if (addressFromHtml) {
+      const resolved = await resolveSharedAddress(addressFromHtml);
+      if (resolved) return resolved;
+    }
+
+    // Place / dropped-pin only — never the Search / Maps camera center
     const fromHtmlCoords = extractCoordsFromHtml(html);
     if (fromHtmlCoords) {
       return {
         latitude: fromHtmlCoords.lat,
         longitude: fromHtmlCoords.lng,
         resolvedUrl: current,
+        ...(addressFromHtml ? { address: addressFromHtml } : {}),
       };
+    }
+
+    if (placeUrls[0] && !seen.has(placeUrls[0])) {
+      current = placeUrls[0];
+      continue;
     }
 
     const nextFromHtml = extractUrlFromHtml(html, current);
     if (nextFromHtml && nextFromHtml !== current && !seen.has(nextFromHtml)) {
-      const nested = parseCoordinates(nextFromHtml);
-      if (nested && hasReliablePinCoordsInUrl(nextFromHtml)) {
+      const nested = pinFromResolvedUrl(nextFromHtml);
+      if (nested && hasPlaceDataPinInUrl(nextFromHtml)) {
         return {
           latitude: nested.lat,
           longitude: nested.lng,
           resolvedUrl: nextFromHtml,
+          ...(addressFromHtml ? { address: addressFromHtml } : {}),
         };
       }
 
-      const nestedAddress = extractAddressFromSearchUrl(nextFromHtml);
+      const nestedAddress =
+        extractAddressFromSearchUrl(nextFromHtml) ?? addressFromHtml;
       if (nestedAddress) {
-        const fromMaps = await coordsFromMapsQuery(nestedAddress);
-        if (fromMaps) {
-          return {
-            latitude: fromMaps.coords.lat,
-            longitude: fromMaps.coords.lng,
-            resolvedUrl: fromMaps.url,
-          };
-        }
+        const resolved = await resolveSharedAddress(nestedAddress);
+        if (resolved) return resolved;
       }
 
       current = nextFromHtml;

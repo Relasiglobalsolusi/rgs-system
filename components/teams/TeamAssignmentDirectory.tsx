@@ -165,11 +165,11 @@ export default function TeamAssignmentDirectory({
           );
         }
         return (
-          <div className="flex w-full min-w-0 flex-col items-center justify-center gap-1 px-2">
+          <div className="flex w-full min-w-0 flex-col items-center justify-center gap-2.5 px-2">
             <StatusBadge status="warning" compact className="w-fit shrink-0">
               {t("pages.teams.statusOnSite")}
             </StatusBadge>
-            <span className="max-w-full break-words text-center text-xs leading-snug text-muted">
+            <span className="max-w-full break-words text-center text-sm font-medium leading-snug text-text">
               {team.occupiedProjectName}
             </span>
           </div>

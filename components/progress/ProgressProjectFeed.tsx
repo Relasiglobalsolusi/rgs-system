@@ -69,7 +69,7 @@ export type FeedEmployeeOption = {
 export type ProgressFeedViewMode = "day" | "month";
 
 type Props = {
-  project: { id: string; name: string };
+  project: { id: string; name: string; startedOn?: string | null };
   reports: FeedReport[];
   employees: FeedEmployeeOption[];
   selectedEmployeeId?: string;
@@ -408,6 +408,15 @@ export default function ProgressProjectFeed({
           {t("pages.progress.backToProjects")}
         </Link>
         <h2 className="mt-2 text-xl font-semibold text-text">{project.name}</h2>
+        {project.startedOn ? (
+          <p className="mt-1 text-sm text-subtle">
+            {t("pages.progress.startedOn", {
+              date: formatDisplayDate(parseDateInput(project.startedOn), {
+                timeZone: "UTC",
+              }),
+            })}
+          </p>
+        ) : null}
         <p className="mt-1 text-xs text-subtle">
           {periodLabel}
           {" · "}

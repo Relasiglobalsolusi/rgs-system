@@ -27,6 +27,7 @@ import {
   localizeBillingChipLines,
   localizeBillingMode,
   localizeBillingStatus,
+  localizeLateDaysChipLines,
   localizeSubCategory,
 } from "@/lib/i18n/labels";
 import { getServerLocale } from "@/lib/i18n/locale";
@@ -286,18 +287,18 @@ export default async function ProjectPeriodPage({
     ? localizeBillingChipLines("awaitingClientReview", locale)
     : monthlyAwaitingReconcile
       ? localizeBillingChipLines("readyToReconcile", locale)
-      : display.chipLines
-        ? localizeBillingChipLines(
-            display.key === "LATE"
-              ? "latePayment"
-              : display.key === "PENDING_VERIFICATION"
+      : display.key === "LATE" && display.daysOverdue != null
+        ? localizeLateDaysChipLines(display.daysOverdue, locale)
+        : display.chipLines
+          ? localizeBillingChipLines(
+              display.key === "PENDING_VERIFICATION"
                 ? "verifyingPayment"
                 : display.key === "AWAITING_CLIENT_REVIEW"
                   ? "awaitingClientReview"
                   : "awaitingPayment",
-            locale
-          )
-        : undefined;
+              locale
+            )
+          : undefined;
 
   return (
     <AppShell title={periodLabel}>

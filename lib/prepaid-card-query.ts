@@ -68,6 +68,7 @@ export type PrepaidCardView = {
   vehicleName: string | null;
   vehicleSku: string | null;
   vehiclePlate: string | null;
+  vehicleYear: number | null;
   custodianEmployeeId: string | null;
   custodianName: string | null;
   replacedByCardId: string | null;
@@ -92,7 +93,7 @@ export async function loadPrepaidCardsForPanel(
             name: true,
             sku: true,
             equipmentAssets: {
-              select: { assetCode: true },
+              select: { assetCode: true, vehicleYear: true },
               orderBy: [{ createdAt: "asc" }, { id: "asc" }],
             },
           },
@@ -108,7 +109,7 @@ export async function loadPrepaidCardsForPanel(
                 name: true,
                 sku: true,
                 equipmentAssets: {
-                  select: { assetCode: true },
+                  select: { assetCode: true, vehicleYear: true },
                   orderBy: [{ createdAt: "asc" }, { id: "asc" }],
                 },
               },
@@ -219,6 +220,10 @@ export async function loadPrepaidCardsForPanel(
             .filter(Boolean)
             .join(" / ")
         : null,
+      vehicleYear:
+        card.vehicleItem?.equipmentAssets.find(
+          (asset) => asset.vehicleYear != null
+        )?.vehicleYear ?? null,
       custodianEmployeeId: card.custodianEmployeeId,
       custodianName: card.custodianEmployee
         ? formatEmployeeName(card.custodianEmployee)

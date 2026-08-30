@@ -68,6 +68,7 @@ import {
   localizeBillingMode,
   localizeBillingPeriodBasis,
   localizeBillingStatus,
+  localizeLateDaysChipLines,
 } from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
 import type {
@@ -721,19 +722,23 @@ export default function ProjectBillingPanel({
                             status={display.tone}
                             compact
                             lines={
-                              display.chipLines
-                                ? localizeBillingChipLines(
-                                    display.key === "LATE"
-                                      ? "latePayment"
-                                      : display.key === "PENDING_VERIFICATION"
+                              display.key === "LATE" &&
+                              display.daysOverdue != null
+                                ? localizeLateDaysChipLines(
+                                    display.daysOverdue,
+                                    locale
+                                  )
+                                : display.chipLines
+                                  ? localizeBillingChipLines(
+                                      display.key === "PENDING_VERIFICATION"
                                         ? "verifyingPayment"
                                         : display.key ===
                                             "AWAITING_CLIENT_REVIEW"
                                           ? "awaitingClientReview"
                                           : "awaitingPayment",
-                                    locale
-                                  )
-                                : undefined
+                                      locale
+                                    )
+                                  : undefined
                             }
                           >
                             {display.chipLines
@@ -778,16 +783,6 @@ export default function ProjectBillingPanel({
                               ? "pages.billing.daysSinceInvoicedOne"
                               : "pages.billing.daysSinceInvoicedOther",
                             { count: display.daysSinceInvoiced }
-                          )}
-                        </p>
-                      )}
-                      {display.isLate && display.daysOverdue != null && (
-                        <p className="mt-0.5 text-red-300">
-                          {t(
-                            display.daysOverdue === 1
-                              ? "pages.billing.daysOverdueOne"
-                              : "pages.billing.daysOverdueOther",
-                            { count: display.daysOverdue }
                           )}
                         </p>
                       )}

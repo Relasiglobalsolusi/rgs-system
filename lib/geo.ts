@@ -1,21 +1,24 @@
 const EARTH_RADIUS_METERS = 6_371_000;
 
-/** CICO check-in/out geofence radius (meters). */
+/** Default CICO geofence when a project has no stored radius. */
 export const CICO_GEOFENCE_RADIUS_METERS = 50;
 
 /** Smallest site radius the location picker accepts. */
-export const MIN_LOCATION_RADIUS_METERS = 25;
+export const MIN_LOCATION_RADIUS_METERS = 20;
 
-/** Default project site radius when none is stored. Matches CICO geofence. */
+/** Largest site radius — wide compounds / malls. CICO uses this as the cap. */
+export const MAX_LOCATION_RADIUS_METERS = 300;
+
+/** Default project site radius when none is stored. */
 export const DEFAULT_LOCATION_RADIUS_METERS = CICO_GEOFENCE_RADIUS_METERS;
 
 export function clampLocationRadiusMeters(value: number): number {
   if (!Number.isFinite(value) || value <= 0) {
-    return CICO_GEOFENCE_RADIUS_METERS;
+    return DEFAULT_LOCATION_RADIUS_METERS;
   }
   return Math.min(
     Math.max(Math.round(value), MIN_LOCATION_RADIUS_METERS),
-    CICO_GEOFENCE_RADIUS_METERS
+    MAX_LOCATION_RADIUS_METERS
   );
 }
 
@@ -27,9 +30,9 @@ export function resolveGeofenceRadiusMeters(
     Number.isFinite(radiusMeters) &&
     radiusMeters > 0
   ) {
-    return Math.min(radiusMeters, CICO_GEOFENCE_RADIUS_METERS);
+    return clampLocationRadiusMeters(radiusMeters);
   }
-  return CICO_GEOFENCE_RADIUS_METERS;
+  return DEFAULT_LOCATION_RADIUS_METERS;
 }
 
 export function haversineDistanceMeters(

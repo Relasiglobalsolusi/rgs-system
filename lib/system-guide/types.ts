@@ -8,8 +8,10 @@ export type SystemGuideModuleCopy = {
   remember?: readonly string[];
 };
 
+export type SystemGuideChapterKey = ModuleKey | "firstLogin";
+
 export type SystemGuideResolvedModule = {
-  key: ModuleKey;
+  key: SystemGuideChapterKey;
   name: string;
   section: string;
   openAt: string;

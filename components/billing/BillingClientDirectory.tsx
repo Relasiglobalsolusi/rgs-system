@@ -144,24 +144,18 @@ export default function BillingClientDirectory({
         render: (client) => (
           <div className="flex max-w-full flex-col items-center justify-center gap-1.5">
             {client.lateInvoices > 0 ? (
-              <div className="flex flex-col items-center gap-1">
-                <StatusBadge status="danger" compact className="w-fit shrink-0">
-                  {t("pages.billing.overdue")}
-                </StatusBadge>
-                <span className="text-xs tabular-nums text-muted">
-                  {client.lateInvoices}
-                </span>
-              </div>
+              <StatusBadge status="danger" compact className="w-fit shrink-0">
+                {t("pages.billing.overdueChip", {
+                  count: client.lateInvoices,
+                })}
+              </StatusBadge>
             ) : null}
             {client.openInvoices > 0 ? (
-              <div className="flex flex-col items-center gap-1">
-                <StatusBadge status="warning" compact className="w-fit shrink-0">
-                  {t("pages.billing.unpaid")}
-                </StatusBadge>
-                <span className="text-xs tabular-nums text-muted">
-                  {client.openInvoices}
-                </span>
-              </div>
+              <StatusBadge status="warning" compact className="w-fit shrink-0">
+                {t("pages.billing.unpaidChip", {
+                  count: client.openInvoices,
+                })}
+              </StatusBadge>
             ) : null}
             {client.openInvoices === 0 && client.lateInvoices === 0 ? (
               <StatusBadge status="success" compact className="w-fit shrink-0">

@@ -325,6 +325,9 @@ export const id = {
       taxInvoiceDone2: "Terunggah",
       latePayment1: "Bayar",
       latePayment2: "Terlambat",
+      lateDays1One: "1 Hari",
+      lateDays1Other: "{count} Hari",
+      lateDays2: "Terlambat",
       paymentDue1: "Menunggu",
       paymentDue2: "Pembayaran",
       invoiceDue1: "Invoice",
@@ -1272,19 +1275,18 @@ export const id = {
         radiusPlaceholder: "Radius (m)",
         internalCicoHint:
           "Atur pin peta dan radius situs untuk CICO kantor di situs Internal ini (Head Office atau Warehouse).",
-        pasteLabel: "Tempel koordinat / tautan Google Maps",
-        pastePlaceholder:
-          "-6.200000, 106.816666 atau URL Google Maps / share.google",
+        pasteLabel: "Koordinat Google Maps",
+        pastePlaceholder: "-6.200000, 106.816666",
         parseError:
           "Tidak dapat diparse. Tempel koordinat desimal (mis. -6.2, 106.8) atau tautan Google Maps.",
         shortLinkError:
-          "Tidak dapat membuka tautan pendek Maps. Di Google Maps, klik kanan pin → salin koordinat desimal lalu tempel di sini.",
+          "Tautan itu tidak menyertakan pin yang tepat. Di Google Maps, klik kanan pin merah → salin koordinat desimal lalu tempel di sini.",
         coordsAppliedFilled: "Koordinat diterapkan dan alamat diisi.",
-        coordsLookingUp: "Koordinat diterapkan — mencari alamat…",
+        coordsAppliedAdjust:
+          "Koordinat diterapkan. Seret atau klik peta untuk memasang pin yang tepat — alamat diisi setelah itu.",
         retryingLookup: "Mencoba ulang pencarian alamat…",
         addressFilled: "Alamat diisi.",
         resolvingShortLink: "Membuka tautan pendek Maps…",
-        shortLinkLookingUp: "Tautan pendek berhasil dibuka — mencari alamat…",
         pinMovedLookingUp: "Pin dipindah — mencari alamat…",
         pinSetLookingUp: "Pin dipasang — mencari alamat…",
         urlNotAddress:
@@ -1297,7 +1299,7 @@ export const id = {
         retrying: " Mencoba ulang…",
         retryLookup: "Coba lagi pencarian alamat",
         pinHelp:
-          "Pin diperbarui dari tempelan. Seret atau klik peta untuk menyesuaikan."
+          "Koordinat memindahkan pin. Seret atau klik untuk memasang titik yang tepat — alamat diisi dari pin itu. Lingkaran adalah radius check-in."
       },
       finish: {
         confirmInvoice:
@@ -3444,8 +3446,12 @@ export const id = {
       unpaidCount: "{count} belum dibayar",
       overdue: "Terlambat",
       unpaid: "Belum dibayar",
+      overdueChip: "{count} Terlambat",
+      unpaidChip: "{count} Belum Dibayar",
       open: "Terbuka",
       late: "Terlambat",
+      openChip: "{count} Terbuka",
+      lateChip: "{count} Terlambat",
       allSettled: "Semua lunas",
       paidInvoiceOne: "{count} invoice lunas",
       paidInvoiceOther: "{count} invoice lunas",
@@ -3879,7 +3885,7 @@ export const id = {
       saleCountOne: "1 Penjualan",
       thisYear: "Tahun ini {amount}",
       searchPlaceholder:
-        "Cari penjualan: item, SKU, pembeli, catatan…",
+        "Cari penjualan: faktur, item, SKU, pembeli, catatan…",
       addSale: "Buat Faktur Penjualan",
       bankAccount: "Rekening Bank",
       bankAccountEmpty: "Tambah rekening bank di Detail Perusahaan terlebih dahulu.",
@@ -3897,7 +3903,7 @@ export const id = {
       attachFailed: "Tidak dapat menyimpan dokumen penjualan.",
       saveDocuments: "Simpan Dokumen",
       columns: {
-        documents: "Dokumen"
+        invoice: "Faktur"
       },
       docInvoiceReady: "Faktur",
       docInvoiceMissing: "Faktur belum ada",
@@ -4866,7 +4872,8 @@ export const id = {
         returnOfSecurityDeposit: "Pengembalian Deposit Keamanan",
         clientCompensation: "Kompensasi Klien",
         forfeitedWages: "Sisa Upah Tidak Dibayar",
-        cashAdvance: "Kasbon"
+        cashAdvance: "Kasbon",
+        sickLeave: "Cuti Sakit"
       },
       depositStatus: {
         none: "None",
@@ -4926,7 +4933,6 @@ export const id = {
       emptyDescription:
         "Belum ada rekonsiliasi atau review progress di daftar ini.",
       openBilling: "Buka penagihan",
-      openDetails: "Buka rincian",
       viewReport: "Lihat laporan",
       detailTitle: "Rincian Rekonsiliasi",
       revisionReason: "Alasan Permintaan Revisi",
@@ -5032,7 +5038,8 @@ export const id = {
       chooseProjectHint:
         "Umpan hanya lihat — buka proyek untuk memantau laporan saat foto diunggah.",
       chooseProjectHintClient:
-        "Buka proyek untuk melihat catatan dan foto lokasi Anda.",
+        "Buka proyek untuk melihat catatan dan foto lokasi Anda. Tanggal mulai menunjukkan bulan laporan pertama.",
+      startedOn: "Mulai {date}",
       searchClients: "Cari Klien",
       searchProjects: "Cari Proyek",
       cards: {
@@ -5609,7 +5616,10 @@ export const id = {
         companyNotFound: "Perusahaan tidak ditemukan.",
         leaveNotFound: "Permintaan izin tidak ditemukan.",
         alreadyReviewed: "Permintaan ini sudah ditinjau.",
-        notAllowedToApprove: "Anda tidak diizinkan menyetujui permintaan ini."
+        notAllowedToApprove: "Anda tidak diizinkan menyetujui permintaan ini.",
+        deductSickOnly:
+          "Potongan gaji hanya dapat ditambahkan saat menyetujui cuti sakit.",
+        deductAmountRequired: "Masukkan jumlah Rupiah lebih dari nol."
       },
       requestType: "Jenis Permintaan",
       startDate: "Tanggal Mulai",
@@ -5647,7 +5657,18 @@ export const id = {
         "Retur item yang belum selesai muncul di sini untuk keputusan manajer.",
       leaveSection: "Izin & Sakit",
       leaveSectionDesc:
-        "Permintaan izin dan sakit yang menunggu keputusan Anda.",
+        "Setujui atau Tolak. Cuti sakit lalu menanyakan apakah ada potongan gaji.",
+      approveSickTitle: "Setujui Cuti Sakit",
+      approveSickDescription:
+        "Cuti akan disetujui. Pilih apakah ada potongan gaji. Jumlah ini tidak dihitung otomatis.",
+      deductionChoice: "Potongan",
+      noDeduction: "Tanpa Potong",
+      noDeductionHint:
+        "Hari tersebut tidak dibayar. Tidak ada jumlah tambahan yang dipotong di Penggajian Internal.",
+      sickDeduct: "Potong",
+      deductAmount: "Jumlah",
+      deductHint:
+        "Baris ini muncul di Penggajian Internal karyawan untuk periode tanggal mulai cuti.",
       ownPendingTitle: "Permintaan Anda menunggu peninjau lain",
       ownPendingDesc:
         "Anda tidak dapat menyetujui izin sendiri. Orang berikutnya dalam rantai izin harus meninjaunya di Persetujuan.",
@@ -5955,6 +5976,7 @@ export const id = {
       viewSaleInvoice: "Lihat Faktur",
       viewBuyerIdentityDoc: "Lihat Faktur Pajak",
       saleDetailsTitle: "Detail Penjualan",
+      saleDetailsInvoice: "Faktur",
       saleDetailsDesc: "Detail lengkap untuk catatan penjualan ini.",
       saleDetailsLinkedClient: "Klien Tertaut",
       saleDetailsDocuments: "Dokumen",
@@ -6633,9 +6655,12 @@ export const id = {
       contents: "Daftar isi",
       howToRead: "Cara memakai buku ini",
       howToReadBody:
-        "Buku ini ditulis untuk login {position}. Isinya hanya apa yang bisa dilakukan jabatan ini. Jabatan lain dengan modul yang sama akan melihat langkah yang berbeda. Masuk, buka sidebar, dan ikuti setiap bagian berurutan. Chip status di layar menunjukkan langkah berikutnya. Jika sebuah modul tidak ada di sidebar, Kantor Pusat belum memberi akses itu pada jabatan ini.",
+        "Mulai dari Login Pertama Kali, lalu ikuti setiap bagian berurutan. Buku ini ditulis untuk login {position}. Isinya hanya apa yang bisa dilakukan jabatan ini. Jabatan lain dengan modul yang sama akan melihat langkah yang berbeda. Chip status di layar menunjukkan langkah berikutnya. Jika sebuah modul tidak ada di sidebar, Kantor Pusat belum memberi akses itu pada jabatan ini.",
       howToReadBodyClient:
-        "Buku ini ditulis untuk login portal klien. Isinya hanya apa yang bisa Anda lakukan: membaca lokasi Anda, meninjau periode tagihan, dan membayar invoice yang masih Anda bayar. Buku ini tidak mencakup pekerjaan Kantor Pusat seperti membayar pemasok, menugaskan staf, atau menyusun invoice. Masuk dengan login portal klien, buka sidebar, dan ikuti setiap bagian berurutan.",
+        "Mulai dari Login Pertama Kali, lalu ikuti setiap bagian berurutan. Buku ini ditulis untuk login portal klien. Isinya hanya apa yang bisa Anda lakukan: membaca lokasi Anda, meninjau periode tagihan, dan membayar invoice yang masih Anda bayar. Buku ini tidak mencakup pekerjaan Kantor Pusat seperti membayar pemasok, menugaskan staf, atau menyusun invoice.",
+      firstLoginChapter: "Login Pertama Kali",
+      firstLoginOpenAt: "Halaman Masuk > Pertama kali masuk?",
+      firstLoginOpenAtClient: "Halaman Masuk Portal Klien > Pertama kali masuk?",
       forClientUse: "Untuk portal klien - Relasi Global Solusi",
       openAt: "Di mana membukanya",
       steps: "Cara memakainya",
@@ -6643,8 +6668,8 @@ export const id = {
       sectionTitle: "{number}. {name}",
       internalUse: "Untuk internal - Relasi Global Solusi",
       pageOf: "Halaman {page} dari {total}",
-      moduleCountOne: "{count} modul dalam buku ini",
-      moduleCountOther: "{count} modul dalam buku ini",
+      moduleCountOne: "{count} bab dalam buku ini",
+      moduleCountOther: "{count} bab dalam buku ini",
       leaveChain: {
         intro:
           "Izin mengikuti rantai ini. Buka baris yang boleh Anda putuskan, lalu Setujui atau Tolak.",
