@@ -38,6 +38,7 @@ import StatusBadge, { StackedChipLabel } from "@/components/ui/StatusBadge";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { preventBrowserFileNavigation } from "@/components/ui/FileDropField";
+import { firstStoredPath } from "@/lib/stored-paths";
 import ContractPriceEditor from "@/components/billing/ContractPriceEditor";
 import { flexibleBadgeChipClassName } from "@/components/ui/trash-action-buttons";
 import { cn } from "@/lib/utils";
@@ -306,14 +307,17 @@ export default function ProjectBillingPanel({
     }, t("pages.billing.deletePeriodFailed"));
   }
 
-  function submitPaymentProof(periodId: string, file: File | null | undefined) {
-    if (!file || file.size <= 0) {
+  function submitPaymentProof(periodId: string, files: FileList | File[] | null | undefined) {
+    const usable = Array.from(files ?? []).filter((file) => file.size > 0);
+    if (usable.length === 0) {
       showRejection({ reasons: t("pages.billing.choosePaymentProof") });
       return;
     }
     const formData = new FormData();
     formData.set("periodId", periodId);
-    formData.set("paymentProof", file);
+    for (const file of usable) {
+      formData.append("paymentProof", file);
+    }
     run(async () => {
       await submitInvoicePaymentForVerification(formData);
       router.refresh();
@@ -818,9 +822,9 @@ export default function ProjectBillingPanel({
                       <ChipCell>
                       <div className="inline-flex max-w-full flex-col items-center justify-center gap-2">
                         <div className="hidden max-w-full flex-wrap items-center justify-center gap-2 has-[>*]:inline-flex">
-                          {period.paymentProofPath && (
+                          {firstStoredPath(period.paymentProofPath) && (
                             <a
-                              href={period.paymentProofPath}
+                              href={firstStoredPath(period.paymentProofPath) ?? "#"}
                               target="_blank"
                               rel="noreferrer"
                               className={cn(
@@ -835,9 +839,12 @@ export default function ProjectBillingPanel({
                               {t("pages.billing.viewProof")}
                             </a>
                           )}
-                          {period.taxInvoiceDocumentPath && (
+                          {firstStoredPath(period.taxInvoiceDocumentPath) && (
                             <a
-                              href={period.taxInvoiceDocumentPath}
+                              href={
+                                firstStoredPath(period.taxInvoiceDocumentPath) ??
+                                "#"
+                              }
                               target="_blank"
                               rel="noreferrer"
                               className={cn(
@@ -870,7 +877,7 @@ export default function ProjectBillingPanel({
                                   if (pending) return;
                                   submitPaymentProof(
                                     period.id,
-                                    event.dataTransfer.files?.[0]
+                                    event.dataTransfer.files
                                   );
                                 }}
                               >
@@ -882,11 +889,12 @@ export default function ProjectBillingPanel({
                                   type="file"
                                   accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
                                   className="sr-only"
+                                  multiple
                                   disabled={pending}
                                   onChange={(event) => {
-                                    const file = event.target.files?.[0];
+                                    const files = event.target.files;
                                     event.target.value = "";
-                                    submitPaymentProof(period.id, file);
+                                    submitPaymentProof(period.id, files);
                                   }}
                                 />
                               </label>

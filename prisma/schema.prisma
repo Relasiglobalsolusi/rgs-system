@@ -66,6 +66,8 @@ enum PayrollDeductionType {
   CASH_ADVANCE
   /// Manual amount entered when approving sick leave (not a calculated fine).
   SICK_LEAVE
+  /// Prepaid / open card personal misuse. Recovered on Internal Payroll to HO. Card balance does not change.
+  PREPAID_MISUSE
 }
 
 /// Operational Manager decision when CICO is under 9 hours (or 18 on a double shift).
@@ -149,6 +151,12 @@ enum TransferOrderStatus {
   /// Manager wrote off the in-transit stock. Audit trail kept.
   WRITTEN_OFF
   CANCELLED
+}
+
+enum ProjectCatchUpKind {
+  NONE
+  COMPLETED
+  ONGOING
 }
 
 enum ProjectStatus {
@@ -381,6 +389,20 @@ enum VehicleCondition {
   USED
 }
 
+/// First reading on a plate, or a later fuel-fill reading.
+enum VehicleOdometerKind {
+  INITIAL
+  REFUEL
+}
+
+/// Where this odometer reading was posted from.
+enum VehicleOdometerSource {
+  MANUAL
+  PETTY_CASH
+  PREPAID
+  PURCHASE_INVOICE
+}
+
 /// What a government expense is settling (DJP / other state bills).
 enum GovernmentTaxKind {
   /// Monthly Value Added Tax payment (PPN Kurang Bayar).
@@ -520,6 +542,9 @@ model Company {
   cashAtBankOpening     Decimal?  @db.Decimal(14, 2)
   cashAtBankOpeningAsOf DateTime? @db.Date
 
+  /// First calendar day this ERP is live. Before this, catch-up / history is recorded only.
+  booksOpenDate DateTime? @db.Date
+
   /// Company BPJS Kesehatan virtual account (prefilled on government expenses).
   bpjsKesehatanVirtualAccount String?
   /// Company BPJS Ketenagakerjaan virtual account (prefilled on government expenses).
@@ -557,6 +582,7 @@ model Company {
   pettyCashEntries    PettyCashEntry[]
   prepaidCards        PrepaidCard[]
   prepaidCardLosses   PrepaidCardLoss[]
+  vehicleOdometerReadings VehicleOdometerReading[]
   loanFacilities      LoanFacility[]
   bpjsRemittances     BpjsRemittance[]
   projectServiceAreas ProjectServiceAreaCatalog[]
@@ -872,6 +898,8 @@ model User {
   assignedDoubleShifts      DoubleShiftAssignment[] @relation("DoubleShiftAssignedBy")
   createdFactoryReturns     EquipmentFactoryReturn[] @relation("FactoryReturnCreator")
   closedFactoryReturns      EquipmentFactoryReturn[] @relation("FactoryReturnCloser")
+  createdVehicleOdometerReadings VehicleOdometerReading[] @relation("VehicleOdometerCreator")
+  acknowledgedVehicleFuelAlerts VehicleOdometerReading[] @relation("VehicleFuelAlertAck")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1125,6 +1153,8 @@ model Project {
   /// One-time demo / trial site. Always one-time; complimentary skips billing.
   isDemo Boolean @default(false)
   isComplimentary Boolean @default(false)
+  /// How this row was entered when the contract had already started.
+  catchUpKind ProjectCatchUpKind @default(NONE)
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -1520,6 +1550,7 @@ model PurchaseInvoice {
   prepaidCardId String?
   prepaidCard   PrepaidCard? @relation(fields: [prepaidCardId], references: [id], onDelete: SetNull)
   prepaidCardEntries PrepaidCardEntry[]
+  odometerReading VehicleOdometerReading?
 
   reversedAt DateTime?
   reversedById String?
@@ -1813,6 +1844,8 @@ model PettyCashEntry {
   prepaidCardId String?
   prepaidCard   PrepaidCard? @relation(fields: [prepaidCardId], references: [id], onDelete: SetNull)
 
+  odometerReading VehicleOdometerReading?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1940,6 +1973,7 @@ model PrepaidCardEntry {
   relatedCard      PrepaidCard?          @relation("PrepaidCardTransfer", fields: [relatedCardId], references: [id], onDelete: SetNull)
   bankAccountId    String?
   bankAccount      CompanyBankAccount?   @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  odometerReading  VehicleOdometerReading?
 
   @@index([prepaidCardId, entryDate])
   @@index([assignmentId])
@@ -2164,6 +2198,8 @@ model ProjectInvoicePeriod {
   periodEnd   DateTime @db.Date
   label       String?
   status      InvoicePeriodStatus @default(ONGOING)
+  /// Booked from Add Project catch-up. No live CICO / recon / client portal.
+  isCatchUp Boolean @default(false)
 
   /// Invoice amount for this period (IDR). Null for legacy monthly compiles without a price.
   amount           Decimal? @db.Decimal(14, 2)
@@ -2381,6 +2417,11 @@ model InventoryItem {
   deletedAt DateTime?
   /// When false (e.g. Consulting Fee), purchase lines record cost only — no stock.
   tracksStock Boolean @default(true)
+  /// Predicted km per litre for this vehicle type (low / high). Copied onto plates.
+  kmPerLitreMin Decimal? @db.Decimal(8, 2)
+  kmPerLitreMax Decimal? @db.Decimal(8, 2)
+  /// Spec fuel-tank size in litres for this vehicle type.
+  fuelTankLitres Decimal? @db.Decimal(8, 2)
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -2639,11 +2680,29 @@ model EquipmentAsset {
   leaseOtherFee Decimal? @db.Decimal(14, 2)
   leaseMonthlyInstallment Decimal? @db.Decimal(14, 2)
 
+  /// Last known odometer (km). Updated on each fuel fill.
+  currentOdometerKm Int?
+  /// First odometer entered for this plate.
+  initialOdometerKm Int?
+  /// Typical full-tank range in km. Replaced by km-per-litre; kept for old rows.
+  expectedRangeKm Int?
+  /// Average km this vehicle should travel on one litre (low / high).
+  kmPerLitreMin Decimal? @db.Decimal(8, 2)
+  kmPerLitreMax Decimal? @db.Decimal(8, 2)
+  /// Litres put in at the last recorded fill.
+  lastFillLitres Decimal? @db.Decimal(8, 2)
+  /// Estimated litres left after the last fill (thirsty / efficient).
+  estimatedFuelLeftLitresMin Decimal? @db.Decimal(8, 2)
+  estimatedFuelLeftLitresMax Decimal? @db.Decimal(8, 2)
+  /// Litres from the first full-tank fill. Used as the tank size for later checks.
+  fullTankLitres Decimal? @db.Decimal(8, 2)
+
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   factoryReturns EquipmentFactoryReturn[]
   purchaseInvoices PurchaseInvoice[]
+  odometerReadings VehicleOdometerReading[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2653,6 +2712,51 @@ model EquipmentAsset {
   @@index([itemId, status])
   @@index([projectId])
   @@index([teamId])
+}
+
+/// Odometer log for a company vehicle. One row per initial reading or fuel fill.
+model VehicleOdometerReading {
+  id        String @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  vehicleAssetId String
+  vehicleAsset   EquipmentAsset @relation(fields: [vehicleAssetId], references: [id], onDelete: Cascade)
+
+  readingKm         Int
+  previousReadingKm Int?
+  kmTraveled        Int?
+  litresFilled      Decimal? @db.Decimal(8, 2)
+  fuelUsedLitresMin Decimal? @db.Decimal(8, 2)
+  fuelUsedLitresMax Decimal? @db.Decimal(8, 2)
+  fuelLeftBeforeMin Decimal? @db.Decimal(8, 2)
+  fuelLeftBeforeMax Decimal? @db.Decimal(8, 2)
+  fuelLeftAfterMin  Decimal? @db.Decimal(8, 2)
+  fuelLeftAfterMax  Decimal? @db.Decimal(8, 2)
+  expectedKmMin     Int?
+  expectedKmMax     Int?
+  kind              VehicleOdometerKind
+  source            VehicleOdometerSource
+  flagged           Boolean @default(false)
+  flagReason        String?
+
+  prepaidCardEntryId String? @unique
+  prepaidCardEntry   PrepaidCardEntry? @relation(fields: [prepaidCardEntryId], references: [id], onDelete: SetNull)
+  pettyCashEntryId   String? @unique
+  pettyCashEntry     PettyCashEntry? @relation(fields: [pettyCashEntryId], references: [id], onDelete: SetNull)
+  purchaseInvoiceId  String? @unique
+  purchaseInvoice    PurchaseInvoice? @relation(fields: [purchaseInvoiceId], references: [id], onDelete: SetNull)
+
+  createdById String?
+  createdBy   User? @relation("VehicleOdometerCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  acknowledgedAt   DateTime?
+  acknowledgedById String?
+  acknowledgedBy   User? @relation("VehicleFuelAlertAck", fields: [acknowledgedById], references: [id], onDelete: SetNull)
+  recordedAt DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([companyId, flagged, acknowledgedAt])
+  @@index([vehicleAssetId, recordedAt])
 }
 
 /// Equipment sent back to the factory for refund, repair, or replacement.
@@ -2765,6 +2869,9 @@ model ProjectExpense {
   amount   Decimal @db.Decimal(14, 2)
   reason   String
   incurredAt DateTime @default(now())
+  /// Typed cost on a catch-up project. Not live warehouse or CICO.
+  isCatchUp Boolean @default(false)
+  proofPath String?
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)

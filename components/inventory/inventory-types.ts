@@ -10,6 +10,9 @@ export type InventoryCatalogItem = {
   lastUnitCost: number | null;
   avgUnitCost: number | null;
   active: boolean;
+  kmPerLitreMin?: number | null;
+  kmPerLitreMax?: number | null;
+  fuelTankLitres?: number | null;
 };
 
 export type InventoryPurchaseRow = {
@@ -170,9 +173,34 @@ export type InventoryOverviewAssetRow = {
   leaseRemaining?: number | null;
   leaseScheduledTotal?: number | null;
   leasePaidOff?: boolean;
+  initialOdometerKm?: number | null;
+  currentOdometerKm?: number | null;
+  kmPerLitreMin?: number | null;
+  kmPerLitreMax?: number | null;
+  lastFillLitres?: number | null;
+  estimatedFuelLeftLitresMin?: number | null;
+  estimatedFuelLeftLitresMax?: number | null;
+  tankLitres?: number | null;
+  hasOdometerReadings?: boolean;
   createdAt: string;
   item: { id: string; sku: string; name: string; itemType: string } | null;
   project: { id: string; name: string } | null;
+};
+
+export type VehicleOdometerLogEntry = {
+  id: string;
+  recordedAt: string;
+  readingKm: number;
+  kmTraveled: number | null;
+  litresFilled?: number | null;
+  fuelUsedMin?: number | null;
+  fuelUsedMax?: number | null;
+  fuelLeftBeforeMin?: number | null;
+  fuelLeftBeforeMax?: number | null;
+  kind: string;
+  source: string;
+  flagged: boolean;
+  flagReason: string | null;
 };
 
 export type VehicleCostLogEntry = {

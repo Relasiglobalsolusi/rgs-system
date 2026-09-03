@@ -44,6 +44,7 @@ type Props = DirectoryDialogControlProps & {
   clients: ProjectFormClient[];
   catalog?: ProjectCatalogAreaDTO[];
   bankAccounts?: CompanyBankAccountOption[];
+  showCatchUpIntake?: boolean;
 };
 
 const FORM_ID = "create-project-form";
@@ -59,6 +60,7 @@ const INITIAL_FIELDS_STATE: ProjectFormFieldsState = {
   isLandscaping: false,
   showPaymentPlan: false,
   initialStatus: "PLANNED",
+  projectOngoing: "No",
   isDemo: false,
   isComplimentary: false,
   isInternal: false,
@@ -71,6 +73,7 @@ export default function ProjectDialog({
   clients,
   catalog = [],
   bankAccounts = [],
+  showCatchUpIntake = true,
   open: controlledOpen,
   onOpenChange,
   showTrigger = true,
@@ -96,6 +99,7 @@ export default function ProjectDialog({
     isLandscaping,
     showPaymentPlan,
     initialStatus,
+    projectOngoing,
     isDemo,
     isComplimentary,
     isInternal,
@@ -158,9 +162,16 @@ export default function ProjectDialog({
   }, [open]);
 
   async function submit(formData: FormData) {
-    if (!isInternal && (initialStatus === "IN_PROGRESS" || isDemo)) {
-      const proof = formData.get("contractProof");
-      if (!(proof instanceof File) || proof.size === 0) {
+    if (
+      !isInternal &&
+      (initialStatus === "IN_PROGRESS" ||
+        projectOngoing === "Yes" ||
+        isDemo)
+    ) {
+      const proofs = formData
+        .getAll("contractProof")
+        .filter((value) => value instanceof File && value.size > 0);
+      if (proofs.length === 0) {
         showRejection({ reasons: t("pages.projects.contractProofHint") });
         return;
       }
@@ -276,6 +287,7 @@ export default function ProjectDialog({
                 clients={clients}
                 catalog={catalog}
                 bankAccounts={bankAccounts}
+                showCatchUpIntake={showCatchUpIntake}
                 onFormValuesChange={handleFormInput}
                 onStateChange={setFieldsState}
               />

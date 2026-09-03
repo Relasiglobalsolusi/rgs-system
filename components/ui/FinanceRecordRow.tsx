@@ -10,14 +10,14 @@ import { cn } from "@/lib/utils";
 export const financeRecordListClassName = "flex min-w-0 flex-col gap-2";
 
 const financeRecordRowClassName =
-  "grid min-h-[4.25rem] min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-3 py-2.5 md:gap-x-8 md:px-4 md:py-2";
+  "grid min-h-[4.25rem] min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-3 py-2.5 md:gap-x-10 md:px-4 md:py-2";
 const financeRecordRowWithStatusClassName =
-  "md:grid-cols-[minmax(0,1fr)_8.75rem_7.5rem]";
+  "md:grid-cols-[minmax(0,1fr)_11rem_8rem]";
 const financeRecordRowAmountOnlyClassName =
   "md:grid-cols-[minmax(0,1fr)_7.5rem]";
 
 export const financeListStatusChipClassName =
-  "box-border inline-flex h-auto min-h-8 w-fit min-w-0 max-w-full shrink-0 items-center justify-center px-2.5 py-1.5 text-center text-[0.625rem] leading-none md:min-w-[7.5rem] md:px-3 md:text-[0.6875rem]";
+  "box-border inline-flex h-auto min-h-8 w-fit min-w-0 max-w-full shrink-0 items-center justify-center px-2.5 py-1.5 text-center text-[0.625rem] font-bold normal-case leading-none tracking-normal md:min-w-[7.5rem] md:px-3 md:text-[0.6875rem]";
 
 function FinanceRecordTitleCell({
   children,
@@ -43,7 +43,7 @@ function FinanceRecordStatusCell({
   return (
     <div
       className={cn(
-        "col-span-2 row-start-2 flex w-fit max-w-full min-w-0 items-center justify-start text-center md:col-span-1 md:col-start-2 md:row-start-1 md:w-full md:justify-center",
+        "col-span-2 row-start-2 flex w-fit max-w-full min-w-0 items-center justify-start text-center md:col-span-1 md:col-start-2 md:row-start-1 md:w-full md:justify-start md:pr-6",
         className
       )}
     >

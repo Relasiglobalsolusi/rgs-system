@@ -7,7 +7,7 @@ import {
   requireSession,
   getEmployeeForUser,
 } from "@/lib/session";
-import { saveUpload } from "@/lib/upload";
+import { formFiles, saveAndSerializeUploads } from "@/lib/upload-paths";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
 import {
@@ -54,7 +54,7 @@ export async function createLeaveRequest(formData: FormData) {
   const startDate = String(formData.get("startDate") ?? "").trim();
   const endDate = String(formData.get("endDate") ?? "").trim();
   const reason = String(formData.get("reason") ?? "").trim();
-  const proof = formData.get("proof") as File | null;
+  const proofs = formFiles(formData, "proof");
 
   if (!startDate || !endDate) throw await leaveError("datesRequired");
   if (!reason) throw await leaveError("reasonRequired");
@@ -66,11 +66,7 @@ export async function createLeaveRequest(formData: FormData) {
   }
   if (end < start) throw await leaveError("endBeforeStart");
 
-  let proofUrl: string | null = null;
-
-  if (proof && proof.size > 0) {
-    proofUrl = await saveUpload(proof, "proofs");
-  }
+  const proofUrl = await saveAndSerializeUploads(proofs, "proofs");
 
   const ownerLeave = isOwnerAccount(session.user);
 

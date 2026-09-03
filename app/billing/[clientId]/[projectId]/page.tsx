@@ -9,7 +9,6 @@ import {
   decimalToNumber,
   usesInvoicePeriods,
 } from "@/lib/project-billing";
-import { localizeSubCategory } from "@/lib/i18n/labels";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
 import { syncProjectMonthlyPeriods } from "@/app/projects/invoice-actions";

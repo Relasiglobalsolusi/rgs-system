@@ -96,7 +96,7 @@ function VendorRowActions({
   vendor: VendorRow;
   directoryView: DirectoryView;
 }) {
-  const { t, locale } = useT();
+  const { t } = useT();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [permanentDeleteOpen, setPermanentDeleteOpen] = useState(false);
   const [restoreOpen, setRestoreOpen] = useState(false);

@@ -63,7 +63,6 @@ type Props = {
   /** Current user's linked employee id (for author edit). */
   currentEmployeeId?: string | null;
   /** Author may edit their own report when Active. */
-  canManage?: boolean;
   /** Clients / viewers / On Leave staff cannot edit. */
   canEdit?: boolean;
 };
@@ -76,7 +75,6 @@ function reportDateInput(value: Date | string): string {
 export default function ProgressReportDirectory({
   projects,
   currentEmployeeId = null,
-  canManage = false,
   canEdit = true,
 }: Props) {
   const { t, locale } = useT();

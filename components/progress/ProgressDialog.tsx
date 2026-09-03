@@ -520,24 +520,7 @@ export default function ProgressDialog({
               capture="environment"
               emptyLabel={t("common.labels.dropFilesOrBrowse")}
               invalidMessage={t("common.labels.fileMustBeImage")}
-              onPickMany={(picked) => {
-                setSelectedFiles((prev) => {
-                  const seen = new Set(
-                    prev.map(
-                      (file) =>
-                        `${file.name}:${file.size}:${file.lastModified}`
-                    )
-                  );
-                  const next = [...prev];
-                  for (const file of picked) {
-                    const key = `${file.name}:${file.size}:${file.lastModified}`;
-                    if (seen.has(key)) continue;
-                    seen.add(key);
-                    next.push(file);
-                  }
-                  return next;
-                });
-              }}
+              onPickMany={setSelectedFiles}
             />
             {selectedFiles.length > 0 ? (
               <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">

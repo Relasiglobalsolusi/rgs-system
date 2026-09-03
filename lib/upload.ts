@@ -179,7 +179,26 @@ const DELETABLE_PUBLIC_PREFIXES = [
   "/prepaid-card-proofs/",
   "/contract-documents/",
   "/contract-extensions/",
+  "/contract-proofs/",
 ] as const;
+
+function expandStoredUploadValue(value: string): string[] {
+  const trimmed = value.trim();
+  if (trimmed.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(trimmed) as unknown;
+      if (Array.isArray(parsed)) {
+        return parsed.filter(
+          (item): item is string =>
+            typeof item === "string" && item.trim().length > 0
+        );
+      }
+    } catch {
+      return [trimmed];
+    }
+  }
+  return [trimmed];
+}
 
 /**
  * Best-effort delete for files stored under known public upload folders.
@@ -188,7 +207,13 @@ const DELETABLE_PUBLIC_PREFIXES = [
 export async function deleteLocalUpload(publicPath: string | null | undefined) {
   if (!publicPath) return;
 
-  const cleaned = publicPath.split("?")[0].trim();
+  const values = expandStoredUploadValue(publicPath);
+  if (values.length !== 1 || values[0] !== publicPath.trim()) {
+    await Promise.all(values.map((value) => deleteLocalUpload(value)));
+    return;
+  }
+
+  const cleaned = values[0].split("?")[0].trim();
   if (
     !DELETABLE_PUBLIC_PREFIXES.some((prefix) => cleaned.startsWith(prefix))
   ) {

@@ -13,6 +13,7 @@ import {
   unwindPrepaidTopUpFromInvoice,
 } from "@/lib/advance-cash-expense";
 import { decimalToNumber } from "@/lib/project-billing";
+import { voidOdometerReadingForSource } from "@/lib/vehicle-odometer";
 
 type ReverseDb = Prisma.TransactionClient;
 
@@ -166,6 +167,10 @@ export async function unwindAndReversePurchaseInvoice(
   if (isPrepaidCardTopUpInvoice(invoice)) {
     await unwindPrepaidTopUpFromInvoice(tx, invoice);
   }
+
+  await voidOdometerReadingForSource(tx, {
+    purchaseInvoiceId: invoice.id,
+  });
 
   await tx.purchaseInvoice.update({
     where: { id: invoice.id },

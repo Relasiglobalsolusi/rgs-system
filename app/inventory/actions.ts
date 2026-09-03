@@ -22,6 +22,14 @@ import {
 } from "@/lib/inventory-sku";
 import { parseRequiredVehiclePlate } from "@/lib/vehicle-plate";
 import {
+  canSeeFuelRangeAlerts,
+  odometerWentBackMessage,
+  parseOdometerKm,
+  recordVehicleOdometerReading,
+  requireFuelTankLitres,
+  requireKmPerLitreRange,
+} from "@/lib/vehicle-odometer";
+import {
   defaultUnitForItemType,
   normalizeInventoryUnit,
 } from "@/lib/inventory-units";
@@ -78,7 +86,11 @@ import { assertProjectWorkforceEditable } from "@/lib/project-settlement";
 import { requireModule, requireSession, toPermissionUser } from "@/lib/session";
 import { capitalizeProper, titleCaseWords } from "@/lib/text-case";
 import { formatUserDisplayLabel } from "@/lib/user-display";
-import { saveUpload } from "@/lib/upload";
+import {
+  formFiles,
+  saveAndAppendUploads,
+  saveAndSerializeUploads,
+} from "@/lib/upload-paths";
 import {
   applyExclusiveVat,
   parsePpnRatePercent,
@@ -219,17 +231,30 @@ function parseNonNegWholeQty(
 
 async function saveReceipt(
   formData: FormData,
-  options?: { sku?: string | null; fieldName?: string; filePrefix?: string }
+  options?: {
+    sku?: string | null;
+    fieldName?: string;
+    filePrefix?: string;
+    existing?: string | null;
+  }
 ): Promise<string | null | undefined> {
   const fieldName = options?.fieldName ?? "receipt";
-  const file = formData.get(fieldName);
-  if (!(file instanceof File) || file.size === 0) {
+  const files = formFiles(formData, fieldName);
+  if (files.length === 0) {
     return undefined;
   }
   const code = options?.sku?.trim();
   const prefix = options?.filePrefix ?? "INV_RECEIPT";
   const fileBaseName = code ? `${prefix}_${code}` : prefix;
-  return saveUpload(file, "uploads/inventory", { fileBaseName });
+  if (options?.existing) {
+    return saveAndAppendUploads(
+      options.existing,
+      files,
+      "uploads/inventory",
+      { fileBaseName }
+    );
+  }
+  return saveAndSerializeUploads(files, "uploads/inventory", { fileBaseName });
 }
 
 function revalidateInventory(projectId?: string | null, itemId?: string | null) {
@@ -299,6 +324,15 @@ export async function createInventoryItem(formData: FormData) {
     if (!itemType) {
       throw new Error(translate(locale, "pages.inventory.itemTypeRequired"));
     }
+    const vehicleRange = isVehicleItemType(itemType)
+      ? requireKmPerLitreRange(
+          formData.get("kmPerLitreMin"),
+          formData.get("kmPerLitreMax")
+        )
+      : null;
+    const vehicleTank = isVehicleItemType(itemType)
+      ? requireFuelTankLitres(formData.get("fuelTankLitres"))
+      : null;
     if (isVehicleItemType(itemType)) {
       if (!vehicleBrand) {
         throw new Error(translate(locale, "pages.inventory.vehicleBrandRequired"));
@@ -344,6 +378,13 @@ export async function createInventoryItem(formData: FormData) {
             unit,
             minStock: toDecimal(isVehicleItemType(itemType) ? 0 : minStock),
             tracksStock: !isVehicleItemType(itemType),
+            ...(vehicleRange && vehicleTank
+              ? {
+                  kmPerLitreMin: vehicleRange.min,
+                  kmPerLitreMax: vehicleRange.max,
+                  fuelTankLitres: vehicleTank,
+                }
+              : {}),
           },
         });
         return;
@@ -361,6 +402,13 @@ export async function createInventoryItem(formData: FormData) {
           sortOrder,
           active: true,
           tracksStock: !isVehicleItemType(itemType),
+          ...(vehicleRange && vehicleTank
+            ? {
+                kmPerLitreMin: vehicleRange.min,
+                kmPerLitreMax: vehicleRange.max,
+                fuelTankLitres: vehicleTank,
+              }
+            : {}),
         },
       });
     });
@@ -377,7 +425,7 @@ export async function createInventoryItem(formData: FormData) {
 export async function updateVehicleAsset(formData: FormData) {
   const locale = await getServerLocale();
   try {
-    await assertCanManageInventory(locale);
+    const session = await assertCanManageInventory(locale);
     const company = await requireCompany(locale);
     const assetId = String(formData.get("assetId") ?? "").trim();
     if (!assetId) {
@@ -385,13 +433,17 @@ export async function updateVehicleAsset(formData: FormData) {
     }
 
     const plate = parseRequiredVehiclePlate(formData.get("vehiclePlate"));
+    const initialOdometerKm = parseOdometerKm(formData.get("initialOdometerKm"));
 
     const asset = await prisma.equipmentAsset.findFirst({
       where: { id: assetId, companyId: company.id },
       select: {
         id: true,
         assetCode: true,
+        initialOdometerKm: true,
+        currentOdometerKm: true,
         item: { select: { id: true, itemType: true } },
+        _count: { select: { odometerReadings: true } },
       },
     });
     if (!asset || !isVehicleItemType(asset.item.itemType)) {
@@ -408,6 +460,15 @@ export async function updateVehicleAsset(formData: FormData) {
     });
     if (clash) {
       throw new Error(translate(locale, "pages.inventory.vehicles.plateTaken"));
+    }
+
+    const hasRefuelReadings = asset._count.odometerReadings > 0;
+    if (
+      !hasRefuelReadings &&
+      String(formData.get("initialOdometerKm") ?? "").trim() &&
+      initialOdometerKm == null
+    ) {
+      throw new Error(translate(locale, "pages.vehicles.odometer.required"));
     }
 
     await prisma.$transaction(async (tx) => {
@@ -430,14 +491,108 @@ export async function updateVehicleAsset(formData: FormData) {
           data: { vehiclePlate: plate },
         });
       }
+      if (
+        initialOdometerKm != null &&
+        !hasRefuelReadings &&
+        asset.initialOdometerKm == null
+      ) {
+        await recordVehicleOdometerReading(tx, {
+          companyId: company.id,
+          vehicleAssetId: asset.id,
+          readingKm: initialOdometerKm,
+          source: "MANUAL",
+          kind: "INITIAL",
+          recordedAt: new Date(),
+          createdById: session.user.id,
+        });
+      } else if (
+        initialOdometerKm != null &&
+        !hasRefuelReadings &&
+        asset.initialOdometerKm != null &&
+        initialOdometerKm !== asset.initialOdometerKm
+      ) {
+        if (
+          asset.currentOdometerKm != null &&
+          initialOdometerKm > asset.currentOdometerKm
+        ) {
+          throw new Error(odometerWentBackMessage());
+        }
+        await tx.equipmentAsset.update({
+          where: { id: asset.id },
+          data: {
+            initialOdometerKm,
+            currentOdometerKm: asset.currentOdometerKm ?? initialOdometerKm,
+          },
+        });
+        const initialRow = await tx.vehicleOdometerReading.findFirst({
+          where: { vehicleAssetId: asset.id, kind: "INITIAL" },
+          orderBy: { recordedAt: "asc" },
+          select: { id: true },
+        });
+        if (initialRow) {
+          await tx.vehicleOdometerReading.update({
+            where: { id: initialRow.id },
+            data: { readingKm: initialOdometerKm },
+          });
+        }
+      }
     });
 
     revalidateInventory(null, asset.item.id);
     revalidatePath(`/inventory/vehicles/${asset.id}`);
+    revalidatePath("/dashboard");
   } catch (error) {
+    if (error instanceof Error && error.message === "ODOMETER_WENT_BACK") {
+      throw new Error(odometerWentBackMessage());
+    }
     throw toActionError(
       error,
       translate(locale, "pages.inventory.vehicles.updateFailed")
+    );
+  }
+}
+
+export async function acknowledgeVehicleFuelAlert(formData: FormData) {
+  const locale = await getServerLocale();
+  try {
+    const session = await requireSession();
+    const employee = await prisma.employee.findUnique({
+      where: { userId: session.user.id },
+      select: { jobPosition: { select: { slug: true, name: true } } },
+    });
+    if (
+      !canSeeFuelRangeAlerts({
+        username: session.user.username,
+        jobPosition: employee?.jobPosition,
+      })
+    ) {
+      throw new Error(translate(locale, "pages.inventory.permissionDenied"));
+    }
+    const readingId = String(formData.get("readingId") ?? "").trim();
+    if (!readingId) {
+      throw new Error(translate(locale, "pages.vehicles.odometer.ackFailed"));
+    }
+    const updated = await prisma.vehicleOdometerReading.updateMany({
+      where: {
+        id: readingId,
+        companyId: session.user.companyId,
+        flagged: true,
+        acknowledgedAt: null,
+      },
+      data: {
+        acknowledgedAt: new Date(),
+        acknowledgedById: session.user.id,
+      },
+    });
+    if (updated.count !== 1) {
+      throw new Error(translate(locale, "pages.vehicles.odometer.ackFailed"));
+    }
+    revalidatePath("/dashboard");
+    revalidatePath("/inventory");
+  } catch (error) {
+    throw toActionError(
+      error,
+      translate(locale, "pages.vehicles.odometer.ackFailed")
     );
   }
 }
@@ -453,6 +608,15 @@ export async function createInventoryItemsInBulk(formData: FormData) {
     if (!itemType) {
       throw new Error(translate(locale, "pages.inventory.itemTypeRequired"));
     }
+    const vehicleRange = isVehicleItemType(itemType)
+      ? requireKmPerLitreRange(
+          formData.get("kmPerLitreMin"),
+          formData.get("kmPerLitreMax")
+        )
+      : null;
+    const vehicleTank = isVehicleItemType(itemType)
+      ? requireFuelTankLitres(formData.get("fuelTankLitres"))
+      : null;
 
     const company = await requireCompany(locale);
     const lineCount = parseBulkLineCount(formData);
@@ -520,6 +684,13 @@ export async function createInventoryItemsInBulk(formData: FormData) {
             description: item.description,
             sortOrder,
             active: true,
+            ...(vehicleRange && vehicleTank
+              ? {
+                  kmPerLitreMin: vehicleRange.min,
+                  kmPerLitreMax: vehicleRange.max,
+                  fuelTankLitres: vehicleTank,
+                }
+              : {}),
           },
         });
         sortOrder += SORT_ORDER_STEP;
@@ -584,15 +755,43 @@ export async function updateInventoryItem(formData: FormData) {
       throw new Error(translate(locale, "pages.inventory.itemTypeLocked"));
     }
 
+    const vehicleRange = isVehicleItemType(existing.itemType)
+      ? requireKmPerLitreRange(
+          formData.get("kmPerLitreMin"),
+          formData.get("kmPerLitreMax")
+        )
+      : null;
+    const vehicleTank = isVehicleItemType(existing.itemType)
+      ? requireFuelTankLitres(formData.get("fuelTankLitres"))
+      : null;
+
     // SKU and itemType stay system-assigned from create time.
-    await prisma.inventoryItem.update({
-      where: { id },
-      data: {
-        name,
-        description: description || null,
-        unit,
-        minStock: toDecimal(nextMinStock),
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.inventoryItem.update({
+        where: { id },
+        data: {
+          name,
+          description: description || null,
+          unit,
+          minStock: toDecimal(nextMinStock),
+          ...(vehicleRange && vehicleTank
+            ? {
+                kmPerLitreMin: vehicleRange.min,
+                kmPerLitreMax: vehicleRange.max,
+                fuelTankLitres: vehicleTank,
+              }
+            : {}),
+        },
+      });
+      if (vehicleRange) {
+        await tx.equipmentAsset.updateMany({
+          where: { itemId: existing.id },
+          data: {
+            kmPerLitreMin: vehicleRange.min,
+            kmPerLitreMax: vehicleRange.max,
+          },
+        });
+      }
     });
 
     revalidateInventory();
@@ -2259,6 +2458,7 @@ export async function attachInventorySaleDocuments(formData: FormData) {
         sku,
         fieldName: "paymentProof",
         filePrefix: "SALE_PAYMENT",
+        existing: sale.paymentProofUrl,
       })) ?? sale.paymentProofUrl;
     let nextTaxInvoiceUrl = sale.buyerIdentityDocUrl;
     if (sale.buyerType === "COMPANY") {
@@ -2314,7 +2514,7 @@ export async function attachInventorySaleDocuments(formData: FormData) {
 export async function voidProjectInventoryIssue(formData: FormData) {
   const locale = await getServerLocale();
   try {
-    const session = await assertCanAssignInventory(locale);
+    await assertCanAssignInventory(locale);
     const company = await requireCompany(locale);
 
     const id = String(formData.get("id") ?? "").trim();

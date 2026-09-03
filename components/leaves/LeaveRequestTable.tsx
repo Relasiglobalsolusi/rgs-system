@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import LeaveTypeLabel from "@/components/leaves/LeaveTypeLabel";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
-import ProofLightbox from "@/components/ui/ProofLightbox";
+import UploadedFilesLink from "@/components/ui/UploadedFilesLink";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { STATUS_COLUMN_WIDTH } from "@/components/ui/trash-action-buttons";
 import { formatDisplayDate } from "@/lib/format-date";
@@ -34,7 +34,6 @@ export default function LeaveRequestTable({
   hideType = false,
 }: Props) {
   const { t, locale } = useT();
-  const [proofSrc, setProofSrc] = useState<string | null>(null);
 
   const columns = useMemo(() => {
     const cols: DataTableColumn<LeaveRequestRow>[] = [
@@ -118,13 +117,7 @@ export default function LeaveRequestTable({
         className: "min-w-[10rem] whitespace-nowrap",
         render: (row) =>
           row.proofUrl ? (
-            <button
-              type="button"
-              onClick={() => setProofSrc(row.proofUrl)}
-              className="text-sm font-semibold text-accent-cyan hover:underline"
-            >
-              {t("common.actions.view")}
-            </button>
+            <UploadedFilesLink value={row.proofUrl} />
           ) : (
             <span className="text-muted">-</span>
           ),
@@ -134,16 +127,6 @@ export default function LeaveRequestTable({
   }, [hideType, locale, showEmployee, t]);
 
   return (
-    <>
-      <DataTable columns={columns} data={data} getRowKey={(row) => row.id} />
-      <ProofLightbox
-        open={proofSrc != null}
-        onOpenChange={(open) => {
-          if (!open) setProofSrc(null);
-        }}
-        src={proofSrc}
-        title={t("pages.leaves.proof")}
-      />
-    </>
+    <DataTable columns={columns} data={data} getRowKey={(row) => row.id} />
   );
 }

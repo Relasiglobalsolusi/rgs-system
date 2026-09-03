@@ -259,10 +259,6 @@ export default function PayrollPanel({
 
   const totalWage = rows.reduce((sum, r) => sum + r.wage, 0);
   const totalNet = rows.reduce((sum, r) => sum + Math.max(0, r.netPay), 0);
-  const totalBalanceDue = rows.reduce(
-    (sum, r) => sum + (r.netPay < 0 ? Math.abs(r.netPay) : 0),
-    0
-  );
   const visibleRows = useMemo(() => {
     const query = employeeQuery.trim().toLowerCase();
     if (!query) return rows;
@@ -353,7 +349,7 @@ export default function PayrollPanel({
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
           <div className={`rounded-xl border px-3 py-2.5 ${cardTintWash.primary}`}>
             <p className="text-xs font-semibold uppercase tracking-wide text-subtle">
               {t("pages.payroll.totalEmployees")}
@@ -370,7 +366,23 @@ export default function PayrollPanel({
               {formatContractPrice(totalWage)}
             </p>
           </div>
-          <div className={`rounded-xl border px-3 py-2.5 ${cardTintWash.warning}`}>
+          <div className={`rounded-xl border px-3 py-2.5 ${cardTintWash.success}`}>
+            <p className="text-xs font-semibold uppercase tracking-wide text-subtle">
+              {t("pages.payroll.columns.bpjsKesehatan")}
+            </p>
+            <p className="mt-1 text-xl font-bold tabular-nums text-text">
+              {totalBpjsKesehatan > 0 ? formatContractPrice(totalBpjsKesehatan) : "—"}
+            </p>
+          </div>
+          <div className={`rounded-xl border px-3 py-2.5 ${cardTintWash.success}`}>
+            <p className="text-xs font-semibold uppercase tracking-wide text-subtle">
+              {t("pages.payroll.columns.bpjsTk")}
+            </p>
+            <p className="mt-1 text-xl font-bold tabular-nums text-text">
+              {totalBpjsTk > 0 ? formatContractPrice(totalBpjsTk) : "—"}
+            </p>
+          </div>
+          <div className={`rounded-xl border px-3 py-2.5 col-span-2 lg:col-span-1 ${cardTintWash.warning}`}>
             <p className="text-xs font-semibold uppercase tracking-wide text-subtle">
               {t("pages.payroll.totalNetPay")}
             </p>
@@ -401,8 +413,8 @@ export default function PayrollPanel({
               className={cn(
                 "grid w-full gap-2 sm:shrink-0",
                 periodLocked && canUnlock
-                  ? "grid-cols-1 sm:w-[22rem] sm:grid-cols-2"
-                  : "grid-cols-1 sm:ml-auto sm:w-[11rem]"
+                  ? "grid-cols-1 sm:w-[34rem] sm:grid-cols-3"
+                  : "grid-cols-1 sm:ml-auto sm:w-[22rem] sm:grid-cols-2"
               )}
             >
               {periodLocked && canUnlock ? (
@@ -425,6 +437,15 @@ export default function PayrollPanel({
                 )}
               >
                 {t("pages.payroll.generatePdf")}
+              </a>
+              <a
+                href={`/api/payroll/bank-transfer?year=${year}&month=${month}`}
+                className={cn(
+                  buttonVariants({ variant: "accent", size: "default" }),
+                  "h-8 w-full justify-center"
+                )}
+              >
+                {t("pages.payroll.generateBankTransfer")}
               </a>
             </div>
           </div>
@@ -776,44 +797,6 @@ export default function PayrollPanel({
               </SectionCard>
             ))}
 
-            <div className="border-t border-border pt-4">
-              <div className="grid gap-1 text-sm sm:grid-cols-2 lg:grid-cols-4 sm:gap-6">
-                <p className="text-muted">
-                  {t("pages.payroll.totalWage")}:{" "}
-                  <span className="font-semibold text-text">
-                    {formatContractPrice(totalWage)}
-                  </span>
-                </p>
-                <p className="text-muted">
-                  {t("pages.payroll.columns.bpjsKesehatan")}:{" "}
-                  <span className="font-semibold text-text">
-                    {totalBpjsKesehatan > 0
-                      ? formatContractPrice(totalBpjsKesehatan)
-                      : "—"}
-                  </span>
-                </p>
-                <p className="text-muted">
-                  {t("pages.payroll.columns.bpjsTk")}:{" "}
-                  <span className="font-semibold text-text">
-                    {totalBpjsTk > 0 ? formatContractPrice(totalBpjsTk) : "—"}
-                  </span>
-                </p>
-                <p className="text-muted">
-                  {t("pages.payroll.totalNetPay")}:{" "}
-                  <span className="font-semibold text-text">
-                    {formatContractPrice(totalNet)}
-                  </span>
-                </p>
-                {totalBalanceDue > 0 ? (
-                  <p className="text-muted sm:col-span-2">
-                    {t("pages.payroll.totalBalanceDue")}:{" "}
-                    <span className="font-semibold text-danger">
-                      {formatContractPrice(totalBalanceDue)}
-                    </span>
-                  </p>
-                ) : null}
-              </div>
-            </div>
           </div>
         )}
       </div>

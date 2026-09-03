@@ -115,7 +115,6 @@ import {
 } from "@/lib/loan-facility";
 import { getLoanFacilitySnapshot } from "@/lib/loan-facility-query";
 import {
-  CASH_PAYMENT_TERMS_DAYS,
   isCashPaymentTerms,
   PAYMENT_TERMS_DAYS_OPTIONS,
   type PaymentTermsDaysOption,
@@ -125,6 +124,10 @@ import {
   deleteLocalUpload,
   saveUpload,
 } from "@/lib/upload";
+import {
+  formFiles,
+  saveAndAppendUploads,
+} from "@/lib/upload-paths";
 import {
   allocateImportStockCost,
   calculateImportLandedCost,
@@ -696,6 +699,20 @@ function requireImageOrPdfUpload(
     throw new Error(opts.typeMessage);
   }
   return value;
+}
+
+function requireImageOrPdfUploads(
+  formData: FormData,
+  name: string,
+  opts: { requiredMessage: string; sizeMessage: string; typeMessage: string }
+): File[] {
+  const files = formFiles(formData, name).map((file) =>
+    requireImageOrPdfUpload(file, opts)
+  );
+  if (files.length === 0) {
+    throw new Error(opts.requiredMessage);
+  }
+  return files;
 }
 
 function optionalImageOrPdfUpload(
@@ -2088,7 +2105,6 @@ export async function createPurchaseInvoice(formData: FormData) {
   const vehicleCondition = isVehiclePurchase
     ? parseVehicleCondition(formData.get("vehicleCondition"))
     : null;
-
   let vehicleAssetId: string | null = null;
   let vehicleOtherCostDescription: string | null = null;
   let linkedVehiclePlate: string | null = null;
@@ -2399,7 +2415,14 @@ export async function createPurchaseInvoice(formData: FormData) {
             active: true,
             deletedAt: null,
           },
-          select: { id: true, tracksStock: true, itemType: true, unit: true },
+          select: {
+            id: true,
+            tracksStock: true,
+            itemType: true,
+            unit: true,
+            kmPerLitreMin: true,
+            kmPerLitreMax: true,
+          },
         });
         if (!item) {
           throw new Error("One or more items are missing from the catalog.");
@@ -2543,6 +2566,7 @@ export async function createPurchaseInvoice(formData: FormData) {
   revalidatePath("/billing/financial-report");
   revalidatePath("/inventory");
   revalidatePath("/inventory/vehicles");
+  revalidatePath("/dashboard");
 }
 
 export async function uploadPurchaseTaxInvoice(formData: FormData) {
@@ -2765,7 +2789,7 @@ export async function markPurchaseInvoicePaid(formData: FormData) {
     );
   }
 
-  const proof = requireImageOrPdfUpload(formData.get("paymentProof"), {
+  const proofs = requireImageOrPdfUploads(formData, "paymentProof", {
     requiredMessage: translate(locale, "pages.billing.choosePaymentProof"),
     sizeMessage: "Payment proof must be 10 MB or smaller.",
     typeMessage: translate(locale, "pages.billing.paymentProofImageOrPdf"),
@@ -2913,8 +2937,9 @@ export async function markPurchaseInvoicePaid(formData: FormData) {
   }
 
   const paidAt = new Date();
-  const paymentProofPath = await saveUpload(
-    proof,
+  const paymentProofPath = await saveAndAppendUploads(
+    invoice.paymentProofPath,
+    proofs,
     "uploads/purchase-payment-proofs",
     {
       fileBaseName: buildBillingDocumentFileBase({

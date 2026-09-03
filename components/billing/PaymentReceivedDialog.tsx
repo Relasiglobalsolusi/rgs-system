@@ -25,27 +25,27 @@ export default function PaymentReceivedDialog({
   onSuccess,
 }: Props) {
   const { t } = useT();
-  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofFiles, setProofFiles] = useState<File[]>([]);
   const [reason, setReason] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) {
-      setProofFile(null);
+      setProofFiles([]);
       setReason("");
       setPending(false);
       setError(null);
     }
   }, [open]);
 
-  const canSubmit = Boolean(proofFile && proofFile.size > 0 && reason.trim());
+  const canSubmit = Boolean(proofFiles.length > 0 && reason.trim());
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
 
-    if (!proofFile || proofFile.size <= 0) {
+    if (proofFiles.length === 0) {
       setError(t("pages.billing.choosePaymentProof"));
       return;
     }
@@ -54,7 +54,9 @@ export default function PaymentReceivedDialog({
     try {
       const formData = new FormData();
       formData.set("periodId", periodId);
-      formData.set("paymentProof", proofFile);
+      for (const file of proofFiles) {
+        formData.append("paymentProof", file);
+      }
       formData.set("manualReason", reason);
       const result = await markInvoicePeriodPaid(formData);
       onOpenChange(false);
@@ -85,8 +87,9 @@ export default function PaymentReceivedDialog({
       contextValue={projectName}
       fileInputId={`payment-proof-${periodId}`}
       fileLabel={t("pages.billing.proofOfPayment")}
-      fileName={proofFile?.name ?? null}
-      onFilePick={setProofFile}
+      fileName={proofFiles.length > 0 ? String(proofFiles.length) : null}
+      onFilePick={() => {}}
+      onFilePickMany={setProofFiles}
       requireReason
       reasonValue={reason}
       onReasonChange={setReason}

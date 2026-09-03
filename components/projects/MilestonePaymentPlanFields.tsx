@@ -128,7 +128,7 @@ export default function MilestonePaymentPlanFields({
           {t("pages.projects.paymentPlan.eachPaymentPercent")}
         </p>
         <div className="grid gap-2 sm:grid-cols-2">
-          {installmentPercents.map((pct, index) => (
+          {installmentPercents.map((_pct, index) => (
             <div key={index} className="flex items-center gap-2">
               <span className="w-16 shrink-0 text-xs text-subtle">
                 #{index + 1}

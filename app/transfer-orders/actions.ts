@@ -1120,7 +1120,7 @@ export async function completeTransferOrderItemReturn(formData: FormData) {
 export async function escalateTransferOrderNeedsAttention(formData: FormData) {
   const locale = await getServerLocale();
   try {
-    const session = await requireModule("transferOrders");
+    await requireModule("transferOrders");
     const company = await requireCompany(locale);
     const id = String(formData.get("id") ?? "").trim();
     if (!id) throw new Error("Transfer order id required.");

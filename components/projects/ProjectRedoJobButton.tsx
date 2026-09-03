@@ -69,8 +69,11 @@ export default function ProjectRedoJobButton({
       showRejection({ reasons: t("pages.projects.redoStartRequired") });
       return;
     }
-    const proof = formData.get("agreement");
-    if (!(proof instanceof File) || proof.size === 0) {
+    if (
+      !formData
+        .getAll("agreement")
+        .some((value) => value instanceof File && value.size > 0)
+    ) {
       showRejection({ reasons: t("pages.projects.redoAgreementRequired") });
       return;
     }
@@ -156,6 +159,7 @@ export default function ProjectRedoJobButton({
               name="agreement"
               label={t("pages.projects.redoAgreement")}
               required
+              multiple
               accept="image/*,.pdf,application/pdf"
             />
             {billingMode === "MULTI_VISIT" ? (

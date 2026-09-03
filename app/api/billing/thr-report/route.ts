@@ -5,7 +5,6 @@ import { loadCompanyForPdf } from "@/lib/company-for-pdf";
 import { getIdulFitriDate, resolveThrTargetYear } from "@/lib/employee-thr";
 import { formatEmployeeName } from "@/lib/employee-user-link";
 import { getServerLocale } from "@/lib/i18n/locale";
-import { createTranslator } from "@/lib/i18n/translate";
 import { canAccess } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/project-billing";
@@ -30,7 +29,6 @@ export async function GET(request: NextRequest) {
     ? Math.max(2000, Math.min(2100, Math.round(requestedYear)))
     : resolveThrTargetYear() ?? new Date().getUTCFullYear();
   const locale = await getServerLocale();
-  const t = createTranslator(locale);
 
   try {
     const [payments, company] = await Promise.all([

@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowDownLeft,
+  ArrowLeft,
   ArrowUpRight,
   Ban,
   CreditCard,
@@ -18,6 +19,7 @@ import {
   recordPrepaidCardSpend,
   replacePrepaidCard,
   reportPrepaidCardLost,
+  reportPrepaidCardMisuse,
   returnPrepaidCardToList,
 } from "@/app/billing/prepaid-cards/actions";
 import {
@@ -45,9 +47,18 @@ import {
 } from "@/components/ui/select";
 import {
   showMissingRequiredFields,
+  showRejection,
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import VehicleOdometerFields from "@/components/vehicles/VehicleOdometerFields";
+import { fuelFillConfirmRequest } from "@/lib/vehicle-odometer-confirm";
+import {
+  parseLitres,
+  parseOdometerKm,
+  previewFuelFill,
+  type VehicleOdometerOption,
+} from "@/lib/vehicle-odometer";
 import FinanceRecordRow, {
   financeListStatusChipClassName,
   financeRecordListClassName,
@@ -58,9 +69,10 @@ import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import DirectoryFilterTab from "@/components/ui/DirectoryFilterTab";
 import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge from "@/components/ui/StatusBadge";
+import UploadedFilesLink from "@/components/ui/UploadedFilesLink";
 import { outlineChipTones } from "@/components/ui/StatusBadge";
 import { useT } from "@/lib/i18n/use-t";
-import { formatContractPrice } from "@/lib/project-billing";
+import { formatContractPrice, parseContractPrice } from "@/lib/project-billing";
 import { todayDateInput } from "@/lib/project-contract";
 import { formatDisplayDate } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
@@ -146,6 +158,21 @@ function statusTone(
   return "info";
 }
 
+function prepaidStatusLabelKey(
+  status: string
+):
+  | "pages.pettyCash.statusActive"
+  | "pages.pettyCash.statusStandby"
+  | "pages.pettyCash.statusDamaged"
+  | "pages.pettyCash.statusLost"
+  | "pages.pettyCash.statusReplaced" {
+  if (status === "STANDBY") return "pages.pettyCash.statusStandby";
+  if (status === "DAMAGED") return "pages.pettyCash.statusDamaged";
+  if (status === "LOST") return "pages.pettyCash.statusLost";
+  if (status === "REPLACED") return "pages.pettyCash.statusReplaced";
+  return "pages.pettyCash.statusActive";
+}
+
 function entrySigned(kind: string, amount: number, previous: number, resulting: number) {
   if (kind === "TOP_UP" || kind === "TRANSFER_IN") return amount;
   if (kind === "REPLACEMENT_FEE" && previous === resulting) return 0;
@@ -176,6 +203,7 @@ export default function PrepaidCardsPanel({
   employees,
   bankAccounts,
   canManageCards = false,
+  showModuleTabs = false,
 }: {
   cards: PrepaidCardView[];
   losses: PrepaidCardLossView[];
@@ -183,6 +211,7 @@ export default function PrepaidCardsPanel({
   employees: PrepaidEmployeeOption[];
   bankAccounts: BankOption[];
   canManageCards?: boolean;
+  showModuleTabs?: boolean;
 }) {
   const { t } = useT();
   const router = useRouter();
@@ -199,6 +228,7 @@ export default function PrepaidCardsPanel({
   const [damagedOpen, setDamagedOpen] = useState(false);
   const [replaceOpen, setReplaceOpen] = useState(false);
   const [lostOpen, setLostOpen] = useState(false);
+  const [misuseOpen, setMisuseOpen] = useState(false);
   const [filterCardId, setFilterCardId] = useState("all");
   const [filterYear, setFilterYear] = useState(String(now.year));
   const [filterMonth, setFilterMonth] = useState("all");
@@ -316,6 +346,16 @@ export default function PrepaidCardsPanel({
     <div className="space-y-5">
       {selectedCard ? null : (
         <>
+      {showModuleTabs ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <DirectoryFilterTab href="/billing/petty-cash" active={false}>
+            {t("pages.pettyCash.tabPetty")}
+          </DirectoryFilterTab>
+          <DirectoryFilterTab href="/billing/petty-cash?tab=prepaid" active>
+            {t("pages.pettyCash.tabPrepaid")}
+          </DirectoryFilterTab>
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <DirectoryFilterTab
           active={kindTab === "VEHICLE"}
@@ -565,6 +605,7 @@ export default function PrepaidCardsPanel({
           onDamaged={() => setDamagedOpen(true)}
           onReplace={() => setReplaceOpen(true)}
           onLost={() => setLostOpen(true)}
+          onMisuse={() => setMisuseOpen(true)}
           onSpend={() => setSpendOpen(true)}
         />
       ) : listCards.length === 0 ? (
@@ -594,8 +635,11 @@ export default function PrepaidCardsPanel({
                 </button>
               }
               status={
-                <StatusBadge status={statusTone(card.status)}>
-                  {t(`pages.pettyCash.status${card.status.slice(0, 1)}${card.status.slice(1).toLowerCase()}` as "pages.pettyCash.statusActive")}
+                <StatusBadge
+                  status={statusTone(card.status)}
+                  className={financeListStatusChipClassName}
+                >
+                  {t(prepaidStatusLabelKey(card.status))}
                 </StatusBadge>
               }
               amount={formatContractPrice(card.currentBalance)}
@@ -676,6 +720,13 @@ export default function PrepaidCardsPanel({
               router.refresh();
             }}
           />
+          <MisuseDialog
+            open={misuseOpen}
+            onOpenChange={setMisuseOpen}
+            card={selectedCard}
+            employees={employees}
+            onSaved={() => router.refresh()}
+          />
         </>
       ) : null}
     </div>
@@ -693,6 +744,7 @@ function CardDetail({
   onDamaged,
   onReplace,
   onLost,
+  onMisuse,
   onSpend,
 }: {
   card: PrepaidCardView;
@@ -705,14 +757,14 @@ function CardDetail({
   onDamaged: () => void;
   onReplace: () => void;
   onLost: () => void;
+  onMisuse: () => void;
   onSpend: () => void;
 }) {
   const { t } = useT();
   const confirm = useConfirm();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const statusKey =
-    `pages.pettyCash.status${card.status.slice(0, 1)}${card.status.slice(1).toLowerCase()}` as "pages.pettyCash.statusActive";
+  const statusKey = prepaidStatusLabelKey(card.status);
 
   async function returnToList() {
     const ok = await confirm({
@@ -741,32 +793,97 @@ function CardDetail({
     return assignment?.custodianEmployeeId === selectedPicId;
   });
 
+  const totalSpend = card.entries
+    .filter((entry) => entry.kind === "SPEND")
+    .reduce((sum, entry) => sum + entry.amount, 0);
+
+  const cardActions = (
+    <div className="flex flex-wrap gap-2">
+      {canSpendOnPrepaidCard(card.status as never) ? (
+        <Button type="button" variant="infoBadge" size="badgeFlex" onClick={onSpend}>
+          {t("pages.pettyCash.prepaidSpend")}
+        </Button>
+      ) : null}
+      {canManageCards && canAssignPrepaidCard(card.status as never) ? (
+        <Button type="button" variant="infoBadge" size="badgeFlex" onClick={onAssign}>
+          {t("pages.pettyCash.assignCard")}
+        </Button>
+      ) : null}
+      {canManageCards && card.status === "ACTIVE" ? (
+        <Button type="button" variant="infoBadge" size="badgeFlex" onClick={onReassign}>
+          {t("pages.pettyCash.reassignCard")}
+        </Button>
+      ) : null}
+      {canManageCards && canReturnPrepaidCard(card.status as never) ? (
+        <Button type="button" variant="infoBadge" size="badgeFlex" disabled={pending} onClick={() => void returnToList()}>
+          {t("pages.pettyCash.returnToList")}
+        </Button>
+      ) : null}
+      {canManageCards && canMarkPrepaidCardDamaged(card.status as never) ? (
+        <Button type="button" variant="infoBadge" size="badgeFlex" onClick={onDamaged}>
+          {t("pages.pettyCash.markDamaged")}
+        </Button>
+      ) : null}
+      {canManageCards && canReplacePrepaidCard(card.status as never) ? (
+        <Button type="button" variant="infoBadge" size="badgeFlex" onClick={onReplace}>
+          {t("pages.pettyCash.cardReplaced")}
+        </Button>
+      ) : null}
+      {canManageCards && canReportPrepaidCardLost(card.status as never) ? (
+        <Button type="button" variant="infoBadge" size="badgeFlex" onClick={onLost}>
+          {t("pages.pettyCash.reportLost")}
+        </Button>
+      ) : null}
+      {canManageCards && card.status === "ACTIVE" ? (
+        <Button type="button" variant="destructiveBadge" size="badgeFlex" onClick={onMisuse}>
+          {t("pages.pettyCash.reportMisuse")}
+        </Button>
+      ) : null}
+    </div>
+  );
+
   return (
     <div className="space-y-5">
     <SectionCard className="space-y-4 p-5 sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <button
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <Button
             type="button"
-            className="text-xs font-semibold text-primary-dark underline-offset-2 hover:underline"
+            variant="infoBadge"
+            size="badgeFlex"
+            className="gap-1.5"
             onClick={onBack}
           >
+            <ArrowLeft className="size-3.5 shrink-0 opacity-80" aria-hidden />
             {t("pages.pettyCash.backToList")}
-          </button>
-          <h2 className="mt-2 text-lg font-semibold tracking-tight text-text">
+          </Button>
+          <h2 className="mt-3 text-lg font-semibold tracking-tight text-text">
             {cardSubtitle(card, t("pages.pettyCash.statusStandby"))}
           </h2>
-          <p className="mt-1 text-sm text-subtle">
+          <p className="mt-1 text-base text-muted">
             {formatPrepaidCardNumber(card.cardNumber)}
           </p>
         </div>
-        <StatusBadge status={statusTone(card.status)}>
-          {t(statusKey)}
-        </StatusBadge>
+        <div className="ml-auto flex flex-col items-end text-right">
+          <StatusBadge
+            status={statusTone(card.status)}
+            className={financeListStatusChipClassName}
+          >
+            {t(statusKey)}
+          </StatusBadge>
+          <div className="mt-4 space-y-1">
+            <p className="text-sm font-semibold tracking-tight text-text">
+              {t("pages.pettyCash.prepaidBalance")}:{" "}
+              {formatContractPrice(card.currentBalance)}
+            </p>
+            <p className="text-sm font-semibold tracking-tight text-text">
+              {t("pages.pettyCash.cardTotalSpend")}:{" "}
+              {formatContractPrice(totalSpend)}
+            </p>
+          </div>
+        </div>
       </div>
-      <p className="text-sm font-semibold text-text">
-        {t("pages.pettyCash.prepaidBalance")}: {formatContractPrice(card.currentBalance)}
-      </p>
+      {canManageCards ? cardActions : null}
       {card.kind === "OPEN" && card.assignments.length > 0 ? (
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-subtle">
@@ -802,43 +919,6 @@ function CardDetail({
           </p>
         </div>
       ) : null}
-      <div className="flex flex-wrap gap-2">
-        {canSpendOnPrepaidCard(card.status as never) ? (
-          <Button type="button" variant="permissionsBadge" size="badgeFlex" className={directoryToolbarActionClass} onClick={onSpend}>
-            {t("pages.pettyCash.prepaidSpend")}
-          </Button>
-        ) : null}
-        {canManageCards && canAssignPrepaidCard(card.status as never) ? (
-          <Button type="button" variant="permissionsBadge" size="badgeFlex" className={directoryToolbarActionClass} onClick={onAssign}>
-            {t("pages.pettyCash.assignCard")}
-          </Button>
-        ) : null}
-        {canManageCards && card.status === "ACTIVE" ? (
-          <Button type="button" variant="permissionsBadge" size="badgeFlex" className={directoryToolbarActionClass} onClick={onReassign}>
-            {t("pages.pettyCash.reassignCard")}
-          </Button>
-        ) : null}
-        {canManageCards && canReturnPrepaidCard(card.status as never) ? (
-          <Button type="button" variant="permissionsBadge" size="badgeFlex" className={directoryToolbarActionClass} disabled={pending} onClick={() => void returnToList()}>
-            {t("pages.pettyCash.returnToList")}
-          </Button>
-        ) : null}
-        {canManageCards && canMarkPrepaidCardDamaged(card.status as never) ? (
-          <Button type="button" variant="permissionsBadge" size="badgeFlex" className={directoryToolbarActionClass} onClick={onDamaged}>
-            {t("pages.pettyCash.markDamaged")}
-          </Button>
-        ) : null}
-        {canManageCards && canReplacePrepaidCard(card.status as never) ? (
-          <Button type="button" variant="permissionsBadge" size="badgeFlex" className={directoryToolbarActionClass} onClick={onReplace}>
-            {t("pages.pettyCash.cardReplaced")}
-          </Button>
-        ) : null}
-        {canManageCards && canReportPrepaidCardLost(card.status as never) ? (
-          <Button type="button" variant="permissionsBadge" size="badgeFlex" className={directoryToolbarActionClass} onClick={onLost}>
-            {t("pages.pettyCash.reportLost")}
-          </Button>
-        ) : null}
-      </div>
     </SectionCard>
       {visibleEntries.length === 0 ? (
         <p className="text-sm text-muted">{t("pages.pettyCash.cardEntriesEmpty")}</p>
@@ -871,14 +951,7 @@ function CardDetail({
                       ) : null}
                     </p>
                     {entry.proofPath ? (
-                      <a
-                        href={entry.proofPath}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-1 inline-block text-xs font-medium text-primary-dark underline-offset-2 hover:underline"
-                      >
-                        {t("pages.pettyCash.viewProof")}
-                      </a>
+                      <UploadedFilesLink value={entry.proofPath} />
                     ) : null}
                   </>
                 }
@@ -990,13 +1063,16 @@ function WrittenOffView({
 
   return (
     <div className="space-y-4">
-      <button
+      <Button
         type="button"
-        className="text-xs font-semibold text-primary-dark underline-offset-2 hover:underline"
+        variant="infoBadge"
+        size="badgeFlex"
+        className="gap-1.5"
         onClick={onBack}
       >
+        <ArrowLeft className="size-3.5 shrink-0 opacity-80" aria-hidden />
         {t("pages.pettyCash.backToList")}
-      </button>
+      </Button>
       <h2 className="text-lg font-semibold text-text">
         {t("pages.pettyCash.writtenOffTitle")}
       </h2>
@@ -1263,15 +1339,23 @@ function PrepaidCardSpendDialog({
   const { t } = useT();
   const [pending, startTransition] = useTransition();
   const [cardId, setCardId] = useState(preferredCardId ?? cards[0]?.id ?? "");
+  const confirm = useConfirm();
   const [spendKind, setSpendKind] = useState("");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [entryDate, setEntryDate] = useState(todayDateInput());
+  const [odometerKm, setOdometerKm] = useState("");
+  const [litresFilled, setLitresFilled] = useState("");
+  const [vehicleAssetId, setVehicleAssetId] = useState("");
   const card = cards.find((row) => row.id === cardId) ?? cards[0] ?? null;
   const kinds =
     card?.kind === "OPEN" ? (["OTHER"] as const) : (["FUEL", "TOLL", "PARKING", "OTHER"] as const);
+  const fuelVehicles: VehicleOdometerOption[] = card?.vehicleAssets ?? [];
+  const selectedFuelVehicle =
+    fuelVehicles.find((row) => row.id === vehicleAssetId) ??
+    (fuelVehicles.length === 1 ? fuelVehicles[0] : null);
 
-  function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!card) return;
     const form = event.currentTarget;
@@ -1282,14 +1366,66 @@ function PrepaidCardSpendDialog({
       ...((card.kind === "OPEN" || spendKind === "OTHER") && !description.trim()
         ? [t("pages.pettyCash.descriptionLabel")]
         : []),
+      ...(spendKind === "FUEL" && fuelVehicles.length > 1 && !selectedFuelVehicle
+        ? [t("pages.billing.vehicleFor")]
+        : []),
+      ...(spendKind === "FUEL" && !odometerKm.trim()
+        ? [t("pages.vehicles.odometer.current")]
+        : []),
+      ...(spendKind === "FUEL" && !litresFilled.trim()
+        ? [t("pages.vehicles.odometer.litres")]
+        : []),
     ];
     if (showMissingRequiredFields(form, missing)) return;
+    if (spendKind === "FUEL") {
+      const readingKm = parseOdometerKm(odometerKm);
+      const litres = parseLitres(litresFilled);
+      if (readingKm == null || litres == null || !selectedFuelVehicle) {
+        return;
+      }
+      try {
+        const preview = previewFuelFill({
+          vehicle: selectedFuelVehicle,
+          readingKm,
+          litresFilled: litres,
+        });
+        if (preview.flagReason === "OVER_FILL") {
+          showRejection({
+            reasons: t("pages.vehicles.odometer.tankOverCapacity", {
+              tank: preview.tankLitres ?? "—",
+              limit: preview.tankLimitLitres ?? "—",
+            }),
+          });
+          return;
+        }
+        const typedAmount = parseContractPrice(amount);
+        const ok = await confirm(
+          fuelFillConfirmRequest(t, preview, typedAmount)
+        );
+        if (!ok) return;
+      } catch (error) {
+        showRejectionFromError(
+          error instanceof Error && error.message === "ODOMETER_WENT_BACK"
+            ? new Error(t("pages.vehicles.odometer.wentBack"))
+            : error,
+          t("pages.vehicles.odometer.wentBack")
+        );
+        return;
+      }
+    }
     const formData = new FormData(form);
     formData.set("prepaidCardId", card.id);
     formData.set("spendKind", card.kind === "OPEN" ? "OTHER" : spendKind);
     formData.set("amount", amount);
     formData.set("description", description);
     formData.set("entryDate", entryDate);
+    if (spendKind === "FUEL") {
+      formData.set("odometerKm", odometerKm);
+      formData.set("litresFilled", litresFilled);
+      if (selectedFuelVehicle) {
+        formData.set("vehicleAssetId", selectedFuelVehicle.id);
+      }
+    }
     if (proof?.files?.[0]) formData.set("proof", proof.files[0]);
     startTransition(async () => {
       try {
@@ -1372,6 +1508,38 @@ function PrepaidCardSpendDialog({
             </div>
           </div>
         ) : null}
+        {spendKind === "FUEL" && fuelVehicles.length > 1 ? (
+          <label className={employeeDialogFieldClass}>
+            <span className={employeeDialogLabelClass}>
+              {t("pages.billing.vehicleFor")}
+              <span className="text-red-400"> *</span>
+            </span>
+            <Select
+              value={vehicleAssetId || null}
+              onValueChange={(value) => setVehicleAssetId(value ?? "")}
+            >
+              <SelectTrigger className={employeeSelectTriggerClass}>
+                <SelectValue placeholder={t("pages.billing.vehicleFor")} />
+              </SelectTrigger>
+              <SelectContent>
+                {fuelVehicles.map((row) => (
+                  <SelectItem key={row.id} value={row.id}>
+                    {row.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </label>
+        ) : null}
+        {spendKind === "FUEL" ? (
+          <VehicleOdometerFields
+            vehicle={selectedFuelVehicle}
+            odometerKm={odometerKm}
+            onOdometerChange={setOdometerKm}
+            litres={litresFilled}
+            onLitresChange={setLitresFilled}
+          />
+        ) : null}
         <label className={employeeDialogFieldClass}>
           <span className={employeeDialogLabelClass}>{t("pages.pettyCash.enteredAmount")}</span>
           <MoneyInput value={amount} onValueChange={setAmount} className={employeeInputClass} required />
@@ -1399,6 +1567,7 @@ function PrepaidCardSpendDialog({
           id="prepaid-spend-proof"
           name="proof"
           required
+          multiple
           label={t("pages.pettyCash.proof")}
         />
         <div className="flex justify-end gap-2">
@@ -1778,6 +1947,104 @@ function ReplaceDialog({
             {t("pages.pettyCash.cardReplaced")}
           </EmployeePrimaryButton>
         </div>
+      </form>
+    </PrepaidDialog>
+  );
+}
+
+function MisuseDialog({
+  open,
+  onOpenChange,
+  card,
+  employees,
+  onSaved,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  card: PrepaidCardView;
+  employees: PrepaidEmployeeOption[];
+  onSaved: () => void;
+}) {
+  const { t } = useT();
+  const [pending, startTransition] = useTransition();
+  const [employeeId, setEmployeeId] = useState(card.custodianEmployeeId ?? "");
+  const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
+
+  function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData();
+    formData.set("prepaidCardId", card.id);
+    formData.set("employeeId", employeeId);
+    formData.set("amount", amount);
+    formData.set("note", note);
+    startTransition(async () => {
+      try {
+        await reportPrepaidCardMisuse(formData);
+        onOpenChange(false);
+        onSaved();
+      } catch (error) {
+        showRejectionFromError(error, t("pages.pettyCash.updateFailed"));
+      }
+    });
+  }
+
+  return (
+    <PrepaidDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t("pages.pettyCash.reportMisuse")}
+      description={t("pages.pettyCash.reportMisuseDesc")}
+    >
+      <form className={employeeDialogFormClass} onSubmit={submit}>
+        <div className={employeeDialogFieldClass}>
+          <label className={employeeDialogLabelClass}>
+            {t("pages.pettyCash.misuseEmployee")}
+          </label>
+          <Select
+            value={employeeId || null}
+            onValueChange={(value) => setEmployeeId(value ?? "")}
+            items={employees.map((row) => ({
+              value: row.id,
+              label: row.name,
+            }))}
+          >
+            <SelectTrigger className={employeeSelectTriggerClass}>
+              <SelectValue placeholder={t("pages.pettyCash.misuseEmployee")} />
+            </SelectTrigger>
+            <SelectContent>
+              {employees.map((row) => (
+                <SelectItem key={row.id} value={row.id} label={row.name}>
+                  {row.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className={employeeDialogFieldClass}>
+          <label className={employeeDialogLabelClass}>
+            {t("pages.pettyCash.misuseAmount")}
+          </label>
+          <MoneyInput
+            className={employeeInputClass}
+            value={amount}
+            onValueChange={setAmount}
+            required
+          />
+        </div>
+        <div className={employeeDialogFieldClass}>
+          <label className={employeeDialogLabelClass}>
+            {t("pages.pettyCash.misuseNote")}
+          </label>
+          <Input
+            className={employeeInputClass}
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+          />
+        </div>
+        <EmployeePrimaryButton type="submit" disabled={pending || !employeeId}>
+          {t("pages.pettyCash.reportMisuse")}
+        </EmployeePrimaryButton>
       </form>
     </PrepaidDialog>
   );

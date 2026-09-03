@@ -403,7 +403,6 @@ function SortableRow({
 function SortableSection({
   section,
   index,
-  total,
   locale,
   t,
   canReorderSections,
@@ -415,7 +414,6 @@ function SortableSection({
 }: {
   section: MenuSection;
   index: number;
-  total: number;
   locale: AppLocale;
   t: (key: string, params?: Record<string, string | number>) => string;
   canReorderSections: boolean;
@@ -740,7 +738,6 @@ export default function SidebarRearrangeDialog({
                   key={section.title}
                   section={section}
                   index={index}
-                  total={draft.length}
                   locale={locale}
                   t={t}
                   canReorderSections={canReorderSections && !section.bare}

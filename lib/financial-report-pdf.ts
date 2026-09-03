@@ -1,6 +1,10 @@
 import type { PayrollDeductionType } from "@prisma/client";
 import PDFDocument from "pdfkit";
 
+import {
+  LIVE_PROJECT_EXPENSE_WHERE,
+  liveInvoiceIncomeWhereFor,
+} from "@/lib/books-open";
 import { ensureCompanyForPdf } from "@/lib/company-for-pdf";
 import { formatEmployeeName } from "@/lib/employee-user-link";
 import {
@@ -79,6 +83,7 @@ const DEDUCTION_LABEL: Record<PayrollDeductionType, string> = {
   FORFEITED_WAGES: "pages.payroll.deductionTypes.forfeitedWages",
   CASH_ADVANCE: "pages.payroll.deductionTypes.cashAdvance",
   SICK_LEAVE: "pages.payroll.deductionTypes.sickLeave",
+  PREPAID_MISUSE: "pages.payroll.deductionTypes.prepaidMisuse",
 };
 
 export type FinancialReportSource =
@@ -483,6 +488,7 @@ export async function loadFinancialReportPdfData(
   const calendarPaidAt = prismaDateFilter(calendar.from, calendar.toExclusive);
   const calendarMovedAt = prismaDateFilter(calendar.from, calendar.toExclusive);
   const wagePeriods = payrollPeriodsInUtcRange(wage.from, wage.toExclusive);
+  const liveIncome = await liveInvoiceIncomeWhereFor(companyId);
 
   const [
     overview,
@@ -511,6 +517,7 @@ export async function loadFinancialReportPdfData(
     prisma.projectInvoicePeriod.findMany({
       where: {
         status: "PAID",
+        ...liveIncome,
         project: { companyId, subCategory: { not: "INTERNAL" } },
         ...bankAccountWhere(bank),
         ...(calendarPaidAt ? { paidAt: calendarPaidAt } : {}),
@@ -690,6 +697,7 @@ export async function loadFinancialReportPdfData(
     }),
     prisma.projectExpense.findMany({
       where: {
+        ...LIVE_PROJECT_EXPENSE_WHERE,
         companyId,
         ...(calendarMovedAt ? { incurredAt: calendarMovedAt } : {}),
       },

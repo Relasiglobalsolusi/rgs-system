@@ -125,6 +125,9 @@ import ContractExtensionsHistory from "@/components/projects/ContractExtensionsH
 import ProjectBankAccountRow from "@/components/projects/ProjectBankAccountRow";
 import ProjectDetailActionBar from "@/components/projects/ProjectDetailActionBar";
 import { listCompanyBankAccountOptions } from "@/lib/company-bank-accounts";
+import { catchUpAsOfDate, loadBooksOpenDate } from "@/lib/books-open";
+import { resolveCatchUpCompleteTarget } from "@/lib/project-catch-up-periods";
+import { isVehicleItemType } from "@/lib/inventory-sku";
 import ProjectEquipmentPicker, {
   type AssignedEquipmentAsset,
 } from "@/components/projects/ProjectEquipmentPicker";
@@ -408,6 +411,63 @@ export default async function ProjectDetailPage({
         )
       : [];
   const staffEmployees = annotateStaffPickerConflicts(employees, staffConflicts);
+
+  const catchUpTarget =
+    canManage && project.catchUpKind === "ONGOING"
+      ? resolveCatchUpCompleteTarget({
+          catchUpKind: project.catchUpKind,
+          status: project.status,
+          isComplimentary: project.isComplimentary,
+          isDemo: project.isDemo,
+          subCategory: project.subCategory,
+          billingMode: project.billingMode,
+          startDate: project.startDate,
+          endDate: project.endDate,
+          basis: project.billingPeriodBasis,
+          fromDay: project.billingCycleStartDay,
+          toDay: project.billingCycleEndDay,
+          asOf: catchUpAsOfDate(
+            await loadBooksOpenDate(project.companyId),
+            jakartaTodayAsUtcDateOnly()
+          ),
+          existingPeriods: project.invoicePeriods,
+        })
+      : null;
+
+  const catchUpInventory: Array<{
+    id: string;
+    name: string;
+    unit: string;
+    itemType: string;
+  }> = [];
+  const catchUpPeople: Array<{
+    id: string;
+    firstName: string;
+    lastName: string;
+  }> = [];
+  if (catchUpTarget) {
+    const [items, people] = await Promise.all([
+      prisma.inventoryItem.findMany({
+        where: {
+          companyId: project.companyId,
+          active: true,
+          deletedAt: null,
+        },
+        select: { id: true, name: true, unit: true, itemType: true },
+        orderBy: { name: "asc" },
+      }),
+      prisma.employee.findMany({
+        where: {
+          companyId: project.companyId,
+          archivedFromDirectory: false,
+        },
+        select: { id: true, firstName: true, lastName: true },
+        orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+      }),
+    ]);
+    catchUpInventory.push(...items);
+    catchUpPeople.push(...people);
+  }
 
   if (canManage || canAssignCover) {
     await processScheduledPettyCashPays(prisma, project.companyId);
@@ -840,6 +900,22 @@ export default async function ProjectDetailPage({
         clients={clients}
         catalog={serviceCatalog}
         bankAccounts={bankAccounts}
+        catchUpComplete={
+          catchUpTarget
+            ? {
+                projectId: project.id,
+                target: catchUpTarget,
+                inventoryItems: catchUpInventory
+                  .filter((item) => !isVehicleItemType(item.itemType))
+                  .map((item) => ({
+                    id: item.id,
+                    name: item.name,
+                    unit: item.unit,
+                  })),
+                employees: catchUpPeople,
+              }
+            : null
+        }
       >
         <div className="space-y-5">
           <SectionCard className="overflow-hidden p-0">

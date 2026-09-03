@@ -174,7 +174,7 @@ export default function InventoryStockItemDetailDialog({
                     {detail?.item.sku ?? item.sku}
                   </span>
                   <span className="mx-1.5 text-border-strong">·</span>
-                  {t("pages.inventory.columns.unit")}: {unit}
+                  {t("pages.inventory.form.unit")}: {unit}
                 </p>
               </div>
               <div

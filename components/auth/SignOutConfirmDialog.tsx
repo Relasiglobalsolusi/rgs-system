@@ -30,8 +30,11 @@ export default function SignOutConfirmDialog({
   async function handleSignOut() {
     setPending(true);
     try {
-      await signOut({ callbackUrl });
-    } catch {
+      // Avoid relying on NextAuth redirect behavior; if redirect doesn't happen,
+      // we must still allow the UI to recover from the "Processing..." state.
+      await signOut({ callbackUrl, redirect: false });
+      window.location.href = callbackUrl;
+    } finally {
       setPending(false);
     }
   }

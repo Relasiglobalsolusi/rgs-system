@@ -24,6 +24,11 @@ import DashboardAttendance from "@/components/dashboard/DashboardAttendance";
 import DashboardActivityFeed from "@/components/dashboard/DashboardActivityFeed";
 import DashboardProjectProgress from "@/components/dashboard/DashboardProjectProgress";
 import LeaveApprovedNotification from "@/components/leaves/LeaveApprovedNotification";
+import FuelRangeAlertBanner from "@/components/dashboard/FuelRangeAlertBanner";
+import {
+  canSeeFuelRangeAlerts,
+  loadFlaggedFuelFills,
+} from "@/lib/vehicle-odometer";
 import { buttonVariants } from "@/components/ui/button";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
@@ -123,6 +128,28 @@ export default async function DashboardPage() {
     : { id: "__none__" };
 
   const today = toUtcDateOnly(new Date());
+  const showFuelAlerts =
+    Boolean(companyId) &&
+    canSeeFuelRangeAlerts({
+      username: session.user.username,
+      jobPosition: employee?.jobPosition,
+    });
+  const flaggedFills =
+    showFuelAlerts && companyId
+      ? await loadFlaggedFuelFills(prisma, companyId)
+      : [];
+  const fuelRangeAlerts = flaggedFills.map((row) => ({
+    id: row.id,
+    vehicleId: row.vehicleAsset.id,
+    plate: row.vehicleAsset.assetCode,
+    vehicleName: row.vehicleAsset.item.name,
+    kmTraveled: row.kmTraveled,
+    fuelLeftMin:
+      row.fuelLeftBeforeMin != null ? Number(row.fuelLeftBeforeMin) : null,
+    fuelLeftMax:
+      row.fuelLeftBeforeMax != null ? Number(row.fuelLeftBeforeMax) : null,
+    recordedAt: row.recordedAt.toISOString(),
+  }));
 
   if (isStaff) {
     const employeeId = employee?.id;
@@ -251,6 +278,9 @@ export default async function DashboardPage() {
         {canViewLeaves && employee && (
           <LeaveApprovedNotification approvals={approvedLeaveNotices} />
         )}
+        {fuelRangeAlerts.length > 0 ? (
+          <FuelRangeAlertBanner alerts={fuelRangeAlerts} />
+        ) : null}
 
         {statCards.length > 0 && (
           <>
@@ -838,6 +868,9 @@ export default async function DashboardPage() {
       titleKey="pages.dashboard.title"
       greetingName={session.user.name?.split(" ")[0] ?? guestName}
     >
+      {fuelRangeAlerts.length > 0 ? (
+        <FuelRangeAlertBanner alerts={fuelRangeAlerts} />
+      ) : null}
       {adminStatCards.length > 0 && (
         <>
           <DashboardSectionLabel

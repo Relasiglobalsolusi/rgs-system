@@ -784,9 +784,9 @@ export default function CicoActions({
         >
           <div className="max-h-[min(90dvh,24rem)] overflow-y-auto px-4 pt-6 pb-6 sm:px-10 sm:pt-8 sm:pb-7">
           <DialogHeader>
-            <DialogTitle>{t("pages.cico.earlyCheckoutTitle")}</DialogTitle>
+            <DialogTitle>{t("pages.cico.errors.earlyCheckoutTitle")}</DialogTitle>
             <DialogDescription>
-              {t("pages.cico.earlyCheckoutBody")}
+              {t("pages.cico.errors.earlyCheckoutBody")}
             </DialogDescription>
           </DialogHeader>
           </div>

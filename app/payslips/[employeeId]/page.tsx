@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import {
   CalendarDays,
   CircleDollarSign,
+  Download,
   FileCheck,
   FileClock,
   Landmark,
@@ -16,6 +17,8 @@ import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
+import { buttonVariants } from "@/components/ui/button";
+import { directoryToolbarDownloadClass } from "@/components/ui/DirectoryFilterSelect";
 import { getEmployeeCompanyBalance } from "@/lib/employee-company-balance";
 import {
   loadEmployeePayslipHistory,
@@ -248,7 +251,7 @@ export default async function EmployeePayslipsPage({
           </div>
         ) : (
           <div className="mt-5 overflow-x-auto">
-            <table className="w-full min-w-[28rem] text-left text-sm">
+            <table className="w-full min-w-[34rem] text-left text-sm">
               <thead className="border-b border-border text-xs font-medium text-muted">
                 <tr>
                   <th className="px-3 py-2 text-left font-medium">
@@ -260,37 +263,53 @@ export default async function EmployeePayslipsPage({
                   <th className="px-3 py-2 text-left font-medium">
                     {t("pages.payslips.columns.status")}
                   </th>
+                  <th className="px-3 py-2 text-left font-medium">
+                    {t("pages.payslips.columns.download")}
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {yearRows.map((row) => {
                   const href = `/payslips/${employee.id}/${row.year}/${row.month}`;
+                  const statusKey = payslipStatusKey(row);
                   return (
                     <tr
                       key={`${row.year}-${row.month}`}
                       className="border-b border-border/70 hover:bg-elevated/50"
                     >
-                      <td className="p-0 text-left">
+                      <td className="px-3 py-3 text-left">
                         <Link
                           href={href}
-                          className="block px-3 py-3 font-semibold text-primary"
+                          className={`${buttonVariants({
+                            variant: "infoBadge",
+                            size: "badgeFlex",
+                          })} min-w-[6.5rem] justify-center`}
                         >
                           {t(`pages.reports.months.${row.month}`)}
                         </Link>
                       </td>
-                      <td className="p-0 text-left tabular-nums text-text">
-                        <Link href={href} tabIndex={-1} className="block px-3 py-3">
-                          {row.netPay == null
-                            ? t("pages.payslips.noPay")
-                            : formatContractPrice(row.netPay)}
-                        </Link>
+                      <td className="px-3 py-3 text-left tabular-nums text-text">
+                        {row.netPay == null
+                          ? t("pages.payslips.noPay")
+                          : formatContractPrice(row.netPay)}
                       </td>
-                      <td className="p-0 text-left text-muted">
-                        <Link href={href} tabIndex={-1} className="block px-3 py-3">
-                          {t(
-                            `pages.payslips.${payslipStatusKey(row)}`
-                          )}
-                        </Link>
+                      <td className="px-3 py-3 text-left text-muted">
+                        {t(`pages.payslips.${statusKey}`)}
+                      </td>
+                      <td className="px-3 py-3 text-left">
+                        {statusKey === "noPayslip" ? (
+                          <span className="text-subtle">
+                            {t("pages.payslips.noPay")}
+                          </span>
+                        ) : (
+                          <a
+                            href={`/api/payslips/${employee.id}/${row.year}/${row.month}`}
+                            className={directoryToolbarDownloadClass}
+                          >
+                            <Download size={14} aria-hidden />
+                            {t("pages.payslips.download")}
+                          </a>
+                        )}
                       </td>
                     </tr>
                   );

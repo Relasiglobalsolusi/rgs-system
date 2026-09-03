@@ -129,6 +129,7 @@ export type ProjectFormFieldsState = {
   isLandscaping: boolean;
   showPaymentPlan: boolean;
   initialStatus: ProjectFormInitialStatus;
+  projectOngoing: YesNoChoice;
   isDemo: boolean;
   isComplimentary: boolean;
   isInternal: boolean;
@@ -145,6 +146,8 @@ type Props = {
   namePrefix?: string;
   /** Prefix element ids so multiple forms can sit on one page. */
   idPrefix?: string;
+  /** First-month go-live intake. Hidden after books have been open ~31 days. */
+  showCatchUpIntake?: boolean;
   onFormValuesChange?: () => void;
   onStateChange?: (state: ProjectFormFieldsState) => void;
 };
@@ -157,6 +160,7 @@ export default function ProjectFormFields({
   bankAccounts = [],
   namePrefix = "",
   idPrefix = "",
+  showCatchUpIntake = true,
   onFormValuesChange,
   onStateChange,
 }: Props) {
@@ -210,6 +214,7 @@ export default function ProjectFormFields({
   );
   const [initialStatus, setInitialStatus] =
     useState<ProjectFormInitialStatus>("PLANNED");
+  const [projectOngoing, setProjectOngoing] = useState<YesNoChoice>("No");
   const selectedCatalogArea = useMemo(
     () =>
       catalog.find((area) => area.id === areaCatalogId) ??
@@ -283,6 +288,11 @@ export default function ProjectFormFields({
     [catalog]
   );
   const showBillingFields = !isComplimentary && !isInternal;
+  const catchUpStarted =
+    showCatchUpIntake && !isInternal && !isDemo && projectOngoing === "Yes";
+  const effectiveInitialStatus: ProjectFormInitialStatus = catchUpStarted
+    ? "IN_PROGRESS"
+    : initialStatus;
 
   const isContract = isContractSubCategory(subCategory);
   const isLandscaping = isLandscapingProjectSubCategory(subCategory);
@@ -313,7 +323,6 @@ export default function ProjectFormFields({
   const onStateChangeRef = useRef(onStateChange);
   onStateChangeRef.current = onStateChange;
 
-  const selectedClient = clients.find((item) => item.id === clientId);
   const planSumOk =
     !showPaymentPlan ||
     Math.abs(
@@ -328,6 +337,7 @@ export default function ProjectFormFields({
     otherTaxName,
     npwp,
     initialStatus,
+    projectOngoing,
     subCategory,
     serviceArea,
     billingMode,
@@ -357,6 +367,7 @@ export default function ProjectFormFields({
       isLandscaping,
       showPaymentPlan,
       initialStatus,
+      projectOngoing,
       isDemo,
       isComplimentary,
       isInternal,
@@ -373,6 +384,7 @@ export default function ProjectFormFields({
     isLandscaping,
     showPaymentPlan,
     initialStatus,
+    projectOngoing,
     isDemo,
     isComplimentary,
     isInternal,
@@ -574,7 +586,7 @@ export default function ProjectFormFields({
       <input
         type="hidden"
         name={nameOf("initialStatus")}
-        value={isInternal ? "IN_PROGRESS" : initialStatus}
+        value={isInternal ? "IN_PROGRESS" : effectiveInitialStatus}
       />
       <input type="hidden" name={nameOf("subCategory")} value={subCategory} />
       <input type="hidden" name={nameOf("serviceArea")} value={serviceArea} />
@@ -685,7 +697,37 @@ export default function ProjectFormFields({
         </div>
       ) : null}
 
-      {!isInternal ? (
+      {!isInternal && !isDemo && showCatchUpIntake ? (
+        <div className="space-y-2">
+          <ProjectOptionPills
+            label={t("pages.projects.catchUp.projectOngoing")}
+            value={projectOngoing}
+            options={[
+              {
+                value: "No",
+                label: t("pages.projects.catchUp.newProject"),
+              },
+              {
+                value: "Yes",
+                label: t("pages.projects.catchUp.ongoing"),
+              },
+            ]}
+            onChange={setProjectOngoing}
+          />
+          <input
+            type="hidden"
+            name={nameOf("projectOngoing")}
+            value={projectOngoing}
+          />
+          <p className="text-xs text-subtle">
+            {t("pages.projects.catchUp.projectOngoingHint")}
+          </p>
+        </div>
+      ) : (
+        <input type="hidden" name={nameOf("projectOngoing")} value="No" />
+      )}
+
+      {!isInternal && !catchUpStarted ? (
         <ProjectOptionPills
           label={t("pages.projects.startingStage")}
           value={initialStatus}
@@ -1160,7 +1202,7 @@ export default function ProjectFormFields({
       ) : isMonthTimeline ? (
         <ProjectTimelineFields
           mode="contract"
-          planning={initialStatus === "PLANNED"}
+          planning={effectiveInitialStatus === "PLANNED"}
           startDate={startDate}
           durationMonths={durationMonths}
           onStartDateChange={setStartDate}
@@ -1174,7 +1216,7 @@ export default function ProjectFormFields({
           </label>
           <Input
             name={nameOf(
-              initialStatus === "PLANNED" ? "estimatedStartDate" : "startDate"
+              effectiveInitialStatus === "PLANNED" ? "estimatedStartDate" : "startDate"
             )}
             type="date"
             required
@@ -1189,7 +1231,7 @@ export default function ProjectFormFields({
       ) : (
         <ProjectTimelineFields
           mode="standard"
-          planning={initialStatus === "PLANNED"}
+          planning={effectiveInitialStatus === "PLANNED"}
           startDate={startDate}
           durationDays={durationDays}
           onStartDateChange={setStartDate}
@@ -1215,7 +1257,7 @@ export default function ProjectFormFields({
         <input type="hidden" name={nameOf("shiftCount")} value="0" />
       )}
 
-      {initialStatus === "IN_PROGRESS" || isInternal ? (
+      {effectiveInitialStatus === "IN_PROGRESS" || isInternal ? (
         <>
           {!isDemo && !isInternal ? (
           <div className={employeeDialogFieldClass}>
@@ -1224,6 +1266,7 @@ export default function ProjectFormFields({
               name={nameOf("contractProof")}
               label={t("pages.projects.contractProof")}
               required
+              multiple
               accept="image/*,.pdf,application/pdf"
             />
             <p className="text-xs text-subtle">
@@ -1231,7 +1274,11 @@ export default function ProjectFormFields({
             </p>
           </div>
           ) : null}
-          {isInternal || billingMode !== "MULTI_VISIT" ? (
+          {!isInternal && billingMode === "MULTI_VISIT" ? (
+            <p className="text-xs text-subtle">
+              {t("pages.projects.moveDialogVisitCrewHelp")}
+            </p>
+          ) : (
             <>
               <ProjectTeamPicker
                 teams={teamsForProjectServiceArea(teams, {
@@ -1246,10 +1293,6 @@ export default function ProjectFormFields({
                 namePrefix={namePrefix}
               />
             </>
-          ) : (
-            <p className="text-xs text-subtle">
-              {t("pages.projects.moveDialogVisitCrewHelp")}
-            </p>
           )}
         </>
       ) : null}

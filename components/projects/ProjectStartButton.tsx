@@ -295,6 +295,7 @@ function useProjectStartAction({
               name="contractProof"
               label={t("pages.projects.contractProof")}
               required
+              multiple
               accept="image/*,.pdf,application/pdf"
             />
             <p className="text-xs text-subtle">

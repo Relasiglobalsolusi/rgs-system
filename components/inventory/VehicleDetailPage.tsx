@@ -2,14 +2,18 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { ArrowLeft, Car } from "lucide-react";
+import { Car } from "lucide-react";
 import { toast } from "sonner";
 
 import { updateVehicleAsset } from "@/app/inventory/actions";
 import type {
   InventoryOverviewAssetRow,
   VehicleCostLogEntry,
+  VehicleOdometerLogEntry,
 } from "@/components/inventory/inventory-types";
+import BackLink from "@/components/ui/BackLink";
+import type { PrepaidFuelSpend } from "@/lib/prepaid-card-query";
+import { formatPrepaidFuelMonth } from "@/lib/prepaid-card-query";
 import {
   employeeDialogFieldClass,
   employeeDialogHintClass,
@@ -24,12 +28,23 @@ import { useT } from "@/lib/i18n/use-t";
 import { formatContractPrice } from "@/lib/project-billing";
 import { vehicleExpenseNarrative } from "@/lib/vehicle-expense";
 import type { VehicleLeaseProgress } from "@/lib/vehicle-lease";
+import {
+  DEFAULT_KM_PER_LITRE_MAX,
+  DEFAULT_KM_PER_LITRE_MIN,
+  formatKmPerLitreRange,
+  formatLitres,
+  formatLitresRange,
+  formatOdometerKm,
+  remainingKmOf,
+} from "@/lib/vehicle-odometer";
 
 type Props = {
   vehicle: InventoryOverviewAssetRow;
   costLog: VehicleCostLogEntry[];
   costLogTotal: number;
+  odometerLog: VehicleOdometerLogEntry[];
   leaseProgress: VehicleLeaseProgress | null;
+  fuelSpend: PrepaidFuelSpend;
   canManage: boolean;
 };
 
@@ -54,16 +69,25 @@ export default function VehicleDetailPage({
   vehicle,
   costLog,
   costLogTotal,
+  odometerLog,
   leaseProgress,
+  fuelSpend,
   canManage,
 }: Props) {
-  const { t, locale } = useT();
+  const { t, locale, bcp47 } = useT();
   const [pending, startTransition] = useTransition();
   const [plate, setPlate] = useState(vehicle.assetCode);
+  const [initialOdometer, setInitialOdometer] = useState(
+    vehicle.initialOdometerKm != null ? String(vehicle.initialOdometerKm) : ""
+  );
+  const initialLocked = Boolean(vehicle.hasOdometerReadings);
 
   function submit(formData: FormData) {
     formData.set("assetId", vehicle.id);
     formData.set("vehiclePlate", plate);
+    if (initialOdometer.trim()) {
+      formData.set("initialOdometerKm", initialOdometer);
+    }
     startTransition(async () => {
       try {
         await updateVehicleAsset(formData);
@@ -93,16 +117,19 @@ export default function VehicleDetailPage({
         : "—";
 
   const vehicleName = vehicle.item?.name ?? t("modules.inventory");
+  const leftoverMin = vehicle.estimatedFuelLeftLitresMin ?? null;
+  const leftoverMax = vehicle.estimatedFuelLeftLitresMax ?? leftoverMin;
+  const remainingRange =
+    leftoverMin != null && leftoverMax != null
+      ? remainingKmOf(leftoverMin, leftoverMax, {
+          min: vehicle.kmPerLitreMin ?? DEFAULT_KM_PER_LITRE_MIN,
+          max: vehicle.kmPerLitreMax ?? DEFAULT_KM_PER_LITRE_MAX,
+        })
+      : null;
 
   return (
     <div className="space-y-4">
-      <Link
-        href="/inventory"
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline-offset-2 hover:underline"
-      >
-        <ArrowLeft size={14} />
-        {t("pages.inventory.vehicles.back")}
-      </Link>
+      <BackLink href="/inventory">{t("pages.inventory.vehicles.back")}</BackLink>
 
       <SectionCard>
         <div className="mb-4 flex items-start gap-3">
@@ -159,6 +186,36 @@ export default function VehicleDetailPage({
                 : t("common.actions.no")
             }
           />
+          <Fact
+            label={t("pages.vehicles.odometer.current")}
+            value={formatOdometerKm(vehicle.currentOdometerKm ?? vehicle.initialOdometerKm)}
+          />
+          <Fact
+            label={t("pages.vehicles.odometer.kmPerLitre")}
+            value={formatKmPerLitreRange(
+              vehicle.kmPerLitreMin,
+              vehicle.kmPerLitreMax
+            )}
+          />
+          <Fact
+            label={t("pages.vehicles.odometer.fuelTank")}
+            value={formatLitres(vehicle.tankLitres)}
+          />
+          <Fact
+            label={t("pages.vehicles.odometer.fuelLeft")}
+            value={formatLitresRange(
+              vehicle.estimatedFuelLeftLitresMin,
+              vehicle.estimatedFuelLeftLitresMax
+            )}
+          />
+          <Fact
+            label={t("pages.vehicles.odometer.remainingRange")}
+            value={
+              remainingRange
+                ? `${formatOdometerKm(remainingRange.min)}–${formatOdometerKm(remainingRange.max)}`
+                : "—"
+            }
+          />
         </dl>
         <p className={employeeDialogHintClass}>
           {t("pages.inventory.vehicles.purchaseFactsHint")}
@@ -183,6 +240,34 @@ export default function VehicleDetailPage({
                 {t("pages.inventory.form.vehiclePlateEditHint")}
               </p>
             </div>
+            <div className={employeeDialogFieldClass}>
+              <label className={employeeDialogLabelClass} htmlFor="vehicle-initial-odometer">
+                {t("pages.vehicles.odometer.initial")}
+              </label>
+              <input
+                id="vehicle-initial-odometer"
+                name="initialOdometerKm"
+                inputMode="numeric"
+                autoComplete="off"
+                disabled={initialLocked}
+                value={initialOdometer}
+                onChange={(event) =>
+                  setInitialOdometer(event.target.value.replace(/[^\d]/g, ""))
+                }
+                className={employeeInputClass}
+                placeholder={t("pages.vehicles.odometer.placeholder")}
+              />
+              <p className={employeeDialogHintClass}>
+                {initialLocked
+                  ? t("pages.vehicles.odometer.initialLockedHint")
+                  : t("pages.vehicles.odometer.initialHint")}
+              </p>
+            </div>
+            <div className="sm:col-span-2">
+              <p className={employeeDialogHintClass}>
+                {t("pages.vehicles.odometer.rangeLockedHint")}
+              </p>
+            </div>
             <div className="sm:col-span-2">
               <Button type="submit" disabled={pending}>
                 {pending
@@ -197,7 +282,104 @@ export default function VehicleDetailPage({
               label={t("pages.inventory.form.vehiclePlate")}
               value={vehicle.assetCode}
             />
+            <Fact
+              label={t("pages.vehicles.odometer.initial")}
+              value={formatOdometerKm(vehicle.initialOdometerKm)}
+            />
+            <Fact
+              label={t("pages.vehicles.odometer.kmPerLitre")}
+              value={formatKmPerLitreRange(
+                vehicle.kmPerLitreMin,
+                vehicle.kmPerLitreMax
+              )}
+            />
           </dl>
+        )}
+      </SectionCard>
+
+      <SectionCard>
+        <div className="mb-3">
+          <p className="text-sm font-semibold text-text">
+            {t("pages.vehicles.odometer.logTitle")}
+          </p>
+          <p className={employeeDialogHintClass}>
+            {t("pages.vehicles.odometer.logHint")}
+          </p>
+        </div>
+        {odometerLog.length === 0 ? (
+          <p className="text-sm text-muted">
+            {t("pages.vehicles.odometer.logEmpty")}
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead>
+                <tr className="text-xs font-semibold uppercase tracking-wide text-subtle">
+                  <th className="py-2 pr-4">{t("pages.vehicles.odometer.logDate")}</th>
+                  <th className="py-2 pr-4">{t("pages.vehicles.odometer.logReading")}</th>
+                  <th className="py-2 pr-4">{t("pages.vehicles.odometer.logDistance")}</th>
+                  <th className="py-2 pr-4">{t("pages.vehicles.odometer.logLitres")}</th>
+                  <th className="py-2 pr-4">{t("pages.vehicles.odometer.logUsed")}</th>
+                  <th className="py-2 pr-4">{t("pages.vehicles.odometer.logLeft")}</th>
+                  <th className="py-2 pr-4">{t("pages.vehicles.odometer.logSource")}</th>
+                  <th className="py-2">{t("pages.vehicles.odometer.logFlag")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {odometerLog.map((row) => (
+                  <tr key={row.id} className="border-t border-border">
+                    <td className="py-2 pr-4 text-text">
+                      {formatDisplayDate(row.recordedAt)}
+                    </td>
+                    <td className="py-2 pr-4 text-text">
+                      {formatOdometerKm(row.readingKm)}
+                    </td>
+                    <td className="py-2 pr-4 text-text">
+                      {row.kind === "INITIAL"
+                        ? t("pages.vehicles.odometer.kindInitial")
+                        : formatOdometerKm(row.kmTraveled)}
+                    </td>
+                    <td className="py-2 pr-4 text-text">
+                      {row.litresFilled != null
+                        ? `${row.litresFilled.toLocaleString("id-ID", {
+                            minimumFractionDigits: 1,
+                            maximumFractionDigits: 1,
+                          })} L`
+                        : "—"}
+                    </td>
+                    <td className="py-2 pr-4 text-text">
+                      {formatLitresRange(row.fuelUsedMin, row.fuelUsedMax)}
+                    </td>
+                    <td className="py-2 pr-4 text-text">
+                      {formatLitresRange(
+                        row.fuelLeftBeforeMin,
+                        row.fuelLeftBeforeMax
+                      )}
+                    </td>
+                    <td className="py-2 pr-4 text-muted">
+                      {row.source === "PETTY_CASH"
+                        ? t("pages.vehicles.odometer.sourcePetty")
+                        : row.source === "PREPAID"
+                          ? t("pages.vehicles.odometer.sourcePrepaid")
+                          : row.source === "PURCHASE_INVOICE"
+                            ? t("pages.vehicles.odometer.sourceExpense")
+                            : t("pages.vehicles.odometer.sourceManual")}
+                    </td>
+                    <td className="py-2 text-warning">
+                      {row.flagReason === "OVER_USE" ||
+                      row.flagReason === "LONG_INTERVAL"
+                        ? t("pages.vehicles.odometer.flaggedLong")
+                        : row.flagReason === "OVER_FILL"
+                          ? t("pages.vehicles.odometer.flaggedOverFill")
+                          : row.flagged
+                            ? t("pages.vehicles.odometer.flagged")
+                            : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </SectionCard>
 
@@ -310,6 +492,35 @@ export default function VehicleDetailPage({
           </p>
         </SectionCard>
       ) : null}
+
+      <SectionCard>
+        <p className="text-sm font-semibold text-text">
+          {t("pages.inventory.vehicles.fuelSpend")}
+        </p>
+        <p className="mt-2 text-xl font-semibold tracking-tight text-text">
+          {t("pages.inventory.vehicles.fuelSpendTotal")}:{" "}
+          {formatContractPrice(fuelSpend.total)}
+        </p>
+        {fuelSpend.months.length === 0 ? (
+          <p className={`${employeeDialogHintClass} mt-2`}>
+            {t("pages.inventory.vehicles.fuelSpendEmpty")}
+          </p>
+        ) : (
+          <ul className="mt-3 space-y-2 text-base text-text">
+            {fuelSpend.months.map((row) => (
+              <li
+                key={row.yearMonth}
+                className="flex items-center justify-between gap-3"
+              >
+                <span>{formatPrepaidFuelMonth(row.yearMonth, bcp47)}</span>
+                <span className="font-semibold tabular-nums">
+                  {formatContractPrice(row.amount)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </SectionCard>
 
       <SectionCard>
         <div className="mb-3">

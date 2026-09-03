@@ -43,7 +43,16 @@ import { decimalToNumber, parseContractPrice } from "@/lib/project-billing";
 import { prisma } from "@/lib/prisma";
 import { todayDateInput } from "@/lib/project-contract";
 import { requireAdvanceCashPrepaidAccess } from "@/lib/session";
-import { saveUpload } from "@/lib/upload";
+import { formFiles, saveAndSerializeUploads } from "@/lib/upload-paths";
+import {
+  litresRequiredMessage,
+  odometerRequiredMessage,
+  odometerWentBackMessage,
+  parseLitres,
+  parseOdometerKm,
+  recordVehicleOdometerReading,
+  resolveVehicleAssetForPrepaidFuel,
+} from "@/lib/vehicle-odometer";
 import { nextPettyCashTopUpRef } from "@/lib/petty-cash";
 import { getCompanyBankAccount } from "@/lib/company-bank-accounts";
 import { formatEmployeeName } from "@/lib/employee-user-link";
@@ -52,6 +61,8 @@ function revalidatePrepaidCardPaths() {
   revalidatePath("/billing/petty-cash");
   revalidatePath("/billing/financial-report");
   revalidatePath("/billing/payroll");
+  revalidatePath("/inventory");
+  revalidatePath("/dashboard");
 }
 
 async function requireOwnerPrepaidCardManage() {
@@ -268,13 +279,15 @@ export async function recordPrepaidCardSpend(formData: FormData) {
   if (!spendKind) throw new Error("Choose what this bill is for.");
   if (amount == null || amount <= 0) throw new Error("Enter the amount paid.");
 
-  const proof = formData.get("proof");
-  if (!(proof instanceof File) || proof.size === 0) {
+  const proofs = formFiles(formData, "proof");
+  if (proofs.length === 0) {
     throw new Error("Upload the bill or receipt.");
   }
-  const proofPath = await saveUpload(proof, "prepaid-card-proofs", {
-    fileBaseName: "prepaid_spend",
-  });
+  const proofPath = await saveAndSerializeUploads(
+    proofs,
+    "prepaid-card-proofs",
+    { fileBaseName: "prepaid_spend" }
+  );
   const entryDate = parseDateInput(
     String(formData.get("entryDate") ?? todayDateInput())
   );
@@ -296,7 +309,7 @@ export async function recordPrepaidCardSpend(formData: FormData) {
     const assignment = await currentPrepaidAssignment(tx, card.id);
     const description =
       spendKind === "OTHER" ? note : note || spendKind;
-    await writePrepaidCardEntry(tx, {
+    const entry = await writePrepaidCardEntry(tx, {
       cardId: card.id,
       kind: "SPEND",
       spendKind,
@@ -308,6 +321,38 @@ export async function recordPrepaidCardSpend(formData: FormData) {
       proofPath,
       assignmentId: assignment?.id ?? null,
     });
+    if (spendKind === "FUEL") {
+      const readingKm = parseOdometerKm(formData.get("odometerKm"));
+      const litresFilled = parseLitres(formData.get("litresFilled"));
+      if (readingKm == null) {
+        throw new Error(odometerRequiredMessage());
+      }
+      if (litresFilled == null) {
+        throw new Error(litresRequiredMessage());
+      }
+      const vehicle = await resolveVehicleAssetForPrepaidFuel(tx, {
+        companyId: session.user.companyId,
+        vehicleItemId: card.vehicleItemId,
+        vehicleAssetId: String(formData.get("vehicleAssetId") ?? "").trim(),
+      });
+      try {
+        await recordVehicleOdometerReading(tx, {
+          companyId: session.user.companyId,
+          vehicleAssetId: vehicle.id,
+          readingKm,
+          litresFilled,
+          source: "PREPAID",
+          recordedAt: entryDate,
+          createdById: session.user.id,
+          prepaidCardEntryId: entry.id,
+        });
+      } catch (error) {
+        if (error instanceof Error && error.message === "ODOMETER_WENT_BACK") {
+          throw new Error(odometerWentBackMessage());
+        }
+        throw error;
+      }
+    }
   });
   revalidatePrepaidCardPaths();
 }
@@ -702,5 +747,53 @@ export async function reportPrepaidCardLost(formData: FormData) {
       data: { status: "LOST" },
     });
   });
+  revalidatePrepaidCardPaths();
+}
+
+export async function reportPrepaidCardMisuse(formData: FormData) {
+  const session = await requireOwnerPrepaidCardManage();
+  const prepaidCardId = String(formData.get("prepaidCardId") ?? "").trim();
+  const employeeId = String(formData.get("employeeId") ?? "").trim();
+  const amount = parseContractPrice(String(formData.get("amount") ?? ""));
+  const note = String(formData.get("note") ?? "").trim();
+  if (!prepaidCardId) throw new Error("Choose a prepaid card.");
+  if (!employeeId) throw new Error("Choose the employee who misused the card.");
+  if (amount == null || amount <= 0) {
+    throw new Error("Enter how much was misused.");
+  }
+
+  const card = await prisma.prepaidCard.findFirst({
+    where: { id: prepaidCardId, companyId: session.user.companyId },
+    select: { id: true, cardNumber: true },
+  });
+  if (!card) throw new Error("Prepaid card not found.");
+
+  const employee = await requireActiveEmployee(
+    prisma,
+    session.user.companyId,
+    employeeId
+  );
+  const [period] = await nextOpenPayrollPeriods(session.user.companyId, 1);
+  const reason = [
+    `Prepaid card misuse · ${formatPrepaidCardNumber(card.cardNumber)}`,
+    note,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  await prisma.payrollDeduction.create({
+    data: {
+      companyId: session.user.companyId,
+      employeeId: employee.id,
+      year: period.year,
+      month: period.month,
+      type: "PREPAID_MISUSE",
+      amount,
+      reason,
+      itemName: `Prepaid Card ${normalizePrepaidCardNumber(card.cardNumber)}`,
+      createdById: session.user.id,
+    },
+  });
+
   revalidatePrepaidCardPaths();
 }

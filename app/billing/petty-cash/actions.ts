@@ -17,8 +17,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/project-billing";
 import { requireAdvanceCashPettyAccess } from "@/lib/session";
-import { saveUpload } from "@/lib/upload";
-
+import { formFiles, saveAndSerializeUploads } from "@/lib/upload-paths";
 const UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 const UPLOAD_MIME = new Set([
   "image/jpeg",
@@ -42,9 +41,19 @@ function requireProofFile(value: FormDataEntryValue | null): File {
   return value;
 }
 
+function requireProofFiles(formData: FormData, name: string): File[] {
+  const files = formFiles(formData, name).map((file) => requireProofFile(file));
+  if (files.length === 0) {
+    throw new Error("Upload the bill or receipt photo.");
+  }
+  return files;
+}
+
 function revalidatePettyCashPaths() {
   revalidatePath("/billing/petty-cash");
   revalidatePath("/billing/financial-report");
+  revalidatePath("/inventory");
+  revalidatePath("/dashboard");
 }
 
 async function requireActiveEmployee(companyId: string, employeeId: string) {
@@ -104,7 +113,7 @@ export async function recordPettyCashSpend(formData: FormData) {
   const projectIdRaw = String(formData.get("projectId") ?? "").trim();
   const clientIdRaw = String(formData.get("clientId") ?? "").trim();
   const holderRaw = String(formData.get("holderEmployeeId") ?? "").trim();
-  const file = requireProofFile(formData.get("document"));
+  const files = requireProofFiles(formData, "document");
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateRaw)) {
     throw new Error("Date is required.");
@@ -117,6 +126,14 @@ export async function recordPettyCashSpend(formData: FormData) {
   }
 
   const holderEmployeeId = holderRaw;
+  // Employees can only debit their own Petty Cash.
+  const ownEmployee = await prisma.employee.findFirst({
+    where: { companyId: session.user.companyId, userId: session.user.id },
+    select: { id: true },
+  });
+  if (!ownEmployee || ownEmployee.id !== holderEmployeeId) {
+    throw new Error("You can only record spends against your own Petty Cash.");
+  }
   await requireActiveEmployee(session.user.companyId, holderEmployeeId);
 
   if (chargeType !== "client" && chargeType !== "project") {
@@ -159,7 +176,7 @@ export async function recordPettyCashSpend(formData: FormData) {
     clientId = client.id;
   }
 
-  const proofPath = await saveUpload(file, "uploads/petty-cash", {
+  const proofPath = await saveAndSerializeUploads(files, "uploads/petty-cash", {
     fileBaseName: `Petty-Cash-Spend-${dateRaw}`,
   });
 

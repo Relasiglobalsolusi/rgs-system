@@ -108,7 +108,6 @@ type Props = {
   employmentType: "FULL_TIME" | "PART_TIME";
   onEmploymentTypeChange: (value: "FULL_TIME" | "PART_TIME") => void;
   status?: "ACTIVE" | "ON_LEAVE" | "LEAVE_PENDING";
-  onStatusChange?: (value: "ACTIVE" | "ON_LEAVE" | "LEAVE_PENDING") => void;
   previewEmployeeNo?: string;
   defaults?: EmployeeFormDefaults;
   projects?: ProjectOption[];
@@ -161,7 +160,6 @@ export default function EmployeeFormFields({
   employmentType,
   onEmploymentTypeChange,
   status = "ACTIVE",
-  onStatusChange,
   previewEmployeeNo,
   defaults,
   projects = [],

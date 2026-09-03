@@ -1,5 +1,7 @@
 import type { EmploymentType } from "@prisma/client";
 
+import { LIVE_PROJECT_EXPENSE_WHERE } from "@/lib/books-open";
+
 import {
   bankAccountWhere,
   FINANCIAL_REPORT_ALL_BANKS,
@@ -335,6 +337,7 @@ export async function getProjectPnlAdjustments(
     prisma.projectExpense.groupBy({
       by: ["projectId"],
       where: {
+        ...LIVE_PROJECT_EXPENSE_WHERE,
         projectId: { in: projectIds },
         ...(incurredAt ? { incurredAt } : {}),
       },

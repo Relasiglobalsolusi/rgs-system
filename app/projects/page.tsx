@@ -83,6 +83,7 @@ import EmptyState from "@/components/ui/EmptyState";
 
 import ProjectAddControl from "@/components/projects/ProjectAddControl";
 import { listCompanyBankAccountOptions } from "@/lib/company-bank-accounts";
+import { isCatchUpIntakeOpen, loadBooksOpenDate } from "@/lib/books-open";
 import ProjectHistoryClearAllDialog from "@/components/projects/ProjectHistoryClearAllDialog";
 import ProjectsListHeader from "@/components/projects/ProjectsListHeader";
 import ProjectTable, {
@@ -263,6 +264,9 @@ export default async function ProjectsPage({
   const bankAccounts = company
     ? await listCompanyBankAccountOptions(company.id)
     : [];
+  const catchUpIntakeOpen = isCatchUpIntakeOpen(
+    company ? await loadBooksOpenDate(company.id) : null
+  );
 
   if (!company) {
     return (
@@ -960,6 +964,7 @@ export default async function ProjectsPage({
                     clients={serializeDirectoryDecimals(clients)}
                     catalog={serviceCatalog}
                     bankAccounts={bankAccounts}
+                    showCatchUpIntake={catchUpIntakeOpen}
                   />
                 ) : null}
                 <ProjectServiceAreaManageDialog catalog={serviceCatalog} />

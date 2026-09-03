@@ -89,6 +89,8 @@ async function requireOwnerCompany() {
 function revalidateCompanyPaths() {
   revalidatePath("/company-details");
   revalidatePath("/dashboard");
+  revalidatePath("/projects");
+  revalidatePath("/billing");
 }
 
 export async function updateCompanyIdentity(formData: FormData) {

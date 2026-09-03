@@ -583,7 +583,9 @@ body {
   }
 }
 
-@media (max-width: 479px) {
+/* Phones and small tablets: icon-only theme/language + avatar.
+   639px is Tailwind `sm`, so every phone width (375–430) stays uncrowded. */
+@media (max-width: 639px) {
   .header-controls-row .header-lang-module__copy {
     display: none;
   }

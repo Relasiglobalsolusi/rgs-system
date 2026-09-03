@@ -1,9 +1,7 @@
 "use client";
 
-import { useState } from "react";
-
 import { ChipCell } from "@/components/ui/DataTable";
-import ProofLightbox from "@/components/ui/ProofLightbox";
+import UploadedFilesLink from "@/components/ui/UploadedFilesLink";
 import { formatDisplayDate } from "@/lib/format-date";
 import { useT } from "@/lib/i18n/use-t";
 
@@ -33,7 +31,6 @@ export default function ContractExtensionsHistory({
   className,
 }: Props) {
   const { t } = useT();
-  const [proofSrc, setProofSrc] = useState<string | null>(null);
   const heading = title ?? t("pages.projects.extendHistory");
 
   return (
@@ -86,13 +83,7 @@ export default function ContractExtensionsHistory({
                   <td className="px-3 py-3.5">
                     <ChipCell>
                       {row.proofUrl ? (
-                        <button
-                          type="button"
-                          onClick={() => setProofSrc(row.proofUrl)}
-                          className="text-cyan-400 hover:underline"
-                        >
-                          {t("common.actions.view")}
-                        </button>
+                        <UploadedFilesLink value={row.proofUrl} />
                       ) : (
                         <span className="text-muted">—</span>
                       )}
@@ -108,14 +99,6 @@ export default function ContractExtensionsHistory({
         </div>
       )}
 
-      <ProofLightbox
-        open={proofSrc != null}
-        onOpenChange={(open) => {
-          if (!open) setProofSrc(null);
-        }}
-        src={proofSrc}
-        title={t("pages.projects.extendHistoryProof")}
-      />
     </div>
   );
 }

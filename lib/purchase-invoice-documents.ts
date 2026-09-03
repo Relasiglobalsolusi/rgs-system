@@ -1,3 +1,5 @@
+import { firstStoredPath } from "@/lib/stored-paths";
+
 export type PurchaseDocumentKind =
   | "factory"
   | "invoice"
@@ -34,8 +36,7 @@ type PurchaseDocumentSource = {
 };
 
 function pathOrNull(value: string | null | undefined): string | null {
-  const trimmed = String(value ?? "").trim();
-  return trimmed ? trimmed : null;
+  return firstStoredPath(value);
 }
 
 /** Documents that belong on this expense. Only slots that apply to the

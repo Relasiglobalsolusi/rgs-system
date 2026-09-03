@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import VehicleDetailPage from "@/components/inventory/VehicleDetailPage";
 import AppShell from "@/components/layout/AppShell";
 import { isVehicleItemType } from "@/lib/inventory-sku";
+import { loadVehiclePrepaidFuelSpend } from "@/lib/prepaid-card-query";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/project-billing";
 import { canManageInventory } from "@/lib/project-access";
@@ -49,9 +50,24 @@ export default async function InventoryVehiclePage({
       leaseProvisionFee: true,
       leaseOtherFee: true,
       leaseMonthlyInstallment: true,
+      initialOdometerKm: true,
+      currentOdometerKm: true,
+      kmPerLitreMin: true,
+      kmPerLitreMax: true,
+      lastFillLitres: true,
+      estimatedFuelLeftLitresMin: true,
+      estimatedFuelLeftLitresMax: true,
       createdAt: true,
       item: {
-        select: { id: true, sku: true, name: true, itemType: true },
+        select: {
+          id: true,
+          sku: true,
+          name: true,
+          itemType: true,
+          kmPerLitreMin: true,
+          kmPerLitreMax: true,
+          fuelTankLitres: true,
+        },
       },
       project: { select: { id: true, name: true } },
     },
@@ -60,7 +76,8 @@ export default async function InventoryVehiclePage({
     notFound();
   }
 
-  const expenses = await prisma.purchaseInvoice.findMany({
+  const [expenses, odometerReadings, fuelSpend] = await Promise.all([
+    prisma.purchaseInvoice.findMany({
     where: {
       companyId: company.id,
       reversedAt: null,
@@ -86,7 +103,28 @@ export default async function InventoryVehiclePage({
       leaseTenorMonths: true,
     },
     orderBy: [{ invoiceDate: "asc" }, { id: "asc" }],
-  });
+    }),
+    prisma.vehicleOdometerReading.findMany({
+      where: { companyId: company.id, vehicleAssetId: asset.id },
+      select: {
+        id: true,
+        recordedAt: true,
+        readingKm: true,
+        kmTraveled: true,
+        litresFilled: true,
+        fuelUsedLitresMin: true,
+        fuelUsedLitresMax: true,
+        fuelLeftBeforeMin: true,
+        fuelLeftBeforeMax: true,
+        kind: true,
+        source: true,
+        flagged: true,
+        flagReason: true,
+      },
+      orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
+    }),
+    loadVehiclePrepaidFuelSpend(company.id, asset.item?.id),
+  ]);
 
   const leaseRanks = rankLeasePayments(
     expenses.filter((row) => row.vehicleExpenseKind === "LEASE_PAYMENT")
@@ -142,7 +180,23 @@ export default async function InventoryVehiclePage({
         canManage={canManageInventory(permissionUser)}
         costLog={costLog}
         costLogTotal={costLogTotal}
+        fuelSpend={fuelSpend}
         leaseProgress={leaseProgress}
+        odometerLog={odometerReadings.map((row) => ({
+          id: row.id,
+          recordedAt: row.recordedAt.toISOString(),
+          readingKm: row.readingKm,
+          kmTraveled: row.kmTraveled,
+          litresFilled: decimalToNumber(row.litresFilled),
+          fuelUsedMin: decimalToNumber(row.fuelUsedLitresMin),
+          fuelUsedMax: decimalToNumber(row.fuelUsedLitresMax),
+          fuelLeftBeforeMin: decimalToNumber(row.fuelLeftBeforeMin),
+          fuelLeftBeforeMax: decimalToNumber(row.fuelLeftBeforeMax),
+          kind: row.kind,
+          source: row.source,
+          flagged: row.flagged,
+          flagReason: row.flagReason,
+        }))}
         vehicle={{
           id: asset.id,
           assetCode: asset.assetCode,
@@ -172,6 +226,23 @@ export default async function InventoryVehiclePage({
           leaseMonthlyInstallment: decimalToNumber(
             asset.leaseMonthlyInstallment
           ),
+          initialOdometerKm: asset.initialOdometerKm,
+          currentOdometerKm: asset.currentOdometerKm,
+          kmPerLitreMin: decimalToNumber(
+            asset.item?.kmPerLitreMin ?? asset.kmPerLitreMin
+          ),
+          kmPerLitreMax: decimalToNumber(
+            asset.item?.kmPerLitreMax ?? asset.kmPerLitreMax
+          ),
+          lastFillLitres: decimalToNumber(asset.lastFillLitres),
+          estimatedFuelLeftLitresMin: decimalToNumber(
+            asset.estimatedFuelLeftLitresMin
+          ),
+          estimatedFuelLeftLitresMax: decimalToNumber(
+            asset.estimatedFuelLeftLitresMax
+          ),
+          tankLitres: decimalToNumber(asset.item?.fuelTankLitres),
+          hasOdometerReadings: odometerReadings.length > 0,
           createdAt: asset.createdAt.toISOString(),
           item: asset.item,
           project: asset.project,

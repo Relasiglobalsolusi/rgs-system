@@ -3,6 +3,7 @@ import {
   Banknote,
   Building2,
   CalendarDays,
+  Download,
   Landmark,
   TrendingDown,
   TrendingUp,
@@ -11,10 +12,12 @@ import {
 
 import AppShell from "@/components/layout/AppShell";
 import BillingBreadcrumbs from "@/components/billing/BillingBreadcrumbs";
+import BackLink from "@/components/ui/BackLink";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
+import { directoryToolbarDownloadClass } from "@/components/ui/DirectoryFilterSelect";
 import {
   loadEmployeePayslipMonth,
   payslipStatusKey,
@@ -81,32 +84,58 @@ export default async function EmployeePayslipMonthPage({ params }: Props) {
   const monthLabel = t(`pages.reports.months.${month}`);
   const name = formatEmployeeName(employee);
   const days = detail.row?.days ?? [];
+  const isOwnAccount = !access.canManageAll;
+  const statusKey = payslipStatusKey({
+    netPay: detail.row?.netPay ?? null,
+    preview: detail.preview,
+  });
 
   return (
     <AppShell title={`${name} · ${monthLabel} ${year}`}>
       <BillingBreadcrumbs
-        items={[
-          { label: t("pages.payslips.title"), href: "/payslips" },
-          { label: name, href: `/payslips/${employee.id}` },
-          { label: `${monthLabel} ${year}` },
-        ]}
+        items={
+          isOwnAccount
+            ? [
+                {
+                  label: t("pages.payslips.ownTitle"),
+                  href: `/payslips/${employee.id}`,
+                },
+                { label: `${monthLabel} ${year}` },
+              ]
+            : [
+                { label: t("pages.payslips.title"), href: "/payslips" },
+                { label: name, href: `/payslips/${employee.id}` },
+                { label: `${monthLabel} ${year}` },
+              ]
+        }
       />
       <SectionCard className="space-y-5">
-        <div>
-          <h2 className="text-lg font-semibold text-text">
-            {t("pages.payslips.monthDetailTitle")}
-          </h2>
-          <p className="mt-1 text-sm text-muted">
-            {name} · {employee.employeeNo} · {monthLabel} {year}
-          </p>
-          <p className="mt-1 text-xs text-subtle">
-            {t(
-              `pages.payslips.${payslipStatusKey({
-                netPay: detail.row?.netPay ?? null,
-                preview: detail.preview,
-              })}`
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-text">
+              {t("pages.payslips.monthDetailTitle")}
+            </h2>
+            <p className="mt-1 text-sm text-muted">
+              {name} · {employee.employeeNo} · {monthLabel} {year}
+            </p>
+            <p className="mt-1 text-xs text-subtle">
+              {t(`pages.payslips.${statusKey}`)}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <BackLink href={`/payslips/${employee.id}`}>
+              {t("pages.payslips.backToEmployee")}
+            </BackLink>
+            {statusKey === "noPayslip" ? null : (
+              <a
+                href={`/api/payslips/${employee.id}/${year}/${month}`}
+                className={directoryToolbarDownloadClass}
+              >
+                <Download size={14} aria-hidden />
+                {t("pages.payslips.downloadPayslip")}
+              </a>
             )}
-          </p>
+          </div>
         </div>
 
         {!detail.row ? (

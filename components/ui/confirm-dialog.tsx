@@ -36,6 +36,8 @@ export type ConfirmRequest = {
   cancelLabel?: string;
   tone?: ConfirmTone;
   icon?: LucideIcon;
+  /** Recap layout: wider, left-aligned, for checking numbers before a post. */
+  layout?: "prompt" | "recap";
 };
 
 type ConfirmFn = (request: ConfirmRequest) => Promise<boolean>;
@@ -54,6 +56,9 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   const { t } = useT();
   const resolveRef = useRef<((value: boolean) => void) | null>(null);
   const [request, setRequest] = useState<ConfirmRequest | null>(null);
+  const shownRef = useRef<ConfirmRequest | null>(null);
+  if (request) shownRef.current = request;
+  const shown = request ?? shownRef.current;
 
   const close = useCallback((value: boolean) => {
     const resolve = resolveRef.current;
@@ -74,9 +79,10 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(() => confirm, [confirm]);
-  const tone = request?.tone ?? "primary";
+  const tone = shown?.tone ?? "primary";
+  const recap = shown?.layout === "recap";
   const Icon =
-    request?.icon ?? (tone === "danger" ? AlertTriangle : HelpCircle);
+    shown?.icon ?? (tone === "danger" ? AlertTriangle : HelpCircle);
 
   return (
     <ConfirmContext.Provider value={value}>
@@ -90,13 +96,28 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
       >
         <DialogContent
           showCloseButton={false}
-          className="gap-0 overflow-hidden rounded-2xl border border-border bg-panel p-0 text-text ring-0 sm:max-w-sm"
+          overlayClassName="z-[80]"
+          className={cn(
+            "z-[80] gap-0 overflow-hidden rounded-2xl border border-border bg-panel p-0 text-text ring-0",
+            recap ? "sm:max-w-md" : "sm:max-w-sm"
+          )}
         >
-          <div className="max-h-[min(50vh,20rem)] overflow-y-auto px-4 pt-6 pb-6 sm:px-10 sm:pt-8 sm:pb-7">
-            <DialogHeader className="items-center gap-4 text-center">
+          <div
+            className={cn(
+              "overflow-y-auto px-4 pt-6 pb-6 sm:px-10 sm:pt-8 sm:pb-7",
+              recap ? "max-h-[min(70vh,28rem)]" : "max-h-[min(50vh,20rem)]"
+            )}
+          >
+            <DialogHeader
+              className={cn(
+                "gap-4",
+                recap ? "items-stretch text-left" : "items-center text-center"
+              )}
+            >
               <div
                 className={cn(
                   "flex h-12 w-12 items-center justify-center rounded-xl ring-1",
+                  recap ? "" : "mx-auto",
                   tone === "danger"
                     ? "bg-card-tint-amber ring-amber-500/25"
                     : "bg-elevated ring-border"
@@ -111,10 +132,10 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
               </div>
               <div className="space-y-2.5">
                 <DialogTitle className="text-lg font-semibold text-text">
-                  {request?.title ?? t("common.confirm.title")}
+                  {shown?.title ?? t("common.confirm.title")}
                 </DialogTitle>
                 <DialogDescription className="whitespace-pre-line text-sm leading-6 text-muted">
-                  {request?.description ?? ""}
+                  {shown?.description ?? ""}
                 </DialogDescription>
               </div>
             </DialogHeader>
@@ -125,10 +146,10 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
               variant={tone === "danger" ? "danger" : "primary"}
               onClick={() => close(true)}
             >
-              {request?.confirmLabel ?? t("common.actions.confirm")}
+              {shown?.confirmLabel ?? t("common.actions.confirm")}
             </EmployeePrimaryButton>
             <EmployeeSecondaryButton onClick={() => close(false)}>
-              {request?.cancelLabel ?? t("common.actions.cancel")}
+              {shown?.cancelLabel ?? t("common.actions.cancel")}
             </EmployeeSecondaryButton>
           </DialogFooter>
         </DialogContent>

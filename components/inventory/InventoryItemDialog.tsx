@@ -44,6 +44,7 @@ import {
   type DirectoryDialogControlProps,
 } from "@/components/ui/use-directory-dialog-open";
 import InventoryUnitSelect from "@/components/inventory/InventoryUnitSelect";
+import VehicleKmPerLitreFields from "@/components/vehicles/VehicleKmPerLitreFields";
 import {
   INVENTORY_ITEM_TYPE_PRESETS,
   isVehicleItemType,
@@ -165,6 +166,21 @@ export default function InventoryItemDialog({
       formData.set("vehicleBrand", brand);
       formData.set("vehicleType", type);
       formData.set("unit", defaultUnitForItemType(itemType));
+      const kmMin = String(formData.get("kmPerLitreMin") ?? "").trim();
+      const kmMax = String(formData.get("kmPerLitreMax") ?? "").trim();
+      const tank = String(formData.get("fuelTankLitres") ?? "").trim();
+      if (!kmMin || !kmMax) {
+        showRejection({
+          reasons: t("pages.vehicles.odometer.rangeRequired"),
+        });
+        return;
+      }
+      if (!tank) {
+        showRejection({
+          reasons: t("pages.vehicles.odometer.tankRequired"),
+        });
+        return;
+      }
     }
 
     startTransition(async () => {
@@ -305,6 +321,11 @@ export default function InventoryItemDialog({
                     {t("pages.inventory.form.vehicleTypeHint")}
                   </p>
                 </div>
+                <VehicleKmPerLitreFields
+                  idPrefix="inv-vehicle-km-l"
+                  defaultMin="10"
+                  defaultMax="15"
+                />
                 <input type="hidden" name="unit" value={unit} />
               </>
             ) : (

@@ -535,7 +535,6 @@ export default async function ProgressPage({
         <ProgressReportDirectory
           projects={grouped}
           currentEmployeeId={employee?.id ?? null}
-          canManage={false}
           canEdit={canEditReports}
         />
       )}

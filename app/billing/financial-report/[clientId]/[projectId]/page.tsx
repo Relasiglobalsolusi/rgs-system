@@ -13,9 +13,6 @@ import {
   financialReportHref,
   parseFinancialReportSelection,
 } from "@/lib/financial-report-query";
-import { getServerLocale } from "@/lib/i18n/locale";
-import { createTranslator } from "@/lib/i18n/translate";
-
 type SearchParams = Promise<{
   year?: string;
   month?: string;
@@ -31,7 +28,6 @@ export default async function FinancialReportProjectPage({
 }) {
   const { clientId, projectId } = await params;
   const selection = parseFinancialReportSelection(await searchParams);
-  const t = createTranslator(await getServerLocale());
   const [detail, scopeClients, bankAccounts] = await Promise.all([
     getFinancialReportProjectDetail(clientId, projectId, selection),
     listFinancialReportScopeClients(),

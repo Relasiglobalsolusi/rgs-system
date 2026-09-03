@@ -79,6 +79,10 @@ type FileDropFieldProps = {
   invalidMessage?: string;
 };
 
+function fileKey(file: File) {
+  return `${file.name}:${file.size}:${file.lastModified}`;
+}
+
 export function FileDropField({
   id,
   name,
@@ -98,9 +102,20 @@ export function FileDropField({
   const dragDepth = useRef(0);
   const [dragActive, setDragActive] = useState(false);
   const [internalName, setInternalName] = useState<string | null>(null);
+  const [accumulated, setAccumulated] = useState<File[]>([]);
   const { t } = useT();
 
-  const displayName = fileName !== undefined ? fileName : internalName;
+  const countLabel =
+    accumulated.length === 0
+      ? null
+      : accumulated.length === 1
+        ? t("common.labels.filesUploadedOne")
+        : t("common.labels.filesUploadedOther", { count: accumulated.length });
+  const displayName = multiple
+    ? countLabel
+    : fileName !== undefined
+      ? fileName
+      : internalName;
   const placeholder =
     emptyLabel ??
     t(multiple ? "common.labels.dropFilesOrBrowse" : "common.labels.dropFileOrBrowse");
@@ -108,22 +123,32 @@ export function FileDropField({
   useEffect(() => {
     const input = inputRef.current;
     const form = input?.form;
-    if (!form || fileName !== undefined) return;
+    if (!form) return;
 
     function handleReset() {
       setInternalName(null);
+      setAccumulated([]);
       dragDepth.current = 0;
       setDragActive(false);
     }
 
     form.addEventListener("reset", handleReset);
     return () => form.removeEventListener("reset", handleReset);
-  }, [fileName]);
+  }, []);
 
   function rejectInvalid() {
     showRejection({
       reasons: invalidMessage ?? t("common.labels.fileMustBeImageOrPdf"),
     });
+  }
+
+  function commitMany(next: File[]) {
+    setAccumulated(next);
+    if (inputRef.current) {
+      assignFilesToInput(inputRef.current, next);
+    }
+    onPickMany?.(next);
+    onPick?.(next[0] ?? null);
   }
 
   function applyFiles(files: File[]) {
@@ -137,10 +162,15 @@ export function FileDropField({
     }
 
     if (multiple) {
-      onPickMany?.(accepted);
-      if (inputRef.current) {
-        inputRef.current.value = "";
+      const seen = new Set(accumulated.map(fileKey));
+      const next = [...accumulated];
+      for (const file of accepted) {
+        const key = fileKey(file);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        next.push(file);
       }
+      commitMany(next);
       return;
     }
 
@@ -157,6 +187,10 @@ export function FileDropField({
   function clearFile() {
     if (inputRef.current) {
       inputRef.current.value = "";
+    }
+    if (multiple) {
+      commitMany([]);
+      return;
     }
     if (fileName === undefined) {
       setInternalName(null);
@@ -236,7 +270,7 @@ export function FileDropField({
           <Upload className="h-4 w-4 shrink-0" />
           <span className="truncate">{displayName ?? placeholder}</span>
         </button>
-        {displayName && !multiple ? (
+        {displayName ? (
           <button
             type="button"
             disabled={disabled}
@@ -256,7 +290,7 @@ export function FileDropField({
         accept={accept}
         multiple={multiple}
         capture={capture}
-        required={Boolean(required && !displayName)}
+        required={Boolean(required && !displayName && accumulated.length === 0)}
         data-required-label={
           typeof label === "string" && label.trim() ? label.trim() : undefined
         }
@@ -264,9 +298,6 @@ export function FileDropField({
         disabled={disabled}
         onChange={(event) => {
           applyFiles(Array.from(event.target.files ?? []));
-          if (multiple && event.target) {
-            event.target.value = "";
-          }
         }}
       />
     </div>

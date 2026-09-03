@@ -1416,6 +1416,7 @@ export default function InventorySoldOffDialog({
                     name="paymentProof"
                     label={t("pages.sales.form.paymentProof")}
                     accept="image/*,.pdf"
+                    multiple
                     fileName={paymentProofFile?.name ?? null}
                     onPick={setPaymentProofFile}
                   />

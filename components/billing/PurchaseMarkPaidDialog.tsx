@@ -50,7 +50,7 @@ export default function PurchaseMarkPaidDialog({
 }: Props) {
   const { t } = useT();
   const router = useRouter();
-  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofFiles, setProofFiles] = useState<File[]>([]);
   const [bankAccounts, setBankAccounts] = useState<CompanyBankAccountOption[]>(
     []
   );
@@ -64,7 +64,7 @@ export default function PurchaseMarkPaidDialog({
 
   useEffect(() => {
     if (!open) {
-      setProofFile(null);
+      setProofFiles([]);
       setBankAccountId("");
       setImportBankRate("");
       setImportBankCharge("");
@@ -91,8 +91,7 @@ export default function PurchaseMarkPaidDialog({
 
   const bankRateNumber = parseImportDecimal(importBankRate);
   const canSubmit = Boolean(
-    proofFile &&
-      proofFile.size > 0 &&
+    proofFiles.length > 0 &&
       (bankAccounts.length === 0 || bankAccountId) &&
       (!needsImportBankRate || (bankRateNumber != null && bankRateNumber > 0))
   );
@@ -101,7 +100,7 @@ export default function PurchaseMarkPaidDialog({
     event.preventDefault();
     setError(null);
 
-    if (!proofFile || proofFile.size <= 0) {
+    if (proofFiles.length === 0) {
       setError(t("pages.billing.choosePaymentProof"));
       return;
     }
@@ -116,7 +115,9 @@ export default function PurchaseMarkPaidDialog({
 
     const formData = new FormData();
     formData.set("purchaseInvoiceId", purchaseInvoiceId);
-    formData.set("paymentProof", proofFile);
+    for (const file of proofFiles) {
+      formData.append("paymentProof", file);
+    }
     formData.set("bankAccountId", bankAccountId);
     if (needsImportBankRate) {
       formData.set("importBankRate", importBankRate.trim());
@@ -167,8 +168,9 @@ export default function PurchaseMarkPaidDialog({
       contextValue={`${supplierName} · ${invoiceRef}`}
       fileInputId={`purchase-paid-${purchaseInvoiceId}`}
       fileLabel={t("pages.billing.proofOfPayment")}
-      fileName={proofFile?.name ?? null}
-      onFilePick={setProofFile}
+      fileName={proofFiles.length > 0 ? String(proofFiles.length) : null}
+      onFilePick={() => {}}
+      onFilePickMany={setProofFiles}
       showServerBanner={false}
       error={error}
       pending={pending}

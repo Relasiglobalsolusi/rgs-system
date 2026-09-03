@@ -492,11 +492,10 @@ export default function InventorySoldOffDetailDialog({
                     event.preventDefault();
                     const formData = new FormData(event.currentTarget);
                     formData.set("id", row.id);
-                    const paymentProof = formData.get("paymentProof");
-                    const taxDoc = formData.get("buyerIdentityDoc");
-                    const hasFile = [paymentProof, taxDoc].some(
-                      (file) => file instanceof File && file.size > 0
-                    );
+                    const hasFile = [
+                      ...formData.getAll("paymentProof"),
+                      ...formData.getAll("buyerIdentityDoc"),
+                    ].some((file) => file instanceof File && file.size > 0);
                     if (!hasFile && !needsInvoice) {
                       showRejection({
                         reasons: t("pages.sales.attachRequired"),
@@ -539,6 +538,7 @@ export default function InventorySoldOffDetailDialog({
                           name="paymentProof"
                           label={t("pages.sales.form.paymentProof")}
                           accept="image/*,.pdf"
+                          multiple
                         />
                       ) : null}
                       {needsTax ? (

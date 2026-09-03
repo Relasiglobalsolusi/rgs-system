@@ -43,6 +43,9 @@ export default async function ItemCatalogPage() {
     lastUnitCost: decimalToNumber(item.lastUnitCost),
     avgUnitCost: decimalToNumber(item.avgUnitCost),
     active: item.active,
+    kmPerLitreMin: decimalToNumber(item.kmPerLitreMin),
+    kmPerLitreMax: decimalToNumber(item.kmPerLitreMax),
+    fuelTankLitres: decimalToNumber(item.fuelTankLitres),
   }));
 
   return (

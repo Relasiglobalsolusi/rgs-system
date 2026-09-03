@@ -29,6 +29,8 @@ import ProjectRedoJobButton from "@/components/projects/ProjectRedoJobButton";
 import ProjectRenewContractButton from "@/components/projects/ProjectRenewContractButton";
 import type { ProjectTeamOption } from "@/components/projects/ProjectTeamPicker";
 import type { CompanyBankAccountOption } from "@/lib/company-bank-accounts";
+import type { CatchUpCompleteTarget } from "@/lib/project-catch-up-periods";
+import ProjectCatchUpCompleteButton from "@/components/projects/ProjectCatchUpCompleteButton";
 import type { ProjectCatalogAreaDTO } from "@/lib/project-service-catalog";
 import {
   isExtendableContractSubCategory,
@@ -133,6 +135,12 @@ type Props = {
   catalog?: ProjectCatalogAreaDTO[];
   bankAccounts?: CompanyBankAccountOption[];
   hasPortalAccess?: boolean;
+  catchUpComplete?: {
+    projectId: string;
+    target: CatchUpCompleteTarget;
+    inventoryItems: { id: string; name: string; unit: string | null }[];
+    employees: { id: string; firstName: string; lastName: string }[];
+  } | null;
   /** Page body between the top action bar and bottom Delete / End Contract. */
   children: ReactNode;
 };
@@ -165,6 +173,7 @@ export default function ProjectDetailActionBar({
   catalog = [],
   bankAccounts = [],
   hasPortalAccess = true,
+  catchUpComplete = null,
   children,
 }: Props) {
   const { t } = useT();
@@ -182,7 +191,7 @@ export default function ProjectDetailActionBar({
   const showReturnBlocked = canManage && moveBackBlockedByCollection;
 
   const showWorkflow = showStart || showSubmit || showReturn || showReturnBlocked;
-  const showSecondary = showBilling || showEdit;
+  const showSecondary = showBilling || showEdit || Boolean(catchUpComplete);
   const hasTopActions = showWorkflow || showSecondary;
   // Contract extension history is Regular Cleaning only (period-based contracts).
   const showExtendContract =
@@ -292,6 +301,14 @@ export default function ProjectDetailActionBar({
                 >
                   {t("common.actions.edit")}
                 </Button>
+              ) : null}
+              {catchUpComplete ? (
+                <ProjectCatchUpCompleteButton
+                  projectId={catchUpComplete.projectId}
+                  target={catchUpComplete.target}
+                  inventoryItems={catchUpComplete.inventoryItems}
+                  employees={catchUpComplete.employees}
+                />
               ) : null}
             </div>
           ) : null}

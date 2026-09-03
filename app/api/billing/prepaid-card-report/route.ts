@@ -30,7 +30,6 @@ export async function GET(request: NextRequest) {
   if (!canAccessAdvanceCashPrepaid(user)) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
-
   const { searchParams } = request.nextUrl;
   const period = parseFinancePeriod({
     year: searchParams.get("year") ?? undefined,

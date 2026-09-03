@@ -385,7 +385,6 @@ export default async function PurchaseInvoiceDetailPage({
   const shippingCostIdr = decimalToNumber(invoice.shippingIdr) ?? 0;
   const vendorPaymentIdr = remittance.paidToVendorIdr || factoryAmountIdr;
   const vatCreditIdr = importPpnIdr + handlingPpnIdr;
-  const taxCreditIdr = vatCreditIdr + pph22Idr;
   const grandTotalSpendIdr =
     vendorPaymentIdr + dutiesTotalIdr + handlingFeePaidIdr + shippingCostIdr;
   const storedWarehouse = decimalToNumber(invoice.stockLandedCostIdr);

@@ -25,6 +25,7 @@ import {
 } from "@/components/employees/employee-dialog-ui";
 import { Dialog } from "@/components/ui/dialog";
 import InventoryUnitSelect from "@/components/inventory/InventoryUnitSelect";
+import VehicleKmPerLitreFields from "@/components/vehicles/VehicleKmPerLitreFields";
 import { localizeInventoryItemType } from "@/lib/i18n/labels";
 import { isVehicleItemType } from "@/lib/inventory-sku";
 import { defaultUnitForItemType, normalizeInventoryUnit } from "@/lib/inventory-units";
@@ -211,11 +212,31 @@ export default function InventoryItemEditDialog({
             </div>
 
             {isVehicle ? (
-              <input
-                type="hidden"
-                name="unit"
-                value={defaultUnitForItemType(item.itemType)}
-              />
+              <>
+                <VehicleKmPerLitreFields
+                  idPrefix="edit-vehicle-km-l"
+                  defaultMin={
+                    item.kmPerLitreMin != null
+                      ? String(item.kmPerLitreMin)
+                      : "10"
+                  }
+                  defaultMax={
+                    item.kmPerLitreMax != null
+                      ? String(item.kmPerLitreMax)
+                      : "15"
+                  }
+                  defaultTank={
+                    item.fuelTankLitres != null
+                      ? String(item.fuelTankLitres)
+                      : undefined
+                  }
+                />
+                <input
+                  type="hidden"
+                  name="unit"
+                  value={defaultUnitForItemType(item.itemType)}
+                />
+              </>
             ) : (
               <div className={employeeDialogGridClass}>
                 <div className={employeeDialogFieldClass}>

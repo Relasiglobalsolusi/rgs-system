@@ -206,3 +206,43 @@ export function formatPayrollPeriodRange(
   const connector = locale.toLowerCase().startsWith("id") ? "sampai" : "to";
   return `${formatEnglishOrdinalDate(start, locale)} ${connector} ${formatEnglishOrdinalDate(end, locale)}`;
 }
+
+const PAYROLL_FILE_MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sept",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+
+function payrollFileDayMonth(date: Date, withYear: boolean): string {
+  const day = date.getUTCDate();
+  const month = PAYROLL_FILE_MONTHS[date.getUTCMonth()];
+  if (!withYear) return `${day} ${month}`;
+  return `${day} ${month} ${date.getUTCFullYear()}`;
+}
+
+/** Short range for downloads, e.g. "16 Aug - 15 Sept 2026". */
+export function formatPayrollPeriodShortRange(
+  year: number,
+  month: number
+): string {
+  const { start, end } = payrollPeriodInclusiveDates(year, month);
+  const sameYear = start.getUTCFullYear() === end.getUTCFullYear();
+  return `${payrollFileDayMonth(start, !sameYear)} - ${payrollFileDayMonth(end, true)}`;
+}
+
+/** Download title, e.g. "Internal Payroll (16 Aug - 15 Sept 2026)". */
+export function formatInternalPayrollWorkbookTitle(
+  year: number,
+  month: number
+): string {
+  return `Internal Payroll (${formatPayrollPeriodShortRange(year, month)})`;
+}

@@ -197,7 +197,7 @@ export default async function PettyCashPage({
 
   return (
     <AppShell titleKey={titleKey}>
-      {showTabs ? (
+      {showTabs && !showPrepaid ? (
       <div className="mb-5 flex flex-wrap items-center gap-2">
         <DirectoryFilterTab
           href="/billing/petty-cash"
@@ -216,6 +216,7 @@ export default async function PettyCashPage({
 
       {showPrepaid ? (
         <PrepaidCardsPanel
+          showModuleTabs={showTabs}
           canManageCards={isOwnerAccount({ username: session.user.username })}
           cards={prepaidPanel.cards}
           losses={prepaidPanel.losses}

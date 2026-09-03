@@ -5,9 +5,17 @@ import { useEffect, useMemo, useState } from "react";
 import {
   employeeDialogFieldClass,
   employeeInputClass,
+  employeeSelectTriggerClass,
 } from "@/components/employees/employee-dialog-ui";
 import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/MoneyInput";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   BPJS_JKK_PERCENT_MAX,
   BPJS_JKK_PERCENT_MIN,
@@ -18,6 +26,10 @@ import {
 import { useT } from "@/lib/i18n/use-t";
 import { formatContractPrice } from "@/lib/project-billing";
 import { cn } from "@/lib/utils";
+import {
+  findIndonesianBank,
+  indonesianBankSelectOptions,
+} from "@/lib/indonesian-banks";
 
 export type EmployeeFinanceDefaults = {
   basePay?: number | null;
@@ -127,6 +139,12 @@ export default function EmployeeFinancesFields({
   const [progressExempt, setProgressExempt] = useState(() =>
     Boolean(defaults?.progressExempt)
   );
+  const bankOptions = useMemo(() => indonesianBankSelectOptions(), []);
+  const matchedBank = findIndonesianBank(defaults?.bankName);
+  const [bankId, setBankId] = useState(
+    () => matchedBank?.id ?? defaults?.bankName ?? ""
+  );
+  const selectedBank = findIndonesianBank(bankId);
 
   useEffect(() => {
     if (partTimeDailyPay) {
@@ -298,15 +316,49 @@ export default function EmployeeFinancesFields({
           {t("pages.employees.form.bankName")}
           <span className="text-red-400"> *</span>
         </label>
-        <Input
-          id={idOf("employee-bank-name")}
-          name={nameOf("bankName")}
-          defaultValue={defaults?.bankName ?? ""}
-          placeholder="Mandiri"
-          required
-          className={employeeInputClass}
-          onChange={bump}
-        />
+        <input type="hidden" name={nameOf("bankName")} value={bankId} />
+        <Select
+          value={bankId || null}
+          onValueChange={(value) => {
+            setBankId(value ?? "");
+            bump();
+          }}
+          items={bankOptions.map((bank) => ({
+            value: bank.value,
+            label: bank.label,
+          }))}
+        >
+          <SelectTrigger
+            id={idOf("employee-bank-name")}
+            className={employeeSelectTriggerClass}
+          >
+            <SelectValue placeholder={t("pages.employees.form.bankName")} />
+          </SelectTrigger>
+          <SelectContent>
+            {matchedBank || !defaults?.bankName ? null : (
+              <SelectItem
+                value={defaults.bankName}
+                label={defaults.bankName}
+              >
+                {defaults.bankName}
+              </SelectItem>
+            )}
+            {bankOptions.map((bank) => (
+              <SelectItem
+                key={bank.value}
+                value={bank.value}
+                label={bank.label}
+              >
+                {bank.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {selectedBank ? (
+          <p className="text-xs text-muted">
+            {t("pages.employees.form.bankSwift")}: {selectedBank.swift}
+          </p>
+        ) : null}
       </div>
       <div className={employeeDialogFieldClass}>
         <label

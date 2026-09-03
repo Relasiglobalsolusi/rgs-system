@@ -226,6 +226,8 @@ export async function mintVehicleAssetByPlate(
     unitCost?: number | null;
     vehicleYear?: number | null;
     vehicleCondition?: "NEW" | "USED" | null;
+    kmPerLitreMin?: number | null;
+    kmPerLitreMax?: number | null;
     lease?: VehicleLeaseMint | null;
     status?: "AVAILABLE" | "IN_TRANSIT";
   }
@@ -234,15 +236,31 @@ export async function mintVehicleAssetByPlate(
 
   const item = await db.inventoryItem.findFirst({
     where: { id: itemId, companyId },
-    select: { id: true, itemType: true },
+    select: {
+      id: true,
+      itemType: true,
+      kmPerLitreMin: true,
+      kmPerLitreMax: true,
+    },
   });
   if (!item || !isVehicleItemType(item.itemType)) {
     throw new Error("Number plate can only be used for a Vehicle catalog item.");
   }
+  const catalogMin =
+    item.kmPerLitreMin != null ? Number(item.kmPerLitreMin) : null;
+  const catalogMax =
+    item.kmPerLitreMax != null ? Number(item.kmPerLitreMax) : null;
+  const inheritedMin = options?.kmPerLitreMin ?? catalogMin;
+  const inheritedMax = options?.kmPerLitreMax ?? catalogMax;
 
   const existing = await db.equipmentAsset.findFirst({
     where: { companyId, assetCode: plate },
-    select: { id: true, itemId: true },
+    select: {
+      id: true,
+      itemId: true,
+      kmPerLitreMin: true,
+      kmPerLitreMax: true,
+    },
   });
   if (existing) {
     if (existing.itemId !== item.id) {
@@ -259,6 +277,16 @@ export async function mintVehicleAssetByPlate(
     }
     if (options?.vehicleCondition) {
       existingPatch.vehicleCondition = options.vehicleCondition;
+    }
+    if (options?.kmPerLitreMin != null) {
+      existingPatch.kmPerLitreMin = options.kmPerLitreMin;
+    } else if (existing.kmPerLitreMin == null && inheritedMin != null) {
+      existingPatch.kmPerLitreMin = inheritedMin;
+    }
+    if (options?.kmPerLitreMax != null) {
+      existingPatch.kmPerLitreMax = options.kmPerLitreMax;
+    } else if (existing.kmPerLitreMax == null && inheritedMax != null) {
+      existingPatch.kmPerLitreMax = inheritedMax;
     }
     await db.equipmentAsset.update({
       where: { id: existing.id },
@@ -282,6 +310,8 @@ export async function mintVehicleAssetByPlate(
       unitCost: lockedUnitCost,
       vehicleYear: options?.vehicleYear ?? null,
       vehicleCondition: options?.vehicleCondition ?? null,
+      kmPerLitreMin: inheritedMin,
+      kmPerLitreMax: inheritedMax,
       ...vehicleLeaseAssetFields(options?.lease),
     },
   });

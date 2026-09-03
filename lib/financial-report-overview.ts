@@ -1,4 +1,8 @@
 import {
+  LIVE_PROJECT_EXPENSE_WHERE,
+  liveInvoiceIncomeWhereFor,
+} from "@/lib/books-open";
+import {
   commercialPeriodGross,
   recognizedIncomeAmount,
 } from "@/lib/financial-report";
@@ -359,9 +363,11 @@ async function sumPaidInvoices(
   toExclusive?: Date,
   bank = FINANCIAL_REPORT_ALL_BANKS
 ): Promise<number> {
+  const liveIncome = await liveInvoiceIncomeWhereFor(companyId);
   const periods = await prisma.projectInvoicePeriod.findMany({
     where: {
       status: "PAID",
+      ...liveIncome,
       project: { companyId, subCategory: { not: "INTERNAL" } },
       ...bankAccountWhere(bank),
       ...(from || toExclusive
@@ -497,6 +503,7 @@ async function sumProjectExpenses(
 ): Promise<number> {
   const agg = await prisma.projectExpense.aggregate({
     where: {
+      ...LIVE_PROJECT_EXPENSE_WHERE,
       companyId,
       ...(from || toExclusive
         ? {

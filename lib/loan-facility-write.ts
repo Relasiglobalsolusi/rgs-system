@@ -17,7 +17,6 @@ import {
 } from "@/lib/loan-facility";
 import { CASH_PAYMENT_TERMS_DAYS } from "@/lib/invoice-period";
 import { decimalToNumber } from "@/lib/project-billing";
-import { prisma } from "@/lib/prisma";
 
 type LoanDb = Prisma.TransactionClient | PrismaClient;
 

@@ -16,7 +16,6 @@ import {
   employeeDialogHintClass,
   employeeDialogLabelClass,
   employeeInputClass,
-  employeeSelectTriggerClass,
 } from "@/components/employees/employee-dialog-ui";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
@@ -25,15 +24,10 @@ import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import SearchableClientSelect from "@/components/ui/SearchableClientSelect";
 import SearchableProjectSelect from "@/components/ui/SearchableProjectSelect";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { showMissingRequiredFields } from "@/components/ui/rejection-notice";
+import {
+  showMissingRequiredFields,
+} from "@/components/ui/rejection-notice";
 import { useT } from "@/lib/i18n/use-t";
 import { todayDateInput } from "@/lib/project-contract";
 import { cn } from "@/lib/utils";
@@ -50,28 +44,19 @@ type ClientOption = {
   name: string;
 };
 
-export type PettyCashHolderOption = {
-  id: string;
-  name: string;
-};
-
 type ChargeType = "client" | "project";
 
 export default function PettyCashSpendDialog({
   projects,
   clients,
-  holders,
-  preferredHolderId = null,
-  lockHolder = false,
+  holderId,
   open: controlledOpen,
   onOpenChange,
   showTrigger = true,
 }: {
   projects: ProjectOption[];
   clients: ClientOption[];
-  holders: PettyCashHolderOption[];
-  preferredHolderId?: string | null;
-  lockHolder?: boolean;
+  holderId: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   showTrigger?: boolean;
@@ -83,40 +68,31 @@ export default function PettyCashSpendDialog({
   const setOpen = onOpenChange ?? setUncontrolledOpen;
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [documentFiles, setDocumentFiles] = useState<File[]>([]);
   const [amount, setAmount] = useState("");
   const [entryDate, setEntryDate] = useState(todayDateInput());
   const [description, setDescription] = useState("");
   const [chargeType, setChargeType] = useState<ChargeType | "">("");
   const [projectId, setProjectId] = useState("");
   const [clientId, setClientId] = useState("");
-  const [holderEmployeeId, setHolderEmployeeId] = useState(
-    preferredHolderId ?? ""
-  );
-
   const typedAmount = Number(amount.replace(/[^\d]/g, ""));
 
   function reset() {
     setError(null);
-    setDocumentFile(null);
+    setDocumentFiles([]);
     setAmount("");
     setEntryDate(todayDateInput());
     setDescription("");
     setChargeType("");
     setProjectId("");
     setClientId("");
-    setHolderEmployeeId(preferredHolderId ?? "");
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    const holderId = lockHolder
-      ? preferredHolderId || holderEmployeeId
-      : holderEmployeeId;
     const extraMissing: string[] = [];
-    if (!documentFile) extraMissing.push(t("pages.pettyCash.proof"));
-    if (!holderId) extraMissing.push(t("pages.pettyCash.holderRequired"));
+    if (documentFiles.length === 0) extraMissing.push(t("pages.pettyCash.proof"));
     if (!chargeType) extraMissing.push(t("pages.pettyCash.chargeTypeRequired"));
     if (chargeType === "client" && !clientId) {
       extraMissing.push(t("pages.pettyCash.chargeTypeRequired"));
@@ -127,10 +103,13 @@ export default function PettyCashSpendDialog({
     if (showMissingRequiredFields(event.currentTarget, extraMissing)) {
       return;
     }
-    if (!documentFile || !chargeType || !holderId) return;
+    if (documentFiles.length === 0 || !chargeType) return;
 
     const formData = new FormData(event.currentTarget);
-    formData.set("document", documentFile);
+    formData.delete("document");
+    for (const file of documentFiles) {
+      formData.append("document", file);
+    }
     formData.set("amount", String(Math.round(typedAmount)));
     formData.set("entryDate", entryDate);
     formData.set("description", description.trim());
@@ -138,6 +117,7 @@ export default function PettyCashSpendDialog({
     formData.set("projectId", chargeType === "project" ? projectId : "");
     formData.set("clientId", chargeType === "client" ? clientId : "");
     formData.set("holderEmployeeId", holderId);
+    formData.set("spendPurpose", "GENERAL");
 
     setPending(true);
     try {
@@ -159,7 +139,6 @@ export default function PettyCashSpendDialog({
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (next && preferredHolderId) setHolderEmployeeId(preferredHolderId);
         if (!next) reset();
       }}
     >
@@ -208,9 +187,9 @@ export default function PettyCashSpendDialog({
                 id="petty-cash-proof"
                 label={t("pages.pettyCash.proof")}
                 required
-                fileName={documentFile?.name ?? null}
-                onPick={(file) => {
-                  setDocumentFile(file);
+                onPick={() => setError(null)}
+                onPickMany={(files) => {
+                  setDocumentFiles(files);
                   setError(null);
                 }}
                 disabled={pending}
@@ -220,41 +199,11 @@ export default function PettyCashSpendDialog({
               </p>
             </div>
 
-            {lockHolder ? (
-              <input
-                type="hidden"
-                name="holderEmployeeId"
-                value={preferredHolderId ?? ""}
-              />
-            ) : (
-              <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
-                <label className={employeeDialogLabelClass}>
-                  {t("pages.pettyCash.holder")}
-                  <span className="text-red-400"> *</span>
-                </label>
-                <Select
-                  value={holderEmployeeId || undefined}
-                  onValueChange={(value) => setHolderEmployeeId(value ?? "")}
-                  disabled={pending}
-                >
-                  <SelectTrigger className={employeeSelectTriggerClass}>
-                    <SelectValue
-                      placeholder={t("pages.pettyCash.holderPlaceholder")}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {holders.map((holder) => (
-                      <SelectItem key={holder.id} value={holder.id}>
-                        {holder.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className={employeeDialogHintClass}>
-                  {t("pages.pettyCash.holderHint")}
-                </p>
-              </div>
-            )}
+            <input
+              type="hidden"
+              name="holderEmployeeId"
+              value={holderId}
+            />
 
             <div className={employeeDialogFieldClass}>
               <label

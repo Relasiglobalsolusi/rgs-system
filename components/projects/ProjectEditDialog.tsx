@@ -413,11 +413,9 @@ export default function ProjectEditDialog({
   const assignedIds = new Set(
     project.assignments.map((assignment) => assignment.employeeId)
   );
-  const isContract = isContractSubCategory(subCategory);
   const isService = isServiceProjectSubCategory(subCategory);
   const isMonthTimeline = usesMonthDurationTimeline(subCategory);
   const isMilestoneEligible = isMilestoneSubCategory(subCategory);
-  const selectedClient = clients.find((item) => item.id === clientId);
   const formId = `edit-project-form-${project.id}`;
 
   const controlledSignature = useMemo(

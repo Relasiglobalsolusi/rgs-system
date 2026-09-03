@@ -90,6 +90,20 @@ import { seedDemoImportEquipment } from "./seed-demo-import-equipment";
 import { seedDemoPendingTransferOrders } from "./seed-demo-pending-transfer-orders";
 import { seedSampleVendors } from "./seed-vendors";
 
+/** Rotate employee bank names so the bank-transfer file has a realistic mix. */
+const DEMO_EMPLOYEE_BANKS = [
+  "BCA",
+  "BCA",
+  "BCA",
+  "Bank Mandiri",
+  "BRI",
+  "BNI",
+  "Bank Syariah Indonesia",
+  "BCA",
+  "CIMB Niaga",
+  "Bank Danamon",
+];
+
 const DEMO_PDF = Buffer.from(
   "%PDF-1.1\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n",
   "utf8"
@@ -401,7 +415,9 @@ async function ensureEmployee(
     internalHomeSite: row.internalHomeSite ?? InternalHomeSite.NONE,
     omApprovalAreas: row.omApprovalAreas ?? [],
     manageAllProjects: row.manageAllProjects ?? false,
-    bankName: "BCA",
+    bankName: DEMO_EMPLOYEE_BANKS[
+      parseInt(row.employeeNo.replace(/\D/g, ""), 10) % DEMO_EMPLOYEE_BANKS.length
+    ],
     bankAccountNumber: `888${row.employeeNo.replace(/\D/g, "").padStart(7, "0")}`,
     bankAccountName: `${row.firstName} ${row.lastName}`,
     city: "Jakarta",
@@ -1464,7 +1480,7 @@ export async function seedDemoAllModules(prisma: Db) {
     bpjs: false,
     securityDepositRequired: false,
   });
-  const empPt2 = await ensureEmployee(prisma, {
+  await ensureEmployee(prisma, {
     employeeNo: "OPR-014",
     firstName: "Dedi",
     lastName: "Sore",

@@ -72,7 +72,30 @@ import { parseFormCompanyBankAccountId } from "@/lib/company-bank-accounts";
 import { toActionError } from "@/lib/prisma-errors";
 import { parseServiceArea } from "@/lib/service-area";
 import { requireModule, toPermissionUser } from "@/lib/session";
-import { deleteLocalUpload, saveUpload } from "@/lib/upload";
+import { deleteLocalUpload } from "@/lib/upload";
+import {
+  formFiles,
+  parseStoredPaths,
+  requireFormFiles,
+  saveAndSerializeUploads,
+} from "@/lib/upload-paths";
+import {
+  catchUpAsOfDate,
+  isCatchUpIntakeOpen,
+  loadBooksOpenDate,
+} from "@/lib/books-open";
+import {
+  parseCatchUpKind,
+  persistCompleteCatchUpPeriod,
+  prepareCompleteCatchUpPeriod,
+  assertCompleteTargetMatchesForm,
+} from "@/lib/project-catch-up";
+import {
+  currentMonthlyCatchUpPeriod,
+  resolveCatchUpCompleteTarget,
+} from "@/lib/project-catch-up-periods";
+import { jakartaTodayAsUtcDateOnly } from "@/lib/leave-employment-status";
+import { isVehicleItemType } from "@/lib/inventory-sku";
 import {
   issueInvoiceForCurrentMonth,
   issueInvoicesForFinishedProject,
@@ -280,20 +303,21 @@ type ProjectDeleteFiles = {
 
 function collectProjectUploadPaths(project: ProjectDeleteFiles) {
   const paths: string[] = [];
-  if (project.contractDocumentUrl) paths.push(project.contractDocumentUrl);
+  const pushStored = (value: string | null | undefined) => {
+    paths.push(...parseStoredPaths(value));
+  };
+  pushStored(project.contractDocumentUrl);
   for (const extension of project.contractExtensions) {
-    if (extension.proofUrl) paths.push(extension.proofUrl);
+    pushStored(extension.proofUrl);
   }
   for (const period of project.invoicePeriods) {
-    if (period.invoicePdfPath) paths.push(period.invoicePdfPath);
-    if (period.paymentProofPath) paths.push(period.paymentProofPath);
-    if (period.taxInvoiceDocumentPath) paths.push(period.taxInvoiceDocumentPath);
-    if (period.withholdingSlipPath) paths.push(period.withholdingSlipPath);
-    if (period.reviewReportPdfPath) paths.push(period.reviewReportPdfPath);
-    if (period.clientRevisionProofPath) {
-      paths.push(period.clientRevisionProofPath);
-    }
-    if (period.hoReviewProofPath) paths.push(period.hoReviewProofPath);
+    pushStored(period.invoicePdfPath);
+    pushStored(period.paymentProofPath);
+    pushStored(period.taxInvoiceDocumentPath);
+    pushStored(period.withholdingSlipPath);
+    pushStored(period.reviewReportPdfPath);
+    pushStored(period.clientRevisionProofPath);
+    pushStored(period.hoReviewProofPath);
   }
   for (const report of project.progressReports) {
     for (const photo of report.photos) paths.push(photo.url);
@@ -1053,9 +1077,13 @@ export async function createProject(formData: FormData) {
     if (!clientId) throw new Error("Client is required.");
 
     // Default Planning (waiting for work order). Explicit "In Progress" starts ops immediately.
+    const booksOpenDate = await loadBooksOpenDate(session.user.companyId);
+    const catchUpKind = isCatchUpIntakeOpen(booksOpenDate)
+      ? parseCatchUpKind(formData)
+      : "NONE";
     const initialStatusRaw = String(formData.get("initialStatus") ?? "").trim();
     const status: ProjectStatus =
-      initialStatusRaw === "IN_PROGRESS"
+      catchUpKind === "ONGOING" || initialStatusRaw === "IN_PROGRESS"
         ? "IN_PROGRESS"
         : PROJECT_PLANNING_STATUS;
     const isPlanning = status === PROJECT_PLANNING_STATUS;
@@ -1154,14 +1182,14 @@ export async function createProject(formData: FormData) {
     }
     let contractDocumentUrl: string | null = null;
     if (status === "IN_PROGRESS" && !isDemo) {
-      const contractProof = formData.get("contractProof");
-      if (!(contractProof instanceof File) || contractProof.size === 0) {
+      const contractProofs = formFiles(formData, "contractProof");
+      if (contractProofs.length === 0) {
         throw new Error(
           "Signed contract proof is required before starting In Progress."
         );
       }
-      contractDocumentUrl = await saveUpload(
-        contractProof,
+      contractDocumentUrl = await saveAndSerializeUploads(
+        contractProofs,
         "contract-proofs",
         { fileBaseName: "contract_new" }
       );
@@ -1256,12 +1284,13 @@ export async function createProject(formData: FormData) {
             String(formData.get("isGovernmentContract") ?? "") === "true",
           isDemo,
           isComplimentary,
+          catchUpKind,
           companyId: company.id,
           clientId,
           sortOrder,
           contractDocumentUrl,
           shiftCount,
-        } as unknown as Prisma.ProjectUncheckedCreateInput,
+        },
       });
 
       if (createScope.areaManagerEmployeeId) {
@@ -1275,7 +1304,7 @@ export async function createProject(formData: FormData) {
 
       await syncProjectShifts(tx, created.id, shiftCount, shiftWindows);
 
-      if (billingMode === "MILESTONE") {
+      if (billingMode === "MILESTONE" && catchUpKind !== "COMPLETED") {
         await createMilestoneSchedulePeriods(tx, {
           projectId: created.id,
           // Prefer real start; fall back to estimate for schedule anchoring.
@@ -1309,8 +1338,9 @@ export async function createProject(formData: FormData) {
         }
       }
 
-      // Regular + Security In Progress create: open the first billing period.
-      // Parking / Payroll Management stay commercial-terms only (no periods).
+      // Regular + Security In Progress: open the live billing period.
+      // Ongoing catch-up opens the cycle that contains go-live (or today).
+      // New projects still open the first cycle from the contract start.
       if (
         !isComplimentary &&
         !isPlanning &&
@@ -1318,11 +1348,26 @@ export async function createProject(formData: FormData) {
         billingMode === "MONTHLY" &&
         startDate
       ) {
-        const first = firstMonthlyPeriodBounds(
-          billingPeriodBasis,
-          toUtcDateOnly(startDate),
-          { fromDay: billingCycleStartDay, toDay: billingCycleEndDay }
-        );
+        const current =
+          catchUpKind === "ONGOING"
+            ? currentMonthlyCatchUpPeriod({
+                asOf: catchUpAsOfDate(booksOpenDate),
+                basis: billingPeriodBasis,
+                fromDay: billingCycleStartDay,
+                toDay: billingCycleEndDay,
+              })
+            : null;
+        const first = current
+          ? {
+              periodStart: parseDateInput(current.periodStart),
+              periodEnd: parseDateInput(current.periodEnd),
+              label: current.label,
+            }
+          : firstMonthlyPeriodBounds(
+              billingPeriodBasis,
+              toUtcDateOnly(startDate),
+              { fromDay: billingCycleStartDay, toDay: billingCycleEndDay }
+            );
         await tx.projectInvoicePeriod.upsert({
           where: {
             projectId_periodStart_periodEnd: {
@@ -1345,7 +1390,11 @@ export async function createProject(formData: FormData) {
 
       // Planning: assign staff only when moving to In Progress (not at create).
       // Multiple visits: crew is assigned per visit on the project page.
-      if (!isPlanning && billingMode !== "MULTI_VISIT") {
+      if (
+        !isPlanning &&
+        catchUpKind !== "COMPLETED" &&
+        billingMode !== "MULTI_VISIT"
+      ) {
         const nextIds = await nextCrewIdsWithTeams(tx, {
           companyId: company.id,
           projectId: created.id,
@@ -1443,6 +1492,112 @@ export async function createProjectsInBulk(formData: FormData) {
     throw toActionError(
       error,
       translate(locale, "pages.projects.finish.createFailed")
+    );
+  }
+}
+
+export async function completeCatchUpPeriod(formData: FormData) {
+  const locale = await getServerLocale();
+  try {
+    const session = await requireModule("projects");
+    if (session.user.clientId) {
+      throw new Error("Client portal users cannot complete catch-up periods.");
+    }
+
+    const projectId = String(formData.get("projectId") ?? "").trim();
+    if (!projectId) throw new Error("Project is required.");
+
+    const project = await prisma.project.findFirst({
+      where: { id: projectId, companyId: session.user.companyId },
+      include: {
+        invoicePeriods: {
+          select: {
+            periodStart: true,
+            periodEnd: true,
+            isCatchUp: true,
+            invoicePdfPath: true,
+            status: true,
+          },
+        },
+      },
+    });
+    if (!project) throw new Error("Project not found.");
+    await assertSessionCanWriteProject(session, project);
+
+    const booksOpenDate = await loadBooksOpenDate(session.user.companyId);
+    const target = resolveCatchUpCompleteTarget({
+      catchUpKind: project.catchUpKind,
+      status: project.status,
+      isComplimentary: project.isComplimentary,
+      isDemo: project.isDemo,
+      subCategory: project.subCategory,
+      billingMode: project.billingMode,
+      startDate: project.startDate,
+      endDate: project.endDate,
+      basis: project.billingPeriodBasis,
+      fromDay: project.billingCycleStartDay,
+      toDay: project.billingCycleEndDay,
+      asOf: catchUpAsOfDate(booksOpenDate, jakartaTodayAsUtcDateOnly()),
+      existingPeriods: project.invoicePeriods,
+    });
+    if (!target) {
+      throw new Error("There is no historical period left to complete.");
+    }
+    assertCompleteTargetMatchesForm(target, formData);
+
+    const catalogRows = await prisma.inventoryItem.findMany({
+      where: {
+        companyId: session.user.companyId,
+        active: true,
+        deletedAt: null,
+      },
+      select: { id: true, name: true, unit: true, itemType: true },
+    });
+    const inventoryCatalog = new Map(
+      catalogRows
+        .filter((item) => !isVehicleItemType(item.itemType))
+        .map((item) => ({
+          id: item.id,
+          name: item.name,
+          unit: item.unit ?? "",
+        }))
+        .map((item) => [item.id, item] as const)
+    );
+
+    const plan = await prepareCompleteCatchUpPeriod({
+      formData,
+      target,
+      inventoryCatalog,
+    });
+
+    await prisma.$transaction(async (tx) => {
+      await persistCompleteCatchUpPeriod(tx, {
+        projectId,
+        plan,
+        bankAccountId: project.bankAccountId,
+        paymentTermsDays: project.paymentTermsDays,
+        companyId: session.user.companyId,
+        userId: session.user.id,
+      });
+      if (target.closesProject) {
+        await tx.project.update({
+          where: { id: projectId },
+          data: { status: "COMPLETED", catchUpKind: "COMPLETED" },
+        });
+        await releaseAllProjectCrew(tx, projectId, {
+          keepAssignmentHistory: true,
+        });
+      }
+    });
+
+    revalidateAfterProjectLifecycle({
+      projectId,
+      clientId: project.clientId,
+    });
+  } catch (error) {
+    throw toActionError(
+      error,
+      translate(locale, "pages.projects.catchUp.failed")
     );
   }
 }
@@ -2500,14 +2655,13 @@ export async function startProject(
     );
   }
 
-  const contractProof = formData.get("contractProof");
-  if (!(contractProof instanceof File) || contractProof.size === 0) {
-    throw new Error(
-      "Signed contract proof is required before moving to In Progress."
-    );
-  }
-  const contractDocumentUrl = await saveUpload(
-    contractProof,
+  const contractProofs = requireFormFiles(
+    formData,
+    "contractProof",
+    "Signed contract proof is required before moving to In Progress."
+  );
+  const contractDocumentUrl = await saveAndSerializeUploads(
+    contractProofs,
     "contract-proofs",
     { fileBaseName: `contract_${id.slice(0, 8)}` }
   );
@@ -3178,13 +3332,19 @@ export async function extendProjectContract(id: string, formData: FormData) {
       throw new Error("Extend To must be after the current contract end date.");
     }
 
-    const proof = formData.get("extensionProof");
-    if (!(proof instanceof File) || proof.size === 0) {
+    const proofs = requireFormFiles(
+      formData,
+      "extensionProof",
+      "Extension proof is required."
+    );
+    const proofUrl = await saveAndSerializeUploads(
+      proofs,
+      "contract-extensions",
+      { fileBaseName: `extend_${id.slice(0, 8)}` }
+    );
+    if (!proofUrl) {
       throw new Error("Extension proof is required.");
     }
-    const proofUrl = await saveUpload(proof, "contract-extensions", {
-      fileBaseName: `extend_${id.slice(0, 8)}`,
-    });
     const notes = String(formData.get("notes") ?? "").trim() || null;
 
     await prisma.$transaction(async (tx) => {
@@ -3428,13 +3588,16 @@ export async function renewProjectContract(id: string, formData: FormData) {
     throw new Error("New end date must be after the new start date.");
   }
 
-  const proof = formData.get("agreement");
-  if (!(proof instanceof File) || proof.size === 0) {
-    throw new Error("Upload the new signed agreement.");
-  }
-  const contractDocumentUrl = await saveUpload(proof, "contract-documents", {
-    fileBaseName: `renew_${id.slice(0, 8)}`,
-  });
+  const proofs = requireFormFiles(
+    formData,
+    "agreement",
+    "Upload the new signed agreement."
+  );
+  const contractDocumentUrl = await saveAndSerializeUploads(
+    proofs,
+    "contract-documents",
+    { fileBaseName: `renew_${id.slice(0, 8)}` }
+  );
 
   await prisma.project.update({
     where: { id },
@@ -3528,13 +3691,16 @@ export async function redoProjectJob(id: string, formData: FormData) {
   );
   const nextEnd = addUtcDays(nextStart, durationDays);
 
-  const proof = formData.get("agreement");
-  if (!(proof instanceof File) || proof.size === 0) {
-    throw new Error("Upload the new signed paper.");
-  }
-  const contractDocumentUrl = await saveUpload(proof, "contract-documents", {
-    fileBaseName: `redo_${id.slice(0, 8)}`,
-  });
+  const proofs = requireFormFiles(
+    formData,
+    "agreement",
+    "Upload the new signed paper."
+  );
+  const contractDocumentUrl = await saveAndSerializeUploads(
+    proofs,
+    "contract-documents",
+    { fileBaseName: `redo_${id.slice(0, 8)}` }
+  );
 
   const extras = [
     ...new Set(formData.getAll("employeeIds").map(String).filter(Boolean)),

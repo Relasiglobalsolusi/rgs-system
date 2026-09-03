@@ -3,6 +3,10 @@ import { computePrepaidLossTotals } from "@/lib/prepaid-card";
 import { vehicleAssignmentLabel } from "@/lib/prepaid-card-lifecycle";
 import { decimalToNumber } from "@/lib/project-billing";
 import { prisma } from "@/lib/prisma";
+import {
+  toVehicleOdometerOption,
+  type VehicleOdometerOption,
+} from "@/lib/vehicle-odometer";
 
 export type PrepaidCardEntryView = {
   id: string;
@@ -69,16 +73,97 @@ export type PrepaidCardView = {
   vehicleSku: string | null;
   vehiclePlate: string | null;
   vehicleYear: number | null;
+  vehicleAssets: VehicleOdometerOption[];
   custodianEmployeeId: string | null;
   custodianName: string | null;
   replacedByCardId: string | null;
   entries: PrepaidCardEntryView[];
   assignments: PrepaidCardAssignmentView[];
   losses: PrepaidCardLossView[];
+  fuelSpend: {
+    total: number;
+    months: { yearMonth: string; amount: number }[];
+  };
 };
 
 function dateKey(value: Date) {
   return value.toISOString().slice(0, 10);
+}
+
+function yearMonthKey(value: Date) {
+  return value.toISOString().slice(0, 7);
+}
+
+export type PrepaidFuelSpend = {
+  total: number;
+  months: { yearMonth: string; amount: number }[];
+};
+
+export function summarizePrepaidFuelSpend(
+  entries: Array<{
+    kind: string;
+    spendKind: string | null;
+    amount: unknown;
+    entryDate: Date;
+  }>
+): PrepaidFuelSpend {
+  const byMonth = new Map<string, number>();
+  for (const entry of entries) {
+    if (entry.kind !== "SPEND" || entry.spendKind !== "FUEL") continue;
+    const amount = decimalToNumber(entry.amount as never) ?? 0;
+    if (amount <= 0) continue;
+    const key = yearMonthKey(entry.entryDate);
+    byMonth.set(key, (byMonth.get(key) ?? 0) + amount);
+  }
+  const months = [...byMonth.entries()]
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([yearMonth, amount]) => ({ yearMonth, amount }));
+  return {
+    total: months.reduce((sum, row) => sum + row.amount, 0),
+    months,
+  };
+}
+
+function fuelSpendFromEntries(
+  entries: Array<{
+    kind: string;
+    spendKind: string | null;
+    amount: unknown;
+    entryDate: Date;
+  }>
+): PrepaidFuelSpend {
+  return summarizePrepaidFuelSpend(entries);
+}
+
+export function formatPrepaidFuelMonth(yearMonth: string, locale: string) {
+  const [year, month] = yearMonth.split("-").map(Number);
+  if (!year || !month) return yearMonth;
+  return new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString(locale, {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+export async function loadVehiclePrepaidFuelSpend(
+  companyId: string,
+  vehicleItemId: string | null | undefined
+): Promise<PrepaidFuelSpend> {
+  if (!vehicleItemId) return { total: 0, months: [] };
+  const cards = await prisma.prepaidCard.findMany({
+    where: { companyId, vehicleItemId },
+    select: {
+      entries: {
+        select: {
+          kind: true,
+          spendKind: true,
+          amount: true,
+          entryDate: true,
+        },
+      },
+    },
+  });
+  return summarizePrepaidFuelSpend(cards.flatMap((card) => card.entries));
 }
 
 export async function loadPrepaidCardsForPanel(
@@ -93,7 +178,27 @@ export async function loadPrepaidCardsForPanel(
             name: true,
             sku: true,
             equipmentAssets: {
-              select: { assetCode: true, vehicleYear: true },
+              select: {
+                id: true,
+                assetCode: true,
+                vehicleYear: true,
+                currentOdometerKm: true,
+                initialOdometerKm: true,
+                kmPerLitreMin: true,
+                kmPerLitreMax: true,
+                lastFillLitres: true,
+                estimatedFuelLeftLitresMin: true,
+                estimatedFuelLeftLitresMax: true,
+                item: {
+                  select: {
+                    name: true,
+                    sku: true,
+                    kmPerLitreMin: true,
+                    kmPerLitreMax: true,
+                    fuelTankLitres: true,
+                  },
+                },
+              },
               orderBy: [{ createdAt: "asc" }, { id: "asc" }],
             },
           },
@@ -224,6 +329,21 @@ export async function loadPrepaidCardsForPanel(
         card.vehicleItem?.equipmentAssets.find(
           (asset) => asset.vehicleYear != null
         )?.vehicleYear ?? null,
+      vehicleAssets: (card.vehicleItem?.equipmentAssets ?? []).map((asset) =>
+        toVehicleOdometerOption({
+          id: asset.id,
+          assetCode: asset.assetCode,
+          vehicleYear: asset.vehicleYear,
+          currentOdometerKm: asset.currentOdometerKm,
+          initialOdometerKm: asset.initialOdometerKm,
+          kmPerLitreMin: asset.kmPerLitreMin,
+          kmPerLitreMax: asset.kmPerLitreMax,
+          lastFillLitres: asset.lastFillLitres,
+          estimatedFuelLeftLitresMin: asset.estimatedFuelLeftLitresMin,
+          estimatedFuelLeftLitresMax: asset.estimatedFuelLeftLitresMax,
+          item: asset.item,
+        })
+      ),
       custodianEmployeeId: card.custodianEmployeeId,
       custodianName: card.custodianEmployee
         ? formatEmployeeName(card.custodianEmployee)
@@ -241,6 +361,13 @@ export async function loadPrepaidCardsForPanel(
         proofPath: entry.proofPath,
         assignmentId: entry.assignmentId,
       })),
+      fuelSpend: fuelSpendFromEntries(
+        card.kind === "VEHICLE" && card.vehicleItemId
+          ? cards
+              .filter((other) => other.vehicleItemId === card.vehicleItemId)
+              .flatMap((other) => other.entries)
+          : card.entries
+      ),
       assignments: card.assignments.map((assignment) => ({
         id: assignment.id,
         vehicleItemId: assignment.vehicleItemId,

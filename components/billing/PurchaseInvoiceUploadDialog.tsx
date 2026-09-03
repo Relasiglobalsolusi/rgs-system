@@ -150,6 +150,8 @@ export type PurchaseCatalogItemOption = {
   unit: string;
   itemType: string;
   lastUnitCost: number | null;
+  kmPerLitreMin?: number | null;
+  kmPerLitreMax?: number | null;
 };
 
 export type PurchaseProjectOption = {
@@ -1656,11 +1658,11 @@ function PurchaseInvoiceUploadDialogInner({
                   {(
                     [
                       ["PURCHASE", t("pages.billing.vehicleExpenseKindPurchase")],
-                      [
-                        "PREPAID_CARD",
-                        t("pages.billing.vehicleExpenseKindPrepaid"),
-                      ],
-                      ["SERVICING", t("pages.billing.vehicleExpenseKindServicing")],
+                    [
+                      "PREPAID_CARD",
+                      t("pages.billing.vehicleExpenseKindPrepaid"),
+                    ],
+                    ["SERVICING", t("pages.billing.vehicleExpenseKindServicing")],
                       [
                         "MODIFICATION",
                         t("pages.billing.vehicleExpenseKindModification"),

@@ -183,14 +183,7 @@ export function canManageClients(
     AccountTypeUser & { clientId?: string | null; vendorId?: string | null }
 ) {
   if (isClientPortalUser(user) || isVendorPortalUser(user)) return false;
-  if (!canAccess(user, "clients")) return false;
-  if (isAdminAccount(user)) return true;
-
-  const employeeType =
-    user.employee?.employeeType ?? user.employeeType ?? null;
-  if (employeeType === "PROJECT_SITE") return false;
-
-  return true;
+  return canAccess(user, "clients");
 }
 
 /**
@@ -204,14 +197,7 @@ export function canManageVendors(
     AccountTypeUser & { clientId?: string | null; vendorId?: string | null }
 ) {
   if (isClientPortalUser(user) || isVendorPortalUser(user)) return false;
-  if (!canAccess(user, "vendors")) return false;
-  if (isAdminAccount(user)) return true;
-
-  const employeeType =
-    user.employee?.employeeType ?? user.employeeType ?? null;
-  if (employeeType === "PROJECT_SITE") return false;
-
-  return true;
+  return canAccess(user, "vendors");
 }
 
 /**
@@ -224,14 +210,7 @@ export function canManageInventory(
     AccountTypeUser & { clientId?: string | null; vendorId?: string | null }
 ) {
   if (isClientPortalUser(user) || isVendorPortalUser(user)) return false;
-  if (!canAccess(user, "inventory")) return false;
-  if (isAdminAccount(user)) return true;
-
-  const employeeType =
-    user.employee?.employeeType ?? user.employeeType ?? null;
-  if (employeeType === "PROJECT_SITE") return false;
-
-  return true;
+  return canAccess(user, "inventory");
 }
 
 export function canManageItemCatalog(
@@ -239,34 +218,19 @@ export function canManageItemCatalog(
     AccountTypeUser & { clientId?: string | null; vendorId?: string | null }
 ) {
   if (isClientPortalUser(user) || isVendorPortalUser(user)) return false;
-  if (!canAccess(user, "itemCatalog")) return false;
-  if (isAdminAccount(user)) return true;
-
-  const employeeType =
-    user.employee?.employeeType ?? user.employeeType ?? null;
-  if (employeeType === "PROJECT_SITE") return false;
-
-  return true;
+  return canAccess(user, "itemCatalog");
 }
 
 /**
  * Finance → Financial Report (client / project P&L).
- * HO admin / HO staff with Financial Report only — never client or vendor portals,
- * and never PROJECT_SITE staff even with a mistaken override.
+ * Anyone with Financial Report module access — never client or vendor portals.
  */
 export function canViewFinancialReport(
   user: PermissionUser &
     AccountTypeUser & { clientId?: string | null; vendorId?: string | null }
 ) {
   if (isClientPortalUser(user) || isVendorPortalUser(user)) return false;
-  if (!canAccess(user, "financialReport")) return false;
-  if (isAdminAccount(user)) return true;
-
-  const employeeType =
-    user.employee?.employeeType ?? user.employeeType ?? null;
-  if (employeeType === "PROJECT_SITE") return false;
-
-  return true;
+  return canAccess(user, "financialReport");
 }
 
 /**
@@ -280,14 +244,7 @@ export function canManageEmployees(
     AccountTypeUser & { clientId?: string | null; vendorId?: string | null }
 ) {
   if (isClientPortalUser(user) || isVendorPortalUser(user)) return false;
-  if (!canAccess(user, "employees")) return false;
-  if (isAdminAccount(user)) return true;
-
-  const employeeType =
-    user.employee?.employeeType ?? user.employeeType ?? null;
-  if (employeeType === "PROJECT_SITE") return false;
-
-  return true;
+  return canAccess(user, "employees");
 }
 
 /** Head Office only. Operations Manager cannot resign people. */

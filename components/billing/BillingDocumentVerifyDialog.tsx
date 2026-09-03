@@ -33,13 +33,15 @@ export function BillingDocumentFilePick({
   required,
   fileName,
   onPick,
+  onPickMany,
   disabled,
 }: {
   id: string;
   label: string;
   required?: boolean;
-  fileName: string | null;
+  fileName?: string | null;
   onPick: (file: File | null) => void;
+  onPickMany?: (files: File[]) => void;
   disabled?: boolean;
 }) {
   return (
@@ -50,6 +52,11 @@ export function BillingDocumentFilePick({
       required={required}
       fileName={fileName}
       onPick={onPick}
+      onPickMany={(files) => {
+        onPickMany?.(files);
+        onPick(files[0] ?? null);
+      }}
+      multiple
       disabled={disabled}
       accept={DOCUMENT_FILE_ACCEPT}
     />
@@ -83,6 +90,7 @@ type Props = {
   fileLabel?: string;
   fileName?: string | null;
   onFilePick?: (file: File | null) => void;
+  onFilePickMany?: (files: File[]) => void;
   showFilePick?: boolean;
   requireReason?: boolean;
   reasonValue?: string;
@@ -119,6 +127,7 @@ export default function BillingDocumentVerifyDialog({
   fileLabel,
   fileName,
   onFilePick,
+  onFilePickMany,
   showFilePick = true,
   requireReason = false,
   reasonValue = "",
@@ -201,6 +210,7 @@ export default function BillingDocumentVerifyDialog({
                 required
                 fileName={fileName ?? null}
                 onPick={onFilePick}
+                onPickMany={onFilePickMany}
                 disabled={pending}
               />
             ) : null}

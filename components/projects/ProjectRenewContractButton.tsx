@@ -54,8 +54,11 @@ export default function ProjectRenewContractButton({
       showRejection({ reasons: t("pages.projects.renewEndRequired") });
       return;
     }
-    const proof = formData.get("agreement");
-    if (!(proof instanceof File) || proof.size === 0) {
+    if (
+      !formData
+        .getAll("agreement")
+        .some((value) => value instanceof File && value.size > 0)
+    ) {
       showRejection({ reasons: t("pages.projects.renewAgreementRequired") });
       return;
     }
@@ -143,6 +146,7 @@ export default function ProjectRenewContractButton({
               name="agreement"
               label={t("pages.projects.renewAgreement")}
               required
+              multiple
               accept="image/*,.pdf,application/pdf"
             />
           </form>

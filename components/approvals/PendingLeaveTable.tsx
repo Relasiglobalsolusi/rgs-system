@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import ApprovalActions from "@/components/approvals/ApprovalActions";
 import LeaveTypeLabel from "@/components/leaves/LeaveTypeLabel";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
-import ProofLightbox from "@/components/ui/ProofLightbox";
+import UploadedFilesLink from "@/components/ui/UploadedFilesLink";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { STATUS_COLUMN_WIDTH } from "@/components/ui/trash-action-buttons";
 import { formatDisplayDate } from "@/lib/format-date";
@@ -28,7 +28,6 @@ type Props = {
 
 export default function PendingLeaveTable({ data }: Props) {
   const { t } = useT();
-  const [proofSrc, setProofSrc] = useState<string | null>(null);
 
   const columns = useMemo<DataTableColumn<PendingLeaveRow>[]>(
     () => [
@@ -83,13 +82,7 @@ export default function PendingLeaveTable({ data }: Props) {
         cellAlign: "center",
         render: (row) =>
           row.proofUrl ? (
-            <button
-              type="button"
-              onClick={() => setProofSrc(row.proofUrl)}
-              className="text-sm font-semibold text-accent-cyan hover:underline"
-            >
-              {t("common.actions.view")}
-            </button>
+            <UploadedFilesLink value={row.proofUrl} />
           ) : (
             <span className="text-muted">-</span>
           ),
@@ -106,17 +99,5 @@ export default function PendingLeaveTable({ data }: Props) {
     [t]
   );
 
-  return (
-    <>
-      <DataTable columns={columns} data={data} />
-      <ProofLightbox
-        open={proofSrc != null}
-        onOpenChange={(open) => {
-          if (!open) setProofSrc(null);
-        }}
-        src={proofSrc}
-        title={t("pages.approvals.proof")}
-      />
-    </>
-  );
+  return <DataTable columns={columns} data={data} />;
 }

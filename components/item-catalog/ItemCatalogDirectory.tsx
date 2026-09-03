@@ -47,7 +47,9 @@ import {
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { localizeInventoryItemType } from "@/lib/i18n/labels";
+import { isVehicleItemType } from "@/lib/inventory-sku";
 import { useT } from "@/lib/i18n/use-t";
+import { formatKmPerLitreRange } from "@/lib/vehicle-odometer";
 import { showRejectionFromError } from "@/components/ui/rejection-notice";
 
 type Props = {
@@ -201,6 +203,28 @@ export default function ItemCatalogDirectory({ canManage, items }: Props) {
           </StatusBadge>
         );
       },
+    },
+    {
+      key: "kmPerLitre",
+      title: t("pages.itemCatalog.columns.kmPerLitre"),
+      width: "9rem",
+      render: (row) =>
+        isVehicleItemType(row.itemType) &&
+        row.kmPerLitreMin != null &&
+        row.kmPerLitreMax != null
+          ? formatKmPerLitreRange(row.kmPerLitreMin, row.kmPerLitreMax)
+          : "—",
+    },
+    {
+      key: "fuelTank",
+      title: t("pages.itemCatalog.columns.fuelTank"),
+      width: "7rem",
+      render: (row) =>
+        isVehicleItemType(row.itemType) && row.fuelTankLitres != null
+          ? `${row.fuelTankLitres.toLocaleString("id-ID", {
+              maximumFractionDigits: 1,
+            })} L`
+          : "—",
     },
     {
       key: "status",

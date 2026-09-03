@@ -4,6 +4,12 @@ import { redirect } from "next/navigation";
 import type { ProjectStatus, ProjectSubCategory } from "@prisma/client";
 
 import {
+  LIVE_PROJECT_EXPENSE_WHERE,
+  isLiveInvoiceIncome,
+  liveInvoiceIncomeWhereFor,
+  loadBooksOpenDate,
+} from "@/lib/books-open";
+import {
   getPayrollManagementTotalsByProjectIds,
   getProjectPnlAdjustments,
   getProjectWageCostsByProjectIds,
@@ -298,6 +304,7 @@ export async function getFinancialReportClients(
   const companyId = session.user.companyId;
   const calendar = financialReportCalendarRange(selection);
   const wage = financialReportWageRange(selection);
+  const liveIncome = await liveInvoiceIncomeWhereFor(companyId);
 
   const clients = await prisma.client.findMany({
     where: {
@@ -315,6 +322,7 @@ export async function getFinancialReportClients(
           invoicePeriods: {
             where: {
               status: "PAID",
+              ...liveIncome,
               paidAt: { gte: calendar.from, lt: calendar.toExclusive },
               ...bankAccountWhere(selection.bank ?? FINANCIAL_REPORT_ALL_BANKS),
             },
@@ -490,6 +498,7 @@ export async function getFinancialReportClientProjects(
   const companyId = session.user.companyId;
   const calendar = financialReportCalendarRange(selection);
   const wage = financialReportWageRange(selection);
+  const booksOpenDate = await loadBooksOpenDate(companyId);
 
   const client = await prisma.client.findFirst({
     where: { id: clientId, companyId, active: true },
@@ -514,6 +523,7 @@ export async function getFinancialReportClientProjects(
               ppnRatePercent: true,
               paidAt: true,
               dueAt: true,
+              isCatchUp: true,
             },
           },
         },
@@ -604,6 +614,15 @@ export async function getFinancialReportClientProjects(
       const paidPeriods = project.invoicePeriods.filter((period) => {
         if (period.status !== "PAID") return false;
         if (!period.paidAt) return false;
+        if (
+          !isLiveInvoiceIncome({
+            isCatchUp: period.isCatchUp,
+            paidAt: period.paidAt,
+            booksOpenDate,
+          })
+        ) {
+          return false;
+        }
         return (
           period.paidAt.getTime() >= calendar.from.getTime() &&
           period.paidAt.getTime() < calendar.toExclusive.getTime()
@@ -728,6 +747,7 @@ export async function getFinancialReportProjectDetail(
   const companyId = session.user.companyId;
   const calendar = financialReportCalendarRange(selection);
   const wage = financialReportWageRange(selection);
+  const liveIncome = await liveInvoiceIncomeWhereFor(companyId);
 
   const project = await prisma.project.findFirst({
     where: {
@@ -749,6 +769,7 @@ export async function getFinancialReportProjectDetail(
       invoicePeriods: {
         where: {
           status: "PAID",
+          ...liveIncome,
           paidAt: { gte: calendar.from, lt: calendar.toExclusive },
         },
         select: {
@@ -838,6 +859,7 @@ export async function getFinancialReportProjectDetail(
     Promise.resolve(0),
     prisma.projectExpense.aggregate({
       where: {
+        ...LIVE_PROJECT_EXPENSE_WHERE,
         projectId: project.id,
         incurredAt: { gte: calendar.from, lt: calendar.toExclusive },
       },

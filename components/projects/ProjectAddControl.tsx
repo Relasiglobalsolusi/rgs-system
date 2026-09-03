@@ -25,6 +25,7 @@ type Props = {
   clients: ClientOption[];
   catalog?: ProjectCatalogAreaDTO[];
   bankAccounts?: CompanyBankAccountOption[];
+  showCatchUpIntake?: boolean;
 };
 
 /**
@@ -37,6 +38,7 @@ export default function ProjectAddControl({
   clients,
   catalog = [],
   bankAccounts = [],
+  showCatchUpIntake = true,
 }: Props) {
   const { t } = useT();
   const [createOpen, setCreateOpen] = useState(false);
@@ -63,6 +65,7 @@ export default function ProjectAddControl({
         clients={clients}
         catalog={catalog}
         bankAccounts={bankAccounts}
+        showCatchUpIntake={showCatchUpIntake}
         open={createOpen}
         onOpenChange={setCreateOpen}
         showTrigger={false}
@@ -76,6 +79,7 @@ export default function ProjectAddControl({
         clients={clients}
         catalog={catalog}
         bankAccounts={bankAccounts}
+        showCatchUpIntake={showCatchUpIntake}
       />
     </>
   );

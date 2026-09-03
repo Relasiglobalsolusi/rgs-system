@@ -128,6 +128,8 @@ export default async function PurchaseInvoicesPage({
         unit: true,
         itemType: true,
         lastUnitCost: true,
+        kmPerLitreMin: true,
+        kmPerLitreMax: true,
       },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
@@ -154,6 +156,8 @@ export default async function PurchaseInvoicesPage({
     unit: item.unit,
     itemType: item.itemType,
     lastUnitCost: decimalToNumber(item.lastUnitCost),
+    kmPerLitreMin: decimalToNumber(item.kmPerLitreMin),
+    kmPerLitreMax: decimalToNumber(item.kmPerLitreMax),
   }));
 
   const now = new Date();

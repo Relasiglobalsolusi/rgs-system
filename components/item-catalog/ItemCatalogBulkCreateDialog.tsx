@@ -38,7 +38,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { bulkLineField, createBulkLineKey } from "@/lib/bulk-create";
-import { INVENTORY_ITEM_TYPE_PRESETS } from "@/lib/inventory-sku";
+import VehicleKmPerLitreFields from "@/components/vehicles/VehicleKmPerLitreFields";
+import {
+  INVENTORY_ITEM_TYPE_PRESETS,
+  isVehicleItemType,
+} from "@/lib/inventory-sku";
 import { localizeInventoryItemType } from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
 
@@ -139,6 +143,23 @@ export default function ItemCatalogBulkCreateDialog({
       showRejection({ reasons: t("pages.inventory.itemTypeRequired") });
       return;
     }
+    if (isVehicleItemType(itemType)) {
+      const kmMin = String(formData.get("kmPerLitreMin") ?? "").trim();
+      const kmMax = String(formData.get("kmPerLitreMax") ?? "").trim();
+      const tank = String(formData.get("fuelTankLitres") ?? "").trim();
+      if (!kmMin || !kmMax) {
+        showRejection({
+          reasons: t("pages.vehicles.odometer.rangeRequired"),
+        });
+        return;
+      }
+      if (!tank) {
+        showRejection({
+          reasons: t("pages.vehicles.odometer.tankRequired"),
+        });
+        return;
+      }
+    }
     formData.set("itemType", itemType.trim());
 
     startTransition(async () => {
@@ -227,6 +248,14 @@ export default function ItemCatalogBulkCreateDialog({
                 {t("pages.inventory.form.itemTypeHint")}
               </p>
             </div>
+
+            {isVehicleItemType(itemType) ? (
+              <VehicleKmPerLitreFields
+                idPrefix="bulk-vehicle-km-l"
+                defaultMin="10"
+                defaultMax="15"
+              />
+            ) : null}
 
             <BulkLineList
               title={t("pages.itemCatalog.bulkCreateItems")}

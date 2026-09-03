@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Download, FileText } from "lucide-react";
 import { PageDocumentActions } from "@/components/ui/PageDocumentActions";
+import { firstStoredPath } from "@/lib/stored-paths";
 
 import { prisma } from "@/lib/prisma";
 import { requireSession, toPermissionUser } from "@/lib/session";
@@ -253,30 +254,30 @@ export default async function ProjectPeriodPage({
   }
 
   const documents = [
-    period.reviewReportPdfPath
+    firstStoredPath(period.reviewReportPdfPath)
       ? {
-          href: period.reviewReportPdfPath,
+          href: firstStoredPath(period.reviewReportPdfPath)!,
           label: t("pages.projects.periodPage.viewReviewReport"),
           icon: "file" as const,
         }
       : null,
-    period.invoicePdfPath
+    firstStoredPath(period.invoicePdfPath)
       ? {
-          href: period.invoicePdfPath,
+          href: firstStoredPath(period.invoicePdfPath)!,
           label: t("pages.projects.detail.downloadInvoice"),
           icon: "download" as const,
         }
       : null,
-    period.taxInvoiceDocumentPath
+    firstStoredPath(period.taxInvoiceDocumentPath)
       ? {
-          href: period.taxInvoiceDocumentPath,
+          href: firstStoredPath(period.taxInvoiceDocumentPath)!,
           label: t("pages.billing.viewTaxInvoice"),
           icon: "file" as const,
         }
       : null,
-    period.paymentProofPath
+    firstStoredPath(period.paymentProofPath)
       ? {
-          href: period.paymentProofPath,
+          href: firstStoredPath(period.paymentProofPath)!,
           label: t("pages.billing.viewProof"),
           icon: "file" as const,
         }

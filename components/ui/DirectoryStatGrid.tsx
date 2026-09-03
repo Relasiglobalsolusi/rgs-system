@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
  * Row sizes that always fill the page width. Never leaves a leftover
  * single card sitting in the first column of a wider row.
  */
-export function planDirectoryStatRows(count: number): number[] {
+function planDirectoryStatRows(count: number): number[] {
   if (count <= 0) return [];
   if (count <= 4) return [count];
   if (count === 5) return [2, 3];
@@ -21,10 +21,10 @@ export function planDirectoryStatRows(count: number): number[] {
 
 const colsClass: Record<number, string> = {
   1: "grid-cols-1",
-  2: "grid-cols-1 sm:grid-cols-2",
+  2: "grid-cols-2",
   3: "grid-cols-1 sm:grid-cols-3",
-  4: "grid-cols-1 sm:grid-cols-2 xl:grid-cols-4",
-  6: "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6",
+  4: "grid-cols-2 xl:grid-cols-4",
+  6: "grid-cols-2 md:grid-cols-3 xl:grid-cols-6",
 };
 
 type Props = {

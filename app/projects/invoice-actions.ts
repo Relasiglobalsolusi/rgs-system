@@ -61,6 +61,10 @@ import {
   deleteLocalUpload,
   saveUpload,
 } from "@/lib/upload";
+import {
+  formFiles,
+  saveAndAppendUploads,
+} from "@/lib/upload-paths";
 import { PROJECT_LIST_VIEW_PATHS } from "@/lib/project-status";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
@@ -125,6 +129,20 @@ function requireImageOrPdfUpload(
     throw new Error(opts.typeMessage);
   }
   return value;
+}
+
+function requireImageOrPdfUploads(
+  formData: FormData,
+  name: string,
+  opts: { requiredMessage: string; sizeMessage: string; typeMessage: string }
+): File[] {
+  const files = formFiles(formData, name).map((file) =>
+    requireImageOrPdfUpload(file, opts)
+  );
+  if (files.length === 0) {
+    throw new Error(opts.requiredMessage);
+  }
+  return files;
 }
 
 /**
@@ -1912,7 +1930,7 @@ export async function markInvoicePeriodPaid(formData: FormData) {
   const periodId = String(formData.get("periodId") ?? "").trim();
   if (!periodId) throw new Error("Invoice period is required.");
 
-  const proof = requireImageOrPdfUpload(formData.get("paymentProof"), {
+  const proofs = requireImageOrPdfUploads(formData, "paymentProof", {
     requiredMessage: "Please upload proof of payment (image or PDF).",
     sizeMessage: "Payment proof must be 10 MB or smaller.",
     typeMessage:
@@ -1954,20 +1972,23 @@ export async function markInvoicePeriodPaid(formData: FormData) {
     throw new Error("Only awaiting/overdue invoices can be marked paid.");
   }
 
-  const previousProof = period.paymentProofPath;
   const uploadedAt = new Date();
   const invoiceNumber = commercialInvoiceNumber(period);
-  const paymentProofPath = await saveUpload(proof, "uploads/payment-proofs", {
-    fileBaseName: buildBillingDocumentFileBase({
-      prefix: "Proof-of-Payment",
-      clientShortCode: period.project.client?.shortCode,
-      clientName: period.project.client?.name,
-      invoiceNumber,
-      date: uploadedAt,
-    }),
-  });
+  const paymentProofPath = await saveAndAppendUploads(
+    period.paymentProofPath,
+    proofs,
+    "uploads/payment-proofs",
+    {
+      fileBaseName: buildBillingDocumentFileBase({
+        prefix: "Proof-of-Payment",
+        clientShortCode: period.project.client?.shortCode,
+        clientName: period.project.client?.name,
+        invoiceNumber,
+        date: uploadedAt,
+      }),
+    }
+  );
 
-  // Keep the uploaded proof on file; do not mark paid here.
   await prisma.projectInvoicePeriod.update({
     where: { id: periodId },
     data: {
@@ -1975,10 +1996,6 @@ export async function markInvoicePeriodPaid(formData: FormData) {
       paymentProofUploadedAt: uploadedAt,
     },
   });
-
-  if (previousProof && previousProof !== paymentProofPath) {
-    await deleteLocalUpload(previousProof);
-  }
 
   const reason = parseManualVerifyReason(formData.get("manualReason"));
   return applyInvoicePeriodPaid(period, {
@@ -1995,7 +2012,7 @@ export async function submitInvoicePaymentForVerification(formData: FormData) {
   const periodId = String(formData.get("periodId") ?? "").trim();
   if (!periodId) throw new Error("Invoice period is required.");
 
-  const proof = requireImageOrPdfUpload(formData.get("paymentProof"), {
+  const proofs = requireImageOrPdfUploads(formData, "paymentProof", {
     requiredMessage: "Please upload an image or PDF as proof of payment.",
     sizeMessage: "Payment proof must be 10 MB or smaller.",
     typeMessage:
@@ -2026,20 +2043,23 @@ export async function submitInvoicePaymentForVerification(formData: FormData) {
     );
   }
 
-  const previousProof = period.paymentProofPath;
   const uploadedAt = new Date();
   const invoiceNumber = commercialInvoiceNumber(period);
-  const paymentProofPath = await saveUpload(proof, "uploads/payment-proofs", {
-    fileBaseName: buildBillingDocumentFileBase({
-      prefix: "Proof-of-Payment",
-      clientShortCode: period.project.client?.shortCode,
-      clientName: period.project.client?.name,
-      invoiceNumber,
-      date: uploadedAt,
-    }),
-  });
+  const paymentProofPath = await saveAndAppendUploads(
+    period.paymentProofPath,
+    proofs,
+    "uploads/payment-proofs",
+    {
+      fileBaseName: buildBillingDocumentFileBase({
+        prefix: "Proof-of-Payment",
+        clientShortCode: period.project.client?.shortCode,
+        clientName: period.project.client?.name,
+        invoiceNumber,
+        date: uploadedAt,
+      }),
+    }
+  );
 
-  // Keep the uploaded proof on file for Head Office review.
   await prisma.projectInvoicePeriod.update({
     where: { id: periodId },
     data: {
@@ -2049,10 +2069,6 @@ export async function submitInvoicePaymentForVerification(formData: FormData) {
       paymentVerifiedById: null,
     },
   });
-
-  if (previousProof && previousProof !== paymentProofPath) {
-    await deleteLocalUpload(previousProof);
-  }
 
   await prisma.projectInvoicePeriod.update({
     where: { id: periodId },

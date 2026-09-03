@@ -61,8 +61,11 @@ export default function ProjectExtendContractButton({
       showRejection({ reasons: t("pages.projects.extendToRequired") });
       return;
     }
-    const proof = formData.get("extensionProof");
-    if (!(proof instanceof File) || proof.size === 0) {
+    if (
+      !formData
+        .getAll("extensionProof")
+        .some((value) => value instanceof File && value.size > 0)
+    ) {
       showRejection({ reasons: t("pages.projects.extendProofRequired") });
       return;
     }
@@ -140,6 +143,7 @@ export default function ProjectExtendContractButton({
               name="extensionProof"
               label={t("pages.projects.extendProof")}
               required
+              multiple
               accept="image/*,.pdf,application/pdf"
             />
           </form>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ArrowLeft } from "lucide-react";
 
 import PettyCashPayWageDialog from "@/components/billing/PettyCashPayWageDialog";
 import PettyCashSpendDialog from "@/components/billing/PettyCashSpendDialog";
@@ -12,6 +13,7 @@ import FinanceRecordRow, {
 } from "@/components/ui/FinanceRecordRow";
 import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge from "@/components/ui/StatusBadge";
+import UploadedFilesLink from "@/components/ui/UploadedFilesLink";
 import { Button } from "@/components/ui/button";
 import { directoryToolbarActionClass } from "@/components/ui/DirectoryFilterSelect";
 import { formatDisplayDate } from "@/lib/format-date";
@@ -71,11 +73,6 @@ export default function PettyCashHoldersPanel({
       ? holders.find((holder) => holder.id === currentPayerId)?.balance ?? 0
       : null;
 
-  const holderOptions = holders.map((holder) => ({
-    id: holder.id,
-    name: holder.name,
-  }));
-
   function holderName(holder: PettyCashHolderView) {
     return holder.name;
   }
@@ -94,14 +91,17 @@ export default function PettyCashHoldersPanel({
       <div className="space-y-5">
         <SectionCard className="space-y-4 p-5 sm:p-6">
           <div>
-            <button
+            <Button
               type="button"
-              className="text-xs font-semibold text-primary-dark underline-offset-2 hover:underline"
+              variant="infoBadge"
+              size="badgeFlex"
+              className="gap-1.5"
               onClick={() => setSelectedId(null)}
             >
+              <ArrowLeft className="size-3.5 shrink-0 opacity-80" aria-hidden />
               {t("pages.pettyCash.backToHolders")}
-            </button>
-            <h2 className="mt-2 text-lg font-semibold tracking-tight text-text">
+            </Button>
+            <h2 className="mt-3 text-lg font-semibold tracking-tight text-text">
               {holderName(selected)}
             </h2>
             {selected.employeeNo ? (
@@ -167,14 +167,7 @@ export default function PettyCashHoldersPanel({
                       ) : null}
                     </p>
                     {entry.proofPath ? (
-                      <a
-                        href={entry.proofPath}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-1 inline-block text-xs font-medium text-primary-dark underline-offset-2 hover:underline"
-                      >
-                        {t("pages.pettyCash.viewProof")}
-                      </a>
+                      <UploadedFilesLink value={entry.proofPath} />
                     ) : null}
                   </>
                 }
@@ -197,9 +190,7 @@ export default function PettyCashHoldersPanel({
         <PettyCashSpendDialog
           projects={projects}
           clients={clients}
-          holders={holderOptions}
-          preferredHolderId={selected.id}
-          lockHolder
+          holderId={selected.id}
           open={spendOpen}
           onOpenChange={setSpendOpen}
           showTrigger={false}
@@ -222,7 +213,7 @@ export default function PettyCashHoldersPanel({
         <PettyCashSpendDialog
           projects={projects}
           clients={clients}
-          holders={holderOptions}
+          holderId={currentPayerId ?? ""}
         />
       </div>
       {holders.length === 0 && unpaidWages.length === 0 ? (
@@ -263,7 +254,7 @@ export default function PettyCashHoldersPanel({
                   type="button"
                   variant="permissionsBadge"
                   size="badgeFlex"
-                  className={directoryToolbarActionClass}
+                  className={`${directoryToolbarActionClass} min-w-[7.5rem]`}
                   onClick={() => setPayWageId(wage.id)}
                 >
                   {t("pages.pettyCash.unpaidWagePay")}

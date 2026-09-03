@@ -44,6 +44,7 @@ type Props = {
   clients: ProjectFormClient[];
   catalog?: ProjectCatalogAreaDTO[];
   bankAccounts?: CompanyBankAccountOption[];
+  showCatchUpIntake?: boolean;
 };
 
 export default function ProjectBulkCreateDialog({
@@ -54,6 +55,7 @@ export default function ProjectBulkCreateDialog({
   clients,
   catalog = [],
   bankAccounts = [],
+  showCatchUpIntake = true,
 }: Props) {
   const { t } = useT();
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
@@ -263,6 +265,7 @@ export default function ProjectBulkCreateDialog({
                   clients={clients}
                   catalog={catalog}
                   bankAccounts={bankAccounts}
+                  showCatchUpIntake={showCatchUpIntake}
                   namePrefix={`line.${index}.`}
                   idPrefix={`bulk-project-${index}-`}
                   onFormValuesChange={handleFormInput}
