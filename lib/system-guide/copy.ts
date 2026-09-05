@@ -197,38 +197,38 @@ export const SYSTEM_GUIDE_COPY: Partial<
   pettyCash: bilingual(
     {
       purpose:
-        "Advance Cash is the Head Office float. Petty Cash is cash given to a named employee. Prepaid Cards are vehicle fuel, toll, and parking. A position can grant one or both. This is not a supplier invoice list.",
+        "Advance Cash is the Head Office float. Petty Cash is cash given to a named employee. Cards cover vehicle fuel, toll, and parking, plus Head Office Prepaid Cards. A position can grant Petty Cash, Cards, or both. This is not a supplier invoice list.",
       steps: [
         "Open Advance Cash. Petty Cash lists employees and how much each holds. Open a name to see that employee's balance and history.",
         "To put money in, open Expenses, choose Petty Cash, then immediately choose which employee receives the top-up. That employee's balance goes up.",
         "To spend, open the employee and click Record Spend. Upload the bill, enter the amount, and Charge To a client or project. The spend comes out of that employee's Petty Cash. If the spend is Fuel, choose the vehicle, enter the current odometer, and confirm the recap before it posts.",
         "A director (or anyone with enough balance) can Transfer Petty Cash to another employee. That reduces the sender and tops up the receiver. It is not a new company expense.",
         "When a part-time backup checks out, their wage floats on Petty Cash as unpaid. Click Pay. The person who claims it has that amount taken from their Petty Cash.",
-        "Use the Prepaid Cards tab for vehicle cards. Adding or editing a card is owner-only. A Fuel spend asks for the current odometer and shows a recap before it posts.",
+        "Use the Cards tab for Vehicle Cards and Prepaid Cards. Adding or editing a card is owner-only. A Fuel spend asks for the current odometer and shows a recap before it posts.",
       ],
       remember: [
         "A spend larger than the float is not blocked. If the balance is below zero, a warning is shown.",
         "The first fuel fill records odometer and litres added. Fuel left starts as that fill, not the catalog tank size. Later fills subtract km used, then add the new litres. A fill cannot go more than 10% over the catalog tank. Operational Managers and Directors see a warning on the Dashboard if a refill does not match.",
         "Client and vendor logins cannot open Advance Cash.",
-        "In Employees → Manage Positions, Advance Cash has Petty Cash and Prepaid Cards underneath. Tick only what that position should open.",
+        "In Employees → Manage Positions, Advance Cash has Petty Cash and Cards underneath. Tick only what that position should open.",
       ],
     },
     {
       purpose:
-        "Kas Uang Muka adalah kas bon Kantor Pusat. Kas Kecil adalah uang yang diberikan ke karyawan tertentu. Kartu Prabayar untuk BBM, tol, dan parkir kendaraan. Satu jabatan bisa mendapat salah satu atau keduanya. Ini bukan daftar faktur pemasok.",
+        "Kas Uang Muka adalah kas bon Kantor Pusat. Kas Kecil adalah uang yang diberikan ke karyawan tertentu. Kartu mencakup BBM, tol, dan parkir kendaraan, plus Kartu Prabayar Kantor Pusat. Satu jabatan bisa mendapat Kas Kecil, Kartu, atau keduanya. Ini bukan daftar faktur pemasok.",
       steps: [
         "Buka Kas Uang Muka. Kas Kecil menampilkan daftar karyawan dan saldo masing-masing. Buka nama untuk melihat saldo dan riwayat karyawan itu.",
         "Untuk mengisi, buka Pengeluaran, pilih Kas Kecil, lalu langsung pilih karyawan yang menerima isi ulang. Saldo karyawan itu bertambah.",
         "Untuk belanja, buka karyawan lalu klik Catat Belanja. Unggah nota, isi jumlah, dan Dibebankan Ke klien atau proyek. Belanja diambil dari Kas Kecil karyawan itu. Jika belanja BBM, pilih kendaraan, isi odometer saat ini, dan konfirmasi ringkasan sebelum dicatat.",
         "Direktur (atau siapa pun yang saldonya cukup) bisa Transfer Kas Kecil ke karyawan lain. Saldo pengirim berkurang dan penerima bertambah. Ini bukan pengeluaran perusahaan baru.",
         "Saat cadangan paruh waktu check-out, upahnya mengambang di Kas Kecil sebagai belum dibayar. Klik Bayar. Orang yang mengklaim dipotong Kas Kecil-nya sebesar itu.",
-        "Pakai tab Kartu Prabayar untuk kartu kendaraan. Menambah atau mengubah kartu hanya untuk pemilik sistem. Belanja BBM meminta odometer saat ini dan menampilkan ringkasan sebelum dicatat.",
+        "Pakai tab Kartu untuk Kartu Kendaraan dan Kartu Prabayar. Menambah atau mengubah kartu hanya untuk pemilik sistem. Belanja BBM meminta odometer saat ini dan menampilkan ringkasan sebelum dicatat.",
       ],
       remember: [
         "Belanja lebih besar dari saldo tidak diblokir. Jika saldo di bawah nol, peringatan ditampilkan.",
         "Pengisian BBM pertama mencatat odometer dan litre yang ditambah. Sisa dimulai dari isi itu, bukan ukuran tangki katalog. Pengisian berikutnya mengurangi km terpakai, lalu menambah litre baru. Pengisian tidak boleh lebih dari 10% di atas tangki katalog. Manajer Operasional dan Direktur melihat peringatan di Dasbor jika pengisian tidak cocok.",
         "Login klien dan pemasok tidak bisa membuka Kas Uang Muka.",
-        "Di Karyawan → Kelola Jabatan, Kas Uang Muka punya Kas Kecil dan Kartu Prabayar di bawahnya. Centang hanya yang jabatan itu boleh buka.",
+        "Di Karyawan → Kelola Jabatan, Kas Uang Muka punya Kas Kecil dan Kartu di bawahnya. Centang hanya yang jabatan itu boleh buka.",
       ],
     }
   ),

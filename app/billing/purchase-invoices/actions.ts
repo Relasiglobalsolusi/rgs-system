@@ -965,7 +965,7 @@ export async function createPurchaseInvoice(formData: FormData) {
       throw new Error("Choose the prepaid card to top up.");
     }
     if (openCardTopUpEarly && selectedCard.kind !== "OPEN") {
-      throw new Error("Choose an Open Card to top up.");
+      throw new Error("Choose a Prepaid Card to top up.");
     }
     if (
       purchaseCategoryRawEarly === "VEHICLE" &&

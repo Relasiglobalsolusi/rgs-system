@@ -1190,7 +1190,7 @@ export function getAccountTypeBaselineModules(
 }
 
 /**
- * Petty Cash vs Prepaid Cards under Advance Cash.
+ * Petty Cash vs Cards under Advance Cash.
  * Legacy `pettyCash: true` with no child keys keeps both on.
  * Missing child keys inherit the current position / account baseline.
  */
