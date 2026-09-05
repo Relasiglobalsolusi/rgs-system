@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { getServerLocale } from "@/lib/i18n/locale";
-import { translate } from "@/lib/i18n/translate";
+import { translate, type TranslateParams } from "@/lib/i18n/translate";
 import { parseDateInput } from "@/lib/invoice-period";
 import {
   nextPayrollPeriod,
@@ -45,9 +45,6 @@ import { todayDateInput } from "@/lib/project-contract";
 import { requireAdvanceCashPrepaidAccess } from "@/lib/session";
 import { formFiles, saveAndSerializeUploads } from "@/lib/upload-paths";
 import {
-  litresRequiredMessage,
-  odometerRequiredMessage,
-  odometerWentBackMessage,
   parseLitres,
   parseOdometerKm,
   recordVehicleOdometerReading,
@@ -56,6 +53,14 @@ import {
 import { nextPettyCashTopUpRef } from "@/lib/petty-cash";
 import { getCompanyBankAccount } from "@/lib/company-bank-accounts";
 import { formatEmployeeName } from "@/lib/employee-user-link";
+
+async function prepaidError(
+  key: string,
+  params?: TranslateParams
+): Promise<string> {
+  const locale = await getServerLocale();
+  return translate(locale, `pages.pettyCash.${key}`, params);
+}
 
 function revalidatePrepaidCardPaths() {
   revalidatePath("/billing/petty-cash");
@@ -90,7 +95,7 @@ async function nextOpenPayrollPeriods(
     period = nextPayrollPeriod(period);
   }
   if (periods.length < count) {
-    throw new Error("Could not schedule Card recovery on Internal Payroll.");
+    throw new Error(await prepaidError("payrollScheduleFailed"));
   }
   return periods;
 }
@@ -103,7 +108,7 @@ export async function createPrepaidCard(formData: FormData) {
   const custodianEmployeeId = String(
     formData.get("custodianEmployeeId") ?? ""
   ).trim();
-  if (!kind) throw new Error("Choose Vehicle Card or Open Card.");
+  if (!kind) throw new Error(await prepaidError("cardKindRequired"));
   const cardNumber = await assertPrepaidCardNumberAvailable(
     prisma,
     session.user.companyId,
@@ -157,15 +162,15 @@ export async function assignPrepaidCard(formData: FormData) {
   const custodianEmployeeId = String(
     formData.get("custodianEmployeeId") ?? ""
   ).trim();
-  if (!prepaidCardId) throw new Error("Choose a Card.");
+  if (!prepaidCardId) throw new Error(await prepaidError("cardRequired"));
 
   await prisma.$transaction(async (tx) => {
     const card = await tx.prepaidCard.findFirst({
       where: { id: prepaidCardId, companyId: session.user.companyId },
     });
-    if (!card) throw new Error("Card not found.");
+    if (!card) throw new Error(await prepaidError("cardNotFound"));
     if (!canAssignPrepaidCard(card.status)) {
-      throw new Error("Only a Standby Card can be assigned.");
+      throw new Error(await prepaidError("standbyAssignOnly"));
     }
     if (card.kind === "VEHICLE") {
       await requireOwnedVehicle(tx, session.user.companyId, vehicleItemId);
@@ -206,15 +211,15 @@ export async function reassignPrepaidCard(formData: FormData) {
   const custodianEmployeeId = String(
     formData.get("custodianEmployeeId") ?? ""
   ).trim();
-  if (!prepaidCardId) throw new Error("Choose a Card.");
+  if (!prepaidCardId) throw new Error(await prepaidError("cardRequired"));
 
   await prisma.$transaction(async (tx) => {
     const card = await tx.prepaidCard.findFirst({
       where: { id: prepaidCardId, companyId: session.user.companyId },
     });
-    if (!card) throw new Error("Card not found.");
+    if (!card) throw new Error(await prepaidError("cardNotFound"));
     if (card.status !== "ACTIVE") {
-      throw new Error("Return the Card to the list before assigning it again.");
+      throw new Error(await prepaidError("returnBeforeReassign"));
     }
     if (card.kind === "VEHICLE") {
       await requireOwnedVehicle(tx, session.user.companyId, vehicleItemId);
@@ -252,15 +257,15 @@ export async function reassignPrepaidCard(formData: FormData) {
 export async function returnPrepaidCardToList(formData: FormData) {
   const session = await requireOwnerPrepaidCardManage();
   const prepaidCardId = String(formData.get("prepaidCardId") ?? "").trim();
-  if (!prepaidCardId) throw new Error("Choose a Card.");
+  if (!prepaidCardId) throw new Error(await prepaidError("cardRequired"));
 
   await prisma.$transaction(async (tx) => {
     const card = await tx.prepaidCard.findFirst({
       where: { id: prepaidCardId, companyId: session.user.companyId },
     });
-    if (!card) throw new Error("Card not found.");
+    if (!card) throw new Error(await prepaidError("cardNotFound"));
     if (!canReturnPrepaidCard(card.status)) {
-      throw new Error("This Card is not assigned.");
+      throw new Error(await prepaidError("cardNotAssigned"));
     }
     await returnPrepaidCardToStandby(tx, card.id);
   });
@@ -275,13 +280,13 @@ export async function recordPrepaidCardSpend(formData: FormData) {
   );
   const note = String(formData.get("description") ?? "").trim();
   const amount = parseContractPrice(String(formData.get("amount") ?? ""));
-  if (!prepaidCardId) throw new Error("Choose a Card.");
-  if (!spendKind) throw new Error("Choose what this bill is for.");
-  if (amount == null || amount <= 0) throw new Error("Enter the amount paid.");
+  if (!prepaidCardId) throw new Error(await prepaidError("cardRequired"));
+  if (!spendKind) throw new Error(await prepaidError("spendKindRequired"));
+  if (amount == null || amount <= 0) throw new Error(await prepaidError("amountPaidRequired"));
 
   const proofs = formFiles(formData, "proof");
   if (proofs.length === 0) {
-    throw new Error("Upload the bill or receipt.");
+    throw new Error(await prepaidError("proofRequired"));
   }
   const proofPath = await saveAndSerializeUploads(
     proofs,
@@ -296,15 +301,15 @@ export async function recordPrepaidCardSpend(formData: FormData) {
     const card = await tx.prepaidCard.findFirst({
       where: { id: prepaidCardId, companyId: session.user.companyId },
     });
-    if (!card) throw new Error("Card not found.");
+    if (!card) throw new Error(await prepaidError("cardNotFound"));
     if (!canSpendOnPrepaidCard(card.status)) {
-      throw new Error("Spend is only allowed on an Active Card.");
+      throw new Error(await prepaidError("spendActiveOnly"));
     }
     if (!allowedSpendKinds(card.kind).includes(spendKind)) {
-      throw new Error("Open Cards can only record Other, with a note.");
+      throw new Error(await prepaidError("openCardOtherOnly"));
     }
     if ((card.kind === "OPEN" || spendKind === "OTHER") && !note) {
-      throw new Error("Add a note for this Other spend.");
+      throw new Error(await prepaidError("otherNoteRequired"));
     }
     const assignment = await currentPrepaidAssignment(tx, card.id);
     const description =
@@ -325,10 +330,10 @@ export async function recordPrepaidCardSpend(formData: FormData) {
       const readingKm = parseOdometerKm(formData.get("odometerKm"));
       const litresFilled = parseLitres(formData.get("litresFilled"));
       if (readingKm == null) {
-        throw new Error(odometerRequiredMessage());
+        throw new Error(await prepaidError("odometerRequired"));
       }
       if (litresFilled == null) {
-        throw new Error(litresRequiredMessage());
+        throw new Error(await prepaidError("litresRequired"));
       }
       const vehicle = await resolveVehicleAssetForPrepaidFuel(tx, {
         companyId: session.user.companyId,
@@ -348,7 +353,7 @@ export async function recordPrepaidCardSpend(formData: FormData) {
         });
       } catch (error) {
         if (error instanceof Error && error.message === "ODOMETER_WENT_BACK") {
-          throw new Error(odometerWentBackMessage());
+          throw new Error(await prepaidError("odometerWentBack"));
         }
         throw error;
       }
@@ -364,30 +369,30 @@ export async function markPrepaidCardDamaged(formData: FormData) {
   const replacementCardId = String(
     formData.get("replacementCardId") ?? ""
   ).trim();
-  if (!prepaidCardId) throw new Error("Choose a Card.");
+  if (!prepaidCardId) throw new Error(await prepaidError("cardRequired"));
 
   await prisma.$transaction(async (tx) => {
     const card = await tx.prepaidCard.findFirst({
       where: { id: prepaidCardId, companyId: session.user.companyId },
     });
-    if (!card) throw new Error("Card not found.");
+    if (!card) throw new Error(await prepaidError("cardNotFound"));
     if (!canMarkPrepaidCardDamaged(card.status)) {
-      throw new Error("Only an Active Card can be marked Damaged.");
+      throw new Error(await prepaidError("damagedActiveOnly"));
     }
 
     if (assignNew) {
       if (!replacementCardId) {
-        throw new Error("Choose a Standby Card to assign now.");
+        throw new Error(await prepaidError("standbyAssignNow"));
       }
       const replacement = await tx.prepaidCard.findFirst({
         where: { id: replacementCardId, companyId: session.user.companyId },
       });
-      if (!replacement) throw new Error("Replacement Card not found.");
+      if (!replacement) throw new Error(await prepaidError("replacementNotFound"));
       if (replacement.kind !== card.kind) {
-        throw new Error("Choose a Card of the same type.");
+        throw new Error(await prepaidError("sameTypeRequired"));
       }
       if (replacement.status !== "STANDBY") {
-        throw new Error("Choose a Standby Card.");
+        throw new Error(await prepaidError("standbyRequired"));
       }
       const vehicleItemId = card.vehicleItemId;
       const custodianEmployeeId = card.custodianEmployeeId;
@@ -397,7 +402,7 @@ export async function markPrepaidCardDamaged(formData: FormData) {
         data: { status: "DAMAGED" },
       });
       if (card.kind === "VEHICLE") {
-        if (!vehicleItemId) throw new Error("This Vehicle Card has no vehicle.");
+        if (!vehicleItemId) throw new Error(await prepaidError("vehicleCardNoVehicle"));
         await startPrepaidAssignment(tx, {
           prepaidCardId: replacement.id,
           vehicleItemId,
@@ -408,7 +413,7 @@ export async function markPrepaidCardDamaged(formData: FormData) {
         });
       } else {
         if (!custodianEmployeeId) {
-          throw new Error("This Open Card has no person in charge.");
+          throw new Error(await prepaidError("openCardNoPic"));
         }
         await startPrepaidAssignment(tx, {
           prepaidCardId: replacement.id,
@@ -432,6 +437,7 @@ export async function markPrepaidCardDamaged(formData: FormData) {
 
 export async function replacePrepaidCard(formData: FormData) {
   const session = await requireOwnerPrepaidCardManage();
+  const locale = await getServerLocale();
   const prepaidCardId = String(formData.get("prepaidCardId") ?? "").trim();
   const continueSame = String(formData.get("continueSame") ?? "") === "1";
   const destinationCardId = String(
@@ -444,23 +450,23 @@ export async function replacePrepaidCard(formData: FormData) {
   const entryDate = parseDateInput(
     String(formData.get("entryDate") ?? todayDateInput())
   );
-  if (!prepaidCardId) throw new Error("Choose a Card.");
-  if (fee < 0) throw new Error("Replacement fee cannot be negative.");
+  if (!prepaidCardId) throw new Error(await prepaidError("cardRequired"));
+  if (fee < 0) throw new Error(await prepaidError("feeNegative"));
   if (!feeFromLeftover && fee > 0 && !bankAccountId) {
-    throw new Error("Choose the company bank account for the fee.");
+    throw new Error(await prepaidError("bankForFee"));
   }
 
   await prisma.$transaction(async (tx) => {
     const card = await tx.prepaidCard.findFirst({
       where: { id: prepaidCardId, companyId: session.user.companyId },
     });
-    if (!card) throw new Error("Card not found.");
+    if (!card) throw new Error(await prepaidError("cardNotFound"));
     if (!canReplacePrepaidCard(card.status)) {
-      throw new Error("Card replaced is only available while the Card is Damaged.");
+      throw new Error(await prepaidError("replacedDamagedOnly"));
     }
     const leftover = decimalToNumber(card.currentBalance) ?? 0;
     if (feeFromLeftover && fee > leftover) {
-      throw new Error("The replacement fee is more than the leftover on this Card.");
+      throw new Error(await prepaidError("feeExceedsLeftover"));
     }
 
     let purchaseInvoiceId: string | null = null;
@@ -469,7 +475,7 @@ export async function replacePrepaidCard(formData: FormData) {
         session.user.companyId,
         bankAccountId
       );
-      if (!bank) throw new Error("Choose the company bank account for the fee.");
+      if (!bank) throw new Error(await prepaidError("bankForFee"));
       const invoiceRef = nextPettyCashTopUpRef().replace(/^PC-/, "CRF-");
       const invoice = await tx.purchaseInvoice.create({
         data: {
@@ -479,7 +485,7 @@ export async function replacePrepaidCard(formData: FormData) {
           invoiceDate: entryDate,
           amount: fee,
           filePath: "",
-          notes: prepaidReplacementFeeLabel(card.cardNumber),
+          notes: prepaidReplacementFeeLabel(card.cardNumber, locale),
           includesPpn: false,
           purchaseCategory: "SERVICE",
           purpose: "INTERNAL",
@@ -499,6 +505,7 @@ export async function replacePrepaidCard(formData: FormData) {
       fromLeftover: feeFromLeftover,
       entryDate,
       createdById: session.user.id,
+      locale,
       bankAccountId: feeFromLeftover ? null : bankAccountId || null,
       purchaseInvoiceId,
     });
@@ -512,20 +519,20 @@ export async function replacePrepaidCard(formData: FormData) {
     }
 
     if (!destinationCardId) {
-      throw new Error("Choose the Card that receives the leftover.");
+      throw new Error(await prepaidError("destinationRequired"));
     }
     const destination = await tx.prepaidCard.findFirst({
       where: { id: destinationCardId, companyId: session.user.companyId },
     });
-    if (!destination) throw new Error("Destination Card not found.");
+    if (!destination) throw new Error(await prepaidError("destinationNotFound"));
     if (destination.id === card.id) {
-      throw new Error("Choose a different Card, or continue on this Card.");
+      throw new Error(await prepaidError("destinationDifferent"));
     }
     if (destination.kind !== card.kind) {
-      throw new Error("Choose a Card of the same type.");
+      throw new Error(await prepaidError("sameTypeRequired"));
     }
     if (destination.status === "LOST" || destination.status === "REPLACED") {
-      throw new Error("That Card number is retired.");
+      throw new Error(await prepaidError("cardNumberRetired"));
     }
 
     const remaining = decimalToNumber(
@@ -542,6 +549,7 @@ export async function replacePrepaidCard(formData: FormData) {
       createdById: session.user.id,
       fromNumber: card.cardNumber,
       toNumber: destination.cardNumber,
+      locale,
     });
 
     const lastAssignment = await tx.prepaidCardAssignment.findFirst({
@@ -553,7 +561,7 @@ export async function replacePrepaidCard(formData: FormData) {
       const custodianEmployeeId = lastAssignment?.custodianEmployeeId ?? null;
       if (destination.kind === "VEHICLE") {
         if (!vehicleItemId) {
-          throw new Error("Assign the replacement Card to the vehicle first.");
+          throw new Error(await prepaidError("assignReplacementVehicle"));
         }
         await assertVehicleHasNoLiveCard(
           tx,
@@ -571,7 +579,7 @@ export async function replacePrepaidCard(formData: FormData) {
         });
       } else {
         if (!custodianEmployeeId) {
-          throw new Error("Assign the replacement Card to the person in charge first.");
+          throw new Error(await prepaidError("assignReplacementPic"));
         }
         await startPrepaidAssignment(tx, {
           prepaidCardId: destination.id,
@@ -603,6 +611,7 @@ export async function replacePrepaidCard(formData: FormData) {
 
 export async function reportPrepaidCardLost(formData: FormData) {
   const session = await requireOwnerPrepaidCardManage();
+  const locale = await getServerLocale();
   const prepaidCardId = String(formData.get("prepaidCardId") ?? "").trim();
   const employeeCovers = String(formData.get("employeeCovers") ?? "") === "1";
   const recoveryKind = employeeCovers
@@ -615,25 +624,25 @@ export async function reportPrepaidCardLost(formData: FormData) {
   const entryDate = parseDateInput(
     String(formData.get("entryDate") ?? todayDateInput())
   );
-  if (!prepaidCardId) throw new Error("Choose a Card.");
-  if (!recoveryKind) throw new Error("Choose how the leftover is recovered.");
+  if (!prepaidCardId) throw new Error(await prepaidError("cardRequired"));
+  if (!recoveryKind) throw new Error(await prepaidError("recoveryMethodRequired"));
   if (employeeCovers && recoveryKind === "COMPANY") {
-    throw new Error("Choose how the employee will cover the leftover.");
+    throw new Error(await prepaidError("employeeCoverMethodRequired"));
   }
   if (employeeCovers && !employeeId) {
-    throw new Error("Choose the employee who will cover the leftover.");
+    throw new Error(await prepaidError("coveringEmployeeRequired"));
   }
   if (recoveryKind === "PAY_NOW" && !bankAccountId) {
-    throw new Error("Choose the company bank account that received the return.");
+    throw new Error(await prepaidError("returnBankRequired"));
   }
 
   await prisma.$transaction(async (tx) => {
     const card = await tx.prepaidCard.findFirst({
       where: { id: prepaidCardId, companyId: session.user.companyId },
     });
-    if (!card) throw new Error("Card not found.");
+    if (!card) throw new Error(await prepaidError("cardNotFound"));
     if (!canReportPrepaidCardLost(card.status)) {
-      throw new Error("This Card is already retired.");
+      throw new Error(await prepaidError("cardAlreadyRetired"));
     }
     const leftover = decimalToNumber(card.currentBalance) ?? 0;
     let coveringEmployee: { id: string; firstName: string; lastName: string } | null =
@@ -647,7 +656,7 @@ export async function reportPrepaidCardLost(formData: FormData) {
         },
         select: { id: true, firstName: true, lastName: true },
       });
-      if (!coveringEmployee) throw new Error("Choose the employee who will cover the leftover.");
+      if (!coveringEmployee) throw new Error(await prepaidError("coveringEmployeeRequired"));
     }
     if (recoveryKind === "PAY_NOW") {
       const bank = await getCompanyBankAccount(
@@ -655,7 +664,7 @@ export async function reportPrepaidCardLost(formData: FormData) {
         bankAccountId
       );
       if (!bank) {
-        throw new Error("Choose the company bank account that received the return.");
+        throw new Error(await prepaidError("returnBankRequired"));
       }
     }
 
@@ -690,8 +699,10 @@ export async function reportPrepaidCardLost(formData: FormData) {
         entryDate,
         description:
           recoveryKind === "COMPANY"
-            ? `Written off · company`
-            : `Written off · ${footed}`,
+            ? translate(locale, "pages.pettyCash.writtenOffCompany")
+            : translate(locale, "pages.pettyCash.writtenOffNamed", {
+                name: footed,
+              }),
         createdById: session.user.id,
         assignmentId: assignment?.id ?? null,
         lossId: loss?.id ?? null,
@@ -706,7 +717,7 @@ export async function reportPrepaidCardLost(formData: FormData) {
           amount: leftover,
           recoveredAt: entryDate,
           bankAccountId,
-          description: prepaidLostReturnLabel(card.cardNumber),
+          description: prepaidLostReturnLabel(card.cardNumber, locale),
         },
       });
     }
@@ -723,7 +734,7 @@ export async function reportPrepaidCardLost(formData: FormData) {
         const amount = amounts[index] ?? 0;
         if (amount <= 0) continue;
         const period = periods[index];
-        if (!period) throw new Error("Could not schedule Card recovery on Internal Payroll.");
+        if (!period) throw new Error(await prepaidError("payrollScheduleFailed"));
         await tx.payrollDeduction.create({
           data: {
             companyId: session.user.companyId,
@@ -756,17 +767,17 @@ export async function reportPrepaidCardMisuse(formData: FormData) {
   const employeeId = String(formData.get("employeeId") ?? "").trim();
   const amount = parseContractPrice(String(formData.get("amount") ?? ""));
   const note = String(formData.get("note") ?? "").trim();
-  if (!prepaidCardId) throw new Error("Choose a prepaid card.");
-  if (!employeeId) throw new Error("Choose the employee who misused the card.");
+  if (!prepaidCardId) throw new Error(await prepaidError("misuseCardRequired"));
+  if (!employeeId) throw new Error(await prepaidError("misuseEmployeeRequired"));
   if (amount == null || amount <= 0) {
-    throw new Error("Enter how much was misused.");
+    throw new Error(await prepaidError("misuseAmountRequired"));
   }
 
   const card = await prisma.prepaidCard.findFirst({
     where: { id: prepaidCardId, companyId: session.user.companyId },
     select: { id: true, cardNumber: true },
   });
-  if (!card) throw new Error("Prepaid card not found.");
+  if (!card) throw new Error(await prepaidError("prepaidCardMissing"));
 
   const employee = await requireActiveEmployee(
     prisma,

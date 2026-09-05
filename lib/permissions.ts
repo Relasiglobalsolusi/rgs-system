@@ -644,6 +644,48 @@ export function parsePositionDefaultModuleAccess(
   return normalizeModuleAccessMap(raw);
 }
 
+const MODULE_OVERRIDE_FLAG_KEYS = [
+  ...MODULES,
+  ...ADVANCE_CASH_CHILD_KEYS,
+] as const;
+
+function isModuleOverrideFlagKey(
+  key: string
+): key is ModuleKey | AdvanceCashChildKey {
+  return (MODULE_OVERRIDE_FLAG_KEYS as readonly string[]).includes(key);
+}
+
+function diffModuleOverridesFromBaseline(
+  stored: Record<string, boolean> | null | undefined,
+  baseline: ModuleAccessFlags
+): Record<string, boolean> {
+  const extras: Record<string, boolean> = {};
+  if (!stored) return extras;
+  for (const [key, value] of Object.entries(stored)) {
+    if (typeof value !== "boolean") continue;
+    if (!isModuleOverrideFlagKey(key)) {
+      extras[key] = value;
+      continue;
+    }
+    if (value !== (baseline[key] === true)) {
+      extras[key] = value;
+    }
+  }
+  return extras;
+}
+
+/** Keep extras that still differ after a position default change. */
+export function rebaseModuleOverridesForBaselineChange(
+  stored: Record<string, boolean> | null | undefined,
+  oldBaseline: ModuleAccessFlags,
+  newBaseline: ModuleAccessFlags
+): Record<string, boolean> {
+  return diffModuleOverridesFromBaseline(
+    diffModuleOverridesFromBaseline(stored, oldBaseline),
+    newBaseline
+  );
+}
+
 function normalizeModuleAccessMap(
   raw: unknown
 ): ModuleAccessFlags | null {
@@ -744,7 +786,7 @@ export const activeFieldStaffWhere = {
 };
 
 /**
- * Module overrides applied when creating an employee login.
+ * Baseline module map for an employee (position default when set).
  * Field / site staff: Dashboard, Progress, CICO, Leave & Sick only.
  * HO / corporate: Dashboard, Projects, Progress Report, Leave & Sick.
  * Warehouse Supervisor: Transfer Orders + Inventory + CICO.
@@ -752,7 +794,6 @@ export const activeFieldStaffWhere = {
  * Technician: Dashboard, CICO, Leave & Sick only (no Progress Report).
  * Warehouse Staff: no portal by default; Head Office can generate a login in Users.
  * Operations Managers, Area Managers, and Directors also receive Approvals by default.
- * Existing users keep stored overrides until Permissions is re-saved.
  */
 export function getEmployeeModuleOverrides(
   options?: EmployeeModulePresetOptions
@@ -1123,7 +1164,6 @@ export function getAccountTypeBadgeStatus(
 /**
  * Baseline module map for Permissions UI defaults / reset.
  * Admin: all on. Employee: field/HO preset. Client/Vendor: portal presets.
- * Existing users keep stored overrides until Permissions is re-saved.
  */
 export function getAccountTypeBaselineModules(
   user: AccountTypeUser
@@ -1701,7 +1741,7 @@ export const menu: MenuSection[] = [
 
         icon: Coins,
 
-        label: "Advance Cash",
+        label: "Petty Cash",
 
         href: "/billing/petty-cash",
 

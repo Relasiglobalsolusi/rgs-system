@@ -1,5 +1,7 @@
 import type { Prisma } from "@prisma/client";
 
+import type { AppLocale } from "@/lib/i18n/locale";
+import { translate } from "@/lib/i18n/translate";
 import { jakartaTodayAsUtcDateOnly } from "@/lib/leave-employment-status";
 import { formatDateInput, parseDateInput, toUtcDateOnly } from "@/lib/invoice-period";
 import { formatEmployeeName } from "@/lib/employee-user-link";
@@ -21,35 +23,59 @@ export function pettyCashTopUpDescription(opts: {
   employeeName: string;
   invoiceRef: string;
   notes?: string | null;
+  locale?: AppLocale;
 }) {
+  const locale = opts.locale ?? "en";
   const note = opts.notes?.trim() ?? "";
-  const base = `Top Up Petty Cash · ${opts.employeeName}`;
-  if (note && note !== "Petty Cash top-up") {
+  const base = translate(locale, "pages.pettyCash.topUpHolderLabel", {
+    name: opts.employeeName,
+  });
+  const genericNote = translate(locale, "pages.pettyCash.topUpHolderNote");
+  if (note && note !== "Petty Cash top-up" && note !== genericNote) {
     return `${base} · ${note} · ${opts.invoiceRef}`;
   }
   return `${base} · ${opts.invoiceRef}`;
 }
 
-export function pettyCashTransferOutDescription(toName: string, note?: string | null) {
+export function pettyCashTransferOutDescription(
+  toName: string,
+  note?: string | null,
+  locale: AppLocale = "en"
+) {
   const trimmed = note?.trim() ?? "";
-  return trimmed
-    ? `Transfer Petty Cash to ${toName} · ${trimmed}`
-    : `Transfer Petty Cash to ${toName}`;
+  const base = translate(locale, "pages.pettyCash.transferOutLabel", {
+    name: toName,
+  });
+  return trimmed ? `${base} · ${trimmed}` : base;
 }
 
-export function pettyCashTransferInDescription(fromName: string, note?: string | null) {
+export function pettyCashTransferInDescription(
+  fromName: string,
+  note?: string | null,
+  locale: AppLocale = "en"
+) {
   const trimmed = note?.trim() ?? "";
-  return trimmed
-    ? `Transfer Petty Cash from ${fromName} · ${trimmed}`
-    : `Transfer Petty Cash from ${fromName}`;
+  const base = translate(locale, "pages.pettyCash.transferInLabel", {
+    name: fromName,
+  });
+  return trimmed ? `${base} · ${trimmed}` : base;
 }
 
 export function pettyCashPartTimePaidDescription(opts: {
   existingDescription: string;
   payerName: string;
+  locale?: AppLocale;
 }) {
-  const base = opts.existingDescription.replace(/\s·\sPaid from .+$/, "").trim();
-  return `${base} · Paid from ${opts.payerName}`;
+  const locale = opts.locale ?? "en";
+  const paidFromEn = /\s·\sPaid from .+$/;
+  const paidFromId = /\s·\sDibayar dari .+$/;
+  const base = opts.existingDescription
+    .replace(paidFromEn, "")
+    .replace(paidFromId, "")
+    .trim();
+  return `${base} · ${translate(locale, "pages.pettyCash.paidFromLabel", {
+    name: opts.payerName,
+  })}`;
 }
 
 export function holderBalanceFromEntries(
@@ -67,10 +93,10 @@ export function holderBalanceFromEntries(
   }, 0);
 }
 
-export function parsePettyCashAmount(raw: string): number {
+export function parsePettyCashAmount(raw: string, locale: AppLocale = "en"): number {
   const cleaned = raw.replace(/[^\d.,-]/g, "").trim();
   if (!cleaned) {
-    throw new Error("Enter a valid amount.");
+    throw new Error(translate(locale, "pages.pettyCash.amountInvalid"));
   }
   let normalized = cleaned;
   const lastComma = cleaned.lastIndexOf(",");
@@ -91,7 +117,7 @@ export function parsePettyCashAmount(raw: string): number {
   }
   const num = Number(normalized);
   if (!Number.isFinite(num) || num <= 0) {
-    throw new Error("Enter a valid amount.");
+    throw new Error(translate(locale, "pages.pettyCash.amountInvalid"));
   }
   return Math.round(num);
 }

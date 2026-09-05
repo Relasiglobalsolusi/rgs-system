@@ -1,10 +1,7 @@
 import type { EmployeeType, Placement, Prisma } from "@prisma/client";
 
 import { formatContactPersonName } from "@/lib/contact-person";
-import {
-  getEmployeeModuleOverrides,
-  resolveClientModuleOverrides,
-} from "@/lib/permissions";
+import { resolveClientModuleOverrides } from "@/lib/permissions";
 import { nextSortOrderFromMax } from "@/lib/reorder";
 import { resolveNewAccountPassword } from "@/lib/user-account";
 import { allocateClientLoginId } from "@/lib/client-login-id";
@@ -60,7 +57,6 @@ export async function provisionEmployeeUser(
       status: true,
       userId: true,
       user: { select: { id: true, active: true } },
-      jobPosition: { select: { slug: true, name: true, defaultModuleAccess: true } },
     },
   });
 
@@ -89,12 +85,6 @@ export async function provisionEmployeeUser(
   });
 
   const { passwordHash } = await resolveNewAccountPassword("");
-  const moduleOverrides = getEmployeeModuleOverrides({
-    placement: options.placement,
-    employeeType: options.employeeType,
-    jobPosition: existing.jobPosition,
-  });
-
   const sortOrder = await nextUserSortOrder(tx, options.companyId);
 
   const user = await tx.user.create({
@@ -105,7 +95,6 @@ export async function provisionEmployeeUser(
       passwordHash,
       mustSetPassword: true,
       role: "ADMIN",
-      moduleOverrides,
       companyId: options.companyId,
       active: true,
       sortOrder,

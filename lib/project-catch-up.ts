@@ -17,8 +17,10 @@ export {
 } from "@/lib/project-catch-up-periods";
 
 export function parseCatchUpKind(formData: FormData): ProjectCatchUpKind {
-  const ongoing = String(formData.get("projectOngoing") ?? "").trim();
-  return ongoing === "Yes" ? "ONGOING" : "NONE";
+  const raw = String(formData.get("projectOngoing") ?? "").trim();
+  if (raw === "Yes" || raw === "ONGOING") return "ONGOING";
+  if (raw === "Completed" || raw === "COMPLETED") return "COMPLETED";
+  return "NONE";
 }
 
 function parseYes(formData: FormData, name: string): boolean {
@@ -180,6 +182,7 @@ export async function prepareCompleteCatchUpPeriod(opts: {
   formData: FormData;
   target: CatchUpCompleteTarget;
   inventoryCatalog: Map<string, { name: string; unit: string }>;
+  requirePayment?: boolean;
 }): Promise<PreparedCatchUpComplete> {
   const clientAmount = parseContractPrice(
     String(opts.formData.get("clientAmount") ?? "")
@@ -193,6 +196,14 @@ export async function prepareCompleteCatchUpPeriod(opts: {
     "catchUpInvoice",
     "catchUpTaxInvoice"
   );
+  if (opts.requirePayment) {
+    const markedPaid = parseYes(opts.formData, "catchUpPaymentReceived");
+    if (!markedPaid) {
+      throw new Error(
+        "A completed job needs the amount received and payment proof."
+      );
+    }
+  }
   const payment = await optionalPayment(
     opts.formData,
     "catchUpPaymentReceived",

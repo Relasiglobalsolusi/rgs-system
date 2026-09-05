@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 
 import type { LocationValue } from "@/components/projects/LocationPicker";
@@ -118,6 +118,8 @@ export type ProjectFormClient = {
 
 export type ProjectFormInitialStatus = "PLANNED" | "IN_PROGRESS";
 
+export type ProjectCatchUpIntake = YesNoChoice | "Completed";
+
 export type ProjectFormFieldsState = {
   clientId: string;
   chargedTaxKind: CommercialTaxKind | "";
@@ -129,7 +131,7 @@ export type ProjectFormFieldsState = {
   isLandscaping: boolean;
   showPaymentPlan: boolean;
   initialStatus: ProjectFormInitialStatus;
-  projectOngoing: YesNoChoice;
+  projectOngoing: ProjectCatchUpIntake;
   isDemo: boolean;
   isComplimentary: boolean;
   isInternal: boolean;
@@ -214,7 +216,8 @@ export default function ProjectFormFields({
   );
   const [initialStatus, setInitialStatus] =
     useState<ProjectFormInitialStatus>("PLANNED");
-  const [projectOngoing, setProjectOngoing] = useState<YesNoChoice>("No");
+  const [projectOngoing, setProjectOngoing] =
+    useState<ProjectCatchUpIntake>("No");
   const selectedCatalogArea = useMemo(
     () =>
       catalog.find((area) => area.id === areaCatalogId) ??
@@ -290,7 +293,13 @@ export default function ProjectFormFields({
   const showBillingFields = !isComplimentary && !isInternal;
   const catchUpStarted =
     showCatchUpIntake && !isInternal && !isDemo && projectOngoing === "Yes";
-  const effectiveInitialStatus: ProjectFormInitialStatus = catchUpStarted
+  const catchUpCompleted =
+    showCatchUpIntake &&
+    !isInternal &&
+    !isDemo &&
+    projectOngoing === "Completed";
+  const catchUpHistorical = catchUpStarted || catchUpCompleted;
+  const effectiveInitialStatus: ProjectFormInitialStatus = catchUpHistorical
     ? "IN_PROGRESS"
     : initialStatus;
 
@@ -299,8 +308,15 @@ export default function ProjectFormFields({
   const isService = isServiceProjectSubCategory(subCategory);
   const isMonthTimeline = usesMonthDurationTimeline(subCategory);
   const isMilestoneEligible = isMilestoneSubCategory(subCategory);
-  const showPaymentPlan = isMilestoneEligible && billingMode === "MILESTONE";
-  const showVisitPlan = isMilestoneEligible && billingMode === "MULTI_VISIT";
+  useEffect(() => {
+    if (projectOngoing === "Completed" && !isMilestoneEligible) {
+      setProjectOngoing("No");
+    }
+  }, [isMilestoneEligible, projectOngoing]);
+  const showPaymentPlan =
+    isMilestoneEligible && billingMode === "MILESTONE" && !catchUpCompleted;
+  const showVisitPlan =
+    isMilestoneEligible && billingMode === "MULTI_VISIT" && !catchUpCompleted;
   const isMaintenanceArea = Boolean(
     maintenanceCatalog &&
       (areaCatalogId === maintenanceCatalog.id ||
@@ -711,8 +727,18 @@ export default function ProjectFormFields({
                 value: "Yes",
                 label: t("pages.projects.catchUp.ongoing"),
               },
+              ...(isMilestoneEligible
+                ? [
+                    {
+                      value: "Completed",
+                      label: t("pages.projects.catchUp.completed"),
+                    },
+                  ]
+                : []),
             ]}
-            onChange={setProjectOngoing}
+            onChange={(value) =>
+              setProjectOngoing(value as ProjectCatchUpIntake)
+            }
           />
           <input
             type="hidden"
@@ -727,7 +753,7 @@ export default function ProjectFormFields({
         <input type="hidden" name={nameOf("projectOngoing")} value="No" />
       )}
 
-      {!isInternal && !catchUpStarted ? (
+      {!isInternal && !catchUpHistorical ? (
         <ProjectOptionPills
           label={t("pages.projects.startingStage")}
           value={initialStatus}
@@ -1259,7 +1285,7 @@ export default function ProjectFormFields({
 
       {effectiveInitialStatus === "IN_PROGRESS" || isInternal ? (
         <>
-          {!isDemo && !isInternal ? (
+          {!isDemo && !isInternal && !catchUpCompleted ? (
           <div className={employeeDialogFieldClass}>
             <FileDropField
               id={idOf("contract-proof")}
@@ -1274,7 +1300,7 @@ export default function ProjectFormFields({
             </p>
           </div>
           ) : null}
-          {!isInternal && billingMode === "MULTI_VISIT" ? (
+          {catchUpCompleted ? null : !isInternal && billingMode === "MULTI_VISIT" ? (
             <p className="text-xs text-subtle">
               {t("pages.projects.moveDialogVisitCrewHelp")}
             </p>

@@ -883,6 +883,7 @@ export async function createPurchaseInvoice(formData: FormData) {
       employeeName: holderName,
       invoiceRef,
       notes: notesRaw,
+      locale,
     });
     await prisma.$transaction(async (tx) => {
       const invoice = await tx.purchaseInvoice.create({
@@ -1002,7 +1003,7 @@ export async function createPurchaseInvoice(formData: FormData) {
           invoiceDate,
           amount,
           filePath,
-          notes: notesRaw || prepaidTopUpLabel(selectedCard.kind, selectedCard.cardNumber),
+          notes: notesRaw || prepaidTopUpLabel(selectedCard.kind, selectedCard.cardNumber, locale),
           includesPpn: false,
           purchaseCategory: isOpen ? "SERVICE" : "VEHICLE",
           purpose: isOpen ? "INTERNAL" : "STOCK",
@@ -1023,6 +1024,7 @@ export async function createPurchaseInvoice(formData: FormData) {
         notes: notesRaw,
         filePath,
         purchaseInvoiceId: invoice.id,
+        locale,
       });
     });
 

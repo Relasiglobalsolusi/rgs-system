@@ -1153,8 +1153,10 @@ model Project {
   /// One-time demo / trial site. Always one-time; complimentary skips billing.
   isDemo Boolean @default(false)
   isComplimentary Boolean @default(false)
-  /// How this row was entered when the contract had already started.
+  /// Mirror of CatchUpIntake while backlog is open. Cleared to NONE when
+  /// intake finishes. Drop with CatchUpIntake — do not delete the project.
   catchUpKind ProjectCatchUpKind @default(NONE)
+  catchUpIntake CatchUpIntake?
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -1204,6 +1206,19 @@ model Project {
   @@index([areaCatalogId])
   @@index([subcategoryCatalogId])
   @@index([bankAccountId])
+}
+
+/// Temporary Add Project backlog (Ongoing / Completed). Exists only while
+/// historical jobs are being typed in. Delete this table and the Add Project
+/// pills when that work is done. Project, invoice, tax invoice, payment, and
+/// expense rows stay — they are the live records.
+model CatchUpIntake {
+  id        String             @id @default(cuid())
+  projectId String             @unique
+  project   Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind      ProjectCatchUpKind
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
 }
 
 /// Company-owned service areas for Add Project (system seed + user-created).
@@ -2198,7 +2213,7 @@ model ProjectInvoicePeriod {
   periodEnd   DateTime @db.Date
   label       String?
   status      InvoicePeriodStatus @default(ONGOING)
-  /// Booked from Add Project catch-up. No live CICO / recon / client portal.
+  /// Historical cash booked before books open. Stays after catch-up UI is removed.
   isCatchUp Boolean @default(false)
 
   /// Invoice amount for this period (IDR). Null for legacy monthly compiles without a price.
@@ -2869,7 +2884,7 @@ model ProjectExpense {
   amount   Decimal @db.Decimal(14, 2)
   reason   String
   incurredAt DateTime @default(now())
-  /// Typed cost on a catch-up project. Not live warehouse or CICO.
+  /// Historical cost booked before books open. Stays after catch-up UI is removed.
   isCatchUp Boolean @default(false)
   proofPath String?
 

@@ -14,6 +14,9 @@ import {
   pettyCashTransferOutDescription,
   processScheduledPettyCashPays,
 } from "@/lib/petty-cash";
+import type { AppLocale } from "@/lib/i18n/locale";
+import { getServerLocale } from "@/lib/i18n/locale";
+import { translate } from "@/lib/i18n/translate";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/project-billing";
 import { requireAdvanceCashPettyAccess } from "@/lib/session";
@@ -27,24 +30,28 @@ const UPLOAD_MIME = new Set([
   "application/pdf",
 ]);
 
-function requireProofFile(value: FormDataEntryValue | null): File {
+function pettyCashMessage(locale: AppLocale, key: string) {
+  return translate(locale, `pages.pettyCash.${key}`);
+}
+
+function requireProofFile(value: FormDataEntryValue | null, locale: AppLocale): File {
   if (!(value instanceof File) || value.size <= 0) {
-    throw new Error("Upload the bill or receipt photo.");
+    throw new Error(pettyCashMessage(locale, "proofRequired"));
   }
   if (value.size > UPLOAD_MAX_BYTES) {
-    throw new Error("File must be 10 MB or smaller.");
+    throw new Error(pettyCashMessage(locale, "fileTooLarge"));
   }
   const mime = value.type || "";
   if (mime && !UPLOAD_MIME.has(mime)) {
-    throw new Error("Upload an image or PDF.");
+    throw new Error(pettyCashMessage(locale, "fileTypeInvalid"));
   }
   return value;
 }
 
-function requireProofFiles(formData: FormData, name: string): File[] {
-  const files = formFiles(formData, name).map((file) => requireProofFile(file));
+function requireProofFiles(formData: FormData, name: string, locale: AppLocale): File[] {
+  const files = formFiles(formData, name).map((file) => requireProofFile(file, locale));
   if (files.length === 0) {
-    throw new Error("Upload the bill or receipt photo.");
+    throw new Error(pettyCashMessage(locale, "proofRequired"));
   }
   return files;
 }
@@ -56,7 +63,11 @@ function revalidatePettyCashPaths() {
   revalidatePath("/dashboard");
 }
 
-async function requireActiveEmployee(companyId: string, employeeId: string) {
+async function requireActiveEmployee(
+  companyId: string,
+  employeeId: string,
+  locale: AppLocale
+) {
   const employee = await prisma.employee.findFirst({
     where: {
       id: employeeId,
@@ -67,7 +78,7 @@ async function requireActiveEmployee(companyId: string, employeeId: string) {
     select: { id: true, firstName: true, lastName: true },
   });
   if (!employee) {
-    throw new Error("Select a valid employee.");
+    throw new Error(pettyCashMessage(locale, "employeeInvalid"));
   }
   return employee;
 }
@@ -106,23 +117,24 @@ export async function syncPettyCashOnPageLoad() {
 
 export async function recordPettyCashSpend(formData: FormData) {
   const session = await requireAdvanceCashPettyAccess();
-  const amount = parsePettyCashAmount(String(formData.get("amount") ?? ""));
+  const locale = await getServerLocale();
+  const amount = parsePettyCashAmount(String(formData.get("amount") ?? ""), locale);
   const dateRaw = String(formData.get("entryDate") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   const chargeType = String(formData.get("chargeType") ?? "").trim();
   const projectIdRaw = String(formData.get("projectId") ?? "").trim();
   const clientIdRaw = String(formData.get("clientId") ?? "").trim();
   const holderRaw = String(formData.get("holderEmployeeId") ?? "").trim();
-  const files = requireProofFiles(formData, "document");
+  const files = requireProofFiles(formData, "document", locale);
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateRaw)) {
-    throw new Error("Date is required.");
+    throw new Error(pettyCashMessage(locale, "dateRequired"));
   }
   if (!description) {
-    throw new Error("Describe what this Petty Cash was spent on.");
+    throw new Error(pettyCashMessage(locale, "spendDescribeRequired"));
   }
   if (!holderRaw) {
-    throw new Error("Select whose Petty Cash this spend comes from.");
+    throw new Error(pettyCashMessage(locale, "spendHolderRequired"));
   }
 
   const holderEmployeeId = holderRaw;
@@ -132,19 +144,19 @@ export async function recordPettyCashSpend(formData: FormData) {
     select: { id: true },
   });
   if (!ownEmployee || ownEmployee.id !== holderEmployeeId) {
-    throw new Error("You can only record spends against your own Petty Cash.");
+    throw new Error(pettyCashMessage(locale, "spendOwnOnly"));
   }
-  await requireActiveEmployee(session.user.companyId, holderEmployeeId);
+  await requireActiveEmployee(session.user.companyId, holderEmployeeId, locale);
 
   if (chargeType !== "client" && chargeType !== "project") {
-    throw new Error("Choose Client or Project.");
+    throw new Error(pettyCashMessage(locale, "chargeTypeRequired"));
   }
 
   let projectId: string | null = null;
   let clientId: string | null = null;
   if (chargeType === "project") {
     if (!projectIdRaw) {
-      throw new Error("Select a project.");
+      throw new Error(pettyCashMessage(locale, "projectRequired"));
     }
     const project = await prisma.project.findFirst({
       where: {
@@ -155,12 +167,12 @@ export async function recordPettyCashSpend(formData: FormData) {
       select: { id: true },
     });
     if (!project) {
-      throw new Error("Select a valid project.");
+      throw new Error(pettyCashMessage(locale, "projectInvalid"));
     }
     projectId = project.id;
   } else {
     if (!clientIdRaw) {
-      throw new Error("Select a client.");
+      throw new Error(pettyCashMessage(locale, "clientRequired"));
     }
     const client = await prisma.client.findFirst({
       where: {
@@ -171,7 +183,7 @@ export async function recordPettyCashSpend(formData: FormData) {
       select: { id: true },
     });
     if (!client) {
-      throw new Error("Select a valid client.");
+      throw new Error(pettyCashMessage(locale, "clientInvalid"));
     }
     clientId = client.id;
   }
@@ -203,30 +215,31 @@ export async function recordPettyCashSpend(formData: FormData) {
 
 export async function transferPettyCash(formData: FormData) {
   const session = await requireAdvanceCashPettyAccess();
+  const locale = await getServerLocale();
   const fromRaw = String(formData.get("fromEmployeeId") ?? "").trim();
   const toRaw = String(formData.get("toEmployeeId") ?? "").trim();
-  const amount = parsePettyCashAmount(String(formData.get("amount") ?? ""));
+  const amount = parsePettyCashAmount(String(formData.get("amount") ?? ""), locale);
   const dateRaw = String(formData.get("entryDate") ?? "").trim();
   const note = String(formData.get("description") ?? "").trim();
 
   if (!fromRaw) {
-    throw new Error("Choose whose Petty Cash to transfer from.");
+    throw new Error(pettyCashMessage(locale, "transferFromRequired"));
   }
   if (!toRaw) {
-    throw new Error("Choose who receives this Petty Cash.");
+    throw new Error(pettyCashMessage(locale, "transferToRequired"));
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateRaw)) {
-    throw new Error("Date is required.");
+    throw new Error(pettyCashMessage(locale, "dateRequired"));
   }
 
   const fromEmployeeId = fromRaw;
   if (fromEmployeeId === toRaw) {
-    throw new Error("Choose a different employee to receive this Petty Cash.");
+    throw new Error(pettyCashMessage(locale, "transferSameEmployee"));
   }
 
   const [fromEmployee, toEmployee] = await Promise.all([
-    requireActiveEmployee(session.user.companyId, fromEmployeeId),
-    requireActiveEmployee(session.user.companyId, toRaw),
+    requireActiveEmployee(session.user.companyId, fromEmployeeId, locale),
+    requireActiveEmployee(session.user.companyId, toRaw, locale),
   ]);
 
   const fromName = formatEmployeeName(fromEmployee);
@@ -236,7 +249,7 @@ export async function transferPettyCash(formData: FormData) {
     fromEmployeeId
   );
   if (amount > balance) {
-    throw new Error("There is not enough Petty Cash to transfer that amount.");
+    throw new Error(pettyCashMessage(locale, "transferInsufficient"));
   }
 
   const entryDate = parseDateInput(dateRaw);
@@ -249,7 +262,7 @@ export async function transferPettyCash(formData: FormData) {
         status: "POSTED",
         amount: new Prisma.Decimal(amount),
         entryDate,
-        description: pettyCashTransferOutDescription(toName, note),
+        description: pettyCashTransferOutDescription(toName, note, locale),
         employeeId: fromEmployeeId,
         holderEmployeeId: fromEmployeeId,
         relatedEmployeeId: toEmployee.id,
@@ -264,7 +277,7 @@ export async function transferPettyCash(formData: FormData) {
         status: "POSTED",
         amount: new Prisma.Decimal(amount),
         entryDate,
-        description: pettyCashTransferInDescription(fromName, note),
+        description: pettyCashTransferInDescription(fromName, note, locale),
         employeeId: toEmployee.id,
         holderEmployeeId: toEmployee.id,
         relatedEmployeeId: fromEmployeeId,
@@ -280,10 +293,11 @@ export async function transferPettyCash(formData: FormData) {
 async function resolveWagePayer(
   companyId: string,
   userId: string,
-  holderRaw: string
+  holderRaw: string,
+  locale: AppLocale
 ) {
   if (holderRaw) {
-    return requireActiveEmployee(companyId, holderRaw);
+    return requireActiveEmployee(companyId, holderRaw, locale);
   }
   const user = await prisma.user.findFirst({
     where: { id: userId, companyId },
@@ -305,18 +319,19 @@ async function resolveWagePayer(
     employee.archivedFromDirectory ||
     (employee.status !== "ACTIVE" && employee.status !== "ON_LEAVE")
   ) {
-    throw new Error("Select whose Petty Cash paid this wage.");
+    throw new Error(pettyCashMessage(locale, "unpaidWagePayerRequired"));
   }
   return employee;
 }
 
 export async function payPartTimeWage(formData: FormData) {
   const session = await requireAdvanceCashPettyAccess();
+  const locale = await getServerLocale();
   const entryId = String(formData.get("entryId") ?? "").trim();
   const holderRaw = String(formData.get("holderEmployeeId") ?? "").trim();
 
   if (!entryId) {
-    throw new Error("Select the part-time wage to pay.");
+    throw new Error(pettyCashMessage(locale, "wageSelectRequired"));
   }
 
   const [entry, payer] = await Promise.all([
@@ -329,14 +344,14 @@ export async function payPartTimeWage(formData: FormData) {
       },
       select: { id: true, employeeId: true, description: true },
     }),
-    resolveWagePayer(session.user.companyId, session.user.id, holderRaw),
+    resolveWagePayer(session.user.companyId, session.user.id, holderRaw, locale),
   ]);
 
   if (!entry) {
-    throw new Error("This wage is already paid or is not waiting for payment.");
+    throw new Error(pettyCashMessage(locale, "wageAlreadyPaid"));
   }
   if (entry.employeeId && entry.employeeId === payer.id) {
-    throw new Error("Choose the employee whose Petty Cash paid this wage.");
+    throw new Error(pettyCashMessage(locale, "wagePayerSelf"));
   }
 
   const updated = await prisma.pettyCashEntry.updateMany({
@@ -355,11 +370,12 @@ export async function payPartTimeWage(formData: FormData) {
       description: pettyCashPartTimePaidDescription({
         existingDescription: entry.description,
         payerName: formatEmployeeName(payer),
+        locale,
       }),
     },
   });
   if (updated.count !== 1) {
-    throw new Error("This wage is already paid or is not waiting for payment.");
+    throw new Error(pettyCashMessage(locale, "wageAlreadyPaid"));
   }
 
   revalidatePettyCashPaths();

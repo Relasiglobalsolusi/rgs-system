@@ -166,7 +166,8 @@ export default function ProjectDialog({
       !isInternal &&
       (initialStatus === "IN_PROGRESS" ||
         projectOngoing === "Yes" ||
-        isDemo)
+        isDemo) &&
+      projectOngoing !== "Completed"
     ) {
       const proofs = formData
         .getAll("contractProof")

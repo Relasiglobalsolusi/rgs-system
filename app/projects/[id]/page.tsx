@@ -26,6 +26,7 @@ import {
   processScheduledPettyCashPays,
 } from "@/lib/petty-cash";
 import { jakartaTodayAsUtcDateOnly } from "@/lib/leave-employment-status";
+import { intakeKindOf } from "@/lib/catch-up-intake";
 import { resolveGeofenceRadiusMeters } from "@/lib/geo";
 
 import {
@@ -274,6 +275,7 @@ export default async function ProjectDetailPage({
           },
         },
       },
+      catchUpIntake: { select: { kind: true } },
       invoicePeriods: {
         orderBy: { periodStart: "desc" },
       },
@@ -412,10 +414,11 @@ export default async function ProjectDetailPage({
       : [];
   const staffEmployees = annotateStaffPickerConflicts(employees, staffConflicts);
 
+  const catchUpKind = intakeKindOf(project);
   const catchUpTarget =
-    canManage && project.catchUpKind === "ONGOING"
+    canManage && catchUpKind
       ? resolveCatchUpCompleteTarget({
-          catchUpKind: project.catchUpKind,
+          catchUpKind,
           status: project.status,
           isComplimentary: project.isComplimentary,
           isDemo: project.isDemo,
@@ -905,6 +908,7 @@ export default async function ProjectDetailPage({
             ? {
                 projectId: project.id,
                 target: catchUpTarget,
+                requirePayment: catchUpKind === "COMPLETED",
                 inventoryItems: catchUpInventory
                   .filter((item) => !isVehicleItemType(item.itemType))
                   .map((item) => ({

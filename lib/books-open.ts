@@ -2,7 +2,7 @@ import { addUtcDays, toUtcDateOnly } from "@/lib/invoice-period";
 import { jakartaTodayAsUtcDateOnly } from "@/lib/leave-employment-status";
 import { prisma } from "@/lib/prisma";
 
-/** Show the Add Project ongoing question until this many days after go-live. */
+/** Show the Add Project ongoing/completed pills until this many days after go-live. */
 export const CATCH_UP_INTAKE_DAYS = 31;
 
 export const LIVE_PROJECT_EXPENSE_WHERE = { isCatchUp: false } as const;
@@ -18,6 +18,7 @@ export async function loadBooksOpenDate(
   return company?.booksOpenDate ?? null;
 }
 
+/** Add Project pills only. Closing this does not delete typed-in projects. */
 export function isCatchUpIntakeOpen(
   booksOpenDate: Date | null | undefined,
   today: Date = jakartaTodayAsUtcDateOnly()

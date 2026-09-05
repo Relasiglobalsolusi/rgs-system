@@ -194,13 +194,25 @@ export function resolveCatchUpCompleteTarget(opts: {
   asOf: Date;
   existingPeriods: ExistingCatchUpPeriod[];
 }): CatchUpCompleteTarget | null {
-  if (opts.catchUpKind !== "ONGOING") return null;
+  if (opts.catchUpKind !== "ONGOING" && opts.catchUpKind !== "COMPLETED") {
+    return null;
+  }
   if (opts.status !== "IN_PROGRESS") return null;
   if (opts.isComplimentary || opts.isDemo) return null;
   if (!usesInvoicePeriods(opts.subCategory)) return null;
   if (!opts.startDate) return null;
 
-  if (usesMonthlyCatchUpPeriods(opts.subCategory, opts.billingMode)) {
+  if (
+    opts.catchUpKind === "COMPLETED" &&
+    usesMonthlyCatchUpPeriods(opts.subCategory, opts.billingMode)
+  ) {
+    return null;
+  }
+
+  if (
+    opts.catchUpKind === "ONGOING" &&
+    usesMonthlyCatchUpPeriods(opts.subCategory, opts.billingMode)
+  ) {
     const historical = listHistoricalCatchUpPeriods({
       startDate: opts.startDate,
       endDate: opts.endDate,

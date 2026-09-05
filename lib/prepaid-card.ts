@@ -5,6 +5,9 @@ import type {
   PrepaidCardStatus,
 } from "@prisma/client";
 
+import type { AppLocale } from "@/lib/i18n/locale";
+import { translate } from "@/lib/i18n/translate";
+
 export const PREPAID_CARD_LIVE_STATUSES: PrepaidCardStatus[] = [
   "ACTIVE",
   "DAMAGED",
@@ -101,20 +104,35 @@ export function splitPrepaidLossIntoTen(leftover: number): number[] {
 
 export function prepaidTopUpLabel(
   kind: PrepaidCardKind,
-  cardNumber: string
+  cardNumber: string,
+  locale: AppLocale = "en"
 ) {
   const number = formatPrepaidCardNumber(cardNumber);
-  return kind === "OPEN"
-    ? `Top up Open Card ${number}`
-    : `Top up Vehicle Card ${number}`;
+  return translate(
+    locale,
+    kind === "OPEN"
+      ? "pages.pettyCash.topUpOpenLabel"
+      : "pages.pettyCash.topUpVehicleLabel",
+    { number }
+  );
 }
 
-export function prepaidReplacementFeeLabel(cardNumber: string) {
-  return `Card replacement fee ${formatPrepaidCardNumber(cardNumber)}`;
+export function prepaidReplacementFeeLabel(
+  cardNumber: string,
+  locale: AppLocale = "en"
+) {
+  return translate(locale, "pages.pettyCash.replacementFeeLabel", {
+    number: formatPrepaidCardNumber(cardNumber),
+  });
 }
 
-export function prepaidLostReturnLabel(cardNumber: string) {
-  return `Return lost Card ${formatPrepaidCardNumber(cardNumber)}`;
+export function prepaidLostReturnLabel(
+  cardNumber: string,
+  locale: AppLocale = "en"
+) {
+  return translate(locale, "pages.pettyCash.lostReturnLabel", {
+    number: formatPrepaidCardNumber(cardNumber),
+  });
 }
 
 export type PrepaidLossTotals = {

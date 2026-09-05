@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 
+import type { AppLocale } from "@/lib/i18n/locale";
 import {
   canTopUpPrepaidCard,
   prepaidTopUpLabel,
@@ -65,6 +66,7 @@ export async function creditPrepaidCardFromExpense(
     notes?: string | null;
     filePath?: string | null;
     purchaseInvoiceId?: string | null;
+    locale?: AppLocale;
   }
 ) {
   const card = await tx.prepaidCard.findFirst({
@@ -77,7 +79,7 @@ export async function creditPrepaidCardFromExpense(
   const amount = decimalToNumber(options.amount) ?? 0;
   if (amount <= 0) throw new Error("Enter a valid amount.");
   const assignment = await currentPrepaidAssignment(tx, card.id);
-  const label = prepaidTopUpLabel(card.kind, card.cardNumber);
+  const label = prepaidTopUpLabel(card.kind, card.cardNumber, options.locale);
   const note = options.notes?.trim();
   await writePrepaidCardEntry(tx, {
     cardId: card.id,
@@ -197,6 +199,7 @@ export async function applyMissingExpenseTopUps(
       const cardNumber =
         invoice.notes?.match(/Prepaid card top-up\s+(.+)$/i)?.[1]?.trim() ??
         invoice.notes?.match(/Top up (?:Vehicle|Open) Card\s+(.+)$/i)?.[1]?.replace(/\s+/g, "") ??
+        invoice.notes?.match(/Isi Ulang Kartu (?:Kendaraan|Terbuka)\s+(.+)$/i)?.[1]?.replace(/\s+/g, "") ??
         "";
       const byNumber =
         card ??

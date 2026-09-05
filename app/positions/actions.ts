@@ -4,12 +4,24 @@ import { revalidatePath } from "next/cache";
 
 import { Prisma } from "@prisma/client";
 
+import { parseModuleOverrides } from "@/lib/module-overrides";
 import { prisma } from "@/lib/prisma";
-import { parsePositionDefaultModuleAccess } from "@/lib/permissions";
+import {
+  getEmployeeModuleOverrides,
+  isOwnerAccount,
+  parsePositionDefaultModuleAccess,
+  rebaseModuleOverridesForBaselineChange,
+} from "@/lib/permissions";
 import { canManageEmployees } from "@/lib/project-access";
 import { positionSlugFromName } from "@/lib/positions";
 import { requireSession, toPermissionUser } from "@/lib/session";
 import { titleCaseWords } from "@/lib/text-case";
+
+type PositionJobRef = {
+  slug: string;
+  name: string;
+  defaultModuleAccess?: unknown;
+};
 
 function readDefaultModuleAccess(
   formData: FormData
@@ -37,7 +49,67 @@ async function assertCanManage() {
   if (!canManageEmployees(user)) {
     throw new Error("You do not have permission to manage positions.");
   }
-  return session;
+}
+
+function sameOverrideMap(
+  left: Record<string, boolean> | null,
+  right: Record<string, boolean>
+) {
+  const source = left ?? {};
+  const keys = Object.keys(right);
+  if (Object.keys(source).length !== keys.length) return false;
+  return keys.every((key) => source[key] === right[key]);
+}
+
+async function rebaseLinkedUserOverrides(
+  tx: Prisma.TransactionClient,
+  positionId: string,
+  oldJob: PositionJobRef,
+  newJob: PositionJobRef
+) {
+  const users = await tx.user.findMany({
+    where: {
+      clientId: null,
+      vendorId: null,
+      employee: { positionId },
+    },
+    select: {
+      id: true,
+      username: true,
+      moduleOverrides: true,
+      employee: {
+        select: { employeeType: true, placement: true },
+      },
+    },
+  });
+
+  for (const user of users) {
+    if (isOwnerAccount(user) || !user.employee) continue;
+
+    const stored = parseModuleOverrides(user.moduleOverrides);
+    const next = rebaseModuleOverridesForBaselineChange(
+      stored,
+      getEmployeeModuleOverrides({
+        employeeType: user.employee.employeeType,
+        placement: user.employee.placement,
+        jobPosition: oldJob,
+      }),
+      getEmployeeModuleOverrides({
+        employeeType: user.employee.employeeType,
+        placement: user.employee.placement,
+        jobPosition: newJob,
+      })
+    );
+    if (sameOverrideMap(stored, next)) continue;
+
+    await tx.user.update({
+      where: { id: user.id },
+      data: {
+        moduleOverrides:
+          Object.keys(next).length > 0 ? next : Prisma.DbNull,
+      },
+    });
+  }
 }
 
 export async function createPosition(formData: FormData) {
@@ -109,23 +181,42 @@ export async function updatePosition(id: string, formData: FormData) {
   });
   if (!existing) throw new Error("Position not found.");
 
-  await prisma.position.update({
-    where: { id },
-    data: {
-      name,
-      description,
-      active,
-      defaultModuleAccess: readDefaultModuleAccess(formData),
-    },
-  });
+  const defaultModuleAccess = readDefaultModuleAccess(formData);
 
-  // Keep denormalized employee.position in sync
-  await prisma.employee.updateMany({
-    where: { positionId: id },
-    data: { position: name },
+  await prisma.$transaction(async (tx) => {
+    await tx.position.update({
+      where: { id },
+      data: {
+        name,
+        description,
+        active,
+        defaultModuleAccess,
+      },
+    });
+
+    await tx.employee.updateMany({
+      where: { positionId: id },
+      data: { position: name },
+    });
+
+    await rebaseLinkedUserOverrides(
+      tx,
+      id,
+      {
+        slug: existing.slug,
+        name: existing.name,
+        defaultModuleAccess: existing.defaultModuleAccess,
+      },
+      {
+        slug: existing.slug,
+        name,
+        defaultModuleAccess,
+      }
+    );
   });
 
   revalidatePath("/employees");
+  revalidatePath("/users");
 }
 
 export async function deletePosition(id: string, reassignToId?: string) {
@@ -157,13 +248,32 @@ export async function deletePosition(id: string, reassignToId?: string) {
     if (!target) {
       throw new Error("Reassignment position not found in the same department.");
     }
-    await prisma.employee.updateMany({
-      where: { positionId: id },
-      data: { positionId: target.id, position: target.name },
+    await prisma.$transaction(async (tx) => {
+      await rebaseLinkedUserOverrides(
+        tx,
+        id,
+        {
+          slug: position.slug,
+          name: position.name,
+          defaultModuleAccess: position.defaultModuleAccess,
+        },
+        {
+          slug: target.slug,
+          name: target.name,
+          defaultModuleAccess: target.defaultModuleAccess,
+        }
+      );
+      await tx.employee.updateMany({
+        where: { positionId: id },
+        data: { positionId: target.id, position: target.name },
+      });
+      await tx.position.delete({ where: { id } });
     });
+    revalidatePath("/users");
+  } else {
+    await prisma.position.delete({ where: { id } });
   }
 
-  await prisma.position.delete({ where: { id } });
   revalidatePath("/employees");
 }
 

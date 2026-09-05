@@ -138,6 +138,7 @@ type Props = {
   catchUpComplete?: {
     projectId: string;
     target: CatchUpCompleteTarget;
+    requirePayment?: boolean;
     inventoryItems: { id: string; name: string; unit: string | null }[];
     employees: { id: string; firstName: string; lastName: string }[];
   } | null;
@@ -306,6 +307,7 @@ export default function ProjectDetailActionBar({
                 <ProjectCatchUpCompleteButton
                   projectId={catchUpComplete.projectId}
                   target={catchUpComplete.target}
+                  requirePayment={catchUpComplete.requirePayment === true}
                   inventoryItems={catchUpComplete.inventoryItems}
                   employees={catchUpComplete.employees}
                 />

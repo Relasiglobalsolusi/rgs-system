@@ -27,7 +27,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { showRejectionFromError } from "@/components/ui/rejection-notice";
+import {
+  showRejection,
+  showRejectionFromError,
+} from "@/components/ui/rejection-notice";
 import { StackedChipLabel } from "@/components/ui/StatusBadge";
 import { detailActionBarButtonClassName } from "@/components/projects/detail-action-bar";
 import type { CatchUpCompleteTarget } from "@/lib/project-catch-up-periods";
@@ -92,11 +95,13 @@ export default function ProjectCatchUpCompleteButton({
   target,
   inventoryItems,
   employees,
+  requirePayment = false,
 }: {
   projectId: string;
   target: CatchUpCompleteTarget;
   inventoryItems: InventoryOption[];
   employees: StaffOption[];
+  requirePayment?: boolean;
 }) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
@@ -127,6 +132,12 @@ export default function ProjectCatchUpCompleteButton({
   }
 
   function submit(formData: FormData) {
+    if (requirePayment && !paid) {
+      showRejection({
+        reasons: t("pages.projects.catchUp.paymentRequiredHint"),
+      });
+      return;
+    }
     formData.set("projectId", projectId);
     formData.set("periodStart", target.periodStart);
     formData.set("periodEnd", target.periodEnd);
@@ -525,7 +536,11 @@ export default function ProjectCatchUpCompleteButton({
                   value={paid ? "Yes" : "No"}
                 />
                 <p className={employeeDialogHintClass}>
-                  {t("pages.projects.catchUp.paymentHint")}
+                  {t(
+                    requirePayment
+                      ? "pages.projects.catchUp.paymentRequiredHint"
+                      : "pages.projects.catchUp.paymentHint"
+                  )}
                 </p>
                 {paid ? (
                   <div className="grid gap-4 sm:grid-cols-2">

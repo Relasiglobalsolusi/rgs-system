@@ -1,5 +1,7 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 
+import type { AppLocale } from "@/lib/i18n/locale";
+import { translate } from "@/lib/i18n/translate";
 import { isVehicleItemType } from "@/lib/inventory-sku";
 import {
   formatPrepaidCardNumber,
@@ -271,6 +273,7 @@ export async function transferPrepaidCardLeftover(
     createdById?: string | null;
     fromNumber: string;
     toNumber: string;
+    locale?: AppLocale;
   }
 ) {
   if (options.amount <= 0) return;
@@ -280,7 +283,11 @@ export async function transferPrepaidCardLeftover(
     amount: options.amount,
     balanceDelta: -options.amount,
     entryDate: options.entryDate,
-    description: `Transfer to Card ${formatPrepaidCardNumber(options.toNumber)}`,
+    description: translate(
+      options.locale ?? "en",
+      "pages.pettyCash.transferToCardLabel",
+      { number: formatPrepaidCardNumber(options.toNumber) }
+    ),
     createdById: options.createdById,
     relatedCardId: options.toCardId,
   });
@@ -291,7 +298,11 @@ export async function transferPrepaidCardLeftover(
     amount: options.amount,
     balanceDelta: options.amount,
     entryDate: options.entryDate,
-    description: `Transfer from Card ${formatPrepaidCardNumber(options.fromNumber)}`,
+    description: translate(
+      options.locale ?? "en",
+      "pages.pettyCash.transferFromCardLabel",
+      { number: formatPrepaidCardNumber(options.fromNumber) }
+    ),
     createdById: options.createdById,
     relatedCardId: options.fromCardId,
     assignmentId: toAssignment?.id ?? null,
@@ -309,6 +320,7 @@ export async function recordReplacementFeeOnCard(
     createdById?: string | null;
     bankAccountId?: string | null;
     purchaseInvoiceId?: string | null;
+    locale?: AppLocale;
   }
 ) {
   const assignment = await currentPrepaidAssignment(db, options.cardId);
@@ -318,7 +330,7 @@ export async function recordReplacementFeeOnCard(
     amount: options.fee,
     balanceDelta: options.fromLeftover ? -options.fee : 0,
     entryDate: options.entryDate,
-    description: prepaidReplacementFeeLabel(options.cardNumber),
+    description: prepaidReplacementFeeLabel(options.cardNumber, options.locale),
     createdById: options.createdById,
     assignmentId: assignment?.id ?? null,
     bankAccountId: options.bankAccountId ?? null,
