@@ -70,6 +70,12 @@ async function resolveLostStockProjectId(
   return project?.id ?? null;
 }
 
+function revalidateInternalPayroll() {
+  revalidatePath("/billing/payroll");
+  revalidatePath("/billing/financial-report");
+  revalidatePath("/employees");
+}
+
 export async function addPayrollDeduction(formData: FormData) {
   const locale = await getServerLocale();
   try {
@@ -81,7 +87,7 @@ export async function addPayrollDeduction(formData: FormData) {
       formData.get("month")
     );
     const typeRaw = String(formData.get("type") ?? "").trim();
-    if (!isManualDeductionType(typeRaw)) {
+    if (typeRaw !== "OVERTIME" && !isManualDeductionType(typeRaw)) {
       throw new Error(translate(locale, "pages.payroll.errors.typeRequired"));
     }
     const amount = parseRupiahAmount(formData.get("amount"), locale);
@@ -97,10 +103,16 @@ export async function addPayrollDeduction(formData: FormData) {
         depositHeldAmount: true,
         depositStatus: true,
         securityDepositRequired: true,
+        overtimeEnabled: true,
       },
     });
     if (!employee) {
       throw new Error(translate(locale, "pages.payroll.errors.employeeNotFound"));
+    }
+    if (typeRaw === "OVERTIME" && !employee.overtimeEnabled) {
+      throw new Error(
+        translate(locale, "pages.payroll.errors.overtimeNotEnabled")
+      );
     }
 
     await assertInternalPayrollPeriodUnlocked(
@@ -319,9 +331,7 @@ export async function addPayrollDeduction(formData: FormData) {
       }
     });
 
-    revalidatePath("/billing/payroll");
-    revalidatePath("/billing/financial-report");
-    revalidatePath("/employees");
+    revalidateInternalPayroll();
   } catch (error) {
     throw toActionError(
       error,
@@ -432,9 +442,7 @@ export async function deletePayrollDeduction(formData: FormData) {
       }
     });
 
-    revalidatePath("/billing/payroll");
-    revalidatePath("/billing/financial-report");
-    revalidatePath("/employees");
+    revalidateInternalPayroll();
   } catch (error) {
     throw toActionError(
       error,

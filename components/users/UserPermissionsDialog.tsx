@@ -190,10 +190,30 @@ export default function UserPermissionsDialog({
   const permissionUser: PermissionUser = useMemo(
     () => ({
       role: user.role,
+      username: user.username,
       employeeType: user.employee?.employeeType ?? null,
       moduleOverrides: overrides,
+      clientId: user.clientId,
+      client: user.client,
+      vendorId: user.vendorId,
+      vendor: user.vendor,
+      employee: user.employee
+        ? {
+            employeeNo: user.employee.employeeNo,
+            employeeType: user.employee.employeeType,
+            placement: user.employee.placement,
+            jobPosition: user.employee.jobPosition
+              ? {
+                  slug: user.employee.jobPosition.slug,
+                  name: user.employee.jobPosition.name,
+                  defaultModuleAccess:
+                    user.employee.jobPosition.defaultModuleAccess,
+                }
+              : null,
+          }
+        : null,
     }),
-    [user.role, user.employee?.employeeType, overrides]
+    [user, overrides]
   );
 
   const accessStates = useMemo(

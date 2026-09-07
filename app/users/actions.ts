@@ -8,7 +8,10 @@ import { persistCompanyScopedReorder } from "@/lib/persist-reorder";
 import { requireModule } from "@/lib/session";
 import {
   ADVANCE_CASH_CHILD_KEYS,
+  diffModuleOverridesFromBaseline,
   expandLegacyFinanceOverrides,
+  getAccountTypeBaselineModules,
+  getEmployeeModuleOverrides,
   isHoAdminAccount,
   MODULES,
   PORTAL_BLOCKED_MODULES,
@@ -141,6 +144,8 @@ export async function resetUserAccount(
         passwordDisplay: credentials.passwordDisplay,
         mustSetPassword: credentials.mustSetPassword,
         passwordSetupCompletedAt: credentials.passwordSetupCompletedAt,
+        sessionToken: null,
+        sessionIssuedAt: null,
       },
     });
   });
@@ -961,7 +966,18 @@ export async function updateUserModuleOverrides(
       clientId: true,
       vendorId: true,
       employee: {
-        select: { employeeNo: true, employeeType: true },
+        select: {
+          employeeNo: true,
+          employeeType: true,
+          placement: true,
+          jobPosition: {
+            select: {
+              slug: true,
+              name: true,
+              defaultModuleAccess: true,
+            },
+          },
+        },
       },
     },
   });
@@ -1009,11 +1025,26 @@ export async function updateUserModuleOverrides(
     }
   }
 
+  const baseline = user.employee
+    ? getEmployeeModuleOverrides({
+        employeeType: user.employee.employeeType,
+        placement: user.employee.placement,
+        jobPosition: user.employee.jobPosition,
+      })
+    : getAccountTypeBaselineModules({
+        role: user.role,
+        username: user.username,
+        clientId: user.clientId,
+        vendorId: user.vendorId,
+        employee: user.employee,
+      });
+  const extras = diffModuleOverridesFromBaseline(sanitized, baseline);
+
   await prisma.user.update({
     where: { id: userId },
     data: {
       moduleOverrides:
-        Object.keys(sanitized).length > 0 ? sanitized : Prisma.DbNull,
+        Object.keys(extras).length > 0 ? extras : Prisma.DbNull,
     },
   });
 

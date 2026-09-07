@@ -963,6 +963,8 @@ export const id = {
         confirm: "Ajukan",
         regularNotAllowed:
           "Pembersihan Rutin dan Lanskap Rutin memakai rekonsiliasi. Rekonsiliasi periode penagihan jatuh tempo untuk memulai persetujuan.",
+        catchUpCompleted:
+          "Pekerjaan catch-up selesai ditutup lewat Selesaikan Pekerjaan, bukan Ajukan Persetujuan.",
         internalNotAllowed:
           "Proyek Internal tidak memakai Ajukan untuk Persetujuan.",
         notAllowed:
@@ -2259,6 +2261,9 @@ export const id = {
         progressExempt: "Bebas Laporan Progress",
         progressExemptHint:
           "Jika aktif, orang ini tetap check-in dan check-out, tetapi tidak mengirim Laporan Progress. Check-out tidak ditahan menunggu laporan.",
+        overtimeEnabled: "Aktifkan Lembur",
+        overtimeEnabledHint:
+          "Jika aktif, Penggajian Internal menampilkan Tambah Lembur untuk orang ini. Jumlah yang ditambah meningkatkan gaji bersih bulan itu.",
         bankName: "Nama Bank",
         bankSwift: "SWIFT",
         bankAccountNumber: "Nomor Rekening",
@@ -2294,6 +2299,7 @@ export const id = {
         totalEmployerCost: "Total Biaya Perusahaan",
         onLeaveNotAssignable:
           "Karyawan Sedang Cuti tidak dapat ditugaskan. Ubah status ke Aktif terlebih dahulu.",
+        idDocument: "Dokumen Identitas",
         idDocumentCurrent: "Dokumen identitas saat ini:",
         idDocumentView: "Lihat berkas",
         idDocumentUpload: "Unggah dokumen identitas (foto atau pindaian)",
@@ -4886,6 +4892,13 @@ export const id = {
         "Tambah potongan manual untuk {name}. Ketik sendiri jumlah Rupiah.",
       saveDeduction: "Simpan Potongan",
       deductionSaved: "Potongan disimpan untuk bulan ini.",
+      addOvertime: "Tambah Lembur",
+      addOvertimeDesc:
+        "Tambah upah lembur untuk {name}. Ketik sendiri jumlah Rupiah.",
+      saveOvertime: "Simpan Lembur",
+      overtimeSaved: "Lembur disimpan untuk bulan ini.",
+      overtimeAmountHint:
+        "Masukkan jumlah lembur yang ditambahkan ke gaji bersih bulan ini.",
       deductionType: "Jenis Potongan",
       deductionAmount: "Jumlah (Rupiah)",
       deductionAmountHint:
@@ -4909,7 +4922,8 @@ export const id = {
         forfeitedWages: "Sisa Upah Tidak Dibayar",
         cashAdvance: "Kasbon",
         sickLeave: "Cuti Sakit",
-        prepaidMisuse: "Penyalahgunaan Kartu Prabayar"
+        prepaidMisuse: "Penyalahgunaan Kartu Prabayar",
+        overtime: "Lembur"
       },
       depositStatus: {
         none: "None",
@@ -4935,6 +4949,8 @@ export const id = {
           "Karyawan ini sudah memiliki security deposit yang di-hold. Tidak boleh mengambil dua.",
         securityDepositNotRequired:
           "Security deposit tidak diaktifkan untuk karyawan ini. Aktifkan Security Deposit di data karyawan terlebih dahulu.",
+        overtimeNotEnabled:
+          "Lembur tidak diaktifkan untuk karyawan ini. Centang Aktifkan Lembur di data karyawan terlebih dahulu.",
         unlockHoOnly:
           "Hanya Kantor Pusat yang dapat membuka periode payroll yang terkunci.",
         unlockReasonRequired: "Masukkan alasan untuk membuka periode ini.",

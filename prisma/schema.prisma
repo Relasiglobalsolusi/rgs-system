@@ -68,6 +68,8 @@ enum PayrollDeductionType {
   SICK_LEAVE
   /// Prepaid / open card personal misuse. Recovered on Internal Payroll to HO. Card balance does not change.
   PREPAID_MISUSE
+  /// Manual overtime (lembur). Payable — adds to Internal Payroll net.
+  OVERTIME
 }
 
 /// Operational Manager decision when CICO is under 9 hours (or 18 on a double shift).
@@ -759,6 +761,8 @@ model Employee {
   cicoExempt Boolean @default(false)
   /// When true, Progress Report is not required or submitted. CICO still applies unless cicoExempt.
   progressExempt Boolean @default(false)
+  /// When true, Internal Payroll shows Add Overtime for this employee.
+  overtimeEnabled Boolean @default(false)
   /// Free-text bank for Internal Payroll PDF transfer instructions.
   bankName String?
   bankAccountNumber String?

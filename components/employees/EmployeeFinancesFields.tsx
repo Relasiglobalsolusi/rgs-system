@@ -46,6 +46,7 @@ export type EmployeeFinanceDefaults = {
   securityDepositRequired?: boolean;
   cicoExempt?: boolean;
   progressExempt?: boolean;
+  overtimeEnabled?: boolean;
   bankName?: string | null;
   bankAccountNumber?: string | null;
   bankAccountName?: string | null;
@@ -69,15 +70,17 @@ function FinanceCheckbox({
   name,
   checked,
   label,
+  hint,
   onChange,
 }: {
   id: string;
   name: string;
   checked: boolean;
   label: string;
+  hint?: string;
   onChange: (next: boolean) => void;
 }) {
-  return (
+  const control = (
     <label
       htmlFor={id}
       className="inline-flex cursor-pointer items-center gap-2 text-sm text-text"
@@ -86,12 +89,19 @@ function FinanceCheckbox({
         id={id}
         type="checkbox"
         checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
+        onChange={(event) => onChange(event.currentTarget.checked)}
         className="size-4 rounded border-border"
       />
       <input type="hidden" name={name} value={checked ? "true" : "false"} />
       <span>{label}</span>
     </label>
+  );
+  if (!hint) return control;
+  return (
+    <>
+      {control}
+      <p className="text-xs text-muted">{hint}</p>
+    </>
   );
 }
 
@@ -138,6 +148,9 @@ export default function EmployeeFinancesFields({
   );
   const [progressExempt, setProgressExempt] = useState(() =>
     Boolean(defaults?.progressExempt)
+  );
+  const [overtimeEnabled, setOvertimeEnabled] = useState(() =>
+    Boolean(defaults?.overtimeEnabled)
   );
   const bankOptions = useMemo(() => indonesianBankSelectOptions(), []);
   const matchedBank = findIndonesianBank(defaults?.bankName);
@@ -238,14 +251,12 @@ export default function EmployeeFinancesFields({
             name={nameOf("securityDepositRequired")}
             checked={securityDepositRequired}
             label={t("pages.employees.form.securityDepositRequired")}
+            hint={t("pages.employees.form.securityDepositRequiredHint")}
             onChange={(next) => {
               setSecurityDepositRequired(next);
               bump();
             }}
           />
-          <p className="text-xs text-muted">
-            {t("pages.employees.form.securityDepositRequiredHint")}
-          </p>
         </>
       )}
 
@@ -254,28 +265,36 @@ export default function EmployeeFinancesFields({
         name={nameOf("cicoExempt")}
         checked={cicoExempt}
         label={t("pages.employees.form.cicoExempt")}
+        hint={t("pages.employees.form.cicoExemptHint")}
         onChange={(next) => {
           setCicoExempt(next);
           bump();
         }}
       />
-      <p className="text-xs text-muted">
-        {t("pages.employees.form.cicoExemptHint")}
-      </p>
 
       <FinanceCheckbox
         id={idOf("progress-exempt")}
         name={nameOf("progressExempt")}
         checked={progressExempt}
         label={t("pages.employees.form.progressExempt")}
+        hint={t("pages.employees.form.progressExemptHint")}
         onChange={(next) => {
           setProgressExempt(next);
           bump();
         }}
       />
-      <p className="text-xs text-muted">
-        {t("pages.employees.form.progressExemptHint")}
-      </p>
+
+      <FinanceCheckbox
+        id={idOf("overtime-enabled")}
+        name={nameOf("overtimeEnabled")}
+        checked={overtimeEnabled}
+        label={t("pages.employees.form.overtimeEnabled")}
+        hint={t("pages.employees.form.overtimeEnabledHint")}
+        onChange={(next) => {
+          setOvertimeEnabled(next);
+          bump();
+        }}
+      />
 
       {(defaults?.amountOwedToCompany ?? 0) > 0 ? (
         <div className="rounded-lg border border-danger/30 bg-elevated px-3 py-2 text-sm text-text">

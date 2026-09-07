@@ -800,9 +800,18 @@ export default function EmployeeFormFields({
       />
 
       {sharedTermsOnly ? null : (
-      <div>
+      <div className="space-y-2">
+        <label
+          htmlFor={idOf("employee-id-document")}
+          className="text-sm font-medium text-text"
+        >
+          {t("pages.employees.form.idDocument")}
+          {mode === "create" || !defaults?.idDocumentUrl ? (
+            <span className="text-red-400"> *</span>
+          ) : null}
+        </label>
         {defaults?.idDocumentUrl ? (
-          <p className="mb-2 text-xs text-muted">
+          <p className="text-xs text-muted">
             {t("pages.employees.form.idDocumentCurrent")}{" "}
             <a
               href={defaults.idDocumentUrl}

@@ -9,6 +9,7 @@ import {
 
 import { requireSession, toPermissionUser } from "@/lib/session";
 
+import { intakeKindOf } from "@/lib/catch-up-intake";
 import { getProjectWhereForUser, canManageProjects } from "@/lib/project-access";
 import { canAccess } from "@/lib/permissions";
 import { formatDisplayDate } from "@/lib/format-date";
@@ -651,6 +652,7 @@ export default async function ProjectsPage({
         canManage &&
         isLiveContractRow &&
         !isInternal &&
+        intakeKindOf(project) !== "COMPLETED" &&
         (filterView === "in-progress" || filterView === undefined) &&
         project.status === "IN_PROGRESS" &&
         isMilestoneSubCategory(project.subCategory);

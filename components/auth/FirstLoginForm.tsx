@@ -179,7 +179,7 @@ export default function FirstLoginForm() {
                   type="password"
                   autoComplete="new-password"
                   required
-                  minLength={6}
+                  minLength={8}
                   placeholder={t("auth.enterNewPassword")}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
@@ -205,7 +205,7 @@ export default function FirstLoginForm() {
                   type="password"
                   autoComplete="new-password"
                   required
-                  minLength={6}
+                  minLength={8}
                   placeholder={t("auth.confirmNewPassword")}
                   value={confirmPassword}
                   onChange={(event) => setConfirmPassword(event.target.value)}

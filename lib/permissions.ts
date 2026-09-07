@@ -213,6 +213,7 @@ export type PermissionUser = {
   employee?: {
     employeeNo: string;
     employeeType?: EmployeeType | null;
+    placement?: Placement | null;
     jobPosition?: {
       slug?: string | null;
       name?: string | null;
@@ -655,7 +656,7 @@ function isModuleOverrideFlagKey(
   return (MODULE_OVERRIDE_FLAG_KEYS as readonly string[]).includes(key);
 }
 
-function diffModuleOverridesFromBaseline(
+export function diffModuleOverridesFromBaseline(
   stored: Record<string, boolean> | null | undefined,
   baseline: ModuleAccessFlags
 ): Record<string, boolean> {
@@ -1098,6 +1099,8 @@ const ADMIN_SCOPE_MODULES: ModuleKey[] = [
 /** Client / vendor portals cannot receive these, even via permission overrides. */
 export const PORTAL_BLOCKED_MODULES: ModuleKey[] = [
   ...ADMIN_SCOPE_MODULES,
+  "cico",
+  "teams",
   "pettyCash",
   "purchaseInvoices",
   "loans",

@@ -620,6 +620,7 @@ export default async function ProjectDetailPage({
   const showSubmitForApproval =
     canManage &&
     !isInternal &&
+    catchUpKind !== "COMPLETED" &&
     isMilestoneSubCategory(project.subCategory) &&
     project.status === "IN_PROGRESS";
   const showCompletedJobDuration =

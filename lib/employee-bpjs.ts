@@ -158,6 +158,7 @@ type ParsedEmployeeFinance = {
   securityDepositRequired: boolean;
   cicoExempt: boolean;
   progressExempt: boolean;
+  overtimeEnabled: boolean;
   bankName: string | null;
   bankAccountNumber: string | null;
   bankAccountName: string | null;
@@ -197,6 +198,11 @@ export function parseEmployeeFinanceFromForm(
   const partTime = isDailyPaidPartTime(
     employmentType ?? formData.get("employmentType")
   );
+  const flags = {
+    cicoExempt: parseCheckboxFlag(formData.get("cicoExempt")),
+    progressExempt: parseCheckboxFlag(formData.get("progressExempt")),
+    overtimeEnabled: parseCheckboxFlag(formData.get("overtimeEnabled")),
+  };
   if (partTime) {
     return {
       basePay,
@@ -208,8 +214,7 @@ export function parseEmployeeFinanceFromForm(
       jkmEnabled: false,
       jkkPercent: null,
       securityDepositRequired: false,
-      cicoExempt: parseCheckboxFlag(formData.get("cicoExempt")),
-      progressExempt: parseCheckboxFlag(formData.get("progressExempt")),
+      ...flags,
       bankName,
       bankAccountNumber,
       bankAccountName,
@@ -250,8 +255,7 @@ export function parseEmployeeFinanceFromForm(
     securityDepositRequired: parseCheckboxFlag(
       formData.get("securityDepositRequired")
     ),
-    cicoExempt: parseCheckboxFlag(formData.get("cicoExempt")),
-    progressExempt: parseCheckboxFlag(formData.get("progressExempt")),
+    ...flags,
     bankName,
     bankAccountNumber,
     bankAccountName,

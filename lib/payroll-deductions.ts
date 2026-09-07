@@ -1,6 +1,28 @@
 import type { PayrollDeductionType, SecurityDepositStatus } from "@prisma/client";
 
+import type { MessageKey } from "@/lib/i18n/messages";
+
 export const HEAD_OFFICE_PAYROLL_PROJECT = "__head_office__";
+
+export const PAYROLL_DEDUCTION_LABEL_KEY = {
+  SECURITY_DEPOSIT: "pages.payroll.deductionTypes.securityDeposit",
+  LOST_STOCK: "pages.payroll.deductionTypes.lostStock",
+  PENALTY: "pages.payroll.deductionTypes.penalty",
+  OTHER: "pages.payroll.deductionTypes.other",
+  RETURN_OF_SECURITY_DEPOSIT:
+    "pages.payroll.deductionTypes.returnOfSecurityDeposit",
+  CLIENT_COMPENSATION: "pages.payroll.deductionTypes.clientCompensation",
+  FORFEITED_WAGES: "pages.payroll.deductionTypes.forfeitedWages",
+  CASH_ADVANCE: "pages.payroll.deductionTypes.cashAdvance",
+  SICK_LEAVE: "pages.payroll.deductionTypes.sickLeave",
+  PREPAID_MISUSE: "pages.payroll.deductionTypes.prepaidMisuse",
+  OVERTIME: "pages.payroll.deductionTypes.overtime",
+} as const satisfies Record<PayrollDeductionType, MessageKey>;
+
+const PAYABLE_PAYROLL_TYPES = new Set<PayrollDeductionType>([
+  "RETURN_OF_SECURITY_DEPOSIT",
+  "OVERTIME",
+]);
 
 export const MANUAL_DEDUCTION_TYPES = [
   "SECURITY_DEPOSIT",
@@ -26,7 +48,7 @@ export function isManualDeductionType(
 }
 
 export function isPayrollPayableType(type: PayrollDeductionType | string) {
-  return type === "RETURN_OF_SECURITY_DEPOSIT";
+  return PAYABLE_PAYROLL_TYPES.has(type as PayrollDeductionType);
 }
 
 export function payrollLineCashOutDelta(

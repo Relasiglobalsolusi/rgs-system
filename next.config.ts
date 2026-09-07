@@ -33,6 +33,10 @@ const nextConfig: NextConfig = {
     "/api/reports/attendance-export": brandAssetGlobs,
     "/api/inventory/bulk-template": brandAssetGlobs,
   },
+  // Stop Turbopack from tracing the whole repo (it was growing .next/dev to tens of GB).
+  outputFileTracingExcludes: {
+    "*": [".next/**", ".git/**", "node_modules/.cache/**"],
+  },
 };
 
 export default nextConfig;

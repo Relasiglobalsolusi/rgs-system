@@ -944,6 +944,8 @@ export const en = {
         confirm: "Submit",
         regularNotAllowed:
           "Regular Cleaning and Regular Landscaping use reconcile. Reconcile the due billing period to start approval.",
+        catchUpCompleted:
+          "A completed catch-up job is closed through Complete Job, not Submit for Approval.",
         internalNotAllowed:
           "Internal projects do not use Submit for Approval.",
         notAllowed:
@@ -2232,6 +2234,9 @@ export const en = {
         progressExempt: "Exempt From Progress Report",
         progressExemptHint:
           "When on, this person still checks in and out, but does not submit a Progress Report. Check-out is not blocked waiting for a report.",
+        overtimeEnabled: "Enable Overtime",
+        overtimeEnabledHint:
+          "When on, Internal Payroll shows Add Overtime for this person. Amounts you add increase that month's net pay.",
         bankName: "Bank Name",
         bankSwift: "SWIFT",
         bankAccountNumber: "Account Number",
@@ -2266,6 +2271,7 @@ export const en = {
         totalEmployerCost: "Total Employer Cost",
         onLeaveNotAssignable:
           "On Leave employees cannot be assigned. Set status to Active first.",
+        idDocument: "ID Document",
         idDocumentCurrent: "Current ID document:",
         idDocumentView: "View file",
         idDocumentUpload: "Upload ID document (photo or scan)",
@@ -4844,6 +4850,11 @@ export const en = {
       addDeductionDesc: "Add a manual deduction for {name}. Type the Rupiah amount yourself.",
       saveDeduction: "Save Deduction",
       deductionSaved: "Deduction saved for this month.",
+      addOvertime: "Add Overtime",
+      addOvertimeDesc: "Add overtime (lembur) pay for {name}. Type the Rupiah amount yourself.",
+      saveOvertime: "Save Overtime",
+      overtimeSaved: "Overtime saved for this month.",
+      overtimeAmountHint: "Enter the overtime amount to add to this month's net pay.",
       deductionType: "Deduction Type",
       deductionAmount: "Amount (Rupiah)",
       deductionAmountHint: "Enter the amount to withhold from this month's net pay.",
@@ -4865,7 +4876,8 @@ export const en = {
         forfeitedWages: "Remaining Wage Not Paid",
         cashAdvance: "Cash Advance",
         sickLeave: "Sick Leave",
-        prepaidMisuse: "Prepaid Card Misuse"
+        prepaidMisuse: "Prepaid Card Misuse",
+        overtime: "Overtime"
       },
       depositStatus: {
         none: "None",
@@ -4890,6 +4902,8 @@ export const en = {
           "This employee already has a security deposit held. Cannot take two.",
         securityDepositNotRequired:
           "Security deposit is not enabled for this employee. Turn on Security Deposit on their employee record first.",
+        overtimeNotEnabled:
+          "Overtime is not enabled for this employee. Turn on Enable Overtime on their employee record first.",
         unlockHoOnly: "Only Head Office can unlock a locked payroll period.",
         unlockReasonRequired: "Please enter a reason to unlock this period.",
         unlockFailed: "Could not unlock this payroll period.",

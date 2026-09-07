@@ -9,6 +9,7 @@ import {
   unlockInternalPayroll,
 } from "@/app/billing/payroll-actions";
 import PayrollDeductionDialog from "@/components/billing/PayrollDeductionDialog";
+import PayrollOvertimeDialog from "@/components/billing/PayrollOvertimeDialog";
 import { cardTintWash } from "@/components/ui/card-tint";
 import SectionCard from "@/components/ui/SectionCard";
 import EmptyState from "@/components/ui/EmptyState";
@@ -39,7 +40,11 @@ import type {
 } from "@/lib/internal-payroll-month";
 import type { PayrollDayRow } from "@/lib/internal-payroll-days";
 import type { InternalPayrollLockState } from "@/lib/internal-payroll-lock";
-import { hasHeldSecurityDeposit } from "@/lib/payroll-deductions";
+import {
+  hasHeldSecurityDeposit,
+  isPayrollPayableType,
+  PAYROLL_DEDUCTION_LABEL_KEY,
+} from "@/lib/payroll-deductions";
 import {
   currentPayrollPeriod,
   formatPayrollPeriodRange,
@@ -76,6 +81,7 @@ export type PayrollRow = {
   deductions?: PayrollDeductionRow[];
   days?: PayrollDayRow[];
   cicoExempt?: boolean;
+  overtimeEnabled?: boolean;
 };
 
 type Props = {
@@ -88,31 +94,6 @@ type Props = {
   lock?: InternalPayrollLockState;
   canUnlock?: boolean;
 };
-
-function deductionLabelKey(type: PayrollDeductionRow["type"]) {
-  switch (type) {
-    case "SECURITY_DEPOSIT":
-      return "pages.payroll.deductionTypes.securityDeposit" as const;
-    case "LOST_STOCK":
-      return "pages.payroll.deductionTypes.lostStock" as const;
-    case "PENALTY":
-      return "pages.payroll.deductionTypes.penalty" as const;
-    case "OTHER":
-      return "pages.payroll.deductionTypes.other" as const;
-    case "RETURN_OF_SECURITY_DEPOSIT":
-      return "pages.payroll.deductionTypes.returnOfSecurityDeposit" as const;
-    case "CLIENT_COMPENSATION":
-      return "pages.payroll.deductionTypes.clientCompensation" as const;
-    case "FORFEITED_WAGES":
-      return "pages.payroll.deductionTypes.forfeitedWages" as const;
-    case "CASH_ADVANCE":
-      return "pages.payroll.deductionTypes.cashAdvance" as const;
-    case "SICK_LEAVE":
-      return "pages.payroll.deductionTypes.sickLeave" as const;
-    default:
-      return "pages.payroll.deductionTypes.other" as const;
-  }
-}
 
 function jakartaTime(value: string | null, bcp47: string) {
   if (!value) return "—";
@@ -175,6 +156,7 @@ export default function PayrollPanel({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [deducting, setDeducting] = useState<PayrollRow | null>(null);
+  const [overtimeRow, setOvertimeRow] = useState<PayrollRow | null>(null);
   const [unlockOpen, setUnlockOpen] = useState(false);
   const [unlockReason, setUnlockReason] = useState("");
   const [customAmounts, setCustomAmounts] = useState<Record<string, string>>(
@@ -497,13 +479,11 @@ export default function PayrollPanel({
                             className="flex items-start justify-between gap-2"
                           >
                             <span>
-                              {t(deductionLabelKey(line.type))}
+                              {t(PAYROLL_DEDUCTION_LABEL_KEY[line.type])}
                               {line.itemName ? ` · ${line.itemName}` : ""}
                               {line.reason ? ` · ${line.reason}` : ""}
                               {": "}
-                              {line.type === "RETURN_OF_SECURITY_DEPOSIT"
-                                ? "+"
-                                : "−"}
+                              {isPayrollPayableType(line.type) ? "+" : "−"}
                               {formatContractPrice(line.amount)}
                             </span>
                             <button
@@ -519,14 +499,26 @@ export default function PayrollPanel({
                       </ul>
                     ) : null}
                   </div>
-                  <Button
-                    size="badge"
-                    variant="destructive"
-                    disabled={pending || periodLocked}
-                    onClick={() => setDeducting(row)}
-                  >
-                    {t("pages.payroll.addDeduction")}
-                  </Button>
+                  <div className="flex shrink-0 flex-col items-end gap-2">
+                    {row.overtimeEnabled ? (
+                      <Button
+                        size="badge"
+                        variant="successBadge"
+                        disabled={pending || periodLocked}
+                        onClick={() => setOvertimeRow(row)}
+                      >
+                        {t("pages.payroll.addOvertime")}
+                      </Button>
+                    ) : null}
+                    <Button
+                      size="badge"
+                      variant="destructive"
+                      disabled={pending || periodLocked}
+                      onClick={() => setDeducting(row)}
+                    >
+                      {t("pages.payroll.addDeduction")}
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="mt-4">
@@ -666,7 +658,7 @@ export default function PayrollPanel({
                                     </Button>
                                     <Input
                                       inputMode="numeric"
-                                      className="h-7 w-28"
+                                      className="h-7 w-40 shrink-0"
                                       placeholder={t(
                                         "pages.payroll.customAmountPlaceholder"
                                       )}
@@ -834,6 +826,22 @@ export default function PayrollPanel({
               ? "notRequired"
               : "held"
           }
+        />
+      ) : null}
+
+      {overtimeRow && !periodLocked ? (
+        <PayrollOvertimeDialog
+          open
+          onOpenChange={(next) => {
+            if (!next) {
+              setOvertimeRow(null);
+              router.refresh();
+            }
+          }}
+          employeeId={overtimeRow.employeeId}
+          employeeName={`${overtimeRow.firstName} ${overtimeRow.lastName}`}
+          year={year}
+          month={month}
         />
       ) : null}
 

@@ -6,10 +6,6 @@ import {
   type AccountTypeUser,
   type PermissionUser,
 } from "@/lib/permissions";
-import {
-  isAreaManagerPosition,
-  isOperationsManagerPosition,
-} from "@/lib/positions";
 import { isContractCycleSubCategory } from "@/lib/project-contract";
 import {
   PROJECT_IN_PROGRESS_LIST_STATUSES,
@@ -150,8 +146,6 @@ export function isInProgressCleaningProjectDeleteBlocked(opts: {
   status: ProjectStatus | string | null | undefined;
   subCategory: ProjectSubCategory | string | null | undefined;
 }): boolean {
-  // Internal HO/Warehouse sites may be deleted (system can recreate empty shells).
-  if (opts.subCategory === "INTERNAL") return false;
   return (
     opts.status === "IN_PROGRESS" ||
     opts.status === "WAITING_FOR_APPROVAL" ||
@@ -247,20 +241,10 @@ export function canManageEmployees(
   return canAccess(user, "employees");
 }
 
-/** Head Office only. Operations Manager cannot resign people. */
+/** Module access is full access. Portals stay blocked via canManageEmployees. */
 export function canResignEmployees(
   user: PermissionUser &
-    AccountTypeUser & {
-      clientId?: string | null;
-      vendorId?: string | null;
-      employee?: {
-        jobPosition?: { slug?: string | null; name?: string | null } | null;
-      } | null;
-    }
+    AccountTypeUser & { clientId?: string | null; vendorId?: string | null }
 ) {
-  if (!canManageEmployees(user)) return false;
-  const jobPosition = user.employee?.jobPosition;
-  if (jobPosition && isOperationsManagerPosition(jobPosition)) return false;
-  if (jobPosition && isAreaManagerPosition(jobPosition)) return false;
-  return true;
+  return canManageEmployees(user);
 }

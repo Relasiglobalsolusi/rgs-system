@@ -36,6 +36,7 @@ type Employee = {
   securityDepositRequired?: boolean;
   cicoExempt?: boolean;
   progressExempt?: boolean;
+  overtimeEnabled?: boolean;
   bankName?: string | null;
   bankAccountNumber?: string | null;
   bankAccountName?: string | null;
@@ -119,6 +120,7 @@ export default function EmployeeEditDialog({ employee, categories, positions, pr
     securityDepositRequired: employee.securityDepositRequired ?? false,
     cicoExempt: employee.cicoExempt ?? false,
     progressExempt: employee.progressExempt ?? false,
+    overtimeEnabled: employee.overtimeEnabled ?? false,
     bankName: employee.bankName ?? null,
     bankAccountNumber: employee.bankAccountNumber ?? null,
     bankAccountName: employee.bankAccountName ?? null,

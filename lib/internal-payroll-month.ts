@@ -14,6 +14,7 @@ import {
   applyBpjsShareHold,
   HEAD_OFFICE_PAYROLL_PROJECT,
   isPayrollPayableType,
+  PAYROLL_DEDUCTION_LABEL_KEY,
   payrollLineCashOutDelta,
   payrollNetFromParts,
   PROJECT_PAY_RECOVERY_TYPES,
@@ -224,59 +225,53 @@ export type InternalPayrollMonthRow = {
   deductions: PayrollDeductionRow[];
   days: PayrollDayRow[];
   cicoExempt?: boolean;
+  overtimeEnabled?: boolean;
   bpjsShareHeldBefore?: number;
   bpjsShareHeldAfter?: number;
 };
 
-async function attachCicoExemptFlags(
+async function attachPayrollEmployeeFlags(
   rows: InternalPayrollMonthRow[]
 ): Promise<InternalPayrollMonthRow[]> {
-  if (rows.length === 0 || rows.every((row) => typeof row.cicoExempt === "boolean")) {
+  if (
+    rows.length === 0 ||
+    rows.every(
+      (row) =>
+        typeof row.cicoExempt === "boolean" &&
+        typeof row.overtimeEnabled === "boolean"
+    )
+  ) {
     return rows;
   }
   const employees = await prisma.employee.findMany({
     where: { id: { in: rows.map((row) => row.employeeId) } },
-    select: { id: true, cicoExempt: true },
+    select: { id: true, cicoExempt: true, overtimeEnabled: true },
   });
-  const flags = new Map(employees.map((employee) => [employee.id, employee.cicoExempt]));
-  return rows.map((row) => ({
-    ...row,
-    cicoExempt: row.cicoExempt ?? flags.get(row.employeeId) ?? false,
-  }));
+  const flags = new Map(
+    employees.map((employee) => [
+      employee.id,
+      {
+        cicoExempt: employee.cicoExempt,
+        overtimeEnabled: employee.overtimeEnabled,
+      },
+    ])
+  );
+  return rows.map((row) => {
+    const flag = flags.get(row.employeeId);
+    return {
+      ...row,
+      cicoExempt: row.cicoExempt ?? flag?.cicoExempt ?? false,
+      overtimeEnabled: row.overtimeEnabled ?? flag?.overtimeEnabled ?? false,
+    };
+  });
 }
 
 export function payrollDeductionTypeLabel(
   type: PayrollDeductionRow["type"],
   locale: AppLocale
 ) {
-  switch (type) {
-    case "SECURITY_DEPOSIT":
-      return translate(locale, "pages.payroll.deductionTypes.securityDeposit");
-    case "LOST_STOCK":
-      return translate(locale, "pages.payroll.deductionTypes.lostStock");
-    case "PENALTY":
-      return translate(locale, "pages.payroll.deductionTypes.penalty");
-    case "OTHER":
-      return translate(locale, "pages.payroll.deductionTypes.other");
-    case "RETURN_OF_SECURITY_DEPOSIT":
-      return translate(locale, "pages.payroll.deductionTypes.returnOfSecurityDeposit");
-    case "CLIENT_COMPENSATION":
-      return translate(locale, "pages.payroll.deductionTypes.clientCompensation");
-    case "FORFEITED_WAGES":
-      return translate(locale, "pages.payroll.deductionTypes.forfeitedWages");
-    case "CASH_ADVANCE":
-      return translate(locale, "pages.payroll.deductionTypes.cashAdvance");
-    case "SICK_LEAVE":
-      return translate(locale, "pages.payroll.deductionTypes.sickLeave");
-    case "PREPAID_MISUSE":
-      return translate(locale, "pages.payroll.deductionTypes.prepaidMisuse");
-    default:
-      return type;
-  }
-}
-
-function deductionTypeLabel(type: PayrollDeductionRow["type"], locale: AppLocale) {
-  return payrollDeductionTypeLabel(type, locale);
+  const key = PAYROLL_DEDUCTION_LABEL_KEY[type];
+  return key ? translate(locale, key) : type;
 }
 
 const FORFEITED_WAGE_REASON =
@@ -366,7 +361,7 @@ export async function loadInternalPayrollMonth(options: {
       lock?.snapshot
     );
     if (lock?.locked && snapshot) {
-      const rows = await attachCicoExemptFlags(snapshot);
+      const rows = await attachPayrollEmployeeFlags(snapshot);
       return options.employeeId
         ? rows.filter((row) => row.employeeId === options.employeeId)
         : rows;
@@ -435,6 +430,7 @@ export async function loadInternalPayrollMonth(options: {
         orderBy: [{ date: "asc" }, { checkIn: "asc" }],
       },
       cicoExempt: true,
+      overtimeEnabled: true,
       projectAssignments: {
         select: {
           assignedAt: true,
@@ -748,6 +744,7 @@ export async function loadInternalPayrollMonth(options: {
           deductions,
           days,
           cicoExempt: emp.cicoExempt,
+          overtimeEnabled: emp.overtimeEnabled,
         },
       ];
     });
@@ -1062,7 +1059,7 @@ export function toPayrollPdfEmployees(
 ): PayrollPdfEmployee[] {
   return rows.map((row) => {
     const deductions: PayrollPdfDeductionLine[] = row.deductions.map((line) => ({
-      typeLabel: deductionTypeLabel(line.type, locale),
+      typeLabel: payrollDeductionTypeLabel(line.type, locale),
       amount: line.amount,
       detail: [line.itemName, line.reason, line.projectName]
         .filter(Boolean)

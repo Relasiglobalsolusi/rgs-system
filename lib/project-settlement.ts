@@ -27,6 +27,29 @@ export function assertProjectTermsEditable(
   }
 }
 
+export const CONTRACT_PRICE_LOCKED_MESSAGE =
+  "Contract price is fixed after the job starts.";
+
+/** Price is locked once the job has started or closed. */
+export function isContractPriceLocked(
+  status: string | null | undefined
+): boolean {
+  return (
+    status === "COMPLETED" ||
+    status === "IN_PROGRESS" ||
+    status === "WAITING_FOR_APPROVAL" ||
+    status === "OFF_SITE"
+  );
+}
+
+export function assertContractPriceEditable(
+  status: string | null | undefined
+): void {
+  if (isContractPriceLocked(status)) {
+    throw new Error(CONTRACT_PRICE_LOCKED_MESSAGE);
+  }
+}
+
 export function assertProjectWorkforceEditable(
   status: string | null | undefined
 ): void {

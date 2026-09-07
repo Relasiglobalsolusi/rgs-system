@@ -35,6 +35,7 @@ import {
 } from "@/lib/project-billing";
 import { isContractCycleSubCategory } from "@/lib/project-contract";
 import {
+  assertContractPriceEditable,
   assertProjectTermsEditable,
   shouldCompleteProjectAfterSettlement,
 } from "@/lib/project-settlement";
@@ -942,7 +943,7 @@ export async function updateProjectContractPrice(formData: FormData) {
   });
 
   if (!project) throw new Error("Project not found.");
-  assertProjectTermsEditable(project.status);
+  assertContractPriceEditable(project.status);
 
   await assertCanApproveProjectServiceArea({
     userId: session.user.id,

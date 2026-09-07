@@ -185,8 +185,8 @@ export default function ServiceCommercialFields({
             max={100}
             step="0.01"
             required
-            defaultValue={percentDefault(defaults?.serviceFeePercent)}
-            placeholder=""
+            defaultValue={percentDefault(defaults?.serviceFeePercent ?? 6)}
+            placeholder="6"
             className={employeeInputClass}
           />
           <p className={employeeDialogHintClass}>

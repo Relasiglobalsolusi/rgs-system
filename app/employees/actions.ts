@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { EmploymentType, InternalHomeSite, Placement } from "@prisma/client";
+import { Prisma, type EmploymentType, type InternalHomeSite, type Placement } from "@prisma/client";
 
 import {
   allocateEmployeeNumbers,
@@ -16,7 +16,13 @@ import {
   nextCompanyScopedSortOrder,
   persistCompanyScopedReorder,
 } from "@/lib/persist-reorder";
+import { parseModuleOverrides } from "@/lib/module-overrides";
 import { prisma } from "@/lib/prisma";
+import {
+  getEmployeeModuleOverrides,
+  isOwnerAccount,
+  rebaseModuleOverridesForBaselineChange,
+} from "@/lib/permissions";
 import { canManageEmployees, canResignEmployees } from "@/lib/project-access";
 import { parseCreatePortalLoginFlag } from "@/lib/create-portal-login-flag";
 import {
@@ -438,6 +444,7 @@ export async function createEmployee(formData: FormData) {
         securityDepositRequired: finance.securityDepositRequired,
         cicoExempt: finance.cicoExempt,
         progressExempt: finance.progressExempt,
+        overtimeEnabled: finance.overtimeEnabled,
         bankName: finance.bankName,
         bankAccountNumber: finance.bankAccountNumber,
         bankAccountName: finance.bankAccountName,
@@ -686,6 +693,7 @@ export async function createEmployeesInBulk(formData: FormData) {
             securityDepositRequired: person.finance.securityDepositRequired,
             cicoExempt: person.finance.cicoExempt,
             progressExempt: person.finance.progressExempt,
+            overtimeEnabled: person.finance.overtimeEnabled,
             bankName: person.finance.bankName,
             bankAccountNumber: person.finance.bankAccountNumber,
             bankAccountName: person.finance.bankAccountName,
@@ -772,8 +780,11 @@ export async function updateEmployee(id: string, formData: FormData) {
       status: true,
       categoryId: true,
       userId: true,
+      positionId: true,
       idDocumentUrl: true,
-      jobPosition: { select: { slug: true, name: true } },
+      jobPosition: {
+        select: { slug: true, name: true, defaultModuleAccess: true },
+      },
       category: {
         select: {
           id: true,
@@ -931,6 +942,7 @@ export async function updateEmployee(id: string, formData: FormData) {
         securityDepositRequired: finance.securityDepositRequired,
         cicoExempt: finance.cicoExempt,
         progressExempt: finance.progressExempt,
+        overtimeEnabled: finance.overtimeEnabled,
         bankName: finance.bankName,
         bankAccountNumber: finance.bankAccountNumber,
         bankAccountName: finance.bankAccountName,
@@ -954,6 +966,49 @@ export async function updateEmployee(id: string, formData: FormData) {
       employeeType,
       jobPosition: { slug: positionSlug, name: positionName },
     });
+
+    if (
+      updated.userId &&
+      employee.positionId &&
+      employee.positionId !== positionId
+    ) {
+      const linked = await tx.user.findUnique({
+        where: { id: updated.userId },
+        select: { username: true, moduleOverrides: true },
+      });
+      if (linked && !isOwnerAccount(linked)) {
+        const newJob = await tx.position.findFirst({
+          where: { id: positionId! },
+          select: { slug: true, name: true, defaultModuleAccess: true },
+        });
+        if (newJob) {
+          const next = rebaseModuleOverridesForBaselineChange(
+            parseModuleOverrides(linked.moduleOverrides),
+            getEmployeeModuleOverrides({
+              employeeType: employee.employeeType,
+              placement: employee.placement,
+              jobPosition: {
+                slug: employee.jobPosition?.slug ?? "",
+                name: employee.jobPosition?.name ?? "",
+                defaultModuleAccess: employee.jobPosition?.defaultModuleAccess,
+              },
+            }),
+            getEmployeeModuleOverrides({
+              employeeType,
+              placement,
+              jobPosition: newJob,
+            })
+          );
+          await tx.user.update({
+            where: { id: updated.userId },
+            data: {
+              moduleOverrides:
+                Object.keys(next).length > 0 ? next : Prisma.DbNull,
+            },
+          });
+        }
+      }
+    }
   });
 
   revalidatePath("/employees");

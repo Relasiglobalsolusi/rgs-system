@@ -152,3 +152,16 @@ export function titleCaseWords(value: string): string {
     })
     .join("");
 }
+
+/** Turn a form field name (`idDocument`, `tax_id`) into a Title Case label. */
+export function humanizeFieldName(value: string): string {
+  const last = (value.split(".").pop() ?? value).trim();
+  if (!last) return last;
+
+  const spaced = last
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z\d])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2");
+
+  return titleCaseWords(spaced);
+}

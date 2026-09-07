@@ -8,10 +8,7 @@ import {
 } from "@/lib/leave-employment-status";
 import { occupyingProjectAssignmentWhere } from "@/lib/petty-cash";
 import { employeeTypeFromPlacement } from "@/lib/placement";
-import {
-  isInHouseCleaningStaffPosition,
-  isOperationsManagerPosition,
-} from "@/lib/positions";
+import { isOperationsManagerPosition } from "@/lib/positions";
 import { isMilestoneSubCategory } from "@/lib/project-billing";
 import { isExtendableContractSubCategory } from "@/lib/project-contract";
 import { toUtcDateOnly } from "@/lib/invoice-period";
@@ -438,7 +435,7 @@ const employeeReleaseSelect = {
 /**
  * If these employees have no remaining project assignments, put them back
  * in the Available (Unassigned) pool — same as Employees → Release.
- * In-House Cleaning Staff return to Head Office instead.
+ * In-House Cleaning Staff return to Unassigned, same as manual Release.
  */
 export async function releaseIdleEmployeesToUnassignedPool(
   db: Prisma.TransactionClient,
@@ -462,9 +459,7 @@ export async function releaseIdleEmployeesToUnassignedPool(
     });
     if (remaining > 0) continue;
 
-    const placement = isInHouseCleaningStaffPosition(employee.jobPosition ?? {})
-      ? ("HEAD_OFFICE" as const)
-      : ("AVAILABLE" as const);
+    const placement = "AVAILABLE" as const;
     const employeeType = employeeTypeFromPlacement(placement);
 
     await db.employee.update({
@@ -663,9 +658,7 @@ export async function releaseExpiredBackupCrew(
     const employee = byEmployee.get(employeeId);
     if (!employee) continue;
 
-    const placement = isInHouseCleaningStaffPosition(employee.jobPosition ?? {})
-      ? ("HEAD_OFFICE" as const)
-      : ("AVAILABLE" as const);
+    const placement = "AVAILABLE" as const;
     const employeeType = employeeTypeFromPlacement(placement);
 
     await db.employee.update({

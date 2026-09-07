@@ -761,6 +761,7 @@ export const SYSTEM_GUIDE_COPY: Partial<
         "Open Internal Payroll. Select the Payroll Period (the 16th to the 15th window).",
         "Review Days In This Period. For a short day, choose Full Pay or Custom Amount, then Save Custom Amount.",
         "Click Add Deduction if Head Office or the client sent a cut, then Save Deduction. Employee BPJS share is applied from the employee record.",
+        "If Enable Overtime is on for that person, click Add Overtime and enter the Rupiah amount. Overtime adds to net pay for that period.",
         "After the 16th, the period shows Reconciled on the 16th. Before that it is Preview.",
         "Click Generate PDF to lock the period and issue the official payslip. Staff open Payslips to download their slip.",
       ],
@@ -776,6 +777,7 @@ export const SYSTEM_GUIDE_COPY: Partial<
         "Buka Payroll Internal. Pilih Periode Payroll (jendela tanggal 16 sampai 15).",
         "Tinjau Hari Dalam Periode Ini. Untuk hari pendek, pilih Bayar Penuh atau Jumlah Khusus, lalu Simpan Jumlah Khusus.",
         "Klik Tambah Potongan jika Kantor Pusat atau klien mengirim potongan, lalu Simpan Potongan. Bagian BPJS karyawan diambil dari catatan karyawan.",
+        "Jika Aktifkan Lembur menyala untuk orang itu, klik Tambah Lembur dan masukkan jumlah Rupiah. Lembur menambah gaji bersih periode itu.",
         "Setelah tanggal 16, periode menampilkan Direkonsiliasi pada tanggal 16. Sebelum itu statusnya Pratinjau.",
         "Klik Buat PDF untuk mengunci periode dan menerbitkan slip resmi. Staf membuka Slip Gaji untuk mengunduh slip mereka.",
       ],
@@ -926,7 +928,7 @@ export const SYSTEM_GUIDE_COPY: Partial<
         "Open Employees under Administration. Use All Employees, Full Time, Part Time, Unassigned, or Deleted. Filter by department and by All, On Leave, or Applying for Leave.",
         "Click Add Employee. Fill identity, department, position, and pay. Portal login is optional. After create, manage the login in Users.",
         "Click Manage Positions to set Default Module Access, then Download System Guide for that job.",
-        "Click a row to Edit Employee: bank, BPJS Kesehatan, BPJS Ketenagakerjaan, Exempt From CICO, and Exempt From Progress Report.",
+        "Click a row to Edit Employee: bank, BPJS Kesehatan, BPJS Ketenagakerjaan, Exempt From CICO, Exempt From Progress Report, and Enable Overtime.",
         "Resign is Head Office only. Delete moves the person to Deleted and is blocked while they are still assigned to a project. Restore or Permanently Delete from Deleted.",
       ],
       remember: [
@@ -941,7 +943,7 @@ export const SYSTEM_GUIDE_COPY: Partial<
         "Buka Karyawan di Administrasi. Pakai Semua Karyawan, Full Time, Paruh Waktu, Belum Ditugaskan, atau Dihapus. Saring menurut departemen dan Semua, Sedang Cuti, atau Mengajukan Cuti.",
         "Klik Tambah Karyawan. Isi identitas, departemen, jabatan, dan gaji. Login portal bersifat opsional. Setelah dibuat, kelola login di Pengguna.",
         "Klik Kelola Jabatan untuk mengatur Akses Modul Bawaan, lalu Unduh Panduan Sistem untuk jabatan itu.",
-        "Klik baris untuk Ubah Karyawan: rekening, BPJS Kesehatan, BPJS Ketenagakerjaan, Bebas CICO, dan Bebas Laporan Progress.",
+        "Klik baris untuk Ubah Karyawan: rekening, BPJS Kesehatan, BPJS Ketenagakerjaan, Bebas CICO, Bebas Laporan Progress, dan Aktifkan Lembur.",
         "Resign hanya Kantor Pusat. Hapus memindahkan orang ke Dihapus dan diblokir selama mereka masih ditugaskan ke proyek. Pulihkan atau Hapus Permanen dari Dihapus.",
       ],
       remember: [

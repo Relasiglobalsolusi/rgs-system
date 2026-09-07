@@ -15,6 +15,7 @@ import {
   previousPayrollCalendarMonth,
   type PayrollPeriod,
 } from "@/lib/internal-payroll-period";
+import { isPayrollPayableType } from "@/lib/payroll-deductions";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/project-billing";
 
@@ -227,7 +228,11 @@ export async function loadEmployeePayslipMonth(options: {
     row,
     locked,
     preview: !locked,
-    earnings: row?.wage ?? 0,
+    earnings:
+      (row?.wage ?? 0) +
+      (row?.deductions ?? [])
+        .filter((line) => isPayrollPayableType(line.type))
+        .reduce((sum, line) => sum + line.amount, 0),
     deductions: row?.manualDeductions ?? 0,
     bpjsEmployee: (row?.bpjsKesehatan ?? 0) + (row?.bpjsTk ?? 0),
     bpjsCompany: bpjs?.companyContribution ?? 0,

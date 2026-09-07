@@ -15,6 +15,7 @@ import {
 import { getLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
 import { useT } from "@/lib/i18n/use-t";
+import { humanizeFieldName } from "@/lib/text-case";
 import { cn } from "@/lib/utils";
 
 function errorMessageText(error: unknown): string {
@@ -124,27 +125,40 @@ export function showSuccess(options: ShowRejectionOptions) {
 }
 
 /** Convenience for `catch` blocks that currently used `showRejection({ reasons: error.message })`. */
+function looksLikeFieldName(value: string): boolean {
+  if (!value || /\s/.test(value)) return false;
+  return /^[A-Za-z][A-Za-z0-9._-]*$/.test(value);
+}
+
 function fieldRequiredLabel(form: HTMLFormElement, element: Element): string {
   const labelled =
     element instanceof HTMLElement && element.id
       ? form.querySelector(`label[for="${CSS.escape(element.id)}"]`)
       : null;
   const wrapping = element.closest("label");
-  return (
+  const controlName =
+    element instanceof HTMLInputElement ||
+    element instanceof HTMLSelectElement ||
+    element instanceof HTMLTextAreaElement
+      ? element.name
+      : "";
+  const raw = (
     element.getAttribute("data-required-label") ??
     labelled?.textContent ??
     wrapping?.textContent ??
     element.getAttribute("aria-label") ??
-    (element instanceof HTMLInputElement ||
-    element instanceof HTMLSelectElement ||
-    element instanceof HTMLTextAreaElement
-      ? element.name
-      : "") ??
+    controlName ??
     ""
   )
     .replace(/\*/g, "")
     .replace(/\s+/g, " ")
     .trim();
+
+  if (!raw) return "";
+  if (looksLikeFieldName(raw) || raw === controlName) {
+    return humanizeFieldName(raw);
+  }
+  return raw;
 }
 
 function isEmptyRequiredControl(

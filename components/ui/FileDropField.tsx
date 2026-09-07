@@ -119,6 +119,8 @@ export function FileDropField({
   const placeholder =
     emptyLabel ??
     t(multiple ? "common.labels.dropFilesOrBrowse" : "common.labels.dropFileOrBrowse");
+  const requiredFieldLabel =
+    typeof label === "string" && label.trim() ? label.trim() : undefined;
 
   useEffect(() => {
     const input = inputRef.current;
@@ -291,9 +293,8 @@ export function FileDropField({
         multiple={multiple}
         capture={capture}
         required={Boolean(required && !displayName && accumulated.length === 0)}
-        data-required-label={
-          typeof label === "string" && label.trim() ? label.trim() : undefined
-        }
+        data-required-label={requiredFieldLabel || undefined}
+        aria-label={requiredFieldLabel || undefined}
         className="sr-only"
         disabled={disabled}
         onChange={(event) => {

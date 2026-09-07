@@ -4,11 +4,12 @@
  * Header mark is the RGS ONE product logo, not the company letterhead.
  */
 
+import { appPublicBaseUrl } from "@/lib/mail";
+
 const SITE_URL = "https://www.rgs.co.id";
 const PHONE = "+62 21 2295 2228";
 
-/** Public HTTPS URL so inbox clients can load the mark (not localhost). */
-const RGS_ONE_LOGO_URL = "https://one.rgs.co.id/rgs-one-logo.png";
+const RGS_ONE_LOGO_URL = `${appPublicBaseUrl()}/rgs-one-logo.png`;
 
 export function escapeEmailHtml(value: string): string {
   return value

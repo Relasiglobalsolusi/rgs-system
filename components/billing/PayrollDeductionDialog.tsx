@@ -31,29 +31,11 @@ import type {
   PayrollProjectOption,
 } from "@/lib/internal-payroll-month";
 import { useT } from "@/lib/i18n/use-t";
-import { HEAD_OFFICE_PAYROLL_PROJECT } from "@/lib/payroll-deductions";
-
-type DeductionType =
-  | "SECURITY_DEPOSIT"
-  | "LOST_STOCK"
-  | "PENALTY"
-  | "OTHER"
-  | "CLIENT_COMPENSATION";
-
-function deductionTypeLabelKey(type: DeductionType) {
-  switch (type) {
-    case "SECURITY_DEPOSIT":
-      return "pages.payroll.deductionTypes.securityDeposit" as const;
-    case "LOST_STOCK":
-      return "pages.payroll.deductionTypes.lostStock" as const;
-    case "CLIENT_COMPENSATION":
-      return "pages.payroll.deductionTypes.clientCompensation" as const;
-    case "PENALTY":
-      return "pages.payroll.deductionTypes.penalty" as const;
-    default:
-      return "pages.payroll.deductionTypes.other" as const;
-  }
-}
+import {
+  HEAD_OFFICE_PAYROLL_PROJECT,
+  PAYROLL_DEDUCTION_LABEL_KEY,
+  type ManualDeductionType,
+} from "@/lib/payroll-deductions";
 
 type Props = {
   open: boolean;
@@ -82,7 +64,7 @@ export default function PayrollDeductionDialog({
 }: Props) {
   const { t } = useT();
   const [pending, startTransition] = useTransition();
-  const [type, setType] = useState<DeductionType>(
+  const [type, setType] = useState<ManualDeductionType>(
     securityDepositBlocked ? "PENALTY" : "SECURITY_DEPOSIT"
   );
   const [amount, setAmount] = useState("");
@@ -166,7 +148,7 @@ export default function PayrollDeductionDialog({
               value={type}
               onValueChange={(value) => {
                 if (!value) return;
-                const next = value as DeductionType;
+                const next = value as ManualDeductionType;
                 setType(next);
                 if (
                   next === "CLIENT_COMPENSATION" &&
@@ -178,7 +160,7 @@ export default function PayrollDeductionDialog({
               }}
             >
               <SelectTrigger className={employeeSelectTriggerClass}>
-                <SelectValue>{t(deductionTypeLabelKey(type))}</SelectValue>
+                <SelectValue>{t(PAYROLL_DEDUCTION_LABEL_KEY[type])}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {!securityDepositBlocked ? (

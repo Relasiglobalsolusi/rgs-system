@@ -659,7 +659,7 @@ export default function PayrollManagementWorkspace({
                                     </Button>
                                     <Input
                                       inputMode="numeric"
-                                      className="h-7 w-32"
+                                      className="h-7 w-40 shrink-0"
                                       placeholder={t(
                                         "pages.payroll.customAmountPlaceholder"
                                       )}

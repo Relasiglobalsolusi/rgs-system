@@ -126,6 +126,7 @@ import {
   PROJECT_PLANNING_STATUS,
 } from "@/lib/project-status";
 import {
+  assertContractPriceEditable,
   assertProjectTermsEditable,
   assertProjectWorkforceEditable,
 } from "@/lib/project-settlement";
@@ -765,10 +766,11 @@ function parseServiceCommercialFields(
     const cutoffStartDay = cutoffEndDay === 31 ? 1 : cutoffEndDay + 1;
     return {
       ...empty,
-      serviceFeePercent: parsePercentField(formData, "serviceFeePercent", {
-        required: true,
-        label: "Management fee %",
-      }),
+      serviceFeePercent:
+        parsePercentField(formData, "serviceFeePercent", {
+          required: false,
+          label: "Management fee %",
+        }) ?? 6,
       payrollCutoffStartDay: cutoffStartDay,
       payrollCutoffEndDay: cutoffEndDay,
       payrollTaxPercent:
@@ -1186,7 +1188,7 @@ export async function createProject(formData: FormData) {
     // Ignore form tax fields — derive With/Without tax from the client NPWP.
     const client = await prisma.client.findFirst({
       where: { id: clientId, companyId: company.id, active: true },
-      select: { id: true, npwp: true },
+      select: { id: true, npwp: true, paymentTermsDays: true },
     });
     if (!client) {
       throw new Error(
@@ -1224,7 +1226,10 @@ export async function createProject(formData: FormData) {
     const paymentTermsDays =
       isComplimentary || subCategory === "PARKING"
         ? null
-        : parseProjectPaymentTermsDays(formData, 14);
+        : parseProjectPaymentTermsDays(
+            formData,
+            client.paymentTermsDays ?? 14
+          );
     const bankAccountId = isComplimentary
       ? null
       : await parseFormCompanyBankAccountId(
@@ -2036,6 +2041,14 @@ export async function updateProject(id: string, formData: FormData) {
             "contractPrice",
             "Contract price"
           );
+    const existingPrice = decimalToNumber(existing.contractPrice);
+    if (
+      contractPrice != null &&
+      existingPrice != null &&
+      contractPrice !== existingPrice
+    ) {
+      assertContractPriceEditable(existing.status);
+    }
     if (subCategory === "PAYROLL_MANAGEMENT" && endDate) {
       const cutoff = serviceFields?.payrollCutoffEndDay;
       if (cutoff != null) {
@@ -3164,6 +3177,7 @@ export async function submitProjectForApproval(projectId: string) {
         clientId: true,
         serviceArea: true,
         contractPrice: true,
+        catchUpKind: true,
         invoicePeriods: {
           where: {
             status: { in: ["ONGOING", "COMPILING", "AWAITING_CLIENT_REVIEW"] },
@@ -3182,6 +3196,12 @@ export async function submitProjectForApproval(projectId: string) {
 
     if (!project) throw new Error(translate(locale, "pages.projects.notFound"));
     await assertSessionCanWriteProject(session, project);
+
+    if (project.catchUpKind === "COMPLETED") {
+      throw new Error(
+        translate(locale, "pages.projects.submitForApproval.catchUpCompleted")
+      );
+    }
 
     if (isRgsInternalProject(project)) {
       throw new Error(

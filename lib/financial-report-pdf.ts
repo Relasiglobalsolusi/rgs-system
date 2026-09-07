@@ -1,4 +1,3 @@
-import type { PayrollDeductionType } from "@prisma/client";
 import PDFDocument from "pdfkit";
 
 import {
@@ -33,6 +32,7 @@ import {
   OVERHEAD_WAGE_BUCKET,
 } from "@/lib/internal-payroll-wages";
 import { payrollPeriodsInUtcRange } from "@/lib/internal-payroll-period";
+import { isPayrollPayableType, PAYROLL_DEDUCTION_LABEL_KEY } from "@/lib/payroll-deductions";
 import { isSetupMonth, parkingDealFromProject } from "@/lib/parking-economics";
 import {
   BOTTOM_SAFE,
@@ -71,20 +71,6 @@ const OUTSTANDING_INVOICE_STATUSES = [
   "PENDING_VERIFICATION",
   "OVERDUE",
 ] as const;
-
-const DEDUCTION_LABEL: Record<PayrollDeductionType, string> = {
-  SECURITY_DEPOSIT: "pages.payroll.deductionTypes.securityDeposit",
-  LOST_STOCK: "pages.payroll.deductionTypes.lostStock",
-  PENALTY: "pages.payroll.deductionTypes.penalty",
-  OTHER: "pages.payroll.deductionTypes.other",
-  RETURN_OF_SECURITY_DEPOSIT:
-    "pages.payroll.deductionTypes.returnOfSecurityDeposit",
-  CLIENT_COMPENSATION: "pages.payroll.deductionTypes.clientCompensation",
-  FORFEITED_WAGES: "pages.payroll.deductionTypes.forfeitedWages",
-  CASH_ADVANCE: "pages.payroll.deductionTypes.cashAdvance",
-  SICK_LEAVE: "pages.payroll.deductionTypes.sickLeave",
-  PREPAID_MISUSE: "pages.payroll.deductionTypes.prepaidMisuse",
-};
 
 export type FinancialReportSource =
   | "paidInvoice"
@@ -1055,8 +1041,7 @@ export async function loadFinancialReportPdfData(
 
   for (const row of payrollAdj) {
     const raw = decimalToNumber(row.amount) ?? 0;
-    const amount =
-      row.type === "RETURN_OF_SECURITY_DEPOSIT" ? raw : -raw;
+    const amount = isPayrollPayableType(row.type) ? raw : -raw;
     if (amount === 0) continue;
     moneyOutLines.push({
       date: new Date(Date.UTC(row.year, row.month - 1, 1)),
@@ -1067,7 +1052,7 @@ export async function loadFinancialReportPdfData(
       detail: joinDetail(
         formatEmployeeName(row.employee),
         row.employee.employeeNo,
-        translate(locale, DEDUCTION_LABEL[row.type]),
+        translate(locale, PAYROLL_DEDUCTION_LABEL_KEY[row.type]),
         row.project?.name,
         row.reason
       ),

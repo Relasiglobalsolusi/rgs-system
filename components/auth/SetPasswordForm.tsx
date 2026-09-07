@@ -181,7 +181,7 @@ function SetPasswordContent({
                   type="password"
                   autoComplete="new-password"
                   required
-                  minLength={6}
+                  minLength={8}
                   placeholder={t("auth.enterNewPassword")}
                   value={password}
                   onChange={(event) => setPasswordValue(event.target.value)}
@@ -207,7 +207,7 @@ function SetPasswordContent({
                   type="password"
                   autoComplete="new-password"
                   required
-                  minLength={6}
+                  minLength={8}
                   placeholder={t("auth.confirmNewPassword")}
                   value={confirmPassword}
                   onChange={(event) => setConfirmPassword(event.target.value)}
