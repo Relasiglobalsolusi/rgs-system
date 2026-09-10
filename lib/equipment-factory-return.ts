@@ -19,6 +19,31 @@ type DbClient = Prisma.TransactionClient;
 export type FactoryReturnIntentValue = "REFUND" | "REPAIR" | "REPLACE";
 export type FactoryReturnSourceValue = "new" | "issued";
 
+/** Factory keeps the machine. The old code must leave live inventory or it double-counts. */
+async function removeFactoryKeptAsset(db: DbClient, assetId: string) {
+  const asset = await db.equipmentAsset.findFirst({
+    where: { id: assetId },
+    select: { id: true, status: true },
+  });
+  if (!asset) return;
+  if (asset.status !== "AT_FACTORY") {
+    throw new Error("FACTORY_RETURN_NOT_WAITING");
+  }
+  await db.equipmentAsset.update({
+    where: { id: asset.id },
+    data: {
+      movementId: null,
+      issueMovementId: null,
+      writeOffMovementId: null,
+      soldOffMovementId: null,
+      projectId: null,
+      teamId: null,
+      assignedAt: null,
+    },
+  });
+  await db.equipmentAsset.delete({ where: { id: asset.id } });
+}
+
 function catalogUnitCost(item: {
   avgUnitCost: Prisma.Decimal | null;
   lastUnitCost: Prisma.Decimal | null;
@@ -97,9 +122,8 @@ export async function sendEquipmentToFactoryInTx(
   const counts = await countEquipmentAssetsByStatus(db, item.id);
   const uncoded = uncodedWarehouseQty(currentStock, counts.available);
   const unitCost = catalogUnitCost(item);
-  const closesNow = options.intent === "REFUND";
-  const status = closesNow ? "REFUNDED" : "WAITING";
-  const refundedAt = closesNow ? options.sentAt : null;
+  const status = "WAITING";
+  const refundedAt = null;
   const notes = `Return To Vendor: ${options.reason}`;
   const projectIds: string[] = [];
 
@@ -139,7 +163,7 @@ export async function sendEquipmentToFactoryInTx(
           options.refundAmount != null ? toDecimal(options.refundAmount) : null,
         refundedAt,
         createdById: options.createdById,
-        closedById: closesNow ? options.createdById : null,
+        closedById: null,
         sendMovementId: movement.id,
       },
     });
@@ -255,7 +279,7 @@ export async function sendEquipmentToFactoryInTx(
           : null,
       refundedAt,
       createdById: options.createdById,
-      closedById: closesNow ? options.createdById : null,
+      closedById: null,
       sendMovementId: warehouseAssets.some((row) => row.id === asset.id)
         ? sendMovementId
         : null,
@@ -273,6 +297,7 @@ export async function recordFactoryRefundInTx(
     refundAmount: number;
     closedById: string;
     refundedAt: Date;
+    bankAccountId: string;
   }
 ): Promise<{ itemId: string }> {
   const row = await db.equipmentFactoryReturn.findFirst({
@@ -281,9 +306,10 @@ export async function recordFactoryRefundInTx(
       companyId: options.companyId,
       status: "WAITING",
     },
-    select: { id: true, itemId: true },
+    select: { id: true, itemId: true, assetId: true },
   });
   if (!row) throw new Error("FACTORY_RETURN_NOT_WAITING");
+  if (!options.bankAccountId) throw new Error("REFUND_BANK_REQUIRED");
 
   await db.equipmentFactoryReturn.update({
     where: { id: row.id },
@@ -292,8 +318,12 @@ export async function recordFactoryRefundInTx(
       refundAmount: toDecimal(options.refundAmount),
       refundedAt: options.refundedAt,
       closedById: options.closedById,
+      bankAccountId: options.bankAccountId,
     },
   });
+  if (row.assetId) {
+    await removeFactoryKeptAsset(db, row.assetId);
+  }
   return { itemId: row.itemId };
 }
 
@@ -404,6 +434,10 @@ export async function receiveFactoryReplacementInTx(
     },
   });
   if (!row) throw new Error("FACTORY_RETURN_NOT_WAITING");
+
+  if (row.assetId) {
+    await removeFactoryKeptAsset(db, row.assetId);
+  }
 
   const quantity = Math.max(1, Math.round(inventoryQtyFromDecimal(row.quantity)));
   const unitCost = catalogUnitCost(row.item);

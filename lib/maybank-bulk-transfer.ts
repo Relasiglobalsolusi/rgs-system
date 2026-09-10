@@ -12,7 +12,10 @@ import {
   findIndonesianBank,
 } from "@/lib/indonesian-banks";
 import { jakartaTodayAsUtcDateOnly } from "@/lib/leave-employment-status";
-import { payrollPeriodInclusiveDates } from "@/lib/internal-payroll-period";
+import {
+  payrollPeriodInclusiveDates,
+  type PayrollRunKind,
+} from "@/lib/internal-payroll-period";
 
 export const BCA_DOM_TEMPLATE_PATH = path.join(
   process.cwd(),
@@ -52,8 +55,12 @@ function digitsOnly(value: string): string {
   return value.replace(/\D/g, "");
 }
 
-export function formatPayrollPeriodBerita(year: number, month: number): string {
-  const { start, end } = payrollPeriodInclusiveDates(year, month);
+export function formatPayrollPeriodBerita(
+  year: number,
+  month: number,
+  run?: PayrollRunKind
+): string {
+  const { start, end } = payrollPeriodInclusiveDates(year, month, run);
   const label = (date: Date) =>
     date.toLocaleString("en-GB", {
       day: "numeric",

@@ -8,6 +8,7 @@ import BillingBreadcrumbs from "@/components/billing/BillingBreadcrumbs";
 import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { buttonVariants } from "@/components/ui/button";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import {
   isAwaitingClientAction,
 } from "@/lib/client-billing-review";
@@ -158,7 +159,7 @@ export default async function ReconciliationDetailPage({ params }: Props) {
           <p className="text-sm text-subtle">{period.compileNote}</p>
         ) : null}
 
-        <div className="flex flex-wrap gap-2">
+        <div className={chipScrollRowClassName()}>
           <Link
             href={billingHref}
             className={cn(buttonVariants({ variant: "default", size: "sm" }))}

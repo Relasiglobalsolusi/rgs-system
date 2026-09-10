@@ -40,6 +40,9 @@ export default function EmployeeDialog({ categories, positions, projects, open: 
   const [categoryId, setCategoryId] = useState("");
   const [positionId, setPositionId] = useState("");
   const [employmentType, setEmploymentType] = useState<"FULL_TIME" | "PART_TIME">("FULL_TIME");
+  const [payrollRun, setPayrollRun] = useState<
+    "PROJECT_CYCLE" | "HEAD_OFFICE_MONTHLY"
+  >("PROJECT_CYCLE");
   const [previewEmployeeNo, setPreviewEmployeeNo] = useState("");
   const [pending, startTransition] = useTransition();
   const [baseline, setBaseline] = useState(() =>
@@ -47,6 +50,7 @@ export default function EmployeeDialog({ categories, positions, projects, open: 
       categoryId: "",
       positionId: "",
       employmentType: "FULL_TIME",
+      payrollRun: "PROJECT_CYCLE",
       status: "ACTIVE",
     })
   );
@@ -54,6 +58,7 @@ export default function EmployeeDialog({ categories, positions, projects, open: 
     categoryId,
     positionId,
     employmentType,
+    payrollRun,
     status: "ACTIVE" as const,
   };
   const { isDirty, handleFormInput, handleFormChange, resetDirtyTracking } = useEmployeeFormDirty(CREATE_FORM_ID, controlled, baseline);
@@ -64,12 +69,14 @@ export default function EmployeeDialog({ categories, positions, projects, open: 
     setCategoryId("");
     setPositionId("");
     setEmploymentType("FULL_TIME");
+    setPayrollRun("PROJECT_CYCLE");
     setPreviewEmployeeNo("");
     setBaseline(
       buildEmployeeFormBaseline({
         categoryId: "",
         positionId: "",
         employmentType: "FULL_TIME",
+        payrollRun: "PROJECT_CYCLE",
         status: "ACTIVE",
       })
     );
@@ -120,7 +127,7 @@ export default function EmployeeDialog({ categories, positions, projects, open: 
         </EmployeePrimaryButton>
       }>
         <form id={CREATE_FORM_ID} action={submit} noValidate onInput={handleFormInput} onChange={handleFormChange}>
-          <EmployeeFormFields mode="create" categories={categories} positions={positions} projects={projects} categoryId={categoryId} onCategoryIdChange={setCategoryId} positionId={positionId} onPositionIdChange={setPositionId} employmentType={employmentType} onEmploymentTypeChange={setEmploymentType} previewEmployeeNo={previewEmployeeNo} onFormValuesChange={handleFormInput} />
+          <EmployeeFormFields mode="create" categories={categories} positions={positions} projects={projects} categoryId={categoryId} onCategoryIdChange={setCategoryId} positionId={positionId} onPositionIdChange={setPositionId} employmentType={employmentType} onEmploymentTypeChange={setEmploymentType} payrollRun={payrollRun} onPayrollRunChange={setPayrollRun} previewEmployeeNo={previewEmployeeNo} onFormValuesChange={handleFormInput} />
         </form>
       </EmployeeDialogShell>
     </Dialog>

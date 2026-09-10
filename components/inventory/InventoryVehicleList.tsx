@@ -50,6 +50,17 @@ export default function InventoryVehicleList({ vehicles, searchQuery }: Props) {
       ),
     },
     {
+      key: "status",
+      title: t("pages.inventory.columns.status"),
+      width: "8rem",
+      render: (row) =>
+        row.status === "RETIRED"
+          ? t("pages.inventory.overview.soldOff")
+          : row.status === "ON_PROJECT"
+            ? t("pages.inventory.overview.locationOnProject")
+            : t("pages.inventory.vehicles.locationCompany"),
+    },
+    {
       key: "item",
       title: t("pages.inventory.columns.item"),
       share: 2,

@@ -28,6 +28,7 @@ import UserBulkReactivateDialog from "@/components/users/UserBulkReactivateDialo
 import UserBulkDeleteDialog from "@/components/users/UserBulkDeleteDialog";
 import BulkActionBar from "@/components/ui/BulkActionBar";
 import { permanentDeleteLabelClassName } from "@/components/ui/trash-action-buttons";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import DirectoryFilterTab from "@/components/ui/DirectoryFilterTab";
 import DirectorySearchInput, {
   matchesDirectorySearch,
@@ -532,7 +533,7 @@ export default function UserDirectory({
         />
       ) : (
         <>
-          <div className="mb-3 flex gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] sm:flex-wrap sm:overflow-visible sm:pb-0">
+          <div className={chipScrollRowClassName("mb-3")}>
             {typeTabs
               .filter(
                 (tab) => tab.id === "all" || typeCounts[tab.id] > 0

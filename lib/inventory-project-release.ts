@@ -1,12 +1,11 @@
 import type { Prisma } from "@prisma/client";
 
-import { assertEquipmentInventoryInvariants } from "@/lib/equipment-asset";
-import { lockInventoryItemRow } from "@/lib/inventory-access";
 import {
-  inventoryQtyFromDecimal,
-  normalizeInventoryQty,
-  toDecimal,
-} from "@/lib/inventory";
+  assertEquipmentInventoryInvariants,
+  nextOnHandAfterAvailableChange,
+} from "@/lib/equipment-asset";
+import { lockInventoryItemRow } from "@/lib/inventory-access";
+import { inventoryQtyFromDecimal, toDecimal } from "@/lib/inventory";
 
 /** Catalog item types that return to warehouse when project crew is released. */
 export const RETURNABLE_EQUIPMENT_ITEM_TYPES = ["Equipment"] as const;
@@ -21,13 +20,6 @@ export function isReturnableEquipmentItemType(itemType: string): boolean {
 /**
  * Soft-void open Equipment issues on a project, restore on-hand stock,
  * and reset all ON_PROJECT EquipmentAsset records back to AVAILABLE.
- * Mirrors employee release → AVAILABLE pool: machines leave the site when crew does.
- * Consumables / Chemicals stay issued (consumed cost).
- *
- * After assets return, warehouse `currentStock` is synced to count(AVAILABLE)
- * so orphan ON_PROJECT rows (issue already voided) cannot leave stock drift
- * that page-load backfill historically "fixed" by minting ghosts.
- *
  * Call inside the same transaction as {@link releaseAllProjectCrew}.
  */
 export async function releaseProjectEquipmentToInventory(
@@ -73,8 +65,19 @@ export async function releaseProjectEquipmentToInventory(
   for (const row of onProjectAssets) affectedItemIds.add(row.itemId);
   for (const row of equipmentIssues) affectedItemIds.add(row.itemId);
 
+  const beforeByItem = new Map<string, { stock: number; available: number }>();
+  for (const itemId of affectedItemIds) {
+    const locked = await lockInventoryItemRow(db, itemId);
+    if (!locked) continue;
+    beforeByItem.set(itemId, {
+      stock: inventoryQtyFromDecimal(locked.currentStock),
+      available: await db.equipmentAsset.count({
+        where: { itemId, status: "AVAILABLE" },
+      }),
+    });
+  }
+
   if (equipmentIssues.length === 0) {
-    // Still reset any asset records that might exist (e.g. if movements were manually voided)
     await db.equipmentAsset.updateMany({
       where: { projectId, companyId: project.companyId, status: "ON_PROJECT" },
       data: {
@@ -89,7 +92,11 @@ export async function releaseProjectEquipmentToInventory(
       where: { projectId, companyId: project.companyId, status: "IN_TRANSIT" },
       data: { projectId: null },
     });
-    await syncEquipmentWarehouseStockForItems(db, [...affectedItemIds]);
+    await syncEquipmentWarehouseStockForItems(
+      db,
+      [...affectedItemIds],
+      beforeByItem
+    );
     if (affectedItemIds.size > 0) {
       await assertEquipmentInventoryInvariants(db, project.companyId, {
         itemIds: [...affectedItemIds],
@@ -105,31 +112,16 @@ export async function releaseProjectEquipmentToInventory(
   let restored = 0;
 
   for (const movement of equipmentIssues) {
-    // ISSUE_TO_PROJECT quantities are stored negative — restore with abs.
     const restoreQty = Math.abs(inventoryQtyFromDecimal(movement.quantity));
     if (restoreQty <= 0) continue;
-
-    const locked = await lockInventoryItemRow(db, movement.itemId);
-    if (!locked) continue;
-
-    const currentStock = inventoryQtyFromDecimal(locked.currentStock);
-    const newStock = normalizeInventoryQty(currentStock + restoreQty);
-
     const updated = await db.inventoryMovement.updateMany({
       where: { id: movement.id, voidedAt: null },
       data: { voidedAt, voidReason },
     });
     if (updated.count !== 1) continue;
-
-    await db.inventoryItem.update({
-      where: { id: movement.itemId },
-      data: { currentStock: toDecimal(newStock) },
-    });
     restored += 1;
   }
 
-  // Reset all ON_PROJECT assets for this project back to the available pool.
-  // Clears both picker (`movementId`) and bulk (`issueMovementId`) links.
   await db.equipmentAsset.updateMany({
     where: { projectId, companyId: project.companyId, status: "ON_PROJECT" },
     data: {
@@ -141,16 +133,16 @@ export async function releaseProjectEquipmentToInventory(
     },
   });
 
-  // Sent-not-received units stay IN_TRANSIT for the item-return path, but must
-  // not remain assigned to the emptied site.
   await db.equipmentAsset.updateMany({
     where: { projectId, companyId: project.companyId, status: "IN_TRANSIT" },
     data: { projectId: null },
   });
 
-  // Source of truth after demob: AVAILABLE ledger (covers orphan assets and
-  // issue-qty vs asset-count drift without minting new units).
-  await syncEquipmentWarehouseStockForItems(db, [...affectedItemIds]);
+  await syncEquipmentWarehouseStockForItems(
+    db,
+    [...affectedItemIds],
+    beforeByItem
+  );
 
   if (affectedItemIds.size > 0) {
     await assertEquipmentInventoryInvariants(db, project.companyId, {
@@ -164,19 +156,25 @@ export async function releaseProjectEquipmentToInventory(
 
 async function syncEquipmentWarehouseStockForItems(
   db: Prisma.TransactionClient,
-  itemIds: string[]
+  itemIds: string[],
+  beforeByItem: Map<string, { stock: number; available: number }>
 ): Promise<void> {
   for (const itemId of itemIds) {
     const locked = await lockInventoryItemRow(db, itemId);
     if (!locked) continue;
-    const available = await db.equipmentAsset.count({
+    const availableAfter = await db.equipmentAsset.count({
       where: { itemId, status: "AVAILABLE" },
     });
-    const stockOnHand = inventoryQtyFromDecimal(locked.currentStock);
-    if (stockOnHand === available) continue;
+    const before = beforeByItem.get(itemId);
+    const next = nextOnHandAfterAvailableChange(
+      before?.stock ?? inventoryQtyFromDecimal(locked.currentStock),
+      before?.available ?? availableAfter,
+      availableAfter
+    );
+    if (inventoryQtyFromDecimal(locked.currentStock) === next) continue;
     await db.inventoryItem.update({
       where: { id: itemId },
-      data: { currentStock: toDecimal(available) },
+      data: { currentStock: toDecimal(next) },
     });
   }
 }

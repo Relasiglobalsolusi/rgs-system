@@ -10,10 +10,14 @@ import {
 import { useT } from "@/lib/i18n/use-t";
 import {
   ADVANCE_CASH_CHILD_KEYS,
+  APPROVALS_CHILD_KEYS,
   applyAdvanceCashChildToggle,
   applyAdvanceCashParentToggle,
+  applyApprovalsChildToggle,
+  applyApprovalsParentToggle,
   getVisibleModules,
   type AdvanceCashChildKey,
+  type ApprovalsChildKey,
   type ModuleAccessFlags,
   type ModuleKey,
 } from "@/lib/permissions";
@@ -87,6 +91,10 @@ export default function PositionModuleAccessFields({
       onChange(applyAdvanceCashParentToggle(value, !value.pettyCash));
       return;
     }
+    if (module === "approvals") {
+      onChange(applyApprovalsParentToggle(value, !value.approvals));
+      return;
+    }
     onChange({
       ...value,
       [module]: !value[module],
@@ -95,6 +103,10 @@ export default function PositionModuleAccessFields({
 
   function toggleChild(child: AdvanceCashChildKey) {
     onChange(applyAdvanceCashChildToggle(value, child, !value[child]));
+  }
+
+  function toggleApprovalsChild(child: ApprovalsChildKey) {
+    onChange(applyApprovalsChildToggle(value, child, !value[child]));
   }
 
   return (
@@ -145,7 +157,7 @@ export default function PositionModuleAccessFields({
                   onToggle={() => toggle(module)}
                 />
                 {enabled ? (
-                  <div className="grid grid-cols-2 gap-1.5">
+                  <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                     {ADVANCE_CASH_CHILD_KEYS.map((child) => {
                       const childEnabled = Boolean(value[child]);
                       const childLabel = t(`modules.${child}`);
@@ -160,6 +172,44 @@ export default function PositionModuleAccessFields({
                             module: childLabel,
                           })}
                           onToggle={() => toggleChild(child)}
+                        />
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            );
+          }
+          if (module === "approvals") {
+            return (
+              <div key={module} className="flex min-w-0 flex-col gap-1.5">
+                <ModuleSwitch
+                  label={moduleLabel}
+                  enabled={enabled}
+                  disabled={disabled}
+                  ariaLabel={t("pages.users.permissionsModuleAccessAria", {
+                    module: moduleLabel,
+                  })}
+                  onToggle={() => toggle(module)}
+                />
+                {enabled ? (
+                  <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                    {APPROVALS_CHILD_KEYS.map((child) => {
+                      const childLabel = t(`modules.${child}`);
+                      return (
+                        <ModuleSwitch
+                          key={child}
+                          compact
+                          label={childLabel}
+                          enabled={Boolean(value[child])}
+                          // Payroll Unlock is owner-only: never a position default.
+                          disabled={
+                            disabled || child === "approvalsPayrollUnlock"
+                          }
+                          ariaLabel={t("pages.users.permissionsModuleAccessAria", {
+                            module: childLabel,
+                          })}
+                          onToggle={() => toggleApprovalsChild(child)}
                         />
                       );
                     })}

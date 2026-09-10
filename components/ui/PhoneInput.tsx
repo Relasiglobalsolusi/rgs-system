@@ -165,7 +165,7 @@ export function PhoneInput({
   }
 
   return (
-    <div className={cn("flex gap-2", className)}>
+    <div className={cn("flex min-w-0 gap-2", className)}>
       <Select
         value={countryEntry.id}
         onValueChange={handleCountryChange}
@@ -217,4 +217,3 @@ export function PhoneInput({
   );
 }
 
-export { DEFAULT_COUNTRY_CODE };

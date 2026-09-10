@@ -10,6 +10,7 @@ import TaxReportDownloadButton from "@/components/billing/TaxReportDownloadButto
 
 import { employeeSelectTriggerClass } from "@/components/employees/employee-dialog-ui";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import DirectoryFilterTab from "@/components/ui/DirectoryFilterTab";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
@@ -423,7 +424,7 @@ export default function VatReportPanel({
       </DirectoryStatGrid>
       )}
 
-      <div className="flex flex-wrap gap-2">
+      <div className={chipScrollRowClassName()}>
         <DirectoryFilterTab
           href={periodHref("output")}
           active={view === "output"}

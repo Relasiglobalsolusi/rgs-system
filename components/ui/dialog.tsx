@@ -115,7 +115,7 @@ function UnsavedDiscardConfirm() {
             </div>
           </DialogHeader>
         </div>
-        <DialogFooter className="mx-0 mb-0 mt-0 flex-col gap-3 rounded-none border-t border-border bg-strip px-4 py-5 sm:flex-col sm:justify-stretch sm:px-10 sm:py-6">
+        <DialogFooter className="mx-0 mb-0 mt-0 flex-col gap-3 rounded-none border-t border-border bg-strip px-4 py-5 sm:justify-stretch sm:px-10 sm:py-6">
           <button
             type="button"
             className="flex h-11 w-full items-center justify-center rounded-xl border border-danger/40 bg-card-tint-red text-sm font-semibold text-danger transition hover:bg-[color-mix(in_srgb,var(--color-card-tint-red),var(--color-danger)_12%)]"
@@ -203,7 +203,7 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl border border-border bg-popover p-4 text-sm text-popover-foreground shadow-[0_24px_48px_-28px_rgba(0,0,0,0.65)] ring-0 duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-open:slide-in-from-bottom-2 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-closed:slide-out-to-bottom-2",
+          "fixed top-1/2 left-1/2 z-50 grid w-full max-h-[min(90dvh,calc(100dvh-1.5rem))] max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto overscroll-contain rounded-xl border border-border bg-popover p-4 text-sm text-popover-foreground shadow-[0_24px_48px_-28px_rgba(0,0,0,0.65)] ring-0 duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-open:slide-in-from-bottom-2 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-closed:slide-out-to-bottom-2",
           className
         )}
         {...props}

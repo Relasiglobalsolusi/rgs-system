@@ -70,7 +70,7 @@ import {
   formatInventoryQty,
   isWholeInventoryQty,
 } from "@/lib/inventory";
-import { INVENTORY_ITEM_TYPE_PRESETS } from "@/lib/inventory-sku";
+import { INVENTORY_ITEM_TYPE_PRESETS, isVehicleItemType } from "@/lib/inventory-sku";
 import {
   DJP_PLACEHOLDER_NPWP,
   isPlaceholderNpwp,
@@ -139,6 +139,11 @@ export default function InventorySoldOffDialog({
   const [taxInvoiceFile, setTaxInvoiceFile] = useState<File | null>(null);
   const [notes, setNotes] = useState("");
   const [paidAt, setPaidAt] = useState("");
+  const [leaseSettlementPaidAt, setLeaseSettlementPaidAt] = useState("");
+  const [leaseSettlementBankAccountId, setLeaseSettlementBankAccountId] =
+    useState("");
+  const [leaseSettlementProofFile, setLeaseSettlementProofFile] =
+    useState<File | null>(null);
   const [formEpoch, setFormEpoch] = useState(0);
   const lossConfirmedRef = useRef(false);
   const formRef = useRef<HTMLFormElement>(null);
@@ -159,15 +164,18 @@ export default function InventorySoldOffDialog({
       items.filter((item) => {
         if (!item.active) return false;
         if (!itemType || item.itemType.trim() !== itemType) return false;
-        if (!matchInventoryItemType(item.itemType, "equipment")) {
-          return item.currentStock > 0;
+        if (
+          matchInventoryItemType(item.itemType, "equipment") ||
+          isVehicleItemType(item.itemType)
+        ) {
+          const hasIssued = equipmentAssets.some(
+            (asset) =>
+              asset.item?.id === item.id &&
+              (asset.status === "AVAILABLE" || asset.status === "ON_PROJECT")
+          );
+          return item.currentStock > 0 || hasIssued;
         }
-        const hasIssued = equipmentAssets.some(
-          (asset) =>
-            asset.item?.id === item.id &&
-            (asset.status === "AVAILABLE" || asset.status === "ON_PROJECT")
-        );
-        return item.currentStock > 0 || hasIssued;
+        return item.currentStock > 0;
       }),
     [equipmentAssets, itemType, items]
   );
@@ -190,6 +198,10 @@ export default function InventorySoldOffDialog({
   const isEquipmentSelected = Boolean(
     selected && matchInventoryItemType(selected.itemType, "equipment")
   );
+  const isVehicleSelected = Boolean(
+    selected && isVehicleItemType(selected.itemType)
+  );
+  const isCodedSelected = isEquipmentSelected || isVehicleSelected;
 
   const sellableAssets = useMemo(
     () =>
@@ -273,7 +285,7 @@ export default function InventorySoldOffDialog({
       0,
       selected?.avgUnitCost ?? selected?.lastUnitCost ?? 0
     );
-    if (isEquipmentSelected && saleSource === "issued") {
+    if (isCodedSelected && saleSource === "issued") {
       return selectedAssetIds.reduce((sum, id) => {
         const asset = sellableAssets.find((row) => row.id === id);
         return sum + Math.max(0, asset?.unitCost ?? catalogUnit);
@@ -329,8 +341,8 @@ export default function InventorySoldOffDialog({
   useEffect(() => {
     setSelectedAssetIds([]);
     setQuantity("");
-    setSaleSource("");
-  }, [itemId]);
+    setSaleSource(isVehicleSelected ? "issued" : "");
+  }, [itemId, isVehicleSelected]);
 
   useEffect(() => {
     setItemId("");
@@ -506,7 +518,46 @@ export default function InventorySoldOffDialog({
       });
       return;
     }
-    if (isEquipmentSelected) {
+    if (isVehicleSelected) {
+      if (selectedAssetIds.length === 0 || selectedAssetIds.length !== qty) {
+        showRejection({
+          reasons: t("pages.inventory.soldOffSelectAssetsRequired"),
+        });
+        return;
+      }
+      const unpaid = sellableAssets.filter(
+        (asset) =>
+          selectedAssetIds.includes(asset.id) &&
+          asset.isVehicleLease &&
+          !asset.leasePaidOff
+      );
+      for (const asset of unpaid) {
+        const payoff =
+          parseContractPrice(
+            String(formData.get(`leasePayoff:${asset.id}`) ?? "")
+          ) ?? 0;
+        if (payoff <= 0) {
+          showRejection({
+            reasons: t("pages.inventory.leasePayoffRequired", {
+              plate: asset.assetCode,
+            }),
+          });
+          return;
+        }
+      }
+      if (unpaid.length > 0) {
+        if (
+          !leaseSettlementPaidAt.trim() ||
+          !leaseSettlementBankAccountId.trim() ||
+          !leaseSettlementProofFile
+        ) {
+          showRejection({
+            reasons: t("pages.inventory.leaseSettlementRequired"),
+          });
+          return;
+        }
+      }
+    } else if (isEquipmentSelected) {
       if (saleSource !== "new" && saleSource !== "issued") {
         showRejection({
           reasons: t("pages.inventory.saleSource.required"),
@@ -556,8 +607,7 @@ export default function InventorySoldOffDialog({
       return;
     }
     if (
-      isEquipmentSelected &&
-      saleSource === "issued" &&
+      ((isEquipmentSelected && saleSource === "issued") || isVehicleSelected) &&
       selectedAssetIds.length !== qty
     ) {
       showRejection({
@@ -568,7 +618,7 @@ export default function InventorySoldOffDialog({
 
     formData.set("itemId", itemId);
     formData.set("bankAccountId", bankAccountId);
-    formData.set("saleSource", saleSource);
+    formData.set("saleSource", isVehicleSelected ? "issued" : saleSource);
     formData.set("buyerType", buyerType);
     formData.set("buyer", buyer.trim());
     formData.set(
@@ -582,8 +632,13 @@ export default function InventorySoldOffDialog({
     formData.set("clientId", clientId);
     formData.set("notes", notes);
     formData.set("paidAt", paidAt);
+    formData.set("leaseSettlementPaidAt", leaseSettlementPaidAt);
+    formData.set("leaseSettlementBankAccountId", leaseSettlementBankAccountId);
     if (paymentProofFile) {
       formData.set("paymentProof", paymentProofFile);
+    }
+    if (leaseSettlementProofFile) {
+      formData.set("leaseSettlementProof", leaseSettlementProofFile);
     }
     if (taxInvoiceFile) {
       formData.set("buyerIdentityDoc", taxInvoiceFile);
@@ -744,7 +799,9 @@ export default function InventorySoldOffDialog({
                     </Select>
                     {selected ? (
                       <p className={employeeDialogHintClass}>
-                        {isEquipmentSelected
+                        {isVehicleSelected
+                          ? t("pages.inventory.form.soldOffVehicleHint")
+                          : isEquipmentSelected
                           ? t("pages.inventory.form.soldOffEquipmentHint", {
                               warehouse: formatInventoryQty(uncodedNew),
                               onSite: formatInventoryQty(sellableOnSiteCount),
@@ -821,10 +878,13 @@ export default function InventorySoldOffDialog({
               </div>
             ) : null}
 
-            {isEquipmentSelected && saleSource === "issued" ? (
+            {(isEquipmentSelected && saleSource === "issued") ||
+            isVehicleSelected ? (
               <div className={employeeDialogFieldClass}>
                 <label className={employeeDialogLabelClass}>
-                  {t("pages.inventory.form.soldOffAssets")}
+                  {isVehicleSelected
+                    ? t("pages.inventory.form.soldOffPlates")
+                    : t("pages.inventory.form.soldOffAssets")}
                 </label>
                 {sellableAssets.length === 0 ? (
                   <p className={employeeDialogHintClass}>
@@ -869,8 +929,115 @@ export default function InventorySoldOffDialog({
                   </div>
                 )}
                 <p className={employeeDialogHintClass}>
-                  {t("pages.inventory.form.soldOffAssetsHint")}
+                  {isVehicleSelected
+                    ? t("pages.inventory.form.soldOffPlatesHint")
+                    : t("pages.inventory.form.soldOffAssetsHint")}
                 </p>
+              </div>
+            ) : null}
+
+            {isVehicleSelected
+              ? sellableAssets
+                  .filter(
+                    (asset) =>
+                      selectedAssetIds.includes(asset.id) &&
+                      asset.isVehicleLease &&
+                      !asset.leasePaidOff
+                  )
+                  .map((asset) => (
+                    <div
+                      key={`lease-${asset.id}`}
+                      className="grid gap-4 sm:grid-cols-2"
+                    >
+                      <div className={employeeDialogFieldClass}>
+                        <label className={employeeDialogLabelClass}>
+                          {t("pages.inventory.leasePayoff")}
+                          <span className="text-red-400"> *</span>
+                        </label>
+                        <p className={employeeDialogHintClass}>
+                          {t("pages.inventory.leasePayoffHint", {
+                            plate: asset.assetCode,
+                            remaining: formatContractPrice(
+                              asset.leaseRemaining ?? 0
+                            ),
+                          })}
+                        </p>
+                        <MoneyInput
+                          name={`leasePayoff:${asset.id}`}
+                          className={employeeInputClass}
+                          required
+                          defaultValue={
+                            asset.leaseRemaining != null &&
+                            asset.leaseRemaining > 0
+                              ? Math.round(asset.leaseRemaining)
+                              : ""
+                          }
+                        />
+                      </div>
+                      <div className={employeeDialogFieldClass}>
+                        <label className={employeeDialogLabelClass}>
+                          {t("pages.inventory.earlyTermination")}
+                        </label>
+                        <p className={employeeDialogHintClass}>
+                          {t("pages.inventory.earlyTerminationHint")}
+                        </p>
+                        <MoneyInput
+                          name={`earlyTermination:${asset.id}`}
+                          className={employeeInputClass}
+                          defaultValue={0}
+                        />
+                      </div>
+                    </div>
+                  ))
+              : null}
+
+            {isVehicleSelected &&
+            sellableAssets.some(
+              (asset) =>
+                selectedAssetIds.includes(asset.id) &&
+                asset.isVehicleLease &&
+                !asset.leasePaidOff
+            ) ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className={employeeDialogFieldClass}>
+                  <label className={employeeDialogLabelClass}>
+                    {t("pages.inventory.leaseSettlementPaidAt")}
+                    <span className="text-red-400"> *</span>
+                  </label>
+                  <p className={employeeDialogHintClass}>
+                    {t("pages.inventory.leaseSettlementHint")}
+                  </p>
+                  <input
+                    type="date"
+                    name="leaseSettlementPaidAt"
+                    value={leaseSettlementPaidAt}
+                    onChange={(event) =>
+                      setLeaseSettlementPaidAt(event.target.value)
+                    }
+                    className={employeeInputClass}
+                    required
+                  />
+                </div>
+                <div className={employeeDialogFieldClass}>
+                  <CompanyBankAccountField
+                    accounts={bankAccounts}
+                    value={leaseSettlementBankAccountId}
+                    onChange={setLeaseSettlementBankAccountId}
+                    label={t("pages.inventory.leaseSettlementBank")}
+                    required
+                  />
+                </div>
+                <div className={`${employeeDialogFieldClass} sm:col-span-2`}>
+                  <FileDropField
+                    key={`lease-settlement-${formEpoch}`}
+                    id="soldoff-lease-settlement-proof"
+                    name="leaseSettlementProof"
+                    label={t("pages.inventory.leaseSettlementProof")}
+                    accept="image/*,.pdf"
+                    fileName={leaseSettlementProofFile?.name ?? null}
+                    onPick={setLeaseSettlementProofFile}
+                  />
+                </div>
               </div>
             ) : null}
 
@@ -888,7 +1055,12 @@ export default function InventorySoldOffDialog({
                   required
                   value={quantity}
                   onChange={(event) => {
-                    if (isEquipmentSelected && saleSource === "issued") return;
+                    if (
+                      (isEquipmentSelected && saleSource === "issued") ||
+                      isVehicleSelected
+                    ) {
+                      return;
+                    }
                     const raw = event.target.value;
                     const next = Number(String(raw).replace(/,/g, "").trim());
                     const available = isEquipmentSelected
@@ -913,13 +1085,17 @@ export default function InventorySoldOffDialog({
                     }
                     setQuantity(raw);
                   }}
-                  readOnly={isEquipmentSelected && saleSource === "issued"}
+                  readOnly={
+                    (isEquipmentSelected && saleSource === "issued") ||
+                    isVehicleSelected
+                  }
                   max={
-                    isEquipmentSelected
-                      ? saleSource === "issued"
-                        ? sellableAssets.length
-                        : uncodedNew
-                      : selected?.currentStock
+                    isVehicleSelected ||
+                    (isEquipmentSelected && saleSource === "issued")
+                      ? sellableAssets.length
+                      : isEquipmentSelected
+                        ? uncodedNew
+                        : selected?.currentStock
                   }
                   className={employeeInputClass}
                 />
@@ -1519,7 +1695,7 @@ export default function InventorySoldOffDialog({
               </div>
             </DialogHeader>
           </div>
-          <DialogFooter className="mx-0 mb-0 mt-0 flex-col gap-3 rounded-none border-t border-border bg-strip px-4 py-5 sm:flex-col sm:justify-stretch sm:px-10 sm:py-6">
+          <DialogFooter className="mx-0 mb-0 mt-0 flex-col gap-3 rounded-none border-t border-border bg-strip px-4 py-5 sm:justify-stretch sm:px-10 sm:py-6">
             <EmployeePrimaryButton
               type="button"
               disabled={pending}

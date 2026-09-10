@@ -116,10 +116,15 @@ import type { ProjectStatus } from "@prisma/client";
 import AppShell from "@/components/layout/AppShell";
 import BackLink from "@/components/ui/BackLink";
 import { buttonVariants } from "@/components/ui/button";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge, {
   outlineChipTones,
 } from "@/components/ui/StatusBadge";
+import {
+  metaLabelClassName,
+  metaValueClassName,
+} from "@/components/ui/meta-facts";
 import { cn } from "@/lib/utils";
 
 import ContractExtensionsHistory from "@/components/projects/ContractExtensionsHistory";
@@ -127,8 +132,7 @@ import ProjectBankAccountRow from "@/components/projects/ProjectBankAccountRow";
 import ProjectDetailActionBar from "@/components/projects/ProjectDetailActionBar";
 import { listCompanyBankAccountOptions } from "@/lib/company-bank-accounts";
 import { catchUpAsOfDate, loadBooksOpenDate } from "@/lib/books-open";
-import { resolveCatchUpCompleteTarget } from "@/lib/project-catch-up-periods";
-import { isVehicleItemType } from "@/lib/inventory-sku";
+import { listCatchUpIntakePages } from "@/lib/project-catch-up-periods";
 import ProjectEquipmentPicker, {
   type AssignedEquipmentAsset,
 } from "@/components/projects/ProjectEquipmentPicker";
@@ -143,10 +147,6 @@ import {
   listProjectStaffHistory,
 } from "@/lib/project-site-history";
 
-const metaLabelClassName =
-  "w-36 shrink-0 px-4 py-2.5 text-left align-top text-xs font-semibold uppercase tracking-[0.12em] text-subtle sm:w-44 sm:px-5";
-const metaValueClassName =
-  "min-w-0 break-words px-4 py-2.5 align-top text-text sm:px-5";
 const sectionTitleClassName = "text-base font-semibold tracking-tight text-text";
 const sectionCardClassName = "p-5 sm:p-6";
 
@@ -415,9 +415,9 @@ export default async function ProjectDetailPage({
   const staffEmployees = annotateStaffPickerConflicts(employees, staffConflicts);
 
   const catchUpKind = intakeKindOf(project);
-  const catchUpTarget =
+  const catchUpPages =
     canManage && catchUpKind
-      ? resolveCatchUpCompleteTarget({
+      ? listCatchUpIntakePages({
           catchUpKind,
           status: project.status,
           isComplimentary: project.isComplimentary,
@@ -435,42 +435,7 @@ export default async function ProjectDetailPage({
           ),
           existingPeriods: project.invoicePeriods,
         })
-      : null;
-
-  const catchUpInventory: Array<{
-    id: string;
-    name: string;
-    unit: string;
-    itemType: string;
-  }> = [];
-  const catchUpPeople: Array<{
-    id: string;
-    firstName: string;
-    lastName: string;
-  }> = [];
-  if (catchUpTarget) {
-    const [items, people] = await Promise.all([
-      prisma.inventoryItem.findMany({
-        where: {
-          companyId: project.companyId,
-          active: true,
-          deletedAt: null,
-        },
-        select: { id: true, name: true, unit: true, itemType: true },
-        orderBy: { name: "asc" },
-      }),
-      prisma.employee.findMany({
-        where: {
-          companyId: project.companyId,
-          archivedFromDirectory: false,
-        },
-        select: { id: true, firstName: true, lastName: true },
-        orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
-      }),
-    ]);
-    catchUpInventory.push(...items);
-    catchUpPeople.push(...people);
-  }
+      : [];
 
   if (canManage || canAssignCover) {
     await processScheduledPettyCashPays(prisma, project.companyId);
@@ -904,20 +869,11 @@ export default async function ProjectDetailPage({
         clients={clients}
         catalog={serviceCatalog}
         bankAccounts={bankAccounts}
-        catchUpComplete={
-          catchUpTarget
+        catchUpHub={
+          catchUpPages.length > 0
             ? {
                 projectId: project.id,
-                target: catchUpTarget,
-                requirePayment: catchUpKind === "COMPLETED",
-                inventoryItems: catchUpInventory
-                  .filter((item) => !isVehicleItemType(item.itemType))
-                  .map((item) => ({
-                    id: item.id,
-                    name: item.name,
-                    unit: item.unit,
-                  })),
-                employees: catchUpPeople,
+                remaining: catchUpPages.filter((page) => !page.recorded).length,
               }
             : null
         }
@@ -934,7 +890,7 @@ export default async function ProjectDetailPage({
                     size="lg"
                     status={statusTone(project.status)}
                     lines={statusLines ?? undefined}
-                    className="!w-[9.75rem] !min-w-[9.75rem] !max-w-[9.75rem]"
+                    className="min-w-0 max-w-full sm:!w-[9.75rem] sm:!min-w-[9.75rem] sm:!max-w-[9.75rem]"
                   >
                     {statusLines ? undefined : statusLabel}
                   </StatusBadge>
@@ -947,7 +903,7 @@ export default async function ProjectDetailPage({
                     size="lg"
                     status="info"
                     lines={typeLines ?? undefined}
-                    className="!w-[9.75rem] !min-w-[9.75rem] !max-w-[9.75rem]"
+                    className="min-w-0 max-w-full sm:!w-[9.75rem] sm:!min-w-[9.75rem] sm:!max-w-[9.75rem]"
                   >
                     {typeLines ? undefined : typeLabel}
                   </StatusBadge>
@@ -957,7 +913,7 @@ export default async function ProjectDetailPage({
                     href={`/progress?projectId=${project.id}`}
                     className={cn(
                       buttonVariants({ variant: "infoBadge", size: "badgeLg" }),
-                      "w-fit max-w-full shrink-0 whitespace-nowrap sm:ml-auto"
+                      "w-full max-w-full shrink-0 whitespace-normal text-center sm:ml-auto sm:w-fit sm:whitespace-nowrap"
                     )}
                     aria-label={t("pages.projects.detail.viewProgressReports")}
                   >
@@ -967,7 +923,8 @@ export default async function ProjectDetailPage({
               </div>
             </div>
 
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-0 text-sm">
               <tbody>
                 {!isInternal ? (
                   <tr className="border-b border-border">
@@ -1303,6 +1260,7 @@ export default async function ProjectDetailPage({
                 ) : null}
               </tbody>
             </table>
+            </div>
           </SectionCard>
 
           {(hasSiteCoords || isInternal) && (
@@ -1655,7 +1613,7 @@ export default async function ProjectDetailPage({
                     {t("pages.projects.detail.noStaffHistory")}
                   </p>
                 ) : (
-                  <div className="flex flex-wrap gap-2">
+                  <div className={chipScrollRowClassName()}>
                     {staffHistory.map((person) => (
                       <div
                         key={person.employeeId}
@@ -1684,7 +1642,7 @@ export default async function ProjectDetailPage({
                   {t("pages.projects.detail.noStaff")}
                 </p>
               ) : (
-                <div className="flex flex-wrap gap-2">
+                <div className={chipScrollRowClassName()}>
                   {liveStaffAssignments.map((assignment) => (
                     <div
                       key={assignment.id}

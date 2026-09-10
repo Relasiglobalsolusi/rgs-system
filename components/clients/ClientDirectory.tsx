@@ -11,6 +11,7 @@ import ClientModuleAccessButton from "@/components/clients/ClientModuleAccessBut
 import ClientSystemGuideButton from "@/components/clients/ClientSystemGuideButton";
 import ClientTable, { type ClientRow } from "@/components/clients/ClientTable";
 import DirectoryAddButton from "@/components/ui/DirectoryAddButton";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import DirectorySearchInput, {
   matchesDirectorySearch,
 } from "@/components/ui/DirectorySearchInput";
@@ -227,7 +228,7 @@ export default function ClientDirectory({
           className="min-w-0 w-full max-w-none flex-1"
         />
         {showAdd ? (
-          <div className="flex w-full flex-wrap items-center gap-2 sm:ml-0 sm:w-auto sm:shrink-0 sm:justify-end">
+          <div className={chipScrollRowClassName("w-full sm:ml-0 sm:w-auto sm:shrink-0 sm:justify-end")}>
             <DirectoryAddButton
               label={t("pages.clients.addClient")}
               onClick={() => setCreateOpen(true)}

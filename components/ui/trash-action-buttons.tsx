@@ -3,14 +3,11 @@
 import type { ComponentProps } from "react";
 
 import { Button } from "@/components/ui/button";
-import {
-  permanentDeleteLabelClassName,
-  stackedChipLabelClassName,
-} from "@/components/ui/StatusBadge";
+import { permanentDeleteLabelClassName } from "@/components/ui/StatusBadge";
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 
-export { permanentDeleteLabelClassName, stackedChipLabelClassName };
+export { permanentDeleteLabelClassName };
 
 /**
  * Outer box — identical for Delete, Restore, Permanently Delete,

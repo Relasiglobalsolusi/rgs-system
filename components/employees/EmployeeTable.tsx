@@ -10,6 +10,7 @@ import {
   employeeCreateHierarchyError,
   type EmployeeCreateActorTier,
 } from "@/lib/employee-create-hierarchy";
+import type { CompanyBankAccountOption } from "@/lib/company-bank-accounts";
 import { showRejection } from "@/components/ui/rejection-notice";
 import EmployeeDeleteDialog from "@/components/employees/EmployeeDeleteDialog";
 import EmployeeResignDialog from "@/components/employees/EmployeeResignDialog";
@@ -46,6 +47,7 @@ type Employee = {
   email: string | null;
   phone: string | null;
   employmentType: EmploymentType;
+  payrollRun: "PROJECT_CYCLE" | "HEAD_OFFICE_MONTHLY";
   placement: Placement;
   portalAccessRequested: boolean;
   positionId: string | null;
@@ -116,6 +118,7 @@ type Props = {
   canResign?: boolean;
   canArchive?: boolean;
   createActorTier?: EmployeeCreateActorTier;
+  bankAccounts?: CompanyBankAccountOption[];
   directoryView?: EmployeeDirectoryView;
   showSelection?: boolean;
   selectedIds?: Set<string>;
@@ -135,6 +138,7 @@ export default function EmployeeTable({
   canResign = false,
   canArchive = false,
   createActorTier = "OTHER",
+  bankAccounts = [],
   directoryView = "allEmployees",
   showSelection = false,
   selectedIds,
@@ -530,6 +534,7 @@ export default function EmployeeTable({
           projects={projects}
           showDelete
           canResign={canResign}
+          bankAccounts={bankAccounts}
           open
           showTrigger={false}
           onOpenChange={(open) => !open && setEditing(null)}
@@ -546,6 +551,7 @@ export default function EmployeeTable({
       {resigning ? (
         <EmployeeResignDialog
           employee={resigning}
+          bankAccounts={bankAccounts}
           open
           onOpenChange={(open) => !open && setResigning(null)}
           onResigned={() => router.refresh()}

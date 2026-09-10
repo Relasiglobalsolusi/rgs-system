@@ -69,7 +69,7 @@ export default function EmployeeReactivateDialog({
         description={t("pages.employees.restoreDescription")}
         maxWidth="md"
         footer={
-          <div className="flex w-full flex-col gap-3 sm:flex-col">
+          <div className="flex w-full flex-col gap-3">
             <EmployeePrimaryButton
               type="button"
               disabled={pending}

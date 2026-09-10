@@ -78,11 +78,27 @@ enum InternalPayrollDayDecisionStatus {
   CUSTOM
 }
 
+/// Which of the two monthly Internal Payroll runs an employee is paid in.
+enum PayrollRunKind {
+  /// Regular project staff. Window 16th of the previous month through the 15th.
+  PROJECT_CYCLE
+  /// Head office, corporate, directors and GC staff. 26th through the 25th, paid the 25th.
+  HEAD_OFFICE_MONTHLY
+}
+
 /// THR (Tunjangan Hari Raya) payment lifecycle.
 enum ThrPaymentStatus {
   DRAFT
   GENERATED
   PAID
+}
+
+/// Lifecycle of a request to reopen a closed Internal Payroll period.
+enum PayrollUnlockRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
 }
 
 /// BPJS Kesehatan vs Ketenagakerjaan remittance line.
@@ -114,7 +130,7 @@ enum EquipmentAssetStatus {
   ON_PROJECT
   /// Sent from warehouse, not yet received on the project.
   IN_TRANSIT
-  /// Sent to the factory. Hanging until refund, same-unit repair, or replacement.
+  /// Sent to the factory. Hanging until refund, repair, or replacement.
   AT_FACTORY
   RETIRED
 }
@@ -574,6 +590,7 @@ model Company {
   projectExpenses     ProjectExpense[]
   internalPayrollLocks InternalPayrollLock[]
   internalPayrollDayDecisions InternalPayrollDayDecision[]
+  payrollUnlockRequests PayrollUnlockRequest[]
   equipmentAssets     EquipmentAsset[]
   equipmentFactoryReturns EquipmentFactoryReturn[]
   materialRequests    MaterialRequest[]
@@ -615,6 +632,9 @@ model CompanyBankAccount {
   prepaidCardEntries PrepaidCardEntry[]
   prepaidCardLosses  PrepaidCardLoss[]
   prepaidCardRecoveries PrepaidCardLossRecovery[]
+  factoryReturns EquipmentFactoryReturn[]
+  parkingMonthlyLogs ParkingMonthlyLog[]
+  projectExpenses    ProjectExpense[]
 
   @@index([companyId, sortOrder])
 }
@@ -757,6 +777,8 @@ model Employee {
 
   /// HO checkbox: this employee may have a Security deposit taken in Internal Payroll.
   securityDepositRequired Boolean @default(false)
+  /// Which monthly payroll run pays this employee. Defaults from their position.
+  payrollRun PayrollRunKind @default(PROJECT_CYCLE)
   /// When true, Internal Payroll pays full monthly salary (no CICO day count).
   cicoExempt Boolean @default(false)
   /// When true, Progress Report is not required or submitted. CICO still applies unless cicoExempt.
@@ -888,6 +910,8 @@ model User {
   createdProjectExpenses    ProjectExpense[]    @relation("ProjectExpenseCreator")
   lockedInternalPayrolls    InternalPayrollLock[] @relation("InternalPayrollLocker")
   unlockedInternalPayrolls  InternalPayrollLock[] @relation("InternalPayrollUnlocker")
+  requestedPayrollUnlocks   PayrollUnlockRequest[] @relation("PayrollUnlockRequester")
+  decidedPayrollUnlocks     PayrollUnlockRequest[] @relation("PayrollUnlockDecider")
   internalPayrollDayDecisions InternalPayrollDayDecision[] @relation("InternalPayrollDayDecider")
   payrollManagementDayDecisions PayrollManagementDayDecision[] @relation("PayrollManagementDayDecider")
   reviewedMaterialRequests  MaterialRequest[]   @relation("MaterialRequestReviewer")
@@ -1929,6 +1953,9 @@ model PrepaidCard {
   status               PrepaidCardStatus @default(STANDBY)
   vehicleItemId        String?
   vehicleItem          InventoryItem?    @relation(fields: [vehicleItemId], references: [id], onDelete: Restrict)
+  /// Live vehicle this card is tied to. Standby keeps the balance.
+  vehicleAssetId       String?
+  vehicleAsset         EquipmentAsset?   @relation(fields: [vehicleAssetId], references: [id], onDelete: SetNull)
   custodianEmployeeId  String?
   custodianEmployee    Employee?         @relation("PrepaidCardCustodian", fields: [custodianEmployeeId], references: [id], onDelete: SetNull)
   replacedByCardId     String?
@@ -1947,6 +1974,7 @@ model PrepaidCard {
   @@unique([companyId, cardNumber])
   @@index([companyId, kind, status])
   @@index([companyId, vehicleItemId])
+  @@index([companyId, vehicleAssetId])
   @@index([companyId, custodianEmployeeId])
 }
 
@@ -1956,6 +1984,8 @@ model PrepaidCardAssignment {
   prepaidCard           PrepaidCard @relation(fields: [prepaidCardId], references: [id], onDelete: Cascade)
   vehicleItemId         String?
   vehicleItem           InventoryItem? @relation(fields: [vehicleItemId], references: [id], onDelete: SetNull)
+  vehicleAssetId        String?
+  vehicleAsset          EquipmentAsset? @relation("PrepaidCardAssignmentVehicle", fields: [vehicleAssetId], references: [id], onDelete: SetNull)
   custodianEmployeeId   String?
   custodianEmployee     Employee?   @relation(fields: [custodianEmployeeId], references: [id], onDelete: SetNull)
   startedAt             DateTime
@@ -1966,6 +1996,7 @@ model PrepaidCardAssignment {
   @@index([prepaidCardId, startedAt])
   @@index([custodianEmployeeId])
   @@index([vehicleItemId])
+  @@index([vehicleAssetId])
 }
 
 model PrepaidCardEntry {
@@ -2722,6 +2753,8 @@ model EquipmentAsset {
   factoryReturns EquipmentFactoryReturn[]
   purchaseInvoices PurchaseInvoice[]
   odometerReadings VehicleOdometerReading[]
+  prepaidCards PrepaidCard[]
+  prepaidCardAssignments PrepaidCardAssignment[] @relation("PrepaidCardAssignmentVehicle")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2772,6 +2805,8 @@ model VehicleOdometerReading {
   acknowledgedById String?
   acknowledgedBy   User? @relation("VehicleFuelAlertAck", fields: [acknowledgedById], references: [id], onDelete: SetNull)
   recordedAt DateTime
+  /// Set when the linked spend is reversed. Current odometer falls back to the last live reading.
+  reversedAt DateTime?
   createdAt  DateTime @default(now())
 
   @@index([companyId, flagged, acknowledgedAt])
@@ -2779,7 +2814,8 @@ model VehicleOdometerReading {
 }
 
 /// Equipment sent back to the factory for refund, repair, or replacement.
-/// Uncoded new warehouse units have no assetId. Coded units keep their code.
+/// Uncoded new warehouse units have no assetId. Repair keeps the same coded unit.
+/// Refund and replace delete the old coded unit so it cannot double-count.
 model EquipmentFactoryReturn {
   id String @id @default(cuid())
 
@@ -2793,6 +2829,9 @@ model EquipmentFactoryReturn {
   refundAmount Decimal? @db.Decimal(14, 2)
   refundedAt   DateTime?
   receivedAt   DateTime?
+  /// Company bank that received the factory refund.
+  bankAccountId String?
+  bankAccount   CompanyBankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -2833,6 +2872,8 @@ model PayrollDeduction {
 
   year   Int
   month  Int
+  /// Which run pays this line, so two runs in one month never share deductions.
+  run    PayrollRunKind @default(PROJECT_CYCLE)
   type   PayrollDeductionType
   amount Decimal @db.Decimal(14, 2)
   reason String?
@@ -2874,8 +2915,8 @@ model PayrollDeduction {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([employeeId, year, month])
-  @@index([companyId, year, month])
+  @@index([employeeId, year, month, run])
+  @@index([companyId, year, month, run])
   @@index([projectId, type])
   @@index([prepaidCardLossId])
 }
@@ -2891,6 +2932,8 @@ model ProjectExpense {
   /// Historical cost booked before books open. Stays after catch-up UI is removed.
   isCatchUp Boolean @default(false)
   proofPath String?
+  bankAccountId String?
+  bankAccount   CompanyBankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -2909,9 +2952,10 @@ model ProjectExpense {
 
   @@index([projectId, incurredAt])
   @@index([companyId, incurredAt])
+  @@index([bankAccountId])
 }
 
-/// Frozen Internal Payroll period after HO Generate PDF. Unlock is HO-only.
+/// Frozen Internal Payroll period after Generate PDF. Reopen needs owner approval.
 model InternalPayrollLock {
   id        String  @id @default(cuid())
   companyId String
@@ -2919,6 +2963,8 @@ model InternalPayrollLock {
 
   year   Int
   month  Int
+  /// Each run locks its own period, so one month holds two independent locks.
+  run    PayrollRunKind @default(PROJECT_CYCLE)
   locked Boolean @default(false)
 
   lockedAt     DateTime?
@@ -2934,11 +2980,45 @@ model InternalPayrollLock {
 
   /// Employee pay + day list at last Generate (attendance edits cannot change this).
   snapshot Json?
+  /// Wage cost per site at last Generate, so the P&L never re-reads live CICO.
+  wageSites Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([companyId, year, month])
+  @@unique([companyId, year, month, run])
+}
+
+/// Ask the owner to reopen a closed payroll period. Only `vicko` decides.
+model PayrollUnlockRequest {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  year Int
+  month Int
+  run   PayrollRunKind @default(PROJECT_CYCLE)
+
+  /// Why the closed period has to change. Shown to the owner in Approvals.
+  reason String
+  status PayrollUnlockRequestStatus @default(PENDING)
+
+  requestedById   String?
+  requestedBy     User?   @relation("PayrollUnlockRequester", fields: [requestedById], references: [id], onDelete: SetNull)
+  requestedByName String?
+  requestedAt     DateTime @default(now())
+
+  decidedById   String?
+  decidedBy     User?   @relation("PayrollUnlockDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedByName String?
+  decidedAt     DateTime?
+  decisionNote  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId, status])
+  @@index([companyId, year, month, run])
 }
 
 /// Operational Manager Full pay / custom amount when a day is under 9 or 18 hours.
@@ -3145,12 +3225,17 @@ model TransferOrderLine {
 }
 
 /// Parking: HO-entered actual monthly revenue. Deal terms stay on Project.
+/// Books on creditedAt (when the bank posted the money), labeled as this year/month.
 model ParkingMonthlyLog {
   id            String  @id @default(cuid())
   year          Int
   month         Int
   revenueAmount Decimal @db.Decimal(14, 2)
   notes         String?
+  /// Date the dedicated parking bank credited this month’s income.
+  creditedAt    DateTime? @db.Date
+  bankAccountId String?
+  bankAccount   CompanyBankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
 
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -3163,6 +3248,7 @@ model ParkingMonthlyLog {
 
   @@unique([projectId, year, month])
   @@index([projectId])
+  @@index([bankAccountId, creditedAt])
 }
 
 /// Payroll Management: one client employee-pay list per calendar month.

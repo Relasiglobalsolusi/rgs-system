@@ -1,6 +1,8 @@
 import type { Prisma } from "@prisma/client";
 
 import { deleteEquipmentAssetsMintedForPurchase, isEquipmentItemType } from "@/lib/equipment-asset";
+import { isVehicleItemType } from "@/lib/inventory-sku";
+import { returnVehicleCardsToPool } from "@/lib/prepaid-card-lifecycle";
 import {
   inventoryQtyFromDecimal,
   normalizeInventoryQty,
@@ -65,6 +67,48 @@ export async function unwindAndReversePurchaseInvoice(
     throw new Error("Purchase not found.");
   }
 
+  if (invoice.vehicleAssetId && invoice.vehicleExpenseKind === "PURCHASE") {
+    const asset = await tx.equipmentAsset.findFirst({
+      where: { id: invoice.vehicleAssetId, companyId: options.companyId },
+      select: {
+        id: true,
+        status: true,
+        soldOffMovementId: true,
+        writeOffMovementId: true,
+      },
+    });
+    if (asset) {
+      if (
+        asset.status !== "AVAILABLE" ||
+        asset.soldOffMovementId ||
+        asset.writeOffMovementId
+      ) {
+        throw new Error(
+          "This vehicle cannot be reversed. It is no longer Available. Use Sold Off if the car has left the company."
+        );
+      }
+      const laterSpend = await tx.purchaseInvoice.findFirst({
+        where: {
+          companyId: options.companyId,
+          vehicleAssetId: asset.id,
+          reversedAt: null,
+          NOT: { id: invoice.id },
+        },
+        select: { id: true },
+      });
+      if (laterSpend) {
+        throw new Error(
+          "This vehicle has later costs. Reverse those first, or use Sold Off."
+        );
+      }
+      await returnVehicleCardsToPool(tx, {
+        companyId: options.companyId,
+        vehicleAssetIds: [asset.id],
+      });
+      await tx.equipmentAsset.delete({ where: { id: asset.id } });
+    }
+  }
+
   const voidReason = options.reason.trim();
 
   for (const line of invoice.lines) {
@@ -88,7 +132,9 @@ export async function unwindAndReversePurchaseInvoice(
     }
 
     const itemType = line.item?.itemType ?? "";
-    if (isEquipmentItemType(itemType)) {
+    if (isVehicleItemType(itemType)) {
+      // Plate-coded vehicles are removed above when still Available.
+    } else if (isEquipmentItemType(itemType)) {
       // New purchases stay uncoded. Only leftover AVAILABLE units minted in
       // this purchase window are deleted; an empty window is a no-op.
       await deleteEquipmentAssetsMintedForPurchase(tx, {

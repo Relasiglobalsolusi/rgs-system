@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import DirectoryFilterTab from "@/components/ui/DirectoryFilterTab";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import SearchableClientSelect from "@/components/ui/SearchableClientSelect";
@@ -271,7 +272,7 @@ export default function PettyCashSpendDialog({
                 {t("pages.pettyCash.chargeType")}
                 <span className="text-red-400"> *</span>
               </p>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className={chipScrollRowClassName()}>
                 <DirectoryFilterTab
                   size="sm"
                   active={chargeType === "project"}

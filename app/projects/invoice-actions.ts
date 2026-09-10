@@ -19,6 +19,7 @@ import {
 import { DEFAULT_PRODUCT_PPN_RATE_PERCENT } from "@/lib/vat";
 import {
   commercialTaxIncludesIncomeTax,
+  exclusivePricePlusChargedTax,
   invoiceGrossFromExclusivePrice,
 } from "@/lib/commercial-tax";
 import {
@@ -33,10 +34,15 @@ import {
   recalculateUnpaidMilestoneAmounts,
   usesInvoicePeriods,
 } from "@/lib/project-billing";
+import { catchUpAsOfDate, loadBooksOpenDate } from "@/lib/books-open";
+import { catchUpHistoryMissing } from "@/lib/catch-up-close";
+import {
+  assertLiveBillingAllowed,
+  invoicePeriodCompanyWhere,
+} from "@/lib/invoice-period-access";
 import { isContractCycleSubCategory } from "@/lib/project-contract";
 import {
   assertContractPriceEditable,
-  assertProjectTermsEditable,
   shouldCompleteProjectAfterSettlement,
 } from "@/lib/project-settlement";
 import { releaseAllProjectCrew } from "@/lib/workforce-crew";
@@ -297,6 +303,11 @@ async function getOrCreatePeriod(
   periodEnd: Date,
   label: string
 ) {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { companyId: true },
+  });
+  const asOf = catchUpAsOfDate(await loadBooksOpenDate(project?.companyId));
   const existing = await prisma.projectInvoicePeriod.findUnique({
     where: {
       projectId_periodStart_periodEnd: {
@@ -307,11 +318,31 @@ async function getOrCreatePeriod(
     },
   });
   if (existing) {
-    if (existing.label === label) return existing;
-    return prisma.projectInvoicePeriod.update({
-      where: { id: existing.id },
-      data: { label },
-    });
+    const emptyLiveBeforeBooksOpen =
+      !existing.isCatchUp &&
+      existing.status === "ONGOING" &&
+      !existing.invoicePdfPath &&
+      existing.periodStart.getTime() < asOf.getTime();
+    if (emptyLiveBeforeBooksOpen) {
+      await prisma.progressReport.updateMany({
+        where: { invoicePeriodId: existing.id },
+        data: { invoicePeriodId: null },
+      });
+      try {
+        await prisma.projectInvoicePeriod.delete({ where: { id: existing.id } });
+      } catch {
+        return existing;
+      }
+    } else {
+      if (existing.label === label) return existing;
+      return prisma.projectInvoicePeriod.update({
+        where: { id: existing.id },
+        data: { label },
+      });
+    }
+  }
+  if (periodStart.getTime() < asOf.getTime()) {
+    return null;
   }
   return prisma.projectInvoicePeriod.create({
     data: {
@@ -639,8 +670,8 @@ async function compileInvoicePeriodInner(
     opts.approvedReview ? { approvedReviewPeriodId: periodId } : undefined
   );
 
-  const period = await prisma.projectInvoicePeriod.findUnique({
-    where: { id: periodId },
+  const period = await prisma.projectInvoicePeriod.findFirst({
+    where: { id: periodId, project: invoicePeriodCompanyWhere(session) },
     include: {
       project: {
         include: {
@@ -654,6 +685,12 @@ async function compileInvoicePeriodInner(
   });
 
   if (!period) throw new Error("Invoice period not found.");
+  await assertLiveBillingAllowed(period);
+  if (!period.taxInvoiceDoneAt) {
+    throw new Error(
+      "A tax invoice must be on this period before the client invoice can go out."
+    );
+  }
   if (period.status === "PAID") {
     throw new Error("This period is already marked paid.");
   }
@@ -722,17 +759,25 @@ async function compileInvoicePeriodInner(
     const revisedAmount = decimalToNumber(period.revisedInvoiceAmount);
     const periodAmount = decimalToNumber(period.amount);
     const contractPrice = decimalToNumber(period.project.contractPrice);
-    const invoiceAmount =
-      revisedAmount ??
-      periodAmount ??
-      invoiceGrossFromExclusivePrice(contractPrice, {
-        chargedTaxKind: period.project.chargedTaxKind,
-        requiresTaxInvoice: period.project.requiresTaxInvoice,
-        pphRatePercent: decimalToNumber(period.project.pphRatePercent),
-        isGovernmentContract: period.project.isGovernmentContract,
-      }, decimalToNumber(period.ppnRatePercent));
+    const exclusiveAmount = revisedAmount ?? periodAmount ?? contractPrice;
+    const taxBreakdown =
+      exclusiveAmount != null && exclusiveAmount > 0
+        ? exclusivePricePlusChargedTax({
+            exclusiveAmount,
+            chargedTaxKind: period.project.chargedTaxKind,
+            requiresTaxInvoice: period.project.requiresTaxInvoice,
+            pphRatePercent: decimalToNumber(period.project.pphRatePercent),
+            isGovernmentContract: period.project.isGovernmentContract,
+            ppnRatePercent: decimalToNumber(period.ppnRatePercent),
+          })
+        : null;
+    const invoiceAmount = exclusiveAmount;
     const amountLabel =
-      invoiceAmount != null ? formatContractPrice(invoiceAmount) : null;
+      taxBreakdown != null
+        ? formatContractPrice(taxBreakdown.gross)
+        : invoiceAmount != null
+          ? formatContractPrice(invoiceAmount)
+          : null;
     const invoiceNumber =
       period.revisedInvoiceNumber?.trim() ||
       `INV-${period.periodStart.getUTCFullYear()}${String(
@@ -764,6 +809,14 @@ async function compileInvoicePeriodInner(
       periodEnd: period.periodEnd,
       reports,
       amountLabel,
+      taxBreakdown: taxBreakdown
+        ? {
+            dpp: taxBreakdown.exclusive,
+            ppn: taxBreakdown.ppn,
+            pph: taxBreakdown.pph,
+            gross: taxBreakdown.gross,
+          }
+        : null,
       issuedAt,
       dueAt,
       paymentTermsDays: period.project.paymentTermsDays,
@@ -1024,8 +1077,8 @@ async function issueMilestonePeriodInner(
     opts.approvedReview ? { approvedReviewPeriodId: periodId } : undefined
   );
 
-  const period = await prisma.projectInvoicePeriod.findUnique({
-    where: { id: periodId },
+  const period = await prisma.projectInvoicePeriod.findFirst({
+    where: { id: periodId, project: invoicePeriodCompanyWhere(session) },
     include: {
       project: {
         include: {
@@ -1042,6 +1095,12 @@ async function issueMilestonePeriodInner(
   });
 
   if (!period) throw new Error("Invoice period not found.");
+  await assertLiveBillingAllowed(period);
+  if (!period.taxInvoiceDoneAt) {
+    throw new Error(
+      "A tax invoice must be on this period before the client invoice can go out."
+    );
+  }
   if (period.status === "PAID") {
     throw new Error("This period is already marked paid.");
   }
@@ -1121,27 +1180,28 @@ async function issueMilestonePeriodInner(
 
   const slicePercent = milestonePercent - priorMax;
   const revisedAmount = decimalToNumber(period.revisedInvoiceAmount);
-  let amount = revisedAmount ?? decimalToNumber(period.amount);
-  // Explicit 0 = nothing left after a contract-price revision — do not
-  // re-derive from contract × % (that would ignore money already paid).
-  if (amount === 0) {
+  const storedAmount = decimalToNumber(period.amount);
+  const exclusiveSlice =
+    Math.round(((contractPrice * slicePercent) / 100) * 100) / 100;
+  const exclusiveAmount = revisedAmount ?? storedAmount ?? exclusiveSlice;
+  if (exclusiveAmount === 0) {
     throw new Error(
       "This milestone has amount Rp 0 after the contract price revision — nothing left to invoice."
     );
   }
-  if (amount == null || amount < 0) {
-    const exclusiveSlice =
-      Math.round(((contractPrice * slicePercent) / 100) * 100) / 100;
-    amount =
-      invoiceGrossFromExclusivePrice(exclusiveSlice, {
-        chargedTaxKind: project.chargedTaxKind,
-        requiresTaxInvoice: project.requiresTaxInvoice,
-        pphRatePercent: decimalToNumber(project.pphRatePercent),
-        isGovernmentContract: project.isGovernmentContract,
-      }) ?? exclusiveSlice;
-  } else {
-    amount = Math.round(amount * 100) / 100;
+  if (exclusiveAmount == null || exclusiveAmount < 0) {
+    throw new Error(
+      "Set a contract price in Invoice and Billing before creating a milestone invoice."
+    );
   }
+  const taxBreakdown = exclusivePricePlusChargedTax({
+    exclusiveAmount,
+    chargedTaxKind: project.chargedTaxKind,
+    requiresTaxInvoice: project.requiresTaxInvoice,
+    pphRatePercent: decimalToNumber(project.pphRatePercent),
+    isGovernmentContract: project.isGovernmentContract,
+  });
+  const amount = exclusiveAmount;
 
   const today = toUtcDateOnly(new Date());
   const periodStart = toUtcDateOnly(period.periodStart);
@@ -1196,7 +1256,7 @@ async function issueMilestonePeriodInner(
       orderBy: [{ reportDate: "asc" }, { createdAt: "asc" }],
     });
 
-    const amountLabel = formatContractPrice(amount);
+    const amountLabel = formatContractPrice(taxBreakdown.gross);
     const submittedAt = new Date();
     const issuedAt = invoiceIssueCalendarDate(submittedAt);
     const dueAt = dueAtFromClientPaymentTerms(
@@ -1233,6 +1293,12 @@ async function issueMilestonePeriodInner(
       periodEnd,
       reports,
       amountLabel,
+      taxBreakdown: {
+        dpp: taxBreakdown.exclusive,
+        ppn: taxBreakdown.ppn,
+        pph: taxBreakdown.pph,
+        gross: taxBreakdown.gross,
+      },
       milestonePercent,
       issuedAt,
       dueAt,
@@ -1422,23 +1488,24 @@ async function ensureAdHocMilestonePeriod(
 
   const slicePercent = milestonePercent - priorMax;
   const exclusiveSlice = (contractPrice * slicePercent) / 100;
-  let amount = exclusiveSlice;
+  let exclusiveAmount = exclusiveSlice;
 
   if (amountOverrideRaw) {
     const override = Number(amountOverrideRaw.replace(/[^\d.]/g, ""));
     if (!Number.isFinite(override) || override <= 0) {
       throw new Error("Invalid invoice amount override.");
     }
-    amount = override;
+    exclusiveAmount = override;
   }
 
-  amount =
-    invoiceGrossFromExclusivePrice(amount, {
-      chargedTaxKind: project.chargedTaxKind,
-      requiresTaxInvoice: project.requiresTaxInvoice,
-      pphRatePercent: decimalToNumber(project.pphRatePercent),
-      isGovernmentContract: project.isGovernmentContract,
-    }) ?? Math.round(amount * 100) / 100;
+  const taxBreakdown = exclusivePricePlusChargedTax({
+    exclusiveAmount,
+    chargedTaxKind: project.chargedTaxKind,
+    requiresTaxInvoice: project.requiresTaxInvoice,
+    pphRatePercent: decimalToNumber(project.pphRatePercent),
+    isGovernmentContract: project.isGovernmentContract,
+  });
+  const amount = exclusiveAmount;
 
   const today = toUtcDateOnly(new Date());
   const lastDelivered = project.invoicePeriods
@@ -1585,7 +1652,14 @@ async function createMilestoneInvoice(formData: FormData) {
     orderBy: [{ reportDate: "asc" }, { createdAt: "asc" }],
   });
 
-  const amountLabel = formatContractPrice(amount);
+  const taxBreakdown = exclusivePricePlusChargedTax({
+    exclusiveAmount: amount,
+    chargedTaxKind: project.chargedTaxKind,
+    requiresTaxInvoice: project.requiresTaxInvoice,
+    pphRatePercent: decimalToNumber(project.pphRatePercent),
+    isGovernmentContract: project.isGovernmentContract,
+  });
+  const amountLabel = formatContractPrice(taxBreakdown.gross);
   const submittedAt = new Date();
   const issuedAt = invoiceIssueCalendarDate(submittedAt);
   const dueAt = dueAtFromClientPaymentTerms(
@@ -1617,6 +1691,12 @@ async function createMilestoneInvoice(formData: FormData) {
     periodEnd: safeEnd,
     reports,
     amountLabel,
+    taxBreakdown: {
+      dpp: taxBreakdown.exclusive,
+      ppn: taxBreakdown.ppn,
+      pph: taxBreakdown.pph,
+      gross: taxBreakdown.gross,
+    },
     milestonePercent,
     issuedAt,
     dueAt,
@@ -1688,10 +1768,10 @@ async function createMilestoneInvoice(formData: FormData) {
  * Amount and progress links stay.
  */
 export async function deleteInvoicePeriod(periodId: string) {
-  await requireInvoiceManageAccess();
+  const session = await requireInvoiceManageAccess();
 
-  const period = await prisma.projectInvoicePeriod.findUnique({
-    where: { id: periodId },
+  const period = await prisma.projectInvoicePeriod.findFirst({
+    where: { id: periodId, project: invoicePeriodCompanyWhere(session) },
     select: {
       id: true,
       status: true,
@@ -1819,8 +1899,41 @@ type MarkPaidPeriod = {
       milestonePercent: number | null;
       taxInvoiceDoneAt?: Date | null;
     }[];
+    visits?: Array<{ invoicePeriodId: string | null }>;
   };
 };
+
+/** Historical catch-up pages still open on this project. */
+async function catchUpBacklogOpen(projectId: string): Promise<boolean> {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: {
+      companyId: true,
+      catchUpKind: true,
+      status: true,
+      isComplimentary: true,
+      isDemo: true,
+      subCategory: true,
+      billingMode: true,
+      startDate: true,
+      endDate: true,
+      billingPeriodBasis: true,
+      billingCycleStartDay: true,
+      billingCycleEndDay: true,
+      catchUpIntake: { select: { kind: true } },
+      invoicePeriods: {
+        select: {
+          periodStart: true,
+          periodEnd: true,
+          isCatchUp: true,
+          invoicePdfPath: true,
+        },
+      },
+    },
+  });
+  if (!project) return false;
+  return catchUpHistoryMissing(project);
+}
 
 /**
  * Shared PAID transition + Completed Projects move rules.
@@ -1864,14 +1977,26 @@ async function applyInvoicePeriodPaid(
   // Complete only after every issued/paid period has its tax invoice.
   // Regular / Security last cycle can complete here; next month may still open
   // before tax on earlier periods.
-  const shouldMoveToHistory = shouldCompleteProjectAfterSettlement({
+  const visits =
+    project.billingMode === "MULTI_VISIT"
+      ? await prisma.projectVisit.findMany({
+          where: { projectId: project.id },
+          select: { invoicePeriodId: true },
+        })
+      : [];
+
+  const settled = shouldCompleteProjectAfterSettlement({
     billingMode: project.billingMode,
     subCategory: project.subCategory,
     projectStatus: project.status,
     endDate: project.endDate,
     lastPaidPeriodEnd: period.periodEnd,
     periods: periodsAfterPay,
+    visits,
   });
+  // A job never closes with a historical catch-up period still unrecorded.
+  // The payment stands; completing waits until the backlog is in.
+  const shouldMoveToHistory = settled && !(await catchUpBacklogOpen(project.id));
 
   if (shouldMoveToHistory) {
     await prisma.$transaction(async (tx) => {
@@ -1938,8 +2063,8 @@ export async function markInvoicePeriodPaid(formData: FormData) {
       "Payment proof must be an image (JPEG, PNG, WebP, GIF) or PDF.",
   });
 
-  const period = await prisma.projectInvoicePeriod.findUnique({
-    where: { id: periodId },
+  const period = await prisma.projectInvoicePeriod.findFirst({
+    where: { id: periodId, project: invoicePeriodCompanyWhere(session) },
     include: {
       project: {
         select: {
@@ -2010,6 +2135,7 @@ export async function markInvoicePeriodPaid(formData: FormData) {
  * Files stay on this server.
  */
 export async function submitInvoicePaymentForVerification(formData: FormData) {
+  const session = await requireSession();
   const periodId = String(formData.get("periodId") ?? "").trim();
   if (!periodId) throw new Error("Invoice period is required.");
 
@@ -2020,8 +2146,8 @@ export async function submitInvoicePaymentForVerification(formData: FormData) {
       "Payment proof must be an image (JPEG, PNG, WebP, GIF) or PDF.",
   });
 
-  const period = await prisma.projectInvoicePeriod.findUnique({
-    where: { id: periodId },
+  const period = await prisma.projectInvoicePeriod.findFirst({
+    where: { id: periodId, project: invoicePeriodCompanyWhere(session) },
     include: {
       project: {
         select: {
@@ -2094,8 +2220,8 @@ export async function verifyInvoicePeriodPayment(formData: FormData) {
   if (!periodId) throw new Error("Invoice period is required.");
   const reason = parseManualVerifyReason(formData.get("manualReason"));
 
-  const period = await prisma.projectInvoicePeriod.findUnique({
-    where: { id: periodId },
+  const period = await prisma.projectInvoicePeriod.findFirst({
+    where: { id: periodId, project: invoicePeriodCompanyWhere(session) },
     include: {
       project: {
         select: {
@@ -2142,10 +2268,10 @@ export async function verifyInvoicePeriodPayment(formData: FormData) {
  * Admin / ops: reject proof and return invoice to awaiting payment.
  */
 export async function rejectInvoicePaymentVerification(periodId: string) {
-  await requireInvoiceManageAccess();
+  const session = await requireInvoiceManageAccess();
 
-  const period = await prisma.projectInvoicePeriod.findUnique({
-    where: { id: periodId },
+  const period = await prisma.projectInvoicePeriod.findFirst({
+    where: { id: periodId, project: invoicePeriodCompanyWhere(session) },
     include: {
       project: { select: { clientId: true } },
     },
@@ -2200,8 +2326,8 @@ export async function markTaxInvoiceDone(formData: FormData) {
     }
   );
 
-  const period = await prisma.projectInvoicePeriod.findUnique({
-    where: { id: periodId },
+  const period = await prisma.projectInvoicePeriod.findFirst({
+    where: { id: periodId, project: invoicePeriodCompanyWhere(session) },
     include: {
       project: {
         select: {
@@ -2390,6 +2516,7 @@ async function tryCompleteSettledProject(projectId: string) {
       endDate: true,
       invoicePeriods: {
         select: {
+          id: true,
           status: true,
           periodEnd: true,
           taxInvoiceDoneAt: true,
@@ -2405,6 +2532,13 @@ async function tryCompleteSettledProject(projectId: string) {
     .filter((row) => row.status === "PAID")
     .sort((a, b) => b.periodEnd.getTime() - a.periodEnd.getTime())[0];
   if (!lastPaid) return;
+  const visits =
+    project.billingMode === "MULTI_VISIT"
+      ? await prisma.projectVisit.findMany({
+          where: { projectId: project.id },
+          select: { invoicePeriodId: true },
+        })
+      : [];
   if (
     !shouldCompleteProjectAfterSettlement({
       billingMode: project.billingMode,
@@ -2413,10 +2547,13 @@ async function tryCompleteSettledProject(projectId: string) {
       endDate: project.endDate,
       lastPaidPeriodEnd: lastPaid.periodEnd,
       periods: project.invoicePeriods,
+      visits,
     })
   ) {
     return;
   }
+  // Same rule as marking paid: the backlog goes in before the job closes.
+  if (await catchUpBacklogOpen(project.id)) return;
   await prisma.$transaction(async (tx) => {
     await tx.project.update({
       where: { id: project.id },
@@ -2444,12 +2581,13 @@ export async function reconcileInvoicePeriod(formData: FormData) {
 
   if (!periodId) throw new Error("Period is required.");
 
-  const period = await prisma.projectInvoicePeriod.findUnique({
-    where: { id: periodId },
+  const period = await prisma.projectInvoicePeriod.findFirst({
+    where: { id: periodId, project: invoicePeriodCompanyWhere(session) },
     include: {
       project: {
         select: {
           id: true,
+          companyId: true,
           clientId: true,
           billingMode: true,
           subCategory: true,
@@ -2466,6 +2604,7 @@ export async function reconcileInvoicePeriod(formData: FormData) {
   });
 
   if (!period) throw new Error("Invoice period not found.");
+  await assertLiveBillingAllowed(period);
   if (period.project.billingMode !== "MONTHLY") {
     throw new Error("Reconcile is only for monthly Regular Cleaning cycles.");
   }
@@ -2505,24 +2644,10 @@ export async function reconcileInvoicePeriod(formData: FormData) {
       projectId: period.project.id,
     });
     amountUpdate = {
-      amount:
-        invoiceGrossFromExclusivePrice(adjusted, {
-          chargedTaxKind: period.project.chargedTaxKind,
-          requiresTaxInvoice: period.project.requiresTaxInvoice,
-          pphRatePercent: decimalToNumber(period.project.pphRatePercent),
-          isGovernmentContract: period.project.isGovernmentContract,
-        }) ?? adjusted,
+      amount: adjusted,
     };
   } else if (decimalToNumber(period.amount) == null) {
-    const fallback = invoiceGrossFromExclusivePrice(
-      decimalToNumber(period.project.contractPrice),
-      {
-        chargedTaxKind: period.project.chargedTaxKind,
-        requiresTaxInvoice: period.project.requiresTaxInvoice,
-        pphRatePercent: decimalToNumber(period.project.pphRatePercent),
-        isGovernmentContract: period.project.isGovernmentContract,
-      }
-    );
+    const fallback = decimalToNumber(period.project.contractPrice);
     if (fallback != null && fallback > 0) {
       amountUpdate = { amount: fallback };
     }
@@ -2954,6 +3079,11 @@ export async function issueInvoicesForFinishedProject(projectId: string): Promis
           periodEnd,
           COMPLETION_INVOICE_LABEL
         );
+        if (!created) {
+          throw new Error(
+            "This billing window starts before books-open. Record it as catch-up."
+          );
+        }
         targetId = created.id;
       }
 

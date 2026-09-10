@@ -5,6 +5,10 @@ import PurchaseTaxDocumentsClient from "@/components/billing/PurchaseTaxDocument
 import AppShell from "@/components/layout/AppShell";
 import BackLink from "@/components/ui/BackLink";
 import { PageDocumentActions } from "@/components/ui/PageDocumentActions";
+import {
+  metaLabelWideClassName as metaLabelClassName,
+  metaValueClassName,
+} from "@/components/ui/meta-facts";
 import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { formatDisplayDate } from "@/lib/format-date";
@@ -20,10 +24,6 @@ import { canAccess } from "@/lib/permissions";
 import { requireFinanceChild, toPermissionUser } from "@/lib/session";
 import { formatTaxInvoiceSerial } from "@/lib/tax-invoice-serial";
 
-const metaLabelClassName =
-  "w-36 shrink-0 px-4 py-2.5 text-left align-top text-xs font-semibold uppercase tracking-[0.12em] text-subtle sm:w-52 sm:px-5";
-const metaValueClassName =
-  "min-w-0 break-words px-4 py-2.5 align-top text-text sm:px-5";
 const sectionTitleClassName = "text-base font-semibold tracking-tight text-text";
 
 function money(value: number | null | undefined): string {
@@ -201,6 +201,7 @@ export default async function PurchaseTaxDetailPage({
               </StatusBadge>
             ) : null}
           </div>
+          <div className="min-w-0 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
           <table className="w-full text-sm">
             <tbody>
               <tr className="border-b border-border">
@@ -298,6 +299,7 @@ export default async function PurchaseTaxDetailPage({
               ) : null}
             </tbody>
           </table>
+          </div>
         </SectionCard>
 
         <SectionCard className="p-5 sm:p-6">

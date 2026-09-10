@@ -3,10 +3,8 @@ import { redirect } from "next/navigation";
 import AppShell from "@/components/layout/AppShell";
 import PageIntro from "@/components/i18n/PageIntro";
 import PayrollPanel from "@/components/billing/PayrollPanel";
-import {
-  canUnlockInternalPayroll,
-  getInternalPayrollLockState,
-} from "@/lib/internal-payroll-lock";
+import { listInternalPayrollChanges } from "@/lib/internal-payroll-audit";
+import { getInternalPayrollLockState } from "@/lib/internal-payroll-lock";
 import {
   loadInternalPayrollMonth,
   loadPayrollCatalog,
@@ -14,14 +12,18 @@ import {
 import {
   currentPayrollPeriod,
   isPayrollPeriodReconciled,
+  parsePayrollRunKind,
+  DEFAULT_PAYROLL_RUN,
 } from "@/lib/internal-payroll-period";
 import {
   isClientPortalUser,
   isVendorPortalUser,
 } from "@/lib/project-access";
+import { findPendingPayrollUnlockRequest } from "@/lib/payroll-unlock-request";
+import { getServerLocale, localeToBcp47 } from "@/lib/i18n/locale";
 import { requireFinanceChild, toPermissionUser } from "@/lib/session";
 
-type SearchParams = Promise<{ year?: string; month?: string }>;
+type SearchParams = Promise<{ year?: string; month?: string; run?: string }>;
 
 export default async function PayrollPage({
   searchParams,
@@ -35,7 +37,8 @@ export default async function PayrollPage({
   }
 
   const params = await searchParams;
-  const current = currentPayrollPeriod();
+  const run = parsePayrollRunKind(params.run) || DEFAULT_PAYROLL_RUN;
+  const current = currentPayrollPeriod(undefined, run);
   const year = Math.max(
     2000,
     Math.min(2100, Number(params.year) || current.year)
@@ -46,10 +49,21 @@ export default async function PayrollPage({
   );
   const companyId = session.user.companyId;
 
-  const [rows, catalog, lock] = await Promise.all([
-    loadInternalPayrollMonth({ companyId, year, month }),
+  const [rows, catalog, lock, changes, unlockRequest] = await Promise.all([
+    loadInternalPayrollMonth({ companyId, year, month, run }),
     loadPayrollCatalog(companyId),
-    getInternalPayrollLockState(companyId, year, month),
+    getInternalPayrollLockState(companyId, year, month, run),
+    listInternalPayrollChanges({ companyId, year, month, run }),
+    getServerLocale().then((locale) =>
+      findPendingPayrollUnlockRequest({
+        companyId,
+        year,
+        month,
+        run,
+        userId: session.user.id,
+        bcp47: localeToBcp47(locale),
+      })
+    ),
   ]);
 
   return (
@@ -64,12 +78,14 @@ export default async function PayrollPage({
       <PayrollPanel
         year={year}
         month={month}
-        preview={!isPayrollPeriodReconciled(year, month)}
+        preview={!isPayrollPeriodReconciled(year, month, undefined, run)}
         rows={rows}
         items={catalog.items}
         projects={catalog.projects}
         lock={lock}
-        canUnlock={canUnlockInternalPayroll(user)}
+        unlockRequest={unlockRequest}
+        run={run}
+        changes={changes}
       />
     </AppShell>
   );

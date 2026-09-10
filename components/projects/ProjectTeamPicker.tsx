@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Users } from "lucide-react";
 
 import { buttonVariants } from "@/components/ui/button";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import { outlineChipTones } from "@/components/ui/StatusBadge";
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
@@ -104,7 +105,7 @@ export default function ProjectTeamPicker({
         })}
       </ul>
       {selectedIds.size > 0 ? (
-        <div className="flex flex-wrap gap-2">
+        <div className={chipScrollRowClassName()}>
           {teams
             .filter((team) => selectedIds.has(team.id))
             .map((team) => (

@@ -9,6 +9,7 @@ import VendorBulkReactivateDialog from "@/components/vendors/VendorBulkReactivat
 import VendorDialog from "@/components/vendors/VendorDialog";
 import VendorTable, { type VendorRow } from "@/components/vendors/VendorTable";
 import DirectoryAddButton from "@/components/ui/DirectoryAddButton";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import DirectorySearchInput, {
   matchesDirectorySearch,
 } from "@/components/ui/DirectorySearchInput";
@@ -225,7 +226,7 @@ export default function VendorDirectory({
           className="min-w-0 w-full max-w-none sm:max-w-xs sm:flex-1"
         />
         {showAdd ? (
-          <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:justify-end">
+          <div className={chipScrollRowClassName("w-full sm:ml-auto sm:w-auto sm:justify-end")}>
             <DirectoryAddButton
               label={t("pages.vendors.addVendor")}
               onClick={() => setCreateOpen(true)}

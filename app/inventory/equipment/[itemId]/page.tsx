@@ -29,7 +29,7 @@ export default async function EquipmentItemPage({
     notFound();
   }
 
-  const [detail, assetRows, factoryRows, uncodedSaleRows, vendors] =
+  const [detail, assetRows, factoryRows, uncodedSaleRows, vendors, bankAccounts] =
     await Promise.all([
       getInventoryStockItemDetail(item.id),
       prisma.equipmentAsset.findMany({
@@ -84,6 +84,11 @@ export default async function EquipmentItemPage({
         where: { companyId: company.id, active: true },
         select: { id: true, name: true, shortCode: true },
         orderBy: { name: "asc" },
+      }),
+      prisma.companyBankAccount.findMany({
+        where: { companyId: company.id },
+        select: { id: true, bankName: true, accountNumber: true, label: true },
+        orderBy: { sortOrder: "asc" },
       }),
     ]);
 
@@ -187,6 +192,7 @@ export default async function EquipmentItemPage({
           buyer: row.buyer?.trim() || row.client?.name?.trim() || null,
         }))}
         vendors={vendors}
+        bankAccounts={bankAccounts}
         canReturnToFactory={canReturnToFactory}
       />
     </AppShell>

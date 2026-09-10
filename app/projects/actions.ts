@@ -61,9 +61,11 @@ import {
   parseBillingPeriodBasis,
   parseCustomBillingCycleDays,
   PAYMENT_TERMS_DAYS_OPTIONS,
+  snapToFullPeriodEnd,
   addUtcDays,
   parseDateInput,
   toUtcDateOnly,
+  formatDateInput,
   type PaymentTermsDaysOption,
 } from "@/lib/invoice-period";
 import { snapDateToCutoffDay } from "@/lib/payroll-management";
@@ -92,16 +94,20 @@ import {
 } from "@/lib/catch-up-intake";
 import {
   parseCatchUpKind,
+  parseCatchUpPeriodsDone,
   persistCompleteCatchUpPeriod,
   prepareCompleteCatchUpPeriod,
   assertCompleteTargetMatchesForm,
 } from "@/lib/project-catch-up";
 import {
-  currentMonthlyCatchUpPeriod,
+  firstLiveMonthlyPeriod,
+  listCatchUpIntakePages,
+  listHistoricalCatchUpPeriods,
   resolveCatchUpCompleteTarget,
+  usesMonthlyCatchUpPeriods,
 } from "@/lib/project-catch-up-periods";
+import { assertCatchUpHistoryRecorded } from "@/lib/catch-up-close";
 import { jakartaTodayAsUtcDateOnly } from "@/lib/leave-employment-status";
-import { isVehicleItemType } from "@/lib/inventory-sku";
 import {
   issueInvoiceForCurrentMonth,
   issueInvoicesForFinishedProject,
@@ -165,6 +171,7 @@ import {
   voidScheduledPartTimePays,
 } from "@/lib/petty-cash";
 import { parseProjectVisitsFromForm } from "@/lib/project-visits";
+import { syncUninvoicedProjectVisits } from "@/lib/project-visit-sync";
 import {
   clearProjectVisitAssignmentRow,
   replaceProjectVisitAssignment,
@@ -1022,8 +1029,8 @@ export async function createProject(formData: FormData) {
       formData,
       companyId
     );
-    let { subCategory, serviceArea, areaCatalogId, subcategoryCatalogId } =
-      resolvedArea;
+    const { serviceArea, areaCatalogId, subcategoryCatalogId } = resolvedArea;
+    let { subCategory } = resolvedArea;
     if (isDemo) {
       if (serviceArea === "CLEANING" && !isCleaningOneTimeType(subCategory)) {
         subCategory = "GENERAL_CLEANING";
@@ -1092,6 +1099,15 @@ export async function createProject(formData: FormData) {
     if (catchUpKind === "COMPLETED" && !isMilestoneSubCategory(subCategory)) {
       throw new Error(
         "Completed is only for one-time jobs such as General Cleaning and Facade."
+      );
+    }
+    if (
+      catchUpKind === "ONGOING" &&
+      usesMonthlyCatchUpPeriods(subCategory, billingMode) &&
+      parseCatchUpPeriodsDone(formData) == null
+    ) {
+      throw new Error(
+        "Enter how many billing periods are already done."
       );
     }
     const initialStatusRaw = String(formData.get("initialStatus") ?? "").trim();
@@ -1180,6 +1196,28 @@ export async function createProject(formData: FormData) {
       }
     }
 
+    if (
+      catchUpKind === "ONGOING" &&
+      usesMonthlyCatchUpPeriods(subCategory, billingMode) &&
+      startDate
+    ) {
+      const periodsDone = parseCatchUpPeriodsDone(formData);
+      const asOf = catchUpAsOfDate(booksOpenDate);
+      const historical = listHistoricalCatchUpPeriods({
+        startDate,
+        endDate,
+        asOf,
+        basis: billingPeriodBasis,
+        fromDay: billingCycleStartDay,
+        toDay: billingCycleEndDay,
+      });
+      if (periodsDone !== historical.length) {
+        throw new Error(
+          `Periods Already Done must be ${historical.length} — every billing cycle that starts before ${formatDateInput(asOf)}. You entered ${periodsDone ?? 0}.`
+        );
+      }
+    }
+
     const company = await prisma.company.findFirst();
     if (!company) throw new Error("Company not found.");
 
@@ -1257,7 +1295,7 @@ export async function createProject(formData: FormData) {
       }
     }
 
-    await prisma.$transaction(async (tx) => {
+    const created = await prisma.$transaction(async (tx) => {
       const created = await tx.project.create({
         data: {
           name,
@@ -1365,7 +1403,7 @@ export async function createProject(formData: FormData) {
       }
 
       // Regular + Security In Progress: open the live billing period.
-      // Ongoing catch-up opens the cycle that contains go-live (or today).
+      // Ongoing catch-up opens the first cycle that starts on or after books-open.
       // New projects still open the first cycle from the contract start.
       if (
         !isComplimentary &&
@@ -1376,7 +1414,7 @@ export async function createProject(formData: FormData) {
       ) {
         const current =
           catchUpKind === "ONGOING"
-            ? currentMonthlyCatchUpPeriod({
+            ? firstLiveMonthlyPeriod({
                 asOf: catchUpAsOfDate(booksOpenDate),
                 basis: billingPeriodBasis,
                 fromDay: billingCycleStartDay,
@@ -1394,24 +1432,29 @@ export async function createProject(formData: FormData) {
               toUtcDateOnly(startDate),
               { fromDay: billingCycleStartDay, toDay: billingCycleEndDay }
             );
-        await tx.projectInvoicePeriod.upsert({
-          where: {
-            projectId_periodStart_periodEnd: {
+        const liveStartsAfterContract =
+          endDate != null &&
+          first.periodStart.getTime() > toUtcDateOnly(endDate).getTime();
+        if (!liveStartsAfterContract) {
+          await tx.projectInvoicePeriod.upsert({
+            where: {
+              projectId_periodStart_periodEnd: {
+                projectId: created.id,
+                periodStart: first.periodStart,
+                periodEnd: first.periodEnd,
+              },
+            },
+            update: { label: first.label },
+            create: {
               projectId: created.id,
               periodStart: first.periodStart,
               periodEnd: first.periodEnd,
+              label: first.label,
+              status: "ONGOING",
+              bankAccountId,
             },
-          },
-          update: { label: first.label },
-          create: {
-            projectId: created.id,
-            periodStart: first.periodStart,
-            periodEnd: first.periodEnd,
-            label: first.label,
-            status: "ONGOING",
-            bankAccountId,
-          },
-        });
+          });
+        }
       }
 
       // Planning: assign staff only when moving to In Progress (not at create).
@@ -1460,6 +1503,10 @@ export async function createProject(formData: FormData) {
     revalidatePath("/employees");
     revalidatePath("/users");
     revalidatePath("/shifts", "layout");
+    return {
+      id: created.id,
+      catchUp: isCatchUpIntakeKind(catchUpKind),
+    };
   } catch (error) {
     throw toActionError(error, "Failed to create project.");
   }
@@ -1554,7 +1601,7 @@ export async function completeCatchUpPeriod(formData: FormData) {
     const intakeKind = intakeKindOf(project);
     const booksOpenDate = await loadBooksOpenDate(session.user.companyId);
     const asOf = catchUpAsOfDate(booksOpenDate, jakartaTodayAsUtcDateOnly());
-    const target = resolveCatchUpCompleteTarget({
+    const pages = listCatchUpIntakePages({
       catchUpKind: intakeKind,
       status: project.status,
       isComplimentary: project.isComplimentary,
@@ -1569,42 +1616,44 @@ export async function completeCatchUpPeriod(formData: FormData) {
       asOf,
       existingPeriods: project.invoicePeriods,
     });
+    const start = String(formData.get("periodStart") ?? "").trim();
+    const end = String(formData.get("periodEnd") ?? "").trim();
+    const kind = String(formData.get("completeKind") ?? "").trim();
+    const target =
+      pages.find(
+        (page) =>
+          !page.recorded &&
+          page.periodStart === start &&
+          page.periodEnd === end &&
+          page.kind === kind
+      ) ?? null;
     if (!target) {
       throw new Error("There is no historical period left to complete.");
     }
     assertCompleteTargetMatchesForm(target, formData);
 
-    const catalogRows = await prisma.inventoryItem.findMany({
-      where: {
-        companyId: session.user.companyId,
-        active: true,
-        deletedAt: null,
-      },
-      select: { id: true, name: true, unit: true, itemType: true },
-    });
-    const inventoryCatalog = new Map(
-      catalogRows
-        .filter((item) => !isVehicleItemType(item.itemType))
-        .map((item) => ({
-          id: item.id,
-          name: item.name,
-          unit: item.unit ?? "",
-        }))
-        .map((item) => [item.id, item] as const)
-    );
-
     const plan = await prepareCompleteCatchUpPeriod({
       formData,
       target,
-      inventoryCatalog,
-      requirePayment: intakeKind === "COMPLETED",
     });
+    const bankAccountId =
+      plan.payment.bankAccountId ?? project.bankAccountId;
+    if (!bankAccountId) {
+      throw new Error("Choose the bank that received payment.");
+    }
+    const bank = await prisma.companyBankAccount.findFirst({
+      where: { id: bankAccountId, companyId: session.user.companyId },
+      select: { id: true },
+    });
+    if (!bank) {
+      throw new Error("Choose the bank that received payment.");
+    }
 
     await prisma.$transaction(async (tx) => {
       await persistCompleteCatchUpPeriod(tx, {
         projectId,
         plan,
-        bankAccountId: project.bankAccountId,
+        bankAccountId: bank.id,
         paymentTermsDays: project.paymentTermsDays,
         companyId: session.user.companyId,
         userId: session.user.id,
@@ -1618,30 +1667,32 @@ export async function completeCatchUpPeriod(formData: FormData) {
           invoicePdfPath: plan.invoicePath,
         },
       ];
-      const moreTargets =
-        intakeKind && !target.closesProject
-          ? resolveCatchUpCompleteTarget({
-              catchUpKind: intakeKind,
-              status: project.status,
-              isComplimentary: project.isComplimentary,
-              isDemo: project.isDemo,
-              subCategory: project.subCategory,
-              billingMode: project.billingMode,
-              startDate: project.startDate,
-              endDate: project.endDate,
-              basis: project.billingPeriodBasis,
-              fromDay: project.billingCycleStartDay,
-              toDay: project.billingCycleEndDay,
-              asOf,
-              existingPeriods: existingAfter,
-            })
-          : null;
-      if (target.closesProject || !moreTargets) {
+      // Intake closes only once every historical page is recorded, even when
+      // the page just recorded is the one that ends the contract.
+      const moreTargets = intakeKind
+        ? resolveCatchUpCompleteTarget({
+            catchUpKind: intakeKind,
+            status: project.status,
+            isComplimentary: project.isComplimentary,
+            isDemo: project.isDemo,
+            subCategory: project.subCategory,
+            billingMode: project.billingMode,
+            startDate: project.startDate,
+            endDate: project.endDate,
+            basis: project.billingPeriodBasis,
+            fromDay: project.billingCycleStartDay,
+            toDay: project.billingCycleEndDay,
+            asOf,
+            existingPeriods: existingAfter,
+          })
+        : null;
+      const closesNow = target.closesProject && !moreTargets;
+      if (!moreTargets) {
         await closeCatchUpIntake(tx, projectId, {
-          completeProject: target.closesProject,
+          completeProject: closesNow,
         });
       }
-      if (target.closesProject) {
+      if (closesNow) {
         await releaseAllProjectCrew(tx, projectId, {
           keepAssignmentHistory: true,
         });
@@ -1871,8 +1922,8 @@ export async function updateProject(id: string, formData: FormData) {
       formData,
       companyId
     );
-    let { subCategory, serviceArea, areaCatalogId, subcategoryCatalogId } =
-      resolvedUpdate;
+    const { serviceArea, areaCatalogId, subcategoryCatalogId } = resolvedUpdate;
+    let { subCategory } = resolvedUpdate;
     if (isDemo) {
       if (serviceArea === "CLEANING" && !isCleaningOneTimeType(subCategory)) {
         subCategory = "GENERAL_CLEANING";
@@ -2065,6 +2116,15 @@ export async function updateProject(id: string, formData: FormData) {
     );
     const shiftWindows =
       shiftCount > 0 ? parseShiftWindowsFromForm(formData, shiftCount) : [];
+    const updateLocale = await getServerLocale();
+    const nextVisits =
+      billingMode === "MULTI_VISIT" &&
+      formData.getAll("visitStart").some((value) => String(value ?? "").trim())
+        ? parseProjectVisitsFromForm(
+            formData,
+            decimalToNumber(existing.contractPrice)
+          )
+        : null;
 
     await prisma.$transaction(async (tx) => {
       await tx.project.update({
@@ -2136,6 +2196,15 @@ export async function updateProject(id: string, formData: FormData) {
       });
 
       await syncProjectShifts(tx, id, shiftCount, shiftWindows);
+
+      if (nextVisits) {
+        await syncUninvoicedProjectVisits(tx, {
+          companyId: existing.companyId,
+          projectId: id,
+          visits: nextVisits,
+          locale: updateLocale,
+        });
+      }
 
       await tx.projectInvoicePeriod.updateMany({
         where: {
@@ -2998,6 +3067,13 @@ export async function finishProject(
       contractPrice: true,
       requiresTaxInvoice: true,
       serviceArea: true,
+      catchUpKind: true,
+      isComplimentary: true,
+      isDemo: true,
+      billingPeriodBasis: true,
+      billingCycleStartDay: true,
+      billingCycleEndDay: true,
+      companyId: true,
       invoicePeriods: {
         select: {
           id: true,
@@ -3007,6 +3083,8 @@ export async function finishProject(
           reconciledAt: true,
           taxInvoiceRequired: true,
           taxInvoiceDoneAt: true,
+          isCatchUp: true,
+          invoicePdfPath: true,
         },
       },
     },
@@ -3015,6 +3093,11 @@ export async function finishProject(
     throw new Error("Project not found.");
   }
   await assertSessionCanWriteProject(session, project);
+  if (project.subCategory === "INTERNAL") {
+    throw new Error(
+      "Internal sites stay In Progress. They exist to log expenses and CICO, and cannot be marked Completed."
+    );
+  }
   if (project.status === "COMPLETED") {
     throw new Error("Project is already finished.");
   }
@@ -3038,6 +3121,12 @@ export async function finishProject(
   if (hasUnpaidIssued) {
     throw new Error("SETTLE_UNPAID_BEFORE_CLOSE");
   }
+
+  await assertCatchUpHistoryRecorded({
+    ...project,
+    catchUpKind: project.catchUpKind,
+    companyId: project.companyId,
+  });
 
   if (isExtendableContractSubCategory(project.subCategory)) {
     return endContractCycleEarly(session.user.id, project, formData);
@@ -3239,6 +3328,11 @@ export async function submitProjectForApproval(projectId: string) {
       });
       if (!nextVisit) {
         throw new Error("Every visit already has a billing pack.");
+      }
+      if (toUtcDateOnly(nextVisit.startDate).getTime() > today.getTime()) {
+        throw new Error(
+          translate(locale, "pages.projects.submitForApproval.visitWindowNotStarted")
+        );
       }
       const created = await prisma.projectInvoicePeriod.upsert({
         where: {
@@ -3538,6 +3632,9 @@ async function endContractCycleEarly(
     endDate: Date | null;
     subCategory: string;
     contractPrice: Parameters<typeof decimalToNumber>[0];
+    billingPeriodBasis?: string | null;
+    billingCycleStartDay?: number | null;
+    billingCycleEndDay?: number | null;
   },
   formData?: FormData
 ): Promise<FinishProjectResult> {
@@ -3564,7 +3661,11 @@ async function endContractCycleEarly(
 
   const start = toUtcDateOnly(project.startDate);
   const plannedEnd = project.endDate ? toUtcDateOnly(project.endDate) : null;
-  const last = toUtcDateOnly(lastDay);
+  const last = snapToFullPeriodEnd(lastDay, {
+    basis: project.billingPeriodBasis,
+    fromDay: project.billingCycleStartDay,
+    toDay: project.billingCycleEndDay,
+  });
   if (last.getTime() < start.getTime()) {
     throw new Error("Last day cannot be before the contract start.");
   }
@@ -3579,7 +3680,6 @@ async function endContractCycleEarly(
       where: { id: project.id },
       data: { endDate: last, pendingEarlyEndReconcile: true },
     });
-    await releaseAllProjectCrew(tx, project.id);
   });
 
   if (usesInvoicePeriods(project.subCategory)) {

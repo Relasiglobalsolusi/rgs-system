@@ -185,6 +185,8 @@ export function useProjectLifecycleActions({
               ? t("pages.projects.finish.reconcileDueBeforeClose")
               : code === "CLIENT_REVIEW_BEFORE_CLOSE"
                 ? t("pages.projects.finish.clientReviewBeforeClose")
+                : code === "CATCH_UP_BEFORE_CLOSE"
+                  ? t("pages.projects.finish.catchUpBeforeClose")
                 : null;
         if (closureReason) {
           showRejection({ reasons: closureReason });

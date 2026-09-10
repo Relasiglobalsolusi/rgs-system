@@ -36,38 +36,33 @@ export async function assertPrepaidCardNumberAvailable(
   return normalized;
 }
 
-export async function requireOwnedVehicle(
+export async function requireOwnedVehicleAsset(
   db: Db,
   companyId: string,
-  vehicleItemId: string
+  vehicleAssetId: string
 ) {
-  const vehicle = await db.inventoryItem.findFirst({
+  const asset = await db.equipmentAsset.findFirst({
     where: {
-      id: vehicleItemId,
+      id: vehicleAssetId,
       companyId,
-      active: true,
-      deletedAt: null,
+      soldOffMovementId: null,
+      writeOffMovementId: null,
     },
-    select: { id: true, itemType: true },
+    select: {
+      id: true,
+      itemId: true,
+      item: { select: { itemType: true, active: true, deletedAt: true } },
+    },
   });
-  if (!vehicle || !isVehicleItemType(vehicle.itemType)) {
+  if (
+    !asset ||
+    !asset.item.active ||
+    asset.item.deletedAt ||
+    !isVehicleItemType(asset.item.itemType)
+  ) {
     throw new Error("Choose a vehicle from Inventory.");
   }
-  const owned = await db.inventoryItem.findFirst({
-    where: {
-      id: vehicleItemId,
-      companyId,
-      OR: [
-        { currentStock: { gt: 0 } },
-        { equipmentAssets: { some: { companyId } } },
-      ],
-    },
-    select: { id: true },
-  });
-  if (!owned) {
-    throw new Error("Choose a vehicle that is already in Inventory.");
-  }
-  return vehicle;
+  return asset;
 }
 
 export async function requireActiveEmployee(
@@ -95,16 +90,21 @@ export async function requireActiveEmployee(
 export async function assertVehicleHasNoLiveCard(
   db: Db,
   companyId: string,
-  vehicleItemId: string,
+  vehicleKey: { vehicleAssetId?: string | null; vehicleItemId?: string | null },
   exceptCardId?: string
 ) {
+  const vehicleAssetId = vehicleKey.vehicleAssetId?.trim() || null;
+  const vehicleItemId = vehicleKey.vehicleItemId?.trim() || null;
+  if (!vehicleAssetId && !vehicleItemId) return;
   const taken = await db.prepaidCard.findFirst({
     where: {
       companyId,
       kind: "VEHICLE",
-      vehicleItemId,
       status: { in: PREPAID_CARD_LIVE_STATUSES },
       ...(exceptCardId ? { id: { not: exceptCardId } } : {}),
+      ...(vehicleAssetId
+        ? { vehicleAssetId }
+        : { vehicleItemId, vehicleAssetId: null }),
     },
     select: { id: true, cardNumber: true },
   });
@@ -141,6 +141,7 @@ export async function startPrepaidAssignment(
   options: {
     prepaidCardId: string;
     vehicleItemId?: string | null;
+    vehicleAssetId?: string | null;
     custodianEmployeeId?: string | null;
     startedAt?: Date;
   }
@@ -150,6 +151,7 @@ export async function startPrepaidAssignment(
     data: {
       prepaidCardId: options.prepaidCardId,
       vehicleItemId: options.vehicleItemId ?? null,
+      vehicleAssetId: options.vehicleAssetId ?? null,
       custodianEmployeeId: options.custodianEmployeeId ?? null,
       startedAt: options.startedAt ?? new Date(),
     },
@@ -167,6 +169,7 @@ export async function returnPrepaidCardToStandby(
     data: {
       status: "STANDBY",
       vehicleItemId: null,
+      vehicleAssetId: null,
       custodianEmployeeId: null,
     },
   });
@@ -174,14 +177,24 @@ export async function returnPrepaidCardToStandby(
 
 export async function returnVehicleCardsToPool(
   db: Db,
-  options: { companyId: string; vehicleItemId: string }
+  options: {
+    companyId: string;
+    vehicleItemId?: string;
+    vehicleAssetIds?: string[];
+  }
 ) {
+  const assetIds = (options.vehicleAssetIds ?? []).filter(Boolean);
   const cards = await db.prepaidCard.findMany({
     where: {
       companyId: options.companyId,
       kind: "VEHICLE",
-      vehicleItemId: options.vehicleItemId,
       status: { in: PREPAID_CARD_LIVE_STATUSES },
+      OR: [
+        ...(assetIds.length > 0 ? [{ vehicleAssetId: { in: assetIds } }] : []),
+        ...(assetIds.length === 0 && options.vehicleItemId
+          ? [{ vehicleItemId: options.vehicleItemId, vehicleAssetId: null }]
+          : []),
+      ],
     },
     select: { id: true },
   });
@@ -227,6 +240,9 @@ export async function writePrepaidCardEntry(
     bankAccountId?: string | null;
   }
 ) {
+  await db.$queryRaw`
+    SELECT id FROM "PrepaidCard" WHERE id = ${options.cardId} FOR UPDATE
+  `;
   const card = await db.prepaidCard.findUnique({
     where: { id: options.cardId },
     select: { id: true, currentBalance: true },
@@ -362,4 +378,54 @@ export function vehicleAssignmentLabel(vehicle: {
     sku: vehicle.sku,
     year,
   });
+}
+
+export const PREPAID_REVERSED_PREFIX = "[Reversed] ";
+
+export function isPrepaidEntryReversed(description: string | null | undefined) {
+  return String(description ?? "").startsWith(PREPAID_REVERSED_PREFIX);
+}
+
+export async function reversePrepaidCardSpendEntry(
+  db: Db,
+  options: {
+    companyId: string;
+    entryId: string;
+    createdById: string;
+  }
+) {
+  const entry = await db.prepaidCardEntry.findFirst({
+    where: {
+      id: options.entryId,
+      prepaidCard: { companyId: options.companyId },
+    },
+    include: { prepaidCard: { select: { id: true, currentBalance: true } } },
+  });
+  if (!entry || entry.kind !== "SPEND") {
+    throw new Error("Only a posted spend can be reversed.");
+  }
+  if (isPrepaidEntryReversed(entry.description)) {
+    throw new Error("This spend is already reversed.");
+  }
+  const amount = decimalToNumber(entry.amount) ?? 0;
+  await db.prepaidCardEntry.update({
+    where: { id: entry.id },
+    data: {
+      description: `${PREPAID_REVERSED_PREFIX}${entry.description}`,
+    },
+  });
+  await writePrepaidCardEntry(db, {
+    cardId: entry.prepaidCardId,
+    kind: "TOP_UP",
+    amount,
+    balanceDelta: amount,
+    entryDate: entry.entryDate,
+    description: `Reversal of spend on ${entry.entryDate.toISOString().slice(0, 10)}`,
+    createdById: options.createdById,
+    assignmentId: entry.assignmentId,
+  });
+  const { voidOdometerReadingForSource } = await import(
+    "@/lib/vehicle-odometer"
+  );
+  await voidOdometerReadingForSource(db, { prepaidCardEntryId: entry.id });
 }

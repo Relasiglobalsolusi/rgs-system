@@ -334,6 +334,7 @@ function PurchaseInvoiceUploadDialogInner({
   const [expenseDepartments, setExpenseDepartments] = useState<
     Array<{ id: string; name: string; slug?: string | null }>
   >([]);
+  const [pettyHolderIds, setPettyHolderIds] = useState<string[]>([]);
   const [vendorBankAccounts, setVendorBankAccounts] = useState<
     Array<{
       id: string;
@@ -364,6 +365,12 @@ function PurchaseInvoiceUploadDialogInner({
   >([]);
   const [prepaidCardId, setPrepaidCardId] = useState("");
   const isPettyCash = purchaseCategory === "PETTY_CASH";
+  const pettyRecipients =
+    pettyHolderIds.length > 0
+      ? expenseEmployees.filter((employee) =>
+          pettyHolderIds.includes(employee.id)
+        )
+      : expenseEmployees;
   const isGovernment = purchaseCategory === "GOVERNMENT";
   const isService = purchaseCategory === "SERVICE";
   const isVehicle = purchaseCategory === "VEHICLE";
@@ -622,10 +629,12 @@ function PurchaseInvoiceUploadDialogInner({
       .then((payload) => {
         setExpenseEmployees(payload.employees);
         setExpenseDepartments(payload.departments);
+        setPettyHolderIds(payload.pettyHolderIds ?? []);
       })
       .catch(() => {
         setExpenseEmployees([]);
         setExpenseDepartments([]);
+        setPettyHolderIds([]);
       });
     listCompanyBpjsVirtualAccounts()
       .then(setBpjsVirtualAccounts)
@@ -1618,7 +1627,7 @@ function PurchaseInvoiceUploadDialogInner({
                       />
                     </SelectTrigger>
                     <SelectContent>
-                      {expenseEmployees
+                      {pettyRecipients
                         .filter((employee) => {
                           const query = employeeSearch.trim().toLowerCase();
                           if (!query) return true;
@@ -2211,7 +2220,7 @@ function PurchaseInvoiceUploadDialogInner({
                 <p className={employeeDialogHintClass}>
                   {t("pages.billing.vehicleOtherCostDescriptionHint")}
                 </p>
-                <div className="mt-2 overflow-hidden rounded-xl border border-border">
+                <div className="mt-2 overflow-x-auto rounded-xl border border-border">
                   <table className="w-full text-left text-sm">
                     <thead>
                       <tr className="border-b border-border bg-elevated/60 text-xs uppercase tracking-wide text-muted">
@@ -2896,7 +2905,7 @@ function PurchaseInvoiceUploadDialogInner({
                         className="rounded-xl border border-border bg-elevated/40 p-3 space-y-2"
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <p className="text-xs font-semibold text-subtle">
+                          <p className="min-w-0 flex-1 text-xs font-semibold text-subtle">
                             {t("pages.billing.purchaseServiceLineLabel", {
                               n: index + 1,
                             })}
@@ -3045,7 +3054,7 @@ function PurchaseInvoiceUploadDialogInner({
                           className="rounded-xl border border-border bg-elevated/40 p-3 space-y-2"
                         >
                           <div className="flex items-center justify-between gap-2">
-                            <p className="text-xs font-semibold text-subtle">
+                            <p className="min-w-0 flex-1 text-xs font-semibold text-subtle">
                               {t("pages.billing.purchaseLineLabel", {
                                 n: index + 1,
                               })}

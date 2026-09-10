@@ -32,6 +32,7 @@ import {
 import { useT } from "@/lib/i18n/use-t";
 import {
   ADVANCE_CASH_CHILD_KEYS,
+  APPROVALS_CHILD_KEYS,
   PORTAL_BLOCKED_MODULES,
   buildOverridesFromToggle,
   expandLegacyFinanceOverrides,
@@ -39,10 +40,13 @@ import {
   getAccountTypeBaselineModules,
   getAdvanceCashAccess,
   getAllModuleAccessStates,
+  getApprovalsAccess,
   getEmployeeModuleOverrides,
   getVisibleModules,
   setAdvanceCashOverrideTargets,
+  setApprovalsOverrideTargets,
   type AdvanceCashChildKey,
+  type ApprovalsChildKey,
   type ModuleAccessFlags,
   type ModuleKey,
   type PermissionUser,
@@ -95,13 +99,16 @@ function ModuleToggle({
   accessAriaLabel,
   compact = false,
 }: {
-  module: ModuleKey | AdvanceCashChildKey;
+  module: ModuleKey | AdvanceCashChildKey | ApprovalsChildKey;
   moduleLabel: string;
   enabled: boolean;
   isOverridden: boolean;
   defaultValue: boolean;
   disabled: boolean;
-  onToggle: (module: ModuleKey | AdvanceCashChildKey, enabled: boolean) => void;
+  onToggle: (
+    module: ModuleKey | AdvanceCashChildKey | ApprovalsChildKey,
+    enabled: boolean
+  ) => void;
   defaultOnLabel: string;
   defaultOffLabel: string;
   overriddenLabel: string;
@@ -224,6 +231,10 @@ export default function UserPermissionsDialog({
     () => getAdvanceCashAccess(permissionUser),
     [permissionUser]
   );
+  const approvals = useMemo(
+    () => getApprovalsAccess(permissionUser),
+    [permissionUser]
+  );
 
   // Portal accounts never receive HO directory / CMS modules — hide toggles.
   // Vendors also never get Progress Reports (locked product rule).
@@ -271,9 +282,45 @@ export default function UserPermissionsDialog({
   }
 
   function handleToggle(
-    module: ModuleKey | AdvanceCashChildKey,
+    module: ModuleKey | AdvanceCashChildKey | ApprovalsChildKey,
     enabled: boolean
   ) {
+    if (module === "approvals") {
+      setOverrides((current) =>
+        setApprovalsOverrideTargets(current, baseline, {
+          leaves: enabled,
+          materialRequests: enabled,
+          warehouseReturns: enabled,
+        })
+      );
+      return;
+    }
+    if (
+      module === "approvalsLeaves" ||
+      module === "approvalsMaterialRequests" ||
+      module === "approvalsWarehouseReturns"
+    ) {
+      setOverrides((current) => {
+        const access = getApprovalsAccess({
+          ...permissionUser,
+          moduleOverrides: current,
+        });
+        return setApprovalsOverrideTargets(current, baseline, {
+          leaves: module === "approvalsLeaves" ? enabled : access.leaves,
+          materialRequests:
+            module === "approvalsMaterialRequests"
+              ? enabled
+              : access.materialRequests,
+          warehouseReturns:
+            module === "approvalsWarehouseReturns"
+              ? enabled
+              : access.warehouseReturns,
+        });
+      });
+      return;
+    }
+    // Payroll Unlock is owner-only and has no toggle.
+    if (module === "approvalsPayrollUnlock") return;
     if (module === "pettyCash") {
       setOverrides((current) =>
         setAdvanceCashOverrideTargets(current, baseline, {
@@ -513,7 +560,7 @@ export default function UserPermissionsDialog({
                       {...toggleProps}
                     />
                     {parentEnabled ? (
-                      <div className="grid grid-cols-2 gap-1.5">
+                      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                         {ADVANCE_CASH_CHILD_KEYS.map((child) => {
                           const childEnabled =
                             child === "pettyCashPetty"
@@ -534,6 +581,65 @@ export default function UserPermissionsDialog({
                                 { module: childLabel }
                               )}
                               {...toggleProps}
+                            />
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              }
+              if (module === "approvals") {
+                const parentEnabled =
+                  approvals.leaves ||
+                  approvals.materialRequests ||
+                  approvals.warehouseReturns;
+                return (
+                  <div key={module} className="flex min-w-0 flex-col gap-1.5">
+                    <ModuleToggle
+                      module={module}
+                      moduleLabel={moduleLabel}
+                      enabled={parentEnabled}
+                      isOverridden={
+                        state.override !== null ||
+                        APPROVALS_CHILD_KEYS.some((child) => child in overrides)
+                      }
+                      defaultValue={state.default}
+                      accessAriaLabel={t(
+                        "pages.users.permissionsModuleAccessAria",
+                        { module: moduleLabel }
+                      )}
+                      {...toggleProps}
+                    />
+                    {parentEnabled ? (
+                      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                        {APPROVALS_CHILD_KEYS.map((child) => {
+                          const childLabel = t(`modules.${child}`);
+                          const childEnabled =
+                            child === "approvalsLeaves"
+                              ? approvals.leaves
+                              : child === "approvalsMaterialRequests"
+                                ? approvals.materialRequests
+                                : child === "approvalsWarehouseReturns"
+                                  ? approvals.warehouseReturns
+                                  : approvals.payrollUnlock;
+                          return (
+                            <ModuleToggle
+                              key={child}
+                              compact
+                              module={child}
+                              moduleLabel={childLabel}
+                              enabled={childEnabled}
+                              isOverridden={child in overrides}
+                              defaultValue={baseline[child]}
+                              accessAriaLabel={t(
+                                "pages.users.permissionsModuleAccessAria",
+                                { module: childLabel }
+                              )}
+                              {...toggleProps}
+                              disabled={
+                                pending || child === "approvalsPayrollUnlock"
+                              }
                             />
                           );
                         })}

@@ -9,11 +9,14 @@ import {
 import { formFiles, saveAndSerializeUploads } from "@/lib/upload-paths";
 
 export {
+  catchUpPageByOrdinal,
+  listCatchUpIntakePages,
   listHistoricalCatchUpPeriods,
   listMonthlyCatchUpPeriods,
   resolveCatchUpCompleteTarget,
   usesMonthlyCatchUpPeriods,
   type CatchUpCompleteTarget,
+  type CatchUpIntakePage,
 } from "@/lib/project-catch-up-periods";
 
 export function parseCatchUpKind(formData: FormData): ProjectCatchUpKind {
@@ -23,22 +26,12 @@ export function parseCatchUpKind(formData: FormData): ProjectCatchUpKind {
   return "NONE";
 }
 
-function parseYes(formData: FormData, name: string): boolean {
-  const raw = String(formData.get(name) ?? "").trim();
-  return raw === "Yes" || raw === "on" || raw === "true";
-}
-
-function parsePositiveQty(raw: string): number | null {
-  const value = Number(String(raw).replace(",", ".").trim());
-  if (!Number.isFinite(value) || value <= 0) return null;
-  return value;
-}
-
 export type PreparedCatchUpExpense = {
   category: "CATCH_UP_INVENTORY" | "CATCH_UP_WAGE";
   reason: string;
   amount: number;
   employeeId: string | null;
+  proofPath: string | null;
 };
 
 export type PreparedCatchUpComplete = {
@@ -50,6 +43,8 @@ export type PreparedCatchUpComplete = {
     paid: boolean;
     amount: number | null;
     proofPath: string | null;
+    paidAt: Date | null;
+    bankAccountId: string | null;
   };
   expenses: PreparedCatchUpExpense[];
 };
@@ -83,106 +78,47 @@ async function requireCatchUpDocuments(
   return { invoicePath, taxPath };
 }
 
-async function optionalPayment(
+async function requireUploads(
   formData: FormData,
-  receivedName: string,
-  amountName: string,
-  proofName: string
-): Promise<{ paid: boolean; amount: number | null; proofPath: string | null }> {
-  if (!parseYes(formData, receivedName)) {
-    return { paid: false, amount: null, proofPath: null };
+  field: string,
+  folder: string,
+  fileBaseName: string,
+  message: string
+): Promise<string> {
+  const files = formFiles(formData, field);
+  if (files.length === 0) {
+    throw new Error(message);
   }
-  const amount = parseContractPrice(String(formData.get(amountName) ?? ""));
-  if (amount == null || amount <= 0) {
-    throw new Error("Enter how much was received.");
+  const path = await saveAndSerializeUploads(files, folder, { fileBaseName });
+  if (!path) {
+    throw new Error(message);
   }
-  const proofs = formFiles(formData, proofName);
-  if (proofs.length === 0) {
-    throw new Error("Upload payment proof.");
-  }
-  const proofPath = await saveAndSerializeUploads(
-    proofs,
-    "uploads/payment-proofs",
-    { fileBaseName: "catch-up-payment" }
-  );
-  return { paid: true, amount, proofPath };
+  return path;
 }
 
-function parseInventoryExpenses(
-  formData: FormData,
-  catalog: Map<string, { name: string; unit: string }>
-): PreparedCatchUpExpense[] {
-  const count = Number(String(formData.get("inventoryCount") ?? "0"));
-  if (!Number.isInteger(count) || count < 0) {
-    throw new Error("Inventory lines are invalid.");
+function parseMoneyOrZero(formData: FormData, name: string, label: string): number {
+  const raw = String(formData.get(name) ?? "").trim();
+  if (!raw) return 0;
+  const amount = parseContractPrice(raw);
+  if (amount == null || amount < 0) {
+    throw new Error(`Enter the ${label}.`);
   }
-  const expenses: PreparedCatchUpExpense[] = [];
-  for (let index = 0; index < count; index += 1) {
-    const itemId = String(formData.get(`inventoryItemId.${index}`) ?? "").trim();
-    const typedName = String(formData.get(`inventoryName.${index}`) ?? "").trim();
-    const qtyRaw = String(formData.get(`inventoryQty.${index}`) ?? "").trim();
-    const amountRaw = String(formData.get(`inventoryAmount.${index}`) ?? "");
-    if (!itemId && !typedName && !qtyRaw && !amountRaw.trim()) continue;
-
-    const catalogItem = itemId ? catalog.get(itemId) : undefined;
-    const name = typedName || catalogItem?.name || "";
-    const qty = parsePositiveQty(qtyRaw);
-    const amount = parseContractPrice(amountRaw);
-    if (!name) {
-      throw new Error("Name each inventory item issued.");
-    }
-    if (qty == null) {
-      throw new Error("Enter the quantity issued for each inventory item.");
-    }
-    if (amount == null || amount <= 0) {
-      throw new Error("Enter the cost of each inventory item issued.");
-    }
-    const unit = catalogItem?.unit ? ` ${catalogItem.unit}` : "";
-    expenses.push({
-      category: "CATCH_UP_INVENTORY",
-      reason: `Inventory: ${name} × ${qty}${unit}`,
-      amount,
-      employeeId: null,
-    });
-  }
-  return expenses;
+  return amount;
 }
 
-function parseStaffExpenses(formData: FormData): PreparedCatchUpExpense[] {
-  const count = Number(String(formData.get("staffCount") ?? "0"));
-  if (!Number.isInteger(count) || count < 0) {
-    throw new Error("Staff lines are invalid.");
+export function parseCatchUpPeriodsDone(formData: FormData): number | null {
+  const raw = String(formData.get("catchUpPeriodsDone") ?? "").trim();
+  if (!raw) return null;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1 || value > 120) {
+    throw new Error("Enter how many billing periods are already done.");
   }
-  const expenses: PreparedCatchUpExpense[] = [];
-  for (let index = 0; index < count; index += 1) {
-    const employeeId = String(
-      formData.get(`staffEmployeeId.${index}`) ?? ""
-    ).trim();
-    const staffName = String(formData.get(`staffName.${index}`) ?? "").trim();
-    const amountRaw = String(formData.get(`staffPay.${index}`) ?? "");
-    if (!employeeId && !staffName && !amountRaw.trim()) continue;
-    if (!employeeId && !staffName) {
-      throw new Error("Choose the staff issued for each pay line.");
-    }
-    const amount = parseContractPrice(amountRaw);
-    if (amount == null || amount <= 0) {
-      throw new Error("Enter staff pay for each person issued.");
-    }
-    expenses.push({
-      category: "CATCH_UP_WAGE",
-      reason: staffName ? `Staff pay: ${staffName}` : "Staff pay",
-      amount,
-      employeeId: employeeId || null,
-    });
-  }
-  return expenses;
+  return value;
 }
 
 export async function prepareCompleteCatchUpPeriod(opts: {
   formData: FormData;
   target: CatchUpCompleteTarget;
-  inventoryCatalog: Map<string, { name: string; unit: string }>;
-  requirePayment?: boolean;
 }): Promise<PreparedCatchUpComplete> {
   const clientAmount = parseContractPrice(
     String(opts.formData.get("clientAmount") ?? "")
@@ -196,20 +132,84 @@ export async function prepareCompleteCatchUpPeriod(opts: {
     "catchUpInvoice",
     "catchUpTaxInvoice"
   );
-  if (opts.requirePayment) {
-    const markedPaid = parseYes(opts.formData, "catchUpPaymentReceived");
-    if (!markedPaid) {
-      throw new Error(
-        "A completed job needs the amount received and payment proof."
-      );
-    }
+
+  const paidAtRaw = String(opts.formData.get("catchUpPaidAt") ?? "").trim();
+  if (!paidAtRaw) {
+    throw new Error("Enter the paid date.");
   }
-  const payment = await optionalPayment(
+  let paidAt: Date;
+  try {
+    paidAt = parseDateInput(paidAtRaw);
+  } catch {
+    throw new Error("Enter the paid date.");
+  }
+
+  const bankAccountId =
+    String(opts.formData.get("catchUpBankAccountId") ?? "").trim() ||
+    String(opts.formData.get("bankAccountId") ?? "").trim() ||
+    null;
+  if (!bankAccountId) {
+    throw new Error("Choose the bank that received payment.");
+  }
+
+  const received =
+    parseContractPrice(String(opts.formData.get("catchUpPaymentAmount") ?? "")) ??
+    clientAmount;
+  if (received == null || received <= 0) {
+    throw new Error("Enter how much was received.");
+  }
+  const proofPath = await requireUploads(
     opts.formData,
-    "catchUpPaymentReceived",
-    "catchUpPaymentAmount",
-    "catchUpPaymentProof"
+    "catchUpPaymentProof",
+    "uploads/payment-proofs",
+    "catch-up-payment",
+    "Upload payment proof."
   );
+
+  const staffTotal = parseMoneyOrZero(
+    opts.formData,
+    "staffTotal",
+    "total staff cost"
+  );
+  const materialTotal = parseMoneyOrZero(
+    opts.formData,
+    "materialTotal",
+    "total material cost"
+  );
+
+  const expenses: PreparedCatchUpExpense[] = [];
+  if (staffTotal > 0) {
+    const staffPdf = await requireUploads(
+      opts.formData,
+      "catchUpStaffPdf",
+      "uploads/catch-up-staff",
+      "catch-up-staff",
+      "Upload the compiled staff cost PDF."
+    );
+    expenses.push({
+      category: "CATCH_UP_WAGE",
+      reason: "Staff cost for this catch-up period",
+      amount: staffTotal,
+      employeeId: null,
+      proofPath: staffPdf,
+    });
+  }
+  if (materialTotal > 0) {
+    const supplierProof = await requireUploads(
+      opts.formData,
+      "catchUpSupplierInvoices",
+      "uploads/catch-up-materials",
+      "catch-up-materials",
+      "Upload the supplier invoices for material costs."
+    );
+    expenses.push({
+      category: "CATCH_UP_INVENTORY",
+      reason: "Material cost for this catch-up period",
+      amount: materialTotal,
+      employeeId: null,
+      proofPath: supplierProof,
+    });
+  }
 
   return {
     target: {
@@ -222,11 +222,14 @@ export async function prepareCompleteCatchUpPeriod(opts: {
     clientAmount,
     invoicePath: docs.invoicePath,
     taxPath: docs.taxPath,
-    payment,
-    expenses: [
-      ...parseInventoryExpenses(opts.formData, opts.inventoryCatalog),
-      ...parseStaffExpenses(opts.formData),
-    ],
+    payment: {
+      paid: true,
+      amount: received,
+      proofPath,
+      paidAt,
+      bankAccountId,
+    },
+    expenses,
   };
 }
 
@@ -265,22 +268,25 @@ export async function persistCompleteCatchUpPeriod(
   }
   if (
     existing &&
-    !existing.isCatchUp &&
-    existing.status !== "ONGOING" &&
-    existing.status !== "COMPILING"
+    !existing.isCatchUp
   ) {
-    throw new Error("This period is already in the live billing flow.");
+    throw new Error("This period already exists. Please recheck.");
   }
 
   const periodData = {
     label: opts.plan.target.label,
     status: opts.plan.payment.paid ? "PAID" : "AWAITING_PAYMENT",
     amount: opts.plan.clientAmount,
-    bankAccountId: opts.bankAccountId,
+    bankAccountId: opts.plan.payment.bankAccountId ?? opts.bankAccountId,
     invoicePdfPath: opts.plan.invoicePath,
     submittedAt: now,
-    dueAt: dueAtFromClientPaymentTerms(now, opts.paymentTermsDays),
-    paidAt: opts.plan.payment.paid ? now : null,
+    dueAt: dueAtFromClientPaymentTerms(
+      opts.plan.payment.paidAt ?? now,
+      opts.paymentTermsDays
+    ),
+    paidAt: opts.plan.payment.paid
+      ? opts.plan.payment.paidAt ?? now
+      : null,
     paymentProofPath: opts.plan.payment.proofPath,
     paymentProofUploadedAt: opts.plan.payment.proofPath ? now : null,
     paymentVerifiedAt: opts.plan.payment.paid ? now : null,
@@ -319,6 +325,7 @@ export async function persistCompleteCatchUpPeriod(
         createdById: opts.userId,
         employeeId: expense.employeeId,
         isCatchUp: true,
+        proofPath: expense.proofPath,
       },
     });
   }
@@ -336,6 +343,6 @@ export function assertCompleteTargetMatchesForm(
     end !== target.periodEnd ||
     kind !== target.kind
   ) {
-    throw new Error("This period is no longer the next one to complete.");
+    throw new Error("This period is no longer open for catch-up.");
   }
 }

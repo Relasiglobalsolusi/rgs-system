@@ -1,6 +1,7 @@
 import { Download, FileText } from "lucide-react";
 
 import { buttonVariants } from "@/components/ui/button";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import { cn } from "@/lib/utils";
 
 export type PageDocumentAction = {
@@ -22,7 +23,8 @@ export function PageDocumentActions({
   return (
     <div
       className={cn(
-        "ml-auto flex flex-wrap items-center justify-end gap-2",
+        "ml-auto min-w-0",
+        chipScrollRowClassName("justify-end"),
         className
       )}
     >

@@ -2,7 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 
-import { assertEquipmentInventoryInvariants } from "@/lib/equipment-asset";
+import {
+  assertEquipmentInventoryInvariants,
+  nextOnHandAfterAvailableChange,
+} from "@/lib/equipment-asset";
 import {
   inventoryQtyFromDecimal,
   movementTotalCost,
@@ -167,15 +170,30 @@ export async function releaseEquipmentAssetFromProject(formData: FormData) {
         },
       });
 
-      // Warehouse On Hand = AVAILABLE count (avoids double-restore on stale links).
       const locked = await lockInventoryItemRow(tx, asset.itemId);
       if (locked) {
-        const available = await tx.equipmentAsset.count({
+        const stockBefore = inventoryQtyFromDecimal(locked.currentStock);
+        const availableBefore = await tx.equipmentAsset.count({
+          where: {
+            itemId: asset.itemId,
+            status: "AVAILABLE",
+            id: { not: asset.id },
+          },
+        });
+        const availableAfter = await tx.equipmentAsset.count({
           where: { itemId: asset.itemId, status: "AVAILABLE" },
         });
         await tx.inventoryItem.update({
           where: { id: asset.itemId },
-          data: { currentStock: toDecimal(available) },
+          data: {
+            currentStock: toDecimal(
+              nextOnHandAfterAvailableChange(
+                stockBefore,
+                availableBefore,
+                availableAfter
+              )
+            ),
+          },
         });
       }
 

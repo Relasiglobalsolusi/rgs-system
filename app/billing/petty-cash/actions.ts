@@ -6,7 +6,6 @@ import { Prisma } from "@prisma/client";
 import { applyMissingExpenseTopUps } from "@/lib/advance-cash-expense";
 import { formatEmployeeName } from "@/lib/employee-user-link";
 import {
-  holderBalanceFromEntries,
   parseDateInput,
   parsePettyCashAmount,
   pettyCashPartTimePaidDescription,
@@ -18,8 +17,8 @@ import type { AppLocale } from "@/lib/i18n/locale";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
 import { prisma } from "@/lib/prisma";
-import { decimalToNumber } from "@/lib/project-billing";
-import { requireAdvanceCashPettyAccess } from "@/lib/session";
+import { canAccess, isOwnerAccount } from "@/lib/permissions";
+import { requireAdvanceCashPettyAccess, toPermissionUser } from "@/lib/session";
 import { formFiles, saveAndSerializeUploads } from "@/lib/upload-paths";
 const UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 const UPLOAD_MIME = new Set([
@@ -81,27 +80,6 @@ async function requireActiveEmployee(
     throw new Error(pettyCashMessage(locale, "employeeInvalid"));
   }
   return employee;
-}
-
-async function postedHolderBalance(
-  companyId: string,
-  holderEmployeeId: string | null
-): Promise<number> {
-  const rows = await prisma.pettyCashEntry.findMany({
-    where: {
-      companyId,
-      status: "POSTED",
-      holderEmployeeId,
-    },
-    select: { kind: true, status: true, amount: true },
-  });
-  return holderBalanceFromEntries(
-    rows.map((row) => ({
-      kind: row.kind,
-      status: row.status,
-      amount: decimalToNumber(row.amount) ?? 0,
-    }))
-  );
 }
 
 export async function syncPettyCashOnPageLoad() {
@@ -213,6 +191,47 @@ export async function recordPettyCashSpend(formData: FormData) {
   revalidatePettyCashPaths();
 }
 
+export async function reversePettyCashSpend(formData: FormData) {
+  const session = await requireAdvanceCashPettyAccess();
+  const locale = await getServerLocale();
+  const entryId = String(formData.get("entryId") ?? "").trim();
+  if (!entryId) {
+    throw new Error(pettyCashMessage(locale, "reverseRequired"));
+  }
+
+  const ownEmployee = await prisma.employee.findFirst({
+    where: { companyId: session.user.companyId, userId: session.user.id },
+    select: { id: true },
+  });
+  const entry = await prisma.pettyCashEntry.findFirst({
+    where: { id: entryId, companyId: session.user.companyId },
+    select: {
+      id: true,
+      kind: true,
+      status: true,
+      holderEmployeeId: true,
+    },
+  });
+  if (!entry || entry.kind !== "SPEND") {
+    throw new Error(pettyCashMessage(locale, "reverseSpendOnly"));
+  }
+  if (entry.status === "VOIDED") {
+    throw new Error(pettyCashMessage(locale, "alreadyReversed"));
+  }
+  if (entry.status !== "POSTED") {
+    throw new Error(pettyCashMessage(locale, "reversePostedOnly"));
+  }
+  if (!ownEmployee || ownEmployee.id !== entry.holderEmployeeId) {
+    throw new Error(pettyCashMessage(locale, "spendOwnOnly"));
+  }
+
+  await prisma.pettyCashEntry.update({
+    where: { id: entry.id },
+    data: { status: "VOIDED" },
+  });
+  revalidatePettyCashPaths();
+}
+
 export async function transferPettyCash(formData: FormData) {
   const session = await requireAdvanceCashPettyAccess();
   const locale = await getServerLocale();
@@ -237,6 +256,14 @@ export async function transferPettyCash(formData: FormData) {
     throw new Error(pettyCashMessage(locale, "transferSameEmployee"));
   }
 
+  const ownEmployee = await prisma.employee.findFirst({
+    where: { companyId: session.user.companyId, userId: session.user.id },
+    select: { id: true },
+  });
+  if (!ownEmployee || ownEmployee.id !== fromEmployeeId) {
+    throw new Error(pettyCashMessage(locale, "spendOwnOnly"));
+  }
+
   const [fromEmployee, toEmployee] = await Promise.all([
     requireActiveEmployee(session.user.companyId, fromEmployeeId, locale),
     requireActiveEmployee(session.user.companyId, toRaw, locale),
@@ -244,14 +271,6 @@ export async function transferPettyCash(formData: FormData) {
 
   const fromName = formatEmployeeName(fromEmployee);
   const toName = formatEmployeeName(toEmployee);
-  const balance = await postedHolderBalance(
-    session.user.companyId,
-    fromEmployeeId
-  );
-  if (amount > balance) {
-    throw new Error(pettyCashMessage(locale, "transferInsufficient"));
-  }
-
   const entryDate = parseDateInput(dateRaw);
   const postedAt = new Date();
   await prisma.$transaction([
@@ -290,15 +309,13 @@ export async function transferPettyCash(formData: FormData) {
   revalidatePettyCashPaths();
 }
 
+/** Only the signed-in holder pays a part-time wage, out of their own float. */
 async function resolveWagePayer(
   companyId: string,
   userId: string,
   holderRaw: string,
   locale: AppLocale
 ) {
-  if (holderRaw) {
-    return requireActiveEmployee(companyId, holderRaw, locale);
-  }
   const user = await prisma.user.findFirst({
     where: { id: userId, companyId },
     select: {
@@ -319,7 +336,10 @@ async function resolveWagePayer(
     employee.archivedFromDirectory ||
     (employee.status !== "ACTIVE" && employee.status !== "ON_LEAVE")
   ) {
-    throw new Error(pettyCashMessage(locale, "unpaidWagePayerRequired"));
+    throw new Error(pettyCashMessage(locale, "wagePayerNotHolder"));
+  }
+  if (holderRaw && holderRaw !== employee.id) {
+    throw new Error(pettyCashMessage(locale, "spendOwnOnly"));
   }
   return employee;
 }
@@ -327,6 +347,14 @@ async function resolveWagePayer(
 export async function payPartTimeWage(formData: FormData) {
   const session = await requireAdvanceCashPettyAccess();
   const locale = await getServerLocale();
+  const permUser = toPermissionUser(session);
+  const canPayCompanyWages =
+    isOwnerAccount(permUser) ||
+    canAccess(permUser, "invoicing") ||
+    canAccess(permUser, "financialReport");
+  if (!canPayCompanyWages) {
+    throw new Error(pettyCashMessage(locale, "spendOwnOnly"));
+  }
   const entryId = String(formData.get("entryId") ?? "").trim();
   const holderRaw = String(formData.get("holderEmployeeId") ?? "").trim();
 

@@ -4,9 +4,11 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import {
+  cancelInternalPayrollUnlock,
   decideInternalPayrollDay,
   deletePayrollDeduction,
-  unlockInternalPayroll,
+  generateAndLockInternalPayroll,
+  requestInternalPayrollUnlock,
 } from "@/app/billing/payroll-actions";
 import PayrollDeductionDialog from "@/components/billing/PayrollDeductionDialog";
 import PayrollOvertimeDialog from "@/components/billing/PayrollOvertimeDialog";
@@ -32,14 +34,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { employeeSelectTriggerClass } from "@/components/employees/employee-dialog-ui";
-import { showRejectionFromError } from "@/components/ui/rejection-notice";
+import {
+  showRejection,
+  showRejectionFromError,
+} from "@/components/ui/rejection-notice";
 import type {
   PayrollCatalogItem,
   PayrollDeductionRow,
   PayrollProjectOption,
 } from "@/lib/internal-payroll-month";
+import { INTERNAL_PAYROLL_WORKING_DAYS_DIVISOR } from "@/lib/internal-payroll-month";
 import type { PayrollDayRow } from "@/lib/internal-payroll-days";
+import type { InternalPayrollChangeRow } from "@/lib/internal-payroll-audit";
 import type { InternalPayrollLockState } from "@/lib/internal-payroll-lock";
+import type { PayrollUnlockRequestView } from "@/lib/payroll-unlock-request";
 import {
   hasHeldSecurityDeposit,
   isPayrollPayableType,
@@ -51,6 +59,7 @@ import {
   listPayrollPeriodChoices,
   parsePayrollPeriodKey,
   payrollPeriodKey,
+  type PayrollRunKind,
 } from "@/lib/internal-payroll-period";
 import {
   formatDisplayDateTime,
@@ -60,6 +69,7 @@ import {
 import { useT } from "@/lib/i18n/use-t";
 import { formatContractPrice } from "@/lib/project-billing";
 import { formatHoursWorked } from "@/lib/shift-pay";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import { cn } from "@/lib/utils";
 
 export type PayrollRow = {
@@ -82,6 +92,9 @@ export type PayrollRow = {
   days?: PayrollDayRow[];
   cicoExempt?: boolean;
   overtimeEnabled?: boolean;
+  coveredShifts?: number;
+  surplusShifts?: number;
+  doubleShiftDays?: number;
 };
 
 type Props = {
@@ -92,7 +105,10 @@ type Props = {
   items: PayrollCatalogItem[];
   projects: PayrollProjectOption[];
   lock?: InternalPayrollLockState;
-  canUnlock?: boolean;
+  unlockRequest?: PayrollUnlockRequestView | null;
+  run?: PayrollRunKind;
+  /** Permanent change record for this period. */
+  changes?: InternalPayrollChangeRow[];
 };
 
 function jakartaTime(value: string | null, bcp47: string) {
@@ -107,6 +123,20 @@ function jakartaTime(value: string | null, bcp47: string) {
     },
     bcp47
   );
+}
+
+function fileNameFromDisposition(header: string | null): string | null {
+  if (!header) return null;
+  const utf8 = /filename\*=UTF-8''([^;]+)/i.exec(header);
+  if (utf8?.[1]) {
+    try {
+      return decodeURIComponent(utf8[1].trim());
+    } catch {
+      // Fall through to the plain filename.
+    }
+  }
+  const plain = /filename="?([^";]+)"?/i.exec(header);
+  return plain?.[1]?.trim() || null;
 }
 
 function canEditDayPay(day: PayrollDayRow) {
@@ -150,7 +180,9 @@ export default function PayrollPanel({
   items,
   projects,
   lock,
-  canUnlock = false,
+  unlockRequest = null,
+  run = "PROJECT_CYCLE",
+  changes = [],
 }: Props) {
   const { t, bcp47 } = useT();
   const router = useRouter();
@@ -158,6 +190,7 @@ export default function PayrollPanel({
   const [deducting, setDeducting] = useState<PayrollRow | null>(null);
   const [overtimeRow, setOvertimeRow] = useState<PayrollRow | null>(null);
   const [unlockOpen, setUnlockOpen] = useState(false);
+  const [lockConfirmOpen, setLockConfirmOpen] = useState(false);
   const [unlockReason, setUnlockReason] = useState("");
   const [customAmounts, setCustomAmounts] = useState<Record<string, string>>(
     {}
@@ -165,13 +198,13 @@ export default function PayrollPanel({
   const [employeeQuery, setEmployeeQuery] = useState("");
   const periodLocked = lock?.locked === true;
 
-  const current = useMemo(() => currentPayrollPeriod(), []);
+  const current = useMemo(() => currentPayrollPeriod(undefined, run), [run]);
   const periodOptions = useMemo(
-    () => listPayrollPeriodChoices({ selected: { year, month } }),
-    [year, month]
+    () => listPayrollPeriodChoices({ selected: { year, month }, run }),
+    [year, month, run]
   );
   const selectedKey = payrollPeriodKey({ year, month });
-  const selectedRange = formatPayrollPeriodRange(year, month, bcp47);
+  const selectedRange = formatPayrollPeriodRange(year, month, bcp47, run);
 
   function decideDay(
     employeeId: string,
@@ -187,6 +220,7 @@ export default function PayrollPanel({
         formData.set("dateKey", dateKey);
         formData.set("year", String(year));
         formData.set("month", String(month));
+        formData.set("run", run);
         formData.set("decision", decision);
         if (decision === "CUSTOM") {
           formData.set("amount", amount ?? "");
@@ -202,9 +236,95 @@ export default function PayrollPanel({
     });
   }
 
+  async function downloadPayrollFile(options: {
+    url: string;
+    fallbackName: string;
+    failedMessage: string;
+  }) {
+    const response = await fetch(options.url);
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+        missing?: { name: string; fields: string[] }[];
+      } | null;
+      if (payload?.missing?.length) {
+        showRejection({
+          title: t("pages.payroll.errors.bankTransferBlockedTitle"),
+          description: t("pages.payroll.errors.bankTransferBlockedDesc"),
+          reasons: payload.missing.map(
+            (row) => `${row.name} — ${row.fields.join(", ")}`
+          ),
+        });
+        return;
+      }
+      throw new Error(payload?.error || options.failedMessage);
+    }
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download =
+      fileNameFromDisposition(response.headers.get("Content-Disposition")) ??
+      options.fallbackName;
+    link.click();
+    URL.revokeObjectURL(objectUrl);
+    router.refresh();
+  }
+
+  function exportPayrollPdf() {
+    setLockConfirmOpen(false);
+    startTransition(async () => {
+      try {
+        if (!periodLocked) {
+          const formData = new FormData();
+          formData.set("year", String(year));
+          formData.set("month", String(month));
+          formData.set("run", run);
+          formData.set("confirmLock", "1");
+          await generateAndLockInternalPayroll(formData);
+        }
+        await downloadPayrollFile({
+          url: `/api/payroll/export?year=${year}&month=${month}&run=${run}`,
+          fallbackName: `internal-payroll-${year}-${String(month).padStart(2, "0")}.pdf`,
+          failedMessage: t("pages.payroll.errors.exportFailed"),
+        });
+      } catch (error) {
+        showRejectionFromError(error, t("pages.payroll.errors.exportFailed"));
+      }
+    });
+  }
+
+  function requestPayrollPdf() {
+    // Generating locks the period, so say so before it happens.
+    if (periodLocked) {
+      exportPayrollPdf();
+      return;
+    }
+    setLockConfirmOpen(true);
+  }
+
+  function exportBankTransfer() {
+    startTransition(async () => {
+      try {
+        await downloadPayrollFile({
+          url: `/api/payroll/bank-transfer?year=${year}&month=${month}&run=${run}`,
+          fallbackName: `internal-payroll-bank-transfer-${year}-${String(month).padStart(2, "0")}.xlsm`,
+          failedMessage: t("pages.payroll.errors.bankTransferFailed"),
+        });
+      } catch (error) {
+        showRejectionFromError(
+          error,
+          t("pages.payroll.errors.bankTransferFailed")
+        );
+      }
+    });
+  }
+
   function navigatePeriod(nextYear: number, nextMonth: number) {
     startTransition(() => {
-      router.push(`/billing/payroll?year=${nextYear}&month=${nextMonth}`);
+      router.push(
+        `/billing/payroll?year=${nextYear}&month=${nextMonth}&run=${run}`
+      );
     });
   }
 
@@ -222,19 +342,37 @@ export default function PayrollPanel({
     });
   }
 
-  function submitUnlock() {
+  function submitUnlockRequest() {
     startTransition(async () => {
       try {
         const formData = new FormData();
         formData.set("year", String(year));
         formData.set("month", String(month));
+        formData.set("run", run);
         formData.set("reason", unlockReason.trim());
-        await unlockInternalPayroll(formData);
+        await requestInternalPayrollUnlock(formData);
         setUnlockOpen(false);
         setUnlockReason("");
         router.refresh();
       } catch (error) {
         showRejectionFromError(error, t("pages.payroll.errors.unlockFailed"));
+      }
+    });
+  }
+
+  function cancelUnlockRequest() {
+    if (!unlockRequest?.own) return;
+    startTransition(async () => {
+      try {
+        const formData = new FormData();
+        formData.set("id", unlockRequest.id);
+        await cancelInternalPayrollUnlock(formData);
+        router.refresh();
+      } catch (error) {
+        showRejectionFromError(
+          error,
+          t("pages.payroll.errors.unlockCancelFailed")
+        );
       }
     });
   }
@@ -260,13 +398,48 @@ export default function PayrollPanel({
             <h2 className="text-lg font-semibold text-text">
               {t("pages.payroll.periodTitle")}
             </h2>
+            <div className={chipScrollRowClassName("mt-3")}>
+              <a
+                href={`/billing/payroll?year=${year}&month=${month}&run=PROJECT_CYCLE`}
+                className={cn(
+                  buttonVariants({
+                    variant: run === "PROJECT_CYCLE" ? "accent" : "outline",
+                    size: "sm",
+                  }),
+                  "h-8"
+                )}
+              >
+                {t("pages.payroll.runProjectCycle")}
+              </a>
+              <a
+                href={`/billing/payroll?year=${year}&month=${month}&run=HEAD_OFFICE_MONTHLY`}
+                className={cn(
+                  buttonVariants({
+                    variant:
+                      run === "HEAD_OFFICE_MONTHLY" ? "accent" : "outline",
+                    size: "sm",
+                  }),
+                  "h-8"
+                )}
+              >
+                {t("pages.payroll.runHeadOffice")}
+              </a>
+            </div>
             <p className="mt-1 text-sm text-muted">
               {t("pages.payroll.periodWindowRange", { range: selectedRange })}
             </p>
             <p className="mt-1 text-sm text-muted">
               {preview
-                ? t("pages.payroll.periodPreview")
-                : t("pages.payroll.periodReconciled")}{" "}
+                ? t(
+                    run === "HEAD_OFFICE_MONTHLY"
+                      ? "pages.payroll.periodPreviewHeadOffice"
+                      : "pages.payroll.periodPreview"
+                  )
+                : t(
+                    run === "HEAD_OFFICE_MONTHLY"
+                      ? "pages.payroll.periodReconciledHeadOffice"
+                      : "pages.payroll.periodReconciled"
+                  )}{" "}
               {t("pages.payroll.periodDesc")}
             </p>
             {periodLocked && lock?.lockedByName && lock.lockedAt ? (
@@ -276,6 +449,16 @@ export default function PayrollPanel({
                   time: formatDisplayDateTime(lock.lockedAt, {
                     timeZone: "Asia/Jakarta",
                   }, bcp47),
+                })}
+              </p>
+            ) : null}
+            {periodLocked && unlockRequest ? (
+              <p className="mt-2 text-sm font-medium text-amber-700">
+                {t("pages.payroll.unlockPending", {
+                  name:
+                    unlockRequest.requestedByName ??
+                    t("pages.payroll.unlockUnknownRequester"),
+                  reason: unlockRequest.reason,
                 })}
               </p>
             ) : null}
@@ -301,7 +484,7 @@ export default function PayrollPanel({
               <SelectTrigger
                 className={cn(
                   employeeSelectTriggerClass,
-                  "h-auto min-h-8 w-full min-w-0 py-1.5 sm:w-auto sm:min-w-[22rem] lg:min-w-[42rem]"
+                  "h-auto min-h-8 w-full min-w-0 max-w-full py-1.5 sm:w-auto"
                 )}
                 aria-label={t("pages.payroll.periodPicker")}
               >
@@ -313,7 +496,8 @@ export default function PayrollPanel({
                   const label = formatPayrollPeriodRange(
                     period.year,
                     period.month,
-                    bcp47
+                    bcp47,
+                    run
                   );
                   const isCurrent =
                     period.year === current.year &&
@@ -331,12 +515,12 @@ export default function PayrollPanel({
           </div>
         </div>
 
-        <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <div className={`rounded-xl border px-3 py-2.5 ${cardTintWash.primary}`}>
             <p className="text-xs font-semibold uppercase tracking-wide text-subtle">
               {t("pages.payroll.totalEmployees")}
             </p>
-            <p className="mt-1 text-xl font-bold tabular-nums text-text">
+            <p className="mt-1 break-words text-lg font-bold tabular-nums text-text sm:text-xl">
               {rows.length}
             </p>
           </div>
@@ -344,7 +528,7 @@ export default function PayrollPanel({
             <p className="text-xs font-semibold uppercase tracking-wide text-subtle">
               {t("pages.payroll.totalWage")}
             </p>
-            <p className="mt-1 text-xl font-bold tabular-nums text-text">
+            <p className="mt-1 break-words text-lg font-bold tabular-nums text-text sm:text-xl">
               {formatContractPrice(totalWage)}
             </p>
           </div>
@@ -352,7 +536,7 @@ export default function PayrollPanel({
             <p className="text-xs font-semibold uppercase tracking-wide text-subtle">
               {t("pages.payroll.columns.bpjsKesehatan")}
             </p>
-            <p className="mt-1 text-xl font-bold tabular-nums text-text">
+            <p className="mt-1 break-words text-lg font-bold tabular-nums text-text sm:text-xl">
               {totalBpjsKesehatan > 0 ? formatContractPrice(totalBpjsKesehatan) : "—"}
             </p>
           </div>
@@ -360,7 +544,7 @@ export default function PayrollPanel({
             <p className="text-xs font-semibold uppercase tracking-wide text-subtle">
               {t("pages.payroll.columns.bpjsTk")}
             </p>
-            <p className="mt-1 text-xl font-bold tabular-nums text-text">
+            <p className="mt-1 break-words text-lg font-bold tabular-nums text-text sm:text-xl">
               {totalBpjsTk > 0 ? formatContractPrice(totalBpjsTk) : "—"}
             </p>
           </div>
@@ -368,7 +552,7 @@ export default function PayrollPanel({
             <p className="text-xs font-semibold uppercase tracking-wide text-subtle">
               {t("pages.payroll.totalNetPay")}
             </p>
-            <p className="mt-1 text-xl font-bold tabular-nums text-text">
+            <p className="mt-1 break-words text-lg font-bold tabular-nums text-text sm:text-xl">
               {formatContractPrice(totalNet)}
             </p>
           </div>
@@ -394,41 +578,51 @@ export default function PayrollPanel({
             <div
               className={cn(
                 "grid w-full gap-2 sm:shrink-0",
-                periodLocked && canUnlock
+                periodLocked
                   ? "grid-cols-1 sm:w-[34rem] sm:grid-cols-3"
                   : "grid-cols-1 sm:ml-auto sm:w-[22rem] sm:grid-cols-2"
               )}
             >
-              {periodLocked && canUnlock ? (
+              {periodLocked ? (
                 <Button
                   type="button"
                   variant="warning"
                   size="default"
                   className="h-8 w-full justify-center"
-                  disabled={pending}
-                  onClick={() => setUnlockOpen(true)}
+                  disabled={pending || Boolean(unlockRequest && !unlockRequest.own)}
+                  onClick={
+                    unlockRequest?.own
+                      ? cancelUnlockRequest
+                      : () => setUnlockOpen(true)
+                  }
                 >
-                  {t("pages.payroll.unlockPeriod")}
+                  {unlockRequest
+                    ? unlockRequest.own
+                      ? t("pages.payroll.withdrawUnlockRequest")
+                      : t("pages.payroll.unlockRequestPending")
+                    : t("pages.payroll.requestUnlock")}
                 </Button>
               ) : null}
-              <a
-                href={`/api/payroll/export?year=${year}&month=${month}`}
-                className={cn(
-                  buttonVariants({ variant: "accent", size: "default" }),
-                  "h-8 w-full justify-center"
-                )}
+              <Button
+                type="button"
+                variant="accent"
+                size="default"
+                className="h-8 w-full justify-center"
+                disabled={pending || (preview && !periodLocked)}
+                onClick={requestPayrollPdf}
               >
                 {t("pages.payroll.generatePdf")}
-              </a>
-              <a
-                href={`/api/payroll/bank-transfer?year=${year}&month=${month}`}
-                className={cn(
-                  buttonVariants({ variant: "accent", size: "default" }),
-                  "h-8 w-full justify-center"
-                )}
+              </Button>
+              <Button
+                type="button"
+                variant="accent"
+                size="default"
+                className="h-8 w-full justify-center"
+                disabled={pending || !periodLocked}
+                onClick={exportBankTransfer}
               >
                 {t("pages.payroll.generateBankTransfer")}
-              </a>
+              </Button>
             </div>
           </div>
         </div>
@@ -448,13 +642,33 @@ export default function PayrollPanel({
                 className="p-4 sm:p-5"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium text-text">
+                  <div className="min-w-0 flex-1">
+                    <p className="min-w-0 break-words font-medium text-text">
                       {row.firstName} {row.lastName}
                     </p>
                     <p className="font-mono text-xs text-muted">
                       {row.employeeNo}
                     </p>
+                    {!row.cicoExempt ? (
+                      <p className="mt-1 text-xs text-muted">
+                        {t("pages.payroll.shiftsAgainstBase", {
+                          worked: row.daysWorked,
+                          base:
+                            row.coveredShifts ??
+                            INTERNAL_PAYROLL_WORKING_DAYS_DIVISOR,
+                        })}
+                        {row.doubleShiftDays
+                          ? ` · ${t("pages.payroll.doubleShiftCount", {
+                              count: row.doubleShiftDays,
+                            })}`
+                          : ""}
+                        {(row.surplusShifts ?? 0) > 0
+                          ? ` · ${t("pages.payroll.surplusShifts", {
+                              count: row.surplusShifts ?? 0,
+                            })}`
+                          : ""}
+                      </p>
+                    ) : null}
                     {row.depositStatus && row.depositStatus !== "NONE" ? (
                       <p className="mt-1 text-xs text-muted">
                         {t(
@@ -478,7 +692,7 @@ export default function PayrollPanel({
                             key={line.id}
                             className="flex items-start justify-between gap-2"
                           >
-                            <span>
+                            <span className="min-w-0 flex-1 break-words">
                               {t(PAYROLL_DEDUCTION_LABEL_KEY[line.type])}
                               {line.itemName ? ` · ${line.itemName}` : ""}
                               {line.reason ? ` · ${line.reason}` : ""}
@@ -806,6 +1020,7 @@ export default function PayrollPanel({
           employeeName={`${deducting.firstName} ${deducting.lastName}`}
           year={year}
           month={month}
+          run={run}
           items={items}
           projects={projects}
           securityDepositBlocked={
@@ -829,6 +1044,48 @@ export default function PayrollPanel({
         />
       ) : null}
 
+      <SectionCard>
+        <h3 className="text-lg font-semibold text-text">
+          {t("pages.payroll.changeHistory")}
+        </h3>
+        <p className="mt-1 text-sm text-muted">
+          {t("pages.payroll.changeHistoryDesc")}
+        </p>
+        {changes.length === 0 ? (
+          <p className="mt-4 text-sm text-subtle">
+            {t("pages.payroll.changeHistoryEmpty")}
+          </p>
+        ) : (
+          <ul className="mt-4 space-y-3">
+            {changes.map((entry) => (
+              <li
+                key={entry.id}
+                className="border-b border-border pb-3 last:border-0 last:pb-0"
+              >
+                <p className="text-sm font-medium text-text">
+                  {t(`pages.payroll.changeActions.${entry.action}`)}
+                </p>
+                {entry.description ? (
+                  <p className="mt-0.5 text-sm text-muted">
+                    {entry.description}
+                  </p>
+                ) : null}
+                <p className="mt-0.5 text-xs text-subtle">
+                  {[
+                    entry.actorName,
+                    formatDisplayDateTime(entry.at, {
+                      timeZone: "Asia/Jakarta",
+                    }),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </SectionCard>
+
       {overtimeRow && !periodLocked ? (
         <PayrollOvertimeDialog
           open
@@ -842,6 +1099,7 @@ export default function PayrollPanel({
           employeeName={`${overtimeRow.firstName} ${overtimeRow.lastName}`}
           year={year}
           month={month}
+          run={run}
         />
       ) : null}
 
@@ -850,10 +1108,10 @@ export default function PayrollPanel({
           <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-6 pb-6 sm:px-10 sm:pt-8 sm:pb-7">
           <DialogHeader className="gap-4">
             <DialogTitle className="text-2xl">
-              {t("pages.payroll.unlockPeriod")}
+              {t("pages.payroll.requestUnlock")}
             </DialogTitle>
             <DialogDescription className="text-base leading-7">
-              {t("pages.payroll.unlockPeriodDesc")}
+              {t("pages.payroll.requestUnlockDesc")}
             </DialogDescription>
           </DialogHeader>
           <div className="mt-6 flex flex-col gap-4">
@@ -872,7 +1130,7 @@ export default function PayrollPanel({
             />
           </div>
           </div>
-          <DialogFooter className="mx-0 mb-0 mt-0 flex-col gap-3 rounded-none border-t border-border bg-strip px-4 py-5 sm:flex-col sm:justify-stretch sm:px-10 sm:py-6">
+          <DialogFooter className="mx-0 mb-0 mt-0 flex-col gap-3 rounded-none border-t border-border bg-strip px-4 py-5 sm:justify-stretch sm:px-10 sm:py-6">
             <Button
               type="button"
               variant="outline"
@@ -883,9 +1141,38 @@ export default function PayrollPanel({
             <Button
               type="button"
               disabled={pending || !unlockReason.trim()}
-              onClick={submitUnlock}
+              onClick={submitUnlockRequest}
             >
-              {t("pages.payroll.unlockPeriod")}
+              {t("pages.payroll.submitUnlockRequest")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={lockConfirmOpen} onOpenChange={setLockConfirmOpen}>
+        <DialogContent className="max-h-[min(90dvh,40rem)] gap-0 overflow-hidden rounded-2xl border border-border bg-panel p-0 text-base text-text ring-0 sm:max-w-2xl">
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-6 pb-6 sm:px-10 sm:pt-8 sm:pb-7">
+            <DialogHeader className="gap-4">
+              <DialogTitle className="text-2xl">
+                {t("pages.payroll.lockConfirmTitle")}
+              </DialogTitle>
+              <DialogDescription className="text-base leading-7">
+                {t("pages.payroll.lockConfirmBody", {
+                  period: selectedRange,
+                })}
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <DialogFooter className="mx-0 mb-0 mt-0 flex-col gap-3 rounded-none border-t border-border bg-strip px-4 py-5 sm:justify-stretch sm:px-10 sm:py-6">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setLockConfirmOpen(false)}
+            >
+              {t("common.actions.cancel")}
+            </Button>
+            <Button type="button" disabled={pending} onClick={exportPayrollPdf}>
+              {t("pages.payroll.lockConfirmAction")}
             </Button>
           </DialogFooter>
         </DialogContent>

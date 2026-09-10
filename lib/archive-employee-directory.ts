@@ -4,11 +4,11 @@ import { hardDeleteLinkedUserLogin } from "@/lib/hard-delete-linked-user";
 
 type Tx = Prisma.TransactionClient;
 
-export function isTombstoneEmployeeNo(employeeNo: string): boolean {
+function isTombstoneEmployeeNo(employeeNo: string): boolean {
   return employeeNo.includes("~deleted~");
 }
 
-export function toArchivedEmployeeNo(
+function toArchivedEmployeeNo(
   employeeNo: string,
   employeeId: string
 ): string {

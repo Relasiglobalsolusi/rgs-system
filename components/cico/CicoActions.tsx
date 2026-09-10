@@ -19,6 +19,7 @@ import { useRouter } from "next/navigation";
 import { checkIn, checkOut } from "@/app/cico/actions";
 import ProgressDialog from "@/components/progress/ProgressDialog";
 import { Button } from "@/components/ui/button";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import {
   assignFilesToInput,
   preventBrowserFileNavigation,
@@ -553,11 +554,13 @@ export default function CicoActions({
       ) : null}
 
       {checkedIn && actionRecord?.project && (
-        <p className="flex items-center gap-2.5 text-sm text-subtle">
+        <p className="flex min-w-0 flex-wrap items-center gap-2.5 text-sm text-subtle">
           <MapPin className="h-4 w-4 shrink-0 text-primary" />
-          {t("pages.cico.checkedInAt")}{" "}
-          <span className="font-medium text-text">
-            {actionRecord.project.name}
+          <span className="min-w-0 break-words">
+            {t("pages.cico.checkedInAt")}{" "}
+            <span className="font-medium text-text">
+              {actionRecord.project.name}
+            </span>
           </span>
         </p>
       )}
@@ -641,7 +644,7 @@ export default function CicoActions({
             disabled={previewMode}
             onChange={onPhotoChange}
           />
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className={chipScrollRowClassName()}>
               <Button
                 type="button"
                 variant="outline"
@@ -790,7 +793,7 @@ export default function CicoActions({
             </DialogDescription>
           </DialogHeader>
           </div>
-          <DialogFooter className="mx-0 mb-0 mt-0 flex-col gap-3 rounded-none border-t border-border bg-strip px-4 py-5 sm:flex-col sm:justify-stretch sm:px-10 sm:py-6">
+          <DialogFooter className="mx-0 mb-0 mt-0 flex-col gap-3 rounded-none border-t border-border bg-strip px-4 py-5 sm:justify-stretch sm:px-10 sm:py-6">
             <Button
               type="button"
               variant="outline"

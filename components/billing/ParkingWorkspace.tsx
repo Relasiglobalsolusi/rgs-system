@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 
 import { saveParkingMonthlyRevenue } from "@/app/billing/parking-actions";
 import type { ParkingMonthEconomics } from "@/lib/parking-economics";
+import CompanyBankAccountField from "@/components/company-details/CompanyBankAccountField";
+import type { CompanyBankAccountOption } from "@/lib/company-bank-accounts";
 import { employeeSelectTriggerClass } from "@/components/employees/employee-dialog-ui";
 import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import SectionCard from "@/components/ui/SectionCard";
@@ -29,6 +31,7 @@ type Props = {
   month: number;
   canManage: boolean;
   economics: ParkingMonthEconomics;
+  bankAccounts: CompanyBankAccountOption[];
 };
 
 export default function ParkingWorkspace({
@@ -38,6 +41,7 @@ export default function ParkingWorkspace({
   month,
   canManage,
   economics,
+  bankAccounts,
 }: Props) {
   const { t } = useT();
   const router = useRouter();
@@ -48,6 +52,12 @@ export default function ParkingWorkspace({
       : ""
   );
   const [notes, setNotes] = useState(economics.notes ?? "");
+  const [creditedAt, setCreditedAt] = useState(
+    economics.creditedAt ? economics.creditedAt.slice(0, 10) : ""
+  );
+  const [bankAccountId, setBankAccountId] = useState(
+    economics.bankAccountId ?? ""
+  );
 
   const monthOptions = useMemo(
     () => Array.from({ length: 12 }, (_, i) => i + 1),
@@ -78,6 +88,8 @@ export default function ParkingWorkspace({
     formData.set("month", String(month));
     formData.set("revenueAmount", revenue);
     formData.set("notes", notes);
+    formData.set("creditedAt", creditedAt);
+    formData.set("bankAccountId", bankAccountId);
     startTransition(async () => {
       try {
         await saveParkingMonthlyRevenue(formData);
@@ -198,6 +210,12 @@ export default function ParkingWorkspace({
         <p className="mt-1 text-sm text-muted">
           {t("pages.billing.parking.casualRevenueDesc")}
         </p>
+        <p className="mt-2 text-sm text-muted">
+          {t("pages.billing.parking.creditHint", {
+            period: t(`pages.reports.months.${month}` as Parameters<typeof t>[0]),
+            year: String(year),
+          })}
+        </p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <div>
             <label className="mb-1 block text-sm font-medium text-text">
@@ -211,6 +229,31 @@ export default function ParkingWorkspace({
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-text">
+              {t("pages.billing.parking.creditedAt")}
+            </label>
+            <input
+              type="date"
+              value={creditedAt}
+              onChange={(event) => setCreditedAt(event.target.value)}
+              disabled={!canManage || pending}
+              className="h-10 w-full rounded-md border border-border bg-surface px-3 text-sm text-text"
+            />
+            <p className="mt-1 text-xs text-muted">
+              {t("pages.billing.parking.creditedAtHint")}
+            </p>
+          </div>
+          <div className="sm:col-span-2">
+            <CompanyBankAccountField
+              accounts={bankAccounts}
+              value={bankAccountId}
+              onChange={setBankAccountId}
+              required
+              disabled={!canManage || pending}
+              label={t("pages.billing.parking.receivingBank")}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="mb-1 block text-sm font-medium text-text">
               {t("pages.billing.parking.notes")}
             </label>
             <Textarea
@@ -223,7 +266,11 @@ export default function ParkingWorkspace({
         </div>
         {canManage ? (
           <div className="mt-4">
-            <Button type="button" onClick={onSave} disabled={pending}>
+            <Button
+              type="button"
+              onClick={onSave}
+              disabled={pending || !creditedAt || !bankAccountId}
+            >
               {pending
                 ? t("pages.billing.parking.saving")
                 : t("pages.billing.parking.saveRevenue")}
@@ -248,10 +295,12 @@ export default function ParkingWorkspace({
             {economics.outflows.map((row) => (
               <li
                 key={row.key}
-                className="flex items-center justify-between py-2 text-sm"
+                className="flex items-center justify-between gap-3 py-2 text-sm"
               >
-                <span className="text-muted">{row.label}</span>
-                <span className="tabular-nums text-text">
+                <span className="min-w-0 flex-1 break-words text-muted">
+                  {row.label}
+                </span>
+                <span className="shrink-0 tabular-nums text-text">
                   {formatContractPrice(row.amount)}
                 </span>
               </li>

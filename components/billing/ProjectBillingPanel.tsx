@@ -37,6 +37,7 @@ import { ChipCell } from "@/components/ui/DataTable";
 import StatusBadge, { StackedChipLabel } from "@/components/ui/StatusBadge";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import { preventBrowserFileNavigation } from "@/components/ui/FileDropField";
 import { firstStoredPath } from "@/lib/stored-paths";
 import ContractPriceEditor from "@/components/billing/ContractPriceEditor";
@@ -511,7 +512,7 @@ export default function ProjectBillingPanel({
           <p className="mt-1 text-xs text-subtle">
             {t("pages.billing.createProgressInvoiceDesc")}
           </p>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className={chipScrollRowClassName("mt-3")}>
             {[30, 60, 100]
               .filter((p) => p > priorMax)
               .map((preset) => (
@@ -966,6 +967,11 @@ export default function ProjectBillingPanel({
                                 t("pages.billing.thisBillingPeriod")
                               }
                               suggestedAmount={amount ?? price}
+                              taxInvoiceMissing={Boolean(
+                                (period.taxInvoiceRequired ||
+                                  requiresTaxInvoice) &&
+                                  !period.taxInvoiceDoneAt
+                              )}
                               disabled={pending}
                             />
                           )}
@@ -1038,7 +1044,8 @@ export default function ProjectBillingPanel({
                             )}
                           {canManage &&
                             !period.taxInvoiceDoneAt &&
-                            period.taxInvoiceRequired &&
+                            (period.taxInvoiceRequired ||
+                              Boolean(requiresTaxInvoice)) &&
                             (period.status === "AWAITING_PAYMENT" ||
                               period.status === "OVERDUE" ||
                               period.status === "PENDING_VERIFICATION" ||

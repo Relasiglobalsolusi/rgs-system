@@ -179,7 +179,7 @@ function isEmptyRequiredControl(
   return false;
 }
 
-export function missingRequiredFieldLabels(form: HTMLFormElement): string[] {
+function missingRequiredFieldLabels(form: HTMLFormElement): string[] {
   const labels: string[] = [];
   const seen = new Set<Element>();
 
@@ -429,7 +429,7 @@ export function RejectionNoticeHost() {
           )}
         </div>
 
-        <DialogFooter className="mx-0 mb-0 mt-0 flex-col gap-3 rounded-none border-t border-border bg-strip px-4 py-5 sm:flex-col sm:justify-stretch sm:px-10 sm:py-6">
+        <DialogFooter className="mx-0 mb-0 mt-0 flex-col gap-3 rounded-none border-t border-border bg-strip px-4 py-5 sm:justify-stretch sm:px-10 sm:py-6">
           <Button
             type="button"
             variant="default"

@@ -113,6 +113,17 @@ export function uncodedWarehouseQty(
   return Math.max(0, normalizeInventoryQty(currentStock - availableCoded));
 }
 
+/** On Hand after AVAILABLE count changes: keep uncoded boxes, then add coded Available. */
+export function nextOnHandAfterAvailableChange(
+  stockBefore: number,
+  availableBefore: number,
+  availableAfter: number
+): number {
+  return normalizeInventoryQty(
+    uncodedWarehouseQty(stockBefore, availableBefore) + availableAfter
+  );
+}
+
 /**
  * Mint N discrete EquipmentAsset rows. Codes are born when warehouse sends.
  * Purchase no longer mints — sealed warehouse boxes stay uncoded.
@@ -263,36 +274,9 @@ export async function mintVehicleAssetByPlate(
     },
   });
   if (existing) {
-    if (existing.itemId !== item.id) {
-      throw new Error("This number plate is already on file as a vehicle asset.");
-    }
-    const existingPatch: Prisma.EquipmentAssetUpdateInput = {
-      ...vehicleLeaseAssetFields(options?.lease),
-    };
-    if (options?.unitCost != null && Number.isFinite(options.unitCost)) {
-      existingPatch.unitCost = toDecimal(options.unitCost);
-    }
-    if (options?.vehicleYear != null) {
-      existingPatch.vehicleYear = options.vehicleYear;
-    }
-    if (options?.vehicleCondition) {
-      existingPatch.vehicleCondition = options.vehicleCondition;
-    }
-    if (options?.kmPerLitreMin != null) {
-      existingPatch.kmPerLitreMin = options.kmPerLitreMin;
-    } else if (existing.kmPerLitreMin == null && inheritedMin != null) {
-      existingPatch.kmPerLitreMin = inheritedMin;
-    }
-    if (options?.kmPerLitreMax != null) {
-      existingPatch.kmPerLitreMax = options.kmPerLitreMax;
-    } else if (existing.kmPerLitreMax == null && inheritedMax != null) {
-      existingPatch.kmPerLitreMax = inheritedMax;
-    }
-    await db.equipmentAsset.update({
-      where: { id: existing.id },
-      data: existingPatch,
-    });
-    return { plate, id: existing.id };
+    throw new Error(
+      "This number plate is already on file. A vehicle is bought once — do not record a second purchase for the same plate."
+    );
   }
 
   const lockedUnitCost =
@@ -517,7 +501,7 @@ export async function retireEquipmentAssetsForSale(
     where: { id: itemId, companyId },
     select: { id: true, itemType: true },
   });
-  if (!item || !isEquipmentItemType(item.itemType)) {
+  if (!item || !isCodedIdentityItemType(item.itemType)) {
     return { warehouseQty: 0, projectIds: [] };
   }
 
@@ -790,6 +774,8 @@ export async function markAvailableEquipmentAssetsInTransit(
     where: { companyId, itemId, status: "AVAILABLE" },
   });
   const currentStock = inventoryQtyFromDecimal(item.currentStock);
+  // Caller already took these units off warehouse `currentStock`. Restore
+  // the pre-send on-hand so uncoded vs coded AVAILABLE can be split.
   const uncodedBefore = uncodedWarehouseQty(
     currentStock + wholeUnits,
     availableCount

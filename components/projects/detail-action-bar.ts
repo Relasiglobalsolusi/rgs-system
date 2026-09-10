@@ -4,4 +4,4 @@
  * buttons, so exporting from there creates a circular module graph.
  */
 export const detailActionBarButtonClassName =
-  "h-12 w-fit max-w-full min-h-12 shrink-0 justify-center rounded-xl px-5 text-sm font-semibold uppercase tracking-[0.1em] shadow-none sm:h-14 sm:text-[0.95rem]";
+  "h-12 w-full max-w-full min-h-12 shrink-0 justify-center rounded-xl px-5 text-sm font-semibold uppercase tracking-[0.1em] shadow-none sm:h-14 sm:w-fit sm:text-[0.95rem]";

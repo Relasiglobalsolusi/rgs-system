@@ -90,6 +90,7 @@ import ProjectsListHeader from "@/components/projects/ProjectsListHeader";
 import ProjectTable, {
   type ProjectTableRow,
 } from "@/components/projects/ProjectTable";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import DirectoryFilterTab from "@/components/ui/DirectoryFilterTab";
 import ProjectsClientFilter from "@/components/projects/ProjectsClientFilter";
 import { getServerLocale } from "@/lib/i18n/locale";
@@ -632,6 +633,11 @@ export default async function ProjectsPage({
             suggestedAmount:
               decimalToNumber(dueReconcilePeriod.amount) ??
               decimalToNumber(project.contractPrice),
+            taxInvoiceMissing: Boolean(
+              (dueReconcilePeriod.taxInvoiceRequired ||
+                project.requiresTaxInvoice) &&
+                !dueReconcilePeriod.taxInvoiceDoneAt
+            ),
           }
         : null;
       const canStart =
@@ -1009,7 +1015,7 @@ export default async function ProjectsPage({
             />
           ) : null}
           {SUBCATEGORY_CHIP_VIEWS.has(filterView) ? (
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-4">
+            <div className={chipScrollRowClassName("gap-x-2 gap-y-4")}>
               {topChips.map((pill) => {
                 const isActive =
                   pill.key === "all"
@@ -1029,7 +1035,7 @@ export default async function ProjectsPage({
             </div>
           ) : null}
           {SUBCATEGORY_CHIP_VIEWS.has(filterView) && subChips.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-2">
+            <div className={chipScrollRowClassName()}>
               {subChips.map((pill) => (
                 <DirectoryFilterTab
                   key={pill.key}

@@ -106,7 +106,7 @@ export default function VehicleDetailPage({
         : vehicle.status === "IN_TRANSIT"
           ? t("pages.inventory.product.inTransit")
           : vehicle.status === "RETIRED"
-            ? t("pages.inventory.overview.retired")
+            ? t("pages.inventory.overview.soldOff")
             : t("pages.inventory.vehicles.locationCompany");
 
   const conditionLabel =
@@ -512,8 +512,10 @@ export default function VehicleDetailPage({
                 key={row.yearMonth}
                 className="flex items-center justify-between gap-3"
               >
-                <span>{formatPrepaidFuelMonth(row.yearMonth, bcp47)}</span>
-                <span className="font-semibold tabular-nums">
+                <span className="min-w-0 flex-1 break-words">
+                  {formatPrepaidFuelMonth(row.yearMonth, bcp47)}
+                </span>
+                <span className="shrink-0 font-semibold tabular-nums">
                   {formatContractPrice(row.amount)}
                 </span>
               </li>

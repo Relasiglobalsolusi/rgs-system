@@ -8,6 +8,7 @@ import ProjectDialog from "@/components/projects/ProjectDialog";
 import type { ProjectStaffEmployee } from "@/components/projects/ProjectStaffPicker";
 import type { ProjectTeamOption } from "@/components/projects/ProjectTeamPicker";
 import DirectoryAddButton from "@/components/ui/DirectoryAddButton";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import { useT } from "@/lib/i18n/use-t";
 import type { CompanyBankAccountOption } from "@/lib/company-bank-accounts";
 import type { ProjectCatalogAreaDTO } from "@/lib/project-service-catalog";
@@ -46,7 +47,7 @@ export default function ProjectAddControl({
 
   return (
     <>
-      <div className="flex flex-wrap items-center justify-end gap-4">
+      <div className={chipScrollRowClassName("justify-end")}>
         <DirectoryAddButton
           label={t("pages.projects.addProject")}
           onClick={() => setCreateOpen(true)}

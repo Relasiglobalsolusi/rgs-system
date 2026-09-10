@@ -9,6 +9,7 @@ import path from "path";
 import PDFDocument from "pdfkit";
 import { ensureCompanyForPdf } from "@/lib/company-for-pdf";
 import { formatDisplayDate, formatDisplayTime } from "@/lib/format-date";
+import { formatContractPrice } from "@/lib/project-billing";
 import {
   BOTTOM_SAFE,
   CONTENT_WIDTH,
@@ -39,6 +40,13 @@ type ReconciliationPdfInput = {
   periodStart: Date;
   periodEnd: Date;
   contractAmountLabel?: string | null;
+  taxBreakdown?: {
+    dpp: number;
+    ppn: number;
+    pph: number;
+    gross: number;
+  } | null;
+  taxInvoiceMissing?: boolean;
   rows: CicoRowForPdf[];
   company?: CompanyForPdf | null;
 };
@@ -118,8 +126,19 @@ export async function generateReconciliationReportPdf(
         `${formatUtcDate(input.periodStart)} – ${formatUtcDate(input.periodEnd)}`,
       ],
     ];
-    if (input.contractAmountLabel) {
+    if (input.taxBreakdown) {
+      meta.push(["DPP", formatContractPrice(input.taxBreakdown.dpp)]);
+      meta.push(["PPN", formatContractPrice(input.taxBreakdown.ppn)]);
+      meta.push(["PPh", formatContractPrice(input.taxBreakdown.pph)]);
+      meta.push(["Total Due", formatContractPrice(input.taxBreakdown.gross)]);
+    } else if (input.contractAmountLabel) {
       meta.push(["Contract amount", input.contractAmountLabel]);
+    }
+    if (input.taxInvoiceMissing) {
+      meta.push([
+        "Tax invoice",
+        "This period has no tax invoice yet. Attach it before the client invoice goes out.",
+      ]);
     }
 
     for (const [label, value] of meta) {

@@ -32,10 +32,12 @@ import {
   snapshotToPayrollRows,
 } from "@/lib/internal-payroll-lock";
 import {
-  payrollPeriodsInUtcRange,
+  DEFAULT_PAYROLL_RUN,
   utcRangeForPayrollPeriod,
+  type PayrollRunKind,
 } from "@/lib/internal-payroll-period";
 import { addUtcDays } from "@/lib/invoice-period";
+import { listLockedPayrollRunsInRange } from "@/lib/locked-payroll-pnl";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/project-billing";
 
@@ -116,10 +118,11 @@ export async function loadPayrollCatalog(companyId: string): Promise<{
 export async function loadPayrollDeductions(
   companyId: string,
   year: number,
-  month: number
+  month: number,
+  run: PayrollRunKind = DEFAULT_PAYROLL_RUN
 ): Promise<Map<string, PayrollDeductionRow[]>> {
   const rows = await prisma.payrollDeduction.findMany({
-    where: { companyId, year, month },
+    where: { companyId, year, month, run },
     select: {
       id: true,
       employeeId: true,
@@ -226,6 +229,9 @@ export type InternalPayrollMonthRow = {
   days: PayrollDayRow[];
   cicoExempt?: boolean;
   overtimeEnabled?: boolean;
+  coveredShifts?: number;
+  surplusShifts?: number;
+  doubleShiftDays?: number;
   bpjsShareHeldBefore?: number;
   bpjsShareHeldAfter?: number;
 };
@@ -284,13 +290,16 @@ export async function upsertForfeitedRemainingWageLine(options: {
   month: number;
   wage: number;
   projectId: string | null;
+  run?: PayrollRunKind;
 }): Promise<boolean> {
+  const run = options.run ?? DEFAULT_PAYROLL_RUN;
   const lock = await prisma.internalPayrollLock.findUnique({
     where: {
-      companyId_year_month: {
+      companyId_year_month_run: {
         companyId: options.companyId,
         year: options.year,
         month: options.month,
+        run,
       },
     },
     select: { locked: true },
@@ -304,6 +313,7 @@ export async function upsertForfeitedRemainingWageLine(options: {
       employeeId: options.employeeId,
       year: options.year,
       month: options.month,
+      run,
       type: "FORFEITED_WAGES",
     },
     select: { id: true, amount: true, projectId: true },
@@ -337,6 +347,7 @@ export async function upsertForfeitedRemainingWageLine(options: {
       employeeId: options.employeeId,
       year: options.year,
       month: options.month,
+      run,
       type: "FORFEITED_WAGES",
       amount: toDecimal(amount),
       projectId: options.projectId,
@@ -353,10 +364,12 @@ export async function loadInternalPayrollMonth(options: {
   /** When false, ignore a locked snapshot and recompute from live CICO. */
   live?: boolean;
   employeeId?: string;
+  run?: PayrollRunKind;
 }): Promise<InternalPayrollMonthRow[]> {
   const { companyId, year, month } = options;
+  const run = options.run ?? DEFAULT_PAYROLL_RUN;
   if (!options.live) {
-    const lock = await getInternalPayrollLockRecord(companyId, year, month);
+    const lock = await getInternalPayrollLockRecord(companyId, year, month, run);
     const snapshot = snapshotToPayrollRows<InternalPayrollMonthRow>(
       lock?.snapshot
     );
@@ -368,11 +381,12 @@ export async function loadInternalPayrollMonth(options: {
     }
   }
 
-  const { start, endExclusive } = utcRangeForPayrollPeriod(year, month);
+  const { start, endExclusive } = utcRangeForPayrollPeriod(year, month, run);
 
   const employees = await prisma.employee.findMany({
     where: {
       companyId,
+      payrollRun: run,
       ...(options.employeeId ? { id: options.employeeId } : {}),
       employmentType: { not: "PART_TIME" },
       basePay: { not: null },
@@ -387,7 +401,7 @@ export async function loadInternalPayrollMonth(options: {
             },
           },
         },
-        { payrollDeductions: { some: { year, month } } },
+        { payrollDeductions: { some: { year, month, run } } },
       ],
     },
     select: {
@@ -460,7 +474,8 @@ export async function loadInternalPayrollMonth(options: {
   let deductionsByEmployee = await loadPayrollDeductions(
     companyId,
     year,
-    month
+    month,
+    run
   );
 
   const employeeIds = employees.map((employee) => employee.id);
@@ -672,7 +687,9 @@ export async function loadInternalPayrollMonth(options: {
           dailyRate,
         },
         year,
-        month
+        month,
+        new Date(),
+        run
       );
       const paid = emp.cicoExempt
         ? {
@@ -687,6 +704,13 @@ export async function loadInternalPayrollMonth(options: {
           });
       const daysWorked = paid.daysWorked;
       const wage = paid.wage;
+      const doubleShiftDays = new Set(
+        days.filter((day) => day.doubleShift).map((day) => day.dateKey)
+      ).size;
+      const coveredShifts = INTERNAL_PAYROLL_WORKING_DAYS_DIVISOR;
+      const surplusShifts = emp.cicoExempt
+        ? 0
+        : Math.max(0, daysWorked - coveredShifts);
       const forfeitWages = emp.resignForfeitRemainingWages;
       const bpjs = calculateBpjsBreakdown({
         basePay,
@@ -743,6 +767,9 @@ export async function loadInternalPayrollMonth(options: {
           securityDepositRequired: emp.securityDepositRequired,
           deductions,
           days,
+          coveredShifts,
+          surplusShifts,
+          doubleShiftDays,
           cicoExempt: emp.cicoExempt,
           overtimeEnabled: emp.overtimeEnabled,
         },
@@ -763,13 +790,14 @@ export async function loadInternalPayrollMonth(options: {
         employeeId: employee.id,
         year,
         month,
+        run,
         wage: row.wage,
         projectId: employee.depositSourceProjectId,
       });
       if (updated) changed = true;
     }
     if (changed) {
-      deductionsByEmployee = await loadPayrollDeductions(companyId, year, month);
+      deductionsByEmployee = await loadPayrollDeductions(companyId, year, month, run);
       rows = buildRows(deductionsByEmployee);
     }
   }
@@ -777,31 +805,34 @@ export async function loadInternalPayrollMonth(options: {
   return rows;
 }
 
-/** Cash-out delta vs gross Internal Payroll wages (deductions reduce, returns increase). */
+/**
+ * Cash-out delta vs gross Internal Payroll wages (deductions reduce, returns
+ * increase). Same gate as wages: only lines belonging to a locked run whose
+ * payable date falls inside the report range. Nothing books while a run is open.
+ */
 export async function sumInternalPayrollNetAdjustment(options: {
   companyId: string;
+  /** Calendar range of the report — the month the money leaves. */
   from?: Date;
   toExclusive?: Date;
   /** P&L: omit Security deposit withhold (held, not Made This Month). Cash: include. */
   includeSecurityDeposit?: boolean;
 }): Promise<number> {
-  const periods =
-    options.from || options.toExclusive
-      ? payrollPeriodsInUtcRange(options.from, options.toExclusive)
-      : null;
-  if (periods && periods.length === 0) return 0;
+  const lockedRuns = await listLockedPayrollRunsInRange({
+    companyId: options.companyId,
+    from: options.from,
+    toExclusive: options.toExclusive,
+  });
+  if (lockedRuns.length === 0) return 0;
 
   const rows = await prisma.payrollDeduction.findMany({
     where: {
       companyId: options.companyId,
-      ...(periods
-        ? {
-            OR: periods.map((period) => ({
-              year: period.year,
-              month: period.month,
-            })),
-          }
-        : {}),
+      OR: lockedRuns.map((lock) => ({
+        year: lock.year,
+        month: lock.month,
+        run: lock.run,
+      })),
     },
     select: { type: true, amount: true },
   });

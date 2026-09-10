@@ -107,7 +107,8 @@ export async function sendEquipmentToFactory(formData: FormData) {
     }
 
     let refundAmount: number | null = null;
-    if (intent === "REFUND") {
+    const rawRefund = String(formData.get("refundAmount") ?? "").trim();
+    if (rawRefund) {
       refundAmount = parsePositiveAmount(formData.get("refundAmount"));
     }
 
@@ -181,6 +182,12 @@ export async function recordFactoryRefund(formData: FormData) {
       );
     }
     const refundAmount = parsePositiveAmount(formData.get("refundAmount"));
+    const bankAccountId = String(formData.get("bankAccountId") ?? "").trim();
+    if (!bankAccountId) {
+      throw new Error(
+        translate(locale, "pages.inventory.factoryReturn.refundBankRequired")
+      );
+    }
     const result = await prisma.$transaction((tx) =>
       recordFactoryRefundInTx(tx, {
         companyId: company.id,
@@ -188,6 +195,7 @@ export async function recordFactoryRefund(formData: FormData) {
         refundAmount,
         closedById: session.user.id,
         refundedAt: new Date(),
+        bankAccountId,
       })
     );
     revalidateFactoryReturn(result.itemId);
@@ -205,6 +213,13 @@ export async function recordFactoryRefund(formData: FormData) {
                 "pages.inventory.factoryReturn.refundAmountRequired"
               )
             )
+          : code === "REFUND_BANK_REQUIRED"
+            ? new Error(
+                translate(
+                  locale,
+                  "pages.inventory.factoryReturn.refundBankRequired"
+                )
+              )
           : error,
       translate(locale, "pages.inventory.factoryReturn.refundFailed")
     );

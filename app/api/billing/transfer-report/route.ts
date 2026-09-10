@@ -56,9 +56,8 @@ export async function GET(request: NextRequest) {
       prisma.purchaseInvoice.findMany({
         where: {
           companyId: session.user.companyId,
-          invoiceDate: { gte: start, lt: endExclusive },
+          paidAt: { not: null, gte: start, lt: endExclusive },
           reversedAt: null,
-          paidAt: { not: null },
           ...bankAccountWhere(bank),
           ...(clientId
             ? { project: { clientId } }
@@ -86,7 +85,7 @@ export async function GET(request: NextRequest) {
             select: { client: { select: { name: true } } },
           },
         },
-        orderBy: [{ invoiceDate: "desc" }, { createdAt: "desc" }],
+        orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
       }),
       loadCompanyForPdf(session.user.companyId),
     ]);

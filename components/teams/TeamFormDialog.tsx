@@ -18,6 +18,7 @@ import {
   employeeInputClass,
   employeeSelectTriggerClass,
 } from "@/components/employees/employee-dialog-ui";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import { Dialog } from "@/components/ui/dialog";
 import { showRejectionFromError } from "@/components/ui/rejection-notice";
 import { useT } from "@/lib/i18n/use-t";
@@ -223,7 +224,7 @@ export default function TeamFormDialog({
                   {t("pages.teams.assignMembersOnCreate")}
                 </p>
                 <div
-                  className="flex flex-wrap items-center gap-2"
+                  className={chipScrollRowClassName()}
                   role="group"
                   aria-label={t("common.labels.department")}
                 >

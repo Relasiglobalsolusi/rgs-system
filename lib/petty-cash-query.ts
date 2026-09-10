@@ -41,8 +41,11 @@ export type UnpaidPartTimeWageView = {
 };
 
 export async function loadUnpaidPartTimeWages(
-  companyId: string
+  companyId: string,
+  companyWide = true
 ): Promise<UnpaidPartTimeWageView[]> {
+  if (!companyWide) return [];
+
   const rows = await prisma.pettyCashEntry.findMany({
     where: {
       companyId,
@@ -71,12 +74,15 @@ export async function loadUnpaidPartTimeWages(
 }
 
 export async function loadPettyCashHolders(
-  companyId: string
+  companyId: string,
+  holderEmployeeId?: string | null
 ): Promise<PettyCashHolderView[]> {
   const entries = await prisma.pettyCashEntry.findMany({
     where: {
       companyId,
-      holderEmployeeId: { not: null },
+      holderEmployeeId: holderEmployeeId
+        ? holderEmployeeId
+        : { not: null },
       NOT: {
         kind: "PART_TIME_PAY",
         status: { not: "POSTED" },

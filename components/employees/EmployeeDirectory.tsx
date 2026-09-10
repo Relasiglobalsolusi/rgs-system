@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import {
+  FileDown,
   ListPlus,
   Trash2,
   UserRound,
@@ -26,6 +27,7 @@ import type {
 } from "@/components/employees/EmployeeFormFields";
 import BulkActionBar from "@/components/ui/BulkActionBar";
 import DirectoryAddButton from "@/components/ui/DirectoryAddButton";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import DirectoryFilterTab from "@/components/ui/DirectoryFilterTab";
 import DirectorySearchInput, {
   matchesDirectorySearch,
@@ -34,6 +36,7 @@ import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
+import type { CompanyBankAccountOption } from "@/lib/company-bank-accounts";
 import type { EmployeeCreateActorTier } from "@/lib/employee-create-hierarchy";
 import { localizeDepartmentLabel } from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n/use-t";
@@ -61,6 +64,7 @@ type Employee = {
   email: string | null;
   phone: string | null;
   employmentType: EmploymentType;
+  payrollRun: "PROJECT_CYCLE" | "HEAD_OFFICE_MONTHLY";
   placement: Placement;
   portalAccessRequested: boolean;
   positionId: string | null;
@@ -119,6 +123,7 @@ type Props = {
   canResign?: boolean;
   canArchive?: boolean;
   createActorTier?: EmployeeCreateActorTier;
+  bankAccounts?: CompanyBankAccountOption[];
 };
 
 export default function EmployeeDirectory({
@@ -132,6 +137,7 @@ export default function EmployeeDirectory({
   canResign = false,
   canArchive = false,
   createActorTier = "OTHER",
+  bankAccounts = [],
 }: Props) {
   const { t, locale } = useT();
   const [tab, setTab] = useState<EmployeeDirectoryView>("allEmployees");
@@ -500,7 +506,7 @@ export default function EmployeeDirectory({
       </DirectoryStatGrid>
 
       {tab === "unassigned" ? (
-        <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className={chipScrollRowClassName("mb-3")}>
           <DirectoryFilterTab
             size="sm"
             active={unassignedSegment === "FULL_TIME"}
@@ -522,7 +528,7 @@ export default function EmployeeDirectory({
 
       {departmentOptions.length > 0 ? (
         <div
-          className="mb-3 flex gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] sm:flex-wrap sm:overflow-visible sm:pb-0"
+          className={chipScrollRowClassName("mb-3")}
           role="group"
           aria-label={t("pages.employees.filterDepartment")}
         >
@@ -553,7 +559,7 @@ export default function EmployeeDirectory({
       ) : null}
 
       {tab !== "trash" ? (
-        <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className={chipScrollRowClassName("mb-3")}>
           <DirectoryFilterTab
             size="sm"
             active={statusSegment === "all"}
@@ -589,10 +595,17 @@ export default function EmployeeDirectory({
           className="min-w-0 w-full max-w-none sm:max-w-xs sm:flex-1"
         />
         {canManage ? (
-          <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:justify-end">
+          <div className={chipScrollRowClassName("w-full sm:ml-auto sm:w-auto sm:justify-end")}>
             <DirectoryAddButton
               label={t("pages.employees.addEmployee")}
               onClick={() => setCreateOpen(true)}
+            />
+            <DirectoryAddButton
+              label={t("pages.employees.downloadLoginIds")}
+              icon={<FileDown className="h-3.5 w-3.5 shrink-0" />}
+              onClick={() => {
+                window.location.assign("/api/employees/login-ids");
+              }}
             />
             {showBulkImportFt ? (
               <DirectoryAddButton
@@ -665,6 +678,7 @@ export default function EmployeeDirectory({
           canResign={canResign}
           canArchive={canArchive}
           createActorTier={createActorTier}
+          bankAccounts={bankAccounts}
           directoryView={tab}
           showSelection={listShowSelection}
           selectedIds={selectedIds}

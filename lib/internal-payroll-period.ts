@@ -1,8 +1,48 @@
 import { DISPLAY_LOCALE, formatEnglishOrdinalDate } from "@/lib/format-date";
 
-/** Internal Payroll window: 16th of the previous month through 15th of this month. */
+/**
+ * Two Internal Payroll runs per month, same shape: the window opens on day D of
+ * the previous month and closes the day before D of this month.
+ *
+ * - `PROJECT_CYCLE` — regular project staff, 16th through the 15th.
+ * - `HEAD_OFFICE_MONTHLY` — head office, corporate, directors and GC staff,
+ *   26th through the 25th, paid on the 25th.
+ *
+ * Every function here defaults to `PROJECT_CYCLE` so existing callers keep the
+ * 16th–15th window they were written against.
+ */
+export type PayrollRunKind = "PROJECT_CYCLE" | "HEAD_OFFICE_MONTHLY";
 
-export const PAYROLL_PERIOD_START_DAY = 16;
+export const PAYROLL_RUN_KINDS = [
+  "PROJECT_CYCLE",
+  "HEAD_OFFICE_MONTHLY",
+] as const satisfies readonly PayrollRunKind[];
+
+export const DEFAULT_PAYROLL_RUN: PayrollRunKind = "PROJECT_CYCLE";
+
+/** Day of the previous month each window opens on. */
+export const PAYROLL_RUN_START_DAY: Record<PayrollRunKind, number> = {
+  PROJECT_CYCLE: 16,
+  HEAD_OFFICE_MONTHLY: 26,
+};
+
+/**
+ * Day of the period month the run may be generated from. Project staff
+ * reconcile the day after their window closes; head office is paid on the 25th,
+ * the closing day itself.
+ */
+export const PAYROLL_RUN_PAYABLE_DAY: Record<PayrollRunKind, number> = {
+  PROJECT_CYCLE: 16,
+  HEAD_OFFICE_MONTHLY: 25,
+};
+
+export function isPayrollRunKind(value: unknown): value is PayrollRunKind {
+  return (PAYROLL_RUN_KINDS as readonly string[]).includes(String(value));
+}
+
+export function parsePayrollRunKind(value: unknown): PayrollRunKind {
+  return isPayrollRunKind(value) ? value : DEFAULT_PAYROLL_RUN;
+}
 
 export type PayrollPeriod = {
   year: number;
@@ -36,56 +76,63 @@ export function previousPayrollCalendarMonth(
 }
 
 /**
- * CICO window for the payroll period labeled `year`/`month`
- * (16th of the previous month through 15th of this month).
+ * CICO window for the payroll period labeled `year`/`month`: day D of the
+ * previous month through the day before D of this month.
  */
 export function utcRangeForPayrollPeriod(
   year: number,
-  month: number
+  month: number,
+  run: PayrollRunKind = DEFAULT_PAYROLL_RUN
 ): { start: Date; endExclusive: Date } {
+  const startDay = PAYROLL_RUN_START_DAY[run];
   const prev = previousPayrollCalendarMonth(year, month);
   return {
-    start: new Date(Date.UTC(prev.year, prev.month - 1, PAYROLL_PERIOD_START_DAY)),
-    endExclusive: new Date(Date.UTC(year, month - 1, PAYROLL_PERIOD_START_DAY)),
+    start: new Date(Date.UTC(prev.year, prev.month - 1, startDay)),
+    endExclusive: new Date(Date.UTC(year, month - 1, startDay)),
   };
 }
 
 /** Payroll period that contains a Jakarta calendar date. */
-export function payrollPeriodFromJakartaDate(date: Date): PayrollPeriod {
+export function payrollPeriodFromJakartaDate(
+  date: Date,
+  run: PayrollRunKind = DEFAULT_PAYROLL_RUN
+): PayrollPeriod {
   const { year, month, day } = jakartaYearMonthDay(date);
-  if (day >= PAYROLL_PERIOD_START_DAY) {
+  if (day >= PAYROLL_RUN_START_DAY[run]) {
     if (month === 12) return { year: year + 1, month: 1 };
     return { year, month: month + 1 };
   }
   return { year, month };
 }
 
-/** True once Jakarta today is on or after the 16th of the period month. */
+/** True once Jakarta today has reached the day this run may be generated. */
 export function isPayrollPeriodReconciled(
   year: number,
   month: number,
-  now: Date = new Date()
+  now: Date = new Date(),
+  run: PayrollRunKind = DEFAULT_PAYROLL_RUN
 ): boolean {
   const today = jakartaYearMonthDay(now);
   if (today.year !== year) return today.year > year;
   if (today.month !== month) return today.month > month;
-  return today.day >= PAYROLL_PERIOD_START_DAY;
+  return today.day >= PAYROLL_RUN_PAYABLE_DAY[run];
 }
 
 export function payrollPeriodsInUtcRange(
   from?: Date,
-  toExclusive?: Date
+  toExclusive?: Date,
+  run: PayrollRunKind = DEFAULT_PAYROLL_RUN
 ): PayrollPeriod[] {
   if (!from && !toExclusive) return [];
 
   const start = from
-    ? payrollPeriodFromJakartaDate(from)
+    ? payrollPeriodFromJakartaDate(from, run)
     : { year: 2000, month: 1 };
   const lastIncluded = toExclusive
     ? new Date(toExclusive.getTime() - 1)
     : null;
   const last = lastIncluded
-    ? payrollPeriodFromJakartaDate(lastIncluded)
+    ? payrollPeriodFromJakartaDate(lastIncluded, run)
     : { year: 2100, month: 12 };
 
   const periods: PayrollPeriod[] = [];
@@ -103,13 +150,16 @@ export function payrollPeriodsInUtcRange(
   return periods;
 }
 
-export function utcRangeForPayrollYear(year: number): {
+export function utcRangeForPayrollYear(
+  year: number,
+  run: PayrollRunKind = DEFAULT_PAYROLL_RUN
+): {
   from: Date;
   toExclusive: Date;
 } {
   return {
-    from: utcRangeForPayrollPeriod(year, 1).start,
-    toExclusive: utcRangeForPayrollPeriod(year, 12).endExclusive,
+    from: utcRangeForPayrollPeriod(year, 1, run).start,
+    toExclusive: utcRangeForPayrollPeriod(year, 12, run).endExclusive,
   };
 }
 
@@ -126,12 +176,13 @@ export function parsePayrollPeriodKey(value: string): PayrollPeriod | null {
   return { year, month };
 }
 
-/** Inclusive UTC date-only bounds: 16th previous month through 15th of this month. */
+/** Inclusive UTC date-only bounds, e.g. the 16th previous through the 15th. */
 export function payrollPeriodInclusiveDates(
   year: number,
-  month: number
+  month: number,
+  run: PayrollRunKind = DEFAULT_PAYROLL_RUN
 ): { start: Date; end: Date } {
-  const { start, endExclusive } = utcRangeForPayrollPeriod(year, month);
+  const { start, endExclusive } = utcRangeForPayrollPeriod(year, month, run);
   return {
     start,
     end: new Date(endExclusive.getTime() - 24 * 60 * 60 * 1000),
@@ -139,8 +190,11 @@ export function payrollPeriodInclusiveDates(
 }
 
 /** Payroll period that contains Jakarta today. */
-export function currentPayrollPeriod(now: Date = new Date()): PayrollPeriod {
-  return payrollPeriodFromJakartaDate(now);
+export function currentPayrollPeriod(
+  now: Date = new Date(),
+  run: PayrollRunKind = DEFAULT_PAYROLL_RUN
+): PayrollPeriod {
+  return payrollPeriodFromJakartaDate(now, run);
 }
 
 /**
@@ -167,9 +221,11 @@ export function listPayrollPeriodChoices(options?: {
   now?: Date;
   historyMonths?: number;
   selected?: PayrollPeriod;
+  run?: PayrollRunKind;
 }): PayrollPeriod[] {
   const now = options?.now ?? new Date();
-  const current = currentPayrollPeriod(now);
+  const run = options?.run ?? DEFAULT_PAYROLL_RUN;
+  const current = currentPayrollPeriod(now, run);
   const historyMonths = options?.historyMonths ?? 36;
   let year = current.year;
   let month = current.month;
@@ -180,8 +236,9 @@ export function listPayrollPeriodChoices(options?: {
   }
 
   const periods = payrollPeriodsInUtcRange(
-    utcRangeForPayrollPeriod(year, month).start,
-    utcRangeForPayrollPeriod(current.year, current.month).endExclusive
+    utcRangeForPayrollPeriod(year, month, run).start,
+    utcRangeForPayrollPeriod(current.year, current.month, run).endExclusive,
+    run
   );
 
   const selected = options?.selected;
@@ -200,9 +257,10 @@ export function listPayrollPeriodChoices(options?: {
 export function formatPayrollPeriodRange(
   year: number,
   month: number,
-  locale: string = DISPLAY_LOCALE
+  locale: string = DISPLAY_LOCALE,
+  run: PayrollRunKind = DEFAULT_PAYROLL_RUN
 ): string {
-  const { start, end } = payrollPeriodInclusiveDates(year, month);
+  const { start, end } = payrollPeriodInclusiveDates(year, month, run);
   const connector = locale.toLowerCase().startsWith("id") ? "sampai" : "to";
   return `${formatEnglishOrdinalDate(start, locale)} ${connector} ${formatEnglishOrdinalDate(end, locale)}`;
 }
@@ -232,9 +290,10 @@ function payrollFileDayMonth(date: Date, withYear: boolean): string {
 /** Short range for downloads, e.g. "16 Aug - 15 Sept 2026". */
 export function formatPayrollPeriodShortRange(
   year: number,
-  month: number
+  month: number,
+  run: PayrollRunKind = DEFAULT_PAYROLL_RUN
 ): string {
-  const { start, end } = payrollPeriodInclusiveDates(year, month);
+  const { start, end } = payrollPeriodInclusiveDates(year, month, run);
   const sameYear = start.getUTCFullYear() === end.getUTCFullYear();
   return `${payrollFileDayMonth(start, !sameYear)} - ${payrollFileDayMonth(end, true)}`;
 }
@@ -242,7 +301,10 @@ export function formatPayrollPeriodShortRange(
 /** Download title, e.g. "Internal Payroll (16 Aug - 15 Sept 2026)". */
 export function formatInternalPayrollWorkbookTitle(
   year: number,
-  month: number
+  month: number,
+  run: PayrollRunKind = DEFAULT_PAYROLL_RUN
 ): string {
-  return `Internal Payroll (${formatPayrollPeriodShortRange(year, month)})`;
+  const label =
+    run === "HEAD_OFFICE_MONTHLY" ? "Head Office Payroll" : "Internal Payroll";
+  return `${label} (${formatPayrollPeriodShortRange(year, month, run)})`;
 }

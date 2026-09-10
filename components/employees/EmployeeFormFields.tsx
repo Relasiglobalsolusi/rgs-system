@@ -26,6 +26,7 @@ import {
 import { cn } from "@/lib/utils";
 import { formatDateForInput } from "@/lib/format-tenure";
 import {
+  employeeTypeFromPlacement,
   formatEmploymentTypeLabel,
   formatPlacementLabel,
   initialPlacementForDepartment,
@@ -35,6 +36,7 @@ import {
   defaultSecurityDepositRequired,
   isInHouseCleaningStaffPosition,
   isAreaManagerPosition,
+  isDirectorPosition,
   isOperationsManagerPosition,
   isWarehouseStaffPosition,
 } from "@/lib/positions";
@@ -50,6 +52,10 @@ import DirectorySearchInput, {
   matchesDirectorySearch,
 } from "@/components/ui/DirectorySearchInput";
 import { FileDropField } from "@/components/ui/FileDropField";
+import {
+  requiresHeadOfficePayrollRun,
+} from "@/lib/employee-payroll-run";
+import type { PayrollRunKind } from "@/lib/internal-payroll-period";
 
 export type EmployeeFormDefaults = {
   employeeNo?: string;
@@ -60,6 +66,7 @@ export type EmployeeFormDefaults = {
   categoryId?: string | null;
   positionId?: string | null;
   employmentType?: "FULL_TIME" | "PART_TIME";
+  payrollRun?: PayrollRunKind;
   placement?: "AVAILABLE" | "ON_PROJECT" | "HEAD_OFFICE" | "FIELD";
   portalAccessRequested?: boolean;
   idDocumentUrl?: string | null;
@@ -107,6 +114,8 @@ type Props = {
   onPositionIdChange: (value: string) => void;
   employmentType: "FULL_TIME" | "PART_TIME";
   onEmploymentTypeChange: (value: "FULL_TIME" | "PART_TIME") => void;
+  payrollRun: PayrollRunKind;
+  onPayrollRunChange: (value: PayrollRunKind) => void;
   status?: "ACTIVE" | "ON_LEAVE" | "LEAVE_PENDING";
   previewEmployeeNo?: string;
   defaults?: EmployeeFormDefaults;
@@ -159,6 +168,8 @@ export default function EmployeeFormFields({
   onPositionIdChange,
   employmentType,
   onEmploymentTypeChange,
+  payrollRun,
+  onPayrollRunChange,
   status = "ACTIVE",
   previewEmployeeNo,
   defaults,
@@ -194,10 +205,15 @@ export default function EmployeeFormFields({
     () => categories.find((category) => category.id === categoryId),
     [categories, categoryId]
   );
-  const showOmApprovalAreas = isOperationsManagerPosition({
-    slug: selectedPosition?.slug,
-    name: selectedPosition?.name,
-  });
+  const showOmApprovalAreas =
+    isOperationsManagerPosition({
+      slug: selectedPosition?.slug,
+      name: selectedPosition?.name,
+    }) ||
+    isDirectorPosition({
+      slug: selectedPosition?.slug,
+      name: selectedPosition?.name,
+    });
   const showAreaProjects = isAreaManagerPosition({
     slug: selectedPosition?.slug,
     name: selectedPosition?.name,
@@ -241,6 +257,27 @@ export default function EmployeeFormFields({
     slug: selectedPosition?.slug,
     name: selectedPosition?.name,
   });
+  const selectedPlacement = initialPlacementForDepartment({
+    categorySlug: selectedCategory?.slug,
+    categoryPrefix: selectedCategory?.prefix,
+  });
+  const payrollRunLocked = requiresHeadOfficePayrollRun({
+    employeeType: employeeTypeFromPlacement(selectedPlacement),
+    jobPosition: selectedPosition
+      ? { slug: selectedPosition.slug, name: selectedPosition.name }
+      : null,
+  });
+
+  useEffect(() => {
+    if (!payrollRunLocked || payrollRun === "HEAD_OFFICE_MONTHLY") return;
+    onPayrollRunChange("HEAD_OFFICE_MONTHLY");
+    onFormValuesChange?.();
+  }, [
+    onFormValuesChange,
+    onPayrollRunChange,
+    payrollRun,
+    payrollRunLocked,
+  ]);
 
   useEffect(() => {
     if (mode !== "create") return;
@@ -679,6 +716,51 @@ export default function EmployeeFormFields({
           ) : null}
         </div>
 
+        <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+          <label className="text-sm font-medium text-text">
+            {t("pages.employees.form.payrollRun")}
+          </label>
+          <p className="text-xs text-muted">
+            {t("pages.employees.form.payrollRunHint")}
+          </p>
+          <Select
+            value={payrollRun}
+            onValueChange={(value) => {
+              onPayrollRunChange(value as PayrollRunKind);
+              onFormValuesChange?.();
+            }}
+            disabled={payrollRunLocked}
+          >
+            <SelectTrigger className={employeeSelectTriggerClass}>
+              <SelectValue>
+                {payrollRun === "HEAD_OFFICE_MONTHLY"
+                  ? t("pages.employees.form.payrollRunHeadOffice")
+                  : t("pages.employees.form.payrollRunProject")}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem
+                value="PROJECT_CYCLE"
+                label={t("pages.employees.form.payrollRunProject")}
+              >
+                {t("pages.employees.form.payrollRunProject")}
+              </SelectItem>
+              <SelectItem
+                value="HEAD_OFFICE_MONTHLY"
+                label={t("pages.employees.form.payrollRunHeadOffice")}
+              >
+                {t("pages.employees.form.payrollRunHeadOffice")}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          <input type="hidden" name={nameOf("payrollRun")} value={payrollRun} />
+          {payrollRunLocked ? (
+            <p className="text-xs text-muted">
+              {t("pages.employees.form.payrollRunLockedHint")}
+            </p>
+          ) : null}
+        </div>
+
         {isInHouseCleaning ? (
           <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
             <p className="text-xs text-muted">
@@ -793,6 +875,11 @@ export default function EmployeeFormFields({
             ? { slug: selectedPosition.slug, name: selectedPosition.name }
             : null
         )}
+        jobPosition={
+          selectedPosition
+            ? { slug: selectedPosition.slug, name: selectedPosition.name }
+            : null
+        }
         onFormValuesChange={onFormValuesChange}
         includeBankFields={!sharedTermsOnly}
         namePrefix={namePrefix}

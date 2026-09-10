@@ -140,16 +140,16 @@ function LoginContent() {
   return (
     <main className="auth-surface auth-shell">
       <div className="grid min-h-screen lg:grid-cols-[0.88fr_1.12fr]">
-        <section className="auth-form-panel flex min-h-screen items-center border-r px-6 py-12 sm:px-10 lg:px-14 xl:px-20">
+        <section className="auth-form-panel flex min-h-screen items-center border-r px-5 py-8 sm:px-10 sm:py-12 lg:px-14 xl:px-20">
           <div className="mx-auto w-full max-w-[31.875rem]">
             <div className="mb-10">
               <AuthLogo variant="hero" />
 
-              <div className="mt-5 flex items-center gap-4">
-                <span className="auth-tagline-rule h-0.5 w-14" />
+              <div className="mt-5 flex min-w-0 items-center gap-3 sm:gap-4">
+                <span className="auth-tagline-rule hidden h-0.5 w-14 shrink-0 sm:block" />
 
                 <span
-                  className="auth-text-subtle text-[13px] font-medium uppercase tracking-[0.3em]"
+                  className="auth-text-subtle min-w-0 text-pretty text-[12px] font-medium uppercase tracking-[0.08em] sm:text-[13px] sm:tracking-[0.3em]"
                   lang="en"
                   translate="no"
                 >
@@ -164,7 +164,7 @@ function LoginContent() {
                 <AuthLanguageSwitcher />
               </div>
 
-              <h1 className="text-4xl font-semibold tracking-tight">
+              <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
                 {t("auth.welcomeBack")}
               </h1>
 
@@ -173,7 +173,7 @@ function LoginContent() {
               </p>
             </div>
 
-            <form method="post" action="/login" onSubmit={handleLogin}>
+            <form method="post" action="/login" noValidate onSubmit={handleLogin}>
               <div className="space-y-5">
                 {resetSuccess && (
                   <div role="status" className="auth-alert-success rounded-xl px-4 py-3 text-sm">
@@ -224,7 +224,7 @@ function LoginContent() {
                 </div>
 
                 <div>
-                  <div className="mb-2 flex items-center justify-between">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                     <label
                       htmlFor="password"
                       className="auth-label text-sm font-medium"
@@ -324,7 +324,7 @@ function LoginContent() {
             </span>
 
             <h2 className="mt-6 text-[2.75rem] font-semibold leading-[1.12] tracking-tight xl:text-5xl">
-              {t("auth.heroTitle")}
+              {t("auth.heroTitle")}{" "}
               <br />
               <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400 bg-clip-text text-transparent">
                 {t("auth.heroTitleAccent")}

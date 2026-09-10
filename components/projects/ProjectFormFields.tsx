@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 
 import type { LocationValue } from "@/components/projects/LocationPicker";
@@ -56,8 +56,10 @@ import {
 } from "@/lib/project-form-subcategory";
 import {
   billingSubCategoryForCatalog,
+  catalogAreaAllowsCompletedIntake,
   catalogDisplayName,
   catalogSubsForAddProject,
+  catalogSubsForCompletedIntake,
   findMaintenanceCatalogArea,
   type ProjectCatalogAreaDTO,
 } from "@/lib/project-service-catalog";
@@ -308,11 +310,6 @@ export default function ProjectFormFields({
   const isService = isServiceProjectSubCategory(subCategory);
   const isMonthTimeline = usesMonthDurationTimeline(subCategory);
   const isMilestoneEligible = isMilestoneSubCategory(subCategory);
-  useEffect(() => {
-    if (projectOngoing === "Completed" && !isMilestoneEligible) {
-      setProjectOngoing("No");
-    }
-  }, [isMilestoneEligible, projectOngoing]);
   const showPaymentPlan =
     isMilestoneEligible && billingMode === "MILESTONE" && !catchUpCompleted;
   const showVisitPlan =
@@ -422,6 +419,7 @@ export default function ProjectFormFields({
     if (isRgsInternalClientFormValue(nextId)) {
       setIsDemoChoice("No");
       setIsComplimentaryChoice("No");
+      setProjectOngoing("No");
       setInitialStatus("IN_PROGRESS");
       setLocationValue({
         location: HEAD_OFFICE_SITE.address,
@@ -434,8 +432,14 @@ export default function ProjectFormFields({
     onFormValuesChange?.();
   }
 
-  function applyResolvedSubCategory(next: ProjectSubCategory) {
-    const nextMode = defaultBillingMode(next);
+  function applyResolvedSubCategory(
+    next: ProjectSubCategory,
+    intake: ProjectCatchUpIntake = projectOngoing
+  ) {
+    const nextMode =
+      intake === "Completed" && isMilestoneSubCategory(next)
+        ? "ON_COMPLETION"
+        : defaultBillingMode(next);
     setBillingMode(nextMode);
     if (!isMilestoneSubCategory(next) || nextMode !== "MILESTONE") {
       resetPaymentPlan();
@@ -530,15 +534,108 @@ export default function ProjectFormFields({
       setIsComplimentaryChoice("No");
       return;
     }
+    setProjectOngoing("No");
     if (billingMode === "MULTI_VISIT") {
       setBillingMode("ON_COMPLETION");
     }
     applyDemoServiceArea("CLEANING");
   }
 
+  function applyCompletedServiceArea(
+    next: FormServiceArea,
+    catalogId?: string
+  ) {
+    const area =
+      catalog.find((item) => item.id === catalogId) ??
+      catalog.find((item) => item.systemArea === next) ??
+      null;
+    const canUseArea =
+      (next === "CLEANING" ||
+        next === "LANDSCAPING" ||
+        next === "SECURITY" ||
+        next === "OTHER") &&
+      (!area || catalogAreaAllowsCompletedIntake(area));
+
+    if (!canUseArea) {
+      const cleaningId =
+        catalog.find((item) => item.systemArea === "CLEANING")?.id ?? "";
+      setServiceArea("CLEANING");
+      setAreaCatalogId(cleaningId);
+      setSubcategoryCatalogId("");
+      setUiSubcategory("GENERAL_CLEANING");
+      setOneTimeCleaningType("GENERAL_CLEANING");
+      applyResolvedSubCategory("GENERAL_CLEANING", "Completed");
+      return;
+    }
+
+    setServiceArea(next);
+    setAreaCatalogId(catalogId ?? area?.id ?? "");
+    setSubcategoryCatalogId("");
+
+    if (next === "CLEANING") {
+      const nextSub: CleaningOneTimeType =
+        uiSubcategory === "FACADE_CLEANING"
+          ? "FACADE_CLEANING"
+          : "GENERAL_CLEANING";
+      setUiSubcategory(nextSub);
+      setOneTimeCleaningType(nextSub);
+      applyResolvedSubCategory(nextSub, "Completed");
+      return;
+    }
+    if (next === "LANDSCAPING") {
+      setUiSubcategory(ONE_TIME_FORM_VALUE);
+      applyResolvedSubCategory("ONE_TIME_LANDSCAPING", "Completed");
+      return;
+    }
+    if (next === "SECURITY") {
+      setUiSubcategory(ONE_TIME_FORM_VALUE);
+      applyResolvedSubCategory("ONE_TIME_SECURITY", "Completed");
+      return;
+    }
+
+    const oneTimeSub = area
+      ? catalogSubsForCompletedIntake(area)[0]
+      : undefined;
+    if (oneTimeSub && area) {
+      setSubcategoryCatalogId(oneTimeSub.id);
+      setUiSubcategory(oneTimeSub.id);
+      applyResolvedSubCategory(
+        billingSubCategoryForCatalog({
+          systemArea: area.systemArea,
+          billingKind: oneTimeSub.billingKind,
+          systemSubCategory: oneTimeSub.systemSubCategory,
+        }),
+        "Completed"
+      );
+      return;
+    }
+
+    setServiceArea("CLEANING");
+    setAreaCatalogId(
+      catalog.find((item) => item.systemArea === "CLEANING")?.id ?? ""
+    );
+    setUiSubcategory("GENERAL_CLEANING");
+    setOneTimeCleaningType("GENERAL_CLEANING");
+    applyResolvedSubCategory("GENERAL_CLEANING", "Completed");
+  }
+
+  function handleProjectOngoingChange(next: ProjectCatchUpIntake) {
+    setProjectOngoing(next);
+    if (next !== "Completed") return;
+    if (isMilestoneSubCategory(subCategory)) {
+      setBillingMode("ON_COMPLETION");
+      return;
+    }
+    applyCompletedServiceArea(serviceArea, areaCatalogId);
+  }
+
   function handleServiceAreaChange(next: FormServiceArea, catalogId?: string) {
     if (isDemo) {
       applyDemoServiceArea(next, catalogId);
+      return;
+    }
+    if (projectOngoing === "Completed") {
+      applyCompletedServiceArea(next, catalogId);
       return;
     }
     setServiceArea(next);
@@ -627,6 +724,66 @@ export default function ProjectFormFields({
         />
       ) : null}
 
+      {!isInternal && !isDemo && showCatchUpIntake ? (
+        <div className="space-y-2">
+          <ProjectOptionPills
+            label={t("pages.projects.catchUp.projectOngoing")}
+            value={projectOngoing}
+            options={[
+              {
+                value: "No",
+                label: t("pages.projects.catchUp.newProject"),
+              },
+              {
+                value: "Yes",
+                label: t("pages.projects.catchUp.ongoing"),
+              },
+              {
+                value: "Completed",
+                label: t("pages.projects.catchUp.completed"),
+              },
+            ]}
+            onChange={(value) =>
+              handleProjectOngoingChange(value as ProjectCatchUpIntake)
+            }
+          />
+          <input
+            type="hidden"
+            name={nameOf("projectOngoing")}
+            value={projectOngoing}
+          />
+          <p className="text-xs text-subtle">
+            {t("pages.projects.catchUp.projectOngoingHint")}
+          </p>
+          {catchUpStarted ? (
+            <div className={employeeDialogFieldClass}>
+              <label
+                className="text-sm font-medium text-text"
+                htmlFor={idOf("catchUpPeriodsDone")}
+              >
+                {t("pages.projects.catchUp.periodsDone")}
+                <span className="text-red-400"> *</span>
+              </label>
+              <Input
+                id={idOf("catchUpPeriodsDone")}
+                name={nameOf("catchUpPeriodsDone")}
+                type="number"
+                min={1}
+                max={120}
+                step={1}
+                required
+                className={employeeInputClass}
+              />
+              <p className="text-xs text-subtle">
+                {t("pages.projects.catchUp.periodsDoneHint")}
+              </p>
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <input type="hidden" name={nameOf("projectOngoing")} value="No" />
+      )}
+
       <div className={employeeDialogFieldClass}>
         <label className="text-sm font-medium text-text" htmlFor={idOf("name")}>
           {t("pages.projects.projectName")}
@@ -678,7 +835,7 @@ export default function ProjectFormFields({
         ) : null}
       </div>
 
-      {!isInternal ? (
+      {!isInternal && !catchUpHistorical ? (
         <div className={employeeDialogFieldClass}>
           <label id={idOf("is-demo")} className="text-sm font-medium text-text">
             {t("pages.projects.isDemo")}
@@ -712,46 +869,6 @@ export default function ProjectFormFields({
           </p>
         </div>
       ) : null}
-
-      {!isInternal && !isDemo && showCatchUpIntake ? (
-        <div className="space-y-2">
-          <ProjectOptionPills
-            label={t("pages.projects.catchUp.projectOngoing")}
-            value={projectOngoing}
-            options={[
-              {
-                value: "No",
-                label: t("pages.projects.catchUp.newProject"),
-              },
-              {
-                value: "Yes",
-                label: t("pages.projects.catchUp.ongoing"),
-              },
-              ...(isMilestoneEligible
-                ? [
-                    {
-                      value: "Completed",
-                      label: t("pages.projects.catchUp.completed"),
-                    },
-                  ]
-                : []),
-            ]}
-            onChange={(value) =>
-              setProjectOngoing(value as ProjectCatchUpIntake)
-            }
-          />
-          <input
-            type="hidden"
-            name={nameOf("projectOngoing")}
-            value={projectOngoing}
-          />
-          <p className="text-xs text-subtle">
-            {t("pages.projects.catchUp.projectOngoingHint")}
-          </p>
-        </div>
-      ) : (
-        <input type="hidden" name={nameOf("projectOngoing")} value="No" />
-      )}
 
       {!isInternal && !catchUpHistorical ? (
         <ProjectOptionPills
@@ -793,33 +910,55 @@ export default function ProjectFormFields({
                   label: t("pages.projects.serviceAreaMaintenance"),
                 },
               ]
-            : catalog.length > 0
-              ? catalog.map((area) => ({
-                  value: area.id,
-                  label: catalogDisplayName(area, locale),
-                }))
-              : [
-                  {
-                    value: "CLEANING",
-                    label: t("pages.projects.serviceAreaCleaning"),
-                  },
-                  {
-                    value: "LANDSCAPING",
-                    label: t("pages.projects.serviceAreaLandscaping"),
-                  },
-                  {
-                    value: "PARKING",
-                    label: t("pages.projects.serviceAreaParking"),
-                  },
-                  {
-                    value: "SECURITY",
-                    label: t("pages.projects.serviceAreaSecurity"),
-                  },
-                  {
-                    value: "PAYROLL_MANAGEMENT",
-                    label: t("pages.projects.serviceAreaPayroll"),
-                  },
-                ]
+            : catchUpCompleted
+              ? catalog.length > 0
+                ? catalog
+                    .filter(catalogAreaAllowsCompletedIntake)
+                    .map((area) => ({
+                      value: area.id,
+                      label: catalogDisplayName(area, locale),
+                    }))
+                : [
+                    {
+                      value: "CLEANING",
+                      label: t("pages.projects.serviceAreaCleaning"),
+                    },
+                    {
+                      value: "LANDSCAPING",
+                      label: t("pages.projects.serviceAreaLandscaping"),
+                    },
+                    {
+                      value: "SECURITY",
+                      label: t("pages.projects.serviceAreaSecurity"),
+                    },
+                  ]
+              : catalog.length > 0
+                ? catalog.map((area) => ({
+                    value: area.id,
+                    label: catalogDisplayName(area, locale),
+                  }))
+                : [
+                    {
+                      value: "CLEANING",
+                      label: t("pages.projects.serviceAreaCleaning"),
+                    },
+                    {
+                      value: "LANDSCAPING",
+                      label: t("pages.projects.serviceAreaLandscaping"),
+                    },
+                    {
+                      value: "PARKING",
+                      label: t("pages.projects.serviceAreaParking"),
+                    },
+                    {
+                      value: "SECURITY",
+                      label: t("pages.projects.serviceAreaSecurity"),
+                    },
+                    {
+                      value: "PAYROLL_MANAGEMENT",
+                      label: t("pages.projects.serviceAreaPayroll"),
+                    },
+                  ]
         }
         onChange={(value) => {
           if (value === "MAINTENANCE" || value === maintenanceCatalog?.id) {
@@ -853,7 +992,7 @@ export default function ProjectFormFields({
             label={t("pages.projects.subcategory")}
             value={uiSubcategory}
             options={
-              isDemo
+              isDemo || catchUpCompleted
                 ? [
                     {
                       value: "GENERAL_CLEANING",
@@ -886,7 +1025,7 @@ export default function ProjectFormFields({
                   ]
             }
             onChange={(value) => {
-              if (isDemo && isCleaningOneTimeType(value)) {
+              if ((isDemo || catchUpCompleted) && isCleaningOneTimeType(value)) {
                 handleOneTimeCleaningTypeChange(value);
                 setUiSubcategory(value);
                 return;
@@ -910,26 +1049,47 @@ export default function ProjectFormFields({
         <ProjectOptionPills
           label={t("pages.projects.subcategory")}
           value={uiSubcategory}
-          options={[
-            {
-              value: "REGULAR_LANDSCAPING",
-              label: t("pages.projects.formRegular"),
-            },
-            ...(selectedCatalogArea?.allowsOneTime !== false
+          options={
+            catchUpCompleted
               ? [
-                  {
-                    value: ONE_TIME_FORM_VALUE,
-                    label: t("pages.projects.oneTime"),
-                  },
+                  ...(selectedCatalogArea?.allowsOneTime !== false
+                    ? [
+                        {
+                          value: ONE_TIME_FORM_VALUE,
+                          label: t("pages.projects.oneTime"),
+                        },
+                      ]
+                    : []),
+                  ...(selectedCatalogArea
+                    ? catalogSubsForCompletedIntake(selectedCatalogArea)
+                        .filter((sub) => !sub.isSystem)
+                        .map((sub) => ({
+                          value: sub.id,
+                          label: catalogDisplayName(sub, locale),
+                        }))
+                    : []),
                 ]
-              : []),
-            ...(selectedCatalogArea?.subcategories
-              .filter((sub) => !sub.isSystem)
-              .map((sub) => ({
-                value: sub.id,
-                label: catalogDisplayName(sub, locale),
-              })) ?? []),
-          ]}
+              : [
+                  {
+                    value: "REGULAR_LANDSCAPING",
+                    label: t("pages.projects.formRegular"),
+                  },
+                  ...(selectedCatalogArea?.allowsOneTime !== false
+                    ? [
+                        {
+                          value: ONE_TIME_FORM_VALUE,
+                          label: t("pages.projects.oneTime"),
+                        },
+                      ]
+                    : []),
+                  ...(selectedCatalogArea?.subcategories
+                    .filter((sub) => !sub.isSystem)
+                    .map((sub) => ({
+                      value: sub.id,
+                      label: catalogDisplayName(sub, locale),
+                    })) ?? []),
+                ]
+          }
           onChange={(value) => {
             const custom = selectedCatalogArea?.subcategories.find(
               (sub) => sub.id === value && !sub.isSystem
@@ -948,23 +1108,44 @@ export default function ProjectFormFields({
         <ProjectOptionPills
           label={t("pages.projects.subcategory")}
           value={uiSubcategory}
-          options={[
-            { value: "SECURITY", label: t("pages.projects.formRegular") },
-            ...(selectedCatalogArea?.allowsOneTime !== false
+          options={
+            catchUpCompleted
               ? [
-                  {
-                    value: ONE_TIME_FORM_VALUE,
-                    label: t("pages.projects.oneTime"),
-                  },
+                  ...(selectedCatalogArea?.allowsOneTime !== false
+                    ? [
+                        {
+                          value: ONE_TIME_FORM_VALUE,
+                          label: t("pages.projects.oneTime"),
+                        },
+                      ]
+                    : []),
+                  ...(selectedCatalogArea
+                    ? catalogSubsForCompletedIntake(selectedCatalogArea)
+                        .filter((sub) => !sub.isSystem)
+                        .map((sub) => ({
+                          value: sub.id,
+                          label: catalogDisplayName(sub, locale),
+                        }))
+                    : []),
                 ]
-              : []),
-            ...(selectedCatalogArea?.subcategories
-              .filter((sub) => !sub.isSystem)
-              .map((sub) => ({
-                value: sub.id,
-                label: catalogDisplayName(sub, locale),
-              })) ?? []),
-          ]}
+              : [
+                  { value: "SECURITY", label: t("pages.projects.formRegular") },
+                  ...(selectedCatalogArea?.allowsOneTime !== false
+                    ? [
+                        {
+                          value: ONE_TIME_FORM_VALUE,
+                          label: t("pages.projects.oneTime"),
+                        },
+                      ]
+                    : []),
+                  ...(selectedCatalogArea?.subcategories
+                    .filter((sub) => !sub.isSystem)
+                    .map((sub) => ({
+                      value: sub.id,
+                      label: catalogDisplayName(sub, locale),
+                    })) ?? []),
+                ]
+          }
           onChange={(value) => {
             const custom = selectedCatalogArea?.subcategories.find(
               (sub) => sub.id === value && !sub.isSystem
@@ -983,7 +1164,10 @@ export default function ProjectFormFields({
         <ProjectOptionPills
           label={t("pages.projects.subcategory")}
           value={uiSubcategory}
-          options={catalogSubsForAddProject(selectedCatalogArea).map((sub) => ({
+          options={(catchUpCompleted
+            ? catalogSubsForCompletedIntake(selectedCatalogArea)
+            : catalogSubsForAddProject(selectedCatalogArea)
+          ).map((sub) => ({
             value: sub.id,
             label: catalogDisplayName(sub, locale),
           }))}
@@ -992,7 +1176,7 @@ export default function ProjectFormFields({
         />
       ) : null}
 
-      {showBillingFields && isMilestoneEligible ? (
+      {showBillingFields && isMilestoneEligible && !catchUpCompleted ? (
         <ProjectOptionPills
           label={t("pages.projects.billingLabel")}
           value={billingMode}
@@ -1001,7 +1185,9 @@ export default function ProjectFormFields({
         />
       ) : null}
 
-      {showBillingFields && isContractCycleSubCategory(subCategory) ? (
+      {showBillingFields &&
+      isContractCycleSubCategory(subCategory) &&
+      !catchUpCompleted ? (
         <BillingPeriodBasisFields
           billingPeriodBasis={billingPeriodBasis}
           onBillingPeriodBasisChange={setBillingPeriodBasis}
@@ -1075,7 +1261,7 @@ export default function ProjectFormFields({
         />
       ) : null}
 
-      {showBillingFields && subCategory !== "PARKING" ? (
+      {showBillingFields && subCategory !== "PARKING" && !catchUpCompleted ? (
         <PaymentTermsField
           name={nameOf("paymentTermsDays")}
           id={idOf("payment-terms")}
@@ -1263,6 +1449,7 @@ export default function ProjectFormFields({
           onStartDateChange={setStartDate}
           onDurationDaysChange={setDurationDays}
           namePrefix={namePrefix}
+          completed={catchUpCompleted}
         />
       )}
 
@@ -1272,7 +1459,7 @@ export default function ProjectFormFields({
         namePrefix={namePrefix}
       />
 
-      {projectUsesNamedShifts(subCategory) ? (
+      {!catchUpCompleted && projectUsesNamedShifts(subCategory) ? (
         <ProjectShiftCountField
           name={nameOf("shiftCount")}
           namePrefix={namePrefix}
@@ -1283,9 +1470,10 @@ export default function ProjectFormFields({
         <input type="hidden" name={nameOf("shiftCount")} value="0" />
       )}
 
-      {effectiveInitialStatus === "IN_PROGRESS" || isInternal ? (
+      {(effectiveInitialStatus === "IN_PROGRESS" || isInternal) &&
+      !catchUpCompleted ? (
         <>
-          {!isDemo && !isInternal && !catchUpCompleted ? (
+          {!isDemo && !isInternal ? (
           <div className={employeeDialogFieldClass}>
             <FileDropField
               id={idOf("contract-proof")}
@@ -1300,7 +1488,7 @@ export default function ProjectFormFields({
             </p>
           </div>
           ) : null}
-          {catchUpCompleted ? null : !isInternal && billingMode === "MULTI_VISIT" ? (
+          {!isInternal && billingMode === "MULTI_VISIT" ? (
             <p className="text-xs text-subtle">
               {t("pages.projects.moveDialogVisitCrewHelp")}
             </p>

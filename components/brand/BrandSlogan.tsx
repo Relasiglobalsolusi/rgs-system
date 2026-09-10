@@ -23,7 +23,7 @@ export default function BrandSlogan({
         "m-0 max-w-full text-center font-sans font-normal uppercase text-accent-slate/70",
         compact
           ? "text-[8.5px] leading-tight tracking-[0.1em] sm:text-[9.5px] sm:tracking-[0.12em]"
-          : "text-[11px] leading-none tracking-[0.16em]",
+          : "text-pretty text-[11px] leading-snug tracking-[0.12em] sm:leading-none sm:tracking-[0.16em]",
         className
       )}
       lang="en"

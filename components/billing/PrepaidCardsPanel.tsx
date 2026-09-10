@@ -21,6 +21,7 @@ import {
   reportPrepaidCardLost,
   reportPrepaidCardMisuse,
   returnPrepaidCardToList,
+  reversePrepaidCardSpend,
 } from "@/app/billing/prepaid-cards/actions";
 import {
   EmployeeDialogShell,
@@ -66,6 +67,7 @@ import FinanceRecordRow, {
 import EmptyState from "@/components/ui/EmptyState";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import DirectoryFilterTab from "@/components/ui/DirectoryFilterTab";
 import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -83,6 +85,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { jakartaYearMonth } from "@/lib/vat";
 import { formatVehicleIdentityLabel } from "@/lib/vehicle-plate";
+import { isPrepaidEntryReversed } from "@/lib/prepaid-card-lifecycle";
 import {
   canAssignPrepaidCard,
   canMarkPrepaidCardDamaged,
@@ -100,6 +103,7 @@ import type {
 
 type VehicleOption = {
   id: string;
+  itemId: string;
   name: string;
   sku: string;
   plate: string | null;
@@ -248,7 +252,7 @@ export default function PrepaidCardsPanel({
   const listCards = kindCards.filter((card) => {
     if (filterCardId !== "all" && card.id !== filterCardId) return false;
     if (filterAssignment === "assigned") {
-      return Boolean(card.vehicleItemId || card.custodianEmployeeId);
+      return Boolean(card.vehicleAssetId || card.custodianEmployeeId);
     }
     if (filterAssignment === "standby") return card.status === "STANDBY";
     return true;
@@ -347,7 +351,7 @@ export default function PrepaidCardsPanel({
       {selectedCard ? null : (
         <>
       {showModuleTabs ? (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className={chipScrollRowClassName()}>
           <DirectoryFilterTab href="/billing/petty-cash" active={false}>
             {t("pages.pettyCash.tabPetty")}
           </DirectoryFilterTab>
@@ -356,7 +360,7 @@ export default function PrepaidCardsPanel({
           </DirectoryFilterTab>
         </div>
       ) : null}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className={chipScrollRowClassName()}>
         <DirectoryFilterTab
           active={kindTab === "VEHICLE"}
           onClick={() => {
@@ -657,7 +661,7 @@ export default function PrepaidCardsPanel({
             !cards.some(
               (card) =>
                 card.kind === "VEHICLE" &&
-                card.vehicleItemId === vehicle.id &&
+                card.vehicleAssetId === vehicle.id &&
                 (card.status === "ACTIVE" || card.status === "DAMAGED")
             )
         )}
@@ -784,6 +788,26 @@ function CardDetail({
     });
   }
 
+  async function reverseSpend(entryId: string) {
+    const ok = await confirm({
+      title: t("pages.pettyCash.reverseSpend"),
+      description: t("pages.pettyCash.reverseSpend"),
+      confirmLabel: t("pages.pettyCash.reverseSpend"),
+      tone: "danger",
+    });
+    if (!ok) return;
+    startTransition(async () => {
+      try {
+        const formData = new FormData();
+        formData.set("entryId", entryId);
+        await reversePrepaidCardSpend(formData);
+        router.refresh();
+      } catch (error) {
+        showRejectionFromError(error, t("pages.pettyCash.updateFailed"));
+      }
+    });
+  }
+
   const visibleEntries = card.entries.filter((entry) => {
     if (!selectedPicId) return true;
     if (!entry.assignmentId) return false;
@@ -794,11 +818,14 @@ function CardDetail({
   });
 
   const totalSpend = card.entries
-    .filter((entry) => entry.kind === "SPEND")
+    .filter(
+      (entry) =>
+        entry.kind === "SPEND" && !isPrepaidEntryReversed(entry.description)
+    )
     .reduce((sum, entry) => sum + entry.amount, 0);
 
   const cardActions = (
-    <div className="flex flex-wrap gap-2">
+    <div className={chipScrollRowClassName()}>
       {canSpendOnPrepaidCard(card.status as never) ? (
         <Button type="button" variant="infoBadge" size="badgeFlex" onClick={onSpend}>
           {t("pages.pettyCash.prepaidSpend")}
@@ -864,7 +891,7 @@ function CardDetail({
             {formatPrepaidCardNumber(card.cardNumber)}
           </p>
         </div>
-        <div className="ml-auto flex flex-col items-end text-right">
+        <div className="ml-auto flex min-w-0 max-w-full flex-col items-end text-right">
           <StatusBadge
             status={statusTone(card.status)}
             className={financeListStatusChipClassName}
@@ -931,9 +958,11 @@ function CardDetail({
               entry.previousBalance,
               entry.resultingBalance
             );
+            const reversed = isPrepaidEntryReversed(entry.description);
             return (
               <FinanceRecordRow
                 key={entry.id}
+                className={reversed ? "opacity-50" : undefined}
                 title={
                   <>
                     <h3 className="text-left text-sm font-semibold leading-snug tracking-tight text-text">
@@ -953,15 +982,27 @@ function CardDetail({
                     {entry.proofPath ? (
                       <UploadedFilesLink value={entry.proofPath} />
                     ) : null}
+                    {entry.kind === "SPEND" && !reversed ? (
+                      <button
+                        type="button"
+                        className="mt-2 text-xs font-semibold text-danger hover:underline"
+                        disabled={pending}
+                        onClick={() => reverseSpend(entry.id)}
+                      >
+                        {t("pages.pettyCash.reverseSpend")}
+                      </button>
+                    ) : null}
                   </>
                 }
                 status={
                   <StatusBadge
-                    status="success"
+                    status={reversed ? "danger" : "success"}
                     className={financeListStatusChipClassName}
                   >
                     <span className="flex h-full w-full items-center justify-center text-center leading-none">
-                      {t("pages.pettyCash.status.POSTED")}
+                      {reversed
+                        ? t("pages.pettyCash.reversed")
+                        : t("pages.pettyCash.status.POSTED")}
                     </span>
                   </StatusBadge>
                 }
@@ -1158,7 +1199,7 @@ function FilterSelect({
   triggerClassName?: string;
 }) {
   return (
-    <label className={cn("grid min-w-[8rem] gap-1.5", className)}>
+    <label className={cn("grid min-w-0 w-full gap-1.5 sm:min-w-[8rem]", className)}>
       <span className="text-xs font-semibold uppercase tracking-wide text-subtle">
         {label}
       </span>
@@ -1194,14 +1235,14 @@ function PrepaidCardCreateDialog({
   const [kind, setKind] = useState<"VEHICLE" | "OPEN">(defaultKind);
   const [cardNumber, setCardNumber] = useState("");
   const [assignNow, setAssignNow] = useState(false);
-  const [vehicleItemId, setVehicleItemId] = useState("");
+  const [vehicleAssetId, setVehicleAssetId] = useState("");
   const [custodianEmployeeId, setCustodianEmployeeId] = useState("");
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const missing = [
       ...(!cardNumber.trim() ? [t("pages.pettyCash.cardNumber")] : []),
-      ...(assignNow && kind === "VEHICLE" && !vehicleItemId
+      ...(assignNow && kind === "VEHICLE" && !vehicleAssetId
         ? [t("pages.pettyCash.vehicle")]
         : []),
       ...(assignNow && kind === "OPEN" && !custodianEmployeeId
@@ -1213,7 +1254,7 @@ function PrepaidCardCreateDialog({
     formData.set("kind", kind);
     formData.set("cardNumber", cardNumber);
     formData.set("assignNow", assignNow ? "1" : "0");
-    if (vehicleItemId) formData.set("vehicleItemId", vehicleItemId);
+    if (vehicleAssetId) formData.set("vehicleAssetId", vehicleAssetId);
     if (custodianEmployeeId) formData.set("custodianEmployeeId", custodianEmployeeId);
     startTransition(async () => {
       try {
@@ -1299,8 +1340,8 @@ function PrepaidCardCreateDialog({
         {assignNow && kind === "VEHICLE" ? (
           <VehicleSelect
             vehicles={vehicles}
-            value={vehicleItemId}
-            onChange={setVehicleItemId}
+            value={vehicleAssetId}
+            onChange={setVehicleAssetId}
           />
         ) : null}
         {assignNow && kind === "OPEN" ? (
@@ -1600,7 +1641,9 @@ function AssignDialog({
 }) {
   const { t } = useT();
   const [pending, startTransition] = useTransition();
-  const [vehicleItemId, setVehicleItemId] = useState(card.vehicleItemId ?? "");
+  const [vehicleAssetId, setVehicleAssetId] = useState(
+    card.vehicleAssetId ?? ""
+  );
   const [custodianEmployeeId, setCustodianEmployeeId] = useState(
     card.custodianEmployeeId ?? ""
   );
@@ -1609,7 +1652,7 @@ function AssignDialog({
     event.preventDefault();
     const formData = new FormData();
     formData.set("prepaidCardId", card.id);
-    formData.set("vehicleItemId", vehicleItemId);
+    formData.set("vehicleAssetId", vehicleAssetId);
     formData.set("custodianEmployeeId", custodianEmployeeId);
     startTransition(async () => {
       try {
@@ -1631,7 +1674,7 @@ function AssignDialog({
     >
       <form className={employeeDialogFormClass} onSubmit={submit}>
         {card.kind === "VEHICLE" ? (
-          <VehicleSelect vehicles={vehicles} value={vehicleItemId} onChange={setVehicleItemId} />
+          <VehicleSelect vehicles={vehicles} value={vehicleAssetId} onChange={setVehicleAssetId} />
         ) : (
           <EmployeeSelect
             employees={employees}
@@ -1669,7 +1712,9 @@ function ReassignDialog({
 }) {
   const { t } = useT();
   const [pending, startTransition] = useTransition();
-  const [vehicleItemId, setVehicleItemId] = useState(card.vehicleItemId ?? "");
+  const [vehicleAssetId, setVehicleAssetId] = useState(
+    card.vehicleAssetId ?? ""
+  );
   const [custodianEmployeeId, setCustodianEmployeeId] = useState(
     card.custodianEmployeeId ?? ""
   );
@@ -1678,7 +1723,7 @@ function ReassignDialog({
     event.preventDefault();
     const formData = new FormData();
     formData.set("prepaidCardId", card.id);
-    formData.set("vehicleItemId", vehicleItemId);
+    formData.set("vehicleAssetId", vehicleAssetId);
     formData.set("custodianEmployeeId", custodianEmployeeId);
     startTransition(async () => {
       try {
@@ -1700,7 +1745,7 @@ function ReassignDialog({
     >
       <form className={employeeDialogFormClass} onSubmit={submit}>
         {card.kind === "VEHICLE" ? (
-          <VehicleSelect vehicles={vehicles} value={vehicleItemId} onChange={setVehicleItemId} />
+          <VehicleSelect vehicles={vehicles} value={vehicleAssetId} onChange={setVehicleAssetId} />
         ) : (
           <EmployeeSelect
             employees={employees}
@@ -1830,7 +1875,7 @@ function ReplaceDialog({
 }) {
   const { t } = useT();
   const [pending, startTransition] = useTransition();
-  const stillAssigned = Boolean(card.vehicleItemId || card.custodianEmployeeId);
+  const stillAssigned = Boolean(card.vehicleAssetId || card.custodianEmployeeId);
   const [continueSame, setContinueSame] = useState(stillAssigned);
   const [destinationCardId, setDestinationCardId] = useState("");
   const [fee, setFee] = useState("0");

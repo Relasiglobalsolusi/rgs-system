@@ -86,6 +86,12 @@ type Props = {
   factoryReturns: InventoryFactoryReturnRow[];
   uncodedSales: InventoryUncodedSaleRow[];
   vendors: InventoryVendorOption[];
+  bankAccounts: Array<{
+    id: string;
+    bankName: string;
+    accountNumber: string;
+    label: string | null;
+  }>;
   canReturnToFactory: boolean;
 };
 
@@ -96,6 +102,7 @@ export default function EquipmentProductPage({
   factoryReturns,
   uncodedSales,
   vendors,
+  bankAccounts,
   canReturnToFactory,
 }: Props) {
   const { t, locale } = useT();
@@ -104,6 +111,7 @@ export default function EquipmentProductPage({
   const [sendOpen, setSendOpen] = useState(false);
   const [refundTargetId, setRefundTargetId] = useState<string | null>(null);
   const [refundAmount, setRefundAmount] = useState("");
+  const [refundBankAccountId, setRefundBankAccountId] = useState("");
   const [pending, startTransition] = useTransition();
 
   const availableCoded = equipmentAssets.filter(
@@ -118,9 +126,6 @@ export default function EquipmentProductPage({
   );
   const inTransit = equipmentAssets.filter(
     (asset) => asset.status === "IN_TRANSIT"
-  );
-  const atFactory = equipmentAssets.filter(
-    (asset) => asset.status === "AT_FACTORY"
   );
   const hangingReturns = factoryReturns.filter(
     (row) => row.status === "WAITING"
@@ -460,7 +465,7 @@ export default function EquipmentProductPage({
         />
         <Stat
           label={t("pages.inventory.factoryReturn.statuses.WAITING")}
-          value={formatInventoryQty(atFactory.length || hangingReturns.length)}
+          value={formatInventoryQty(hangingReturns.length)}
         />
         <Stat
           label={t("pages.inventory.columns.warehouseOnHand")}
@@ -580,6 +585,7 @@ export default function EquipmentProductPage({
                 onClick={() => {
                   setRefundTargetId(null);
                   setRefundAmount("");
+                  setRefundBankAccountId("");
                 }}
                 disabled={pending}
               >
@@ -598,8 +604,17 @@ export default function EquipmentProductPage({
                     });
                     return;
                   }
+                  if (!refundBankAccountId) {
+                    showRejection({
+                      reasons: t(
+                        "pages.inventory.factoryReturn.refundBankRequired"
+                      ),
+                    });
+                    return;
+                  }
                   runReturnAction(recordFactoryRefund, refundTargetId, {
                     refundAmount: String(amount),
+                    bankAccountId: refundBankAccountId,
                   });
                 }}
               >
@@ -617,6 +632,30 @@ export default function EquipmentProductPage({
               onValueChange={setRefundAmount}
               className={employeeInputClass}
             />
+          </div>
+          <div className={employeeDialogFieldClass}>
+            <label className={employeeDialogLabelClass}>
+              {t("pages.inventory.factoryReturn.refundBank")}
+            </label>
+            <Select
+              value={refundBankAccountId || null}
+              onValueChange={(value) => setRefundBankAccountId(value ?? "")}
+            >
+              <SelectTrigger className={employeeSelectTriggerClass}>
+                <SelectValue
+                  placeholder={t("pages.inventory.factoryReturn.refundBank")}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {bankAccounts.map((bank) => (
+                  <SelectItem
+                    key={bank.id}
+                    value={bank.id}
+                    label={bank.label || `${bank.bankName} ${bank.accountNumber}`}
+                  />
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </EmployeeDialogShell>
       </Dialog>
@@ -761,17 +800,6 @@ function SendFactoryReturnDialog({
         reasons: t("pages.inventory.factoryReturn.assetsRequired"),
       });
       return;
-    }
-    if (intent === "REFUND") {
-      const amount = parseContractPrice(
-        String(formData.get("refundAmount") ?? "")
-      );
-      if (amount == null || amount <= 0) {
-        showRejection({
-          reasons: t("pages.inventory.factoryReturn.refundAmountRequired"),
-        });
-        return;
-      }
     }
     formData.set("itemId", item.id);
     formData.set("source", source);
@@ -969,18 +997,6 @@ function SendFactoryReturnDialog({
                 </SelectContent>
               </Select>
             </div>
-
-            {intent === "REFUND" ? (
-              <div className={employeeDialogFieldClass}>
-                <label className={employeeDialogLabelClass}>
-                  {t("pages.inventory.factoryReturn.refundAmount")}
-                </label>
-                <MoneyInput
-                  name="refundAmount"
-                  className={employeeInputClass}
-                />
-              </div>
-            ) : null}
 
             <div className={employeeDialogGridClass}>
               <div className={employeeDialogFieldClass}>

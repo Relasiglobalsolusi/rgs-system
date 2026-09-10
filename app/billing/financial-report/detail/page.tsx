@@ -130,7 +130,8 @@ export default async function FinancialReportDetailPage({
       ? listImportRateDifferences(
           session.user.companyId,
           calendar.from,
-          calendar.toExclusive
+          calendar.toExclusive,
+          selection.bank
         )
       : Promise.resolve([]),
   ]);
@@ -147,6 +148,7 @@ export default async function FinancialReportDetailPage({
           where: {
             project: { companyId: session.user.companyId },
             status: { in: [...UNPAID_INVOICE_STATUSES] },
+            isCatchUp: false,
           },
           select: {
             id: true,

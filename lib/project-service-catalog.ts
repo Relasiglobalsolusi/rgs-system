@@ -92,6 +92,25 @@ export function catalogSubsForAddProject(area: ProjectCatalogAreaDTO) {
   );
 }
 
+/** Completed intake is only for one-time jobs (GC, Facade, One Time). */
+export function catalogAreaAllowsCompletedIntake(
+  area: Pick<
+    ProjectCatalogAreaDTO,
+    "systemArea" | "allowsOneTime" | "subcategories"
+  >
+): boolean {
+  if (areaOneTimeIsLocked(area)) return false;
+  if (!area.allowsOneTime) return false;
+  if (area.systemArea === "CLEANING") return true;
+  return area.subcategories.some((sub) => sub.billingKind === "ONE_TIME");
+}
+
+/** One Time catalog rows for Completed intake. Cleaning still uses GC / Facade pills. */
+export function catalogSubsForCompletedIntake(area: ProjectCatalogAreaDTO) {
+  if (!area.allowsOneTime) return [];
+  return area.subcategories.filter((sub) => sub.billingKind === "ONE_TIME");
+}
+
 export const SYSTEM_AREA_SEEDS: ReadonlyArray<{
   slug: string;
   nameEn: string;

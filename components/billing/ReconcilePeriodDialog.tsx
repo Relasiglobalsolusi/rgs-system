@@ -14,6 +14,7 @@ import {
   employeeInputClass,
 } from "@/components/employees/employee-dialog-ui";
 import { Button } from "@/components/ui/button";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import { Dialog } from "@/components/ui/dialog";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import {
@@ -29,6 +30,7 @@ type Props = {
   periodId: string;
   periodLabel: string;
   suggestedAmount: number | null;
+  taxInvoiceMissing?: boolean;
   disabled?: boolean;
 };
 
@@ -36,6 +38,7 @@ export default function ReconcilePeriodDialog({
   periodId,
   periodLabel,
   suggestedAmount,
+  taxInvoiceMissing = false,
   disabled = false,
 }: Props) {
   const { t } = useT();
@@ -130,6 +133,11 @@ export default function ReconcilePeriodDialog({
           }
         >
           <div className={employeeDialogFormClass}>
+            {taxInvoiceMissing ? (
+              <p className="rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-text">
+                {t("pages.billing.reconcileTaxInvoiceMissing")}
+              </p>
+            ) : null}
             <p className="text-xs text-subtle">
               {t("pages.billing.reconcileAmountHelp")}
             </p>
@@ -142,7 +150,7 @@ export default function ReconcilePeriodDialog({
               </p>
             ) : null}
 
-            <div className="flex flex-wrap gap-2">
+            <div className={chipScrollRowClassName()}>
               <Button
                 type="button"
                 size="sm"

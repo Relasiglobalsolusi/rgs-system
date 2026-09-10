@@ -90,7 +90,7 @@ export default function PurchaseLoanFields({
         <div
           role="radiogroup"
           aria-labelledby="loan-source-label"
-          className="mt-2 grid grid-cols-2 gap-2"
+          className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2"
         >
           {(
             [
@@ -179,7 +179,7 @@ export default function PurchaseLoanFields({
           <div
             role="radiogroup"
             aria-labelledby="loan-kind-label"
-            className="mt-2 grid grid-cols-2 gap-2"
+            className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2"
           >
             {(
               [

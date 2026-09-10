@@ -5,6 +5,10 @@ import TaxPeriodDocumentsClient from "@/components/billing/TaxPeriodDocumentsCli
 import AppShell from "@/components/layout/AppShell";
 import BackLink from "@/components/ui/BackLink";
 import { PageDocumentActions } from "@/components/ui/PageDocumentActions";
+import {
+  metaLabelWideClassName as metaLabelClassName,
+  metaValueClassName,
+} from "@/components/ui/meta-facts";
 import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { formatDisplayDate } from "@/lib/format-date";
@@ -29,10 +33,6 @@ import {
   splitInclusiveVat,
 } from "@/lib/vat";
 
-const metaLabelClassName =
-  "w-36 shrink-0 px-4 py-2.5 text-left align-top text-xs font-semibold uppercase tracking-[0.12em] text-subtle sm:w-52 sm:px-5";
-const metaValueClassName =
-  "min-w-0 break-words px-4 py-2.5 align-top text-text sm:px-5";
 const sectionTitleClassName = "text-base font-semibold tracking-tight text-text";
 
 function money(value: number | null | undefined): string {
@@ -173,6 +173,7 @@ export default async function OutputTaxDetailPage({
               </StatusBadge>
             )}
           </div>
+          <div className="min-w-0 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
           <table className="w-full text-sm">
             <tbody>
               <tr className="border-b border-border">
@@ -261,6 +262,7 @@ export default async function OutputTaxDetailPage({
               ) : null}
             </tbody>
           </table>
+          </div>
         </SectionCard>
 
         {period.project.isGovernmentContract ? (

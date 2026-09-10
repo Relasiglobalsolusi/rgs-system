@@ -37,6 +37,8 @@ type StandardProps = {
   planning?: boolean;
   /** Prefix for nested bulk-create field names. */
   namePrefix?: string;
+  /** Finished one-time catch-up: real start / finish, not estimates. */
+  completed?: boolean;
 };
 
 type Props = ContractProps | StandardProps;
@@ -172,6 +174,7 @@ function StandardTimelineFields({
   onDurationDaysChange,
   planning,
   namePrefix = "",
+  completed = false,
 }: Omit<StandardProps, "mode">) {
   const { t } = useT();
   const nameOf = (field: string) =>
@@ -181,7 +184,12 @@ function StandardTimelineFields({
   const startLabel = planning
     ? t("pages.projects.timelineFields.estimatedProjectStart")
     : t("pages.projects.timelineFields.projectStart");
-  const endLabel = t("pages.projects.timelineFields.estimatedProjectCompletion");
+  const endLabel = completed
+    ? t("pages.projects.timelineFields.projectFinish")
+    : t("pages.projects.timelineFields.estimatedProjectCompletion");
+  const durationLabel = completed
+    ? t("pages.projects.timelineFields.durationActual")
+    : t("pages.projects.timelineFields.durationDays");
 
   return (
     <div className="grid grid-cols-1 gap-5 sm:grid-cols-3 sm:gap-x-8 sm:gap-y-5">
@@ -209,7 +217,7 @@ function StandardTimelineFields({
 
       <div className={employeeDialogFieldClass}>
         <label className="text-sm font-medium text-text">
-          {t("pages.projects.timelineFields.durationDays")}
+          {durationLabel}
         </label>
         {planning ? (
           <p className="text-xs text-muted">
@@ -226,7 +234,7 @@ function StandardTimelineFields({
               );
             }}
             className={cn(employeeInputClass, "min-w-0 flex-1")}
-            aria-label={t("pages.projects.timelineFields.durationDays")}
+            aria-label={durationLabel}
           >
             {PROJECT_DURATION_DAY_OPTIONS.map((days) => (
               <option key={days} value={days}>
@@ -283,6 +291,7 @@ export default function ProjectTimelineFields(props: Props) {
       onDurationDaysChange={props.onDurationDaysChange}
       planning={props.planning}
       namePrefix={props.namePrefix}
+      completed={props.completed}
     />
   );
 }

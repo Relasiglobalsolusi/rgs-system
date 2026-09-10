@@ -3,7 +3,11 @@ import {
   ATTENDANCE_WAREHOUSE_NAME,
 } from "@/lib/attendance-internal-sites";
 import { addUtcDays, toUtcDateOnly } from "@/lib/invoice-period";
-import { utcRangeForPayrollPeriod } from "@/lib/internal-payroll-period";
+import {
+  DEFAULT_PAYROLL_RUN,
+  utcRangeForPayrollPeriod,
+  type PayrollRunKind,
+} from "@/lib/internal-payroll-period";
 import {
   jakartaWorkDateKey,
   resolveShiftPay,
@@ -180,9 +184,10 @@ export function isExpectedPayrollDay(
 
 export function eachUtcDayInPayrollPeriod(
   year: number,
-  month: number
+  month: number,
+  run: PayrollRunKind = DEFAULT_PAYROLL_RUN
 ): Date[] {
-  const { start, endExclusive } = utcRangeForPayrollPeriod(year, month);
+  const { start, endExclusive } = utcRangeForPayrollPeriod(year, month, run);
   const days: Date[] = [];
   for (let cursor = start; cursor < endExclusive; cursor = addUtcDays(cursor, 1)) {
     days.push(cursor);
@@ -238,11 +243,16 @@ export function dayShiftHours(
   };
 }
 
+/** Same 26 as Internal Payroll base-pay divisor. Surplus shifts are unpaid. */
+const PAID_SHIFT_CAP = 26;
+
 export function summarizePeriodPay(options: {
   attendances: PayrollDayAttendance[];
   doubleShifts?: Array<{ dateKey: string; projectId: string }>;
   decisions?: Map<string, PayrollDayDecision>;
   dailyRate: number;
+  /** Auto-pay at most this many shift-equivalents. Extra is manual overtime. */
+  maxPaidShifts?: number;
 }): { daysWorked: number; wage: number } {
   const doubleByDate = doubleShiftProjectByDate(options.doubleShifts);
   const byDate = new Map<string, PayrollDayAttendance[]>();
@@ -253,9 +263,12 @@ export function summarizePeriodPay(options: {
     byDate.set(key, list);
   }
 
+  const cap = options.maxPaidShifts ?? PAID_SHIFT_CAP;
   let daysWorked = 0;
   let wage = 0;
-  for (const [dateKey, sessions] of byDate) {
+  let paidDays = 0;
+  for (const dateKey of [...byDate.keys()].sort()) {
+    const sessions = byDate.get(dateKey) ?? [];
     const doubleProjectId = doubleByDate.get(dateKey);
     const counted = dayShiftHours(sessions, doubleProjectId);
     const resolved = resolveShiftPay({
@@ -266,7 +279,18 @@ export function summarizePeriodPay(options: {
       decision: options.decisions?.get(dateKey) ?? null,
     });
     daysWorked += resolved.daysWorked;
-    wage += resolved.wage;
+    if (resolved.wage <= 0) continue;
+    // CUSTOM stores a typed amount with daysWorked = 0. Still pay it.
+    // It does not consume the 26-shift cap — surplus beyond 26 is manual overtime.
+    if (resolved.daysWorked <= 0) {
+      wage += resolved.wage;
+      continue;
+    }
+    const remaining = Math.max(0, cap - paidDays);
+    if (remaining <= 0) continue;
+    const payableDays = Math.min(resolved.daysWorked, remaining);
+    wage += (resolved.wage / resolved.daysWorked) * payableDays;
+    paidDays += payableDays;
   }
   return { daysWorked, wage };
 }
@@ -288,7 +312,8 @@ export function buildPayrollEmployeeDays(
   employee: PayrollDayEmployeeContext,
   year: number,
   month: number,
-  now: Date = new Date()
+  now: Date = new Date(),
+  run: PayrollRunKind = DEFAULT_PAYROLL_RUN
 ): PayrollDayRow[] {
   const todayKey = jakartaWorkDateKey(now);
   const doubleByDate = doubleShiftProjectByDate(employee.doubleShifts);
@@ -302,7 +327,7 @@ export function buildPayrollEmployeeDays(
   }
 
   const rows: PayrollDayRow[] = [];
-  for (const day of eachUtcDayInPayrollPeriod(year, month)) {
+  for (const day of eachUtcDayInPayrollPeriod(year, month, run)) {
     const dateKey = jakartaWorkDateKey(day);
     if (dateKey > todayKey) continue;
 

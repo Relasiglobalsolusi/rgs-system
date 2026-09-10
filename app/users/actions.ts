@@ -8,6 +8,7 @@ import { persistCompanyScopedReorder } from "@/lib/persist-reorder";
 import { requireModule } from "@/lib/session";
 import {
   ADVANCE_CASH_CHILD_KEYS,
+  APPROVALS_CHILD_KEYS,
   diffModuleOverridesFromBaseline,
   expandLegacyFinanceOverrides,
   getAccountTypeBaselineModules,
@@ -47,14 +48,14 @@ async function usersLocaleError(
 }
 
 export async function reorderUsers(ids: string[]) {
-  await requireModule("users");
+  const session = await requireModule("users");
   const locale = await getServerLocale();
 
-  const company = await prisma.company.findFirst({ select: { id: true } });
-  if (!company) throw await usersLocaleError("companyNotFound", undefined, locale);
+  const companyId = session.user.companyId;
+  if (!companyId) throw await usersLocaleError("companyNotFound", undefined, locale);
 
   await persistCompanyScopedReorder("user", {
-    companyId: company.id,
+    companyId,
     ids,
     mismatchError: translate(locale, "pages.users.errors.reorderInvalid"),
   });
@@ -1020,6 +1021,12 @@ export async function updateUserModuleOverrides(
   }
   if (!isPortalUser) {
     for (const childKey of ADVANCE_CASH_CHILD_KEYS) {
+      if (!(childKey in expanded)) continue;
+      sanitized[childKey] = Boolean(expanded[childKey]);
+    }
+    for (const childKey of APPROVALS_CHILD_KEYS) {
+      // Payroll Unlock is owner-only and is never stored as an override.
+      if (childKey === "approvalsPayrollUnlock") continue;
       if (!(childKey in expanded)) continue;
       sanitized[childKey] = Boolean(expanded[childKey]);
     }

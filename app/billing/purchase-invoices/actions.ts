@@ -6,6 +6,7 @@ import { Prisma } from "@prisma/client";
 
 import { getServerLocale } from "@/lib/i18n/locale";
 import { nextOpenWagePayrollPeriod } from "@/lib/internal-payroll-lock";
+import { DEFAULT_PAYROLL_RUN } from "@/lib/internal-payroll-period";
 import { translate } from "@/lib/i18n/translate";
 import {
   inferDocumentMime,
@@ -573,6 +574,14 @@ export async function listEmployeesForExpense() {
     select: { id: true, name: true, slug: true },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   });
+  const holderRows = await prisma.pettyCashEntry.findMany({
+    where: {
+      companyId: session.user.companyId,
+      holderEmployeeId: { not: null },
+    },
+    select: { holderEmployeeId: true },
+    distinct: ["holderEmployeeId"],
+  });
   return {
     employees: employees.map((employee) => ({
       id: employee.id,
@@ -582,6 +591,9 @@ export async function listEmployeesForExpense() {
       department: employee.category,
     })),
     departments,
+    pettyHolderIds: holderRows
+      .map((row) => row.holderEmployeeId)
+      .filter((id): id is string => Boolean(id)),
   };
 }
 
@@ -860,6 +872,24 @@ export async function createPurchaseInvoice(formData: FormData) {
     });
     if (!holder) {
       throw new Error("Select a valid employee.");
+    }
+    const existingHolder = await prisma.pettyCashEntry.findFirst({
+      where: { companyId: session.user.companyId, holderEmployeeId: holder.id },
+      select: { id: true },
+    });
+    if (!existingHolder) {
+      const anyHolder = await prisma.pettyCashEntry.findFirst({
+        where: {
+          companyId: session.user.companyId,
+          holderEmployeeId: { not: null },
+        },
+        select: { id: true },
+      });
+      if (anyHolder) {
+        throw new Error(
+          translate(locale, "pages.billing.pettyCashHoldersOnly")
+        );
+      }
     }
     const notesRaw = String(formData.get("notes") ?? "").trim();
     const invoiceDate = taxInvoiceDateToUtcDate(invoiceDateRaw);
@@ -1319,11 +1349,7 @@ export async function createPurchaseInvoice(formData: FormData) {
         );
     const notesRaw = String(formData.get("notes") ?? "").trim();
     const employeeId = String(formData.get("employeeId") ?? "").trim();
-    const nextPayroll = await nextOpenWagePayrollPeriod(
-      session.user.companyId
-    );
-    const year = nextPayroll.year;
-    const month = nextPayroll.month;
+    let payrollRun = DEFAULT_PAYROLL_RUN;
     let employeeName = "Employee Payments";
     if (employeePaymentKind === "CASH_ADVANCE") {
       if (!employeeId) {
@@ -1337,7 +1363,13 @@ export async function createPurchaseInvoice(formData: FormData) {
           companyId: session.user.companyId,
           archivedFromDirectory: false,
         },
-        select: { id: true, firstName: true, lastName: true, employeeNo: true },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          employeeNo: true,
+          payrollRun: true,
+        },
       });
       if (!employee) {
         throw new Error(
@@ -1345,7 +1377,15 @@ export async function createPurchaseInvoice(formData: FormData) {
         );
       }
       employeeName = `${employee.firstName} ${employee.lastName}`.trim();
+      payrollRun = employee.payrollRun;
     }
+    const nextPayroll = await nextOpenWagePayrollPeriod(
+      session.user.companyId,
+      undefined,
+      payrollRun
+    );
+    const year = nextPayroll.year;
+    const month = nextPayroll.month;
     if (
       employeePaymentKind !== "THR" &&
       (!Number.isInteger(year) ||
@@ -1421,6 +1461,7 @@ export async function createPurchaseInvoice(formData: FormData) {
             type: "CASH_ADVANCE",
             amount,
             reason: notes,
+            run: payrollRun,
             createdById: session.user.id,
             purchaseInvoiceId: invoice.id,
           },
@@ -2130,6 +2171,7 @@ export async function createPurchaseInvoice(formData: FormData) {
         vehicleYear: true,
         isVehicleLease: true,
         leaseTenorMonths: true,
+        leaseMonthlyInstallment: true,
         item: { select: { itemType: true } },
       },
     });
@@ -2139,6 +2181,17 @@ export async function createPurchaseInvoice(formData: FormData) {
     if (vehicleExpenseKindRaw === "LEASE_PAYMENT" && !asset.isVehicleLease) {
       throw new Error(
         translate(locale, "pages.billing.vehicleLeasePaymentNotLeased")
+      );
+    }
+    const installment = decimalToNumber(asset.leaseMonthlyInstallment);
+    if (
+      vehicleExpenseKindRaw === "LEASE_PAYMENT" &&
+      installment != null &&
+      installment > 0 &&
+      Math.round(invoiceAmount) !== Math.round(installment)
+    ) {
+      throw new Error(
+        translate(locale, "pages.billing.vehicleLeasePaymentMustBeFull")
       );
     }
     vehicleAssetId = asset.id;

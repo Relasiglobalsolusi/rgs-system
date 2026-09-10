@@ -16,6 +16,7 @@ import {
   employeeSelectTriggerClass,
 } from "@/components/employees/employee-dialog-ui";
 import { buttonVariants } from "@/components/ui/button";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import { outlineChipTones } from "@/components/ui/StatusBadge";
 import { cn } from "@/lib/utils";
 import { localizeDepartmentLabel } from "@/lib/i18n/labels";
@@ -216,8 +217,8 @@ export default function ProjectStaffPicker({
         <input key={id} type="hidden" name={nameOf("employeeIds")} value={id} />
       ))}
 
-      <div className="flex items-end justify-between gap-3">
-        <div>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <label className="text-sm font-medium text-muted">
             {t("pages.projects.assignStaff")}
           </label>
@@ -228,7 +229,7 @@ export default function ProjectStaffPicker({
         <span
           className={cn(
             buttonVariants({ variant: "successBadge", size: "badge" }),
-            "pointer-events-none gap-1"
+            "pointer-events-none shrink-0 gap-1"
           )}
           aria-live="polite"
         >
@@ -242,7 +243,7 @@ export default function ProjectStaffPicker({
           <p className="text-[11px] font-semibold tracking-wide text-subtle uppercase">
             {t("pages.projects.detail.staff")}
           </p>
-          <div className="flex flex-wrap gap-2">
+          <div className={chipScrollRowClassName()}>
             {selectedEmployees.map((employee) => (
               <button
                 key={employee.id}
@@ -324,8 +325,8 @@ export default function ProjectStaffPicker({
             />
           </div>
 
-          <div className="flex items-center justify-between text-xs text-subtle">
-            <span>
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-subtle">
+            <span className="min-w-0">
               {activeDepartment
                 ? `${t("common.labels.showingCount", {
                     count: visibleStaff.length,

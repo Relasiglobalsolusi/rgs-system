@@ -458,7 +458,8 @@ async function sumPosted(
   companyId: string,
   kinds: readonly string[],
   from?: Date,
-  toExclusive?: Date
+  toExclusive?: Date,
+  holderEmployeeId?: string | null
 ): Promise<number> {
   const entries = pettyCashDelegate(db);
   if (!entries) return 0;
@@ -466,7 +467,14 @@ async function sumPosted(
     where: {
       companyId,
       status: "POSTED",
-      kind: { in: [...kinds] as Array<"TOP_UP" | "SPEND" | "PART_TIME_PAY"> },
+      kind: {
+        in: [
+          ...kinds,
+        ] as Array<
+          "TOP_UP" | "SPEND" | "PART_TIME_PAY" | "TRANSFER_IN" | "TRANSFER_OUT"
+        >,
+      },
+      ...(holderEmployeeId ? { holderEmployeeId } : {}),
       ...(from || toExclusive
         ? {
             entryDate: {
@@ -485,18 +493,22 @@ export async function getPettyCashTotals(
   db: PettyCashDb,
   companyId: string,
   monthStart: Date,
-  monthEndExclusive: Date
+  monthEndExclusive: Date,
+  holderEmployeeId?: string | null
 ): Promise<PettyCashTotals> {
+  const inflowKinds = holderEmployeeId ? HOLDER_INFLOW_KINDS : INFLOW_KINDS;
+  const outflowKinds = holderEmployeeId ? HOLDER_OUTFLOW_KINDS : OUTFLOW_KINDS;
   const [lifetimeIn, monthIn, lifetimeOut, monthOut, upcoming, unpaid] = await Promise.all([
-    sumPosted(db, companyId, INFLOW_KINDS),
-    sumPosted(db, companyId, INFLOW_KINDS, monthStart, monthEndExclusive),
-    sumPosted(db, companyId, OUTFLOW_KINDS),
-    sumPosted(db, companyId, OUTFLOW_KINDS, monthStart, monthEndExclusive),
+    sumPosted(db, companyId, inflowKinds, undefined, undefined, holderEmployeeId),
+    sumPosted(db, companyId, inflowKinds, monthStart, monthEndExclusive, holderEmployeeId),
+    sumPosted(db, companyId, outflowKinds, undefined, undefined, holderEmployeeId),
+    sumPosted(db, companyId, outflowKinds, monthStart, monthEndExclusive, holderEmployeeId),
     pettyCashDelegate(db)?.aggregate({
       where: {
         companyId,
         kind: "PART_TIME_PAY",
         status: "SCHEDULED",
+        ...(holderEmployeeId ? { holderEmployeeId } : {}),
       },
       _sum: { amount: true },
     }) ?? Promise.resolve(null),
@@ -505,6 +517,7 @@ export async function getPettyCashTotals(
         companyId,
         kind: "PART_TIME_PAY",
         status: "UNPAID",
+        ...(holderEmployeeId ? { holderEmployeeId } : {}),
       },
       _sum: { amount: true },
     }) ?? Promise.resolve(null),

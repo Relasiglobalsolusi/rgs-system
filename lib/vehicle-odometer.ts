@@ -636,7 +636,7 @@ export async function voidOdometerReadingForSource(
   }
   if (where.length === 0) return;
   const reading = await db.vehicleOdometerReading.findFirst({
-    where: { OR: where },
+    where: { reversedAt: null, OR: where },
     select: {
       id: true,
       vehicleAssetId: true,
@@ -649,6 +649,7 @@ export async function voidOdometerReadingForSource(
     where: {
       vehicleAssetId: reading.vehicleAssetId,
       id: { not: reading.id },
+      reversedAt: null,
       recordedAt: { gt: reading.recordedAt },
     },
     select: { id: true },
@@ -657,6 +658,7 @@ export async function voidOdometerReadingForSource(
     where: {
       vehicleAssetId: reading.vehicleAssetId,
       id: { not: reading.id },
+      reversedAt: null,
       recordedAt: { lt: reading.recordedAt },
     },
     orderBy: { recordedAt: "desc" },
@@ -666,7 +668,10 @@ export async function voidOdometerReadingForSource(
       fuelLeftAfterMax: true,
     },
   });
-  await db.vehicleOdometerReading.delete({ where: { id: reading.id } });
+  await db.vehicleOdometerReading.update({
+    where: { id: reading.id },
+    data: { reversedAt: new Date() },
+  });
   if (!later) {
     const stillHasFuel = previous?.litresFilled != null;
     await db.equipmentAsset.update({
@@ -688,6 +693,7 @@ export async function loadFlaggedFuelFills(db: Db, companyId: string) {
       companyId,
       flagged: true,
       acknowledgedAt: null,
+      reversedAt: null,
     },
     select: {
       id: true,
@@ -730,14 +736,6 @@ export function canSeeFuelRangeAlerts(input: {
 
 export function odometerWentBackMessage(): string {
   return "The odometer cannot be lower than the last reading on this vehicle.";
-}
-
-export function odometerRequiredMessage(): string {
-  return "Enter the current odometer in kilometers.";
-}
-
-export function litresRequiredMessage(): string {
-  return "Enter how many litres were filled.";
 }
 
 export function kmPerLitreRequiredMessage(): string {

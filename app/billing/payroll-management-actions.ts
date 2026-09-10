@@ -27,6 +27,7 @@ import {
   type PayrollManagementReviewEmployee,
 } from "@/lib/payroll-management-review";
 import { prisma } from "@/lib/prisma";
+import { writeRecordChange } from "@/lib/record-change";
 import { canAccess } from "@/lib/permissions";
 import {
   decimalToNumber,
@@ -555,25 +556,23 @@ export async function lockPayrollManagementPeriodForExport(options: {
   const { startDay, endDay } = payrollCutoffDays(project);
 
   if (existing?.pdfLocked) {
-    if (
-      existing.status !== "AWAITING_CLIENT" &&
-      existing.status !== "CLIENT_APPROVED" &&
-      existing.status !== "INVOICED"
-    ) {
-      await sendPayrollManagementPeriodToClient({
-        project,
-        period: existing,
-        year: options.year,
-        month: options.month,
-        userId: options.userId,
-      });
-    }
     return {
       project,
       period: existing,
       review: snapshotToPayrollManagementReview(existing.pdfSnapshot) ?? [],
       feePercent,
     };
+  }
+
+  const approved =
+    existing?.status === "CLIENT_APPROVED" ||
+    existing?.status === "INVOICED" ||
+    existing?.status === "WAGES_PAID" ||
+    existing?.status === "REIMBURSED";
+  if (!approved) {
+    throw new Error(
+      "Generate the wage sheet after the client approves this period."
+    );
   }
 
   if (!existing || existing.lines.length === 0) {
@@ -627,14 +626,6 @@ export async function lockPayrollManagementPeriodForExport(options: {
       clientBillAmount: totals.clientBillAmount,
     },
     include: { lines: { orderBy: { sortOrder: "asc" } } },
-  });
-
-  await sendPayrollManagementPeriodToClient({
-    project,
-    period,
-    year: options.year,
-    month: options.month,
-    userId: options.userId,
   });
 
   revalidatePayrollPaths(project.clientId, options.projectId);
@@ -717,6 +708,101 @@ async function sendPayrollManagementPeriodToClient(options: {
     where: { id: options.period.id },
     data: { status: "AWAITING_CLIENT" },
   });
+}
+
+export async function sendPayrollManagementPeriodToClientAction(
+  formData: FormData
+) {
+  const session = await requirePayrollManagementAccess();
+  const projectId = String(formData.get("projectId") ?? "").trim();
+  const year = Number(formData.get("year"));
+  const month = Number(formData.get("month"));
+  if (!projectId) throw new Error("Project is required.");
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+    throw new Error("Select a valid year.");
+  }
+  if (!Number.isInteger(month) || month < 1 || month > 12) {
+    throw new Error("Select a valid month.");
+  }
+
+  const project = await prisma.project.findFirst({
+    where: {
+      id: projectId,
+      companyId: session.user.companyId,
+      subCategory: "PAYROLL_MANAGEMENT",
+    },
+    select: {
+      id: true,
+      name: true,
+      clientId: true,
+      payrollCutoffStartDay: true,
+      payrollCutoffEndDay: true,
+      serviceFeePercent: true,
+      payrollTaxPercent: true,
+      startDate: true,
+      endDate: true,
+    },
+  });
+  if (!project) throw new Error("Payroll Management project not found.");
+
+  let existing = await prisma.payrollManagementPeriod.findUnique({
+    where: { projectId_year_month: { projectId, year, month } },
+    include: { lines: { orderBy: { sortOrder: "asc" } } },
+  });
+  if (!existing || existing.lines.length === 0) {
+    const synced = await syncPayrollManagementPeriodFromCico({
+      companyId: session.user.companyId,
+      userId: session.user.id,
+      projectId,
+      year,
+      month,
+      replaceLines: !existing || existing.lines.length === 0,
+    });
+    existing = synced.period;
+  }
+  if (!existing || existing.lines.length === 0) {
+    throw new Error("Add wage lines before sending this period to the client.");
+  }
+  if (
+    existing.status === "CLIENT_APPROVED" ||
+    existing.status === "INVOICED" ||
+    existing.status === "WAGES_PAID" ||
+    existing.status === "REIMBURSED"
+  ) {
+    throw new Error("This period is already approved.");
+  }
+
+  const feePercent = resolvePayrollManagementFeePercent(
+    decimalToNumber(project.serviceFeePercent)
+  );
+  const taxPercent = projectPayrollTaxPercent(project);
+  const totals = computePayrollManagementTotals(
+    existing.lines.map((line) => ({
+      amount: decimalToNumber(line.amount) ?? 0,
+    })),
+    feePercent,
+    taxPercent
+  );
+  existing = await prisma.payrollManagementPeriod.update({
+    where: { id: existing.id },
+    data: {
+      taxRatePercent: new Prisma.Decimal(totals.taxPercent),
+      taxAmount: new Prisma.Decimal(totals.taxAmount),
+      wagesTotal: totals.wagesTotal,
+      feeAmount: totals.feeAmount,
+      clientBillAmount: totals.clientBillAmount,
+    },
+    include: { lines: { orderBy: { sortOrder: "asc" } } },
+  });
+
+  await sendPayrollManagementPeriodToClient({
+    project,
+    period: existing,
+    year,
+    month,
+    userId: session.user.id,
+  });
+  revalidatePayrollPaths(project.clientId, projectId);
 }
 
 export async function savePayrollManagementPeriod(formData: FormData) {
@@ -829,6 +915,7 @@ export async function markPayrollManagementWagesPaid(formData: FormData) {
     select: {
       id: true,
       status: true,
+      pdfLocked: true,
       wagesTotal: true,
       wagesPaidAt: true,
       wagesPaidProofPath: true,
@@ -844,6 +931,12 @@ export async function markPayrollManagementWagesPaid(formData: FormData) {
     period.status !== "REIMBURSED"
   ) {
     throw new Error("Confirm wages paid after the client approves this period.");
+  }
+  // Wages book only once the sheet is generated and locked.
+  if (!period.pdfLocked) {
+    throw new Error(
+      "Generate and lock the wage sheet before confirming wages paid."
+    );
   }
   if ((decimalToNumber(period.wagesTotal) ?? 0) <= 0) {
     throw new Error("Add at least one wage line before marking wages paid.");
@@ -875,7 +968,9 @@ export async function markPayrollManagementWagesPaid(formData: FormData) {
 export async function unlockPayrollManagementPeriod(formData: FormData) {
   const session = await requirePayrollManagementAccess();
   if (!canUnlockInternalPayroll(toPermissionUser(session))) {
-    throw new Error("Only Head Office can unlock a locked payroll period.");
+    throw new Error(
+      "Only the owner can unlock a locked payroll period. Head Office and Directors cannot."
+    );
   }
   const projectId = String(formData.get("projectId") ?? "").trim();
   const year = Number(formData.get("year"));
@@ -919,6 +1014,19 @@ export async function unlockPayrollManagementPeriod(formData: FormData) {
       pdfUnlockedByName: actorName(session),
       pdfUnlockReason: reason,
     },
+  });
+
+  // Permanent record — an unlocked wage sheet always shows who opened it and why.
+  await writeRecordChange({
+    companyId: session.user.companyId,
+    userId: session.user.id,
+    action: "PAYROLL_MANAGEMENT_UNLOCKED",
+    entity: "PayrollManagementPeriod",
+    entityId: period.id,
+    description: `Wage sheet ${year}-${String(month).padStart(
+      2,
+      "0"
+    )} unlocked by ${actorName(session)}. Reason: ${reason}`,
   });
 
   revalidatePayrollPaths(period.project.clientId, period.projectId);

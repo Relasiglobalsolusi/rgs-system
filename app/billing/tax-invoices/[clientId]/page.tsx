@@ -24,6 +24,7 @@ import AppShell from "@/components/layout/AppShell";
 import TaxInvoiceTable, {
   type TaxInvoiceTableRow,
 } from "@/components/billing/TaxInvoiceTable";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import DirectoryFilterTab from "@/components/ui/DirectoryFilterTab";
 import EmptyState from "@/components/ui/EmptyState";
 import SectionCard from "@/components/ui/SectionCard";
@@ -203,7 +204,7 @@ export default async function TaxInvoiceClientPage({
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className={chipScrollRowClassName()}>
             {filterPills.map((pill) => (
               <DirectoryFilterTab
                 key={pill.key}

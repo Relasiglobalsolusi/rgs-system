@@ -34,21 +34,24 @@ export async function getEmployeeCompanyBalance(
   });
   if (!employee) return null;
 
+  // Each month holds one lock per run, so the run is part of the key.
   const locks = await db.internalPayrollLock.findMany({
     where: { companyId: employee.companyId, locked: true },
-    select: { year: true, month: true },
+    select: { year: true, month: true, run: true },
   });
-  const lockedKeys = new Set(locks.map((row) => `${row.year}-${row.month}`));
+  const lockedKeys = new Set(
+    locks.map((row) => `${row.year}-${row.month}-${row.run}`)
+  );
 
   const extraLines = await db.payrollDeduction.findMany({
     where: {
       employeeId,
       type: { in: [...OWED_DEDUCTION_TYPES] },
     },
-    select: { amount: true, year: true, month: true },
+    select: { amount: true, year: true, month: true, run: true },
   });
   const unpaidDeductions = extraLines
-    .filter((row) => !lockedKeys.has(`${row.year}-${row.month}`))
+    .filter((row) => !lockedKeys.has(`${row.year}-${row.month}-${row.run}`))
     .reduce(
       (sum, row) => sum + Math.max(0, Math.round(decimalToNumber(row.amount) ?? 0)),
       0
@@ -94,10 +97,10 @@ export async function getEmployeeCompanyBalances(
   const companyIds = [...new Set(employees.map((row) => row.companyId))];
   const locks = await db.internalPayrollLock.findMany({
     where: { companyId: { in: companyIds }, locked: true },
-    select: { companyId: true, year: true, month: true },
+    select: { companyId: true, year: true, month: true, run: true },
   });
   const lockedKeys = new Set(
-    locks.map((row) => `${row.companyId}-${row.year}-${row.month}`)
+    locks.map((row) => `${row.companyId}-${row.year}-${row.month}-${row.run}`)
   );
 
   const extraLines = await db.payrollDeduction.findMany({
@@ -111,11 +114,12 @@ export async function getEmployeeCompanyBalances(
       amount: true,
       year: true,
       month: true,
+      run: true,
     },
   });
   const unpaidByEmployee = new Map<string, number>();
   for (const row of extraLines) {
-    const key = `${row.companyId}-${row.year}-${row.month}`;
+    const key = `${row.companyId}-${row.year}-${row.month}-${row.run}`;
     if (lockedKeys.has(key)) continue;
     unpaidByEmployee.set(
       row.employeeId,

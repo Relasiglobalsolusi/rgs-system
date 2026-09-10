@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import {
+  requireApprovalsQueue,
   requireModule,
   requireSession,
   getEmployeeForUser,
@@ -102,7 +103,7 @@ export async function reviewLeaveRequest(
   reviewNote?: string,
   options?: ReviewLeaveOptions
 ) {
-  const session = await requireModule("approvals");
+  const session = await requireApprovalsQueue("leaves");
   const locale = await getServerLocale();
   const companyId = session.user.companyId;
   if (!companyId) throw await leaveError("companyNotFound");

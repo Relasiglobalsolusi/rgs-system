@@ -1,6 +1,6 @@
 import {
   commercialTaxIncludesVat,
-  projectWithholdingCreditIdr,
+  exclusivePricePlusChargedTax,
 } from "@/lib/commercial-tax";
 import {
   governmentTaxKindLabelKey,
@@ -11,13 +11,9 @@ import type { createTranslator } from "@/lib/i18n/translate";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/project-billing";
 import {
-  DEFAULT_INCLUSIVE_PPN_RATE,
-  applyExclusiveVat,
   broughtForwardVatCredit,
   isDateInJakartaMonth,
   isDateInJakartaYear,
-  ppnRateFromPercent,
-  splitInclusiveVat,
   utcRangeForJakartaMonth,
   utcRangeForJakartaYear,
 } from "@/lib/vat";
@@ -94,7 +90,7 @@ export async function loadVatTaxWorkspace(options: {
   const { start, endExclusive } = periodRange;
   const carryStart = utcRangeForJakartaYear(year - 1).start;
 
-  const [periods, purchaseRowsRaw, incomePurchases, otherPurchases] =
+  const [periods, purchaseRowsRaw, incomePurchases, otherPurchases, sales] =
     await Promise.all([
       prisma.projectInvoicePeriod.findMany({
         where: {
@@ -260,28 +256,58 @@ export async function loadVatTaxWorkspace(options: {
         },
         orderBy: { invoiceDate: "desc" },
       }),
+      prisma.inventorySale.findMany({
+        where: {
+          companyId,
+          movement: { voidedAt: null },
+          taxAmount: { gt: 0 },
+          OR: [
+            {
+              soldAt: {
+                gte: carryStart,
+                lt: yearRange.endExclusive,
+              },
+            },
+            {
+              paidAt: {
+                gte: carryStart,
+                lt: yearRange.endExclusive,
+              },
+            },
+          ],
+        },
+        select: {
+          id: true,
+          soldAt: true,
+          paidAt: true,
+          buyer: true,
+          subtotal: true,
+          taxAmount: true,
+          taxRatePercent: true,
+          totalPrice: true,
+          buyerIdentityDocUrl: true,
+          item: { select: { name: true } },
+        },
+        orderBy: [{ soldAt: "desc" }],
+      }),
     ]);
 
   const allOutputRows: VatLedgerRow[] = periods.map((period) => {
-    const gross = periodCommercialAmount(period);
-    const storedRatePercent = decimalToNumber(period.ppnRatePercent);
-    const rate =
-      storedRatePercent != null && storedRatePercent > 0
-        ? ppnRateFromPercent(storedRatePercent)
-        : DEFAULT_INCLUSIVE_PPN_RATE;
+    const exclusive = periodCommercialAmount(period);
+    const tax = exclusivePricePlusChargedTax({
+      exclusiveAmount: exclusive,
+      chargedTaxKind: period.project.chargedTaxKind,
+      pphRatePercent: decimalToNumber(period.project.pphRatePercent),
+      isGovernmentContract: period.project.isGovernmentContract,
+      ppnRatePercent: decimalToNumber(period.ppnRatePercent),
+    });
     const government = Boolean(period.project.isGovernmentContract);
     const governmentVat =
       government && commercialTaxIncludesVat(period.project.chargedTaxKind);
-    const split = governmentVat
-      ? {
-          gross,
-          dpp: gross,
-          ppn: applyExclusiveVat(gross, rate).ppn,
-        }
-      : splitInclusiveVat(gross, rate);
     const fakturReady = Boolean(
       period.taxInvoiceDocumentPath || period.taxInvoiceDoneAt
     );
+    const storedRatePercent = decimalToNumber(period.ppnRatePercent);
     const rateLabel =
       storedRatePercent != null ? `${storedRatePercent}%` : null;
     return {
@@ -297,15 +323,40 @@ export async function loadVatTaxWorkspace(options: {
         .join(" · "),
       date: (period.taxInvoiceIssuedAt ?? period.dueAt ?? period.periodEnd)
         .toISOString(),
-      gross: split.gross,
-      dpp: split.dpp,
-      ppn: split.ppn,
+      gross: tax.gross,
+      dpp: tax.exclusive,
+      ppn: tax.ppn,
       taxInvoiceSerial: period.taxInvoiceSerial,
       fakturReady,
       href: `/billing/tax-invoices/period/${period.id}`,
       remittanceExcluded: governmentVat,
     };
   });
+
+  for (const sale of sales) {
+    const dpp = decimalToNumber(sale.subtotal) ?? 0;
+    const ppn = decimalToNumber(sale.taxAmount) ?? 0;
+    if (ppn <= 0) continue;
+    const ratePercent = decimalToNumber(sale.taxRatePercent);
+    allOutputRows.push({
+      id: sale.id,
+      partyName: sale.buyer?.trim() || "—",
+      detail: [
+        sale.item.name,
+        t("pages.vat.soldOffSale"),
+        ratePercent != null ? `${ratePercent}%` : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      date: (sale.paidAt ?? sale.soldAt).toISOString(),
+      gross: decimalToNumber(sale.totalPrice) ?? dpp + ppn,
+      dpp,
+      ppn,
+      taxInvoiceSerial: null,
+      fakturReady: Boolean(sale.buyerIdentityDocUrl),
+      href: `/billing/sales`,
+    });
+  }
 
   const allInputRows: VatLedgerRow[] = [];
   for (const purchase of purchaseRowsRaw) {
@@ -449,25 +500,28 @@ export async function loadVatTaxWorkspace(options: {
     });
   }
 
+  const projectPphRows: IncomeTaxCreditRow[] = [];
   for (const period of periods) {
     const date = period.taxInvoiceIssuedAt ?? period.dueAt ?? period.periodEnd;
     if (date < start || date >= endExclusive) continue;
-    const dpp = periodCommercialAmount(period);
-    const credit = projectWithholdingCreditIdr({
-      dpp,
+    const exclusive = periodCommercialAmount(period);
+    const tax = exclusivePricePlusChargedTax({
+      exclusiveAmount: exclusive,
       chargedTaxKind: period.project.chargedTaxKind,
       pphRatePercent: decimalToNumber(period.project.pphRatePercent),
+      isGovernmentContract: period.project.isGovernmentContract,
+      ppnRatePercent: decimalToNumber(period.ppnRatePercent),
     });
-    if (credit <= 0) continue;
-    incomeRows.push({
+    if (tax.pph <= 0 || period.project.isGovernmentContract) continue;
+    projectPphRows.push({
       id: `project-pph-${period.id}`,
-      source: t("pages.vat.incomeSourceProject"),
+      source: t("pages.vat.remittanceSourceProject"),
       detail: [period.project.name, period.label?.trim()]
         .filter(Boolean)
         .join(" · "),
       date: date.toISOString(),
-      amount: credit,
-      href: `/billing/tax-invoices/period/${period.id}?from=income`,
+      amount: tax.pph,
+      href: `/billing/tax-invoices/period/${period.id}?from=other`,
       documentReady: Boolean(period.withholdingSlipPath),
     });
   }
@@ -479,7 +533,9 @@ export async function loadVatTaxWorkspace(options: {
     .filter((row) => row.source === t("pages.vat.incomeSourceGovernment"))
     .reduce((sum, row) => sum + row.amount, 0);
 
-  const otherRows: IncomeTaxCreditRow[] = otherPurchases.flatMap((purchase) => {
+  const otherRows: IncomeTaxCreditRow[] = [
+    ...projectPphRows,
+    ...otherPurchases.flatMap((purchase) => {
     const amount = decimalToNumber(purchase.amount) ?? 0;
     if (amount <= 0 || !purchase.governmentTaxKind) return [];
     return [
@@ -495,8 +551,11 @@ export async function loadVatTaxWorkspace(options: {
         documentReady: Boolean(purchase.filePath),
       },
     ];
-  });
-  const otherRemittanceTotal = otherPurchases
+  }),
+  ];
+  const otherRemittanceTotal =
+    projectPphRows.reduce((sum, row) => sum + row.amount, 0) +
+    otherPurchases
     .filter(
       (row) =>
         row.governmentTaxKind === "PPH_21" || row.governmentTaxKind === "PPH_23"

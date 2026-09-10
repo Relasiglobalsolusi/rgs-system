@@ -46,7 +46,7 @@ export const employeeDialogFormClass = "flex flex-col gap-6";
 /** Spacing between major form sections (e.g. Organization / Contact person). */
 export const employeeDialogSectionsClass = "flex flex-col gap-8";
 
-/** Spacing within a section (heading â†’ field grid). */
+/** Spacing within a section (heading to field grid). */
 export const employeeDialogSectionClass = "flex flex-col gap-6";
 
 /** Label to control gap for a single field. */
@@ -69,7 +69,7 @@ export function choiceGridClassForCount(count: number) {
 /** Last chip spans the full row when a 2-column grid has an odd count. */
 export function choiceGridSpanLastClass(index: number, total: number) {
   if (total === 3) return undefined;
-  return total % 2 === 1 && index === total - 1 ? "col-span-2" : undefined;
+  return total % 2 === 1 && index === total - 1 ? "sm:col-span-2" : undefined;
 }
 
 export const employeeDialogChoiceChipClass =
@@ -215,15 +215,15 @@ export function EmployeeDialogShell({
   maxWidth = "xl",
   compactHeader = true,
 }: EmployeeDialogShellProps) {
-  // sm/md stay compact for confirms; lg/xl are form create/edit panels.
+  // Caps stay inside the viewport on phones; sm/md are confirms, lg/xl are forms.
   const widthClass =
     maxWidth === "sm"
-      ? "sm:max-w-md"
+      ? "max-w-[min(24rem,calc(100%-2rem))]"
       : maxWidth === "md"
-        ? "sm:max-w-lg"
+        ? "max-w-[min(32rem,calc(100%-2rem))]"
         : maxWidth === "lg"
-          ? "sm:max-w-6xl"
-          : "sm:max-w-7xl";
+          ? "max-w-[min(72rem,calc(100%-2rem))]"
+          : "max-w-[min(80rem,calc(100%-2rem))]";
 
   const isFormPanel = maxWidth === "lg" || maxWidth === "xl";
 
@@ -237,12 +237,7 @@ export function EmployeeDialogShell({
         isFormPanel
           ? "max-h-[min(92dvh,72rem)]"
           : "max-h-[min(90dvh,64rem)]",
-        "w-[calc(100%-2rem)] min-w-0 sm:w-full",
-        isFormPanel
-          ? maxWidth === "xl"
-            ? "sm:min-w-[min(100%,64rem)]"
-            : "sm:min-w-[min(100%,56rem)]"
-          : "sm:min-w-[min(100%,28rem)]",
+        "w-[calc(100%-2rem)] min-w-0",
         widthClass
       )}
     >
@@ -299,7 +294,7 @@ export function EmployeeDialogShell({
 
       <DialogFooter
         className={cn(
-          "mx-0 mb-0 mt-0 shrink-0 flex-col gap-3 rounded-none border-t border-border bg-strip py-6 sm:flex-col sm:py-7",
+          "mx-0 mb-0 mt-0 shrink-0 flex-col gap-3 rounded-none border-t border-border bg-strip py-6 sm:py-7",
           employeeDialogInsetClass
         )}
       >
@@ -385,6 +380,7 @@ export type EmployeeControlledFormState = {
   categoryId: string;
   positionId: string;
   employmentType: "FULL_TIME" | "PART_TIME";
+  payrollRun: "PROJECT_CYCLE" | "HEAD_OFFICE_MONTHLY";
   status: "ACTIVE" | "ON_LEAVE" | "LEAVE_PENDING";
 };
 
@@ -441,6 +437,7 @@ function captureEmployeeFormSnapshot(
     categoryId: controlled.categoryId,
     positionId: controlled.positionId,
     employmentType: controlled.employmentType,
+    payrollRun: controlled.payrollRun,
     status: controlled.status,
     firstName: readFormField(form, "firstName"),
     lastName: readFormField(form, "lastName"),
@@ -460,6 +457,7 @@ function areEmployeeFormSnapshotsEqual(
     left.categoryId === right.categoryId &&
     left.positionId === right.positionId &&
     left.employmentType === right.employmentType &&
+    left.payrollRun === right.payrollRun &&
     left.status === right.status &&
     left.firstName === right.firstName &&
     left.lastName === right.lastName &&
@@ -483,6 +481,7 @@ export function useEmployeeFormDirty(
         categoryId: controlled.categoryId,
         positionId: controlled.positionId,
         employmentType: controlled.employmentType,
+        payrollRun: controlled.payrollRun,
         status: controlled.status,
       }),
     [controlled]
@@ -555,6 +554,7 @@ export function buildEmployeeFormBaseline(
     categoryId: controlled.categoryId,
     positionId: controlled.positionId,
     employmentType: controlled.employmentType,
+    payrollRun: controlled.payrollRun,
     status: controlled.status,
     firstName: fields.firstName ?? "",
     lastName: fields.lastName ?? "",
@@ -604,7 +604,7 @@ export function EmployeeUnsavedExitDialog({
         <DialogFooter
           className={cn(
             // Cancel DialogFooter's default -mx-4/-mb-4 (meant for p-4 content).
-            "mx-0 mb-0 mt-0 flex-col gap-3 rounded-none border-t border-border bg-strip px-4 py-5 sm:flex-col sm:justify-stretch sm:px-10 sm:py-6"
+            "mx-0 mb-0 mt-0 flex-col gap-3 rounded-none border-t border-border bg-strip px-4 py-5 sm:justify-stretch sm:px-10 sm:py-6"
           )}
         >
           <EmployeePrimaryButton type="button" variant="danger" onClick={onConfirm}>

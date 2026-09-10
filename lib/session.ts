@@ -4,7 +4,9 @@ import { fetchUserModuleOverrides } from "@/lib/module-overrides";
 import {
   canAccess,
   getAdvanceCashAccess,
+  getApprovalsAccess,
   isFinanceModuleKey,
+  type ApprovalsAccess,
   type ModuleKey,
   type PermissionUser,
 } from "@/lib/permissions";
@@ -157,6 +159,25 @@ export async function requireFinanceChild(navKey: string) {
     redirect("/dashboard");
   }
   return requireModule(navKey);
+}
+
+/**
+ * One Approvals queue. The module alone is not enough: each queue is ticked on
+ * its own, so a Materials-only approver cannot decide leave by posting straight
+ * to the action, and Payroll Unlock stays with the owner.
+ */
+export async function requireApprovalsQueue(
+  queue: keyof ApprovalsAccess
+): Promise<Awaited<ReturnType<typeof requireModule>>> {
+  const session = await requireModule("approvals");
+  const access = getApprovalsAccess({
+    ...toPermissionUser(session),
+    username: session.user.username,
+  });
+  if (!access[queue]) {
+    redirect("/dashboard");
+  }
+  return session;
 }
 
 /** Operations page: field float. Own module — not implied by Projects or Finance. */

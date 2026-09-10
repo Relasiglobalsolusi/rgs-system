@@ -75,7 +75,7 @@ function ResetPasswordContent() {
   if (!token) {
     return (
       <main className="auth-surface auth-shell">
-        <div className="mx-auto flex min-h-screen w-full max-w-lg items-center px-6 py-12">
+        <div className="mx-auto flex min-h-screen w-full max-w-lg items-center px-5 py-8 sm:px-6 sm:py-12">
           <div className="w-full">
             <h1 className="text-3xl font-semibold tracking-tight">
               {t("auth.resetInvalidTitle")}
@@ -94,7 +94,7 @@ function ResetPasswordContent() {
 
   return (
     <main className="auth-surface auth-shell">
-      <div className="mx-auto flex min-h-screen w-full max-w-lg items-center px-6 py-12">
+      <div className="mx-auto flex min-h-screen w-full max-w-lg items-center px-5 py-8 sm:px-6 sm:py-12">
         <div className="w-full">
           <div className="mb-8">
             <AuthLogo />
@@ -107,7 +107,7 @@ function ResetPasswordContent() {
             {t("auth.resetSubtitle")}
           </p>
 
-          <form method="post" action="/reset-password" onSubmit={handleSubmit} className="mt-8 space-y-5">
+          <form method="post" action="/reset-password" noValidate onSubmit={handleSubmit} className="mt-8 space-y-5">
             <div>
               <label
                 htmlFor="password"

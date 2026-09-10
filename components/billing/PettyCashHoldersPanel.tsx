@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+
+import { reversePettyCashSpend } from "@/app/billing/petty-cash/actions";
 
 import PettyCashPayWageDialog from "@/components/billing/PettyCashPayWageDialog";
 import PettyCashSpendDialog from "@/components/billing/PettyCashSpendDialog";
@@ -16,7 +19,9 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import UploadedFilesLink from "@/components/ui/UploadedFilesLink";
 import { Button } from "@/components/ui/button";
 import { directoryToolbarActionClass } from "@/components/ui/DirectoryFilterSelect";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import { formatDisplayDate } from "@/lib/format-date";
+import { showRejectionFromError } from "@/components/ui/rejection-notice";
 import { useT } from "@/lib/i18n/use-t";
 import {
   type PettyCashHolderView,
@@ -62,10 +67,12 @@ export default function PettyCashHoldersPanel({
   currentPayerName?: string | null;
 }) {
   const { t } = useT();
+  const router = useRouter();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [spendOpen, setSpendOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [payWageId, setPayWageId] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
   const selected = holders.find((holder) => holder.id === selectedId) ?? null;
   const payWage = unpaidWages.find((wage) => wage.id === payWageId) ?? null;
   const currentPayerBalance =
@@ -117,7 +124,7 @@ export default function PettyCashHoldersPanel({
               {t("pages.pettyCash.negativeHolderWarning")}
             </p>
           ) : null}
-          <div className="flex flex-wrap gap-2">
+          <div className={chipScrollRowClassName()}>
             <Button
               type="button"
               variant="permissionsBadge"
@@ -146,6 +153,7 @@ export default function PettyCashHoldersPanel({
             {selected.entries.map((entry) => (
               <FinanceRecordRow
                 key={entry.id}
+                className={entry.status === "VOIDED" ? "opacity-50" : undefined}
                 title={
                   <>
                     <h3 className="text-left text-sm font-semibold leading-snug tracking-tight text-text">
@@ -169,6 +177,30 @@ export default function PettyCashHoldersPanel({
                     {entry.proofPath ? (
                       <UploadedFilesLink value={entry.proofPath} />
                     ) : null}
+                    {entry.kind === "SPEND" && entry.status === "POSTED" ? (
+                      <button
+                        type="button"
+                        className="mt-2 text-xs font-semibold text-danger hover:underline"
+                        disabled={pending}
+                        onClick={() => {
+                          startTransition(async () => {
+                            try {
+                              const formData = new FormData();
+                              formData.set("entryId", entry.id);
+                              await reversePettyCashSpend(formData);
+                              router.refresh();
+                            } catch (error) {
+                              showRejectionFromError(
+                                error,
+                                t("pages.pettyCash.spendFailed")
+                              );
+                            }
+                          });
+                        }}
+                      >
+                        {t("pages.pettyCash.reverseSpend")}
+                      </button>
+                    ) : null}
                   </>
                 }
                 status={
@@ -177,7 +209,9 @@ export default function PettyCashHoldersPanel({
                     className={financeListStatusChipClassName}
                   >
                     <span className="flex h-full w-full items-center justify-center text-center leading-none">
-                      {t(`pages.pettyCash.status.${entry.status}` as "pages.pettyCash.status.POSTED")}
+                      {entry.status === "VOIDED"
+                        ? t("pages.pettyCash.reversed")
+                        : t(`pages.pettyCash.status.${entry.status}` as "pages.pettyCash.status.POSTED")}
                     </span>
                   </StatusBadge>
                 }
@@ -254,7 +288,7 @@ export default function PettyCashHoldersPanel({
                   type="button"
                   variant="permissionsBadge"
                   size="badgeFlex"
-                  className={`${directoryToolbarActionClass} min-w-[7.5rem]`}
+                  className={directoryToolbarActionClass}
                   onClick={() => setPayWageId(wage.id)}
                 >
                   {t("pages.pettyCash.unpaidWagePay")}
@@ -302,7 +336,6 @@ export default function PettyCashHoldersPanel({
           if (!next) setPayWageId(null);
         }}
         wage={payWage}
-        employees={employees}
         preferredPayerId={currentPayerId}
         preferredPayerName={currentPayerName}
         preferredPayerBalance={currentPayerBalance}

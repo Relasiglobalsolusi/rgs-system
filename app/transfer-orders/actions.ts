@@ -33,6 +33,7 @@ import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/project-billing";
 import { getProjectWhereForUser } from "@/lib/project-access";
 import {
+  requireApprovalsQueue,
   requireModule,
   requireSession,
   toPermissionUser,
@@ -743,6 +744,7 @@ export async function markTransferOrderSent(formData: FormData) {
         if (!locked || !locked.active) {
           throw new Error(translate(locale, "pages.inventory.itemNotFound"));
         }
+        const isEquipment = isEquipmentItemType(line.item.itemType);
         const currentStock = inventoryQtyFromDecimal(locked.currentStock);
         if (currentStock <= 0 || quantity > currentStock) {
           throw new Error(
@@ -752,8 +754,6 @@ export async function markTransferOrderSent(formData: FormData) {
             })
           );
         }
-
-        const isEquipment = isEquipmentItemType(line.item.itemType);
         const unitCost = isEquipment
           ? 0
           : decimalToNumber(locked.avgUnitCost) ??
@@ -1170,7 +1170,7 @@ type TransferOrderNeedsAttentionRow = TransferOrderQueueItem & {
 export async function getNeedsAttentionTransferOrders(): Promise<
   TransferOrderNeedsAttentionRow[]
 > {
-  const session = await requireModule("approvals");
+  const session = await requireApprovalsQueue("warehouseReturns");
   const companyId = session.user.companyId;
   if (!companyId) return [];
 
@@ -1267,7 +1267,7 @@ export type TransferAssignProjectOption = {
 export async function listProjectsForTransferAssign(): Promise<
   TransferAssignProjectOption[]
 > {
-  const session = await requireModule("approvals");
+  const session = await requireApprovalsQueue("warehouseReturns");
   const companyId = session.user.companyId;
   if (!companyId) return [];
 
@@ -1326,7 +1326,7 @@ async function loadNeedsAttentionOrder(
 export async function resolveTransferOrderWriteOff(formData: FormData) {
   const locale = await getServerLocale();
   try {
-    const session = await requireModule("approvals");
+    const session = await requireApprovalsQueue("warehouseReturns");
     const company = await requireCompany(locale);
     const id = String(formData.get("id") ?? "").trim();
     if (!id) throw new Error("Transfer order id required.");
@@ -1368,7 +1368,7 @@ export async function resolveTransferOrderWriteOff(formData: FormData) {
 export async function resolveTransferOrderAssignToProject(formData: FormData) {
   const locale = await getServerLocale();
   try {
-    const session = await requireModule("approvals");
+    const session = await requireApprovalsQueue("warehouseReturns");
     const company = await requireCompany(locale);
     const id = String(formData.get("id") ?? "").trim();
     const toProjectId = String(formData.get("projectId") ?? "").trim();
@@ -1458,7 +1458,7 @@ export async function resolveTransferOrderAssignToProject(formData: FormData) {
 export async function resolveTransferOrderAssignToStock(formData: FormData) {
   const locale = await getServerLocale();
   try {
-    const session = await requireModule("approvals");
+    const session = await requireApprovalsQueue("warehouseReturns");
     const company = await requireCompany(locale);
     const id = String(formData.get("id") ?? "").trim();
     if (!id) throw new Error("Transfer order id required.");

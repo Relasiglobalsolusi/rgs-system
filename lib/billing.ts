@@ -282,10 +282,17 @@ export function findPriorOpenPeriodWarning(
   return null;
 }
 
-/** Prisma filter: issued invoices still awaiting tax-invoice acknowledgment. */
+/**
+ * Prisma filter: issued invoices still awaiting tax-invoice acknowledgment.
+ * The period flag is only set at compile, so a job that needs a tax invoice
+ * counts from the moment it is issued.
+ */
 export function taxInvoicePendingWhere(): Prisma.ProjectInvoicePeriodWhereInput {
   return {
-    taxInvoiceRequired: true,
+    OR: [
+      { taxInvoiceRequired: true },
+      { project: { requiresTaxInvoice: true } },
+    ],
     taxInvoiceDoneAt: null,
     status: { in: [...TAX_INVOICE_ISSUED_STATUSES] },
   };

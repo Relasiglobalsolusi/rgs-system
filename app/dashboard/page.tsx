@@ -5,9 +5,13 @@ import { getProjectWhereForUser } from "@/lib/project-access";
 import {
   activeFieldStaffWhere,
   getAccessibleModules,
+  getAdvanceCashAccess,
+  getApprovalsAccess,
   getSessionAccountType,
   type ModuleKey,
 } from "@/lib/permissions";
+import { loadEmployeeSelfDashboard } from "@/lib/employee-self-dashboard";
+import { countPendingPayrollUnlockRequests } from "@/lib/payroll-unlock-request";
 import { getUnackedApprovedLeavesForEmployee } from "@/lib/leave-approval-notifications";
 import { countPendingLeaveRequestsForReviewer, resolveLeaveReviewerProfile } from "@/lib/leave-approval-hierarchy";
 import {
@@ -21,6 +25,7 @@ import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import DashboardSectionLabel from "@/components/dashboard/DashboardSectionLabel";
 import DashboardCompactStat from "@/components/dashboard/DashboardCompactStat";
 import DashboardAttendance from "@/components/dashboard/DashboardAttendance";
+import DashboardMyInfo from "@/components/dashboard/DashboardMyInfo";
 import DashboardActivityFeed from "@/components/dashboard/DashboardActivityFeed";
 import DashboardProjectProgress from "@/components/dashboard/DashboardProjectProgress";
 import LeaveApprovedNotification from "@/components/leaves/LeaveApprovedNotification";
@@ -30,7 +35,8 @@ import {
   loadFlaggedFuelFills,
 } from "@/lib/vehicle-odometer";
 import { buttonVariants } from "@/components/ui/button";
-import { getServerLocale } from "@/lib/i18n/locale";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
+import { getServerLocale, localeToBcp47 } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -101,6 +107,10 @@ export default async function DashboardPage() {
   const canViewUsers = hasModule(accessibleModules, "users");
   const canViewClients = hasModule(accessibleModules, "clients");
   const canViewInvoicing = hasModule(accessibleModules, "invoicing");
+  const approvalsAccess = getApprovalsAccess({
+    ...permissionUser,
+    username: session.user.username,
+  });
 
   const companyId = session.user.companyId;
   const leaveReviewer =
@@ -153,6 +163,18 @@ export default async function DashboardPage() {
 
   if (isStaff) {
     const employeeId = employee?.id;
+    // Personal blocks so staff read their own record without extra modules.
+    const advanceCash = getAdvanceCashAccess(permissionUser);
+    const selfData =
+      employeeId && companyId
+        ? await loadEmployeeSelfDashboard({
+            companyId,
+            employeeId,
+            payrollRun: employee.payrollRun,
+            advanceCash,
+            bcp47: localeToBcp47(await getServerLocale()),
+          })
+        : null;
     const showWorkforcePresence = canViewAttendance;
     const showPersonalAttendance = canViewCico || canViewAttendance;
     const showActivityFeed = canViewProgress || canViewLeaves;
@@ -167,10 +189,15 @@ export default async function DashboardPage() {
       approvedLeaveNotices,
     ] = await Promise.all([
       canApprove && leaveReviewer
-        ? countPendingLeaveRequestsForReviewer({
-            companyId: companyId!,
-            reviewer: leaveReviewer,
-          })
+        ? Promise.all([
+            countPendingLeaveRequestsForReviewer({
+              companyId: companyId!,
+              reviewer: leaveReviewer,
+            }),
+            approvalsAccess.payrollUnlock
+              ? countPendingPayrollUnlockRequests(companyId!)
+              : Promise.resolve(0),
+          ]).then(([leaves, payrollUnlocks]) => leaves + payrollUnlocks)
         : canViewLeaves && employeeId
           ? prisma.leaveRequest.count({
               where: { employeeId, status: "PENDING" },
@@ -280,6 +307,15 @@ export default async function DashboardPage() {
         )}
         {fuelRangeAlerts.length > 0 ? (
           <FuelRangeAlertBanner alerts={fuelRangeAlerts} />
+        ) : null}
+
+        {selfData ? (
+          <DashboardMyInfo
+            data={selfData}
+            canOpenPettyCash={advanceCash.petty}
+            canOpenCards={advanceCash.prepaid}
+            canOpenPayslips
+          />
         ) : null}
 
         {statCards.length > 0 && (
@@ -608,7 +644,7 @@ export default async function DashboardPage() {
         <DirectoryStatGrid className="mb-6 lg:mb-8" gapClassName="gap-3 lg:gap-4">
           {vendorStatCards}
         </DirectoryStatGrid>
-        <div className="flex flex-wrap gap-2">
+        <div className={chipScrollRowClassName()}>
           <Link
             href="/billing/purchase-invoices"
             className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
@@ -689,10 +725,15 @@ export default async function DashboardPage() {
         })
       : Promise.resolve([]),
     canApprove && leaveReviewer
-      ? countPendingLeaveRequestsForReviewer({
-          companyId: companyId!,
-          reviewer: leaveReviewer,
-        })
+      ? Promise.all([
+          countPendingLeaveRequestsForReviewer({
+            companyId: companyId!,
+            reviewer: leaveReviewer,
+          }),
+          approvalsAccess.payrollUnlock
+            ? countPendingPayrollUnlockRequests(companyId!)
+            : Promise.resolve(0),
+        ]).then(([leaves, payrollUnlocks]) => leaves + payrollUnlocks)
       : Promise.resolve(0),
     showAdminProgress
       ? prisma.progressReport.findMany({

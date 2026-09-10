@@ -5,12 +5,15 @@ import {
 import {
   commercialPeriodGross,
   recognizedIncomeAmount,
+  soldOffIncomeAmount,
 } from "@/lib/financial-report";
+import { invoiceDueFromExclusive } from "@/lib/commercial-tax";
 import {
   bankAccountWhere,
   FINANCIAL_REPORT_ALL_BANKS,
   financialReportCalendarRange,
   financialReportWageRange,
+  isSingleBankSelection,
   type FinancialReportSelection,
 } from "@/lib/financial-report-query";
 import {
@@ -19,10 +22,10 @@ import {
   sumKeptDepositIncome,
   type SecurityDepositSnapshot,
 } from "@/lib/internal-payroll-month";
+import { allocateLockedCompanyWages } from "@/lib/locked-payroll-pnl";
 import {
-  allocateCompanyWages,
+  listInternalWageSiteKeys,
   OVERHEAD_WAGE_BUCKET,
-  wageTotalForSite,
 } from "@/lib/internal-payroll-wages";
 import {
   excludeEquipmentFromProjectInventoryCost,
@@ -145,11 +148,28 @@ function outstandingInvoiceAmount(period: {
   revisedInvoiceAmount: Parameters<
     typeof commercialPeriodGross
   >[0]["revisedInvoiceAmount"];
+  ppnRatePercent?: Parameters<typeof commercialPeriodGross>[0]["ppnRatePercent"];
+  project?: {
+    chargedTaxKind?: string | null;
+    requiresTaxInvoice?: boolean | null;
+    pphRatePercent?: Parameters<typeof commercialPeriodGross>[0]["amount"];
+    isGovernmentContract?: boolean | null;
+  };
 }): { amount: number; overdue: boolean } {
-  const amount = commercialPeriodGross({
+  const exclusive = commercialPeriodGross({
     amount: period.amount,
     revisedInvoiceAmount: period.revisedInvoiceAmount,
   });
+  const amount = invoiceDueFromExclusive(
+    exclusive,
+    {
+      chargedTaxKind: period.project?.chargedTaxKind,
+      requiresTaxInvoice: period.project?.requiresTaxInvoice,
+      pphRatePercent: decimalToNumber(period.project?.pphRatePercent),
+      isGovernmentContract: period.project?.isGovernmentContract,
+    },
+    decimalToNumber(period.ppnRatePercent)
+  );
   const today = startOfJakartaDay(new Date());
   const overdue =
     period.status === "OVERDUE" ||
@@ -160,7 +180,8 @@ function outstandingInvoiceAmount(period: {
 export async function getClientsOwed(
   companyId: string,
   clientId?: string | null,
-  projectId?: string | null
+  projectId?: string | null,
+  options?: { includeCatchUp?: boolean }
 ): Promise<OwedBucket> {
   const periods = await prisma.projectInvoicePeriod.findMany({
     where: {
@@ -171,12 +192,22 @@ export async function getClientsOwed(
         ...(projectId ? { id: projectId } : {}),
       },
       status: { in: [...OUTSTANDING_INVOICE_STATUSES] },
+      ...(options?.includeCatchUp ? {} : { isCatchUp: false }),
     },
     select: {
       status: true,
       dueAt: true,
       amount: true,
       revisedInvoiceAmount: true,
+      ppnRatePercent: true,
+      project: {
+        select: {
+          chargedTaxKind: true,
+          requiresTaxInvoice: true,
+          pphRatePercent: true,
+          isGovernmentContract: true,
+        },
+      },
     },
   });
 
@@ -208,13 +239,23 @@ export async function getClientsOwedByClientIds(
         subCategory: { not: "INTERNAL" },
       },
       status: { in: [...OUTSTANDING_INVOICE_STATUSES] },
+      isCatchUp: false,
     },
     select: {
       status: true,
       dueAt: true,
       amount: true,
       revisedInvoiceAmount: true,
-      project: { select: { clientId: true } },
+      ppnRatePercent: true,
+      project: {
+        select: {
+          clientId: true,
+          chargedTaxKind: true,
+          requiresTaxInvoice: true,
+          pphRatePercent: true,
+          isGovernmentContract: true,
+        },
+      },
     },
   });
 
@@ -297,7 +338,8 @@ async function sumPurchases(
     | { purpose: "INTERNAL" | "PROJECT" | "PETTY_CASH" }
     | { purchaseCategory: "VEHICLE" },
   from?: Date,
-  toExclusive?: Date
+  toExclusive?: Date,
+  bank = FINANCIAL_REPORT_ALL_BANKS
 ): Promise<number> {
   const invoices = await prisma.purchaseInvoice.findMany({
     where: {
@@ -305,6 +347,8 @@ async function sumPurchases(
       ...filter,
       ...("purpose" in filter ? { purchaseCategory: { not: "VEHICLE" } } : {}),
       reversedAt: null,
+      employeePaymentKind: { not: "INTERNAL_PAYROLL" },
+      ...bankAccountWhere(bank),
       paidAt: {
         not: null,
         ...(from ? { gte: from } : {}),
@@ -432,13 +476,15 @@ export type ImportRateDifferenceRow = {
 async function sumImportRateDifferences(
   companyId: string,
   from?: Date,
-  toExclusive?: Date
+  toExclusive?: Date,
+  bank = FINANCIAL_REPORT_ALL_BANKS
 ): Promise<{ expense: number; income: number }> {
   const invoices = await prisma.purchaseInvoice.findMany({
     where: {
       companyId,
       origin: "IMPORT",
       reversedAt: null,
+      ...bankAccountWhere(bank),
       paidAt: {
         not: null,
         ...(from ? { gte: from } : {}),
@@ -461,13 +507,15 @@ async function sumImportRateDifferences(
 export async function listImportRateDifferences(
   companyId: string,
   from?: Date,
-  toExclusive?: Date
+  toExclusive?: Date,
+  bank = FINANCIAL_REPORT_ALL_BANKS
 ): Promise<ImportRateDifferenceRow[]> {
   const invoices = await prisma.purchaseInvoice.findMany({
     where: {
       companyId,
       origin: "IMPORT",
       reversedAt: null,
+      ...bankAccountWhere(bank),
       paidAt: {
         not: null,
         ...(from ? { gte: from } : {}),
@@ -499,26 +547,47 @@ export async function listImportRateDifferences(
 async function sumProjectExpenses(
   companyId: string,
   from?: Date,
-  toExclusive?: Date
-): Promise<number> {
-  const agg = await prisma.projectExpense.aggregate({
-    where: {
-      ...LIVE_PROJECT_EXPENSE_WHERE,
-      companyId,
-      ...(from || toExclusive
-        ? {
-            incurredAt: {
-              ...(from ? { gte: from } : {}),
-              ...(toExclusive ? { lt: toExclusive } : {}),
-            },
-          }
-        : {}),
-    },
-    _sum: { amount: true },
-  });
-  return decimalToNumber(agg._sum.amount) ?? 0;
+  toExclusive?: Date,
+  bank = FINANCIAL_REPORT_ALL_BANKS
+): Promise<{ expense: number; income: number }> {
+  const range =
+    from || toExclusive
+      ? {
+          incurredAt: {
+            ...(from ? { gte: from } : {}),
+            ...(toExclusive ? { lt: toExclusive } : {}),
+          },
+        }
+      : {};
+  const [outAgg, inAgg] = await Promise.all([
+    prisma.projectExpense.aggregate({
+      where: {
+        ...LIVE_PROJECT_EXPENSE_WHERE,
+        companyId,
+        amount: { gt: 0 },
+        ...range,
+        ...bankAccountWhere(bank),
+      },
+      _sum: { amount: true },
+    }),
+    prisma.projectExpense.aggregate({
+      where: {
+        ...LIVE_PROJECT_EXPENSE_WHERE,
+        companyId,
+        amount: { lt: 0 },
+        ...range,
+        ...bankAccountWhere(bank),
+      },
+      _sum: { amount: true },
+    }),
+  ]);
+  return {
+    expense: decimalToNumber(outAgg._sum.amount) ?? 0,
+    income: Math.abs(decimalToNumber(inAgg._sum.amount) ?? 0),
+  };
 }
 
+/** Sold-off income lands on the paid date. An unpaid sale is not income yet. */
 async function sumSoldOff(
   companyId: string,
   from?: Date,
@@ -530,21 +599,15 @@ async function sumSoldOff(
       companyId,
       movement: { voidedAt: null },
       ...bankAccountWhere(bank),
-      ...(from || toExclusive
-        ? {
-            soldAt: {
-              ...(from ? { gte: from } : {}),
-              ...(toExclusive ? { lt: toExclusive } : {}),
-            },
-          }
-        : {}),
+      paidAt: {
+        not: null,
+        ...(from ? { gte: from } : {}),
+        ...(toExclusive ? { lt: toExclusive } : {}),
+      },
     },
-    select: { totalPrice: true },
+    select: { subtotal: true, taxAmount: true, totalPrice: true },
   });
-  return sales.reduce(
-    (sum, sale) => sum + (decimalToNumber(sale.totalPrice) ?? 0),
-    0
-  );
+  return sales.reduce((sum, sale) => sum + soldOffIncomeAmount(sale), 0);
 }
 
 async function sumProjectInventoryIssues(
@@ -600,10 +663,11 @@ async function sumPayrollManagement(
     const fee = decimalToNumber(period.feeAmount) ?? 0;
     const tax = decimalToNumber(period.taxAmount) ?? 0;
     const clientBill = decimalToNumber(period.clientBillAmount) ?? 0;
-    const wageWhen = period.wagesPaidAt;
+    // Wages book only once the sheet is locked, same rule as Internal Payroll.
+    const wageWhen = period.pdfLocked ? period.wagesPaidAt : null;
     if (wageWhen && inUtcRange(wageWhen, from, toExclusive)) {
       moneyOut += wages;
-    } else if (!from && !toExclusive && period.wagesPaidAt) {
+    } else if (!from && !toExclusive && wageWhen) {
       moneyOut += wages;
     }
     const paidAt = period.invoicePeriod?.paidAt ?? period.reimbursedAt;
@@ -621,99 +685,25 @@ async function sumPayrollManagement(
 async function parkingPeriodTotals(
   companyId: string,
   from?: Date,
-  toExclusive?: Date
+  toExclusive?: Date,
+  bank = FINANCIAL_REPORT_ALL_BANKS
 ): Promise<{ moneyIn: number; dealOut: number }> {
   const projects = await prisma.project.findMany({
     where: { companyId, subCategory: "PARKING" },
     select: { id: true },
   });
-  if (!from && !toExclusive) {
-    const totals = await computeParkingProjectTotals(
-      companyId,
-      projects.map((row) => row.id)
-    );
-    let moneyIn = 0;
-    let dealOut = 0;
-    for (const value of totals.values()) {
-      moneyIn += value.moneyIn;
-      dealOut += value.dealOut;
-    }
-    return { moneyIn, dealOut };
-  }
-
-  const logs = await prisma.parkingMonthlyLog.findMany({
-    where: { project: { companyId, subCategory: "PARKING" } },
-    select: {
-      year: true,
-      month: true,
-      revenueAmount: true,
-      projectId: true,
-    },
-  });
+  const totals = await computeParkingProjectTotals(
+    companyId,
+    projects.map((row) => row.id),
+    from,
+    toExclusive,
+    bank
+  );
   let moneyIn = 0;
   let dealOut = 0;
-  const projectRows = await prisma.project.findMany({
-    where: { id: { in: projects.map((row) => row.id) } },
-    select: {
-      id: true,
-      startDate: true,
-      createdAt: true,
-      endDate: true,
-      setupCost: true,
-      profitSharePercent: true,
-      monthlyClientFee: true,
-      memberParkingUnitFee: true,
-      memberParkingUnitCount: true,
-      parkingTaxPercent: true,
-    },
-  });
-  const { parkingDealFromProject, isSetupMonth } = await import(
-    "@/lib/parking-economics"
-  );
-  const now = jakartaYearMonth();
-  for (const project of projectRows) {
-    const deal = parkingDealFromProject(project);
-    const startYm = jakartaYearMonth(project.startDate ?? project.createdAt);
-    const endYm = project.endDate ? jakartaYearMonth(project.endDate) : now;
-    const last =
-      endYm.year > now.year ||
-      (endYm.year === now.year && endYm.month > now.month)
-        ? now
-        : endYm;
-    const revenueByMonth = new Map(
-      logs
-        .filter((log) => log.projectId === project.id)
-        .map((log) => [
-          `${log.year}-${log.month}`,
-          decimalToNumber(log.revenueAmount) ?? 0,
-        ])
-    );
-    let year = startYm.year;
-    let month = startYm.month;
-    while (year < last.year || (year === last.year && month <= last.month)) {
-      const monthStart = new Date(Date.UTC(year, month - 1, 1));
-      if (inUtcRange(monthStart, from, toExclusive)) {
-        const casual = revenueByMonth.get(`${year}-${month}`) ?? 0;
-        const memberRevenue =
-          (deal.memberParkingUnitFee ?? 0) * (deal.memberParkingUnitCount ?? 0);
-        moneyIn += casual + memberRevenue;
-        if (deal.monthlyClientFee > 0) dealOut += deal.monthlyClientFee;
-        if (deal.profitSharePercent > 0) {
-          dealOut += Math.round((casual * deal.profitSharePercent) / 100);
-        }
-        if (deal.parkingTaxPercent > 0) {
-          dealOut += Math.round((casual * deal.parkingTaxPercent) / 100);
-        }
-        if (deal.setupCost > 0 && isSetupMonth(project, year, month)) {
-          dealOut += deal.setupCost;
-        }
-      }
-      month += 1;
-      if (month > 12) {
-        month = 1;
-        year += 1;
-      }
-    }
+  for (const value of totals.values()) {
+    moneyIn += value.moneyIn;
+    dealOut += value.dealOut;
   }
   return { moneyIn, dealOut };
 }
@@ -752,20 +742,21 @@ async function periodPnl(
     sumPaidInvoices(companyId, from, toExclusive, bank),
     sumSoldOff(companyId, from, toExclusive, bank),
     sumProjectInventoryIssues(companyId, from, toExclusive),
-    sumPurchases(companyId, { purpose: "PROJECT" }, from, toExclusive),
-    sumPurchases(companyId, { purpose: "INTERNAL" }, from, toExclusive),
+    sumPurchases(companyId, { purpose: "PROJECT" }, from, toExclusive, bank),
+    sumPurchases(companyId, { purpose: "INTERNAL" }, from, toExclusive, bank),
     sumInternalStockIssues(companyId, from, toExclusive),
     sumPayrollManagement(companyId, from, toExclusive),
-    parkingPeriodTotals(companyId, from, toExclusive),
-    allocateCompanyWages({
+    parkingPeriodTotals(companyId, from, toExclusive, bank),
+    allocateLockedCompanyWages({
       companyId,
-      from: wageRange.from,
-      toExclusive: wageRange.toExclusive,
+      from,
+      toExclusive,
+      bank,
     }),
     sumInternalPayrollNetAdjustment({
       companyId,
-      from: wageRange.from,
-      toExclusive: wageRange.toExclusive,
+      from,
+      toExclusive,
       includeSecurityDeposit: false,
     }),
     sumKeptDepositIncome({
@@ -774,10 +765,10 @@ async function periodPnl(
       toExclusive: wageRange.toExclusive,
     }),
     sumThrPaid(companyId, from, toExclusive),
-    sumProjectExpenses(companyId, from, toExclusive),
-    sumPurchases(companyId, { purchaseCategory: "VEHICLE" }, from, toExclusive),
-    sumImportRateDifferences(companyId, from, toExclusive),
-    sumPurchases(companyId, { purpose: "PETTY_CASH" }, from, toExclusive),
+    sumProjectExpenses(companyId, from, toExclusive, bank),
+    sumPurchases(companyId, { purchaseCategory: "VEHICLE" }, from, toExclusive, bank),
+    sumImportRateDifferences(companyId, from, toExclusive, bank),
+    sumPurchases(companyId, { purpose: "PETTY_CASH" }, from, toExclusive, bank),
     prisma.prepaidCardLossRecovery.aggregate({
       where: {
         loss: { companyId },
@@ -792,14 +783,24 @@ async function periodPnl(
     }),
   ]);
 
+  // Internal sites carry their own wage cost, but stay Head Office overhead here.
+  const internalSiteKeys = await listInternalWageSiteKeys(companyId);
+  const isOverheadWageSite = (key: string) =>
+    key === OVERHEAD_WAGE_BUCKET || internalSiteKeys.has(key);
   const commercialWages = [...wages.entries()]
-    .filter(([key]) => key !== OVERHEAD_WAGE_BUCKET)
+    .filter(([key]) => !isOverheadWageSite(key))
     .reduce(
       (sum, [, rows]) =>
         sum + rows.reduce((rowSum, row) => rowSum + row.wageCost, 0),
       0
     );
-  const overheadWages = wageTotalForSite(wages, OVERHEAD_WAGE_BUCKET);
+  const overheadWages = [...wages.entries()]
+    .filter(([key]) => isOverheadWageSite(key))
+    .reduce(
+      (sum, [, rows]) =>
+        sum + rows.reduce((rowSum, row) => rowSum + row.wageCost, 0),
+      0
+    );
   const overheadPurchases = internalPurchases + pettyCashTopUps;
   const overhead: OverheadBreakdown = {
     wages: overheadWages,
@@ -815,22 +816,45 @@ async function periodPnl(
   };
 
   const prepaidReturnIn = decimalToNumber(prepaidReturns._sum.amount) ?? 0;
+  const factoryRefundIn =
+    decimalToNumber(
+      (
+        await prisma.equipmentFactoryReturn.aggregate({
+          where: {
+            companyId,
+            status: "REFUNDED",
+            ...bankAccountWhere(bank),
+            refundedAt: {
+              ...(from ? { gte: from } : {}),
+              ...(toExclusive ? { lt: toExclusive } : {}),
+            },
+          },
+          _sum: { refundAmount: true },
+        })
+      )._sum.refundAmount
+    ) ?? 0;
+  const singleBank = isSingleBankSelection(bank);
   const moneyIn =
-    (bank === FINANCIAL_REPORT_ALL_BANKS
-      ? paidIn + soldOff + payroll.moneyIn + parking.moneyIn + keptIncome
-      : paidIn + soldOff) +
+    paidIn +
+    soldOff +
+    parking.moneyIn +
+    (singleBank ? 0 : payroll.moneyIn + keptIncome) +
     importFx.income +
-    prepaidReturnIn;
+    prepaidReturnIn +
+    factoryRefundIn +
+    incidentExpenses.income;
   const moneyOut =
-    inventoryOut +
+    (singleBank ? 0 : inventoryOut) +
     projectPurchases +
-    commercialWages +
-    payroll.moneyOut +
+    (singleBank ? 0 : commercialWages) +
+    (singleBank ? 0 : payroll.moneyOut) +
     parking.dealOut +
-    overhead.total +
-    payrollNetAdj +
-    thrPaid +
-    incidentExpenses +
+    (singleBank
+      ? overhead.internalPurchases + overhead.importRateDifferenceExpense
+      : overhead.total) +
+    (singleBank ? 0 : payrollNetAdj) +
+    (singleBank ? 0 : thrPaid) +
+    incidentExpenses.expense +
     vehiclePurchases;
 
   return { pair: pair(moneyIn, moneyOut), overhead };

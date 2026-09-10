@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { useDirectoryDialogOpen, type DirectoryDialogControlProps } from "@/components/ui/use-directory-dialog-open";
 import { useT } from "@/lib/i18n/use-t";
+import type { CompanyBankAccountOption } from "@/lib/company-bank-accounts";
 import type { EmploymentType, Placement, ServiceArea } from "@prisma/client";
 
 type RosterEditableStatus = "ACTIVE" | "ON_LEAVE" | "LEAVE_PENDING";
@@ -24,6 +25,7 @@ type RosterEditableStatus = "ACTIVE" | "ON_LEAVE" | "LEAVE_PENDING";
 type Employee = {
   id: string; employeeNo: string; firstName: string; lastName: string; email: string | null; phone: string | null;
   employmentType: EmploymentType; placement: Placement; portalAccessRequested: boolean; categoryId: string | null;
+  payrollRun: "PROJECT_CYCLE" | "HEAD_OFFICE_MONTHLY";
   category: { name: string; slug?: string } | null; positionId: string | null; position: string | null;
   idDocumentUrl: string | null;   hiredAt: Date | string | null;
   omApprovalAreas?: ServiceArea[];
@@ -53,7 +55,7 @@ type Employee = {
   projectAssignments: { project: { id: string; name: string } }[];
   user: { username: string } | null;
 };
-type Props = { employee: Employee; categories: EmployeeCategoryOption[]; positions: PositionOption[]; projects: ProjectOption[]; showDelete?: boolean; canResign?: boolean } & DirectoryDialogControlProps;
+type Props = { employee: Employee; categories: EmployeeCategoryOption[]; positions: PositionOption[]; projects: ProjectOption[]; showDelete?: boolean; canResign?: boolean; bankAccounts?: CompanyBankAccountOption[] } & DirectoryDialogControlProps;
 const EDIT_FORM_ID = "edit-employee-form";
 
 function toRosterEditableStatus(status: Employee["status"]): RosterEditableStatus {
@@ -62,7 +64,7 @@ function toRosterEditableStatus(status: Employee["status"]): RosterEditableStatu
   return "ACTIVE";
 }
 
-export default function EmployeeEditDialog({ employee, categories, positions, projects, showDelete = false, canResign = false, open: controlledOpen, onOpenChange, showTrigger = true }: Props) {
+export default function EmployeeEditDialog({ employee, categories, positions, projects, showDelete = false, canResign = false, bankAccounts = [], open: controlledOpen, onOpenChange, showTrigger = true }: Props) {
   const { t } = useT();
   const router = useRouter();
   const { open, setOpen } = useDirectoryDialogOpen(controlledOpen, onOpenChange);
@@ -73,6 +75,7 @@ export default function EmployeeEditDialog({ employee, categories, positions, pr
   const [categoryId, setCategoryId] = useState(employee.categoryId ?? "");
   const [positionId, setPositionId] = useState(employee.positionId ?? "");
   const [employmentType, setEmploymentType] = useState<"FULL_TIME" | "PART_TIME">(employee.employmentType);
+  const [payrollRun, setPayrollRun] = useState(employee.payrollRun);
   const rosterStatus = toRosterEditableStatus(employee.status);
   const [previewEmployeeNo, setPreviewEmployeeNo] = useState("");
   const [pending, startTransition] = useTransition();
@@ -81,10 +84,11 @@ export default function EmployeeEditDialog({ employee, categories, positions, pr
       categoryId: employee.categoryId ?? "",
       positionId: employee.positionId ?? "",
       employmentType: employee.employmentType,
+      payrollRun: employee.payrollRun,
       status: rosterStatus,
     })
   );
-  const controlled = { categoryId, positionId, employmentType, status: rosterStatus };
+  const controlled = { categoryId, positionId, employmentType, payrollRun, status: rosterStatus };
   const { isDirty, handleFormInput, handleFormChange, resetDirtyTracking } = useEmployeeFormDirty(EDIT_FORM_ID, controlled, baseline);
   const isDirtyRef = useRef(isDirty); isDirtyRef.current = isDirty;
   const categoryChanged = categoryId !== (employee.categoryId ?? "");
@@ -97,6 +101,7 @@ export default function EmployeeEditDialog({ employee, categories, positions, pr
     categoryId: employee.categoryId,
     positionId: employee.positionId,
     employmentType: employee.employmentType,
+    payrollRun: employee.payrollRun,
     placement: employee.placement === "ON_LEAVE" ? undefined : employee.placement,
     portalAccessRequested: employee.portalAccessRequested,
     idDocumentUrl: employee.idDocumentUrl,
@@ -130,12 +135,14 @@ export default function EmployeeEditDialog({ employee, categories, positions, pr
     setCategoryId(employee.categoryId ?? "");
     setPositionId(employee.positionId ?? "");
     setEmploymentType(employee.employmentType);
+    setPayrollRun(employee.payrollRun);
     setPreviewEmployeeNo("");
     setBaseline(
       buildEmployeeFormBaseline({
         categoryId: employee.categoryId ?? "",
         positionId: employee.positionId ?? "",
         employmentType: employee.employmentType,
+        payrollRun: employee.payrollRun,
         status: rosterStatus,
       })
     );
@@ -224,6 +231,8 @@ export default function EmployeeEditDialog({ employee, categories, positions, pr
             onPositionIdChange={setPositionId}
             employmentType={employmentType}
             onEmploymentTypeChange={setEmploymentType}
+            payrollRun={payrollRun}
+            onPayrollRunChange={setPayrollRun}
             status={rosterStatus}
             previewEmployeeNo={previewEmployeeNo}
             defaults={defaults}
@@ -238,6 +247,7 @@ export default function EmployeeEditDialog({ employee, categories, positions, pr
     {canResign ? (
       <EmployeeResignDialog
         employee={employee}
+        bankAccounts={bankAccounts}
         open={resignOpen}
         onOpenChange={setResignOpen}
         onResigned={() => {

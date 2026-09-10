@@ -6,11 +6,14 @@ import {
 } from "@/lib/leave-approval-hierarchy";
 import { prisma } from "@/lib/prisma";
 import { getProjectWhereForUser } from "@/lib/project-access";
+import { getApprovalsAccess } from "@/lib/permissions";
 import { requireModule, toPermissionUser } from "@/lib/session";
 import { inventoryQtyFromDecimal } from "@/lib/inventory";
 import { createTranslator } from "@/lib/i18n/translate";
-import { getServerLocale } from "@/lib/i18n/locale";
+import { getServerLocale, localeToBcp47 } from "@/lib/i18n/locale";
 import { formatEmployeeName } from "@/lib/employee-user-link";
+import { listPendingPayrollUnlockRequests } from "@/lib/payroll-unlock-request";
+import { formatDisplayDateTime } from "@/lib/format-date";
 
 import AppShell from "@/components/layout/AppShell";
 import SectionCard from "@/components/ui/SectionCard";
@@ -25,12 +28,18 @@ import MaterialRequestDetailCard from "@/components/material-requests/MaterialRe
 import { ReviewMaterialRequestButtons } from "@/components/material-requests/MaterialRequestActions";
 import TransferOrderDetailCard from "@/components/transfer-orders/TransferOrderDetailCard";
 import { ManagerNeedsAttentionActions } from "@/components/transfer-orders/TransferOrderActions";
+import PayrollUnlockApprovalActions from "@/components/approvals/PayrollUnlockApprovalActions";
 
 export default async function ApprovalsPage() {
   const session = await requireModule("approvals");
   const companyId = session.user.companyId;
   const locale = await getServerLocale();
   const t = createTranslator(locale);
+  // Each queue is ticked on its own, like Advance Cash.
+  const queues = getApprovalsAccess({
+    ...toPermissionUser(session),
+    username: session.user.username,
+  });
 
   const reviewer = await resolveLeaveReviewerProfile({
     userId: session.user.id,
@@ -38,7 +47,7 @@ export default async function ApprovalsPage() {
     permissionUser: toPermissionUser(session),
   });
 
-  const pendingRaw = companyId
+  const pendingRaw = companyId && queues.leaves
     ? await prisma.leaveRequest.findMany({
         where: {
           status: "PENDING",
@@ -70,7 +79,7 @@ export default async function ApprovalsPage() {
       })
     : null;
 
-  const pendingMaterials = companyId
+  const pendingMaterials = companyId && queues.materialRequests
     ? await prisma.materialRequest.findMany({
         where: {
           companyId,
@@ -105,15 +114,27 @@ export default async function ApprovalsPage() {
     : [];
 
   const [needsAttentionOrders, assignableProjects] = await Promise.all([
-    getNeedsAttentionTransferOrders(),
-    listProjectsForTransferAssign(),
+    queues.warehouseReturns
+      ? getNeedsAttentionTransferOrders()
+      : Promise.resolve([]),
+    queues.warehouseReturns
+      ? listProjectsForTransferAssign()
+      : Promise.resolve([]),
   ]);
+  const pendingPayrollUnlocks = queues.payrollUnlock
+    ? await listPendingPayrollUnlockRequests({
+        companyId,
+        userId: session.user.id,
+        bcp47: localeToBcp47(locale),
+      })
+    : [];
 
   return (
     <AppShell
       titleKey="pages.approvals.title"
     >
       <div className="min-w-0 max-w-full space-y-6">
+        {queues.leaves ? (
         <SectionCard className="min-w-0 max-w-full p-5 sm:p-6">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
             <div>
@@ -146,7 +167,9 @@ export default async function ApprovalsPage() {
             <PendingLeaveTable data={pendingLeave} />
           )}
         </SectionCard>
+        ) : null}
 
+        {queues.warehouseReturns ? (
         <SectionCard className="p-5 sm:p-6">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
             <div>
@@ -189,7 +212,9 @@ export default async function ApprovalsPage() {
             </div>
           )}
         </SectionCard>
+        ) : null}
 
+        {queues.materialRequests ? (
         <div className="space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
@@ -248,6 +273,66 @@ export default async function ApprovalsPage() {
             ))
           )}
         </div>
+        ) : null}
+
+        {queues.payrollUnlock ? (
+          <SectionCard className="p-5 sm:p-6">
+            <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <h2 className="text-base font-semibold text-text">
+                  {t("pages.approvals.payrollUnlockSection")}
+                </h2>
+                <p className="mt-1 text-sm text-subtle">
+                  {t("pages.approvals.payrollUnlockSectionDesc")}
+                </p>
+              </div>
+              {pendingPayrollUnlocks.length > 0 ? (
+                <p className="text-sm tabular-nums text-muted">
+                  {t("pages.approvals.pendingCount", {
+                    count: pendingPayrollUnlocks.length,
+                  })}
+                </p>
+              ) : null}
+            </div>
+            {pendingPayrollUnlocks.length === 0 ? (
+              <EmptyState
+                titleKey="pages.approvals.emptyPayrollUnlockTitle"
+                descriptionKey="pages.approvals.emptyPayrollUnlockDescription"
+              />
+            ) : (
+              <div className="space-y-4">
+                {pendingPayrollUnlocks.map((request) => (
+                  <div
+                    key={request.id}
+                    className="grid gap-4 rounded-xl border border-border bg-inset p-4 lg:grid-cols-[minmax(0,1fr)_22rem]"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-semibold text-text">
+                        {request.periodLabel}
+                      </p>
+                      <p className="mt-1 text-sm text-muted">
+                        {t("pages.approvals.payrollUnlockRequestedBy", {
+                          name:
+                            request.requestedByName ??
+                            t("pages.payroll.unlockUnknownRequester"),
+                          date: formatDisplayDateTime(
+                            request.requestedAt,
+                            { timeZone: "Asia/Jakarta" },
+                            localeToBcp47(locale)
+                          ),
+                        })}
+                      </p>
+                      <p className="mt-3 whitespace-pre-wrap text-sm text-text">
+                        {request.reason}
+                      </p>
+                    </div>
+                    <PayrollUnlockApprovalActions id={request.id} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </SectionCard>
+        ) : null}
       </div>
     </AppShell>
   );

@@ -10,6 +10,7 @@ import YesNoChoiceCards, {
   type YesNoChoice,
 } from "@/components/ui/YesNoChoiceCards";
 import { outlineChipTones } from "@/components/ui/StatusBadge";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import type {
   BankLoanKind,
   LoanCalculationMethod,
@@ -53,7 +54,7 @@ function ChoiceRow<T extends string>({
     <div
       role="radiogroup"
       aria-labelledby={labelledBy}
-      className="flex flex-wrap gap-2"
+      className={chipScrollRowClassName()}
     >
       {options.map((option) => (
         <button

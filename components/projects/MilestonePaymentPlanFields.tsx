@@ -174,12 +174,12 @@ export default function MilestonePaymentPlanFields({
                 key={row.cumulativePercent}
                 className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-sm"
               >
-                <span className="font-medium text-text">
+                <span className="min-w-0 flex-1 break-words font-medium text-text">
                   {t("pages.projects.paymentPlan.milestoneLabel", {
                     percent: formatMilestonePercentDisplay(row.cumulativePercent),
                   })}
                 </span>
-                <span className="text-xs text-subtle">
+                <span className="shrink-0 text-xs text-subtle">
                   {t("pages.projects.paymentPlan.percentOfContract", {
                     percent: row.installmentPercent,
                   })}

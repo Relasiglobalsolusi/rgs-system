@@ -37,12 +37,14 @@ import {
 import { saveUpload } from "@/lib/upload";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
+import { skipsOfficeLateEarlyFlags } from "@/lib/employee-payroll-run";
 import { applyResignIfLastDayReached } from "@/lib/employee-resign";
 import { releaseExpiredBackupCrew } from "@/lib/workforce-crew";
 import {
   ensureLeaveEmploymentSyncedForUser,
   getOperationsBlockedErrorKey,
   isEmployeeActiveForOperations,
+  jakartaTodayAsUtcDateOnly,
   syncEmployeeLeaveEmploymentStatus,
 } from "@/lib/leave-employment-status";
 import {
@@ -55,6 +57,18 @@ import {
   isCicoFieldEligible,
   requiresCicoProgressReport,
 } from "@/lib/cico-access";
+
+function isEarlyEndBlockingCicoCheckIn(project: {
+  pendingEarlyEndReconcile: boolean;
+  endDate: Date | null;
+}) {
+  if (!project.pendingEarlyEndReconcile) return false;
+  if (!project.endDate) return true;
+  return (
+    jakartaTodayAsUtcDateOnly().getTime() >
+    toUtcDateOnly(project.endDate).getTime()
+  );
+}
 
 /** Hard gate: check-out requires ≥1 Progress Report for this employee × project × work day. */
 async function hasProgressReportForWorkDay(
@@ -192,7 +206,7 @@ async function getAssignedProjectForEmployee(
 
   if (
     !isProjectOpenForSiteWork(project.status) ||
-    project.pendingEarlyEndReconcile
+    isEarlyEndBlockingCicoCheckIn(project)
   ) {
     throw await cicoError("inProgressOnly");
   }
@@ -343,6 +357,10 @@ async function requireCicoEmployeeForCheckOut(formData?: FormData) {
 export async function checkIn(formData: FormData) {
   const { employee, adminFieldMode } = await requireCicoEmployeeForCheckIn(formData);
 
+  if (employee.cicoExempt) {
+    throw await cicoError("cicoExemptBlocked");
+  }
+
   const projectId = String(formData.get("projectId") ?? "").trim();
   if (!projectId) throw await cicoError("selectProject");
 
@@ -388,6 +406,19 @@ export async function checkIn(formData: FormData) {
     now
   );
 
+  const leaveToday = await prisma.leaveRequest.findFirst({
+    where: {
+      employeeId: employee.id,
+      status: "APPROVED",
+      startDate: { lte: workDay },
+      endDate: { gte: workDay },
+    },
+    select: { id: true },
+  });
+  if (leaveToday) {
+    throw await cicoError("onLeaveBlocked");
+  }
+
   const openSession = await prisma.attendance.findFirst({
     where: {
       employeeId: employee.id,
@@ -423,10 +454,13 @@ export async function checkIn(formData: FormData) {
     mode === "office"
       ? "09:00"
       : resolveExpectedShiftStart(assignment);
+  const skipLateEarly = skipsOfficeLateEarlyFlags(employee.jobPosition);
   const late =
-    mode === "office"
-      ? isOfficeClockLate(checkInAt)
-      : isLateCheckIn(checkInAt, expectedStart);
+    skipLateEarly
+      ? false
+      : mode === "office"
+        ? isOfficeClockLate(checkInAt)
+        : isLateCheckIn(checkInAt, expectedStart);
   const lateNote =
     late === true && expectedStart
       ? translate(
@@ -571,7 +605,10 @@ export async function checkOut(formData: FormData) {
     !officeDeskCheckout &&
     isEarlyCheckOut(now, assignment?.shiftStart, assignment?.shiftEnd) === true;
   const officeEarly = officeDeskCheckout && isOfficeClockEarlyLeave(now);
-  const early = fieldEarly || officeEarly;
+  const early =
+    skipsOfficeLateEarlyFlags(employee.jobPosition)
+      ? false
+      : fieldEarly || officeEarly;
   const earlyNote = early
     ? translate(await getServerLocale(), "pages.cico.errors.earlyCheckOutNote")
     : null;

@@ -20,7 +20,7 @@ export function FinancePeriodToolbar({
   return (
     <div className={cn("space-y-1.5", className)}>
       <p className="text-xs font-medium text-subtle">{label}</p>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         {children}
         {action}
       </div>

@@ -17,7 +17,10 @@ import {
   persistCompanyScopedReorder,
 } from "@/lib/persist-reorder";
 import { parseModuleOverrides } from "@/lib/module-overrides";
+import { formatEmployeeName } from "@/lib/employee-user-link";
 import { prisma } from "@/lib/prisma";
+import { decimalToNumber, formatContractPrice } from "@/lib/project-billing";
+import { writeRecordChange } from "@/lib/record-change";
 import {
   getEmployeeModuleOverrides,
   isOwnerAccount,
@@ -36,8 +39,18 @@ import { normalizeAndValidatePhone } from "@/lib/phone";
 import { capitalizeName } from "@/lib/text-case";
 import {
   isAreaManagerPosition,
+  isDirectorPosition,
   isOperationsManagerPosition,
 } from "@/lib/positions";
+import {
+  canBeCicoExempt,
+  defaultCicoExemptForPosition,
+  resolvePayrollRunForEmployee,
+} from "@/lib/employee-payroll-run";
+import {
+  parsePayrollRunKind,
+  type PayrollRunKind,
+} from "@/lib/internal-payroll-period";
 import {
   formatOperationsManagerLabel,
   parseOmApprovalAreas,
@@ -340,6 +353,11 @@ export async function createEmployee(formData: FormData) {
     categoryPrefix: category.prefix,
   });
   const employeeType = employeeTypeFromPlacement(placement);
+  const payrollRun = resolvePayrollRunForEmployee({
+    employeeType,
+    jobPosition: { slug: positionSlug, name: positionName },
+    requestedRun: parsePayrollRunKind(formData.get("payrollRun")),
+  });
   const hiredAt = parseHiredAt(formData.get("hiredAt"));
   const portalRaw = formData.get("createPortalLogin");
   const portalAccessRequested =
@@ -354,12 +372,16 @@ export async function createEmployee(formData: FormData) {
     slug: positionSlug,
     name: positionName,
   });
+  const isDirector = isDirectorPosition({
+    slug: positionSlug,
+    name: positionName,
+  });
   const isAm = isAreaManagerPosition({
     slug: positionSlug,
     name: positionName,
   });
-  const omApprovalAreas = isOm ? parseOmApprovalAreas(formData) : [];
-  if (isOm && omApprovalAreas.length === 0) {
+  const omApprovalAreas = isOm || isDirector ? parseOmApprovalAreas(formData) : [];
+  if ((isOm || isDirector) && omApprovalAreas.length === 0) {
     throw new Error("Select at least one Approval Area for Operations Manager.");
   }
   const manageAllProjects =
@@ -442,7 +464,20 @@ export async function createEmployee(formData: FormData) {
         jkmEnabled: finance.jkmEnabled,
         jkkPercent: finance.jkkPercent,
         securityDepositRequired: finance.securityDepositRequired,
-        cicoExempt: finance.cicoExempt,
+        payrollRun,
+        cicoExempt: canBeCicoExempt({
+          employeeType,
+          placement,
+          jobPosition: { slug: positionSlug, name: positionName },
+        })
+          ? Boolean(
+              finance.cicoExempt ||
+                defaultCicoExemptForPosition({
+                  slug: positionSlug,
+                  name: positionName,
+                })
+            )
+          : false,
         progressExempt: finance.progressExempt,
         overtimeEnabled: finance.overtimeEnabled,
         bankName: finance.bankName,
@@ -495,6 +530,7 @@ export async function createEmployeesInBulk(formData: FormData) {
       employmentType: EmploymentType;
       placement: ReturnType<typeof initialPlacementForDepartment>;
       employeeType: ReturnType<typeof employeeTypeFromPlacement>;
+      payrollRun: PayrollRunKind;
       hiredAt: Date | null;
       portalAccessRequested: boolean;
       omApprovalAreas: ReturnType<typeof parseOmApprovalAreas>;
@@ -545,6 +581,11 @@ export async function createEmployeesInBulk(formData: FormData) {
           categoryPrefix: category.prefix,
         });
         const employeeType = employeeTypeFromPlacement(placement);
+        const payrollRun = resolvePayrollRunForEmployee({
+          employeeType,
+          jobPosition: { slug: positionSlug, name: positionName },
+          requestedRun: parsePayrollRunKind(row.get("payrollRun")),
+        });
         const hiredAt = parseHiredAt(row.get("hiredAt"));
         const portalRaw = row.get("createPortalLogin");
         const portalAccessRequested =
@@ -559,12 +600,16 @@ export async function createEmployeesInBulk(formData: FormData) {
           slug: positionSlug,
           name: positionName,
         });
+        const isDirector = isDirectorPosition({
+          slug: positionSlug,
+          name: positionName,
+        });
         const isAm = isAreaManagerPosition({
           slug: positionSlug,
           name: positionName,
         });
-        const omApprovalAreas = isOm ? parseOmApprovalAreas(row) : [];
-        if (isOm && omApprovalAreas.length === 0) {
+        const omApprovalAreas = isOm || isDirector ? parseOmApprovalAreas(row) : [];
+        if ((isOm || isDirector) && omApprovalAreas.length === 0) {
           throw new Error(
             "Select at least one Approval Area for Operations Manager."
           );
@@ -610,6 +655,7 @@ export async function createEmployeesInBulk(formData: FormData) {
           employmentType,
           placement,
           employeeType,
+          payrollRun,
           hiredAt,
           portalAccessRequested,
           omApprovalAreas,
@@ -691,7 +737,21 @@ export async function createEmployeesInBulk(formData: FormData) {
             jkmEnabled: person.finance.jkmEnabled,
             jkkPercent: person.finance.jkkPercent,
             securityDepositRequired: person.finance.securityDepositRequired,
-            cicoExempt: person.finance.cicoExempt,
+            payrollRun: person.payrollRun,
+            cicoExempt: canBeCicoExempt({
+              employeeType: person.employeeType,
+              placement: person.placement,
+              jobPosition: {
+                slug: person.positionSlug,
+                name: person.positionName,
+              },
+            })
+              ? person.finance.cicoExempt ||
+                defaultCicoExemptForPosition({
+                  slug: person.positionSlug,
+                  name: person.positionName,
+                })
+              : false,
             progressExempt: person.finance.progressExempt,
             overtimeEnabled: person.finance.overtimeEnabled,
             bankName: person.finance.bankName,
@@ -782,6 +842,8 @@ export async function updateEmployee(id: string, formData: FormData) {
       userId: true,
       positionId: true,
       idDocumentUrl: true,
+      basePay: true,
+      payrollRun: true,
       jobPosition: {
         select: { slug: true, name: true, defaultModuleAccess: true },
       },
@@ -850,6 +912,14 @@ export async function updateEmployee(id: string, formData: FormData) {
     });
   }
   const employeeType = employeeTypeFromPlacement(placement);
+  const payrollRun = resolvePayrollRunForEmployee({
+    employeeType,
+    jobPosition: { slug: positionSlug, name: positionName },
+    requestedRun:
+      formData.get("payrollRun") == null
+        ? employee.payrollRun
+        : parsePayrollRunKind(formData.get("payrollRun")),
+  });
   const hiredAt = parseHiredAt(formData.get("hiredAt"));
   if (!hiredAt) throw new Error("Start date is required.");
 
@@ -863,12 +933,16 @@ export async function updateEmployee(id: string, formData: FormData) {
     slug: positionSlug,
     name: positionName,
   });
+  const isDirector = isDirectorPosition({
+    slug: positionSlug,
+    name: positionName,
+  });
   const isAm = isAreaManagerPosition({
     slug: positionSlug,
     name: positionName,
   });
-  const omApprovalAreas = isOm ? parseOmApprovalAreas(formData) : [];
-  if (isOm && omApprovalAreas.length === 0) {
+  const omApprovalAreas = isOm || isDirector ? parseOmApprovalAreas(formData) : [];
+  if ((isOm || isDirector) && omApprovalAreas.length === 0) {
     throw new Error("Select at least one Approval Area for Operations Manager.");
   }
   const manageAllProjects =
@@ -940,7 +1014,20 @@ export async function updateEmployee(id: string, formData: FormData) {
         jkmEnabled: finance.jkmEnabled,
         jkkPercent: finance.jkkPercent,
         securityDepositRequired: finance.securityDepositRequired,
-        cicoExempt: finance.cicoExempt,
+        payrollRun,
+        cicoExempt: canBeCicoExempt({
+          employeeType,
+          placement,
+          jobPosition: { slug: positionSlug, name: positionName },
+        })
+          ? Boolean(
+              finance.cicoExempt ||
+                defaultCicoExemptForPosition({
+                  slug: positionSlug,
+                  name: positionName,
+                })
+            )
+          : false,
         progressExempt: finance.progressExempt,
         overtimeEnabled: finance.overtimeEnabled,
         bankName: finance.bankName,
@@ -1010,6 +1097,22 @@ export async function updateEmployee(id: string, formData: FormData) {
       }
     }
   });
+
+  // A wage change is permanent history: keep the old and the new amount.
+  const previousBasePay = decimalToNumber(employee.basePay) ?? 0;
+  const nextBasePay = finance.basePay == null ? 0 : Number(finance.basePay);
+  if (Math.round(previousBasePay) !== Math.round(nextBasePay)) {
+    await writeRecordChange({
+      companyId: employee.companyId,
+      userId: session.user.id,
+      action: "EMPLOYEE_WAGE_CHANGED",
+      entity: "Employee",
+      entityId: employee.id,
+      description: `${formatEmployeeName(employee)} (${employee.employeeNo}) monthly wage changed from ${formatContractPrice(previousBasePay)} to ${formatContractPrice(nextBasePay)}`,
+      oldValue: { basePay: Math.round(previousBasePay) },
+      newValue: { basePay: Math.round(nextBasePay) },
+    });
+  }
 
   revalidatePath("/employees");
   revalidatePath("/users");
@@ -1566,6 +1669,67 @@ export async function resignEmployee(formData: FormData) {
   }
 
   const held = decimalToNumber(employee.depositHeldAmount) ?? 0;
+  const { getEmployeeCompanyBalance } = await import(
+    "@/lib/employee-company-balance"
+  );
+  const { encodeResignShortfallDirective } = await import(
+    "@/lib/employee-unrecovered-debt"
+  );
+  const balance = await getEmployeeCompanyBalance(prisma, employee.id);
+  const owed = balance?.amountOwed ?? 0;
+  const surplus = Math.max(0, held - owed);
+  const shortfall = Math.max(0, owed - held);
+  const paysRestRaw = String(formData.get("employeePaysRest") ?? "").trim();
+  let resignNote = note;
+  if (shortfall > 0) {
+    if (paysRestRaw !== "yes" && paysRestRaw !== "no") {
+      throw new Error(translate(locale, "pages.employees.errors.shortfallChoiceRequired"));
+    }
+    const employeePaysRest = paysRestRaw === "yes";
+    const bankAccountId = String(formData.get("bankAccountId") ?? "").trim();
+    const paidAtRaw = String(formData.get("paidAt") ?? "").trim();
+    let proofPath: string | null = null;
+    if (employeePaysRest) {
+      if (!bankAccountId) {
+        throw new Error(translate(locale, "pages.employees.errors.shortfallBankRequired"));
+      }
+      const bank = await prisma.companyBankAccount.findFirst({
+        where: { id: bankAccountId, companyId: session.user.companyId },
+        select: { id: true },
+      });
+      if (!bank) {
+        throw new Error(translate(locale, "pages.employees.errors.shortfallBankRequired"));
+      }
+      if (!paidAtRaw) {
+        throw new Error(translate(locale, "pages.employees.errors.shortfallPaidAtRequired"));
+      }
+      try {
+        parseDateInput(paidAtRaw);
+      } catch {
+        throw new Error(translate(locale, "pages.employees.errors.shortfallPaidAtRequired"));
+      }
+      const { formFiles, saveAndSerializeUploads } = await import(
+        "@/lib/upload-paths"
+      );
+      const proofFiles = formFiles(formData, "paymentProof");
+      proofPath = await saveAndSerializeUploads(
+        proofFiles,
+        "uploads/employees",
+        { fileBaseName: "resign-shortfall" }
+      );
+      if (!proofPath) {
+        throw new Error(translate(locale, "pages.employees.errors.shortfallProofRequired"));
+      }
+    }
+    resignNote = encodeResignShortfallDirective({
+      employeePaysRest,
+      bankAccountId: employeePaysRest ? bankAccountId : null,
+      paidAt: employeePaysRest ? paidAtRaw : null,
+      proofPath: employeePaysRest ? proofPath : null,
+      note,
+    });
+  }
+
   const ym = payrollPeriodFromJakartaDate(lastWorkingDay);
 
   await prisma.$transaction(async (tx) => {
@@ -1586,19 +1750,18 @@ export async function resignEmployee(formData: FormData) {
         lastWorkingDay,
         resignAccordingToProcedure: accordingToProcedure,
         resignForfeitRemainingWages: forfeitRemainingWages,
-        resignNote: note || null,
+        resignNote: resignNote || null,
         depositSourceProjectId,
-        depositStatus: accordingToProcedure
-          ? held > 0
-            ? "RETURNED"
-            : employee.depositStatus
-          : held > 0
-            ? "KEPT_BY_COMPANY"
-            : employee.depositStatus,
+        depositStatus:
+          held <= 0
+            ? employee.depositStatus
+            : accordingToProcedure && surplus > 0
+              ? "RETURNED"
+              : "KEPT_BY_COMPANY",
       },
     });
 
-    if (accordingToProcedure && held > 0 && employee.depositStatus === "HELD") {
+    if (accordingToProcedure && surplus > 0 && employee.depositStatus === "HELD") {
       await tx.payrollDeduction.create({
         data: {
           companyId: employee.companyId,
@@ -1606,7 +1769,7 @@ export async function resignEmployee(formData: FormData) {
           year: ym.year,
           month: ym.month,
           type: "RETURN_OF_SECURITY_DEPOSIT",
-          amount: toDecimal(held),
+          amount: toDecimal(surplus),
           reason: "Return of security deposit",
           createdById: session.user.id,
           projectId: depositSourceProjectId,

@@ -5,7 +5,7 @@ import {
   canTopUpPrepaidCard,
   prepaidTopUpLabel,
 } from "@/lib/prepaid-card";
-import { currentPrepaidAssignment, writePrepaidCardEntry } from "@/lib/prepaid-card-lifecycle";
+import { currentPrepaidAssignment, writePrepaidCardEntry, PREPAID_REVERSED_PREFIX, isPrepaidEntryReversed } from "@/lib/prepaid-card-lifecycle";
 import { decimalToNumber } from "@/lib/project-billing";
 
 type AdvanceCashDb = Prisma.TransactionClient;
@@ -104,7 +104,14 @@ export async function unwindPrepaidTopUpFromInvoice(
   const amount = decimalToNumber(invoice.amount) ?? 0;
   const byInvoice = await tx.prepaidCardEntry.findMany({
     where: { kind: "TOP_UP", purchaseInvoiceId: invoice.id },
-    select: { id: true, prepaidCardId: true, amount: true },
+    select: {
+      id: true,
+      prepaidCardId: true,
+      amount: true,
+      description: true,
+      entryDate: true,
+      assignmentId: true,
+    },
   });
   const entries =
     byInvoice.length > 0
@@ -114,23 +121,34 @@ export async function unwindPrepaidTopUpFromInvoice(
             kind: "TOP_UP",
             description: { contains: invoice.invoiceRef },
           },
-          select: { id: true, prepaidCardId: true, amount: true },
+          select: {
+            id: true,
+            prepaidCardId: true,
+            amount: true,
+            description: true,
+            entryDate: true,
+            assignmentId: true,
+          },
         });
   for (const entry of entries) {
-    const card = await tx.prepaidCard.findUnique({
-      where: { id: entry.prepaidCardId },
-      select: { id: true, currentBalance: true },
+    if (isPrepaidEntryReversed(entry.description)) continue;
+    const topUpAmount = decimalToNumber(entry.amount) ?? amount;
+    await tx.prepaidCardEntry.update({
+      where: { id: entry.id },
+      data: {
+        description: `${PREPAID_REVERSED_PREFIX}${entry.description}`,
+      },
     });
-    if (card) {
-      const next =
-        (decimalToNumber(card.currentBalance) ?? 0) -
-        (decimalToNumber(entry.amount) ?? amount);
-      await tx.prepaidCard.update({
-        where: { id: card.id },
-        data: { currentBalance: new Prisma.Decimal(next) },
-      });
-    }
-    await tx.prepaidCardEntry.delete({ where: { id: entry.id } });
+    await writePrepaidCardEntry(tx, {
+      cardId: entry.prepaidCardId,
+      kind: "SPEND",
+      amount: topUpAmount,
+      balanceDelta: -topUpAmount,
+      entryDate: entry.entryDate,
+      description: `Reversal of top-up ${invoice.invoiceRef}`,
+      assignmentId: entry.assignmentId,
+      purchaseInvoiceId: invoice.id,
+    });
   }
 }
 

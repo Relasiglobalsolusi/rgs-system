@@ -25,7 +25,7 @@ type UnsavedDialogGuardContextValue = {
 const UnsavedDialogGuardContext =
   createContext<UnsavedDialogGuardContextValue | null>(null);
 
-export function snapshotDialogFields(root: ParentNode): string {
+function snapshotDialogFields(root: ParentNode): string {
   const parts: string[] = [];
   root.querySelectorAll("input, select, textarea").forEach((node) => {
     if (

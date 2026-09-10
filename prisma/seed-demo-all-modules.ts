@@ -2655,7 +2655,7 @@ export async function seedDemoAllModules(prisma: Db) {
           itemId: itemEqp.id,
           quantity: toDecimal(1),
           sentAt: utcDate(2026, 8, 15),
-          originalIntent: FactoryReturnIntent.REPAIR,
+          originalIntent: FactoryReturnIntent.REPLACE,
           status: FactoryReturnStatus.WAITING,
           reason: "Motor noise on unused boxed unit",
           vendorId: vendorOverseas.id,

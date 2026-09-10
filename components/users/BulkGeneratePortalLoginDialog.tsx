@@ -128,7 +128,7 @@ export default function BulkGeneratePortalLoginDialog({
         description={t(confirmKey, { count: totalCount })}
         maxWidth="md"
         footer={
-          <div className="flex w-full flex-col gap-3 sm:flex-col">
+          <div className="flex w-full flex-col gap-3">
             <EmployeePrimaryButton
               type="button"
               disabled={pending || totalCount === 0}

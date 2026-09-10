@@ -5,7 +5,10 @@ import { getCurrentSession } from "@/lib/auth";
 import { loadCompanyForPdf } from "@/lib/company-for-pdf";
 import { getServerLocale, localeToBcp47 } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
-import { buildInternalPayrollPdfBuffer } from "@/lib/internal-payroll-pdf";
+import {
+  buildInternalPayrollXlsxBuffer,
+  payrollSheetFilename,
+} from "@/lib/internal-payroll-xlsx";
 import {
   formatPayrollManagementWindowLabel,
   payrollManagementWindowForCutoffMonth,
@@ -85,7 +88,7 @@ export async function GET(request: NextRequest) {
       localeToBcp47(locale)
     );
     const title = translate(locale, "pages.billing.payrollMgmt.pdfTitle");
-    const buffer = await buildInternalPayrollPdfBuffer({
+    const payrollInput = {
       year,
       month,
       periodLabel: `${prepared.project.name} · ${cutoffLabel}`,
@@ -101,13 +104,14 @@ export async function GET(request: NextRequest) {
       company,
       locale,
       title,
-    });
-
-    const filename = `payroll-management-${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}.pdf`;
+    };
+    const buffer = await buildInternalPayrollXlsxBuffer(payrollInput);
+    const filename = payrollSheetFilename(prepared.project.name, year, month);
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
-        "Content-Type": "application/pdf",
+        "Content-Type":
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "Content-Disposition": `attachment; filename="${filename}"`,
         "Cache-Control": "no-store",
       },
@@ -119,7 +123,7 @@ export async function GET(request: NextRequest) {
         error:
           error instanceof Error
             ? error.message
-            : "Could not generate the Payroll Management PDF.",
+            : "Could not generate the Payroll Management sheet.",
       },
       { status: 500 }
     );

@@ -112,7 +112,15 @@ export async function assertCanApproveProjectServiceArea(options: {
   const employee = await loadApprovalEmployee(options.userId);
 
   if (employee?.jobPosition && isDirectorPosition(employee.jobPosition)) {
-    return;
+    if (
+      canApproveServiceArea({
+        omApprovalAreas: employee.omApprovalAreas,
+        projectServiceArea: options.projectServiceArea,
+      })
+    ) {
+      return;
+    }
+    throw new Error(approvalDeniedMessage(options.projectServiceArea));
   }
 
   const isOm =
@@ -178,9 +186,11 @@ export async function getOmServiceAreaListFilter(options: {
   const employee = await loadApprovalEmployee(options.userId);
 
   if (!employee?.jobPosition) return null;
-  if (isDirectorPosition(employee.jobPosition)) return null;
 
-  if (isOperationsManagerPosition(employee.jobPosition)) {
+  if (
+    isDirectorPosition(employee.jobPosition) ||
+    isOperationsManagerPosition(employee.jobPosition)
+  ) {
     const areas = employee.omApprovalAreas ?? [];
     if (areas.length === 0) {
       return { id: { in: [] } };
@@ -220,15 +230,17 @@ export async function assertCanWriteProject(options: {
 
   const employee = await loadApprovalEmployee(options.userId);
   if (!employee?.jobPosition) return;
-  if (isDirectorPosition(employee.jobPosition)) return;
-
-  if (isOperationsManagerPosition(employee.jobPosition)) {
+  if (
+    isDirectorPosition(employee.jobPosition) ||
+    isOperationsManagerPosition(employee.jobPosition)
+  ) {
     if (
       canApproveServiceArea({
         omApprovalAreas: employee.omApprovalAreas,
         projectServiceArea: options.serviceArea,
       }) &&
-      omCoversProject(employee, options.projectId)
+      (isDirectorPosition(employee.jobPosition) ||
+        omCoversProject(employee, options.projectId))
     ) {
       return;
     }
@@ -254,7 +266,15 @@ export async function assertCanCreateProjectInScope(options: {
 
   const employee = await loadApprovalEmployee(options.userId);
   if (employee?.jobPosition && isDirectorPosition(employee.jobPosition)) {
-    return { areaManagerEmployeeId: null };
+    if (
+      canApproveServiceArea({
+        omApprovalAreas: employee.omApprovalAreas,
+        projectServiceArea: options.serviceArea,
+      })
+    ) {
+      return { areaManagerEmployeeId: null };
+    }
+    throw new Error(approvalDeniedMessage(options.serviceArea));
   }
 
   if (

@@ -152,8 +152,8 @@ export default function BillingDocumentVerifyDialog({
         onDragOver={preventBrowserFileNavigation}
         onDrop={preventBrowserFileNavigation}
         className={cn(
-          "flex max-h-[min(94vh,40rem)] w-[calc(100%-1.5rem)] min-w-[min(100%,20rem)] flex-col gap-0 overflow-hidden rounded-2xl border border-border bg-panel p-0 text-text ring-0",
-          "sm:w-full sm:min-w-[min(100%,28rem)] sm:max-w-md"
+          "flex max-h-[min(94vh,40rem)] w-[calc(100%-1.5rem)] min-w-0 flex-col gap-0 overflow-hidden rounded-2xl border border-border bg-panel p-0 text-text ring-0",
+          "sm:w-full sm:max-w-md"
         )}
       >
         <form
@@ -255,7 +255,7 @@ export default function BillingDocumentVerifyDialog({
 
           <DialogFooter
             className={cn(
-              "mx-0 mb-0 mt-0 shrink-0 flex-col gap-3 rounded-none border-t border-border bg-strip py-6 sm:flex-col sm:py-7",
+              "mx-0 mb-0 mt-0 shrink-0 flex-col gap-3 rounded-none border-t border-border bg-strip py-6 sm:py-7",
               employeeDialogInsetClass
             )}
           >

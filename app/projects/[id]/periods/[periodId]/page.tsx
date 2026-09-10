@@ -3,6 +3,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Download, FileText } from "lucide-react";
 import { PageDocumentActions } from "@/components/ui/PageDocumentActions";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
+import {
+  metaLabelClassName,
+  metaValueClassName,
+} from "@/components/ui/meta-facts";
 import { firstStoredPath } from "@/lib/stored-paths";
 
 import { prisma } from "@/lib/prisma";
@@ -51,10 +56,6 @@ import { cn } from "@/lib/utils";
 const sectionTitleClassName =
   "text-base font-semibold tracking-tight text-text";
 const sectionCardClassName = "p-5 sm:p-6";
-const metaLabelClassName =
-  "w-36 shrink-0 px-4 py-2.5 text-left align-top text-xs font-semibold uppercase tracking-[0.12em] text-subtle sm:w-44 sm:px-5";
-const metaValueClassName =
-  "min-w-0 break-words px-4 py-2.5 align-top text-text sm:px-5";
 
 export default async function ProjectPeriodPage({
   params,
@@ -412,6 +413,7 @@ export default async function ProjectPeriodPage({
           <h3 className={`${sectionTitleClassName} px-4 pt-5 sm:px-5`}>
             {t("pages.projects.periodPage.factsTitle")}
           </h3>
+          <div className="min-w-0 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
           <table className="mt-3 w-full text-sm">
             <tbody>
               <tr className="border-b border-border">
@@ -498,6 +500,7 @@ export default async function ProjectPeriodPage({
               </tr>
             </tbody>
           </table>
+          </div>
         </SectionCard>
 
         <SectionCard className={sectionCardClassName}>
@@ -594,7 +597,7 @@ export default async function ProjectPeriodPage({
               {t("pages.projects.periodPage.noDocuments")}
             </p>
           ) : (
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className={chipScrollRowClassName("mt-3")}>
               {documents.map((doc) => (
                 <a
                   key={doc.href}

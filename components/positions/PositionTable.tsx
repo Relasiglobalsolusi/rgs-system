@@ -11,6 +11,7 @@ import PositionEditDialog, {
 } from "@/components/positions/PositionEditDialog";
 import type { EmployeeCategoryOption } from "@/components/employees/EmployeeFormFields";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import DirectoryFilterTab from "@/components/ui/DirectoryFilterTab";
 import StatusBadge from "@/components/ui/StatusBadge";
 import {
@@ -251,7 +252,7 @@ export default function PositionTable({
         />
       </div>
       <div
-        className="flex flex-wrap gap-2"
+        className={chipScrollRowClassName()}
         role="group"
         aria-label={t("pages.employees.filterDepartment")}
       >

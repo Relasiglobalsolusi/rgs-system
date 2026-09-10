@@ -564,6 +564,30 @@ export function customDayCycleContaining(
   return customDayCyclePeriodStartingInMonth(y, m + 1, fromDay, toDay);
 }
 
+/** Round a chosen last day up to a full calendar month or custom cycle end. */
+export function snapToFullPeriodEnd(
+  lastDay: Date,
+  cycle?: {
+    basis?: string | null;
+    fromDay?: number | null;
+    toDay?: number | null;
+  }
+): Date {
+  const day = toUtcDateOnly(lastDay);
+  if (
+    cycle?.basis === "CONTRACT_CYCLE" &&
+    cycle.fromDay != null &&
+    cycle.toDay != null
+  ) {
+    return toUtcDateOnly(
+      customDayCycleContaining(cycle.fromDay, cycle.toDay, day).periodEnd
+    );
+  }
+  return new Date(
+    Date.UTC(day.getUTCFullYear(), day.getUTCMonth() + 1, 0)
+  );
+}
+
 /**
  * First open monthly period for a Regular contract after Move to In Progress.
  * Calendar Month → month containing real start; Custom Period → window containing start.

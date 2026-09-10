@@ -40,6 +40,21 @@ export function bankAccountWhere(
   return { bankAccountId: scope.id };
 }
 
+/** True when the report is narrowed to one bank (including unassigned). */
+export function isSingleBankSelection(bank?: string | null): boolean {
+  return parseFinancialReportBankScope(bank).kind !== "all";
+}
+
+export function matchesBankAccount(
+  bankAccountId: string | null | undefined,
+  bank: string
+): boolean {
+  const scope = parseFinancialReportBankScope(bank);
+  if (scope.kind === "all") return true;
+  if (scope.kind === "unassigned") return bankAccountId == null;
+  return bankAccountId === scope.id;
+}
+
 export type DateRange = {
   from: Date;
   toExclusive: Date;

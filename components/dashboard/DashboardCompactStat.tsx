@@ -50,7 +50,7 @@ export default function DashboardCompactStat({
           <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-subtle lg:text-xs lg:tracking-wider">
             {resolvedLabel}
           </p>
-          <p className="mt-1.5 text-2xl font-bold tabular-nums text-text sm:mt-2 sm:text-3xl">
+          <p className="mt-1.5 break-words text-2xl font-bold tabular-nums text-text sm:mt-2 sm:text-3xl">
             {value}
           </p>
           {resolvedHint && (

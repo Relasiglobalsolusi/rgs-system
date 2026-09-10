@@ -18,6 +18,7 @@ import {
 } from "@/components/employees/employee-dialog-ui";
 import ImageLightbox from "@/components/ui/ImageLightbox";
 import { Button } from "@/components/ui/button";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -438,7 +439,7 @@ export default function ProgressProjectFeed({
           <p className="text-sm font-medium text-text">
             {t("pages.progress.viewMode")}
           </p>
-          <div className="flex flex-wrap gap-2">
+          <div className={chipScrollRowClassName()}>
             <Button
               type="button"
               size="badge"

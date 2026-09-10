@@ -13,7 +13,11 @@ import {
 } from "@/lib/inventory";
 import type { AppLocale } from "@/lib/i18n/locale";
 import { prisma } from "@/lib/prisma";
-import { requireModule, toPermissionUser } from "@/lib/session";
+import {
+  requireApprovalsQueue,
+  requireModule,
+  toPermissionUser,
+} from "@/lib/session";
 import { assertCanApproveProjectServiceArea } from "@/lib/om-approval";
 import { isAreaManagerOrAbovePosition } from "@/lib/positions";
 import { capitalizeProper } from "@/lib/text-case";
@@ -205,7 +209,7 @@ export async function cancelMaterialRequest(formData: FormData) {
 export async function reviewMaterialRequest(formData: FormData) {
   const locale = await getServerLocale();
   try {
-    const session = await requireModule("approvals");
+    const session = await requireApprovalsQueue("materialRequests");
     const company = await requireCompany(locale);
     const id = String(formData.get("id") ?? "").trim();
     const decision = String(formData.get("decision") ?? "")

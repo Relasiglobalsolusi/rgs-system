@@ -63,12 +63,25 @@ async function coordsFromMapsUrl(
 }
 
 /**
- * Prefer the Maps pin from a Google Maps / share link in `location` (or inline
- * coords in that field) over form lat/lng, which may come from Nominatim search.
+ * Prefer a dragged map pin (form lat/lng) over a Google Maps URL. The URL is
+ * only used when the form has no coordinates.
  */
 export async function resolveProjectSiteCoordinates(
   input: SiteCoordinateInput
 ): Promise<ResolvedSiteCoordinates | null> {
+  if (
+    input.latitude != null &&
+    input.longitude != null &&
+    Number.isFinite(input.latitude) &&
+    Number.isFinite(input.longitude)
+  ) {
+    return {
+      latitude: input.latitude,
+      longitude: input.longitude,
+      source: "form",
+    };
+  }
+
   const location = input.location.trim();
 
   if (location) {
@@ -95,19 +108,6 @@ export async function resolveProjectSiteCoordinates(
         };
       }
     }
-  }
-
-  if (
-    input.latitude != null &&
-    input.longitude != null &&
-    Number.isFinite(input.latitude) &&
-    Number.isFinite(input.longitude)
-  ) {
-    return {
-      latitude: input.latitude,
-      longitude: input.longitude,
-      source: "form",
-    };
   }
 
   return null;

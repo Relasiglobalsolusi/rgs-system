@@ -40,30 +40,19 @@ export function catchUpAsOfDate(
   return toUtcDateOnly(booksOpenDate);
 }
 
-/** Catch-up paid before books open stays off live P&L. Unpaid catch-up is AR. */
+/** Catch-up never lands on live P&L. It still counts on that project's own report. */
 export function isLiveInvoiceIncome(opts: {
   isCatchUp?: boolean | null;
   paidAt?: Date | null;
   booksOpenDate?: Date | null;
 }): boolean {
   if (!opts.paidAt) return false;
-  if (!opts.isCatchUp) return true;
-  if (!opts.booksOpenDate) return false;
-  return (
-    opts.paidAt.getTime() >= toUtcDateOnly(opts.booksOpenDate).getTime()
-  );
+  if (opts.isCatchUp) return false;
+  return true;
 }
 
-export function liveInvoiceIncomeWhere(booksOpenDate?: Date | null) {
-  if (!booksOpenDate) {
-    return { isCatchUp: false };
-  }
-  return {
-    OR: [
-      { isCatchUp: false },
-      { isCatchUp: true, paidAt: { gte: toUtcDateOnly(booksOpenDate) } },
-    ],
-  };
+export function liveInvoiceIncomeWhere(_booksOpenDate?: Date | null) {
+  return { isCatchUp: false };
 }
 
 export async function liveInvoiceIncomeWhereFor(companyId: string) {

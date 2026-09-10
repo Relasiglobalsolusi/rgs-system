@@ -257,32 +257,17 @@ export function parseProjectChargedTax(formData: FormData): {
 
 export type ExclusiveChargedTaxBreakdown = {
   exclusive: number;
+  ppn: number;
+  pph: number;
   taxAmount: number;
   gross: number;
 };
 
 /**
  * Contract / invoice typed amounts are exclusive of tax.
- * Add Value Added Tax and final / other charged tax. Withholding is not added.
+ * Commercial clients pay DPP + PPN + PPh to us; we then remit PPN and PPh.
+ * Government contracts: cash in is DPP only (the institution remits tax).
  */
-export function projectWithholdingCreditIdr(input: {
-  dpp: number;
-  chargedTaxKind?: CommercialTaxKind | "" | null;
-  pphRatePercent?: number | null;
-}): number {
-  const kind = isCommercialTaxKind(input.chargedTaxKind)
-    ? input.chargedTaxKind
-    : null;
-  if (!kind || !commercialTaxIncludesWithholding(kind)) return 0;
-  const rate = input.pphRatePercent;
-  if (rate == null || rate <= 0) {
-    const fallback = defaultCommercialNonVatRatePercent(kind);
-    if (fallback == null || fallback <= 0) return 0;
-    return Math.round(input.dpp * (fallback / 100));
-  }
-  return Math.round(input.dpp * (rate / 100));
-}
-
 export function exclusivePricePlusChargedTax(input: {
   exclusiveAmount: number;
   chargedTaxKind?: CommercialTaxKind | "" | null;
@@ -293,7 +278,7 @@ export function exclusivePricePlusChargedTax(input: {
 }): ExclusiveChargedTaxBreakdown {
   const exclusive = Math.max(0, Math.round(input.exclusiveAmount));
   if (exclusive <= 0) {
-    return { exclusive: 0, taxAmount: 0, gross: 0 };
+    return { exclusive: 0, ppn: 0, pph: 0, taxAmount: 0, gross: 0 };
   }
 
   const kind =
@@ -302,34 +287,34 @@ export function exclusivePricePlusChargedTax(input: {
         ? input.chargedTaxKind
         : null,
       requiresTaxInvoice: input.requiresTaxInvoice,
-    }) || null;
+    }) || "PPN";
 
-  let taxAmount = 0;
-  if (commercialTaxIncludesVat(kind) && !input.isGovernmentContract) {
-    const vatRate =
-      input.ppnRatePercent != null && input.ppnRatePercent > 0
-        ? input.ppnRatePercent
-        : DEFAULT_PRODUCT_PPN_RATE_PERCENT;
-    taxAmount += applyExclusiveVat(exclusive, ppnRateFromPercent(vatRate)).ppn;
-  }
-  if (
-    kind === "PPH_4_2" ||
-    kind === "PPN_AND_PPH_4_2" ||
-    kind === "PPH_23" ||
-    kind === "PPN_AND_PPH_23" ||
-    kind === "OTHER"
-  ) {
-    const rate =
-      input.pphRatePercent != null && input.pphRatePercent > 0
-        ? input.pphRatePercent
-        : defaultCommercialNonVatRatePercent(kind) ?? 0;
-    if (rate > 0) {
-      taxAmount += Math.round(exclusive * (rate / 100));
+  let ppn = 0;
+  let pph = 0;
+  if (!input.isGovernmentContract) {
+    if (commercialTaxIncludesVat(kind)) {
+      const vatRate =
+        input.ppnRatePercent != null && input.ppnRatePercent > 0
+          ? input.ppnRatePercent
+          : DEFAULT_PRODUCT_PPN_RATE_PERCENT;
+      ppn = applyExclusiveVat(exclusive, ppnRateFromPercent(vatRate)).ppn;
+    }
+    if (commercialTaxIncludesIncomeTax(kind) || kind === "OTHER") {
+      const rate =
+        input.pphRatePercent != null && input.pphRatePercent > 0
+          ? input.pphRatePercent
+          : defaultCommercialNonVatRatePercent(kind) ?? 0;
+      if (rate > 0) {
+        pph = Math.round(exclusive * (rate / 100));
+      }
     }
   }
 
+  const taxAmount = ppn + pph;
   return {
     exclusive,
+    ppn,
+    pph,
     taxAmount,
     gross: exclusive + taxAmount,
   };
@@ -348,6 +333,27 @@ export function invoiceGrossFromExclusivePrice(
   if (exclusiveAmount == null || !Number.isFinite(exclusiveAmount) || exclusiveAmount <= 0) {
     return null;
   }
+  return exclusivePricePlusChargedTax({
+    exclusiveAmount,
+    chargedTaxKind: project.chargedTaxKind,
+    requiresTaxInvoice: project.requiresTaxInvoice,
+    ppnRatePercent,
+    pphRatePercent: project.pphRatePercent,
+    isGovernmentContract: project.isGovernmentContract,
+  }).gross;
+}
+
+/** What the client still owes: exclusive + PPN + PPh (DPP only on government jobs). */
+export function invoiceDueFromExclusive(
+  exclusiveAmount: number,
+  project: {
+    chargedTaxKind?: CommercialTaxKind | "" | null;
+    requiresTaxInvoice?: boolean | null;
+    pphRatePercent?: number | null;
+    isGovernmentContract?: boolean | null;
+  },
+  ppnRatePercent?: number | null
+): number {
   return exclusivePricePlusChargedTax({
     exclusiveAmount,
     chargedTaxKind: project.chargedTaxKind,

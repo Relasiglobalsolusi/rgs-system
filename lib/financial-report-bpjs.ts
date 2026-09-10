@@ -110,7 +110,7 @@ async function loadEnrolledEmployees(
     where: {
       companyId,
       archivedFromDirectory: false,
-      status: "ACTIVE",
+      status: { in: ["ACTIVE", "ON_LEAVE", "LEAVE_PENDING"] },
       employmentType: "FULL_TIME",
       OR: [
         { bpjsKesehatanEnabled: true },

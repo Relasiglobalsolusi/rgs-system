@@ -93,7 +93,7 @@ function SetPasswordContent({
 
   return (
     <main className="auth-surface auth-shell">
-      <div className="mx-auto flex min-h-screen w-full max-w-lg items-center px-6 py-12">
+      <div className="mx-auto flex min-h-screen w-full max-w-lg items-center px-5 py-8 sm:px-6 sm:py-12">
         <div className="w-full">
           <div className="mb-8 flex justify-center">
             <AuthLogo />
@@ -111,7 +111,7 @@ function SetPasswordContent({
               : t("auth.createPasswordSubtitle")}
           </p>
 
-          <form method="post" action="/set-password" onSubmit={handleSubmit} className="mt-8 space-y-5">
+          <form method="post" action="/set-password" noValidate onSubmit={handleSubmit} className="mt-8 space-y-5">
             <div>
               <label
                 htmlFor="username"

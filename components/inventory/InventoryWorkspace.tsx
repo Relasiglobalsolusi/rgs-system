@@ -32,6 +32,7 @@ import type {
   InventoryWriteOffRow,
 } from "@/components/inventory/inventory-types";
 import DirectoryAddButton from "@/components/ui/DirectoryAddButton";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import DirectorySearchInput, {
   matchesDirectorySearch,
 } from "@/components/ui/DirectorySearchInput";
@@ -455,7 +456,7 @@ export default function InventoryWorkspace({
         {t("pages.inventory.costingNote")}
       </p>
 
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <DirectorySearchInput
           value={searchQuery}
           onChange={setSearchQuery}
@@ -463,7 +464,7 @@ export default function InventoryWorkspace({
           className="min-w-0 w-full max-w-none sm:min-w-[12rem] sm:flex-1"
         />
         {canManage ? (
-          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <div className={chipScrollRowClassName("ml-auto justify-end")}>
             {tab === "writeOffs" && canAssignToProject ? (
               <DirectoryAddButton
                 label={t("pages.inventory.addWriteOff")}

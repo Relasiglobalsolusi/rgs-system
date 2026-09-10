@@ -91,9 +91,13 @@ export function shouldCompleteProjectAfterSettlement(opts: {
   endDate: Date | null | undefined;
   lastPaidPeriodEnd: Date;
   periods: Array<{
+    id?: string;
     status: string;
     taxInvoiceDoneAt?: Date | string | null;
     milestonePercent?: number | null;
+  }>;
+  visits?: Array<{
+    invoicePeriodId: string | null;
   }>;
 }): boolean {
   const hasOpenCollection = opts.periods.some((period) =>
@@ -110,11 +114,21 @@ export function shouldCompleteProjectAfterSettlement(opts: {
 
   if (opts.projectStatus === "COMPLETED") return true;
 
-  if (opts.billingMode === "MULTI_VISIT") {
-    return true;
-  }
-
   if (isGcFacade) {
+    if (opts.billingMode === "MULTI_VISIT") {
+      const visits = opts.visits ?? [];
+      if (visits.length === 0) return false;
+      const paidById = new Map(
+        opts.periods.map((period) => [period.id ?? "", period])
+      );
+      return visits.every((visit) => {
+        if (!visit.invoicePeriodId) return false;
+        const period = paidById.get(visit.invoicePeriodId);
+        if (!period) return false;
+        if (period.status !== "PAID") return false;
+        return period.taxInvoiceDoneAt != null;
+      });
+    }
     const maxPaidOrIssued = maxMilestonePercent(
       opts.periods.map((period) => ({
         status: period.status,

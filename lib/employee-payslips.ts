@@ -14,6 +14,7 @@ import {
   payrollPeriodFromJakartaDate,
   previousPayrollCalendarMonth,
   type PayrollPeriod,
+  type PayrollRunKind,
 } from "@/lib/internal-payroll-period";
 import { isPayrollPayableType } from "@/lib/payroll-deductions";
 import { prisma } from "@/lib/prisma";
@@ -64,10 +65,11 @@ function rowFromSnapshot(
 
 function periodsFromHire(
   hiredAt: Date | null | undefined,
-  current: PayrollPeriod
+  current: PayrollPeriod,
+  run: PayrollRunKind
 ): PayrollPeriod[] {
   const start = hiredAt
-    ? payrollPeriodFromJakartaDate(hiredAt)
+    ? payrollPeriodFromJakartaDate(hiredAt, run)
     : (() => {
         let year = current.year;
         let month = current.month;
@@ -82,6 +84,7 @@ function periodsFromHire(
   const all = listPayrollPeriodChoices({
     historyMonths: 36,
     selected: start,
+    run,
   }).slice();
   all.reverse();
   return all.filter((period) => {
@@ -96,13 +99,19 @@ export async function loadEmployeePayslipHistory(options: {
   employeeId: string;
   hiredAt?: Date | null;
 }): Promise<EmployeePayslipMonthSummary[]> {
-  const current = currentPayrollPeriod();
-  const periods = periodsFromHire(options.hiredAt, current);
+  const employee = await prisma.employee.findFirst({
+    where: { id: options.employeeId, companyId: options.companyId },
+    select: { payrollRun: true },
+  });
+  const run = employee?.payrollRun ?? "PROJECT_CYCLE";
+  const current = currentPayrollPeriod(undefined, run);
+  const periods = periodsFromHire(options.hiredAt, current, run);
   if (periods.length === 0) return [];
 
   const locks = await prisma.internalPayrollLock.findMany({
     where: {
       companyId: options.companyId,
+      run,
       OR: periods.map((period) => ({
         year: period.year,
         month: period.month,
@@ -147,6 +156,7 @@ export async function loadEmployeePayslipHistory(options: {
         year: period.year,
         month: period.month,
         employeeId: options.employeeId,
+        run,
       });
       return { period, row: rows[0] ?? null };
     })
@@ -178,17 +188,24 @@ export async function loadEmployeePayslipMonth(options: {
   year: number;
   month: number;
 }): Promise<EmployeePayslipMonthDetail> {
+  const employeeRun = await prisma.employee.findFirst({
+    where: { id: options.employeeId, companyId: options.companyId },
+    select: { payrollRun: true, basePay: true },
+  });
+  const run = employeeRun?.payrollRun ?? "PROJECT_CYCLE";
   const [lock, rows, employee, balance] = await Promise.all([
     getInternalPayrollLockRecord(
       options.companyId,
       options.year,
-      options.month
+      options.month,
+      run
     ),
     loadInternalPayrollMonth({
       companyId: options.companyId,
       year: options.year,
       month: options.month,
       employeeId: options.employeeId,
+      run,
     }),
     prisma.employee.findFirst({
       where: {

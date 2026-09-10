@@ -9,6 +9,7 @@ import { formatEmployeeName } from "@/lib/employee-user-link";
 import {
   commercialPeriodGross,
   recognizedIncomeAmount,
+  soldOffIncomeAmount,
 } from "@/lib/financial-report";
 import { getFinancialReportOverviewData } from "@/lib/financial-report-overview";
 import {
@@ -16,6 +17,7 @@ import {
   FINANCIAL_REPORT_ALL_BANKS,
   financialReportCalendarRange,
   financialReportWageRange,
+  matchesBankAccount,
   prismaDateFilter,
   type FinancialReportSelection,
 } from "@/lib/financial-report-query";
@@ -28,12 +30,15 @@ import {
 import { translate } from "@/lib/i18n/translate";
 import { excludeEquipmentFromProjectInventoryCost } from "@/lib/inventory";
 import {
-  allocateCompanyWages,
+  allocateLockedCompanyWages,
+  listLockedPayrollRunsInRange,
+} from "@/lib/locked-payroll-pnl";
+import {
+  listInternalWageSiteKeys,
   OVERHEAD_WAGE_BUCKET,
 } from "@/lib/internal-payroll-wages";
-import { payrollPeriodsInUtcRange } from "@/lib/internal-payroll-period";
 import { isPayrollPayableType, PAYROLL_DEDUCTION_LABEL_KEY } from "@/lib/payroll-deductions";
-import { isSetupMonth, parkingDealFromProject } from "@/lib/parking-economics";
+import { isSetupMonth, parkingDealFromProject, parkingLogCreditDate, parkingMemberRevenue, parkingPeriodKey } from "@/lib/parking-economics";
 import {
   BOTTOM_SAFE,
   CONTENT_WIDTH,
@@ -349,7 +354,8 @@ function pushPurchaseLines(
 async function listParkingLines(
   companyId: string,
   from: Date,
-  toExclusive: Date
+  toExclusive: Date,
+  bank: string
 ): Promise<{ moneyIn: FinancialReportPdfLine[]; moneyOut: FinancialReportPdfLine[] }> {
   const [projects, logs] = await Promise.all([
     prisma.project.findMany({
@@ -375,6 +381,8 @@ async function listParkingLines(
         year: true,
         month: true,
         revenueAmount: true,
+        creditedAt: true,
+        bankAccountId: true,
         projectId: true,
       },
     }),
@@ -382,80 +390,68 @@ async function listParkingLines(
 
   const moneyIn: FinancialReportPdfLine[] = [];
   const moneyOut: FinancialReportPdfLine[] = [];
-  const now = jakartaYearMonth();
   for (const project of projects) {
     const deal = parkingDealFromProject(project);
-    const startYm = jakartaYearMonth(project.startDate ?? project.createdAt);
-    const endYm = project.endDate ? jakartaYearMonth(project.endDate) : now;
-    const last =
-      endYm.year > now.year ||
-      (endYm.year === now.year && endYm.month > now.month)
-        ? now
-        : endYm;
-    const revenueByMonth = new Map<string, number>(
-      logs
-        .filter((log) => log.projectId === project.id)
-        .map((log) => [
-          `${log.year}-${log.month}`,
-          decimalToNumber(log.revenueAmount) ?? 0,
-        ])
-    );
-    let year = startYm.year;
-    let month = startYm.month;
     const projectLabel = joinDetail(project.client?.name, project.name);
-    while (year < last.year || (year === last.year && month <= last.month)) {
-      const monthStart = new Date(Date.UTC(year, month - 1, 1));
-      if (inUtcRange(monthStart, from, toExclusive)) {
-        const casual = revenueByMonth.get(`${year}-${month}`) ?? 0;
-        const memberRevenue =
-          (deal.memberParkingUnitFee ?? 0) * (deal.memberParkingUnitCount ?? 0);
-        const revenue = casual + memberRevenue;
-        const period = `${year}-${String(month).padStart(2, "0")}`;
-        if (revenue !== 0) {
-          moneyIn.push({
-            date: monthStart,
-            source: "parking",
-            detail: joinDetail(projectLabel, period),
-            amount: revenue,
-          });
-        }
-        if (deal.monthlyClientFee > 0) {
-          moneyOut.push({
-            date: monthStart,
-            source: "parkingFee",
-            detail: joinDetail(projectLabel, period),
-            amount: deal.monthlyClientFee,
-          });
-        }
-        if (deal.profitSharePercent > 0 && casual > 0) {
-          moneyOut.push({
-            date: monthStart,
-            source: "parkingShare",
-            detail: joinDetail(projectLabel, period),
-            amount: Math.round((casual * deal.profitSharePercent) / 100),
-          });
-        }
-        if (deal.parkingTaxPercent > 0 && casual > 0) {
-          moneyOut.push({
-            date: monthStart,
-            source: "parkingTax",
-            detail: joinDetail(projectLabel, period),
-            amount: Math.round((casual * deal.parkingTaxPercent) / 100),
-          });
-        }
-        if (deal.setupCost > 0 && isSetupMonth(project, year, month)) {
-          moneyOut.push({
-            date: monthStart,
-            source: "parkingSetup",
-            detail: joinDetail(projectLabel, period),
-            amount: deal.setupCost,
-          });
-        }
+    for (const log of logs.filter((row) => row.projectId === project.id)) {
+      if (!matchesBankAccount(log.bankAccountId, bank)) continue;
+      const credited = parkingLogCreditDate(log);
+      if (!inUtcRange(credited, from, toExclusive)) continue;
+      const casual = decimalToNumber(log.revenueAmount) ?? 0;
+      const memberRevenue = parkingMemberRevenue(deal);
+      const revenue = casual + memberRevenue;
+      const period = parkingPeriodKey(log.year, log.month);
+      if (revenue !== 0) {
+        moneyIn.push({
+          date: credited,
+          source: "parking",
+          detail: joinDetail(
+            projectLabel,
+            `Parking Income For ${period}`,
+            `Credited ${formatDisplayDate(credited)}`
+          ),
+          amount: revenue,
+        });
       }
-      month += 1;
-      if (month > 12) {
-        month = 1;
-        year += 1;
+    }
+    for (const log of logs.filter((row) => row.projectId === project.id)) {
+      if (!log.creditedAt) continue;
+      if (!matchesBankAccount(log.bankAccountId, bank)) continue;
+      const credited = log.creditedAt;
+      if (!inUtcRange(credited, from, toExclusive)) continue;
+      const casual = decimalToNumber(log.revenueAmount) ?? 0;
+      const period = parkingPeriodKey(log.year, log.month);
+      if (deal.monthlyClientFee > 0) {
+        moneyOut.push({
+          date: credited,
+          source: "parkingFee",
+          detail: joinDetail(projectLabel, period),
+          amount: deal.monthlyClientFee,
+        });
+      }
+      if (deal.profitSharePercent > 0 && casual > 0) {
+        moneyOut.push({
+          date: credited,
+          source: "parkingShare",
+          detail: joinDetail(projectLabel, period),
+          amount: Math.round((casual * deal.profitSharePercent) / 100),
+        });
+      }
+      if (deal.parkingTaxPercent > 0 && casual > 0) {
+        moneyOut.push({
+          date: credited,
+          source: "parkingTax",
+          detail: joinDetail(projectLabel, period),
+          amount: Math.round((casual * deal.parkingTaxPercent) / 100),
+        });
+      }
+      if (deal.setupCost > 0 && isSetupMonth(project, log.year, log.month)) {
+        moneyOut.push({
+          date: credited,
+          source: "parkingSetup",
+          detail: joinDetail(projectLabel, period),
+          amount: deal.setupCost,
+        });
       }
     }
   }
@@ -473,8 +469,13 @@ export async function loadFinancialReportPdfData(
   const allBanks = bank === FINANCIAL_REPORT_ALL_BANKS;
   const calendarPaidAt = prismaDateFilter(calendar.from, calendar.toExclusive);
   const calendarMovedAt = prismaDateFilter(calendar.from, calendar.toExclusive);
-  const wagePeriods = payrollPeriodsInUtcRange(wage.from, wage.toExclusive);
   const liveIncome = await liveInvoiceIncomeWhereFor(companyId);
+  // Deductions and overtime follow the wage gate: locked runs, payable in range.
+  const lockedRuns = await listLockedPayrollRunsInRange({
+    companyId,
+    from: calendar.from,
+    toExclusive: calendar.toExclusive,
+  });
 
   const [
     overview,
@@ -518,20 +519,28 @@ export async function loadFinancialReportPdfData(
       },
       orderBy: [{ paidAt: "asc" }],
     }),
+    // Sold-off income lands on the paid date; an unpaid sale is not income yet.
     prisma.inventorySale.findMany({
       where: {
         companyId,
         movement: { voidedAt: null },
         ...bankAccountWhere(bank),
-        ...(calendarMovedAt ? { soldAt: calendarMovedAt } : {}),
+        paidAt: {
+          not: null,
+          ...(calendar.from ? { gte: calendar.from } : {}),
+          ...(calendar.toExclusive ? { lt: calendar.toExclusive } : {}),
+        },
       },
       select: {
         soldAt: true,
+        paidAt: true,
         totalPrice: true,
+        subtotal: true,
+        taxAmount: true,
         buyer: true,
         item: { select: { name: true } },
       },
-      orderBy: [{ soldAt: "asc" }],
+      orderBy: [{ paidAt: "asc" }],
     }),
     allBanks
       ? prisma.payrollManagementPeriod.findMany({
@@ -540,6 +549,7 @@ export async function loadFinancialReportPdfData(
             year: true,
             month: true,
             status: true,
+            pdfLocked: true,
             wagesTotal: true,
             feeAmount: true,
             taxAmount: true,
@@ -553,12 +563,7 @@ export async function loadFinancialReportPdfData(
           },
         })
       : Promise.resolve([]),
-    allBanks
-      ? listParkingLines(companyId, calendar.from, calendar.toExclusive)
-      : Promise.resolve({
-          moneyIn: [] as FinancialReportPdfLine[],
-          moneyOut: [] as FinancialReportPdfLine[],
-        }),
+    listParkingLines(companyId, calendar.from, calendar.toExclusive, bank),
     allBanks
       ? prisma.employee.findMany({
           where: { companyId, depositStatus: "KEPT_BY_COMPANY" },
@@ -578,6 +583,7 @@ export async function loadFinancialReportPdfData(
         companyId,
         origin: "IMPORT",
         reversedAt: null,
+        ...bankAccountWhere(bank),
         paidAt: {
           not: null,
           ...(calendar.from ? { gte: calendar.from } : {}),
@@ -599,6 +605,7 @@ export async function loadFinancialReportPdfData(
         purpose: "PROJECT",
         purchaseCategory: { not: "VEHICLE" },
         reversedAt: null,
+        ...bankAccountWhere(bank),
         paidAt: {
           not: null,
           ...(calendar.from ? { gte: calendar.from } : {}),
@@ -614,6 +621,7 @@ export async function loadFinancialReportPdfData(
         purpose: "INTERNAL",
         purchaseCategory: { not: "VEHICLE" },
         reversedAt: null,
+        ...bankAccountWhere(bank),
         paidAt: {
           not: null,
           ...(calendar.from ? { gte: calendar.from } : {}),
@@ -623,7 +631,8 @@ export async function loadFinancialReportPdfData(
       select: PURCHASE_SELECT,
       orderBy: { paidAt: "asc" },
     }),
-    prisma.inventoryMovement.findMany({
+    allBanks
+      ? prisma.inventoryMovement.findMany({
       where: {
         companyId,
         type: "ISSUE_TO_PROJECT",
@@ -640,8 +649,10 @@ export async function loadFinancialReportPdfData(
         project: { select: { name: true } },
       },
       orderBy: { movedAt: "asc" },
-    }),
-    prisma.inventoryMovement.findMany({
+    })
+      : Promise.resolve([]),
+    allBanks
+      ? prisma.inventoryMovement.findMany({
       where: {
         companyId,
         type: "ISSUE_TO_PROJECT",
@@ -657,13 +668,16 @@ export async function loadFinancialReportPdfData(
         project: { select: { name: true } },
       },
       orderBy: { movedAt: "asc" },
-    }),
-    allocateCompanyWages({
+    })
+      : Promise.resolve([]),
+    allocateLockedCompanyWages({
       companyId,
-      from: wage.from,
-      toExclusive: wage.toExclusive,
+      from: calendar.from,
+      toExclusive: calendar.toExclusive,
+      bank,
     }),
-    prisma.thrPayment.findMany({
+    allBanks
+      ? prisma.thrPayment.findMany({
       where: {
         companyId,
         status: "PAID",
@@ -680,12 +694,14 @@ export async function loadFinancialReportPdfData(
         employee: { select: { firstName: true, lastName: true, employeeNo: true } },
       },
       orderBy: { paidAt: "asc" },
-    }),
+    })
+      : Promise.resolve([]),
     prisma.projectExpense.findMany({
       where: {
         ...LIVE_PROJECT_EXPENSE_WHERE,
         companyId,
         ...(calendarMovedAt ? { incurredAt: calendarMovedAt } : {}),
+        ...bankAccountWhere(bank),
       },
       select: {
         incurredAt: true,
@@ -700,6 +716,7 @@ export async function loadFinancialReportPdfData(
         companyId,
         purchaseCategory: "VEHICLE",
         reversedAt: null,
+        ...bankAccountWhere(bank),
         paidAt: {
           not: null,
           ...(calendar.from ? { gte: calendar.from } : {}),
@@ -709,18 +726,16 @@ export async function loadFinancialReportPdfData(
       select: PURCHASE_SELECT,
       orderBy: { paidAt: "asc" },
     }),
-    prisma.payrollDeduction.findMany({
+    allBanks && lockedRuns.length > 0
+      ? prisma.payrollDeduction.findMany({
       where: {
         companyId,
         type: { not: "SECURITY_DEPOSIT" },
-        ...(wagePeriods.length > 0
-          ? {
-              OR: wagePeriods.map((period) => ({
-                year: period.year,
-                month: period.month,
-              })),
-            }
-          : {}),
+        OR: lockedRuns.map((lock) => ({
+          year: lock.year,
+          month: lock.month,
+          run: lock.run,
+        })),
       },
       select: {
         type: true,
@@ -732,7 +747,8 @@ export async function loadFinancialReportPdfData(
         project: { select: { name: true } },
       },
       orderBy: [{ year: "asc" }, { month: "asc" }],
-    }),
+    })
+      : Promise.resolve([]),
     prisma.loanMovement.findMany({
       where: {
         facility: { companyId },
@@ -753,6 +769,7 @@ export async function loadFinancialReportPdfData(
       where: {
         project: { companyId, subCategory: { not: "INTERNAL" } },
         status: { in: [...OUTSTANDING_INVOICE_STATUSES] },
+        isCatchUp: false,
       },
       select: {
         dueAt: true,
@@ -785,6 +802,7 @@ export async function loadFinancialReportPdfData(
         companyId,
         purpose: "PETTY_CASH",
         reversedAt: null,
+        ...bankAccountWhere(bank),
         paidAt: {
           not: null,
           ...(calendar.from ? { gte: calendar.from } : {}),
@@ -859,10 +877,10 @@ export async function loadFinancialReportPdfData(
   }
 
   for (const sale of sales) {
-    const amount = decimalToNumber(sale.totalPrice) ?? 0;
+    const amount = soldOffIncomeAmount(sale);
     if (amount === 0) continue;
     moneyInLines.push({
-      date: sale.soldAt,
+      date: sale.paidAt ?? sale.soldAt,
       source: "sale",
       detail: joinDetail(sale.item.name, sale.buyer),
       amount,
@@ -879,7 +897,9 @@ export async function loadFinancialReportPdfData(
       period.project.name,
       `${period.year}-${String(period.month).padStart(2, "0")}`
     );
+    // Wages book only once the sheet is locked, same rule as Internal Payroll.
     if (
+      period.pdfLocked &&
       period.wagesPaidAt &&
       inUtcRange(period.wagesPaidAt, calendar.from, calendar.toExclusive)
     ) {
@@ -990,13 +1010,15 @@ export async function loadFinancialReportPdfData(
       joinDetail(project.client?.name, project.name),
     ])
   );
+  // Internal sites keep their own line, but the cost is Head Office overhead.
+  const internalSiteKeys = await listInternalWageSiteKeys(companyId);
   for (const [site, rows] of wages) {
+    const isStandby = site === OVERHEAD_WAGE_BUCKET;
     const source: FinancialReportSource =
-      site === OVERHEAD_WAGE_BUCKET ? "overheadWages" : "wages";
-    const siteLabel =
-      site === OVERHEAD_WAGE_BUCKET
-        ? translate(locale, "pages.financialReport.detail.overheadWages")
-        : wageProjectName.get(site);
+      isStandby || internalSiteKeys.has(site) ? "overheadWages" : "wages";
+    const siteLabel = isStandby
+      ? translate(locale, "pages.financialReport.detail.overheadWages")
+      : wageProjectName.get(site);
     for (const row of rows) {
       if (row.wageCost === 0) continue;
       moneyOutLines.push({

@@ -8,28 +8,25 @@ import {
   prismaDateFilter,
 } from "@/lib/financial-report-query";
 import {
-  allocateCompanyWages,
-  type AllocatedWageEmployee,
-  type WageSplitNote,
+  allocateLockedCompanyWages,
+} from "@/lib/locked-payroll-pnl";
+import type {
+  AllocatedWageEmployee,
+  WageSplitNote,
 } from "@/lib/internal-payroll-wages";
 import { prisma } from "@/lib/prisma";
 import { PROJECT_PAY_RECOVERY_TYPES } from "@/lib/payroll-deductions";
 import { decimalToNumber } from "@/lib/project-billing";
-import {
-  DEFAULT_PRODUCT_PPN_RATE_PERCENT,
-  ppnRateFromPercent,
-  splitInclusiveVat,
-} from "@/lib/vat";
 
 /**
  * Financial Report P&L definitions (HO Finance only):
  *
  * UX order: company-wide first, then drill to clients → projects (including completed).
  *
- * - Money in: PAID invoice periods at the approved reconciliation amount
- *   (else the invoice amount). Tax-inclusive receipts are split by dividing
- *   by 1 + rate (DPP = paid ÷ 1.12 at 12%). Contract price is the agreed job
- *   value shown separately — never copied onto every period.
+ * - Money in: PAID invoice periods at the exclusive (DPP) approved amount.
+ *   Tax is added on the invoice (DPP, PPN, PPh, then total due) but P&L
+ *   income is DPP. Contract price is the agreed job value shown separately —
+ *   never copied onto every period.
  * - Accounts payable: unpaid vendor bills (what we owe). Not a P&L expense.
  * - Money out: stock issued to a project (ISSUE_TO_PROJECT, not equipment);
  *   PROJECT / INTERNAL vendor bills when paid; Internal Payroll wages;
@@ -50,7 +47,7 @@ type PaidPeriodAmountInput = {
   ppnRatePercent?: Parameters<typeof decimalToNumber>[0];
 };
 
-/** Tax-inclusive commercial amount the client approved or was billed. */
+/** Exclusive (DPP) commercial amount the client approved or was billed. */
 export function commercialPeriodGross(period: PaidPeriodAmountInput): number {
   return (
     decimalToNumber(period.revisedInvoiceAmount) ??
@@ -60,16 +57,25 @@ export function commercialPeriodGross(period: PaidPeriodAmountInput): number {
 }
 
 /**
- * P&L income for one PAID period: approved / invoiced amount with tax
- * taken out by dividing (amount ÷ 1.12 at 12%), never by subtracting 12%.
+ * P&L income for one PAID period: exclusive DPP. VAT and PPh are tax lines,
+ * not revenue.
  */
 export function recognizedIncomeAmount(period: PaidPeriodAmountInput): number {
-  const gross = commercialPeriodGross(period);
-  if (gross <= 0) return 0;
-  const ratePercent =
-    decimalToNumber(period.ppnRatePercent) ?? DEFAULT_PRODUCT_PPN_RATE_PERCENT;
-  if (ratePercent <= 0) return Math.round(gross);
-  return splitInclusiveVat(gross, ppnRateFromPercent(ratePercent)).dpp;
+  const exclusive = commercialPeriodGross(period);
+  if (exclusive <= 0) return 0;
+  return Math.round(exclusive);
+}
+
+/** Sold-off P&L income is DPP (subtotal). Legacy rows without subtotal use totalPrice. */
+export function soldOffIncomeAmount(sale: {
+  subtotal?: Parameters<typeof decimalToNumber>[0];
+  taxAmount?: Parameters<typeof decimalToNumber>[0];
+  totalPrice?: Parameters<typeof decimalToNumber>[0];
+}): number {
+  const subtotal = decimalToNumber(sale.subtotal) ?? 0;
+  const taxAmount = decimalToNumber(sale.taxAmount) ?? 0;
+  if (subtotal > 0 || taxAmount > 0) return Math.round(subtotal);
+  return Math.round(decimalToNumber(sale.totalPrice) ?? 0);
 }
 
 export function profitMarginPercent(
@@ -114,7 +120,7 @@ export async function listProjectWageCosts(
   options?: { companyId?: string; from?: Date; toExclusive?: Date }
 ): Promise<ProjectWageEmployeeRow[]> {
   if (!options?.companyId) return [];
-  const allocated = await allocateCompanyWages({
+  const allocated = await allocateLockedCompanyWages({
     companyId: options.companyId,
     from: options.from,
     toExclusive: options.toExclusive,
@@ -128,7 +134,7 @@ export async function getProjectWageCostsByProjectIds(
 ): Promise<Map<string, number>> {
   const totals = new Map<string, number>();
   if (projectIds.length === 0 || !options?.companyId) return totals;
-  const allocated = await allocateCompanyWages({
+  const allocated = await allocateLockedCompanyWages({
     companyId: options.companyId,
     from: options.from,
     toExclusive: options.toExclusive,
@@ -143,6 +149,7 @@ export async function getProjectWageCostsByProjectIds(
   return totals;
 }
 
+/** Sold-off income lands on the paid date. An unpaid sale is not income yet. */
 export async function getSoldOffIncome(options: {
   companyId: string;
   year?: number;
@@ -151,7 +158,7 @@ export async function getSoldOffIncome(options: {
   toExclusive?: Date;
   bank?: string;
 }): Promise<number> {
-  const soldAt = prismaDateFilter(
+  const paidAt = prismaDateFilter(
     options.from ??
       (options.year != null ? new Date(Date.UTC(options.year, 0, 1)) : undefined),
     options.toExclusive ??
@@ -165,14 +172,11 @@ export async function getSoldOffIncome(options: {
       ...(options.clientId ? { clientId: options.clientId } : {}),
       movement: { voidedAt: null },
       ...bankAccountWhere(options.bank ?? FINANCIAL_REPORT_ALL_BANKS),
-      ...(soldAt ? { soldAt } : {}),
+      paidAt: { not: null, ...(paidAt ?? {}) },
     },
-    select: { totalPrice: true },
+    select: { subtotal: true, taxAmount: true, totalPrice: true },
   });
-  return sales.reduce(
-    (sum, sale) => sum + (decimalToNumber(sale.totalPrice) ?? 0),
-    0
-  );
+  return sales.reduce((sum, sale) => sum + soldOffIncomeAmount(sale), 0);
 }
 
 export async function getSoldOffIncomeByClientIds(
@@ -184,7 +188,7 @@ export async function getSoldOffIncomeByClientIds(
 ): Promise<Map<string, number>> {
   const totals = new Map<string, number>();
   if (clientIds.length === 0) return totals;
-  const soldAt = prismaDateFilter(from, toExclusive);
+  const paidAt = prismaDateFilter(from, toExclusive);
   const groups = await prisma.inventorySale.groupBy({
     by: ["clientId"],
     where: {
@@ -192,13 +196,13 @@ export async function getSoldOffIncomeByClientIds(
       clientId: { in: clientIds },
       movement: { voidedAt: null },
       ...bankAccountWhere(bank),
-      ...(soldAt ? { soldAt } : {}),
+      paidAt: { not: null, ...(paidAt ?? {}) },
     },
-    _sum: { totalPrice: true },
+    _sum: { subtotal: true, taxAmount: true, totalPrice: true },
   });
   for (const row of groups) {
     if (!row.clientId) continue;
-    totals.set(row.clientId, decimalToNumber(row._sum.totalPrice) ?? 0);
+    totals.set(row.clientId, soldOffIncomeAmount(row._sum));
   }
   return totals;
 }
@@ -246,8 +250,9 @@ export async function getPayrollManagementTotalsByProjectIds(
     const fee = decimalToNumber(period.feeAmount) ?? 0;
     const tax = decimalToNumber(period.taxAmount) ?? 0;
     const clientBill = decimalToNumber(period.clientBillAmount) ?? 0;
-    const wageWhen = period.wagesPaidAt;
-    const wagesRecognized = Boolean(period.wagesPaidAt);
+    // Wages book only once the sheet is locked, same rule as Internal Payroll.
+    const wageWhen = period.pdfLocked ? period.wagesPaidAt : null;
+    const wagesRecognized = Boolean(wageWhen);
     if (
       wagesRecognized &&
       (bounded ? inUtcRange(wageWhen, from, toExclusive) : true)
@@ -273,6 +278,7 @@ export async function getProjectPnlAdjustments(
     month?: number | null;
     from?: Date;
     toExclusive?: Date;
+    bank?: string;
   }
 ): Promise<
   Map<
@@ -312,6 +318,7 @@ export async function getProjectPnlAdjustments(
         }
       : {};
   const incurredAt = prismaDateFilter(options?.from, options?.toExclusive);
+  const bank = options?.bank ?? FINANCIAL_REPORT_ALL_BANKS;
 
   const [returns, recoveries, incidents, keptEmployees] = await Promise.all([
     prisma.payrollDeduction.groupBy({
@@ -340,6 +347,7 @@ export async function getProjectPnlAdjustments(
         ...LIVE_PROJECT_EXPENSE_WHERE,
         projectId: { in: projectIds },
         ...(incurredAt ? { incurredAt } : {}),
+        ...bankAccountWhere(bank),
       },
       _sum: { amount: true },
     }),

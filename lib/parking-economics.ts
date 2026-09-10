@@ -1,7 +1,12 @@
-import { allocateCompanyWages } from "@/lib/internal-payroll-wages";
+import { allocateLockedCompanyWages } from "@/lib/locked-payroll-pnl";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/project-billing";
 import { jakartaYearMonth, utcRangeForJakartaMonth } from "@/lib/vat";
+import {
+  bankAccountWhere,
+  FINANCIAL_REPORT_ALL_BANKS,
+  matchesBankAccount,
+} from "@/lib/financial-report-query";
 
 export const DEFAULT_PARKING_CASUAL_TAX_PERCENT = 10;
 
@@ -28,6 +33,8 @@ export type ParkingMonthEconomics = {
   memberRevenue: number;
   taxOut: number;
   notes: string | null;
+  creditedAt: string | null;
+  bankAccountId: string | null;
   deal: ParkingDealTerms;
   profitShareOwed: number;
   leaseOwed: number;
@@ -51,6 +58,19 @@ export type ParkingMonthEconomics = {
   moneyOut: number;
   netProfit: number;
 };
+
+export function parkingLogCreditDate(log: {
+  creditedAt?: Date | null;
+  year: number;
+  month: number;
+}): Date {
+  if (log.creditedAt) return log.creditedAt;
+  return new Date(Date.UTC(log.year, log.month - 1, 1));
+}
+
+export function parkingPeriodKey(year: number, month: number): string {
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
 
 function roundIdr(value: number): number {
   return Math.round(value);
@@ -131,7 +151,8 @@ export async function getProjectPurchaseOutflowsByProjectIds(
   companyId: string,
   projectIds: string[],
   from?: Date,
-  toExclusive?: Date
+  toExclusive?: Date,
+  bank = FINANCIAL_REPORT_ALL_BANKS
 ): Promise<Map<string, number>> {
   const totals = new Map<string, number>();
   if (projectIds.length === 0) return totals;
@@ -142,6 +163,7 @@ export async function getProjectPurchaseOutflowsByProjectIds(
       projectId: { in: projectIds },
       purpose: "PROJECT",
       reversedAt: null,
+      ...bankAccountWhere(bank),
       paidAt: {
         not: null,
         ...(from ? { gte: from } : {}),
@@ -169,7 +191,7 @@ export async function getParkingMonthWages(
   });
   if (!project) return [];
 
-  const allocated = await allocateCompanyWages({
+  const allocated = await allocateLockedCompanyWages({
     companyId: project.companyId,
     from: start,
     toExclusive: endExclusive,
@@ -205,7 +227,12 @@ export async function computeParkingMonthEconomics(options: {
       parkingTaxPercent: true,
       parkingMonthlyLogs: {
         where: { year: options.year, month: options.month },
-        select: { revenueAmount: true, notes: true },
+        select: {
+          revenueAmount: true,
+          notes: true,
+          creditedAt: true,
+          bankAccountId: true,
+        },
         take: 1,
       },
     },
@@ -271,6 +298,8 @@ export async function computeParkingMonthEconomics(options: {
     memberRevenue,
     taxOut,
     notes: log?.notes ?? null,
+    creditedAt: log?.creditedAt?.toISOString() ?? null,
+    bankAccountId: log?.bankAccountId ?? null,
     deal,
     profitShareOwed,
     leaseOwed,
@@ -289,7 +318,8 @@ export async function computeParkingProjectTotals(
   companyId: string,
   projectIds: string[],
   from?: Date,
-  toExclusive?: Date
+  toExclusive?: Date,
+  bank = FINANCIAL_REPORT_ALL_BANKS
 ): Promise<Map<string, { moneyIn: number; dealOut: number }>> {
   const totals = new Map<string, { moneyIn: number; dealOut: number }>();
   if (projectIds.length === 0) return totals;
@@ -308,48 +338,47 @@ export async function computeParkingProjectTotals(
       memberParkingUnitCount: true,
       parkingTaxPercent: true,
       parkingMonthlyLogs: {
-        select: { year: true, month: true, revenueAmount: true },
+        select: {
+          year: true,
+          month: true,
+          revenueAmount: true,
+          creditedAt: true,
+          bankAccountId: true,
+        },
       },
     },
   });
-
-  const now = jakartaYearMonth();
 
   for (const project of projects) {
     const deal = parkingDealFromProject(project);
     let moneyIn = 0;
     let dealOut = 0;
     const memberRevenue = parkingMemberRevenue(deal);
-    const revenueByMonth = new Map<string, number>();
+
     for (const log of project.parkingMonthlyLogs) {
-      const casual = decimalToNumber(log.revenueAmount) ?? 0;
-      revenueByMonth.set(`${log.year}-${log.month}`, casual);
-    }
-
-    const startYm = jakartaYearMonth(project.startDate ?? project.createdAt);
-    const endYm = project.endDate ? jakartaYearMonth(project.endDate) : now;
-    const last =
-      endYm.year > now.year || (endYm.year === now.year && endYm.month > now.month)
-        ? now
-        : endYm;
-
-    let year = startYm.year;
-    let month = startYm.month;
-    while (year < last.year || (year === last.year && month <= last.month)) {
-      const monthStart = new Date(Date.UTC(year, month - 1, 1));
+      if (!matchesBankAccount(log.bankAccountId, bank)) continue;
+      const credited = parkingLogCreditDate(log);
       if (
-        (from && monthStart.getTime() < from.getTime()) ||
-        (toExclusive && monthStart.getTime() >= toExclusive.getTime())
+        (from && credited.getTime() < from.getTime()) ||
+        (toExclusive && credited.getTime() >= toExclusive.getTime())
       ) {
-        month += 1;
-        if (month > 12) {
-          month = 1;
-          year += 1;
-        }
         continue;
       }
-      const casual = revenueByMonth.get(`${year}-${month}`) ?? 0;
+      const casual = decimalToNumber(log.revenueAmount) ?? 0;
       moneyIn += casual + memberRevenue;
+    }
+
+    for (const log of project.parkingMonthlyLogs) {
+      if (!log.creditedAt) continue;
+      if (!matchesBankAccount(log.bankAccountId, bank)) continue;
+      const credited = log.creditedAt;
+      if (
+        (from && credited.getTime() < from.getTime()) ||
+        (toExclusive && credited.getTime() >= toExclusive.getTime())
+      ) {
+        continue;
+      }
+      const casual = decimalToNumber(log.revenueAmount) ?? 0;
       if (deal.monthlyClientFee > 0) dealOut += deal.monthlyClientFee;
       if (deal.profitSharePercent > 0) {
         dealOut += roundIdr((casual * deal.profitSharePercent) / 100);
@@ -357,13 +386,8 @@ export async function computeParkingProjectTotals(
       if (deal.parkingTaxPercent > 0) {
         dealOut += roundIdr((casual * deal.parkingTaxPercent) / 100);
       }
-      if (deal.setupCost > 0 && isSetupMonth(project, year, month)) {
+      if (deal.setupCost > 0 && isSetupMonth(project, log.year, log.month)) {
         dealOut += deal.setupCost;
-      }
-      month += 1;
-      if (month > 12) {
-        month = 1;
-        year += 1;
       }
     }
 

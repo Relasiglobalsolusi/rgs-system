@@ -4,8 +4,8 @@ import { redirect } from "next/navigation";
 import type { ProjectStatus, ProjectSubCategory } from "@prisma/client";
 
 import {
-  LIVE_PROJECT_EXPENSE_WHERE,
   isLiveInvoiceIncome,
+  LIVE_PROJECT_EXPENSE_WHERE,
   liveInvoiceIncomeWhereFor,
   loadBooksOpenDate,
 } from "@/lib/books-open";
@@ -21,11 +21,14 @@ import {
   profitMarginPercent,
   type ProjectWageEmployeeRow,
 } from "@/lib/financial-report";
+import { invoiceDueFromExclusive } from "@/lib/commercial-tax";
 import {
   bankAccountWhere,
   FINANCIAL_REPORT_ALL_BANKS,
   financialReportCalendarRange,
   financialReportWageRange,
+  isSingleBankSelection,
+  matchesBankAccount,
   type FinancialReportSelection,
 } from "@/lib/financial-report-query";
 import {
@@ -165,22 +168,26 @@ async function getProjectExpenseOutflowsByProjectIds(
   companyId: string,
   projectIds: string[],
   from?: Date,
-  toExclusive?: Date
+  toExclusive?: Date,
+  bank = FINANCIAL_REPORT_ALL_BANKS
 ) {
   const [purchases, petty] = await Promise.all([
     getProjectPurchaseOutflowsByProjectIds(
       companyId,
       projectIds,
       from,
-      toExclusive
+      toExclusive,
+      bank
     ),
-    getProjectPettyCashOutflowsByProjectIds(
-      prisma,
-      companyId,
-      projectIds,
-      from,
-      toExclusive
-    ).catch(() => new Map<string, number>()),
+    isSingleBankSelection(bank)
+      ? Promise.resolve(new Map<string, number>())
+      : getProjectPettyCashOutflowsByProjectIds(
+          prisma,
+          companyId,
+          projectIds,
+          from,
+          toExclusive
+        ).catch(() => new Map<string, number>()),
   ]);
   for (const [projectId, amount] of petty) {
     purchases.set(projectId, (purchases.get(projectId) ?? 0) + amount);
@@ -196,7 +203,14 @@ function outstandingFromPeriods(
     revisedInvoiceAmount: Parameters<
       typeof commercialPeriodGross
     >[0]["revisedInvoiceAmount"];
-  }[]
+    ppnRatePercent?: Parameters<typeof commercialPeriodGross>[0]["ppnRatePercent"];
+  }[],
+  project: {
+    chargedTaxKind?: string | null;
+    requiresTaxInvoice?: boolean | null;
+    pphRatePercent?: Parameters<typeof commercialPeriodGross>[0]["amount"];
+    isGovernmentContract?: boolean | null;
+  }
 ): OwedBucket {
   const today = Date.now();
   let unpaid = 0;
@@ -209,10 +223,20 @@ function outstandingFromPeriods(
     ) {
       continue;
     }
-    const amount = commercialPeriodGross({
+    const exclusive = commercialPeriodGross({
       amount: period.amount,
       revisedInvoiceAmount: period.revisedInvoiceAmount,
     });
+    const amount = invoiceDueFromExclusive(
+      exclusive,
+      {
+        chargedTaxKind: project.chargedTaxKind,
+        requiresTaxInvoice: project.requiresTaxInvoice,
+        pphRatePercent: decimalToNumber(project.pphRatePercent),
+        isGovernmentContract: project.isGovernmentContract,
+      },
+      decimalToNumber(period.ppnRatePercent)
+    );
     unpaid += amount;
     if (
       period.status === "OVERDUE" ||
@@ -304,6 +328,8 @@ export async function getFinancialReportClients(
   const companyId = session.user.companyId;
   const calendar = financialReportCalendarRange(selection);
   const wage = financialReportWageRange(selection);
+  const bank = selection.bank ?? FINANCIAL_REPORT_ALL_BANKS;
+  const singleBank = isSingleBankSelection(bank);
   const liveIncome = await liveInvoiceIncomeWhereFor(companyId);
 
   const clients = await prisma.client.findMany({
@@ -324,7 +350,7 @@ export async function getFinancialReportClients(
               status: "PAID",
               ...liveIncome,
               paidAt: { gte: calendar.from, lt: calendar.toExclusive },
-              ...bankAccountWhere(selection.bank ?? FINANCIAL_REPORT_ALL_BANKS),
+              ...bankAccountWhere(bank),
             },
             select: {
               amount: true,
@@ -353,11 +379,11 @@ export async function getFinancialReportClients(
   ] = await Promise.all([
     inventoryCostByProjectIds(
       companyId,
-      projectIds,
+      singleBank ? [] : projectIds,
       calendar.from,
       calendar.toExclusive
     ),
-    getProjectWageCostsByProjectIds(projectIds, {
+    getProjectWageCostsByProjectIds(singleBank ? [] : projectIds, {
       companyId,
       from: wage.from,
       toExclusive: wage.toExclusive,
@@ -366,13 +392,15 @@ export async function getFinancialReportClients(
       companyId,
       projectIds,
       calendar.from,
-      calendar.toExclusive
+      calendar.toExclusive,
+      bank
     ),
     computeParkingProjectTotals(
       companyId,
       projectIds,
       calendar.from,
-      calendar.toExclusive
+      calendar.toExclusive,
+      bank
     ),
     getPayrollManagementTotalsByProjectIds(
       projectIds,
@@ -384,19 +412,20 @@ export async function getFinancialReportClients(
       clientIds,
       calendar.from,
       calendar.toExclusive,
-      selection.bank ?? FINANCIAL_REPORT_ALL_BANKS
+      bank
     ),
     getProjectPnlAdjustments(companyId, projectIds, {
       year: selection.year,
       month: selection.month,
       from: calendar.from,
       toExclusive: calendar.toExclusive,
+      bank,
     }),
     getClientsOwedByClientIds(companyId, clientIds),
     getClientPettyCashOutflowsByClientIds(
       prisma,
       companyId,
-      clientIds,
+      singleBank ? [] : clientIds,
       calendar.from,
       calendar.toExclusive
     ).catch(() => new Map<string, number>()),
@@ -412,9 +441,9 @@ export async function getFinancialReportClients(
         totalContractValue += decimalToNumber(project.contractPrice) ?? 0;
         const purchasesOut = purchasesByProject.get(project.id) ?? 0;
         const adj = adjustmentsByProject.get(project.id);
-        const depositReturned = adj?.depositReturned ?? 0;
-        const keptDeposit = adj?.keptDeposit ?? 0;
-        const payRecovery = adj?.payRecovery ?? 0;
+        const depositReturned = singleBank ? 0 : adj?.depositReturned ?? 0;
+        const keptDeposit = singleBank ? 0 : adj?.keptDeposit ?? 0;
+        const payRecovery = singleBank ? 0 : adj?.payRecovery ?? 0;
         const incidents = adj?.incidents ?? 0;
         if (project.subCategory === "PARKING") {
           const parking = parkingByProject.get(project.id);
@@ -428,6 +457,7 @@ export async function getFinancialReportClients(
           continue;
         }
         if (project.subCategory === "PAYROLL_MANAGEMENT") {
+          if (singleBank) continue;
           const payroll = payrollByProject.get(project.id);
           totalMoneyIn += (payroll?.moneyIn ?? 0) + keptDeposit + payRecovery;
           totalSpending +=
@@ -498,6 +528,8 @@ export async function getFinancialReportClientProjects(
   const companyId = session.user.companyId;
   const calendar = financialReportCalendarRange(selection);
   const wage = financialReportWageRange(selection);
+  const bank = selection.bank ?? FINANCIAL_REPORT_ALL_BANKS;
+  const singleBank = isSingleBankSelection(bank);
   const booksOpenDate = await loadBooksOpenDate(companyId);
 
   const client = await prisma.client.findFirst({
@@ -513,6 +545,10 @@ export async function getFinancialReportClientProjects(
           subCategory: true,
           billingMode: true,
           contractPrice: true,
+          chargedTaxKind: true,
+          requiresTaxInvoice: true,
+          pphRatePercent: true,
+          isGovernmentContract: true,
           sortOrder: true,
           invoicePeriods: {
             select: {
@@ -524,6 +560,7 @@ export async function getFinancialReportClientProjects(
               paidAt: true,
               dueAt: true,
               isCatchUp: true,
+              bankAccountId: true,
             },
           },
         },
@@ -549,11 +586,11 @@ export async function getFinancialReportClientProjects(
   ] = await Promise.all([
     inventoryCostByProjectIds(
       companyId,
-      projectIds,
+      singleBank ? [] : projectIds,
       calendar.from,
       calendar.toExclusive
     ),
-    getProjectWageCostsByProjectIds(projectIds, {
+    getProjectWageCostsByProjectIds(singleBank ? [] : projectIds, {
       companyId,
       from: wage.from,
       toExclusive: wage.toExclusive,
@@ -562,13 +599,15 @@ export async function getFinancialReportClientProjects(
       companyId,
       projectIds,
       calendar.from,
-      calendar.toExclusive
+      calendar.toExclusive,
+      bank
     ),
     computeParkingProjectTotals(
       companyId,
       projectIds,
       calendar.from,
-      calendar.toExclusive
+      calendar.toExclusive,
+      bank
     ),
     getPayrollManagementTotalsByProjectIds(
       projectIds,
@@ -580,19 +619,21 @@ export async function getFinancialReportClientProjects(
       clientId,
       from: calendar.from,
       toExclusive: calendar.toExclusive,
+      bank,
     }),
     getProjectPnlAdjustments(companyId, projectIds, {
       year: selection.year,
       month: selection.month,
       from: calendar.from,
       toExclusive: calendar.toExclusive,
+      bank,
     }),
     getClientsOwed(companyId, clientId),
     getVendorsOwed(companyId, clientId),
     getClientPettyCashOutflowsByClientIds(
       prisma,
       companyId,
-      [clientId],
+      singleBank ? [] : [clientId],
       calendar.from,
       calendar.toExclusive
     ).catch(() => new Map<string, number>()),
@@ -607,13 +648,14 @@ export async function getFinancialReportClientProjects(
       const contractValue = decimalToNumber(project.contractPrice);
       const purchasesOut = purchasesByProject.get(project.id) ?? 0;
       const adj = adjustmentsByProject.get(project.id);
-      const depositReturned = adj?.depositReturned ?? 0;
-      const keptDeposit = adj?.keptDeposit ?? 0;
-      const payRecovery = adj?.payRecovery ?? 0;
+      const depositReturned = singleBank ? 0 : adj?.depositReturned ?? 0;
+      const keptDeposit = singleBank ? 0 : adj?.keptDeposit ?? 0;
+      const payRecovery = singleBank ? 0 : adj?.payRecovery ?? 0;
       const incidents = adj?.incidents ?? 0;
       const paidPeriods = project.invoicePeriods.filter((period) => {
         if (period.status !== "PAID") return false;
         if (!period.paidAt) return false;
+        if (!matchesBankAccount(period.bankAccountId, bank)) return false;
         if (
           !isLiveInvoiceIncome({
             isCatchUp: period.isCatchUp,
@@ -635,7 +677,8 @@ export async function getFinancialReportClientProjects(
         invoicePeriods: project.invoicePeriods,
       });
       const clientsOweForProject = outstandingFromPeriods(
-        project.invoicePeriods
+        project.invoicePeriods,
+        project
       );
       let moneyIn = sumPaidForProject(paidPeriods);
       let inventoryOut = inventoryByProject.get(project.id) ?? 0;
@@ -672,7 +715,9 @@ export async function getFinancialReportClientProjects(
         };
       }
       if (project.subCategory === "PAYROLL_MANAGEMENT") {
-        const payroll = payrollByProject.get(project.id);
+        const payroll = singleBank
+          ? { moneyIn: 0, moneyOut: 0 }
+          : payrollByProject.get(project.id);
         moneyIn = payroll?.moneyIn ?? 0;
         wagesOut = payroll?.moneyOut ?? 0;
         inventoryOut = 0;
@@ -747,7 +792,8 @@ export async function getFinancialReportProjectDetail(
   const companyId = session.user.companyId;
   const calendar = financialReportCalendarRange(selection);
   const wage = financialReportWageRange(selection);
-  const liveIncome = await liveInvoiceIncomeWhereFor(companyId);
+  const bank = selection.bank ?? FINANCIAL_REPORT_ALL_BANKS;
+  const singleBank = isSingleBankSelection(bank);
 
   const project = await prisma.project.findFirst({
     where: {
@@ -769,8 +815,8 @@ export async function getFinancialReportProjectDetail(
       invoicePeriods: {
         where: {
           status: "PAID",
-          ...liveIncome,
           paidAt: { gte: calendar.from, lt: calendar.toExclusive },
+          ...bankAccountWhere(bank),
         },
         select: {
           id: true,
@@ -817,6 +863,7 @@ export async function getFinancialReportProjectDetail(
     depositReturned,
     keptDepositIn,
     incidentAgg,
+    incidentIncomeAgg,
     clientsOwe,
   ] = await Promise.all([
     getProjectInventoryCost(project.id, {
@@ -838,13 +885,15 @@ export async function getFinancialReportProjectDetail(
       companyId,
       [project.id],
       calendar.from,
-      calendar.toExclusive
+      calendar.toExclusive,
+      bank
     ),
     computeParkingProjectTotals(
       companyId,
       [project.id],
       calendar.from,
-      calendar.toExclusive
+      calendar.toExclusive,
+      bank
     ),
     getPayrollManagementTotalsByProjectIds(
       [project.id],
@@ -861,39 +910,61 @@ export async function getFinancialReportProjectDetail(
       where: {
         ...LIVE_PROJECT_EXPENSE_WHERE,
         projectId: project.id,
+        amount: { gt: 0 },
         incurredAt: { gte: calendar.from, lt: calendar.toExclusive },
+        ...bankAccountWhere(bank),
       },
       _sum: { amount: true },
     }),
-    getClientsOwed(companyId, clientId, project.id),
+    prisma.projectExpense.aggregate({
+      where: {
+        ...LIVE_PROJECT_EXPENSE_WHERE,
+        projectId: project.id,
+        amount: { lt: 0 },
+        incurredAt: { gte: calendar.from, lt: calendar.toExclusive },
+        ...bankAccountWhere(bank),
+      },
+      _sum: { amount: true },
+    }),
+    getClientsOwed(companyId, clientId, project.id, { includeCatchUp: true }),
   ]);
-  let inventoryOut = inventoryOutBase;
-  let wagesOut = wageLines.reduce((sum, row) => sum + row.wageCost, 0);
+  let inventoryOut = singleBank ? 0 : inventoryOutBase;
+  let wagesOut = singleBank
+    ? 0
+    : wageLines.reduce((sum, row) => sum + row.wageCost, 0);
   const purchasesOut = purchasesByProject.get(project.id) ?? 0;
-  const periodPayRecovery = payRecoveryLines.filter((row) => {
-    if (row.year !== selection.year) return false;
-    return selection.month == null || row.month === selection.month;
-  });
+  const periodPayRecovery = singleBank
+    ? []
+    : payRecoveryLines.filter((row) => {
+        if (row.year !== selection.year) return false;
+        return selection.month == null || row.month === selection.month;
+      });
   const payRecoveryOut = periodPayRecovery.reduce(
     (sum, row) => sum + row.amount,
     0
   );
   const incidentOut = decimalToNumber(incidentAgg._sum.amount) ?? 0;
+  const incidentIncome = Math.abs(
+    decimalToNumber(incidentIncomeAgg._sum.amount) ?? 0
+  );
+  moneyIn += incidentIncome;
   let moneyOut =
-    inventoryOut + wagesOut + purchasesOut + depositReturned + incidentOut;
+    inventoryOut + wagesOut + purchasesOut + (singleBank ? 0 : depositReturned) + incidentOut;
   if (project.subCategory === "PARKING") {
     const parking = parkingByProject.get(project.id);
     moneyIn = parking?.moneyIn ?? 0;
     inventoryOut = purchasesOut;
     moneyOut = (parking?.dealOut ?? 0) + purchasesOut + wagesOut + incidentOut;
   } else if (project.subCategory === "PAYROLL_MANAGEMENT") {
-    const payroll = payrollByProject.get(project.id);
+    const payroll = singleBank
+      ? { moneyIn: 0, moneyOut: 0 }
+      : payrollByProject.get(project.id);
     moneyIn = payroll?.moneyIn ?? 0;
     inventoryOut = 0;
     wagesOut = payroll?.moneyOut ?? 0;
     moneyOut = wagesOut + incidentOut;
   }
-  moneyIn += keptDepositIn + payRecoveryOut;
+  moneyIn += singleBank ? 0 : keptDepositIn + payRecoveryOut;
   const profit = moneyIn - moneyOut;
 
   return {

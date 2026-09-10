@@ -23,6 +23,7 @@ import {
   isDailyPaidPartTime,
   type EmployeeBpjsInput,
 } from "@/lib/employee-bpjs";
+import { defaultCicoExemptForPosition } from "@/lib/employee-payroll-run";
 import { useT } from "@/lib/i18n/use-t";
 import { formatContractPrice } from "@/lib/project-billing";
 import { cn } from "@/lib/utils";
@@ -58,6 +59,7 @@ type Props = {
   employmentType?: "FULL_TIME" | "PART_TIME";
   /** Position-based default when creating, or when the saved value is unset. */
   positionSuggestsDeposit?: boolean;
+  jobPosition?: { slug?: string | null; name?: string | null } | null;
   onFormValuesChange?: () => void;
   /** Bulk add keeps bank details on each person line. */
   includeBankFields?: boolean;
@@ -109,6 +111,7 @@ export default function EmployeeFinancesFields({
   defaults,
   employmentType = "FULL_TIME",
   positionSuggestsDeposit = false,
+  jobPosition = null,
   onFormValuesChange,
   includeBankFields = true,
   namePrefix = "",
@@ -144,7 +147,9 @@ export default function EmployeeFinancesFields({
       : (defaults?.securityDepositRequired ?? positionSuggestsDeposit)
   );
   const [cicoExempt, setCicoExempt] = useState(() =>
-    Boolean(defaults?.cicoExempt)
+    defaults?.cicoExempt !== undefined
+      ? Boolean(defaults.cicoExempt)
+      : defaultCicoExemptForPosition(jobPosition)
   );
   const [progressExempt, setProgressExempt] = useState(() =>
     Boolean(defaults?.progressExempt)
@@ -178,6 +183,11 @@ export default function EmployeeFinancesFields({
     partTimeDailyPay,
     positionSuggestsDeposit,
   ]);
+
+  useEffect(() => {
+    if (defaults?.cicoExempt !== undefined) return;
+    setCicoExempt(defaultCicoExemptForPosition(jobPosition));
+  }, [defaults?.cicoExempt, jobPosition]);
 
   const input: EmployeeBpjsInput = useMemo(() => {
     const basePay = Number(basePayDigits || "0");

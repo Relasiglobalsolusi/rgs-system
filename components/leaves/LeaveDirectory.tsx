@@ -7,6 +7,7 @@ import LeaveDialog from "@/components/leaves/LeaveDialog";
 import LeaveRequestTable, {
   type LeaveRequestRow,
 } from "@/components/leaves/LeaveRequestTable";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import DirectoryFilterTab from "@/components/ui/DirectoryFilterTab";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
@@ -139,33 +140,35 @@ export default function LeaveDirectory({
         />
       </DirectoryStatGrid>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <DirectoryFilterTab
-          size="sm"
-          active={typeFilter === "all"}
-          count={data.length}
-          onClick={() => setTypeFilter("all")}
-        >
-          {t("pages.leaves.filterAll")}
-        </DirectoryFilterTab>
-        <DirectoryFilterTab
-          size="sm"
-          active={typeFilter === "PERMISSION"}
-          count={permissionAll.length}
-          onClick={() => toggleType("PERMISSION")}
-        >
-          {t("pages.leaves.permissionSection")}
-        </DirectoryFilterTab>
-        <DirectoryFilterTab
-          size="sm"
-          active={typeFilter === "SICK"}
-          count={sickAll.length}
-          onClick={() => toggleType("SICK")}
-        >
-          {t("pages.leaves.sickSection")}
-        </DirectoryFilterTab>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className={chipScrollRowClassName("min-w-0 flex-1")}>
+          <DirectoryFilterTab
+            size="sm"
+            active={typeFilter === "all"}
+            count={data.length}
+            onClick={() => setTypeFilter("all")}
+          >
+            {t("pages.leaves.filterAll")}
+          </DirectoryFilterTab>
+          <DirectoryFilterTab
+            size="sm"
+            active={typeFilter === "PERMISSION"}
+            count={permissionAll.length}
+            onClick={() => toggleType("PERMISSION")}
+          >
+            {t("pages.leaves.permissionSection")}
+          </DirectoryFilterTab>
+          <DirectoryFilterTab
+            size="sm"
+            active={typeFilter === "SICK"}
+            count={sickAll.length}
+            onClick={() => toggleType("SICK")}
+          >
+            {t("pages.leaves.sickSection")}
+          </DirectoryFilterTab>
+        </div>
         {canSubmit ? (
-          <div className="w-full sm:ml-auto sm:w-auto">
+          <div className="shrink-0 sm:ml-auto">
             <LeaveDialog />
           </div>
         ) : null}

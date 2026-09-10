@@ -5,6 +5,10 @@ import PurchaseInvoiceDetailClient from "@/components/billing/PurchaseInvoiceDet
 import AppShell from "@/components/layout/AppShell";
 import BackLink from "@/components/ui/BackLink";
 import { PageDocumentActions } from "@/components/ui/PageDocumentActions";
+import {
+  metaLabelWideClassName as metaLabelClassName,
+  metaValueClassName,
+} from "@/components/ui/meta-facts";
 import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { formatDisplayDate } from "@/lib/format-date";
@@ -58,10 +62,6 @@ import {
 import ImportCifValueBlock from "@/components/billing/ImportCifValueBlock";
 import { requireFinanceChild, toPermissionUser } from "@/lib/session";
 
-const metaLabelClassName =
-  "w-36 shrink-0 px-4 py-2.5 text-left align-top text-xs font-semibold uppercase tracking-[0.12em] text-subtle sm:w-52 sm:px-5";
-const metaValueClassName =
-  "min-w-0 break-words px-4 py-2.5 align-top text-text sm:px-5";
 const sectionTitleClassName = "text-base font-semibold tracking-tight text-text";
 const sectionCardClassName = "p-5 sm:p-6";
 
@@ -492,6 +492,7 @@ export default async function PurchaseInvoiceDetailPage({
             ) : null}
           </div>
 
+          <div className="min-w-0 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
           <table className="w-full text-sm">
             <tbody>
               <tr className="border-b border-border">
@@ -901,6 +902,7 @@ export default async function PurchaseInvoiceDetailPage({
               ) : null}
             </tbody>
           </table>
+          </div>
         </SectionCard>
 
         {isImport ? (
@@ -1279,7 +1281,8 @@ export default async function PurchaseInvoiceDetailPage({
             <p className="mt-1 text-sm text-subtle">
               {t("pages.billing.purchaseVehicleLeaseHint")}
             </p>
-            <table className="mt-4 w-full text-sm">
+            <div className="mt-4 min-w-0 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+            <table className="mt-0 w-full text-sm">
               <tbody>
                 {(
                   [
@@ -1322,6 +1325,7 @@ export default async function PurchaseInvoiceDetailPage({
                 </tr>
               </tbody>
             </table>
+            </div>
           </SectionCard>
         ) : null}
 

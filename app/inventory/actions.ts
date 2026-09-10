@@ -43,6 +43,7 @@ import {
   restoreEquipmentAssetsForWriteOff,
   retireEquipmentAssets,
   retireEquipmentAssetsForSale,
+  nextOnHandAfterAvailableChange,
   uncodedWarehouseQty,
 } from "@/lib/equipment-asset";
 import { parseFormDateInput } from "@/lib/bulk-import/parse-import-date";
@@ -96,6 +97,7 @@ import {
   parsePpnRatePercent,
   ppnRateFromPercent,
 } from "@/lib/vat";
+import { bookLeasedVehicleSaleSettlements } from "@/lib/vehicle-sale-settlement";
 import {
   dueAtFromPaymentTerms,
   normalizePaymentTermsDays,
@@ -491,37 +493,12 @@ export async function updateVehicleAsset(formData: FormData) {
           data: { vehiclePlate: plate },
         });
       }
-      if (
-        initialOdometerKm != null &&
-        !hasRefuelReadings &&
-        asset.initialOdometerKm == null
-      ) {
-        await recordVehicleOdometerReading(tx, {
-          companyId: company.id,
-          vehicleAssetId: asset.id,
-          readingKm: initialOdometerKm,
-          source: "MANUAL",
-          kind: "INITIAL",
-          recordedAt: new Date(),
-          createdById: session.user.id,
-        });
-      } else if (
-        initialOdometerKm != null &&
-        !hasRefuelReadings &&
-        asset.initialOdometerKm != null &&
-        initialOdometerKm !== asset.initialOdometerKm
-      ) {
-        if (
-          asset.currentOdometerKm != null &&
-          initialOdometerKm > asset.currentOdometerKm
-        ) {
-          throw new Error(odometerWentBackMessage());
-        }
+      if (initialOdometerKm != null && !hasRefuelReadings) {
         await tx.equipmentAsset.update({
           where: { id: asset.id },
           data: {
             initialOdometerKm,
-            currentOdometerKm: asset.currentOdometerKm ?? initialOdometerKm,
+            currentOdometerKm: initialOdometerKm,
           },
         });
         const initialRow = await tx.vehicleOdometerReading.findFirst({
@@ -534,7 +511,24 @@ export async function updateVehicleAsset(formData: FormData) {
             where: { id: initialRow.id },
             data: { readingKm: initialOdometerKm },
           });
+        } else {
+          await recordVehicleOdometerReading(tx, {
+            companyId: company.id,
+            vehicleAssetId: asset.id,
+            readingKm: initialOdometerKm,
+            source: "MANUAL",
+            kind: "INITIAL",
+            recordedAt: new Date(),
+            createdById: session.user.id,
+          });
         }
+      } else if (
+        initialOdometerKm != null &&
+        hasRefuelReadings &&
+        asset.currentOdometerKm != null &&
+        initialOdometerKm < asset.currentOdometerKm
+      ) {
+        throw new Error(odometerWentBackMessage());
       }
     });
 
@@ -1494,6 +1488,9 @@ export async function reverseInventorySoldOff(formData: FormData) {
       }
 
       if (isEquipmentItemType(sale.item.itemType)) {
+        const availableBefore = await tx.equipmentAsset.count({
+          where: { itemId: sale.itemId, status: "AVAILABLE" },
+        });
         await restoreEquipmentAssetsForSoldOff(
           tx,
           company.id,
@@ -1502,12 +1499,20 @@ export async function reverseInventorySoldOff(formData: FormData) {
           restoreQty,
           sale.notes ?? sale.buyer
         );
-        const available = await tx.equipmentAsset.count({
+        const availableAfter = await tx.equipmentAsset.count({
           where: { itemId: sale.itemId, status: "AVAILABLE" },
         });
         await tx.inventoryItem.update({
           where: { id: sale.itemId },
-          data: { currentStock: toDecimal(available) },
+          data: {
+            currentStock: toDecimal(
+              nextOnHandAfterAvailableChange(
+                currentStock,
+                availableBefore,
+                availableAfter
+              )
+            ),
+          },
         });
       } else {
         await tx.inventoryItem.update({
@@ -1754,13 +1759,15 @@ export async function createInventorySoldOff(formData: FormData) {
     const saleSource = String(formData.get("saleSource") ?? "")
       .trim()
       .toLowerCase();
+    const isVehicleSale = isVehicleItemType(item.itemType);
     const sellIssuedEquipment =
       isEquipmentItemType(item.itemType) &&
       (saleSource === "issued" || assetIds.length > 0);
     const sellNewEquipment =
       isEquipmentItemType(item.itemType) && !sellIssuedEquipment;
+    const sellIssuedCoded = sellIssuedEquipment || isVehicleSale;
 
-    if (sellIssuedEquipment) {
+    if (sellIssuedCoded) {
       if (assetIds.length !== quantity) {
         throw new Error(
           translate(locale, "pages.inventory.soldOffSelectAssetsRequired")
@@ -1792,9 +1799,14 @@ export async function createInventorySoldOff(formData: FormData) {
     const paidAtInput = parseFormDateInput(formData.get("paidAt"), {
       fieldLabel: translate(locale, "pages.sales.form.paidAt"),
     });
-    const paidAt = paymentProofUrl
-      ? paidAtInput ?? soldAt
-      : paidAtInput;
+    // Income books on the paid date, so proof and date always travel together.
+    if (paymentProofUrl && !paidAtInput) {
+      throw new Error(translate(locale, "pages.sales.paidAtRequiredWithProof"));
+    }
+    if (paidAtInput && !paymentProofUrl) {
+      throw new Error(translate(locale, "pages.sales.paymentProofRequiredWithDate"));
+    }
+    const paidAt = paidAtInput;
 
     const subtotal = quantity * unitPrice;
     const vat = applyExclusiveVat(
@@ -1868,7 +1880,7 @@ export async function createInventorySoldOff(formData: FormData) {
         let unitCost = Math.max(0, catalogUnitCost);
         let totalCost = movementTotalCost(quantity, unitCost);
 
-        if (sellIssuedEquipment) {
+        if (sellIssuedCoded) {
           const assets = await tx.equipmentAsset.findMany({
             where: {
               id: { in: assetIds },
@@ -1883,9 +1895,9 @@ export async function createInventorySoldOff(formData: FormData) {
               translate(locale, "pages.inventory.soldOffSelectAssetsRequired")
             );
           }
-          warehouseQty = assets.filter(
-            (asset) => asset.status === "AVAILABLE"
-          ).length;
+          warehouseQty = isVehicleSale
+            ? 0
+            : assets.filter((asset) => asset.status === "AVAILABLE").length;
           totalCost = assets.reduce((sum, asset) => {
             const cost =
               decimalToNumber(asset.unitCost) ?? Math.max(0, catalogUnitCost);
@@ -1914,7 +1926,11 @@ export async function createInventorySoldOff(formData: FormData) {
             })
           );
         }
-        if (!isEquipmentSale && (currentStock <= 0 || quantity > currentStock)) {
+        if (
+          !isEquipmentSale &&
+          !isVehicleSale &&
+          (currentStock <= 0 || quantity > currentStock)
+        ) {
           throw new Error(
             translate(locale, "pages.inventory.insufficientStock", {
               available: formatInventoryQty(currentStock),
@@ -1967,7 +1983,7 @@ export async function createInventorySoldOff(formData: FormData) {
           },
         });
 
-        if (sellIssuedEquipment) {
+        if (sellIssuedCoded) {
           const retired = await retireEquipmentAssetsForSale(
             tx,
             company.id,
@@ -1979,7 +1995,9 @@ export async function createInventorySoldOff(formData: FormData) {
               assetIds,
             }
           );
-          warehouseQty = retired.warehouseQty;
+          if (!isVehicleSale) {
+            warehouseQty = retired.warehouseQty;
+          }
           soldFromProjectIds.push(...retired.projectIds);
         }
 
@@ -2016,19 +2034,54 @@ export async function createInventorySoldOff(formData: FormData) {
         throw error;
       }
 
-      if (isVehicleItemType(item.itemType)) {
+      if (isVehicleSale) {
         const { returnVehicleCardsToPool } = await import(
           "@/lib/prepaid-card-lifecycle"
         );
         await returnVehicleCardsToPool(tx, {
           companyId: company.id,
-          vehicleItemId: item.id,
+          vehicleAssetIds: assetIds,
+        });
+        const settlementPaidAt = parseFormDateInput(
+          formData.get("leaseSettlementPaidAt"),
+          { fieldLabel: translate(locale, "pages.inventory.leaseSettlementPaidAt") }
+        );
+        const settlementBankAccountId = String(
+          formData.get("leaseSettlementBankAccountId") ?? ""
+        ).trim();
+        const settlementFilePath =
+          (await saveReceipt(formData, {
+            sku: item.sku,
+            fieldName: "leaseSettlementProof",
+            filePrefix: "LEASE_SETTLEMENT",
+          })) ?? null;
+        await bookLeasedVehicleSaleSettlements(tx, {
+          companyId: company.id,
+          userId: session.user.id,
+          assetIds,
+          formData,
+          soldAt,
+          settlementPaidAt,
+          settlementBankAccountId: settlementBankAccountId || null,
+          settlementFilePath,
+          payoffRequiredMessage: (plate) =>
+            translate(locale, "pages.inventory.leasePayoffRequired", {
+              plate,
+            }),
+          settlementRequiredMessage: translate(
+            locale,
+            "pages.inventory.leaseSettlementRequired"
+          ),
         });
       }
     });
 
     revalidateSales();
     revalidatePath(`/inventory/equipment/${item.id}`);
+    revalidatePath("/billing/purchase-invoices");
+    for (const assetId of assetIds) {
+      revalidatePath(`/inventory/vehicles/${assetId}`);
+    }
     for (const projectId of [...new Set(soldFromProjectIds)]) {
       revalidatePath(`/projects/${projectId}`);
     }
@@ -2473,10 +2526,16 @@ export async function attachInventorySaleDocuments(formData: FormData) {
     const paidAtInput = parseFormDateInput(formData.get("paidAt"), {
       fieldLabel: translate(locale, "pages.sales.form.paidAt"),
     });
-    const nextPaidAt =
-      paidAtInput ??
-      sale.paidAt ??
-      (nextPaymentProofUrl && !sale.paymentProofUrl ? sale.soldAt : sale.paidAt);
+    const nextPaidAt = paidAtInput ?? sale.paidAt;
+    // Income books on the paid date, so proof and date always travel together.
+    if (nextPaymentProofUrl && !nextPaidAt) {
+      throw new Error(translate(locale, "pages.sales.paidAtRequiredWithProof"));
+    }
+    if (nextPaidAt && !nextPaymentProofUrl) {
+      throw new Error(
+        translate(locale, "pages.sales.paymentProofRequiredWithDate")
+      );
+    }
 
     if (
       nextInvoiceUrl === sale.invoiceUrl &&
@@ -2574,7 +2633,11 @@ export async function voidProjectInventoryIssue(formData: FormData) {
       }
 
       const currentStock = inventoryQtyFromDecimal(locked.currentStock);
-      const newStock = normalizeInventoryQty(currentStock + restoreQty);
+      const availableBefore = isEquipmentItemType(movement.item.itemType)
+        ? await tx.equipmentAsset.count({
+            where: { itemId: movement.itemId, status: "AVAILABLE" },
+          })
+        : 0;
 
       const voided = await tx.inventoryMovement.updateMany({
         where: { id: movement.id, voidedAt: null },
@@ -2587,11 +2650,6 @@ export async function voidProjectInventoryIssue(formData: FormData) {
         throw new Error(translate(locale, "pages.inventory.movementNotFound"));
       }
 
-      await tx.inventoryItem.update({
-        where: { id: movement.itemId },
-        data: { currentStock: toDecimal(newStock) },
-      });
-
       if (isEquipmentItemType(movement.item.itemType)) {
         // Clears both picker (`movementId`) and bulk (`issueMovementId`) links.
         await releaseEquipmentAssetsForBulkIssue(
@@ -2599,18 +2657,34 @@ export async function voidProjectInventoryIssue(formData: FormData) {
           company.id,
           movement.id
         );
-        // Align On Hand to AVAILABLE (handles issue-qty vs linked-asset drift).
-        const available = await tx.equipmentAsset.count({
+        const availableAfter = await tx.equipmentAsset.count({
           where: { itemId: movement.itemId, status: "AVAILABLE" },
         });
         await tx.inventoryItem.update({
           where: { id: movement.itemId },
-          data: { currentStock: toDecimal(available) },
+          data: {
+            currentStock: toDecimal(
+              nextOnHandAfterAvailableChange(
+                currentStock,
+                availableBefore,
+                availableAfter
+              )
+            ),
+          },
         });
         await assertEquipmentInventoryInvariants(tx, company.id, {
           itemIds: [movement.itemId],
           projectId,
           movementIds: [movement.id],
+        });
+      } else {
+        await tx.inventoryItem.update({
+          where: { id: movement.itemId },
+          data: {
+            currentStock: toDecimal(
+              normalizeInventoryQty(currentStock + restoreQty)
+            ),
+          },
         });
       }
     });

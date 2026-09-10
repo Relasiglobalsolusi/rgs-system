@@ -44,6 +44,7 @@ type Props = {
   employeeName: string;
   year: number;
   month: number;
+  run?: string;
   items: PayrollCatalogItem[];
   projects: PayrollProjectOption[];
   securityDepositBlocked?: boolean;
@@ -57,6 +58,7 @@ export default function PayrollDeductionDialog({
   employeeName,
   year,
   month,
+  run,
   items,
   projects,
   securityDepositBlocked = false,
@@ -99,6 +101,7 @@ export default function PayrollDeductionDialog({
         formData.set("employeeId", employeeId);
         formData.set("year", String(year));
         formData.set("month", String(month));
+        if (run) formData.set("run", run);
         formData.set("type", type);
         formData.set("amount", amount);
         formData.set("reason", reason);

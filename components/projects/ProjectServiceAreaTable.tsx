@@ -254,7 +254,7 @@ export default function ProjectServiceAreaTable({
       className: "min-w-[12rem]",
       render: (area) => (
         <div className="flex items-center justify-between gap-3">
-          <div>
+          <div className="min-w-0 flex-1">
             <p className="font-semibold text-text">
               {catalogDisplayName(area, locale)}
             </p>

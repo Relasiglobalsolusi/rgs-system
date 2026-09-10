@@ -13,33 +13,18 @@ import {
   employeeDialogFormClass,
   employeeDialogGridClass,
   employeeDialogHintClass,
-  employeeDialogLabelClass,
-  employeeSelectTriggerClass,
 } from "@/components/employees/employee-dialog-ui";
 import { Dialog } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { showMissingRequiredFields } from "@/components/ui/rejection-notice";
 import { useT } from "@/lib/i18n/use-t";
 import type { UnpaidPartTimeWageView } from "@/lib/petty-cash-query";
 import { formatContractPrice } from "@/lib/project-billing";
 import { cn } from "@/lib/utils";
 
-type EmployeeOption = {
-  id: string;
-  name: string;
-};
-
 export default function PettyCashPayWageDialog({
   open,
   onOpenChange,
   wage,
-  employees,
   preferredPayerId = null,
   preferredPayerName = null,
   preferredPayerBalance = null,
@@ -47,7 +32,6 @@ export default function PettyCashPayWageDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   wage: UnpaidPartTimeWageView | null;
-  employees: EmployeeOption[];
   preferredPayerId?: string | null;
   preferredPayerName?: string | null;
   preferredPayerBalance?: number | null;
@@ -56,32 +40,24 @@ export default function PettyCashPayWageDialog({
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [holderEmployeeId, setHolderEmployeeId] = useState(
-    preferredPayerId ?? ""
-  );
-
-  const lockPayer = Boolean(preferredPayerId);
-  const payerOptions = employees.filter(
-    (employee) => employee.id !== wage?.employeeId
-  );
 
   function reset() {
     setError(null);
-    setHolderEmployeeId(preferredPayerId ?? "");
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!wage) return;
     setError(null);
-    const payerId = lockPayer ? preferredPayerId : holderEmployeeId;
     const extraMissing: string[] = [];
-    if (!payerId) extraMissing.push(t("pages.pettyCash.unpaidWagePayerRequired"));
+    if (!preferredPayerId) {
+      extraMissing.push(t("pages.pettyCash.wagePayerNotHolder"));
+    }
     if (showMissingRequiredFields(event.currentTarget, extraMissing)) return;
 
     const formData = new FormData();
     formData.set("entryId", wage.id);
-    if (payerId) formData.set("holderEmployeeId", payerId);
+    formData.set("holderEmployeeId", preferredPayerId ?? "");
 
     setPending(true);
     try {
@@ -129,7 +105,7 @@ export default function PettyCashPayWageDialog({
             <EmployeePrimaryButton
               type="submit"
               form="petty-cash-pay-wage-form"
-              disabled={pending || !wage}
+              disabled={pending || !wage || !preferredPayerId}
             >
               {pending
                 ? t("pages.pettyCash.spending")
@@ -151,51 +127,29 @@ export default function PettyCashPayWageDialog({
           className={employeeDialogFormClass}
         >
           <div className={employeeDialogGridClass}>
-            {lockPayer ? (
-              <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
-                <p className={employeeDialogHintClass}>
-                  {t("pages.pettyCash.unpaidWagePayerLockedHint", {
-                    name: payerName,
-                    amount: payerBalance ?? "",
-                  })}
-                </p>
-                {preferredPayerBalance != null &&
-                wage &&
-                preferredPayerBalance < wage.amount ? (
-                  <p className="text-sm text-danger">
-                    {t("pages.pettyCash.unpaidWageNegativeWarning")}
+            <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+              {preferredPayerId ? (
+                <>
+                  <p className={employeeDialogHintClass}>
+                    {t("pages.pettyCash.unpaidWagePayerLockedHint", {
+                      name: payerName,
+                      amount: payerBalance ?? "",
+                    })}
                   </p>
-                ) : null}
-              </div>
-            ) : (
-              <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
-                <label className={employeeDialogLabelClass}>
-                  {t("pages.pettyCash.unpaidWagePayer")}
-                  <span className="text-red-400"> *</span>
-                </label>
-                <Select
-                  value={holderEmployeeId || undefined}
-                  onValueChange={(value) => setHolderEmployeeId(value ?? "")}
-                  disabled={pending}
-                >
-                  <SelectTrigger className={employeeSelectTriggerClass}>
-                    <SelectValue
-                      placeholder={t("pages.pettyCash.unpaidWagePayerPlaceholder")}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {payerOptions.map((employee) => (
-                      <SelectItem key={employee.id} value={employee.id}>
-                        {employee.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className={employeeDialogHintClass}>
-                  {t("pages.pettyCash.unpaidWagePayerHint")}
+                  {preferredPayerBalance != null &&
+                  wage &&
+                  preferredPayerBalance < wage.amount ? (
+                    <p className="text-sm text-danger">
+                      {t("pages.pettyCash.unpaidWageNegativeWarning")}
+                    </p>
+                  ) : null}
+                </>
+              ) : (
+                <p className="text-sm text-danger">
+                  {t("pages.pettyCash.wagePayerNotHolder")}
                 </p>
-              </div>
-            )}
+              )}
+            </div>
             {error ? (
               <p className="sm:col-span-2 text-sm text-danger">{error}</p>
             ) : null}

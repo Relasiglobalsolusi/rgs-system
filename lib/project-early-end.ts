@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { formatDateInput, toUtcDateOnly } from "@/lib/invoice-period";
 import { jakartaWorkDateKey } from "@/lib/shift-pay";
 import { decimalToNumber, usesInvoicePeriods } from "@/lib/project-billing";
+import { releaseAllProjectCrew } from "@/lib/workforce-crew";
 
 /** Reconcile only after the last working day is fully closed (Jakarta next day). */
 export function isReadyToReconcileAfterLastDay(
@@ -41,9 +42,14 @@ export async function finalizePendingEarlyEndIfDue(options: {
       select: { subCategory: true },
     });
     if (project && !usesInvoicePeriods(project.subCategory)) {
-      await prisma.project.update({
-        where: { id: options.projectId },
-        data: { pendingEarlyEndReconcile: false },
+      await prisma.$transaction(async (tx) => {
+        await tx.project.update({
+          where: { id: options.projectId },
+          data: { pendingEarlyEndReconcile: false },
+        });
+        await releaseAllProjectCrew(tx, options.projectId, {
+          keepAssignmentHistory: true,
+        });
       });
       return { sent: false, error: null };
     }
@@ -61,39 +67,18 @@ export async function finalizePendingEarlyEndIfDue(options: {
     return { sent: false, error: null };
   }
 
-  if (!lastPeriod.reconciledAt) {
-    const fallback = decimalToNumber(options.contractPrice);
-    await prisma.projectInvoicePeriod.update({
-      where: { id: lastPeriod.id },
-      data: {
-        reconciledAt: new Date(),
-        reconciledById: options.userId,
-        ...(fallback != null && fallback > 0 && lastPeriod.amount == null
-          ? { amount: fallback }
-          : {}),
-      },
-    });
-  }
-
-  try {
-    const { sendPeriodForClientReview } = await import(
-      "@/app/billing/reconciliation/actions"
-    );
-    await sendPeriodForClientReview(lastPeriod.id, "RECONCILIATION");
-    await prisma.project.update({
+  // Crew leaves after the last day. HO still reconciles Keep / deductions
+  // and sends the last period — do not auto-reconcile or auto-send.
+  await prisma.$transaction(async (tx) => {
+    await tx.project.update({
       where: { id: options.projectId },
       data: { pendingEarlyEndReconcile: false },
     });
-    return { sent: true, error: null };
-  } catch (error) {
-    return {
-      sent: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Failed to send the last period to the client.",
-    };
-  }
+    await releaseAllProjectCrew(tx, options.projectId, {
+      keepAssignmentHistory: true,
+    });
+  });
+  return { sent: false, error: null };
 }
 
 export async function processPendingEarlyEndReconciles(options: {

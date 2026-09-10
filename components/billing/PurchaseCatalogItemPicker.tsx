@@ -7,6 +7,7 @@ import {
   type InventoryItemTypeCategory,
 } from "@/components/inventory/inventory-category";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import DirectoryFilterTab from "@/components/ui/DirectoryFilterTab";
 import DirectorySearchInput, {
   matchesDirectorySearch,
@@ -156,7 +157,7 @@ export default function PurchaseCatalogItemPicker({
                 <p className="mb-2 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-subtle">
                   {t("pages.billing.purchaseItemTypeLabel")}
                 </p>
-                <div className="flex flex-wrap gap-2">
+                <div className={chipScrollRowClassName()}>
                   {PRODUCT_TYPE_ORDER.map((type) => (
                     <DirectoryFilterTab
                       key={type}
@@ -206,7 +207,7 @@ export default function PurchaseCatalogItemPicker({
             <p className="mb-3 text-xs text-subtle">
               {t("pages.billing.purchaseSelectItemTypeHint")}
             </p>
-            <div className="overflow-hidden rounded-xl border border-border">
+            <div className="overflow-x-auto rounded-xl border border-border">
               <table className="w-full text-sm">
                 <thead className="bg-elevated/60 text-left text-[0.6875rem] uppercase tracking-[0.12em] text-subtle">
                   <tr>
@@ -230,8 +231,8 @@ export default function PurchaseCatalogItemPicker({
                             "hover:bg-card-hover"
                           )}
                         >
-                          <span>{row.label}</span>
-                          <span className="tabular-nums text-subtle">
+                          <span className="min-w-0 flex-1 break-words">{row.label}</span>
+                          <span className="shrink-0 tabular-nums text-subtle">
                             {row.count}
                           </span>
                         </button>

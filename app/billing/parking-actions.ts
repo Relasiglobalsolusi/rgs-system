@@ -6,6 +6,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { canAccess } from "@/lib/permissions";
 import { parseContractPrice } from "@/lib/project-billing";
+import { parseDateInput } from "@/lib/invoice-period";
 import { requireModule, toPermissionUser } from "@/lib/session";
 
 async function requireParkingManage() {
@@ -26,6 +27,8 @@ export async function saveParkingMonthlyRevenue(formData: FormData) {
   const month = Number(formData.get("month"));
   const revenueRaw = String(formData.get("revenueAmount") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim() || null;
+  const creditedAtRaw = String(formData.get("creditedAt") ?? "").trim();
+  const bankAccountId = String(formData.get("bankAccountId") ?? "").trim();
 
   if (!projectId) throw new Error("Project is required.");
   if (!Number.isInteger(year) || year < 2000 || year > 2100) {
@@ -39,6 +42,18 @@ export async function saveParkingMonthlyRevenue(formData: FormData) {
   if (revenue == null || revenue < 0) {
     throw new Error("Enter the actual monthly revenue.");
   }
+  if (!creditedAtRaw) {
+    throw new Error("Enter the date the bank credited this parking income.");
+  }
+  let creditedAt: Date;
+  try {
+    creditedAt = parseDateInput(creditedAtRaw);
+  } catch {
+    throw new Error("Enter the date the bank credited this parking income.");
+  }
+  if (!bankAccountId) {
+    throw new Error("Choose the company bank that received this parking income.");
+  }
 
   const project = await prisma.project.findFirst({
     where: {
@@ -50,6 +65,14 @@ export async function saveParkingMonthlyRevenue(formData: FormData) {
   });
   if (!project) throw new Error("Parking project not found.");
 
+  const bank = await prisma.companyBankAccount.findFirst({
+    where: { id: bankAccountId, companyId: session.user.companyId },
+    select: { id: true },
+  });
+  if (!bank) {
+    throw new Error("Choose the company bank that received this parking income.");
+  }
+
   await prisma.parkingMonthlyLog.upsert({
     where: {
       projectId_year_month: { projectId, year, month },
@@ -57,6 +80,8 @@ export async function saveParkingMonthlyRevenue(formData: FormData) {
     update: {
       revenueAmount: new Prisma.Decimal(Math.round(revenue)),
       notes,
+      creditedAt,
+      bankAccountId: bank.id,
     },
     create: {
       projectId,
@@ -64,6 +89,8 @@ export async function saveParkingMonthlyRevenue(formData: FormData) {
       month,
       revenueAmount: new Prisma.Decimal(Math.round(revenue)),
       notes,
+      creditedAt,
+      bankAccountId: bank.id,
       createdById: session.user.id,
     },
   });

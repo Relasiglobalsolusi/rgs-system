@@ -46,7 +46,7 @@ export default function BulkLineList({
             className="rounded-xl border border-border bg-inset p-4"
           >
             <div className="mb-3 flex items-center justify-between gap-3">
-              <p className="text-sm font-medium text-text">
+              <p className="min-w-0 flex-1 text-sm font-medium text-text">
                 {t("bulkCreate.lineNumber", { n: String(index + 1) })}
               </p>
               {lineCount > 1 ? (
@@ -54,7 +54,7 @@ export default function BulkLineList({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="h-8 px-2 text-danger hover:text-danger"
+                  className="h-8 shrink-0 px-2 text-danger hover:text-danger"
                   onClick={() => onRemove(index)}
                 >
                   <Trash2 className="mr-1 h-3.5 w-3.5" />

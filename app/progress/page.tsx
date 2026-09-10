@@ -1,10 +1,7 @@
 import type { ProjectStatus, ProjectSubCategory } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireModule, getEmployeeForUser, toPermissionUser } from "@/lib/session";
-import {
-  canManageProjects,
-  getProjectWhereForUser,
-} from "@/lib/project-access";
+import { requireModule, getEmployeeForUser } from "@/lib/session";
+import { getProjectWhereForUser } from "@/lib/project-access";
 import {
   canSubmitFieldProgressReport,
   requiresCicoProgressReport,
@@ -93,10 +90,8 @@ export default async function ProgressPage({
   const selectedDate = resolveProgressFeedDate(dateRaw);
 
   const employee = await getEmployeeForUser(session.user.id);
-  const permissionUser = toPermissionUser(session);
-  const canManage = canManageProjects(permissionUser);
   const isClient = Boolean(session.user.clientId);
-  const isViewerFeed = canManage || isClient;
+  const isViewerFeed = isClient;
   const projectWhere = await getProjectWhereForUser({
     companyId: session.user.companyId,
     clientId: session.user.clientId,

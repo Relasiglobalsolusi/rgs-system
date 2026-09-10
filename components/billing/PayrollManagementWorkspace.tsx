@@ -9,6 +9,7 @@ import {
   fillPayrollManagementFromCico,
   markPayrollManagementWagesPaid,
   savePayrollManagementPeriod,
+  sendPayrollManagementPeriodToClientAction,
   unlockPayrollManagementPeriod,
 } from "@/app/billing/payroll-management-actions";
 import {
@@ -301,6 +302,24 @@ export default function PayrollManagementWorkspace({
     });
   }
 
+  function sendToClient() {
+    const formData = new FormData();
+    formData.set("projectId", projectId);
+    formData.set("year", String(year));
+    formData.set("month", String(month));
+    startTransition(async () => {
+      try {
+        await sendPayrollManagementPeriodToClientAction(formData);
+        router.refresh();
+      } catch (error) {
+        showRejectionFromError(
+          error,
+          t("pages.billing.payrollMgmt.actionFailed")
+        );
+      }
+    });
+  }
+
   function generatePdf() {
     startTransition(async () => {
       try {
@@ -486,7 +505,25 @@ export default function PayrollManagementWorkspace({
                 {t("pages.payroll.unlockPeriod")}
               </Button>
             ) : null}
-            {canManage ? (
+            {canManage &&
+            (!period ||
+              period.status === "DRAFT" ||
+              period.status === "WAGES_ENTERED") ? (
+              <Button
+                type="button"
+                size="sm"
+                disabled={pending}
+                onClick={sendToClient}
+              >
+                {t("pages.billing.payrollMgmt.sendToClient")}
+              </Button>
+            ) : null}
+            {canManage &&
+            period &&
+            (period.status === "CLIENT_APPROVED" ||
+              period.status === "INVOICED" ||
+              period.status === "WAGES_PAID" ||
+              period.status === "REIMBURSED") ? (
               <Button
                 type="button"
                 size="sm"
@@ -903,6 +940,11 @@ export default function PayrollManagementWorkspace({
           <p className="mt-1 text-sm text-muted">
             {t("pages.billing.payrollMgmt.confirmWagesPaidDesc")}
           </p>
+          {!lock.locked && !period.wagesPaidAt ? (
+            <p className="mt-3 text-sm text-danger">
+              {t("pages.billing.payrollMgmt.wagesPaidNeedsLock")}
+            </p>
+          ) : null}
           {period.wagesPaidAt ? (
             <p className="mt-3 text-sm text-text">
               {t("pages.billing.payrollMgmt.wagesPaidOn", {
@@ -937,7 +979,7 @@ export default function PayrollManagementWorkspace({
               </div>
               <Button
                 type="button"
-                disabled={pending || !wagesProof}
+                disabled={pending || !wagesProof || !lock.locked}
                 onClick={confirmWagesPaid}
               >
                 {t("pages.billing.payrollMgmt.confirmWagesPaid")}
@@ -974,7 +1016,7 @@ export default function PayrollManagementWorkspace({
             />
           </div>
           </div>
-          <DialogFooter className="mx-0 mb-0 mt-0 flex-col gap-3 rounded-none border-t border-border bg-strip px-4 py-5 sm:flex-col sm:justify-stretch sm:px-10 sm:py-6">
+          <DialogFooter className="mx-0 mb-0 mt-0 flex-col gap-3 rounded-none border-t border-border bg-strip px-4 py-5 sm:justify-stretch sm:px-10 sm:py-6">
             <Button
               type="button"
               variant="outline"

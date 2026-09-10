@@ -14,7 +14,7 @@ import { createTranslator } from "@/lib/i18n/translate";
 import { syncProjectMonthlyPeriods } from "@/app/projects/invoice-actions";
 import { computeParkingMonthEconomics } from "@/lib/parking-economics";
 import { getPayrollManagementWorkspace } from "@/app/billing/payroll-management-actions";
-import { jakartaYearMonth } from "@/lib/vat";
+import { listCompanyBankAccountOptions } from "@/lib/company-bank-accounts";
 import { projectDetailHref } from "@/lib/project-directory-rows";
 
 import AppShell from "@/components/layout/AppShell";
@@ -146,12 +146,15 @@ export default async function BillingProjectPage({
 
         {project.subCategory === "PARKING" ? (
           await (async () => {
-            const economics = await computeParkingMonthEconomics({
-              companyId: session.user.companyId,
-              projectId: project.id,
-              year,
-              month,
-            });
+            const [economics, bankAccounts] = await Promise.all([
+              computeParkingMonthEconomics({
+                companyId: session.user.companyId,
+                projectId: project.id,
+                year,
+                month,
+              }),
+              listCompanyBankAccountOptions(session.user.companyId),
+            ]);
             if (!economics) {
               return (
                 <SectionCard>
@@ -169,6 +172,7 @@ export default async function BillingProjectPage({
                 month={month}
                 canManage={canManage}
                 economics={economics}
+                bankAccounts={bankAccounts}
               />
             );
           })()

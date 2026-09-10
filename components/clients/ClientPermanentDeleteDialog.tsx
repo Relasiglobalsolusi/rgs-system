@@ -73,7 +73,7 @@ export default function ClientPermanentDeleteDialog({
         description={t("pages.clients.deleteForeverDescription")}
         maxWidth="md"
         footer={
-          <div className="flex w-full flex-col gap-3 sm:flex-col">
+          <div className="flex w-full flex-col gap-3">
             <EmployeePrimaryButton
               type="button"
               variant="danger"

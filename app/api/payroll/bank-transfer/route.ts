@@ -2,12 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getCurrentSession } from "@/lib/auth";
 import type { PayrollDayRow } from "@/lib/internal-payroll-days";
-import { loadInternalPayrollMonth } from "@/lib/internal-payroll-month";
+import type { InternalPayrollMonthRow } from "@/lib/internal-payroll-month";
+import {
+  getInternalPayrollLockRecord,
+  snapshotToPayrollRows,
+} from "@/lib/internal-payroll-lock";
 import { canAccess } from "@/lib/permissions";
 import { toPermissionUser } from "@/lib/session";
 import { jakartaYearMonth } from "@/lib/vat";
 import {
   formatInternalPayrollWorkbookTitle,
+  parsePayrollRunKind,
 } from "@/lib/internal-payroll-period";
 import {
   buildMaybankBcaDomWorkbook,
@@ -59,6 +64,7 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = request.nextUrl;
   const now = jakartaYearMonth();
+  const run = parsePayrollRunKind(searchParams.get("run"));
   const year = Number(searchParams.get("year")) || now.year;
   const month = Number(searchParams.get("month")) || now.month;
 
@@ -76,13 +82,60 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const rows = await loadInternalPayrollMonth({
-    companyId: session.user.companyId,
+  const lock = await getInternalPayrollLockRecord(
+    session.user.companyId,
     year,
     month,
-  });
+    run
+  );
+  if (!lock?.locked) {
+    return NextResponse.json(
+      {
+        error:
+          "Bank transfer is available only after this payroll has been reviewed, generated, and locked.",
+      },
+      { status: 409 }
+    );
+  }
+  const rows = snapshotToPayrollRows<InternalPayrollMonthRow>(lock.snapshot);
+  if (!rows) {
+    return NextResponse.json(
+      {
+        error:
+          "The locked payroll snapshot is missing. Unlock, review, and generate this period again before creating the bank transfer.",
+      },
+      { status: 409 }
+    );
+  }
 
-  const periodBerita = formatPayrollPeriodBerita(year, month);
+  const missing: Array<{ name: string; fields: string[] }> = [];
+  for (const row of rows) {
+    if (row.netPay <= 0) continue;
+    const fields: string[] = [];
+    if (!row.bankName?.trim()) fields.push("Bank Name");
+    if (!row.bankAccountNumber?.trim()) fields.push("Account Number");
+    if (!row.bankAccountName?.trim()) fields.push("Account Holder Name");
+    if (fields.length > 0) {
+      missing.push({
+        name: `${row.firstName} ${row.lastName}`.trim() || row.employeeNo,
+        fields,
+      });
+    }
+  }
+  if (missing.length > 0) {
+    const detail = missing
+      .map((row) => `${row.name}: ${row.fields.join(", ")}`)
+      .join("; ");
+    return NextResponse.json(
+      {
+        error: `Bank transfer is blocked until every paid employee has complete bank details. Missing: ${detail}`,
+        missing,
+      },
+      { status: 400 }
+    );
+  }
+
+  const periodBerita = formatPayrollPeriodBerita(year, month, run);
 
   const transfers = rows
     .filter((row) => row.netPay > 0 && row.bankAccountNumber?.trim())
@@ -98,7 +151,7 @@ export async function GET(request: NextRequest) {
       beneficiaryType: "1" as const,
     }));
 
-  const title = formatInternalPayrollWorkbookTitle(year, month);
+  const title = formatInternalPayrollWorkbookTitle(year, month, run);
   const workbook = await buildMaybankBcaDomWorkbook(transfers, {
     periodLabel: `${year}-${String(month).padStart(2, "0")}`,
     fileName: `${title}.xlsm`,

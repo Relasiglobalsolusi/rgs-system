@@ -600,6 +600,19 @@ body {
     padding: 0.2rem;
     border-radius: 9999px;
   }
+
+  .chip-scroll-row {
+    scrollbar-width: thin;
+  }
+
+  .auth-logo-bar-hero {
+    max-width: 11.5rem;
+  }
+
+  .app-shell-surface .overflow-x-auto {
+    min-width: 0;
+    max-width: 100%;
+  }
 }
 
 .header-lang-menu {
@@ -1242,7 +1255,7 @@ p {
 
 .auth-lang-module {
   display: flex;
-  flex: 1 1 10.5rem;
+  flex: 1 1 8rem;
   min-width: 0;
   align-items: stretch;
 }

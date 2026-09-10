@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { MapPin, Pencil, Trash2, UserCheck, Users, Wrench } from "lucide-react";
 
 import DirectoryAddButton from "@/components/ui/DirectoryAddButton";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import DirectoryFilterTab from "@/components/ui/DirectoryFilterTab";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
@@ -278,7 +279,7 @@ export default function TeamAssignmentDirectory({
           icon={<Users size={18} />}
         />
       </DirectoryStatGrid>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <DirectorySearchInput
           value={query}
           onChange={setQuery}
@@ -286,7 +287,7 @@ export default function TeamAssignmentDirectory({
           className="min-w-0 w-full max-w-none sm:min-w-[12rem] sm:flex-1"
         />
         {canManage ? (
-          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <div className={chipScrollRowClassName("w-full sm:ml-auto sm:w-auto sm:justify-end")}>
             <DirectoryAddButton
               label={t("pages.teams.addTeam")}
               onClick={() => setCreateOpen(true)}
@@ -294,7 +295,7 @@ export default function TeamAssignmentDirectory({
           </div>
         ) : null}
       </div>
-      <div className="mb-3 flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
+      <div className={chipScrollRowClassName("mb-3")}>
         <DirectoryFilterTab
           active={filter === "all"}
           onClick={() => setFilter("all")}

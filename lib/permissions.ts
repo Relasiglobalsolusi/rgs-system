@@ -171,12 +171,31 @@ export const ADVANCE_CASH_CHILD_KEYS = [
 
 export type AdvanceCashChildKey = (typeof ADVANCE_CASH_CHILD_KEYS)[number];
 
+/** Stored under Approvals — each queue is ticked on its own. */
+export const APPROVALS_CHILD_KEYS = [
+  "approvalsLeaves",
+  "approvalsMaterialRequests",
+  "approvalsWarehouseReturns",
+  "approvalsPayrollUnlock",
+] as const;
+
+export type ApprovalsChildKey = (typeof APPROVALS_CHILD_KEYS)[number];
+
 export type ModuleAccessFlags = Record<ModuleKey, boolean> &
-  Record<AdvanceCashChildKey, boolean>;
+  Record<AdvanceCashChildKey, boolean> &
+  Record<ApprovalsChildKey, boolean>;
 
 export type AdvanceCashAccess = {
   petty: boolean;
   prepaid: boolean;
+};
+
+export type ApprovalsAccess = {
+  leaves: boolean;
+  materialRequests: boolean;
+  warehouseReturns: boolean;
+  /** Unlocking a closed payroll period. Owner only — never granted by tick. */
+  payrollUnlock: boolean;
 };
 
 
@@ -332,6 +351,30 @@ function readAdvanceCashChildren(
   };
 }
 
+function readApprovalsChildren(
+  record: Record<string, unknown> | null | undefined,
+  parentOn: boolean
+): Record<ApprovalsChildKey, boolean> {
+  const stored = APPROVALS_CHILD_KEYS.filter(
+    (key) => typeof record?.[key] === "boolean"
+  );
+  if (stored.length === 0) {
+    return {
+      approvalsLeaves: parentOn,
+      approvalsMaterialRequests: parentOn,
+      approvalsWarehouseReturns: parentOn,
+      // Payroll Unlock is never on by default, even with Approvals on.
+      approvalsPayrollUnlock: false,
+    };
+  }
+  return {
+    approvalsLeaves: record?.approvalsLeaves === true,
+    approvalsMaterialRequests: record?.approvalsMaterialRequests === true,
+    approvalsWarehouseReturns: record?.approvalsWarehouseReturns === true,
+    approvalsPayrollUnlock: record?.approvalsPayrollUnlock === true,
+  };
+}
+
 function fillModuleFlags(
   fill: boolean,
   patch: Partial<ModuleAccessFlags> = {}
@@ -347,10 +390,20 @@ function fillModuleFlags(
     patch as Record<string, unknown>,
     base.pettyCash === true
   );
+  const approvals = readApprovalsChildren(
+    patch as Record<string, unknown>,
+    base.approvals === true
+  );
   return {
     ...base,
     pettyCash: children.pettyCashPetty || children.pettyCashPrepaid,
+    approvals:
+      approvals.approvalsLeaves ||
+      approvals.approvalsMaterialRequests ||
+      approvals.approvalsWarehouseReturns ||
+      approvals.approvalsPayrollUnlock,
     ...children,
+    ...approvals,
   };
 }
 
@@ -648,11 +701,12 @@ export function parsePositionDefaultModuleAccess(
 const MODULE_OVERRIDE_FLAG_KEYS = [
   ...MODULES,
   ...ADVANCE_CASH_CHILD_KEYS,
+  ...APPROVALS_CHILD_KEYS,
 ] as const;
 
 function isModuleOverrideFlagKey(
   key: string
-): key is ModuleKey | AdvanceCashChildKey {
+): key is ModuleKey | AdvanceCashChildKey | ApprovalsChildKey {
   return (MODULE_OVERRIDE_FLAG_KEYS as readonly string[]).includes(key);
 }
 
@@ -693,7 +747,7 @@ function normalizeModuleAccessMap(
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const record = raw as Record<string, unknown>;
   const hasAny = MODULES.some((key) => typeof record[key] === "boolean");
-  const hasChild = ADVANCE_CASH_CHILD_KEYS.some(
+  const hasChild = [...ADVANCE_CASH_CHILD_KEYS, ...APPROVALS_CHILD_KEYS].some(
     (key) => typeof record[key] === "boolean"
   );
   if (!hasAny && !hasChild) return null;
@@ -706,6 +760,13 @@ function normalizeModuleAccessMap(
   if (typeof record.pettyCashPrepaid === "boolean") {
     patch.pettyCashPrepaid = record.pettyCashPrepaid;
   }
+  for (const key of APPROVALS_CHILD_KEYS) {
+    if (typeof record[key] === "boolean") {
+      patch[key] = record[key] as boolean;
+    }
+  }
+  // Payroll Unlock is owner-only, so a stored default can never grant it.
+  patch.approvalsPayrollUnlock = false;
   return fillModuleFlags(false, patch);
 }
 
@@ -719,6 +780,38 @@ export function applyAdvanceCashParentToggle(
     pettyCashPetty: enabled,
     pettyCashPrepaid: enabled,
   };
+}
+
+export function applyApprovalsParentToggle(
+  current: ModuleAccessFlags,
+  enabled: boolean
+): ModuleAccessFlags {
+  return {
+    ...current,
+    approvals: enabled,
+    approvalsLeaves: enabled,
+    approvalsMaterialRequests: enabled,
+    approvalsWarehouseReturns: enabled,
+    // Payroll Unlock stays off until it is ticked on purpose.
+    approvalsPayrollUnlock: false,
+  };
+}
+
+export function applyApprovalsChildToggle(
+  current: ModuleAccessFlags,
+  child: ApprovalsChildKey,
+  enabled: boolean
+): ModuleAccessFlags {
+  const next = { ...current, [child]: enabled };
+  next.approvals =
+    next.approvalsLeaves ||
+    next.approvalsMaterialRequests ||
+    next.approvalsWarehouseReturns ||
+    next.approvalsPayrollUnlock;
+  if (!next.approvals) {
+    for (const key of APPROVALS_CHILD_KEYS) next[key] = false;
+  }
+  return next;
 }
 
 export function applyAdvanceCashChildToggle(
@@ -752,6 +845,35 @@ export function setAdvanceCashOverrideTargets(
   apply("pettyCash", parent, baseline.pettyCash);
   apply("pettyCashPetty", targets.petty, baseline.pettyCashPetty);
   apply("pettyCashPrepaid", targets.prepaid, baseline.pettyCashPrepaid);
+  return next;
+}
+
+/** Payroll Unlock is owner-only, so it is never written as an override. */
+export function setApprovalsOverrideTargets(
+  current: Record<string, boolean>,
+  baseline: ModuleAccessFlags,
+  targets: Omit<ApprovalsAccess, "payrollUnlock">
+): Record<string, boolean> {
+  const next = { ...current };
+  const parent =
+    targets.leaves || targets.materialRequests || targets.warehouseReturns;
+  const apply = (key: string, desired: boolean, defaultValue: boolean) => {
+    if (desired === defaultValue) delete next[key];
+    else next[key] = desired;
+  };
+  apply("approvals", parent, baseline.approvals);
+  apply("approvalsLeaves", targets.leaves, baseline.approvalsLeaves);
+  apply(
+    "approvalsMaterialRequests",
+    targets.materialRequests,
+    baseline.approvalsMaterialRequests
+  );
+  apply(
+    "approvalsWarehouseReturns",
+    targets.warehouseReturns,
+    baseline.approvalsWarehouseReturns
+  );
+  delete next.approvalsPayrollUnlock;
   return next;
 }
 
@@ -1251,6 +1373,69 @@ export function getAdvanceCashAccess(
 
 export function canAccessAdvanceCashPrepaid(user: PermissionUser): boolean {
   return getAdvanceCashAccess(user).prepaid;
+}
+
+/**
+ * Which Approvals queues this account may act on.
+ *
+ * Operational Managers and Directors are force-granted the Approvals module,
+ * so that grant is resolved per queue here: they always get leave, material
+ * requests, and warehouse returns, and never get Payroll Unlock. Unlocking a
+ * closed payroll period is the owner's decision alone, so no tick, override,
+ * or position default can hand it to anyone else.
+ */
+export function getApprovalsAccess(
+  user: PermissionUser & { username?: string | null }
+): ApprovalsAccess {
+  const payrollUnlock = isOwnerAccount(user);
+
+  if (user.clientId || user.client || user.vendorId || user.vendor) {
+    return {
+      leaves: false,
+      materialRequests: false,
+      warehouseReturns: false,
+      payrollUnlock: false,
+    };
+  }
+  if (isHoAdminAccount(user)) {
+    return {
+      leaves: true,
+      materialRequests: true,
+      warehouseReturns: true,
+      payrollUnlock,
+    };
+  }
+
+  const overrides = user.moduleOverrides ?? {};
+  const baseline = getAccountTypeBaselineModules(user);
+  const parentOverride = resolveModuleOverride(overrides, "approvals");
+  const forced = isApproverAccount(user as AccountTypeUser);
+  const parentOn =
+    forced || (parentOverride !== null ? parentOverride : baseline.approvals === true);
+  if (!parentOn) {
+    return {
+      leaves: false,
+      materialRequests: false,
+      warehouseReturns: false,
+      payrollUnlock: false,
+    };
+  }
+
+  const readChild = (key: ApprovalsChildKey) =>
+    key in overrides ? overrides[key] === true : baseline[key] === true;
+  const anyChildStored = APPROVALS_CHILD_KEYS.some((key) => key in overrides);
+
+  // Approvals granted before the queues existed keeps the three operational ones.
+  const fallback = !anyChildStored && baseline.approvals === true;
+
+  return {
+    leaves: fallback || readChild("approvalsLeaves") || forced,
+    materialRequests:
+      fallback || readChild("approvalsMaterialRequests") || forced,
+    warehouseReturns:
+      fallback || readChild("approvalsWarehouseReturns") || forced,
+    payrollUnlock,
+  };
 }
 
 export function advanceCashHref(access: AdvanceCashAccess): string {

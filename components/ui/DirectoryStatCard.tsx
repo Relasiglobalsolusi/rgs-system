@@ -102,7 +102,7 @@ export default function DirectoryStatCard({
         <div className="flex min-w-0 flex-1 flex-col">
           <p
             className={cn(
-              "truncate font-semibold text-subtle",
+              "line-clamp-2 text-pretty font-semibold text-subtle",
               compact ? "text-xs" : "text-[11px]"
             )}
             title={title}

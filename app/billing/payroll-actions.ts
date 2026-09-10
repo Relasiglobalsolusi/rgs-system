@@ -14,9 +14,19 @@ import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
 import {
   assertInternalPayrollPeriodUnlocked,
-  canUnlockInternalPayroll,
+  getInternalPayrollLockRecord,
+  lockInternalPayrollPeriod,
   unlockInternalPayrollPeriod,
 } from "@/lib/internal-payroll-lock";
+import {
+  INTERNAL_PAYROLL_WORKING_DAYS_DIVISOR,
+  loadInternalPayrollMonth,
+} from "@/lib/internal-payroll-month";
+import {
+  isPayrollPeriodReconciled,
+  utcRangeForPayrollPeriod,
+  parsePayrollRunKind,
+} from "@/lib/internal-payroll-period";
 import {
   HEAD_OFFICE_PAYROLL_PROJECT,
   hasHeldSecurityDeposit,
@@ -24,16 +34,19 @@ import {
   nextDepositHeldAmount,
   nextDepositStatusAfterHold,
 } from "@/lib/payroll-deductions";
+import { formatEmployeeName } from "@/lib/employee-user-link";
+import { recordInternalPayrollChange } from "@/lib/internal-payroll-audit";
+import { formatContractPrice } from "@/lib/project-billing";
 import { toActionError } from "@/lib/prisma-errors";
 import { parseDateInput } from "@/lib/invoice-period";
 import { dayShiftHours } from "@/lib/internal-payroll-days";
-import { INTERNAL_PAYROLL_WORKING_DAYS_DIVISOR } from "@/lib/internal-payroll-month";
-import { utcRangeForPayrollPeriod } from "@/lib/internal-payroll-period";
 import { hoursMeetShift } from "@/lib/shift-pay";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/project-billing";
-import { requireFinanceChild, toPermissionUser } from "@/lib/session";
+import { isOperationsManagerPosition } from "@/lib/positions";
+import { isOwnerAccount } from "@/lib/permissions";
 import { jakartaYearMonth } from "@/lib/vat";
+import { requireFinanceChild, requireModule } from "@/lib/session";
 
 async function requirePayrollAccess() {
   return requireFinanceChild("payroll");
@@ -44,6 +57,17 @@ function parseYearMonth(yearRaw: unknown, monthRaw: unknown) {
   const year = Math.max(2000, Math.min(2100, Number(yearRaw) || now.year));
   const month = Math.max(1, Math.min(12, Number(monthRaw) || now.month));
   return { year, month };
+}
+
+function parseRun(raw: unknown) {
+  return parsePayrollRunKind(raw);
+}
+
+function payrollActorName(user: {
+  name?: string | null;
+  username?: string | null;
+}): string {
+  return user.name?.trim() || user.username?.trim() || "User";
 }
 
 function parseRupiahAmount(value: unknown, locale: "en" | "id"): number {
@@ -100,10 +124,13 @@ export async function addPayrollDeduction(formData: FormData) {
       where: { id: employeeId, companyId },
       select: {
         id: true,
+        firstName: true,
+        lastName: true,
         depositHeldAmount: true,
         depositStatus: true,
         securityDepositRequired: true,
         overtimeEnabled: true,
+        payrollRun: true,
       },
     });
     if (!employee) {
@@ -114,12 +141,32 @@ export async function addPayrollDeduction(formData: FormData) {
         translate(locale, "pages.payroll.errors.overtimeNotEnabled")
       );
     }
+    if (typeRaw === "OVERTIME") {
+      const actor = await prisma.employee.findFirst({
+        where: {
+          companyId,
+          userId: session.user.id,
+        },
+        select: {
+          jobPosition: { select: { slug: true, name: true } },
+        },
+      });
+      const canAddOvertime =
+        isOwnerAccount(session.user) ||
+        isOperationsManagerPosition(actor?.jobPosition ?? {});
+      if (!canAddOvertime) {
+        throw new Error(
+          translate(locale, "pages.payroll.errors.overtimeOmOnly")
+        );
+      }
+    }
 
     await assertInternalPayrollPeriodUnlocked(
       companyId,
       year,
       month,
-      translate(locale, "pages.payroll.errors.periodLocked")
+      translate(locale, "pages.payroll.errors.periodLocked"),
+      employee.payrollRun
     );
 
     if (typeRaw === "SECURITY_DEPOSIT") {
@@ -290,6 +337,7 @@ export async function addPayrollDeduction(formData: FormData) {
           employeeId: employee.id,
           year,
           month,
+          run: employee.payrollRun,
           type: typeRaw,
           amount: toDecimal(amount),
           reason: reason || null,
@@ -331,6 +379,20 @@ export async function addPayrollDeduction(formData: FormData) {
       }
     });
 
+    // Permanent record of who changed this period and what changed.
+    await recordInternalPayrollChange({
+      companyId,
+      userId: session.user.id,
+      year,
+      month,
+      run: employee.payrollRun,
+      action: "PAYROLL_LINE_ADDED",
+      description: `${typeRaw} ${formatContractPrice(amount)} for ${formatEmployeeName(employee)}${
+        reason ? ` — ${reason}` : ""
+      }`,
+      newValue: { type: typeRaw, amount, employeeId: employee.id },
+    });
+
     revalidateInternalPayroll();
   } catch (error) {
     throw toActionError(
@@ -358,10 +420,13 @@ export async function deletePayrollDeduction(formData: FormData) {
         amount: true,
         year: true,
         month: true,
+        run: true,
         employeeId: true,
         inventoryMovementId: true,
         employee: {
           select: {
+            firstName: true,
+            lastName: true,
             depositHeldAmount: true,
             depositStatus: true,
           },
@@ -376,7 +441,8 @@ export async function deletePayrollDeduction(formData: FormData) {
       companyId,
       line.year,
       line.month,
-      translate(locale, "pages.payroll.errors.periodLocked")
+      translate(locale, "pages.payroll.errors.periodLocked"),
+      line.run
     );
 
     await prisma.$transaction(async (tx) => {
@@ -442,6 +508,24 @@ export async function deletePayrollDeduction(formData: FormData) {
       }
     });
 
+    // Permanent record of who changed this period and what changed.
+    await recordInternalPayrollChange({
+      companyId,
+      userId: session.user.id,
+      year: line.year,
+      month: line.month,
+      run: line.run,
+      action: "PAYROLL_LINE_REMOVED",
+      description: `${line.type} ${formatContractPrice(
+        decimalToNumber(line.amount) ?? 0
+      )} removed for ${formatEmployeeName(line.employee)}`,
+      oldValue: {
+        type: line.type,
+        amount: decimalToNumber(line.amount) ?? 0,
+        employeeId: line.employeeId,
+      },
+    });
+
     revalidateInternalPayroll();
   } catch (error) {
     throw toActionError(
@@ -451,40 +535,310 @@ export async function deletePayrollDeduction(formData: FormData) {
   }
 }
 
-export async function unlockInternalPayroll(formData: FormData) {
+export async function requestInternalPayrollUnlock(formData: FormData) {
   const locale = await getServerLocale();
   try {
     const session = await requirePayrollAccess();
-    if (!canUnlockInternalPayroll(toPermissionUser(session))) {
-      throw new Error(translate(locale, "pages.payroll.errors.unlockHoOnly"));
-    }
-
     const { year, month } = parseYearMonth(
       formData.get("year"),
       formData.get("month")
     );
+    const run = parseRun(formData.get("run"));
     const reason = String(formData.get("reason") ?? "").trim();
     if (!reason) {
       throw new Error(translate(locale, "pages.payroll.errors.unlockReasonRequired"));
     }
+    const companyId = session.user.companyId;
+    const actorName = payrollActorName(session.user);
 
-    await unlockInternalPayrollPeriod({
-      companyId: session.user.companyId,
-      year,
-      month,
-      actor: {
-        id: session.user.id,
-        name: session.user.name?.trim() || session.user.username || "Head Office",
-      },
-      reason,
+    await prisma.$transaction(async (tx) => {
+      const lock = await tx.internalPayrollLock.findUnique({
+        where: {
+          companyId_year_month_run: { companyId, year, month, run },
+        },
+        select: { locked: true },
+      });
+      if (!lock?.locked) {
+        throw new Error(
+          translate(locale, "pages.payroll.errors.unlockRequestLockedOnly")
+        );
+      }
+      const pendingRequest = await tx.payrollUnlockRequest.findFirst({
+        where: { companyId, year, month, run, status: "PENDING" },
+        select: { id: true },
+      });
+      if (pendingRequest) {
+        throw new Error(
+          translate(locale, "pages.payroll.errors.unlockRequestAlreadyPending")
+        );
+      }
+      await tx.payrollUnlockRequest.create({
+        data: {
+          companyId,
+          year,
+          month,
+          run,
+          reason,
+          requestedById: session.user.id,
+          requestedByName: actorName,
+        },
+      });
+      await recordInternalPayrollChange({
+        companyId,
+        userId: session.user.id,
+        year,
+        month,
+        run,
+        action: "PAYROLL_UNLOCK_REQUESTED",
+        description: `${actorName} requested an unlock. Reason: ${reason}`,
+        newValue: { reason, requestedByName: actorName },
+        db: tx,
+      });
     });
 
+    revalidatePath("/billing/payroll");
+    revalidatePath("/approvals");
+  } catch (error) {
+    throw toActionError(
+      error,
+      translate(locale, "pages.payroll.errors.unlockRequestFailed")
+    );
+  }
+}
+
+export async function cancelInternalPayrollUnlock(formData: FormData) {
+  const locale = await getServerLocale();
+  try {
+    const session = await requirePayrollAccess();
+    const id = String(formData.get("id") ?? "").trim();
+    if (!id) {
+      throw new Error(
+        translate(locale, "pages.payroll.errors.unlockRequestNotFound")
+      );
+    }
+    const companyId = session.user.companyId;
+    const actorName = payrollActorName(session.user);
+
+    await prisma.$transaction(async (tx) => {
+      const request = await tx.payrollUnlockRequest.findFirst({
+        where: {
+          id,
+          companyId,
+          requestedById: session.user.id,
+          status: "PENDING",
+        },
+      });
+      if (!request) {
+        throw new Error(
+          translate(locale, "pages.payroll.errors.unlockRequestNotFound")
+        );
+      }
+      const cancelled = await tx.payrollUnlockRequest.updateMany({
+        where: {
+          id: request.id,
+          companyId,
+          requestedById: session.user.id,
+          status: "PENDING",
+        },
+        data: {
+          status: "CANCELLED",
+          decidedById: session.user.id,
+          decidedByName: actorName,
+          decidedAt: new Date(),
+          decisionNote: "Withdrawn by requester",
+        },
+      });
+      if (cancelled.count !== 1) {
+        throw new Error(
+          translate(locale, "pages.payroll.errors.unlockRequestNotFound")
+        );
+      }
+      await recordInternalPayrollChange({
+        companyId,
+        userId: session.user.id,
+        year: request.year,
+        month: request.month,
+        run: request.run,
+        action: "PAYROLL_UNLOCK_CANCELLED",
+        description: `${actorName} withdrew their unlock request.`,
+        oldValue: { reason: request.reason, status: request.status },
+        newValue: { status: "CANCELLED" },
+        db: tx,
+      });
+    });
+
+    revalidatePath("/billing/payroll");
+    revalidatePath("/approvals");
+  } catch (error) {
+    throw toActionError(
+      error,
+      translate(locale, "pages.payroll.errors.unlockCancelFailed")
+    );
+  }
+}
+
+export async function decideInternalPayrollUnlock(formData: FormData) {
+  const locale = await getServerLocale();
+  try {
+    const session = await requireModule("approvals");
+    if (!isOwnerAccount(session.user)) {
+      throw new Error(
+        translate(locale, "pages.payroll.errors.unlockOwnerApprovalOnly")
+      );
+    }
+    const id = String(formData.get("id") ?? "").trim();
+    const decision = String(formData.get("decision") ?? "")
+      .trim()
+      .toUpperCase();
+    const decisionNote =
+      String(formData.get("decisionNote") ?? "").trim() || null;
+    if (!id || (decision !== "APPROVE" && decision !== "REJECT")) {
+      throw new Error(
+        translate(locale, "pages.payroll.errors.unlockRequestNotFound")
+      );
+    }
+    const companyId = session.user.companyId;
+    const actorName = payrollActorName(session.user);
+
+    await prisma.$transaction(async (tx) => {
+      const request = await tx.payrollUnlockRequest.findFirst({
+        where: { id, companyId, status: "PENDING" },
+      });
+      if (!request) {
+        throw new Error(
+          translate(locale, "pages.payroll.errors.unlockRequestNotFound")
+        );
+      }
+
+      if (decision === "APPROVE") {
+        const lock = await tx.internalPayrollLock.findUnique({
+          where: {
+            companyId_year_month_run: {
+              companyId,
+              year: request.year,
+              month: request.month,
+              run: request.run,
+            },
+          },
+          select: { locked: true },
+        });
+        if (!lock?.locked) {
+          throw new Error(
+            translate(locale, "pages.payroll.errors.unlockRequestAlreadyOpen")
+          );
+        }
+        await unlockInternalPayrollPeriod(
+          {
+            companyId,
+            year: request.year,
+            month: request.month,
+            run: request.run,
+            actor: { id: session.user.id, name: actorName },
+            reason: request.reason,
+          },
+          tx
+        );
+      }
+
+      const updated = await tx.payrollUnlockRequest.updateMany({
+        where: { id: request.id, companyId, status: "PENDING" },
+        data: {
+          status: decision === "APPROVE" ? "APPROVED" : "REJECTED",
+          decidedById: session.user.id,
+          decidedByName: actorName,
+          decidedAt: new Date(),
+          decisionNote,
+        },
+      });
+      if (updated.count !== 1) {
+        throw new Error(
+          translate(locale, "pages.payroll.errors.unlockRequestNotFound")
+        );
+      }
+      await recordInternalPayrollChange({
+        companyId,
+        userId: session.user.id,
+        year: request.year,
+        month: request.month,
+        run: request.run,
+        action:
+          decision === "APPROVE"
+            ? "PAYROLL_UNLOCK_APPROVED"
+            : "PAYROLL_UNLOCK_REJECTED",
+        description: `${actorName} ${
+          decision === "APPROVE" ? "approved" : "rejected"
+        } the unlock request.${decisionNote ? ` Note: ${decisionNote}` : ""}`,
+        oldValue: { status: request.status, reason: request.reason },
+        newValue: {
+          status: decision === "APPROVE" ? "APPROVED" : "REJECTED",
+          decisionNote,
+        },
+        db: tx,
+      });
+    });
+
+    revalidatePath("/billing/payroll");
+    revalidatePath("/billing/financial-report");
+    revalidatePath("/approvals");
+  } catch (error) {
+    throw toActionError(
+      error,
+      translate(locale, "pages.payroll.errors.unlockDecisionFailed")
+    );
+  }
+}
+
+export async function generateAndLockInternalPayroll(formData: FormData) {
+  const locale = await getServerLocale();
+  try {
+    const session = await requirePayrollAccess();
+    const companyId = session.user.companyId;
+    if (!companyId) {
+      throw new Error(translate(locale, "pages.payroll.errors.exportFailed"));
+    }
+    if (String(formData.get("confirmLock") ?? "") !== "1") {
+      throw new Error(translate(locale, "pages.payroll.errors.lockConfirmRequired"));
+    }
+    const { year, month } = parseYearMonth(
+      formData.get("year"),
+      formData.get("month")
+    );
+    const run = parseRun(formData.get("run"));
+    const existing = await getInternalPayrollLockRecord(
+      companyId,
+      year,
+      month,
+      run
+    );
+    if (existing?.locked) return;
+
+    if (!isPayrollPeriodReconciled(year, month, new Date(), run)) {
+      throw new Error(translate(locale, "pages.payroll.errors.periodNotFinished"));
+    }
+
+    const rows = await loadInternalPayrollMonth({
+      companyId,
+      year,
+      month,
+      run,
+    });
+    await lockInternalPayrollPeriod({
+      companyId,
+      year,
+      month,
+      run,
+      actor: {
+        id: session.user.id,
+        name: payrollActorName(session.user),
+      },
+      snapshot: rows,
+    });
     revalidatePath("/billing/payroll");
     revalidatePath("/billing/financial-report");
   } catch (error) {
     throw toActionError(
       error,
-      translate(locale, "pages.payroll.errors.unlockFailed")
+      translate(locale, "pages.payroll.errors.exportFailed")
     );
   }
 }
@@ -512,27 +866,15 @@ export async function decideInternalPayrollDay(formData: FormData) {
       throw new Error(translate(locale, "pages.payroll.errors.decisionRequired"));
     }
 
-    await assertInternalPayrollPeriodUnlocked(
-      companyId,
-      year,
-      month,
-      translate(locale, "pages.payroll.errors.periodLocked")
-    );
-
-    const workDate = parseDateInput(dateKey);
-    const { start, endExclusive } = utcRangeForPayrollPeriod(year, month);
-    if (workDate < start || workDate >= endExclusive) {
-      throw new Error(translate(locale, "pages.payroll.errors.dayRequired"));
-    }
-
     const employee = await prisma.employee.findFirst({
       where: { id: employeeId, companyId },
       select: {
         id: true,
         basePay: true,
         cicoExempt: true,
+        payrollRun: true,
         attendances: {
-          where: { date: workDate },
+          where: { date: parseDateInput(dateKey) },
           select: {
             projectId: true,
             checkIn: true,
@@ -541,6 +883,27 @@ export async function decideInternalPayrollDay(formData: FormData) {
         },
       },
     });
+    if (!employee) {
+      throw new Error(translate(locale, "pages.payroll.errors.employeeNotFound"));
+    }
+
+    await assertInternalPayrollPeriodUnlocked(
+      companyId,
+      year,
+      month,
+      translate(locale, "pages.payroll.errors.periodLocked"),
+      employee.payrollRun
+    );
+
+    const workDate = parseDateInput(dateKey);
+    const { start, endExclusive } = utcRangeForPayrollPeriod(
+      year,
+      month,
+      employee.payrollRun
+    );
+    if (workDate < start || workDate >= endExclusive) {
+      throw new Error(translate(locale, "pages.payroll.errors.dayRequired"));
+    }
     if (!employee) {
       throw new Error(translate(locale, "pages.payroll.errors.employeeNotFound"));
     }
@@ -581,6 +944,16 @@ export async function decideInternalPayrollDay(formData: FormData) {
         : parseRupiahAmount(formData.get("amount"), locale);
 
     const now = new Date();
+    const existingDecision = await prisma.internalPayrollDayDecision.findUnique({
+      where: {
+        companyId_employeeId_workDate: {
+          companyId,
+          employeeId: employee.id,
+          workDate,
+        },
+      },
+      select: { paidAmount: true, status: true },
+    });
     await prisma.internalPayrollDayDecision.upsert({
       where: {
         companyId_employeeId_workDate: {
@@ -613,6 +986,33 @@ export async function decideInternalPayrollDay(formData: FormData) {
         paidAmount: toDecimal(paidAmount),
         decidedById: session.user.id,
         decidedAt: now,
+      },
+    });
+
+    // Permanent record of who changed this period and what changed.
+    await recordInternalPayrollChange({
+      companyId,
+      userId: session.user.id,
+      year,
+      month,
+      run: employee.payrollRun,
+      action: "PAYROLL_DAY_PAY_SET",
+      description: `${dateKey} set to ${
+        decisionRaw === "FULL_PAY" ? "full pay" : "custom amount"
+      } ${formatContractPrice(paidAmount)}`,
+      oldValue: existingDecision
+        ? {
+            employeeId: employee.id,
+            dateKey,
+            status: existingDecision.status,
+            paidAmount: decimalToNumber(existingDecision.paidAmount),
+          }
+        : { employeeId: employee.id, dateKey },
+      newValue: {
+        employeeId: employee.id,
+        dateKey,
+        status: decisionRaw,
+        paidAmount,
       },
     });
 

@@ -98,7 +98,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
           showCloseButton={false}
           overlayClassName="z-[80]"
           className={cn(
-            "z-[80] gap-0 overflow-hidden rounded-2xl border border-border bg-panel p-0 text-text ring-0",
+            "z-[80] max-h-[min(90dvh,calc(100dvh-1.5rem))] gap-0 overflow-hidden rounded-2xl border border-border bg-panel p-0 text-text ring-0",
             recap ? "sm:max-w-md" : "sm:max-w-sm"
           )}
         >
@@ -140,7 +140,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
               </div>
             </DialogHeader>
           </div>
-          <DialogFooter className="mx-0 mb-0 mt-0 flex-col gap-3 rounded-none border-t border-border bg-strip px-4 py-5 sm:flex-col sm:justify-stretch sm:px-10 sm:py-6">
+          <DialogFooter className="mx-0 mb-0 mt-0 flex-col gap-3 rounded-none border-t border-border bg-strip px-4 py-5 sm:justify-stretch sm:px-10 sm:py-6">
             <EmployeePrimaryButton
               type="button"
               variant={tone === "danger" ? "danger" : "primary"}

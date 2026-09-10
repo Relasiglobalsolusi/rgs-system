@@ -58,6 +58,9 @@ export default function EmployeeBulkCreateDialog({
   const [linePositionIds, setLinePositionIds] = useState<Record<string, string>>(
     {}
   );
+  const [linePayrollRuns, setLinePayrollRuns] = useState<
+    Record<string, "PROJECT_CYCLE" | "HEAD_OFFICE_MONTHLY">
+  >({});
   const [previewNos, setPreviewNos] = useState<string[]>([]);
   const [pending, startTransition] = useTransition();
   const [baseline, setBaseline] = useState<HtmlFormDirtyBaseline | null>(null);
@@ -80,6 +83,7 @@ export default function EmployeeBulkCreateDialog({
     setLineKeys([createBulkLineKey()]);
     setLineCategoryIds({});
     setLinePositionIds({});
+    setLinePayrollRuns({});
     setPreviewNos([]);
   }
 
@@ -223,6 +227,10 @@ export default function EmployeeBulkCreateDialog({
                         ...current,
                         [lineKey]: "",
                       }));
+                      setLinePayrollRuns((current) => ({
+                        ...current,
+                        [lineKey]: "PROJECT_CYCLE",
+                      }));
                     }}
                     positionId={linePositionIds[lineKey] ?? ""}
                     onPositionIdChange={(value) =>
@@ -233,6 +241,15 @@ export default function EmployeeBulkCreateDialog({
                     }
                     employmentType={lockedEmploymentType}
                     onEmploymentTypeChange={() => undefined}
+                    payrollRun={
+                      linePayrollRuns[lineKey] ?? "PROJECT_CYCLE"
+                    }
+                    onPayrollRunChange={(value) =>
+                      setLinePayrollRuns((current) => ({
+                        ...current,
+                        [lineKey]: value,
+                      }))
+                    }
                     previewEmployeeNo={previewNos[index] ?? ""}
                     onFormValuesChange={handleFormInput}
                   />

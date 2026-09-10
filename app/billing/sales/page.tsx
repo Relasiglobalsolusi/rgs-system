@@ -7,12 +7,15 @@ import SalesWorkspace from "@/components/billing/SalesWorkspace";
 import type { InventoryOverviewAssetRow } from "@/components/inventory/inventory-types";
 import AppShell from "@/components/layout/AppShell";
 import { inventoryQtyFromDecimal } from "@/lib/inventory";
+import { isVehicleItemType } from "@/lib/inventory-sku";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/project-billing";
 import { listCompanyBankAccountOptions } from "@/lib/company-bank-accounts";
 import { requireFinanceChild } from "@/lib/session";
 import { financePeriodRange, parseFinancePeriod } from "@/lib/finance-period";
 import { utcRangeForJakartaYear } from "@/lib/vat";
+import { leaseInputFromAsset } from "@/lib/vehicle-sale-settlement";
+import { summarizeVehicleLeaseProgress } from "@/lib/vehicle-lease";
 
 type SearchParams = Promise<{
   year?: string;
@@ -79,6 +82,17 @@ export default async function SalesPage({
         writeOffMovementId: true,
         soldOffMovementId: true,
         vehicleYear: true,
+        isVehicleLease: true,
+        leaseOtrAmount: true,
+        leaseDownPayment: true,
+        leaseTenorMonths: true,
+        leaseInterestPercentYear: true,
+        leaseAdminFee: true,
+        leaseInsuranceAmount: true,
+        leaseFiduciaryFee: true,
+        leaseProvisionFee: true,
+        leaseOtherFee: true,
+        leaseMonthlyInstallment: true,
         createdAt: true,
         item: {
           select: { id: true, sku: true, name: true, itemType: true },
@@ -109,25 +123,80 @@ export default async function SalesPage({
     active: item.active,
   }));
 
+  const leasedVehicleIds = assetRows
+    .filter((asset) => asset.isVehicleLease)
+    .map((asset) => asset.id);
+  const leasedPlates = assetRows
+    .filter((asset) => asset.isVehicleLease)
+    .map((asset) => asset.assetCode);
+  const leasedExpenses =
+    leasedVehicleIds.length > 0
+      ? await prisma.purchaseInvoice.findMany({
+          where: {
+            companyId: session.user.companyId,
+            reversedAt: null,
+            OR: [
+              { vehicleAssetId: { in: leasedVehicleIds } },
+              {
+                AND: [
+                  { purchaseCategory: "VEHICLE" },
+                  { vehiclePlate: { in: leasedPlates } },
+                ],
+              },
+            ],
+          },
+          select: {
+            vehicleAssetId: true,
+            vehiclePlate: true,
+            vehicleExpenseKind: true,
+            amount: true,
+          },
+        })
+      : [];
+
   const equipmentAssets = assetRows
     .filter((asset) => asset.item?.id != null)
-    .map((asset) => ({
-      id: asset.id,
-      assetCode: asset.assetCode,
-      status: asset.status as InventoryOverviewAssetRow["status"],
-      unitCost: decimalToNumber(asset.unitCost),
-      serialNo: asset.serialNo,
-      notes: asset.notes,
-      assignedAt: asset.assignedAt?.toISOString() ?? null,
-      writeOffMovementId: asset.writeOffMovementId,
-      soldOffMovementId: asset.soldOffMovementId,
-      soldBuyer: null,
-      soldAt: null,
-      vehicleYear: asset.vehicleYear,
-      createdAt: asset.createdAt.toISOString(),
-      item: asset.item!,
-      project: asset.project,
-    }));
+    .map((asset) => {
+      const leaseProgress =
+        asset.isVehicleLease && isVehicleItemType(asset.item!.itemType)
+          ? summarizeVehicleLeaseProgress(
+              leaseInputFromAsset(asset),
+              leasedExpenses
+                .filter(
+                  (row) =>
+                    row.vehicleAssetId === asset.id ||
+                    row.vehiclePlate === asset.assetCode
+                )
+                .map((row) => ({
+                  kind: row.vehicleExpenseKind,
+                  amount: decimalToNumber(row.amount) ?? 0,
+                }))
+            )
+          : null;
+      return {
+        id: asset.id,
+        assetCode: asset.assetCode,
+        status: asset.status as InventoryOverviewAssetRow["status"],
+        unitCost: decimalToNumber(asset.unitCost),
+        serialNo: asset.serialNo,
+        notes: asset.notes,
+        assignedAt: asset.assignedAt?.toISOString() ?? null,
+        writeOffMovementId: asset.writeOffMovementId,
+        soldOffMovementId: asset.soldOffMovementId,
+        soldBuyer: null,
+        soldAt: null,
+        vehicleYear: asset.vehicleYear,
+        isVehicleLease: asset.isVehicleLease,
+        leaseTenorMonths: asset.leaseTenorMonths,
+        leaseMonthlyInstallment: decimalToNumber(asset.leaseMonthlyInstallment),
+        leaseRemaining: leaseProgress?.remainingToPay ?? null,
+        leaseScheduledTotal: leaseProgress?.scheduledTotalCost ?? null,
+        leasePaidOff: leaseProgress?.paidOff ?? false,
+        createdAt: asset.createdAt.toISOString(),
+        item: asset.item!,
+        project: asset.project,
+      };
+    });
 
   return (
     <AppShell

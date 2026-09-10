@@ -5,6 +5,7 @@ import {
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
 import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { createProject } from "@/app/projects/actions";
 import ProjectFormFields, {
   type ProjectFormClient,
@@ -79,6 +80,7 @@ export default function ProjectDialog({
   showTrigger = true,
 }: Props) {
   const { t } = useT();
+  const router = useRouter();
   const { open, setOpen } = useDirectoryDialogOpen(controlledOpen, onOpenChange);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [fieldsState, setFieldsState] =
@@ -220,9 +222,12 @@ export default function ProjectDialog({
     setSubmitting(true);
     startTransition(async () => {
       try {
-        await createProject(formData);
+        const created = await createProject(formData);
         setExitConfirmOpen(false);
         closeDialog();
+        if (created?.catchUp && created.id) {
+          router.push(`/projects/${created.id}/catch-up`);
+        }
       } catch (error) {
         showRejectionFromError(error, t("pages.projects.finish.createFailed"));
       } finally {

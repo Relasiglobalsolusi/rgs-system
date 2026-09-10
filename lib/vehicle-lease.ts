@@ -142,7 +142,11 @@ export function summarizeVehicleLeaseProgress(
     Math.round((schedule.totalCost - leaseCashPaid) * 100) / 100
   );
   const tenorMonths = Math.round(moneyOrZero(input.tenorMonths));
-  const remainingMonths = Math.max(0, tenorMonths - installmentsPaidCount);
+  const monthsPaidFromAmount =
+    monthlyInstallment > 0
+      ? Math.floor((installmentPaidAmount + 1e-6) / monthlyInstallment)
+      : installmentsPaidCount;
+  const remainingMonths = Math.max(0, tenorMonths - monthsPaidFromAmount);
 
   return {
     otrAmount: moneyOrZero(input.otrAmount),

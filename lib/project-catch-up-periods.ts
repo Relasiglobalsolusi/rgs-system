@@ -117,7 +117,29 @@ export function currentMonthlyCatchUpPeriod(opts: {
   };
 }
 
-/** Billing cycles from contract start up to, but not including, the cycle that contains `asOf`. */
+/**
+ * First live billing cycle: period start on or after `asOf` (books-open).
+ * The cycle that only contains `asOf` (starts before it) is still catch-up.
+ */
+export function firstLiveMonthlyPeriod(opts: {
+  asOf: Date;
+  basis: BillingPeriodBasis | null | undefined;
+  fromDay?: number | null;
+  toDay?: number | null;
+}): CatchUpPeriodDraft {
+  const containing = currentMonthlyCatchUpPeriod(opts);
+  const asOfKey = toDateInput(toUtcDateOnly(opts.asOf));
+  if (containing.periodStart >= asOfKey) return containing;
+  const nextStart = addUtcDays(parseDraftDate(containing.periodEnd), 1);
+  return currentMonthlyCatchUpPeriod({
+    asOf: nextStart,
+    basis: opts.basis,
+    fromDay: opts.fromDay,
+    toDay: opts.toDay,
+  });
+}
+
+/** Billing cycles whose period start is before `asOf` (books-open). */
 export function listHistoricalCatchUpPeriods(opts: {
   startDate: Date;
   endDate?: Date | null;
@@ -127,29 +149,22 @@ export function listHistoricalCatchUpPeriods(opts: {
   toDay?: number | null;
 }): CatchUpPeriodDraft[] {
   const start = toUtcDateOnly(opts.startDate);
-  const current = currentMonthlyCatchUpPeriod({
-    asOf: opts.asOf,
-    basis: opts.basis,
-    fromDay: opts.fromDay,
-    toDay: opts.toDay,
-  });
-  const lastHistoricalEnd = addUtcDays(parseDraftDate(current.periodStart), -1);
-  if (lastHistoricalEnd.getTime() < start.getTime()) return [];
+  const asOf = toUtcDateOnly(opts.asOf);
+  if (asOf.getTime() <= start.getTime()) return [];
 
   const contractEnd = opts.endDate ? toUtcDateOnly(opts.endDate) : null;
-  const rangeEnd =
-    contractEnd && contractEnd.getTime() < lastHistoricalEnd.getTime()
-      ? contractEnd
-      : lastHistoricalEnd;
-  if (rangeEnd.getTime() < start.getTime()) return [];
+  const generateUntil =
+    contractEnd && contractEnd.getTime() < asOf.getTime() ? contractEnd : asOf;
+  if (generateUntil.getTime() < start.getTime()) return [];
 
+  const asOfKey = toDateInput(asOf);
   return listMonthlyCatchUpPeriods({
     startDate: start,
-    endDate: rangeEnd,
+    endDate: generateUntil,
     basis: opts.basis,
     fromDay: opts.fromDay,
     toDay: opts.toDay,
-  }).filter((period) => period.periodStart < current.periodStart);
+  }).filter((period) => period.periodStart < asOfKey);
 }
 
 function parseDraftDate(value: string): Date {
@@ -162,24 +177,11 @@ export function isRecordedCatchUpPeriod(
   return Boolean(period.isCatchUp && period.invoicePdfPath);
 }
 
-export function nextHistoricalCatchUpPeriod(
-  historical: CatchUpPeriodDraft[],
-  existing: ExistingCatchUpPeriod[]
-): { draft: CatchUpPeriodDraft; ordinal: number } | null {
-  const recorded = new Set(
-    existing
-      .filter(isRecordedCatchUpPeriod)
-      .map((period) => catchUpPeriodKey(period.periodStart, period.periodEnd))
-  );
-  for (const [index, draft] of historical.entries()) {
-    if (!recorded.has(draft.key)) {
-      return { draft, ordinal: index + 1 };
-    }
-  }
-  return null;
-}
+export type CatchUpIntakePage = CatchUpCompleteTarget & {
+  recorded: boolean;
+};
 
-export function resolveCatchUpCompleteTarget(opts: {
+export type CatchUpTargetOpts = {
   catchUpKind: string | null | undefined;
   status: string | null | undefined;
   isComplimentary?: boolean | null;
@@ -193,21 +195,30 @@ export function resolveCatchUpCompleteTarget(opts: {
   toDay?: number | null;
   asOf: Date;
   existingPeriods: ExistingCatchUpPeriod[];
-}): CatchUpCompleteTarget | null {
-  if (opts.catchUpKind !== "ONGOING" && opts.catchUpKind !== "COMPLETED") {
-    return null;
-  }
-  if (opts.status !== "IN_PROGRESS") return null;
-  if (opts.isComplimentary || opts.isDemo) return null;
-  if (!usesInvoicePeriods(opts.subCategory)) return null;
-  if (!opts.startDate) return null;
+};
 
+function catchUpIntakeEligible(opts: CatchUpTargetOpts): boolean {
+  if (opts.catchUpKind !== "ONGOING" && opts.catchUpKind !== "COMPLETED") {
+    return false;
+  }
+  if (opts.status !== "IN_PROGRESS") return false;
+  if (opts.isComplimentary || opts.isDemo) return false;
+  if (!usesInvoicePeriods(opts.subCategory)) return false;
+  if (!opts.startDate) return false;
   if (
     opts.catchUpKind === "COMPLETED" &&
     usesMonthlyCatchUpPeriods(opts.subCategory, opts.billingMode)
   ) {
-    return null;
+    return false;
   }
+  return true;
+}
+
+/** Every historical period that needs a catch-up page (recorded or still open). */
+export function listCatchUpIntakePages(
+  opts: CatchUpTargetOpts
+): CatchUpIntakePage[] {
+  if (!catchUpIntakeEligible(opts) || !opts.startDate) return [];
 
   if (
     opts.catchUpKind === "ONGOING" &&
@@ -221,10 +232,14 @@ export function resolveCatchUpCompleteTarget(opts: {
       fromDay: opts.fromDay,
       toDay: opts.toDay,
     });
-    const next = nextHistoricalCatchUpPeriod(historical, opts.existingPeriods);
-    if (!next) return null;
-
-    const current = currentMonthlyCatchUpPeriod({
+    const recorded = new Set(
+      opts.existingPeriods
+        .filter(isRecordedCatchUpPeriod)
+        .map((period) =>
+          catchUpPeriodKey(period.periodStart, period.periodEnd)
+        )
+    );
+    const firstLive = firstLiveMonthlyPeriod({
       asOf: opts.asOf,
       basis: opts.basis,
       fromDay: opts.fromDay,
@@ -233,30 +248,57 @@ export function resolveCatchUpCompleteTarget(opts: {
     const contractEndedBeforeCurrent =
       Boolean(opts.endDate) &&
       toUtcDateOnly(opts.endDate as Date).getTime() <
-        parseDraftDate(current.periodStart).getTime();
-    const isLastHistorical = next.ordinal === historical.length;
+        parseDraftDate(firstLive.periodStart).getTime();
 
-    return {
-      kind: "period",
-      ordinal: next.ordinal,
-      periodStart: next.draft.periodStart,
-      periodEnd: next.draft.periodEnd,
-      label: next.draft.label,
-      closesProject: contractEndedBeforeCurrent && isLastHistorical,
-    };
+    return historical.map((draft, index) => {
+      const ordinal = index + 1;
+      const isLast = ordinal === historical.length;
+      return {
+        kind: "period" as const,
+        ordinal,
+        periodStart: draft.periodStart,
+        periodEnd: draft.periodEnd,
+        label: draft.label,
+        closesProject: contractEndedBeforeCurrent && isLast,
+        recorded: recorded.has(draft.key),
+      };
+    });
   }
-
-  const alreadyClosed = opts.existingPeriods.some(isRecordedCatchUpPeriod);
-  if (alreadyClosed) return null;
 
   const start = toUtcDateOnly(opts.startDate);
   const end = opts.endDate ? toUtcDateOnly(opts.endDate) : start;
+  const recorded = opts.existingPeriods.some(isRecordedCatchUpPeriod);
+  return [
+    {
+      kind: "job",
+      ordinal: 1,
+      periodStart: toDateInput(start),
+      periodEnd: toDateInput(end.getTime() < start.getTime() ? start : end),
+      label: "Completion Invoice",
+      closesProject: true,
+      recorded,
+    },
+  ];
+}
+
+export function catchUpPageByOrdinal(
+  pages: CatchUpIntakePage[],
+  ordinal: number
+): CatchUpIntakePage | null {
+  return pages.find((page) => page.ordinal === ordinal) ?? null;
+}
+
+export function resolveCatchUpCompleteTarget(
+  opts: CatchUpTargetOpts
+): CatchUpCompleteTarget | null {
+  const next = listCatchUpIntakePages(opts).find((page) => !page.recorded);
+  if (!next) return null;
   return {
-    kind: "job",
-    ordinal: 1,
-    periodStart: toDateInput(start),
-    periodEnd: toDateInput(end.getTime() < start.getTime() ? start : end),
-    label: "Completion Invoice",
-    closesProject: true,
+    kind: next.kind,
+    ordinal: next.ordinal,
+    periodStart: next.periodStart,
+    periodEnd: next.periodEnd,
+    label: next.label,
+    closesProject: next.closesProject,
   };
 }

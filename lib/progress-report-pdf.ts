@@ -5,7 +5,7 @@ import PDFDocument from "pdfkit";
 import { resolveCompanyBankDetails } from "@/lib/company-bank";
 import { ensureCompanyForPdf } from "@/lib/company-for-pdf";
 import { formatDisplayDate } from "@/lib/format-date";
-import { formatProjectTitle } from "@/lib/project-billing";
+import { formatContractPrice, formatProjectTitle } from "@/lib/project-billing";
 import {
   BOTTOM_SAFE,
   CONTENT_WIDTH,
@@ -58,6 +58,14 @@ type CompilePdfInput = {
   clientNpwp?: string | null;
   /** Institution remits VAT; cash-in is DPP only. */
   isGovernmentContract?: boolean | null;
+  /** Exclusive (DPP) amount. When set, totals print DPP, PPN, PPh, then total due. */
+  exclusiveAmount?: number | null;
+  taxBreakdown?: {
+    dpp: number;
+    ppn: number;
+    pph: number;
+    gross: number;
+  } | null;
 };
 
 function publicUrlToFsPath(url: string): string | null {
@@ -311,7 +319,13 @@ function drawServiceBlock(doc: PdfDoc, input: CompilePdfInput) {
 
 function drawChargesTable(doc: PdfDoc, input: CompilePdfInput) {
   const description = chargeDescriptionFor(input);
-  const chargeAmount = input.amountLabel ?? "As agreed / to be confirmed";
+  const breakdown = input.taxBreakdown;
+  const totalDueLabel = breakdown
+    ? formatContractPrice(breakdown.gross)
+    : (input.amountLabel ?? "As agreed / to be confirmed");
+  const lineAmount = breakdown
+    ? formatContractPrice(breakdown.dpp)
+    : (input.amountLabel ?? "As agreed / to be confirmed");
   const qty = "1";
   const unit = input.milestonePercent != null ? "Milestone" : "Period";
 
@@ -372,7 +386,7 @@ function drawChargesTable(doc: PdfDoc, input: CompilePdfInput) {
   doc
     .font("Helvetica-Bold")
     .fillColor(BRAND.ink)
-    .text(chargeAmount, x, amountY, {
+    .text(lineAmount, x, amountY, {
       width: colAmt - rowPad * 2,
       align: "right",
     });
@@ -400,20 +414,30 @@ function drawChargesTable(doc: PdfDoc, input: CompilePdfInput) {
   const totalsX = PAGE_MARGIN + CONTENT_WIDTH - totalsW;
   let ty = doc.y;
 
-  doc
-    .font("Helvetica")
-    .fontSize(9)
-    .fillColor(BRAND.muted)
-    .text("Subtotal", totalsX, ty, { width: 90 });
-  doc
-    .font("Helvetica")
-    .fontSize(9)
-    .fillColor(BRAND.ink)
-    .text(chargeAmount, totalsX + 90, ty, {
-      width: totalsW - 90,
-      align: "right",
-    });
-  ty += 18;
+  const totalRows: [string, string][] = breakdown
+    ? [
+        ["DPP", formatContractPrice(breakdown.dpp)],
+        ["PPN", formatContractPrice(breakdown.ppn)],
+        ["PPh", formatContractPrice(breakdown.pph)],
+      ]
+    : [["Subtotal", totalDueLabel]];
+
+  for (const [label, value] of totalRows) {
+    doc
+      .font("Helvetica")
+      .fontSize(9)
+      .fillColor(BRAND.muted)
+      .text(label, totalsX, ty, { width: 90 });
+    doc
+      .font("Helvetica")
+      .fontSize(9)
+      .fillColor(BRAND.ink)
+      .text(value, totalsX + 90, ty, {
+        width: totalsW - 90,
+        align: "right",
+      });
+    ty += 18;
+  }
 
   // Amount due emphasis panel
   const panelH = 42;
@@ -437,7 +461,7 @@ function drawChargesTable(doc: PdfDoc, input: CompilePdfInput) {
     .font("Helvetica-Bold")
     .fontSize(13)
     .fillColor(BRAND.ink)
-    .text(chargeAmount, totalsX + 100, ty + 12, {
+    .text(totalDueLabel, totalsX + 100, ty + 12, {
       width: totalsW - 114,
       align: "right",
     });

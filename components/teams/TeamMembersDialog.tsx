@@ -16,6 +16,7 @@ import {
   employeeSelectTriggerClass,
 } from "@/components/employees/employee-dialog-ui";
 import { Button } from "@/components/ui/button";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import { Dialog } from "@/components/ui/dialog";
 import DirectoryFilterTab from "@/components/ui/DirectoryFilterTab";
 import DirectorySearchInput, {
@@ -186,7 +187,7 @@ export default function TeamMembersDialog({
                 {t("pages.teams.addMember")}
               </label>
               <div
-                className="flex flex-wrap items-center gap-2"
+                className={chipScrollRowClassName()}
                 role="group"
                 aria-label={t("common.labels.department")}
               >
@@ -269,8 +270,8 @@ export default function TeamMembersDialog({
                   key={member.employeeId}
                   className="flex items-center justify-between gap-3 px-4 py-3"
                 >
-                  <div>
-                    <p className="font-medium text-text">
+                  <div className="min-w-0 flex-1">
+                    <p className="min-w-0 break-words font-medium text-text">
                       {member.firstName} {member.lastName}
                     </p>
                     <p className="font-mono text-xs text-muted">{member.employeeNo}</p>
@@ -279,6 +280,7 @@ export default function TeamMembersDialog({
                     type="button"
                     variant="ghost"
                     size="sm"
+                    className="shrink-0"
                     disabled={pending}
                     onClick={() => handleRemove(member.employeeId)}
                   >

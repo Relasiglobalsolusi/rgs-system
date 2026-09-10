@@ -25,6 +25,7 @@ export type DirectoryReconcileTarget = {
   periodId: string;
   periodLabel: string;
   suggestedAmount: number | null;
+  taxInvoiceMissing?: boolean;
 };
 
 type InvoicePeriodForActions = {
@@ -219,6 +220,7 @@ export default function ProjectDirectoryActions({
           periodId={reconcileTarget.periodId}
           periodLabel={reconcileTarget.periodLabel}
           suggestedAmount={reconcileTarget.suggestedAmount}
+          taxInvoiceMissing={reconcileTarget.taxInvoiceMissing}
           disabled={pending}
         />
       ) : null;

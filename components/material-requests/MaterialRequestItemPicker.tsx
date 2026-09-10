@@ -8,6 +8,7 @@ import {
 } from "@/components/inventory/inventory-category";
 import { inventoryUnitLabel } from "@/components/inventory/InventoryUnitSelect";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import DirectoryFilterTab from "@/components/ui/DirectoryFilterTab";
 import DirectorySearchInput, {
   matchesDirectorySearch,
@@ -183,7 +184,7 @@ export default function MaterialRequestItemPicker({
               <p className="mb-2 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-subtle">
                 {t("pages.materialRequests.itemTypeLabel")}
               </p>
-              <div className="flex flex-wrap gap-2">
+              <div className={chipScrollRowClassName()}>
                 {MATERIAL_REQUEST_TYPE_ORDER.map((type) => (
                   <DirectoryFilterTab
                     key={type}
@@ -234,7 +235,7 @@ export default function MaterialRequestItemPicker({
             <p className="mb-3 text-xs text-subtle">
               {t("pages.materialRequests.itemTypeHint")}
             </p>
-            <div className="overflow-hidden rounded-xl border border-border">
+            <div className="overflow-x-auto rounded-xl border border-border">
               <table className="w-full text-sm">
                 <thead className="bg-elevated/60 text-left text-[0.6875rem] uppercase tracking-[0.12em] text-subtle">
                   <tr>

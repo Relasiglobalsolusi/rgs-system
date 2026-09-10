@@ -69,6 +69,7 @@ export type PrepaidCardView = {
   status: string;
   currentBalance: number;
   vehicleItemId: string | null;
+  vehicleAssetId: string | null;
   vehicleName: string | null;
   vehicleSku: string | null;
   vehiclePlate: string | null;
@@ -173,6 +174,9 @@ export async function loadPrepaidCardsForPanel(
     prisma.prepaidCard.findMany({
       where: { companyId },
       include: {
+        vehicleAsset: {
+          select: { id: true, assetCode: true, vehicleYear: true },
+        },
         vehicleItem: {
           select: {
             name: true,
@@ -235,7 +239,13 @@ export async function loadPrepaidCardsForPanel(
               orderBy: { recoveredAt: "asc" },
             },
             payrollDeductions: {
-              select: { id: true, year: true, month: true, amount: true },
+              select: {
+                id: true,
+                year: true,
+                month: true,
+                run: true,
+                amount: true,
+              },
               orderBy: [{ year: "asc" }, { month: "asc" }],
             },
           },
@@ -246,11 +256,14 @@ export async function loadPrepaidCardsForPanel(
     }),
     prisma.internalPayrollLock.findMany({
       where: { companyId, locked: true },
-      select: { year: true, month: true },
+      select: { year: true, month: true, run: true },
     }),
   ]);
 
-  const locked = new Set(locks.map((row) => `${row.year}-${row.month}`));
+  // Each month holds one lock per run, so the run is part of the key.
+  const locked = new Set(
+    locks.map((row) => `${row.year}-${row.month}-${row.run}`)
+  );
 
   function toLossView(
     loss: (typeof cards)[number]["losses"][number],
@@ -262,7 +275,7 @@ export async function loadPrepaidCardsForPanel(
       .filter((row) => row.source === "PAY_NOW")
       .reduce((sum, row) => sum + (decimalToNumber(row.amount) ?? 0), 0);
     const payrollRecovered = loss.payrollDeductions
-      .filter((row) => locked.has(`${row.year}-${row.month}`))
+      .filter((row) => locked.has(`${row.year}-${row.month}-${row.run}`))
       .reduce((sum, row) => sum + (decimalToNumber(row.amount) ?? 0), 0);
     const totals = computePrepaidLossTotals({
       leftoverAmount: leftover,
@@ -291,7 +304,7 @@ export async function loadPrepaidCardsForPanel(
         year: row.year,
         month: row.month,
         amount: decimalToNumber(row.amount) ?? 0,
-        paid: locked.has(`${row.year}-${row.month}`),
+        paid: locked.has(`${row.year}-${row.month}-${row.run}`),
       })),
       payNow: payNow
         ? {
@@ -317,18 +330,23 @@ export async function loadPrepaidCardsForPanel(
       status: card.status,
       currentBalance: decimalToNumber(card.currentBalance) ?? 0,
       vehicleItemId: card.vehicleItemId,
+      vehicleAssetId: card.vehicleAssetId,
       vehicleName: card.vehicleItem?.name ?? null,
       vehicleSku: card.vehicleItem?.sku ?? null,
-      vehiclePlate: card.vehicleItem
-        ? card.vehicleItem.equipmentAssets
-            .map((asset) => asset.assetCode)
-            .filter(Boolean)
-            .join(" / ")
-        : null,
+      vehiclePlate:
+        card.vehicleAsset?.assetCode ??
+        (card.vehicleItem
+          ? card.vehicleItem.equipmentAssets
+              .map((asset) => asset.assetCode)
+              .filter(Boolean)
+              .join(" / ")
+          : null),
       vehicleYear:
+        card.vehicleAsset?.vehicleYear ??
         card.vehicleItem?.equipmentAssets.find(
           (asset) => asset.vehicleYear != null
-        )?.vehicleYear ?? null,
+        )?.vehicleYear ??
+        null,
       vehicleAssets: (card.vehicleItem?.equipmentAssets ?? []).map((asset) =>
         toVehicleOdometerOption({
           id: asset.id,

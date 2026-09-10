@@ -33,11 +33,12 @@ import {
   currentPrepaidAssignment,
   recordReplacementFeeOnCard,
   requireActiveEmployee,
-  requireOwnedVehicle,
+  requireOwnedVehicleAsset,
   returnPrepaidCardToStandby,
   startPrepaidAssignment,
   transferPrepaidCardLeftover,
   writePrepaidCardEntry,
+  reversePrepaidCardSpendEntry,
 } from "@/lib/prepaid-card-lifecycle";
 import { decimalToNumber, parseContractPrice } from "@/lib/project-billing";
 import { prisma } from "@/lib/prisma";
@@ -79,6 +80,22 @@ async function requireOwnerPrepaidCardManage() {
   return session;
 }
 
+async function bindPrepaidVehiclePlate(
+  db: Parameters<typeof requireOwnedVehicleAsset>[0],
+  companyId: string,
+  vehicleAssetId: string,
+  exceptCardId?: string
+) {
+  const asset = await requireOwnedVehicleAsset(db, companyId, vehicleAssetId);
+  await assertVehicleHasNoLiveCard(
+    db,
+    companyId,
+    { vehicleAssetId: asset.id },
+    exceptCardId
+  );
+  return asset;
+}
+
 async function nextOpenPayrollPeriods(
   companyId: string,
   count: number
@@ -104,7 +121,7 @@ export async function createPrepaidCard(formData: FormData) {
   const session = await requireOwnerPrepaidCardManage();
   const kind = parsePrepaidCardKind(String(formData.get("kind") ?? "").trim());
   const assignNow = String(formData.get("assignNow") ?? "") === "1";
-  const vehicleItemId = String(formData.get("vehicleItemId") ?? "").trim();
+  const vehicleAssetId = String(formData.get("vehicleAssetId") ?? "").trim();
   const custodianEmployeeId = String(
     formData.get("custodianEmployeeId") ?? ""
   ).trim();
@@ -115,13 +132,16 @@ export async function createPrepaidCard(formData: FormData) {
     String(formData.get("cardNumber") ?? "")
   );
 
+  let vehicleItemId: string | null = null;
+  let boundAssetId: string | null = null;
   if (assignNow && kind === "VEHICLE") {
-    await requireOwnedVehicle(prisma, session.user.companyId, vehicleItemId);
-    await assertVehicleHasNoLiveCard(
+    const asset = await bindPrepaidVehiclePlate(
       prisma,
       session.user.companyId,
-      vehicleItemId
+      vehicleAssetId
     );
+    vehicleItemId = asset.itemId;
+    boundAssetId = asset.id;
   }
   if (assignNow && kind === "OPEN") {
     await requireActiveEmployee(
@@ -139,6 +159,7 @@ export async function createPrepaidCard(formData: FormData) {
         kind,
         status: assignNow ? "ACTIVE" : "STANDBY",
         vehicleItemId: assignNow && kind === "VEHICLE" ? vehicleItemId : null,
+        vehicleAssetId: assignNow && kind === "VEHICLE" ? boundAssetId : null,
         custodianEmployeeId:
           assignNow && kind === "OPEN" ? custodianEmployeeId : null,
         currentBalance: 0,
@@ -148,6 +169,7 @@ export async function createPrepaidCard(formData: FormData) {
       await startPrepaidAssignment(tx, {
         prepaidCardId: card.id,
         vehicleItemId: kind === "VEHICLE" ? vehicleItemId : null,
+        vehicleAssetId: kind === "VEHICLE" ? boundAssetId : null,
         custodianEmployeeId: kind === "OPEN" ? custodianEmployeeId : null,
       });
     }
@@ -158,7 +180,7 @@ export async function createPrepaidCard(formData: FormData) {
 export async function assignPrepaidCard(formData: FormData) {
   const session = await requireOwnerPrepaidCardManage();
   const prepaidCardId = String(formData.get("prepaidCardId") ?? "").trim();
-  const vehicleItemId = String(formData.get("vehicleItemId") ?? "").trim();
+  const vehicleAssetId = String(formData.get("vehicleAssetId") ?? "").trim();
   const custodianEmployeeId = String(
     formData.get("custodianEmployeeId") ?? ""
   ).trim();
@@ -172,14 +194,17 @@ export async function assignPrepaidCard(formData: FormData) {
     if (!canAssignPrepaidCard(card.status)) {
       throw new Error(await prepaidError("standbyAssignOnly"));
     }
+    let vehicleItemId: string | null = null;
+    let boundAssetId: string | null = null;
     if (card.kind === "VEHICLE") {
-      await requireOwnedVehicle(tx, session.user.companyId, vehicleItemId);
-      await assertVehicleHasNoLiveCard(
+      const asset = await bindPrepaidVehiclePlate(
         tx,
         session.user.companyId,
-        vehicleItemId,
+        vehicleAssetId,
         card.id
       );
+      vehicleItemId = asset.itemId;
+      boundAssetId = asset.id;
     } else {
       await requireActiveEmployee(
         tx,
@@ -190,6 +215,7 @@ export async function assignPrepaidCard(formData: FormData) {
     await startPrepaidAssignment(tx, {
       prepaidCardId: card.id,
       vehicleItemId: card.kind === "VEHICLE" ? vehicleItemId : null,
+      vehicleAssetId: card.kind === "VEHICLE" ? boundAssetId : null,
       custodianEmployeeId: card.kind === "OPEN" ? custodianEmployeeId : null,
     });
     await tx.prepaidCard.update({
@@ -197,6 +223,7 @@ export async function assignPrepaidCard(formData: FormData) {
       data: {
         status: "ACTIVE",
         vehicleItemId: card.kind === "VEHICLE" ? vehicleItemId : null,
+        vehicleAssetId: card.kind === "VEHICLE" ? boundAssetId : null,
         custodianEmployeeId: card.kind === "OPEN" ? custodianEmployeeId : null,
       },
     });
@@ -207,7 +234,7 @@ export async function assignPrepaidCard(formData: FormData) {
 export async function reassignPrepaidCard(formData: FormData) {
   const session = await requireOwnerPrepaidCardManage();
   const prepaidCardId = String(formData.get("prepaidCardId") ?? "").trim();
-  const vehicleItemId = String(formData.get("vehicleItemId") ?? "").trim();
+  const vehicleAssetId = String(formData.get("vehicleAssetId") ?? "").trim();
   const custodianEmployeeId = String(
     formData.get("custodianEmployeeId") ?? ""
   ).trim();
@@ -222,34 +249,39 @@ export async function reassignPrepaidCard(formData: FormData) {
       throw new Error(await prepaidError("returnBeforeReassign"));
     }
     if (card.kind === "VEHICLE") {
-      await requireOwnedVehicle(tx, session.user.companyId, vehicleItemId);
-      if (vehicleItemId !== card.vehicleItemId) {
-        await assertVehicleHasNoLiveCard(
-          tx,
-          session.user.companyId,
-          vehicleItemId,
-          card.id
-        );
-      }
+      const asset = await bindPrepaidVehiclePlate(
+        tx,
+        session.user.companyId,
+        vehicleAssetId,
+        card.id
+      );
+      await startPrepaidAssignment(tx, {
+        prepaidCardId: card.id,
+        vehicleItemId: asset.itemId,
+        vehicleAssetId: asset.id,
+      });
+      await tx.prepaidCard.update({
+        where: { id: card.id },
+        data: {
+          vehicleItemId: asset.itemId,
+          vehicleAssetId: asset.id,
+        },
+      });
     } else {
       await requireActiveEmployee(
         tx,
         session.user.companyId,
         custodianEmployeeId
       );
+      await startPrepaidAssignment(tx, {
+        prepaidCardId: card.id,
+        custodianEmployeeId,
+      });
+      await tx.prepaidCard.update({
+        where: { id: card.id },
+        data: { custodianEmployeeId },
+      });
     }
-    await startPrepaidAssignment(tx, {
-      prepaidCardId: card.id,
-      vehicleItemId: card.kind === "VEHICLE" ? vehicleItemId : null,
-      custodianEmployeeId: card.kind === "OPEN" ? custodianEmployeeId : null,
-    });
-    await tx.prepaidCard.update({
-      where: { id: card.id },
-      data: {
-        vehicleItemId: card.kind === "VEHICLE" ? vehicleItemId : null,
-        custodianEmployeeId: card.kind === "OPEN" ? custodianEmployeeId : null,
-      },
-    });
   });
   revalidatePrepaidCardPaths();
 }
@@ -362,6 +394,20 @@ export async function recordPrepaidCardSpend(formData: FormData) {
   revalidatePrepaidCardPaths();
 }
 
+export async function reversePrepaidCardSpend(formData: FormData) {
+  const session = await requireAdvanceCashPrepaidAccess();
+  const entryId = String(formData.get("entryId") ?? "").trim();
+  if (!entryId) throw new Error(await prepaidError("cardRequired"));
+  await prisma.$transaction(async (tx) => {
+    await reversePrepaidCardSpendEntry(tx, {
+      companyId: session.user.companyId,
+      entryId,
+      createdById: session.user.id,
+    });
+  });
+  revalidatePrepaidCardPaths();
+}
+
 export async function markPrepaidCardDamaged(formData: FormData) {
   const session = await requireOwnerPrepaidCardManage();
   const prepaidCardId = String(formData.get("prepaidCardId") ?? "").trim();
@@ -395,6 +441,7 @@ export async function markPrepaidCardDamaged(formData: FormData) {
         throw new Error(await prepaidError("standbyRequired"));
       }
       const vehicleItemId = card.vehicleItemId;
+      const vehicleAssetId = card.vehicleAssetId;
       const custodianEmployeeId = card.custodianEmployeeId;
       await returnPrepaidCardToStandby(tx, card.id);
       await tx.prepaidCard.update({
@@ -402,14 +449,15 @@ export async function markPrepaidCardDamaged(formData: FormData) {
         data: { status: "DAMAGED" },
       });
       if (card.kind === "VEHICLE") {
-        if (!vehicleItemId) throw new Error(await prepaidError("vehicleCardNoVehicle"));
+        if (!vehicleItemId || !vehicleAssetId) throw new Error(await prepaidError("vehicleCardNoVehicle"));
         await startPrepaidAssignment(tx, {
           prepaidCardId: replacement.id,
           vehicleItemId,
+          vehicleAssetId,
         });
         await tx.prepaidCard.update({
           where: { id: replacement.id },
-          data: { status: "ACTIVE", vehicleItemId },
+          data: { status: "ACTIVE", vehicleItemId, vehicleAssetId },
         });
       } else {
         if (!custodianEmployeeId) {
@@ -558,24 +606,26 @@ export async function replacePrepaidCard(formData: FormData) {
     });
     if (destination.status === "STANDBY") {
       const vehicleItemId = lastAssignment?.vehicleItemId ?? null;
+      const vehicleAssetId = lastAssignment?.vehicleAssetId ?? null;
       const custodianEmployeeId = lastAssignment?.custodianEmployeeId ?? null;
       if (destination.kind === "VEHICLE") {
-        if (!vehicleItemId) {
+        if (!vehicleItemId || !vehicleAssetId) {
           throw new Error(await prepaidError("assignReplacementVehicle"));
         }
         await assertVehicleHasNoLiveCard(
           tx,
           session.user.companyId,
-          vehicleItemId,
+          { vehicleAssetId },
           destination.id
         );
         await startPrepaidAssignment(tx, {
           prepaidCardId: destination.id,
           vehicleItemId,
+          vehicleAssetId,
         });
         await tx.prepaidCard.update({
           where: { id: destination.id },
-          data: { status: "ACTIVE", vehicleItemId },
+          data: { status: "ACTIVE", vehicleItemId, vehicleAssetId },
         });
       } else {
         if (!custodianEmployeeId) {

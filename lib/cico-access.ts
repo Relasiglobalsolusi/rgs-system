@@ -110,9 +110,5 @@ export function canViewCicoAdminPreview(
     user.employeeType ?? employee?.employeeType ?? null;
   if (employeeType === "PROJECT_SITE") return false;
 
-  return (
-    canAccess(user, "attendance") ||
-    canAccess(user, "projects") ||
-    canAccess(user, "cico")
-  );
+  return canAccess(user, "attendance");
 }

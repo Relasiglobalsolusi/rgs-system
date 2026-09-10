@@ -25,6 +25,7 @@ type Props = {
   employeeName: string;
   year: number;
   month: number;
+  run?: string;
 };
 
 export default function PayrollOvertimeDialog({
@@ -34,6 +35,7 @@ export default function PayrollOvertimeDialog({
   employeeName,
   year,
   month,
+  run,
 }: Props) {
   const { t } = useT();
   const [pending, startTransition] = useTransition();
@@ -52,6 +54,7 @@ export default function PayrollOvertimeDialog({
         formData.set("employeeId", employeeId);
         formData.set("year", String(year));
         formData.set("month", String(month));
+        if (run) formData.set("run", run);
         formData.set("type", "OVERTIME");
         formData.set("amount", amount);
         formData.set("reason", reason);

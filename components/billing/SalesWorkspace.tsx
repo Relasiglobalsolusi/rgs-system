@@ -97,7 +97,7 @@ export default function SalesWorkspace({
 
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
         <SalesPeriodControl
           year={year}
           month={month}

@@ -23,9 +23,14 @@ import {
   parseContractPrice,
 } from "@/lib/project-billing";
 import { addUtcDays } from "@/lib/invoice-period";
+import {
+  assertLiveBillingAllowed,
+  invoicePeriodCompanyWhere,
+} from "@/lib/invoice-period-access";
 import { isContractCycleSubCategory } from "@/lib/project-contract";
 import { COMPANY_IDENTITY_SELECT } from "@/lib/company-for-pdf";
 import { generateProgressReviewPdf } from "@/lib/progress-review-pdf";
+import { exclusivePricePlusChargedTax } from "@/lib/commercial-tax";
 import { generateReconciliationReportPdf } from "@/lib/reconciliation-report-pdf";
 import {
   requireSession,
@@ -125,8 +130,8 @@ export async function sendPeriodForClientReview(
 ) {
   const session = await requireHoFinanceAccess();
 
-  const period = await prisma.projectInvoicePeriod.findUnique({
-    where: { id: periodId },
+  const period = await prisma.projectInvoicePeriod.findFirst({
+    where: { id: periodId, project: invoicePeriodCompanyWhere(session) },
     include: {
       project: {
         include: {
@@ -138,6 +143,7 @@ export async function sendPeriodForClientReview(
   });
 
   if (!period) throw new Error("Billing period not found.");
+  await assertLiveBillingAllowed(period);
   if (
     period.status !== "ONGOING" &&
     period.status !== "COMPILING" &&
@@ -175,8 +181,21 @@ export async function sendPeriodForClientReview(
       orderBy: [{ date: "asc" }, { checkIn: "asc" }],
     });
 
-    const amount =
-      decimalToNumber(period.amount) ?? decimalToNumber(project.contractPrice);
+    const exclusiveAmount =
+      decimalToNumber(period.amount) ?? decimalToNumber(project.contractPrice) ?? 0;
+    const taxBreakdown =
+      exclusiveAmount > 0
+        ? exclusivePricePlusChargedTax({
+            exclusiveAmount,
+            chargedTaxKind: project.chargedTaxKind,
+            requiresTaxInvoice: project.requiresTaxInvoice,
+            pphRatePercent: decimalToNumber(project.pphRatePercent),
+            isGovernmentContract: project.isGovernmentContract,
+          })
+        : null;
+    const taxInvoiceMissing =
+      (period.taxInvoiceRequired || project.requiresTaxInvoice) &&
+      period.taxInvoiceDoneAt == null;
 
     reviewReportPdfPath = await generateReconciliationReportPdf({
       projectName: project.name,
@@ -186,7 +205,16 @@ export async function sendPeriodForClientReview(
       periodStart: period.periodStart,
       periodEnd: period.periodEnd,
       contractAmountLabel:
-        amount != null ? formatContractPrice(amount) : null,
+        exclusiveAmount > 0 ? formatContractPrice(exclusiveAmount) : null,
+      taxBreakdown: taxBreakdown
+        ? {
+            dpp: taxBreakdown.exclusive,
+            ppn: taxBreakdown.ppn,
+            pph: taxBreakdown.pph,
+            gross: taxBreakdown.gross,
+          }
+        : null,
+      taxInvoiceMissing,
       rows: attendances.map((a) => ({
         date: a.date,
         employeeName: `${a.employee.firstName} ${a.employee.lastName}`.trim(),
@@ -385,8 +413,8 @@ async function schedulePercentsForProject(projectId: string) {
 export async function clientApproveBillingReview(periodId: string) {
   const session = await requireClientPortal();
 
-  const period = await prisma.projectInvoicePeriod.findUnique({
-    where: { id: periodId },
+  const period = await prisma.projectInvoicePeriod.findFirst({
+    where: { id: periodId, project: invoicePeriodCompanyWhere(session) },
     include: {
       project: {
         select: {
@@ -510,8 +538,8 @@ export async function clientReviseBillingReview(formData: FormData) {
     throw new Error("Enter the adjusted amount the client is requesting.");
   }
 
-  const period = await prisma.projectInvoicePeriod.findUnique({
-    where: { id: periodId },
+  const period = await prisma.projectInvoicePeriod.findFirst({
+    where: { id: periodId, project: invoicePeriodCompanyWhere(session) },
     include: {
       project: { select: { id: true, clientId: true } },
     },
@@ -585,8 +613,8 @@ export async function hoApproveClientRevision(formData: FormData) {
 
   if (!periodId) throw new Error("Period is required.");
 
-  const period = await prisma.projectInvoicePeriod.findUnique({
-    where: { id: periodId },
+  const period = await prisma.projectInvoicePeriod.findFirst({
+    where: { id: periodId, project: invoicePeriodCompanyWhere(session) },
     include: {
       project: {
         select: {
@@ -695,8 +723,8 @@ export async function hoRejectClientRevision(formData: FormData) {
     throw new Error("Enter the amount Head Office is proposing.");
   }
 
-  const period = await prisma.projectInvoicePeriod.findUnique({
-    where: { id: periodId },
+  const period = await prisma.projectInvoicePeriod.findFirst({
+    where: { id: periodId, project: invoicePeriodCompanyWhere(session) },
     include: {
       project: { select: { id: true, clientId: true } },
     },
@@ -767,8 +795,8 @@ async function issueInvoiceAfterClientApproval(
   periodId: string,
   _actorUserId: string
 ) {
-  const period = await prisma.projectInvoicePeriod.findUnique({
-    where: { id: periodId },
+  const period = await prisma.projectInvoicePeriod.findFirst({
+    where: { id: periodId, project: invoicePeriodCompanyWhere(session) },
     select: {
       id: true,
       clientReviewStatus: true,
@@ -859,8 +887,8 @@ export async function hoRecordOfflineClientReview(formData: FormData) {
     throw new Error("Choose Approved or Revised.");
   }
 
-  const period = await prisma.projectInvoicePeriod.findUnique({
-    where: { id: periodId },
+  const period = await prisma.projectInvoicePeriod.findFirst({
+    where: { id: periodId, project: invoicePeriodCompanyWhere(session) },
     include: {
       project: {
         select: {

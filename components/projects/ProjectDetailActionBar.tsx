@@ -29,8 +29,6 @@ import ProjectRedoJobButton from "@/components/projects/ProjectRedoJobButton";
 import ProjectRenewContractButton from "@/components/projects/ProjectRenewContractButton";
 import type { ProjectTeamOption } from "@/components/projects/ProjectTeamPicker";
 import type { CompanyBankAccountOption } from "@/lib/company-bank-accounts";
-import type { CatchUpCompleteTarget } from "@/lib/project-catch-up-periods";
-import ProjectCatchUpCompleteButton from "@/components/projects/ProjectCatchUpCompleteButton";
 import type { ProjectCatalogAreaDTO } from "@/lib/project-service-catalog";
 import {
   isExtendableContractSubCategory,
@@ -135,13 +133,7 @@ type Props = {
   catalog?: ProjectCatalogAreaDTO[];
   bankAccounts?: CompanyBankAccountOption[];
   hasPortalAccess?: boolean;
-  catchUpComplete?: {
-    projectId: string;
-    target: CatchUpCompleteTarget;
-    requirePayment?: boolean;
-    inventoryItems: { id: string; name: string; unit: string | null }[];
-    employees: { id: string; firstName: string; lastName: string }[];
-  } | null;
+  catchUpHub?: { projectId: string; remaining: number } | null;
   /** Page body between the top action bar and bottom Delete / End Contract. */
   children: ReactNode;
 };
@@ -174,7 +166,7 @@ export default function ProjectDetailActionBar({
   catalog = [],
   bankAccounts = [],
   hasPortalAccess = true,
-  catchUpComplete = null,
+  catchUpHub = null,
   children,
 }: Props) {
   const { t } = useT();
@@ -192,7 +184,7 @@ export default function ProjectDetailActionBar({
   const showReturnBlocked = canManage && moveBackBlockedByCollection;
 
   const showWorkflow = showStart || showSubmit || showReturn || showReturnBlocked;
-  const showSecondary = showBilling || showEdit || Boolean(catchUpComplete);
+  const showSecondary = showBilling || showEdit || Boolean(catchUpHub);
   const hasTopActions = showWorkflow || showSecondary;
   // Contract extension history is Regular Cleaning only (period-based contracts).
   const showExtendContract =
@@ -303,14 +295,27 @@ export default function ProjectDetailActionBar({
                   {t("common.actions.edit")}
                 </Button>
               ) : null}
-              {catchUpComplete ? (
-                <ProjectCatchUpCompleteButton
-                  projectId={catchUpComplete.projectId}
-                  target={catchUpComplete.target}
-                  requirePayment={catchUpComplete.requirePayment === true}
-                  inventoryItems={catchUpComplete.inventoryItems}
-                  employees={catchUpComplete.employees}
-                />
+              {catchUpHub ? (
+                <Link
+                  href={`/projects/${catchUpHub.projectId}/catch-up`}
+                  className={cn(
+                    buttonVariants({
+                      variant: "successBadge",
+                      size: "lg",
+                    }),
+                    detailActionBarButtonClassName,
+                    "whitespace-normal"
+                  )}
+                  aria-label={t("pages.projects.catchUp.openHub")}
+                >
+                  <StackedChipLabel
+                    lines={[
+                      t("pages.projects.catchUp.openHub1"),
+                      t("pages.projects.catchUp.openHub2"),
+                    ]}
+                    className={largeStackedChipLabelClassName}
+                  />
+                </Link>
               ) : null}
             </div>
           ) : null}

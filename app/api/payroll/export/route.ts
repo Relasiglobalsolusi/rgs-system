@@ -1,20 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { revalidatePath } from "next/cache";
-
 import { getCurrentSession } from "@/lib/auth";
 import { loadCompanyForPdf } from "@/lib/company-for-pdf";
 import { getServerLocale, localeToBcp47 } from "@/lib/i18n/locale";
 import {
   getInternalPayrollLockRecord,
-  lockInternalPayrollPeriod,
+  snapshotToPayrollRows,
 } from "@/lib/internal-payroll-lock";
 import {
-  loadInternalPayrollMonth,
   toPayrollPdfEmployees,
+  type InternalPayrollMonthRow,
 } from "@/lib/internal-payroll-month";
 import { buildInternalPayrollPdfBuffer } from "@/lib/internal-payroll-pdf";
-import { formatPayrollPeriodRange } from "@/lib/internal-payroll-period";
+import {
+  formatPayrollPeriodRange,
+  isPayrollPeriodReconciled,
+  parsePayrollRunKind,
+} from "@/lib/internal-payroll-period";
 import { canAccess } from "@/lib/permissions";
 import { toPermissionUser } from "@/lib/session";
 import { jakartaYearMonth } from "@/lib/vat";
@@ -37,6 +39,7 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = request.nextUrl;
   const now = jakartaYearMonth();
+  const run = parsePayrollRunKind(searchParams.get("run"));
   const year = Number(searchParams.get("year")) || now.year;
   const month = Number(searchParams.get("month")) || now.month;
 
@@ -56,37 +59,50 @@ export async function GET(request: NextRequest) {
 
   try {
     const locale = await getServerLocale();
-    const [rows, company, existingLock] = await Promise.all([
-      loadInternalPayrollMonth({
-        companyId: session.user.companyId,
-        year,
-        month,
-      }),
+    const [company, existingLock] = await Promise.all([
       loadCompanyForPdf(session.user.companyId),
-      getInternalPayrollLockRecord(session.user.companyId, year, month),
+      getInternalPayrollLockRecord(session.user.companyId, year, month, run),
     ]);
+    let rows: InternalPayrollMonthRow[];
 
-    if (!existingLock?.locked) {
-      const actorName =
-        session.user.name?.trim() ||
-        (typeof session.user.username === "string"
-          ? session.user.username
-          : "") ||
-        "Head Office";
-      await lockInternalPayrollPeriod({
-        companyId: session.user.companyId,
-        year,
-        month,
-        actor: { id: session.user.id, name: actorName },
-        snapshot: rows,
-      });
-      revalidatePath("/billing/payroll");
+    if (existingLock?.locked) {
+      const frozenRows = snapshotToPayrollRows<InternalPayrollMonthRow>(
+        existingLock.snapshot
+      );
+      if (!frozenRows) {
+        return NextResponse.json(
+          {
+            error:
+              "The locked payroll snapshot is missing. Request an unlock and generate this period again.",
+          },
+          { status: 409 }
+        );
+      }
+      rows = frozenRows;
+    } else {
+      if (!isPayrollPeriodReconciled(year, month, new Date(), run)) {
+        return NextResponse.json(
+          {
+            error:
+              "This payroll run has not finished yet. Review and generate it only after the pay-period closing day.",
+          },
+          { status: 409 }
+        );
+      }
+      return NextResponse.json(
+        {
+          error:
+            "Generate and lock this payroll period first. The PDF is built from the locked snapshot.",
+        },
+        { status: 409 }
+      );
     }
 
     const periodLabel = formatPayrollPeriodRange(
       year,
       month,
-      localeToBcp47(locale)
+      localeToBcp47(locale),
+      run
     );
 
     const buffer = await buildInternalPayrollPdfBuffer({

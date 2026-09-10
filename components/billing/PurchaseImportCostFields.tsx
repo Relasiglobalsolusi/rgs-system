@@ -838,12 +838,12 @@ function BreakdownValueRow({
 }) {
   return (
     <div className="flex items-baseline justify-between gap-3 text-sm">
-      <span className={emphasize ? "font-semibold text-text" : "text-muted"}>
+      <span className={cn("min-w-0 flex-1 break-words", emphasize ? "font-semibold text-text" : "text-muted")}>
         {label}
       </span>
       <span
         className={cn(
-          "tabular-nums",
+          "shrink-0 tabular-nums",
           emphasize ? "font-semibold text-text" : "text-text"
         )}
       >
@@ -864,12 +864,12 @@ function BreakdownRow({
 }) {
   return (
     <div className="flex items-baseline justify-between gap-3 text-sm">
-      <span className={emphasize ? "font-semibold text-text" : "text-muted"}>
+      <span className={cn("min-w-0 flex-1 break-words", emphasize ? "font-semibold text-text" : "text-muted")}>
         {label}
       </span>
       <span
         className={cn(
-          "tabular-nums",
+          "shrink-0 tabular-nums",
           emphasize ? "font-semibold text-text" : "text-text"
         )}
       >
@@ -1776,18 +1776,18 @@ export default function PurchaseImportCostFields({
               {t("pages.billing.purchaseImportCredits")}
             </p>
             <div className="flex items-baseline justify-between gap-3">
-              <span className="text-sm font-semibold text-text">
+              <span className="min-w-0 flex-1 break-words text-sm font-semibold text-text">
                 {t("pages.billing.purchaseImportVatCredit")}
               </span>
-              <span className="text-lg font-semibold tabular-nums text-text">
+              <span className="shrink-0 text-lg font-semibold tabular-nums text-text">
                 {formatContractPrice(vatCreditShown)}
               </span>
             </div>
             <div className="flex items-baseline justify-between gap-3">
-              <span className="text-sm font-semibold text-text">
+              <span className="min-w-0 flex-1 break-words text-sm font-semibold text-text">
                 {t("pages.billing.purchaseImportPph22Credit")}
               </span>
-              <span className="text-lg font-semibold tabular-nums text-text">
+              <span className="shrink-0 text-lg font-semibold tabular-nums text-text">
                 {formatContractPrice(pph22CreditShown)}
               </span>
             </div>

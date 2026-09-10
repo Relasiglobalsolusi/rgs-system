@@ -447,6 +447,35 @@ export const en = {
   pages: {
     dashboard: {
       title: "Dashboard",
+      mine: {
+        title: "My Information",
+        description:
+          "Your own record only — your team, your sites and shifts, your float, and your pay.",
+        myWork: "My Work",
+        myMoney: "My Money",
+        teamLine: "{team} · {area}",
+        noServiceArea: "No Service Area",
+        noJobs: "You are not on a live site right now.",
+        noShiftWindow: "Shift window not set yet",
+        backup: "Backup Cover",
+        covering: "Covering for {name}",
+        earnedSoFar: "Earned This Period",
+        earnedHint:
+          "{days} paid shifts so far · {period} · estimate until payroll is generated",
+        earnedExemptHint: "Fixed monthly wage · {period}",
+        pettyCash: "My Petty Cash",
+        pettyCashHint: "Your float. Only you can spend it.",
+        pettyCashNegative: "You are out of pocket. This is repaid at the next top up.",
+        bpjsPaid: "BPJS I Have Paid",
+        bpjsHint: "Your share on every closed payroll period.",
+        bpjsHeld: "{amount} held back from an unpaid share.",
+        thr: "THR",
+        thrPaid: "Paid for {year}",
+        thrUpcoming: "Due around {date}",
+        openPettyCash: "Open Petty Cash",
+        openCards: "Open Cards",
+        openPayslips: "My Payslips"
+      },
       yourBilling: "Your Billing",
       yourBillingDesc: "Metrics for your vendor account only — no company-wide data.",
       vendorInvoices: "Your invoices",
@@ -785,7 +814,7 @@ export const en = {
         completed: "Completed",
         newProject: "New Project",
         projectOngoingHint:
-          "New Project uses the usual create flow. Ongoing is a job that started before this ERP and is still running. Completed is only for one-time jobs such as General Cleaning and Facade that already finished.",
+          "Choose this first. New Project is a job starting in this ERP. Ongoing started before this ERP and is still running. Completed is a one-time job that already finished, such as General Cleaning or Facade.",
         invoice: "Invoice",
         taxInvoice: "Tax Invoice",
         paymentReceived: "Payment Received",
@@ -838,7 +867,39 @@ export const en = {
           "The invoice amount for this period. Payment is not assumed.",
         savePeriod: "Save Period",
         saveJob: "Complete Job",
-        failed: "Could not complete this catch-up."
+        failed: "Could not complete this catch-up.",
+        periodAlreadyExists: "This period already exists. Please recheck.",
+        periodAlreadyCompleted: "This period is already completed.",
+        periodsDone: "Periods Already Done",
+        periodsDoneHint:
+          "Must match every billing cycle that starts before books-open. Create is refused if the number does not match.",
+        paidDate: "Paid Date",
+        receivingBank: "Receiving Bank",
+        receivingBankHint: "The company bank that received this payment.",
+        staffTotal: "Total Staff Cost",
+        staffTotalHint:
+          "One total for the period. Upload the compiled staff PDF. There is no CICO for this history.",
+        staffPdf: "Compiled Staff PDF",
+        materialTotal: "Total Material Cost",
+        materialTotalHint:
+          "One total for the period. Upload supplier invoices. This does not change warehouse stock.",
+        supplierInvoices: "Supplier Invoices",
+        hubTitle: "Catch-Up Periods",
+        hubHint:
+          "Record each completed period here. Closed periods stay viewable and are not live billing.",
+        backToProject: "Back To Project",
+        backToHub: "Back To Catch-Up Periods",
+        recorded: "Recorded",
+        needsCapture: "Needs Capture",
+        viewPeriod: "View Period",
+        openPeriod: "Open Period",
+        readOnlyHint:
+          "This catch-up period is recorded. It stays on this project’s own income and cost report and is not live billing.",
+        pageHint:
+          "Record the client invoice, tax invoice, payment, staff total, and material totals for this period.",
+        openHub: "Catch-Up Periods",
+        openHub1: "Catch-Up",
+        openHub2: "Periods"
       },
       extendContract: "Extend Contract",
       extendContract1: "Extend",
@@ -952,6 +1013,8 @@ export const en = {
           "Submit for Approval is only for General Cleaning, Facade Cleaning, and One-Time Landscaping.",
         inProgressOnly:
           "Only In Progress projects can be submitted for approval.",
+        visitWindowNotStarted:
+          "Submit for Approval is only available after this visit window has started.",
         failed: "Failed to submit project for approval."
       },
       assignStaff: "Assign Staff",
@@ -1050,6 +1113,7 @@ export const en = {
         contractEnd: "Contract end date",
         durationMonths: "Estimated Duration",
         durationDays: "Estimated Duration",
+        durationActual: "Duration",
         daysUnit: "days",
         planningStageFieldNote:
           "(estimated for projects in planning stage)",
@@ -1058,6 +1122,7 @@ export const en = {
         yearsCount: "{count} years",
         estimatedProjectStart: "Estimated project start date",
         projectStart: "Project start date",
+        projectFinish: "Project Finish Date",
         estimatedProjectCompletion: "Estimated project completion date",
         planningJobHelp:
           "Input the estimated project start date and duration. The real start date is set when you move to in progress."
@@ -1364,7 +1429,7 @@ export const en = {
         lastMonthHint:
           "Pick the last calendar month on site. The last day is the last day of that month. Parking bills that month in the Parking workspace. Reconcile on the 1st of the next month.",
         lastDayHint:
-          "Pick the last working day (today or earlier). If you pick today, we reconcile tomorrow so that day is fully closed. Then the pack goes to the client for Approve.",
+          "Pick the last working day. It is rounded up to a full billing period (month end, or the cycle end day such as the 15th). Crew stays on site until that date, then the last bill is reconciled the day after.",
         confirmEndContract:
           "Are you sure you want to end this contract for “{name}”? If you confirm, pick the last working day. The last bill is reconciled the day after that date, then sent to the client. The job ends only after they approve, pay, and the tax invoice is uploaded.",
         confirmFinishNamed:
@@ -1378,6 +1443,8 @@ export const en = {
         contractEnded: "Contract ended",
         endContractFailed: "Failed to end contract.",
         finishProjectFailed: "Failed to finish project.",
+        catchUpBeforeClose:
+          "Record every historical catch-up period before ending this contract.",
         invoiceErrorOpenBilling:
           "{finishedLabel}, but the invoice could not be issued:\n{error}{billingHint}\n\nOpen billing now?",
         openBillingNow: "Open billing now?",
@@ -1886,6 +1953,15 @@ export const en = {
         "Staff records, department assignments, and site placements. Portal login access is optional on create and managed in Users.",
       companyNotFound: "Company not found.",
       addEmployee: "Add Employee",
+      downloadLoginIds: "Download Login IDs",
+      loginIdExport: {
+        reportTitle: "Employee Login IDs",
+        generatedOn: "Generated {date}",
+        colName: "Employee Name",
+        colLoginId: "Login ID",
+        fileName: "Employee-Login-IDs.pdf",
+        empty: "No employees to list."
+      },
       addBulkFullTime: "Add Bulk Full Time",
       addBulkPartTime: "Add Bulk Part Time",
       bulkCreateFullTimeTitle: "Add Full Time employees",
@@ -2016,7 +2092,15 @@ export const en = {
         resignFailed: "Could not resign this employee.",
         lastWorkingDayRequired: "Please enter the last working day.",
         procedureRequired: "Please choose According to procedure or Not according to procedure.",
-        alreadyResigned: "This employee is already resigned or has a resign on file."
+        alreadyResigned: "This employee is already resigned or has a resign on file.",
+        shortfallChoiceRequired:
+          "Choose whether the employee pays the remaining balance.",
+        shortfallBankRequired:
+          "Choose the company bank that received the remaining balance.",
+        shortfallPaidAtRequired:
+          "Enter the date the company bank received the remaining balance.",
+        shortfallProofRequired:
+          "Upload proof of the payment. Resign cannot finish without it."
       },
       resign: "Resign",
       resignTitle: "Resign Employee",
@@ -2036,6 +2120,21 @@ export const en = {
         "They receive no Internal Payroll for unpaid days. That amount becomes income on their last project. Use this if they stole, disappeared, or left without following procedure.",
       resignNote: "Note (Optional)",
       depositHeldNote: "Security deposit held: {amount}.",
+      resignBalanceOwed: "Balance owed to the company: {amount}.",
+      resignDepositAfterDeduction: "Deposit after deduction: {amount}.",
+      resignShortfall: "Shortfall after the deposit: {amount}.",
+      resignPaysRest: "Does the employee pay the rest?",
+      resignPaysRestYes: "Yes, the employee paid the rest",
+      resignPaysRestNo: "No, expense the shortfall to their last project",
+      resignPaysRestBank: "Company Bank That Received The Money",
+      resignPaysRestPaidAt: "Paid Date",
+      resignPaysRestPaidAtHint:
+        "The date the company bank received the remaining balance.",
+      resignPaysRestProof: "Payment Proof",
+      resignPaysRestProofHint:
+        "Upload proof of the payment. Resign cannot finish without it.",
+      resignPaysRestHint:
+        "Yes books income as Employee Paying Balance Due on the paid date. Upload payment proof. No expenses the shortfall to their last project.",
       depositStatusHeld: "On Hold",
       depositStatusReturned: "Refunded",
       depositStatusKept: "Kept By The Company",
@@ -2168,6 +2267,13 @@ export const en = {
           "{label} — managed through Assign / Release.",
         employmentType: "Employment Type",
         selectEmploymentType: "Select Employment Type",
+        payrollRun: "Payroll Period",
+        payrollRunHint:
+          "Choose the pay cycle for this employee. The period controls which attendance days and deductions reach their payroll.",
+        payrollRunProject: "16th To 15th",
+        payrollRunHeadOffice: "26th To 25th",
+        payrollRunLockedHint:
+          "This role belongs to the 26th–25th Head Office payroll period.",
         inHouseCleaningAssignHint:
           "In-House Cleaning Staff: assign them to the Internal Head Office or Warehouse project for CICO (department tells which site).",
         warehouseStaffPortalHint:
@@ -2844,6 +2950,8 @@ export const en = {
       pettyCashRecipient: "Who Receives This Top Up",
       pettyCashRecipientPlaceholder: "Select employee",
       pettyCashRecipientRequired: "Select which employee receives this Petty Cash.",
+      pettyCashHoldersOnly:
+        "Advance Cash is only for existing Petty Cash holders.",
       advanceCashPrepaidHint:
         "Top up a vehicle prepaid card under Vehicle → Prepaid Card. Fuel, toll, and parking spends are recorded under Advance Cash → Cards.",
       prepaidCard: "Prepaid Card",
@@ -3006,7 +3114,9 @@ export const en = {
         "No leased vehicles are in Inventory yet. Record a leased purchase first, then add monthly lease payments.",
       vehicleForRequired: "Choose which vehicle this expense is for.",
       vehicleLeasePaymentNotLeased:
-        "This vehicle is not leased. Record a Lease Payment only for a leased vehicle.",
+        "This vehicle is not on a lease. Record a different vehicle expense.",
+      vehicleLeasePaymentMustBeFull:
+        "Lease installments must be paid in full. Enter the monthly installment amount.",
       vehicleOtherCostDescription: "Other Vehicle Costs",
       vehicleOtherCostDescriptionHint:
         "Describe what these other vehicle costs are. This is required.",
@@ -3581,6 +3691,12 @@ export const en = {
         revenueTitle: "Monthly Revenue",
         casualRevenueDesc:
           "Enter casual (normal traffic) parking only. Member parking is the fixed monthly fee and is not taxed.",
+        creditHint:
+          "The month you pick is the parking period this cash belongs to ({period} {year}). Book the date the bank credited it — often two or three days later.",
+        creditedAt: "Bank Credit Date",
+        creditedAtHint:
+          "The date the bank posted this parking income, not the parking month itself.",
+        receivingBank: "Receiving Bank",
         casualRevenue: "Casual Parking",
         memberRevenue: "Member Parking",
         casualTax: "Casual Parking Tax",
@@ -3612,7 +3728,8 @@ export const en = {
         reviewDesc:
           "Review each assigned employee’s check-in days before you generate. Apply client deductions on the pay list below.",
         reviewEmpty: "No Relasi Global Solusi staff are assigned to this job yet.",
-        generatePdf: "Generate PDF",
+        generatePdf: "Generate Excel",
+        sendToClient: "Send To Client",
         pdfTitle: "Payroll Management",
         clientAdjustment: "Client Deduction",
         unlockFailed: "Could not unlock this period.",
@@ -3634,6 +3751,8 @@ export const en = {
         confirmWagesPaidDesc:
           "After the client approves, Head Office can confirm the wage bill was paid. Upload the payment proof. This does not block Payment Due.",
         wagesPaidProof: "Wage Payment Proof",
+        wagesPaidNeedsLock:
+          "Generate and lock the wage sheet first. Wages only reach the financial report once this period is locked.",
         wagesPaidOn: "Wages confirmed {date}",
         viewProof: "View Payment Proof",
         unavailable: "Payroll Management workspace is not available for this project.",
@@ -3717,6 +3836,8 @@ export const en = {
       confirmReconcilePeriod:
         "Reconcile “{label}” and send the CICO report to the client for Approve or Revise?",
       reconcileDialogTitle: "Reconcile Period",
+      reconcileTaxInvoiceMissing:
+        "This period has no tax invoice yet. Every client invoice needs a tax invoice — attach it before the invoice goes out.",
       saveContractPriceFailed: "Failed to save contract price.",
       sendMilestoneForReviewFailed: "Failed to send milestone for review.",
       deletePeriodFailed: "Failed to delete billing period.",
@@ -3815,6 +3936,7 @@ export const en = {
       incomeSourceImport: "Import",
       incomeSourceGovernment: "Government Billing ID",
       incomeSourceProject: "Project Withholding",
+      remittanceSourceProject: "Project PPh To Remit",
       columns: {
         client: "Client",
         vendor: "Vendor",
@@ -3854,6 +3976,7 @@ export const en = {
       emptyInputDesc:
         "No supplier purchases with PPN fall in this month.",
       invoicePeriodFallback: "Invoice Period",
+      soldOffSale: "Sold Off",
       governmentClient: "Government",
       governmentPaidDirectlyTitle: "Paid Directly To The Government",
       governmentPaidDirectly:
@@ -3897,6 +4020,10 @@ export const en = {
       attachMissing: "Attach missing documents",
       hideAttach: "Hide attach",
       attachRequired: "Upload a payment proof or tax invoice, or generate the sale invoice.",
+      paidAtRequiredWithProof:
+        "Enter the date the money arrived. Sale income books on the payment date, so proof without a date cannot be recorded.",
+      paymentProofRequiredWithDate:
+        "Upload the payment proof for that payment date. A paid sale needs both.",
       attachSaved: "Sale documents saved.",
       attachFailed: "Could not save sale documents.",
       saveDocuments: "Save Documents",
@@ -3945,7 +4072,7 @@ export const en = {
         purchase: "Expense",
         inventory: "Inventory",
         wages: "Wages",
-        overheadWages: "Warehouse Wages",
+        overheadWages: "Head Office Standby Wage",
         overheadStock: "Internal Stock Used",
         thr: "THR",
         pettyCashTopUp: "Top Up Petty Cash",
@@ -3974,7 +4101,7 @@ export const en = {
       filterBankUnassigned: "Unassigned",
       transferReport: "Transfer Report",
       rangeHint:
-        "Income uses the calendar period. Wages use the 16th–15th payroll window for that same month or year. Unpaid vendor bills are Accounts Payable, not expenses.",
+        "Income uses the calendar period. Wages use the 16th–15th window for Project Staff and the 26th–25th window for Head Office, booked when the money leaves. Unpaid vendor bills are Accounts Payable, not expenses.",
       periodNet: "Period Profit",
       netPosition: "Net Position",
       netPositionHint:
@@ -4008,12 +4135,12 @@ export const en = {
       companyMoneyInHint:
         "Approved or invoiced amounts after tax is taken out by dividing, plus retained employee deposits. Held deposits are not income.",
       companyMoneyOutHint:
-        "Stock used on jobs, vendor bills when paid, Internal Payroll, parking outflows, Head Office overhead, Petty Cash top-ups, prepaid card top-ups, and refunded employee deposits.",
+        "Stock used on jobs, vendor bills when paid, Internal Payroll, parking outflows, Head Office costs, Petty Cash top-ups, prepaid card top-ups, and refunded employee deposits.",
       stockInWarehouse: "Inventory Value",
       stockInWarehouseHint: "Value of goods on hand. Not yet charged to a job.",
-      headOfficeOverhead: "Head Office Overhead",
+      headOfficeOverhead: "Head Office",
       headOfficeOverheadPeriodHint:
-        "Warehouse wages, Internal purchases paid this period, stock used on Internal Head Office or Warehouse, and import rate differences.",
+        "Head Office Standby Wage, Internal purchases paid this period, stock used on Internal Head Office or Warehouse, and import rate differences.",
       importRateDifference: "Rate Difference On Import Warehouse Cost",
       importRateDifferenceHint:
         "Booked to Head Office when the Bank Rate on payment differs from the Booking Rate. Warehouse and project cost stay unchanged.",
@@ -4047,7 +4174,7 @@ export const en = {
         ar: "Accounts Receivable Detail",
         ap: "Accounts Payable Detail",
         warehouse: "Inventory Value Detail",
-        overhead: "Head Office Overhead Detail",
+        overhead: "Head Office Detail",
         deposits: "Employee Deposits Held Detail",
         depositsReturned: "Employee Deposits Refunded Detail",
         depositsKept: "Employee Deposits Retained Detail",
@@ -4060,7 +4187,7 @@ export const en = {
           "Company 4% of the capped wage. Employee 1% is already deducted on Internal Payroll. This card is the amount still owed to BPJS this month.",
         bpjsKetenagakerjaanHelp:
           "Company shares for JHT, JP, JKK, and JKM on enrolled employees. Employee shares are already deducted on Internal Payroll.",
-        overheadWages: "Warehouse Wages",
+        overheadWages: "Head Office Standby Wage",
         overheadPurchases: "Internal Purchases",
         overheadStock: "Internal Stock Used",
         overheadRateDifferenceExpense: "Import Rate Difference Expense",
@@ -4071,9 +4198,9 @@ export const en = {
         moneyInHelp:
           "Revenue includes retained employee deposits and Head Office income when an import Bank Rate is lower than the Booking Rate.",
         moneyOutHelp:
-          "Expenses include Head Office overhead, Petty Cash top-ups, prepaid card top-ups, refunded employee deposits, and Head Office expense when an import Bank Rate is higher than the Booking Rate.",
+          "Expenses include Head Office costs, Petty Cash top-ups, prepaid card top-ups, refunded employee deposits, and Head Office expense when an import Bank Rate is higher than the Booking Rate.",
         overheadHelp:
-          "Head Office wages, Internal purchases paid this period, stock used on Internal sites, and import rate differences booked to Head Office.",
+          "Head Office Standby Wage, Internal purchases paid this period, stock used on Internal sites, and import rate differences booked to Head Office.",
         depositsHelp:
           "Held deposits are not income. Refunds are outflows. Retained deposits are Head Office income.",
         depositsReturnedHelp:
@@ -4619,11 +4746,6 @@ export const en = {
       unpaidWagePayTitle: "Pay Part-Time Wage",
       unpaidWagePayDesc:
         "Pay {name} {amount}. This comes out of the Petty Cash of the person who claims it.",
-      unpaidWagePayer: "Whose Petty Cash Paid This",
-      unpaidWagePayerPlaceholder: "Select employee",
-      unpaidWagePayerRequired: "Select whose Petty Cash paid this wage.",
-      unpaidWagePayerHint:
-        "That employee's Petty Cash goes down. This records who paid the part-time wage.",
       unpaidWagePayerLockedHint:
         "This deducts {name}'s Petty Cash ({amount}). You are claiming that you paid this wage.",
       unpaidWageNegativeWarning:
@@ -4665,6 +4787,12 @@ export const en = {
       spendDescribeRequired: "Describe what this Petty Cash was spent on.",
       spendHolderRequired: "Select whose Petty Cash this spend comes from.",
       spendOwnOnly: "You can only record spends against your own Petty Cash.",
+      reverseSpend: "Reverse Spend",
+      reverseRequired: "Choose which spend to reverse.",
+      reverseSpendOnly: "Only a spend can be reversed.",
+      reversePostedOnly: "Only a posted spend can be reversed.",
+      alreadyReversed: "This spend is already reversed.",
+      reversed: "Reversed",
       employeeInvalid: "Select a valid employee.",
       projectRequired: "Select a project.",
       projectInvalid: "Select a valid project.",
@@ -4676,7 +4804,9 @@ export const en = {
       amountInvalid: "Enter a valid amount.",
       wageSelectRequired: "Select the part-time wage to pay.",
       wageAlreadyPaid: "This wage is already paid or is not waiting for payment.",
-      wagePayerSelf: "Choose the employee whose Petty Cash paid this wage.",
+      wagePayerSelf: "This wage belongs to you. Another holder has to pay it.",
+      wagePayerNotHolder:
+        "Only your own Petty Cash can pay this wage, and this account is not linked to a Petty Cash holder.",
       topUpOpenLabel: "Top Up Prepaid Card {number}",
       topUpVehicleLabel: "Top Up Vehicle Card {number}",
       replacementFeeLabel: "Card Replacement Fee {number}",
@@ -4780,9 +4910,13 @@ export const en = {
       periodDesc:
         "Wage = daily rate (base pay ÷ 26) × complete 9-hour days in this window. An assigned double shift pays two days only after 18 hours on that project. Under 9 or 18 hours: the day stays blank until Full pay or a custom amount. Days without CICO, including leave, are unpaid.",
       periodWindowRange:
-        "Payroll period: {range}. Reconcile on the 16th.",
-      periodPreview: "Preview — this period reconciles on the 16th.",
-      periodReconciled: "Reconciled on the 16th.",
+        "Payroll period: {range}.",
+      runProjectCycle: "Project Staff (16–15)",
+      runHeadOffice: "Head Office (26–25)",
+      periodPreview: "Preview — this run pays on the 16th.",
+      periodReconciled: "Paid on the 16th.",
+      periodPreviewHeadOffice: "Preview — this run pays on the 25th.",
+      periodReconciledHeadOffice: "Paid on the 25th.",
       periodPicker: "Payroll Period",
       periodCurrent: "Current",
       dayListTitle: "Days In This Period",
@@ -4818,7 +4952,10 @@ export const en = {
       employeeBalanceWithCompany: "Balance With Company",
       tableTitle: "Payroll Detail",
       tableDesc:
-        "Active RGS staff and anyone with complete CICO in the period. Days worked = 9 hours or more (18 hours on an assigned double shift). Under-hours days stay unpaid until Full pay or a custom amount. Late or early flags do not change pay here.",
+        "Active RGS staff and anyone with complete CICO in the period. Days worked = 9 hours or more (18 hours on an assigned double shift). Extra shifts beyond the 26 the base pay covers are flagged here and paid only if you add Overtime. Under-hours days stay unpaid until Full pay or a custom amount. Late or early flags do not change pay here.",
+      shiftsAgainstBase: "{worked} of {base} shifts",
+      doubleShiftCount: "{count} double shifts",
+      surplusShifts: "{count} surplus shifts — add overtime to pay them",
       emptyTitle: "No Employees Found",
       emptyDesc:
         "No active RGS staff with base pay, and no complete CICO days in this period.",
@@ -4838,10 +4975,41 @@ export const en = {
       generateBankTransfer: "Generate Bank Transfer",
       lockedBy: "Locked by {name} at {time}",
       unlockedBy: "Unlocked by {name}, reason: {reason}",
+      requestUnlock: "Request Unlock",
+      requestUnlockDesc:
+        "Explain exactly what must be corrected. The period stays locked until the owner approves this request in Approvals.",
+      submitUnlockRequest: "Submit Unlock Request",
+      withdrawUnlockRequest: "Withdraw Request",
+      unlockRequestPending: "Unlock Requested",
+      unlockUnknownRequester: "Unknown User",
+      unlockPending: "Unlock requested by {name}. Reason: {reason}",
       unlockPeriod: "Unlock Period",
       unlockPeriodDesc:
-        "Unlocking lets Head Office change deductions and re-generate this period. Attendance edits will change pay again until you generate.",
+        "Unlocking is owner only. It lets deductions change and this period be re-generated, and attendance edits will move pay again until you generate. Every change after this is recorded permanently with your name.",
       unlockReason: "Unlock Reason",
+      lockConfirmTitle: "Lock This Payroll Period",
+      lockConfirmBody:
+        "Is every day and every amount correct? Generating locks {period}. After that nobody can edit it — not Head Office, not a Director. Only the owner can unlock it, and every change afterwards is recorded permanently with the name of whoever made it.",
+      lockConfirmAction: "Generate And Lock",
+      alreadyLockedNote: "This period is locked. Generating again does not change it.",
+      changeHistory: "Change History",
+      changeHistoryDesc:
+        "Permanent record for this period. These entries are never removed.",
+      changeHistoryEmpty: "Nothing has been changed on this period yet.",
+      changeActions: {
+        PAYROLL_LOCKED: "Locked",
+        PAYROLL_UNLOCK_REQUESTED: "Unlock Requested",
+        PAYROLL_UNLOCK_CANCELLED: "Unlock Request Withdrawn",
+        PAYROLL_UNLOCK_APPROVED: "Unlock Approved",
+        PAYROLL_UNLOCK_REJECTED: "Unlock Rejected",
+        PAYROLL_UNLOCKED: "Unlocked",
+        PAYROLL_EMPLOYEE_ADDED: "Employee Added On Regeneration",
+        PAYROLL_EMPLOYEE_REMOVED: "Employee Removed On Regeneration",
+        PAYROLL_EMPLOYEE_CHANGED: "Employee Pay Changed",
+        PAYROLL_LINE_ADDED: "Line Added",
+        PAYROLL_LINE_REMOVED: "Line Removed",
+        PAYROLL_DAY_PAY_SET: "Day Pay Set"
+      },
       lateCheckIn: "Late Check-In",
       pdfTitle: "Internal Payroll",
       pdfGenerated: "Generated",
@@ -4897,16 +5065,32 @@ export const en = {
         saveFailed: "Could not save this deduction.",
         deleteFailed: "Could not remove this deduction.",
         periodLocked:
-          "This payroll period is locked. Head Office must unlock it with a reason before changing deductions or net pay.",
+          "This payroll period is locked. Submit an unlock request; only the owner can approve it.",
         securityDepositAlreadyHeld:
           "This employee already has a security deposit held. Cannot take two.",
         securityDepositNotRequired:
           "Security deposit is not enabled for this employee. Turn on Security Deposit on their employee record first.",
         overtimeNotEnabled:
           "Overtime is not enabled for this employee. Turn on Enable Overtime on their employee record first.",
-        unlockHoOnly: "Only Head Office can unlock a locked payroll period.",
+        overtimeOmOnly:
+          "Only the Operational Manager or the owner can add overtime pay.",
+        unlockHoOnly:
+          "Only the owner can unlock a locked payroll period. Head Office and Directors cannot.",
         unlockReasonRequired: "Please enter a reason to unlock this period.",
         unlockFailed: "Could not unlock this payroll period.",
+        unlockRequestLockedOnly:
+          "Only a locked payroll period can be submitted for unlock.",
+        unlockRequestAlreadyPending:
+          "An unlock request is already waiting for this payroll period.",
+        unlockRequestNotFound:
+          "This pending unlock request was not found or is no longer available.",
+        unlockRequestAlreadyOpen:
+          "This payroll period is already open, so the request cannot be approved.",
+        unlockRequestFailed: "Could not submit the payroll unlock request.",
+        unlockCancelFailed: "Could not withdraw the payroll unlock request.",
+        unlockDecisionFailed: "Could not decide the payroll unlock request.",
+        unlockOwnerApprovalOnly:
+          "Only the owner can approve or reject payroll unlock requests.",
         decideFailed: "Could not save this day's pay.",
         dayRequired: "Please choose a valid work day in this payroll period.",
         decisionRequired: "Please choose Full pay or a custom amount.",
@@ -4914,7 +5098,16 @@ export const en = {
         dayAlreadyComplete:
           "This day already meets the 9-hour or 18-hour rule, so it is paid automatically.",
         exemptNoDayDecision:
-          "This employee is CICO-exempt and is paid monthly base, not by the day."
+          "This employee is CICO-exempt and is paid monthly base, not by the day.",
+        exportFailed: "Could not generate the Internal Payroll PDF.",
+        lockConfirmRequired:
+          "Confirm that every day and every amount is correct before generating.",
+        periodNotFinished:
+          "This payroll run has not finished yet. Review and generate it only after the pay-period closing day.",
+        bankTransferFailed: "Could not generate the bank transfer file.",
+        bankTransferBlockedTitle: "Bank Transfer Blocked",
+        bankTransferBlockedDesc:
+          "Complete these bank details on the employee records, then generate the file again."
       }
     },
     reconciliation: {
@@ -5220,7 +5413,9 @@ export const en = {
         activeOnly:
           "CICO is only available while your employment status is Active.",
         onLeaveBlocked:
-          "CICO is unavailable while you are On Leave. Contact Head Office if your status should be updated.",
+          "No check-in on a leave day. Check out yesterday's session if it is still open, then wait until the day after leave ends.",
+        cicoExemptBlocked:
+          "This person is Exempt From CICO and does not check in or check out.",
         onProjectOnly:
           "Check-in is only available while you are assigned to an In Progress cleaning project (On Project).",
         selectProject: "Select a project to check in.",
@@ -5636,6 +5831,16 @@ export const en = {
       materialsSection: "Material Requests",
       materialsSectionDesc:
         "Review what was requested, check warehouse stock, then approve (creates a Transfer Order) or reject.",
+      payrollUnlockSection: "Internal Payroll Unlock",
+      payrollUnlockSectionDesc:
+        "Owner only. Approving reopens the period; every later employee and amount change remains in permanent Change History.",
+      emptyPayrollUnlockTitle: "No Payroll Unlock Requests",
+      emptyPayrollUnlockDescription:
+        "No locked Internal Payroll period is waiting to be reopened.",
+      payrollUnlockRequestedBy: "Requested by {name} on {date}",
+      payrollUnlockDecisionNote: "Decision Note (Optional)",
+      payrollUnlockApprove: "Approve And Unlock",
+      payrollUnlockReject: "Reject Request",
       pendingCount: "{count} pending",
       proof: "Proof",
       period: "Period",
@@ -5886,7 +6091,21 @@ export const en = {
       soldOffAssetQtyMismatch:
         "Selected equipment assets must match the sale quantity.",
       soldOffSelectAssetsRequired:
-        "Select the equipment units you are selling. Each unit already has an asset code.",
+        "Select the units or number plates you are selling.",
+      leasePayoff: "Lease Payoff",
+      leasePayoffHint:
+        "{plate} still has {remaining} remaining on the lease. Enter the bank payoff, paid from the sale bank.",
+      leasePayoffRequired: "Enter the lease payoff for {plate}.",
+      leaseSettlementPaidAt: "Lease Settlement Paid Date",
+      leaseSettlementBank: "Paying Bank",
+      leaseSettlementProof: "Lease Settlement Proof",
+      leaseSettlementHint:
+        "When the payoff and early-termination money left our bank. This is separate from the buyer sale.",
+      leaseSettlementRequired:
+        "Enter the paid date, paying bank, and proof for the lease payoff and early-termination costs.",
+      earlyTermination: "Early Termination",
+      earlyTerminationHint:
+        "Bank early-termination cost for this sale. Leave 0 if the bank charged none.",
       saleLossConfirmTitle: "Sell At A Loss?",
       saleLossConfirmDescription:
         "Selling the item at this price will incur a loss. Are you sure you want to do this?",
@@ -6068,6 +6287,7 @@ export const en = {
         showWrittenOff: "Show Written Off",
         emptyAssets: "No active equipment units.",
         retired: "Retired",
+        soldOff: "Sold Off",
         sold: "Sold",
         soldTo: "Sold To",
         writtenOff: "Written Off"
@@ -6143,7 +6363,7 @@ export const en = {
         title: "Return To Vendor",
         send: "Return To Vendor",
         sendDesc:
-          "Send a new warehouse box or a coded unit. Refund closes now. Repair or Replace stays open until something comes back.",
+          "Send a warehouse box or a coded unit. The factory then Refunds (pays us, the unit is gone), Replaces (new uncoded stock, old code gone), or Repairs (the same coded unit comes back with the same code). Record the refund when the money hits the company bank.",
         sent: "Sent To Vendor.",
         sendFailed: "Could not send this unit to the vendor.",
         updated: "Vendor return updated.",
@@ -6154,6 +6374,8 @@ export const en = {
         intentRequired: "Choose Refund, Repair, or Replace.",
         sourceRequired: "Choose New In Warehouse or Issued Asset.",
         refundAmountRequired: "Enter the vendor refund amount.",
+        refundBankRequired: "Choose which company bank received the refund.",
+        refundBank: "Receiving Bank",
         assetsRequired: "Select the coded units to send.",
         insufficientNew: "Not enough new warehouse units without an asset code.",
         insufficientStock: "Not enough warehouse stock for this vendor return.",
@@ -6171,16 +6393,17 @@ export const en = {
         refundAmount: "Refund Amount",
         recordRefund: "Record Refund",
         recordRefundDesc:
-          "Close this return. Stock stays down. The refund amount is recorded here.",
+          "The factory keeps this unit. The old asset code is removed. Stock stays down. The refund is booked to the bank you choose.",
         confirmRepaired: "Confirm Repaired",
         receiveReplacement: "Replacement Received",
         vendorOptional: "Vendor (Optional)",
         newNoCode: "{qty} New — no asset code",
-        newHint: "{available} sealed units available. They come back without a code if repaired.",
+        newHint:
+          "{available} sealed units available. Repair and Replace come back as new stock with no code. A refund does not return stock.",
         issuedHint:
-          "Pick coded units. Repair keeps the same code at Head Office. Replacement arrives as new stock with no code.",
+          "Pick coded units. Repair keeps the same code at Head Office. Replace arrives as new stock with no code; the old code is removed. Refund removes the code and books the money.",
         productHint:
-          "Hanging returns always keep Record Refund, Confirm Repaired, and Replacement Received.",
+          "Hanging returns keep Record Refund, Confirm Repaired, and Replacement Received.",
         empty: "No Vendor Returns",
         emptyDesc: "Open an equipment product page to send a unit to the vendor.",
         emptyDescDirector:
@@ -6377,10 +6600,15 @@ export const en = {
           "On hand: {available} {unit}. Sale cannot exceed this amount.",
         soldOffEquipmentHint:
           "Warehouse {warehouse} · On site {onSite}. Pick the asset codes you are selling.",
+        soldOffVehicleHint:
+          "Pick the number plate. A leased car that is not paid off needs the payoff and early-termination amounts, paid from the sale bank.",
         soldOffAssets: "Equipment Assets",
+        soldOffPlates: "Number Plates",
         soldOffNoAssets: "No warehouse or on-site units for this item.",
         soldOffAssetsHint:
           "Required. Pick the exact units. A unit on a site is marked sold there — it does not come back to the warehouse first. The asset code stays the same.",
+        soldOffPlatesHint:
+          "Required. Pick the plate. Selling a leased car that is not paid off books the payoff and early-termination costs from the sale bank.",
         soldOffOnSite: "On Site · {project}",
         soldOffNotesPlaceholder: "Optional notes about this sale."
       },
@@ -6710,6 +6938,10 @@ export const en = {
     shifts: "Shifts",
     leaves: "Leave & Sick",
     approvals: "Approvals",
+    approvalsLeaves: "Leave & Sick",
+    approvalsMaterialRequests: "Materials",
+    approvalsWarehouseReturns: "Item Returns",
+    approvalsPayrollUnlock: "Payroll Unlock",
     materialRequests: "Material Requests",
     transferOrders: "Transfer Orders",
     reports: "Client Reports",

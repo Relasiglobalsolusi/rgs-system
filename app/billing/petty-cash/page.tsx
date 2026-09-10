@@ -5,6 +5,7 @@ import {
 } from "@/app/billing/petty-cash/actions";
 import PettyCashHoldersPanel from "@/components/billing/PettyCashHoldersPanel";
 import PrepaidCardsPanel from "@/components/billing/PrepaidCardsPanel";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import DirectoryFilterTab from "@/components/ui/DirectoryFilterTab";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
@@ -21,7 +22,7 @@ import {
   loadPrepaidCardFormOptions,
   loadPrepaidCardsForPanel,
 } from "@/lib/prepaid-card-query";
-import { getAdvanceCashAccess, isOwnerAccount } from "@/lib/permissions";
+import { canAccess, getAdvanceCashAccess, isOwnerAccount } from "@/lib/permissions";
 import { requirePettyCashAccess, toPermissionUser } from "@/lib/session";
 import { jakartaYearMonth, utcRangeForJakartaMonth } from "@/lib/vat";
 import {
@@ -70,25 +71,40 @@ export default async function PettyCashPage({
   const t = createTranslator(locale);
   const now = jakartaYearMonth();
   const { start, endExclusive } = utcRangeForJakartaMonth(now.year, now.month);
+  const permUser = toPermissionUser(session);
+  const canSeeAllPettyHolders =
+    isOwnerAccount(permUser) ||
+    canAccess(permUser, "invoicing") ||
+    canAccess(permUser, "financialReport");
 
-  const [totals, holders, unpaidWages, currentPayer, projects, clients, employees, prepaidPanel, prepaidFormOptions, inventoryItems] = await Promise.all([
-    getPettyCashTotals(prisma, session.user.companyId, start, endExclusive),
-    loadPettyCashHolders(session.user.companyId),
-    loadUnpaidPartTimeWages(session.user.companyId),
-    prisma.user.findFirst({
-      where: { id: session.user.id, companyId: session.user.companyId },
-      select: {
-        employee: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            archivedFromDirectory: true,
-            status: true,
-          },
+  const currentPayer = await prisma.user.findFirst({
+    where: { id: session.user.id, companyId: session.user.companyId },
+    select: {
+      employee: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          archivedFromDirectory: true,
+          status: true,
         },
       },
-    }),
+    },
+  });
+  const holderScopeId = canSeeAllPettyHolders
+    ? undefined
+    : currentPayer?.employee?.id ?? "__none__";
+
+  const [totals, holders, unpaidWages, projects, clients, employees, prepaidPanel, prepaidFormOptions, inventoryItems] = await Promise.all([
+    getPettyCashTotals(
+      prisma,
+      session.user.companyId,
+      start,
+      endExclusive,
+      canSeeAllPettyHolders ? undefined : holderScopeId
+    ),
+    loadPettyCashHolders(session.user.companyId, holderScopeId),
+    loadUnpaidPartTimeWages(session.user.companyId, canSeeAllPettyHolders),
     prisma.project.findMany({
       where: {
         companyId: session.user.companyId,
@@ -141,7 +157,11 @@ export default async function PettyCashPage({
         sku: true,
         itemType: true,
         equipmentAssets: {
-          where: { companyId: session.user.companyId },
+          where: {
+            companyId: session.user.companyId,
+            soldOffMovementId: null,
+            writeOffMovementId: null,
+          },
           select: { id: true, assetCode: true, vehicleYear: true },
           orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         },
@@ -198,7 +218,7 @@ export default async function PettyCashPage({
   return (
     <AppShell titleKey={titleKey}>
       {showTabs && !showPrepaid ? (
-      <div className="mb-5 flex flex-wrap items-center gap-2">
+      <div className={chipScrollRowClassName("mb-5")}>
         <DirectoryFilterTab
           href="/billing/petty-cash"
           active={!showPrepaid}
@@ -224,18 +244,18 @@ export default async function PettyCashPage({
           bankAccounts={prepaidFormOptions.bankAccounts}
           vehicles={inventoryItems
             .filter((item) => isVehicleItemType(item.itemType))
-            .map((item) => ({
-              id: item.id,
-              name: item.name,
-              sku: item.sku,
-              plate: item.equipmentAssets
-                .map((asset) => asset.assetCode)
-                .filter(Boolean)
-                .join(" / "),
-              year:
-                item.equipmentAssets.find((asset) => asset.vehicleYear != null)
-                  ?.vehicleYear ?? null,
-            }))}
+            .flatMap((item) =>
+              item.equipmentAssets
+                .filter((asset) => Boolean(asset.assetCode))
+                .map((asset) => ({
+                  id: asset.id,
+                  itemId: item.id,
+                  name: item.name,
+                  sku: item.sku,
+                  plate: asset.assetCode,
+                  year: asset.vehicleYear ?? null,
+                }))
+            )}
         />
       ) : (
       <>

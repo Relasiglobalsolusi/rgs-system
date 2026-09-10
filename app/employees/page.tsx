@@ -10,6 +10,7 @@ import {
   ensureWorkforceDepartments,
 } from "@/lib/positions";
 import { getEmployeeCompanyBalances } from "@/lib/employee-company-balance";
+import { listCompanyBankAccountOptions } from "@/lib/company-bank-accounts";
 import { applyResignIfLastDayReachedMany } from "@/lib/employee-resign";
 import { canManageEmployees, canResignEmployees } from "@/lib/project-access";
 import { requireModule, toPermissionUser } from "@/lib/session";
@@ -58,7 +59,7 @@ export default async function EmployeesPage() {
     );
   }
 
-  const [employees, categories, positions, projects] = await Promise.all([
+  const [employees, categories, positions, projects, bankAccounts] = await Promise.all([
     prisma.employee.findMany({
       where: {
         companyId: company.id,
@@ -170,6 +171,7 @@ export default async function EmployeesPage() {
         name: "asc",
       },
     }),
+    listCompanyBankAccountOptions(company.id),
   ]);
 
   await applyResignIfLastDayReachedMany(
@@ -256,6 +258,7 @@ export default async function EmployeesPage() {
         canResign={canResign}
         canArchive={canArchive}
         createActorTier={createActorTier}
+        bankAccounts={bankAccounts}
       />
     </AppShell>
   );

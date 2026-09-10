@@ -308,6 +308,18 @@ export default async function CicoPage() {
     );
   }
 
+  if (employee.cicoExempt) {
+    return (
+      <AppShell titleKey="pages.cico.title">
+        <SectionCard>
+          <p className="text-center text-subtle">
+            {t("pages.cico.errors.cicoExemptBlocked")}
+          </p>
+        </SectionCard>
+      </AppShell>
+    );
+  }
+
   if (!isCicoOperationalEligible(employee)) {
     if (employee.archivedFromDirectory || employee.status !== "ACTIVE") {
       return (
