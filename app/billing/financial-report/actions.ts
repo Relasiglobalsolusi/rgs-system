@@ -21,7 +21,7 @@ import {
   profitMarginPercent,
   type ProjectWageEmployeeRow,
 } from "@/lib/financial-report";
-import { invoiceDueFromExclusive } from "@/lib/commercial-tax";
+import { invoiceDueFromExclusive, type CommercialTaxKind } from "@/lib/commercial-tax";
 import {
   bankAccountWhere,
   FINANCIAL_REPORT_ALL_BANKS,
@@ -206,7 +206,7 @@ function outstandingFromPeriods(
     ppnRatePercent?: Parameters<typeof commercialPeriodGross>[0]["ppnRatePercent"];
   }[],
   project: {
-    chargedTaxKind?: string | null;
+    chargedTaxKind?: CommercialTaxKind | "" | null;
     requiresTaxInvoice?: boolean | null;
     pphRatePercent?: Parameters<typeof commercialPeriodGross>[0]["amount"];
     isGovernmentContract?: boolean | null;

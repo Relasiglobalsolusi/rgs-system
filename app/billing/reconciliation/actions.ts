@@ -793,10 +793,16 @@ export async function hoRejectClientRevision(formData: FormData) {
  */
 async function issueInvoiceAfterClientApproval(
   periodId: string,
-  _actorUserId: string
+  actorUserId: string
 ) {
+  const actor = await prisma.user.findUnique({
+    where: { id: actorUserId },
+    select: { companyId: true, clientId: true },
+  });
+  if (!actor) throw new Error("User not found.");
+
   const period = await prisma.projectInvoicePeriod.findFirst({
-    where: { id: periodId, project: invoicePeriodCompanyWhere(session) },
+    where: { id: periodId, project: invoicePeriodCompanyWhere({ user: actor }) },
     select: {
       id: true,
       clientReviewStatus: true,
@@ -830,7 +836,7 @@ async function issueInvoiceAfterClientApproval(
   await logReviewEvent({
     invoicePeriodId: periodId,
     actorRole: "SYSTEM",
-    userId: _actorUserId,
+    userId: actorUserId,
     action: "INVOICE_ISSUED",
     statusAfter: period.clientReviewStatus,
   });
