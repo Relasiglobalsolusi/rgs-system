@@ -13,7 +13,7 @@ function createPrismaClient() {
   });
 }
 
-function hasCurrentModels(client: PrismaClient | undefined): client is PrismaClient {
+function hasCurrentModels(client: PrismaClient | undefined): boolean {
   return Boolean(
     client &&
       client.pettyCashEntry &&
