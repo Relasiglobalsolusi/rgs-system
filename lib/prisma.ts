@@ -27,17 +27,16 @@ function hasCurrentModels(client: PrismaClient | undefined): boolean {
 
 function getPrisma(): PrismaClient {
   const existing = globalForPrisma.prisma;
-  if (hasCurrentModels(existing)) {
+  if (existing && hasCurrentModels(existing)) {
     return existing;
   }
   if (existing) {
     void existing.$disconnect();
     globalForPrisma.prisma = undefined;
   }
-  if (!globalForPrisma.prisma) {
-    globalForPrisma.prisma = createPrismaClient();
-  }
-  return globalForPrisma.prisma;
+  const client = createPrismaClient();
+  globalForPrisma.prisma = client;
+  return client;
 }
 
 export const prisma = new Proxy({} as PrismaClient, {
