@@ -23,7 +23,12 @@ function itemSummary(
   t: (key: string, params?: Record<string, string | number>) => string
 ) {
   if (!order.firstItemName || order.itemCount <= 0) {
-    return t("pages.materialRequests.lineCount", { count: order.itemCount });
+    return t(
+      order.itemCount === 1
+        ? "pages.materialRequests.lineCountOne"
+        : "pages.materialRequests.lineCount",
+      { count: order.itemCount }
+    );
   }
   const qty = formatInventoryQty(order.firstItemQty);
   if (order.itemCount === 1) {

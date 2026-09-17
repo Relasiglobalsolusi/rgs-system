@@ -6153,6 +6153,7 @@ export const id = {
       myRequestsDesc:
         "Lacak status persetujuan, progress transfer, dan konfirmasi penerimaan saat gudang menandai terkirim.",
       requestCount: "{count} permintaan",
+      lineCountOne: "1 item",
       lineCount: "{count} item",
       submittedOn: "Dikirim {date}",
       emptyTitle: "Belum Ada Permintaan",

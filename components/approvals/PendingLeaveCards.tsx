@@ -43,7 +43,7 @@ function MetaRow({
   );
 }
 
-export default function PendingLeaveTable({ data }: Props) {
+export default function PendingLeaveCards({ data }: Props) {
   const { t } = useT();
 
   return (

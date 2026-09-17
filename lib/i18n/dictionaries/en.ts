@@ -6097,6 +6097,7 @@ export const en = {
       myRequestsDesc:
         "Track approval status, transfer progress, and confirm receipt when the warehouse marks the order sent.",
       requestCount: "{count} requests",
+      lineCountOne: "1 item",
       lineCount: "{count} items",
       submittedOn: "Submitted {date}",
       emptyTitle: "No Requests Yet",

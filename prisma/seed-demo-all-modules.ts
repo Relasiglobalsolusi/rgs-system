@@ -3062,6 +3062,39 @@ export async function seedDemoAllModules(prisma: Db) {
     });
   }
 
+  const mrRequestedPlaza = await prisma.materialRequest.upsert({
+    where: { id: "demo-mod-mr-requested-2" },
+    update: {},
+    create: {
+      id: "demo-mod-mr-requested-2",
+      companyId: company.id,
+      projectId: pGcContract.id,
+      requestedById: empSite2.id,
+      status: MaterialRequestStatus.REQUESTED,
+      notes: "Lobby machines need cleaner and a spare motor this week",
+    },
+  });
+  if (
+    (await prisma.materialRequestLine.count({
+      where: { materialRequestId: mrRequestedPlaza.id },
+    })) === 0
+  ) {
+    await prisma.materialRequestLine.createMany({
+      data: [
+        {
+          materialRequestId: mrRequestedPlaza.id,
+          itemId: itemChem.id,
+          quantity: toDecimal(3),
+        },
+        {
+          materialRequestId: mrRequestedPlaza.id,
+          itemId: itemSpare.id,
+          quantity: toDecimal(1),
+        },
+      ],
+    });
+  }
+
   const mrApproved = await prisma.materialRequest.upsert({
     where: { id: "demo-mod-mr-approved" },
     update: {},

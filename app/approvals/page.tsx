@@ -20,13 +20,15 @@ import {
 } from "@/lib/material-request-detail";
 import { titleCaseWords } from "@/lib/text-case";
 
-import type { ReactNode } from "react";
-
 import AppShell from "@/components/layout/AppShell";
 import SectionCard from "@/components/ui/SectionCard";
 import EmptyState from "@/components/ui/EmptyState";
+import {
+  ApprovalsEmptyCard,
+  ApprovalsQueue,
+} from "@/components/approvals/ApprovalsQueue";
 import OwnPendingLeaveNotice from "@/components/approvals/OwnPendingLeaveNotice";
-import PendingLeaveTable from "@/components/approvals/PendingLeaveTable";
+import PendingLeaveCards from "@/components/approvals/PendingLeaveCards";
 import {
   getNeedsAttentionTransferOrders,
   listProjectsForTransferAssign,
@@ -142,71 +144,122 @@ export default async function ApprovalsPage() {
       titleKey="pages.approvals.title"
     >
       <div className="min-w-0 max-w-full space-y-6">
+        {queues.materialRequests ? (
+          <ApprovalsQueue
+            title={t("pages.approvals.materialsSection")}
+            description={t("pages.approvals.materialsSectionDesc")}
+            countLabel={
+              pendingMaterials.length > 0
+                ? t("pages.approvals.pendingCount", {
+                    count: pendingMaterials.length,
+                  })
+                : undefined
+            }
+          >
+            {pendingMaterials.length === 0 ? (
+              <ApprovalsEmptyCard>
+                <EmptyState
+                  titleKey="pages.approvals.emptyMaterialsTitle"
+                  descriptionKey="pages.approvals.emptyMaterialsDescription"
+                />
+              </ApprovalsEmptyCard>
+            ) : (
+              pendingMaterials.map((request) => (
+                <MaterialRequestDetailCard
+                  key={request.id}
+                  showStock
+                  request={{
+                    id: request.id,
+                    status: request.status,
+                    notes: request.notes,
+                    reviewNote: request.reviewNote,
+                    createdAt: request.createdAt,
+                    reviewedAt: request.reviewedAt,
+                    project: toMaterialRequestProjectView(
+                      request.project,
+                      locale
+                    ),
+                    requestedByName: formatEmployeeName(request.requestedBy),
+                    requestedByNo: request.requestedBy.employeeNo,
+                    requestedByPosition: request.requestedBy.position
+                      ? titleCaseWords(request.requestedBy.position)
+                      : null,
+                    lines: request.lines.map((line) => ({
+                      id: line.id,
+                      quantity: inventoryQtyFromDecimal(line.quantity),
+                      notes: line.notes,
+                      item: {
+                        sku: line.item.sku,
+                        name: line.item.name,
+                        unit: line.item.unit,
+                        currentStock: inventoryQtyFromDecimal(
+                          line.item.currentStock
+                        ),
+                      },
+                    })),
+                  }}
+                  actions={<ReviewMaterialRequestButtons id={request.id} />}
+                />
+              ))
+            )}
+          </ApprovalsQueue>
+        ) : null}
+
         {queues.leaves ? (
-        <SectionCard className="min-w-0 max-w-full p-5 sm:p-6">
-          <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
-            <div>
-              <h2 className="text-base font-semibold text-text">
-                {t("pages.approvals.leaveSection")}
-              </h2>
-              <p className="mt-1 text-sm text-subtle">
-                {t("pages.approvals.leaveSectionDesc")}
-              </p>
-            </div>
-            {pendingLeave.length > 0 ? (
-              <p className="text-sm tabular-nums text-muted">
-                {t("pages.approvals.pendingCount", {
-                  count: pendingLeave.length,
-                })}
-              </p>
-            ) : null}
-          </div>
-          <OwnPendingLeaveNotice data={ownPendingLeave} />
-          {pendingLeave.length === 0 ? (
-            <EmptyState
-              titleKey="pages.approvals.emptyLeaveTitle"
-              descriptionKey={
-                ownPendingLeave.length > 0
-                  ? "pages.approvals.emptyLeaveOnlyOwnDescription"
-                  : "pages.approvals.emptyLeaveDescription"
-              }
-            />
-          ) : (
-            <PendingLeaveTable data={pendingLeave} />
-          )}
-        </SectionCard>
+          <ApprovalsQueue
+            title={t("pages.approvals.leaveSection")}
+            description={t("pages.approvals.leaveSectionDesc")}
+            countLabel={
+              pendingLeave.length > 0
+                ? t("pages.approvals.pendingCount", {
+                    count: pendingLeave.length,
+                  })
+                : undefined
+            }
+          >
+            <OwnPendingLeaveNotice data={ownPendingLeave} />
+            {pendingLeave.length === 0 ? (
+              <ApprovalsEmptyCard>
+                <EmptyState
+                  titleKey="pages.approvals.emptyLeaveTitle"
+                  descriptionKey={
+                    ownPendingLeave.length > 0
+                      ? "pages.approvals.emptyLeaveOnlyOwnDescription"
+                      : "pages.approvals.emptyLeaveDescription"
+                  }
+                />
+              </ApprovalsEmptyCard>
+            ) : (
+              <PendingLeaveCards data={pendingLeave} />
+            )}
+          </ApprovalsQueue>
         ) : null}
 
         {queues.warehouseReturns ? (
-        <SectionCard className="p-5 sm:p-6">
-          <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
-            <div>
-              <h2 className="text-base font-semibold text-text">
-                {t("pages.approvals.needsAttentionSection")}
-              </h2>
-              <p className="mt-1 text-sm text-subtle">
-                {t("pages.approvals.needsAttentionSectionDesc")}
-              </p>
-            </div>
-            {needsAttentionOrders.length > 0 ? (
-              <p className="text-sm tabular-nums text-muted">
-                {t("pages.approvals.pendingCount", {
-                  count: needsAttentionOrders.length,
-                })}
-              </p>
-            ) : null}
-          </div>
-          {needsAttentionOrders.length === 0 ? (
-            <EmptyState
-              titleKey="pages.approvals.emptyNeedsAttentionTitle"
-              descriptionKey="pages.approvals.emptyNeedsAttentionDescription"
-            />
-          ) : (
-            <div className="space-y-4">
-              {needsAttentionOrders.map((order) => (
+          <ApprovalsQueue
+            title={t("pages.approvals.needsAttentionSection")}
+            description={t("pages.approvals.needsAttentionSectionDesc")}
+            countLabel={
+              needsAttentionOrders.length > 0
+                ? t("pages.approvals.pendingCount", {
+                    count: needsAttentionOrders.length,
+                  })
+                : undefined
+            }
+          >
+            {needsAttentionOrders.length === 0 ? (
+              <ApprovalsEmptyCard>
+                <EmptyState
+                  titleKey="pages.approvals.emptyNeedsAttentionTitle"
+                  descriptionKey="pages.approvals.emptyNeedsAttentionDescription"
+                />
+              </ApprovalsEmptyCard>
+            ) : (
+              needsAttentionOrders.map((order) => (
                 <TransferOrderDetailCard
                   key={order.id}
                   showStock
+                  className="border-border bg-card shadow-[0_14px_32px_-26px_rgba(0,0,0,0.55)]"
                   order={order}
                   actions={
                     <ManagerNeedsAttentionActions
@@ -216,134 +269,60 @@ export default async function ApprovalsPage() {
                     />
                   }
                 />
-              ))}
-            </div>
-          )}
-        </SectionCard>
-        ) : null}
-
-        {queues.materialRequests ? (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-end justify-between gap-2">
-            <div>
-              <h2 className="text-base font-semibold text-text">
-                {t("pages.approvals.materialsSection")}
-              </h2>
-              <p className="mt-1 text-sm text-subtle">
-                {t("pages.approvals.materialsSectionDesc")}
-              </p>
-            </div>
-            {pendingMaterials.length > 0 ? (
-              <p className="text-sm tabular-nums text-muted">
-                {t("pages.approvals.pendingCount", {
-                  count: pendingMaterials.length,
-                })}
-              </p>
-            ) : null}
-          </div>
-          {pendingMaterials.length === 0 ? (
-            <SectionCard className="p-5 sm:p-6">
-              <EmptyState
-                titleKey="pages.approvals.emptyMaterialsTitle"
-                descriptionKey="pages.approvals.emptyMaterialsDescription"
-              />
-            </SectionCard>
-          ) : (
-            pendingMaterials.map((request) => (
-              <MaterialRequestDetailCard
-                key={request.id}
-                showStock
-                request={{
-                  id: request.id,
-                  status: request.status,
-                  notes: request.notes,
-                  reviewNote: request.reviewNote,
-                  createdAt: request.createdAt,
-                  reviewedAt: request.reviewedAt,
-                  project: toMaterialRequestProjectView(request.project, locale),
-                  requestedByName: formatEmployeeName(request.requestedBy),
-                  requestedByNo: request.requestedBy.employeeNo,
-                  requestedByPosition: request.requestedBy.position
-                    ? titleCaseWords(request.requestedBy.position)
-                    : null,
-                  lines: request.lines.map((line) => ({
-                    id: line.id,
-                    quantity: inventoryQtyFromDecimal(line.quantity),
-                    notes: line.notes,
-                    item: {
-                      sku: line.item.sku,
-                      name: line.item.name,
-                      unit: line.item.unit,
-                      currentStock: inventoryQtyFromDecimal(
-                        line.item.currentStock
-                      ),
-                    },
-                  })),
-                }}
-                actions={<ReviewMaterialRequestButtons id={request.id} />}
-              />
-            ))
-          )}
-        </div>
+              ))
+            )}
+          </ApprovalsQueue>
         ) : null}
 
         {queues.payrollUnlock ? (
-          <SectionCard className="p-5 sm:p-6">
-            <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
-              <div>
-                <h2 className="text-base font-semibold text-text">
-                  {t("pages.approvals.payrollUnlockSection")}
-                </h2>
-                <p className="mt-1 text-sm text-subtle">
-                  {t("pages.approvals.payrollUnlockSectionDesc")}
-                </p>
-              </div>
-              {pendingPayrollUnlocks.length > 0 ? (
-                <p className="text-sm tabular-nums text-muted">
-                  {t("pages.approvals.pendingCount", {
+          <ApprovalsQueue
+            title={t("pages.approvals.payrollUnlockSection")}
+            description={t("pages.approvals.payrollUnlockSectionDesc")}
+            countLabel={
+              pendingPayrollUnlocks.length > 0
+                ? t("pages.approvals.pendingCount", {
                     count: pendingPayrollUnlocks.length,
-                  })}
-                </p>
-              ) : null}
-            </div>
+                  })
+                : undefined
+            }
+          >
             {pendingPayrollUnlocks.length === 0 ? (
-              <EmptyState
-                titleKey="pages.approvals.emptyPayrollUnlockTitle"
-                descriptionKey="pages.approvals.emptyPayrollUnlockDescription"
-              />
+              <ApprovalsEmptyCard>
+                <EmptyState
+                  titleKey="pages.approvals.emptyPayrollUnlockTitle"
+                  descriptionKey="pages.approvals.emptyPayrollUnlockDescription"
+                />
+              </ApprovalsEmptyCard>
             ) : (
-              <div className="space-y-4">
-                {pendingPayrollUnlocks.map((request) => (
-                  <div
-                    key={request.id}
-                    className="grid gap-4 rounded-xl border border-border bg-inset p-4 lg:grid-cols-[minmax(0,1fr)_22rem]"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-semibold text-text">
-                        {request.periodLabel}
-                      </p>
-                      <p className="mt-1 text-sm text-muted">
-                        {t("pages.approvals.payrollUnlockRequestedBy", {
-                          name:
-                            request.requestedByName ??
-                            t("pages.payroll.unlockUnknownRequester"),
-                          date: formatDisplayDateTime(
-                            request.requestedAt,
-                            { timeZone: "Asia/Jakarta" },
-                            localeToBcp47(locale)
-                          ),
-                        })}
-                      </p>
-                      <p className="mt-3 whitespace-pre-wrap text-sm text-text">
-                        {request.reason}
-                      </p>
-                    </div>
+              pendingPayrollUnlocks.map((request) => (
+                <SectionCard key={request.id} className="p-4 sm:p-5">
+                  <div className="min-w-0 space-y-1">
+                    <h3 className="text-base font-semibold tracking-tight text-text">
+                      {request.periodLabel}
+                    </h3>
+                    <p className="text-sm text-subtle">
+                      {t("pages.approvals.payrollUnlockRequestedBy", {
+                        name:
+                          request.requestedByName ??
+                          t("pages.payroll.unlockUnknownRequester"),
+                        date: formatDisplayDateTime(
+                          request.requestedAt,
+                          { timeZone: "Asia/Jakarta" },
+                          localeToBcp47(locale)
+                        ),
+                      })}
+                    </p>
+                  </div>
+                  <p className="mt-4 whitespace-pre-wrap text-sm text-text">
+                    {request.reason}
+                  </p>
+                  <div className="mt-4 border-t border-border pt-4">
                     <PayrollUnlockApprovalActions id={request.id} />
                   </div>
-                ))}
-              </div>
+                </SectionCard>
+              ))
             )}
-          </SectionCard>
+          </ApprovalsQueue>
         ) : null}
       </div>
     </AppShell>

@@ -94,9 +94,12 @@ export default function TransferOrderDetailCard({
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-muted">
-              {t("pages.materialRequests.lineCount", {
-                count: order.lines.length,
-              })}
+              {t(
+                order.lines.length === 1
+                  ? "pages.materialRequests.lineCountOne"
+                  : "pages.materialRequests.lineCount",
+                { count: order.lines.length }
+              )}
             </span>
             <span className="text-sm text-muted">
               {formatDisplayDate(order.createdAt)}

@@ -92,7 +92,12 @@ export default function MaterialRequestDetailCard({
             {[
               request.project.clientName,
               request.project.location,
-              t("pages.materialRequests.lineCount", { count: lineCount }),
+              t(
+                lineCount === 1
+                  ? "pages.materialRequests.lineCountOne"
+                  : "pages.materialRequests.lineCount",
+                { count: lineCount }
+              ),
               t("pages.materialRequests.submittedOn", {
                 date: formatDisplayDate(request.createdAt),
               }),
