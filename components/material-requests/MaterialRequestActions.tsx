@@ -85,7 +85,8 @@ export function ReviewMaterialRequestButtons({ id }: { id: string }) {
       <div className="flex flex-wrap justify-end gap-2">
         <Button
           type="button"
-          size="sm"
+          size="badgeFlex"
+          variant="successBadge"
           disabled={pending}
           onClick={() => review("APPROVE")}
         >
@@ -93,8 +94,8 @@ export function ReviewMaterialRequestButtons({ id }: { id: string }) {
         </Button>
         <Button
           type="button"
-          size="sm"
-          variant="secondary"
+          size="badgeFlex"
+          variant="destructiveBadge"
           disabled={pending}
           onClick={() => review("REJECT")}
         >
