@@ -10,3 +10,12 @@ export function chipScrollRowClassName(...extra: Array<string | undefined>) {
     ...extra
   );
 }
+
+/** Title + actions: stack on phones so chips don't sit in a squeezed right column. */
+export function pageToolbarRowClassName(...extra: Array<string | undefined>) {
+  return cn(
+    "flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between",
+    ...extra
+  );
+}
+

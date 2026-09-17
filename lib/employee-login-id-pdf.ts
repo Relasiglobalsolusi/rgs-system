@@ -57,15 +57,17 @@ export async function loadEmployeeLoginIdRows(
     select: {
       firstName: true,
       lastName: true,
-      user: { select: { username: true } },
+      user: { select: { username: true, active: true } },
     },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
   });
 
-  return employees.map((employee) => ({
-    name: formatEmployeeName(employee),
-    loginId: employee.user?.username?.trim() ?? "",
-  }));
+  return employees
+    .filter((employee) => employee.user?.active !== false)
+    .map((employee) => ({
+      name: formatEmployeeName(employee),
+      loginId: employee.user?.username?.trim() ?? "",
+    }));
 }
 
 function ensureSpace(doc: PdfDoc, needed: number, onNewPage?: () => void) {

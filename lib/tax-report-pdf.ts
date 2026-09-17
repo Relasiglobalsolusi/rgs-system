@@ -21,6 +21,10 @@ import {
   type CompanyForPdf,
 } from "@/lib/pdf-letterhead";
 import { formatTaxInvoiceSerial } from "@/lib/tax-invoice-serial";
+import {
+  taxReportViewIncludes,
+  type TaxReportView,
+} from "@/lib/tax-report-view";
 import type { IncomeTaxCreditRow, VatLedgerRow } from "@/lib/vat-ledger";
 
 const JAKARTA_TZ = "Asia/Jakarta";
@@ -30,6 +34,7 @@ const SUMMARY_ROW_H = 18;
 
 export type TaxReportPdfInput = {
   periodLabel: string;
+  view?: TaxReportView;
   outputTotal: number;
   inputTotal: number;
   net: number;
@@ -96,16 +101,23 @@ function ensureSpace(
 }
 
 function drawSummary(doc: PdfDoc, input: TaxReportPdfInput) {
+  const view = input.view ?? "all";
+  if (view === "income" || view === "other") return;
   const locale = input.locale ?? DEFAULT_LOCALE;
-    const lines = [
-    [translate(locale, "pages.vat.outputTotal"), input.outputTotal],
-    [translate(locale, "pages.vat.inputTotal"), input.inputTotal],
-    [translate(locale, "pages.vat.netPayable"), input.net],
-    [
-      translate(locale, "pages.vat.creditBroughtForward"),
-      input.creditBroughtForward,
-    ],
-  ] as const;
+    const lines =
+      view === "input"
+        ? ([[translate(locale, "pages.vat.inputTotal"), input.inputTotal]] as const)
+        : view === "output"
+          ? ([[translate(locale, "pages.vat.outputTotal"), input.outputTotal]] as const)
+          : ([
+              [translate(locale, "pages.vat.outputTotal"), input.outputTotal],
+              [translate(locale, "pages.vat.inputTotal"), input.inputTotal],
+              [translate(locale, "pages.vat.netPayable"), input.net],
+              [
+                translate(locale, "pages.vat.creditBroughtForward"),
+                input.creditBroughtForward,
+              ],
+            ] as const);
 
   for (const [label, value] of lines) {
     ensureSpace(doc, SUMMARY_ROW_H);
@@ -386,27 +398,36 @@ export async function buildTaxReportPdfBuffer(
     drawTitleBlock(doc, input, titleY);
     drawSummary(doc, input);
 
-    drawSectionTitle(doc, translate(locale, "pages.vat.outputTitle"));
-    drawVatTable(doc, locale, input.outputRows, "pages.vat.taxReportEmptyOutput");
+    const view = input.view ?? "all";
+    if (taxReportViewIncludes(view, "output")) {
+      drawSectionTitle(doc, translate(locale, "pages.vat.outputTitle"));
+      drawVatTable(doc, locale, input.outputRows, "pages.vat.taxReportEmptyOutput");
+    }
 
-    drawSectionTitle(doc, translate(locale, "pages.vat.inputTitle"));
-    drawVatTable(doc, locale, input.inputRows, "pages.vat.taxReportEmptyInput");
+    if (taxReportViewIncludes(view, "input")) {
+      drawSectionTitle(doc, translate(locale, "pages.vat.inputTitle"));
+      drawVatTable(doc, locale, input.inputRows, "pages.vat.taxReportEmptyInput");
+    }
 
-    drawSectionTitle(doc, translate(locale, "pages.vat.incomeTitle"));
-    drawAmountTable(
-      doc,
-      locale,
-      input.incomeRows,
-      "pages.vat.taxReportEmptyIncome"
-    );
+    if (taxReportViewIncludes(view, "income")) {
+      drawSectionTitle(doc, translate(locale, "pages.vat.incomeTitle"));
+      drawAmountTable(
+        doc,
+        locale,
+        input.incomeRows,
+        "pages.vat.taxReportEmptyIncome"
+      );
+    }
 
-    drawSectionTitle(doc, translate(locale, "pages.vat.otherTitle"));
-    drawAmountTable(
-      doc,
-      locale,
-      input.otherRows,
-      "pages.vat.taxReportEmptyOther"
-    );
+    if (taxReportViewIncludes(view, "other")) {
+      drawSectionTitle(doc, translate(locale, "pages.vat.otherTitle"));
+      drawAmountTable(
+        doc,
+        locale,
+        input.otherRows,
+        "pages.vat.taxReportEmptyOther"
+      );
+    }
 
     const range = doc.bufferedPageRange();
     for (let i = 0; i < range.count; i++) {

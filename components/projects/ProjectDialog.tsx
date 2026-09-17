@@ -34,7 +34,6 @@ import {
 } from "@/components/ui/use-directory-dialog-open";
 import { FolderKanban } from "lucide-react";
 import {
-  commercialTaxRequiresRatePercent,
   isCommercialTaxKind,
 } from "@/lib/commercial-tax";
 import { useT } from "@/lib/i18n/use-t";
@@ -54,6 +53,7 @@ const INITIAL_FIELDS_STATE: ProjectFormFieldsState = {
   clientId: "",
   chargedTaxKind: "",
   otherTaxName: "",
+  taxRateCode: "",
   pphRatePercent: "",
   planSumOk: true,
   isService: false,
@@ -94,7 +94,7 @@ export default function ProjectDialog({
     clientId,
     chargedTaxKind,
     otherTaxName,
-    pphRatePercent,
+    taxRateCode,
     planSumOk,
     isService,
     isContract,
@@ -191,24 +191,10 @@ export default function ProjectDialog({
       !isInternal &&
       !isComplimentary &&
       resolvedTaxKind === "OTHER" &&
-      !otherTaxName.trim()
+      !otherTaxName.trim() &&
+      !taxRateCode.trim()
     ) {
       showRejection({ reasons: t("pages.billing.otherTaxNameRequired") });
-      return;
-    }
-    if (
-      !isInternal &&
-      !isComplimentary &&
-      resolvedTaxKind &&
-      commercialTaxRequiresRatePercent(resolvedTaxKind) &&
-      !pphRatePercent.trim()
-    ) {
-      showRejection({
-        reasons:
-          resolvedTaxKind === "OTHER"
-            ? t("pages.billing.otherTaxRateRequired")
-            : t("pages.projects.pphRatePercentRequired"),
-      });
       return;
     }
 
@@ -225,8 +211,10 @@ export default function ProjectDialog({
         const created = await createProject(formData);
         setExitConfirmOpen(false);
         closeDialog();
-        if (created?.catchUp && created.id) {
-          router.push(`/projects/${created.id}/catch-up`);
+        if (created?.catchUpKind === "COMPLETED" && created.id) {
+          router.push(`/projects/${created.id}/catch-up/1`);
+        } else if (created?.catchUp && created.id) {
+          router.push(`/projects/${created.id}`);
         }
       } catch (error) {
         showRejectionFromError(error, t("pages.projects.finish.createFailed"));

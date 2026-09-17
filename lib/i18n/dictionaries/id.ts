@@ -320,6 +320,8 @@ export const id = {
       readyToReconcile2: "Rekonsiliasi",
       readyToInvoice1: "Siap",
       readyToInvoice2: "Invoice",
+      awaitingProgress1: "Menunggu",
+      awaitingProgress2: "Progres",
       awaitingClientReview1: "Menunggu",
       awaitingClientReview2: "Persetujuan",
       taxInvoiceDue1: "Dokumen Pajak",
@@ -835,7 +837,11 @@ export const id = {
         projectOngoingHint:
           "Pilih ini dulu. Proyek Baru untuk pekerjaan yang dimulai di ERP ini. Sudah Berjalan untuk yang dimulai sebelum ERP ini dan masih jalan. Selesai untuk pekerjaan sekali yang sudah ditutup, seperti General Cleaning atau Facade.",
         invoice: "Invoice",
+        invoiceHint:
+          "ERP membuat invoice periode ini. Setelah disimpan, invoice bisa diunduh dari halaman periode.",
         taxInvoice: "Faktur Pajak",
+        taxInvoiceHint:
+          "Wajib untuk menyimpan periode ini. Unggah faktur pajak di sini.",
         paymentReceived: "Pembayaran Diterima",
         paymentHint:
           "Biarkan tidak dicentang jika klien belum bayar. Bukti bisa ditambah nanti.",
@@ -860,7 +866,7 @@ export const id = {
         ordinalEighth: "Kedelapan",
         ordinalNinth: "Kesembilan",
         ordinalTenth: "Kesepuluh",
-        dialogTitlePeriod: "Selesaikan {label}",
+        dialogTitlePeriod: "Catat {label}",
         dialogTitleJob: "Selesaikan Pekerjaan",
         dialogHint:
           "Catat biaya periode ini, lalu berapa yang dibayar klien. Ini tidak mengambil stok gudang dan tidak membuat CICO.",
@@ -883,10 +889,10 @@ export const id = {
         employee: "Karyawan",
         clientPays: "Berapa Yang Dibayar Klien",
         clientPaysHint:
-          "Jumlah invoice untuk periode ini. Pembayaran tidak dianggap sudah diterima.",
+          "Disarankan dari tarif bulanan untuk tanggal ini. Jumlah lain masih bisa diketik.",
         savePeriod: "Simpan Periode",
         saveJob: "Selesaikan Pekerjaan",
-        failed: "Tidak dapat menyelesaikan catch-up ini.",
+        failed: "Tidak dapat menyimpan periode ini.",
         periodAlreadyExists: "Periode ini sudah ada. Silakan periksa kembali.",
         periodAlreadyCompleted: "Periode ini sudah selesai dicatat.",
         periodsDone: "Periode Yang Sudah Selesai",
@@ -915,7 +921,7 @@ export const id = {
         readOnlyHint:
           "Periode catch-up ini sudah tercatat. Tetap masuk laporan pendapatan dan biaya proyek ini, bukan penagihan live.",
         pageHint:
-          "Catat invoice klien, faktur pajak, pembayaran, total staf, dan total material untuk periode ini.",
+          "Isi berapa yang dibayar klien, unggah faktur pajak, lalu tambah bukti bayar dan dokumen biaya jika ada. Invoice dibuat saat Anda menyimpan.",
         openHub: "Periode Catch-Up",
         openHub1: "Periode",
         openHub2: "Catch-Up"
@@ -1157,6 +1163,8 @@ export const id = {
         defaultHint:
           "Default {count} × 25% → label 25 / 50 / 75 / 100",
         eachPaymentPercent: "Setiap pembayaran (% dari kontrak)",
+        eachPaymentPercentRemaining:
+          "Setiap Pembayaran (% dari Sisa Setelah Uang Muka)",
         paymentPercentAria: "Persentase pembayaran {n}",
         totalReadyToSave: "Total {sum}% — siap disimpan",
         totalMustEqual100: "Total {sum}% — harus sama dengan 100%",
@@ -1168,6 +1176,17 @@ export const id = {
           "Perbaiki persentase agar berjumlah 100% untuk melihat pratinjau jadwal.",
         scheduleLockedNote:
           "Jadwal pembayaran bertahap ditetapkan saat proyek dibuat dan tidak diubah di sini. Periode invoice dari Invoice dan Penagihan."
+      },
+      downPayment: {
+        label: "Wajib Uang Muka",
+        hint:
+          "Invoice uang muka terpisah, dengan faktur pajak dan bukti pembayaran sendiri, dapat diterbitkan segera setelah pekerjaan ada. Sisa ditagih hanya setelah Anda mengirim laporan progres, klien menyetujui, lalu invoice sisa keluar — alur yang sama dengan pekerjaan tanpa uang muka.",
+        percentLabel: "Persen Uang Muka",
+        percentHint: "Persen dari harga kontrak di luar pajak (1–99).",
+        invoiceLabel: "Uang Muka",
+        invoiceLabelForProject: "Uang Muka untuk {project}",
+        invoiceLabelWithPercent: "Uang Muka {percent}% untuk {project}",
+        issueInvoice: "Terbitkan Uang Muka"
       },
       planningEstimate: "Estimasi perencanaan:",
       moveDialogContract:
@@ -1335,6 +1354,10 @@ export const id = {
         reportsHint:
           "Daftar menampilkan “{count} laporan” karena laporan lapangan ini masuk siklus tersebut.",
         reportsEmpty: "Belum ada laporan progress pada tanggal ini.",
+        reportsEmptyCatchUp:
+          "Siklus ini ditagih sebelum ruang kerja ini dipakai, jadi kemajuan lapangan tidak dicatat di sini. Tidak ada laporan kemajuan untuk tanggal ini.",
+        historicalRecordWhy:
+          "Catat dokumen tagihan untuk siklus ini. Invoice dibuat di sini. Faktur pajak wajib untuk menyimpan.",
         photoCountOne: "{count} foto",
         photoCountOther: "{count} foto",
         noNotes: "Tidak ada catatan",
@@ -1506,11 +1529,20 @@ export const id = {
         "Setiap baris adalah catatan klien lengkap. Tidak ada ketentuan bersama.",
       editClient: "Ubah Klien",
       searchPlaceholder: "Cari klien...",
-      downloadSystemGuide: "Unduh Panduan Sistem",
+      downloadSystemGuide: "Unduh Panduan Sistem Klien",
       downloadingSystemGuide: "Mengunduh...",
       downloadSystemGuideFailed: "Tidak dapat mengunduh panduan sistem.",
       downloadSystemGuideEmpty:
         "Aktifkan minimal satu modul portal klien sebelum mengunduh panduan sistem.",
+      downloadLoginIds: "Unduh ID Login",
+      loginIdExport: {
+        reportTitle: "ID Login Klien",
+        generatedOn: "Dibuat {date}",
+        colName: "Nama Klien",
+        colLoginId: "ID Login",
+        fileName: "ID-Login-Klien.pdf",
+        empty: "Tidak ada klien untuk dicantumkan."
+      },
       manageModuleAccess: "Kelola Akses Modul",
       manageModuleAccessDescription:
         "Pilih modul yang dapat dibuka setiap portal klien.",
@@ -1519,11 +1551,8 @@ export const id = {
       moduleAccessEmpty: "Aktifkan setidaknya satu modul untuk portal klien.",
       moduleAccessLoadFailed: "Tidak dapat memuat akses modul klien.",
       moduleAccessSaveFailed: "Tidak dapat menyimpan akses modul klien.",
-      systemGuidePickClient: "Pilih Klien",
-      systemGuideForClient: "Panduan Sistem Untuk",
-      systemGuidePickDescription:
-        "Buku ini mengikuti modul portal klien yang sudah disimpan. Isinya hanya apa yang bisa dilakukan klien. Pilih nama klien yang muncul di halaman pertama.",
       systemGuidePortalLabel: "Portal Klien",
+      systemGuideFileName: "Panduan-Sistem-Klien.pdf",
       deleted: "Dihapus",
       active: "Aktif",
       activeSubtitle: "Organisasi klien yang sedang aktif",
@@ -2791,19 +2820,56 @@ export const id = {
       purchasePeriod: "Periode",
       expenseReportDownload: "Unduh Laporan Pengeluaran",
       expenseReportTitle: "Laporan Pengeluaran",
-      expenseReportHint: "Pengeluaran menurut tanggal faktur untuk periode yang dipilih.",
-      expenseReportDate: "Tanggal Pengeluaran",
+      expenseReportHint: "Pengeluaran yang sudah dibayar menurut tanggal bayar untuk periode yang dipilih.",
+      expenseReportHintGrouped:
+        "Pendapatan dan pengeluaran yang sudah dibayar menurut tanggal bayar, dikelompokkan per subkategori dan proyek. Pajak atas pendapatan tercantum di bawah setiap pembayaran. Laba bersih adalah DPP dikurangi pengeluaran.",
+      expenseReportDate: "Tanggal",
+      expenseReportKind: "Jenis",
+      expenseReportDetail: "Rincian",
+      expenseReportIncome: "Pendapatan",
+      expenseReportExpense: "Pengeluaran",
+      expenseReportPpn: "PPN",
+      expenseReportPph: "PPh",
+      expenseReportGross: "Total Tagihan",
+      expenseReportProjectNet: "Laba Bersih Proyek",
+      expenseReportGroupNet: "Laba Bersih Subkategori",
+      expenseReportIncomeTotal: "Pendapatan (DPP)",
+      expenseReportExpenseTotal: "Pengeluaran",
+      expenseReportCompanyNet: "Laba Bersih Perusahaan",
+      expenseReportUnassigned: "Kantor Pusat / Belum Ditugaskan",
+      expenseReportStaffCost: "Biaya Staf",
+      expenseReportMaterialCost: "Biaya Material",
       expenseReportReference: "Faktur",
       expenseReportStatus: "Status",
       expenseReportAmount: "Jumlah",
       expenseReportTotal: "Total",
-      expenseReportEmpty: "Tidak ada pengeluaran dengan tanggal faktur pada periode ini.",
+      expenseReportEmpty: "Tidak ada pengeluaran yang dibayar pada periode ini.",
+      expenseReportEmptyGrouped: "Tidak ada pendapatan atau pengeluaran yang dibayar pada periode ini.",
       expenseReportPeriodMonth: "{month} {year}",
       expenseReportPeriodDay: "{day} {month} {year}",
       expenseReportPeriodYear: "{year}",
       expenseReportPayFrom: "Dibayar Dari",
       expenseReportPayTo: "Dibayar Ke",
       expenseReportBanks: "Dari {from} · Ke {to}",
+      apReportDownload: "Unduh Laporan Utang Usaha",
+      apReportTitle: "Laporan Utang Usaha",
+      apReportHint:
+        "Tagihan pemasok belum lunas yang jatuh tempo pada periode ini, plus tagihan terlambat dari bulan sebelumnya, dikelompokkan menurut bulan jatuh tempo.",
+      apReportDueDate: "Jatuh Tempo",
+      apReportEmpty: "Tidak ada tagihan jatuh tempo pada periode ini, dan tidak ada yang terlambat dari bulan sebelumnya.",
+      apReportMonthGroup: "Jatuh Tempo {month}",
+      apReportMonthTotal: "Total Bulan",
+      apReportTotal: "Total Utang",
+      apBcaDownload: "Unduh Transfer Massal",
+      apBcaTitle: "Transfer Massal",
+      apBcaDesc:
+        "Centang tagihan belum lunas. Tagihan tidak ditandai lunas. Pilih bank pengirim di bawah.",
+      apBcaBank: "Bank Pengirim",
+      apBcaBankHint: "File transfer massal dibuat untuk bank ini.",
+      apBcaBankBca: "BCA",
+      apBcaEmpty: "Tidak ada tagihan belum lunas.",
+      apBcaConfirm: "Unduh Transfer Massal",
+      apBcaSelectRequired: "Centang setidaknya satu tagihan.",
       purchaseCardTotal: "Total Beban",
       purchaseCardUnpaid: "Belum Dibayar",
       purchaseCardUnpaidHint: "Masih di Utang Usaha",
@@ -2815,6 +2881,35 @@ export const id = {
       purchaseEmptyPeriodDesc:
         "Tidak ada pengeluaran dengan tanggal pada bulan yang dipilih. Coba periode lain atau tambah pengeluaran.",
       purchaseUpload: "Tambah Pengeluaran",
+      takeCash: "Ambil Tunai",
+      takeCashTitle: "Ambil Tunai",
+      takeCashDesc:
+        "Potong rekening perusahaan dan simpan uang tunainya. Lokasi simpan tidak dicatat. Memakainya nanti adalah beban.",
+      takeCashAmount: "Jumlah",
+      takeCashAmountRequired: "Masukkan jumlah tunai yang diambil.",
+      takeCashDate: "Tanggal Diambil",
+      takeCashDateRequired: "Masukkan tanggal uang keluar dari bank.",
+      takeCashBank: "Diambil Dari Bank",
+      takeCashBankHint: "Rekening perusahaan tempat tunai ini ditarik.",
+      takeCashNote: "Catatan",
+      takeCashNotePlaceholder: "Opsional. Misalnya ATM atau teller.",
+      takeCashNoteHint: "Opsional. Lokasi simpan tunai tidak dicatat.",
+      takeCashBalance: "Kas tunai saat ini {amount}.",
+      takeCashConfirm: "Ambil Tunai",
+      takeCashPending: "Menyimpan…",
+      takeCashFailed: "Gagal mengambil tunai.",
+      purchasePaymentMethod: "Cara Bayar",
+      purchasePaymentMethodBank: "Bank",
+      purchasePaymentMethodCash: "Tunai",
+      purchasePaymentMethodBankHint:
+        "Bayar dari rekening bank perusahaan.",
+      purchasePaymentMethodCashHint:
+        "Bayar dari Kas Tunai. Saldo saat ini {amount}.",
+      purchaseCashNotAllowed:
+        "Pengeluaran ini tidak bisa dibayar dari Kas Tunai. Gunakan rekening perusahaan.",
+      purchaseCashInsufficient:
+        "Kas tunai tidak cukup. Ambil tunai dari rekening perusahaan dulu.",
+      purchasePayFromCash: "Kas Tunai",
       purchaseUploadTitle: "Tambah Pengeluaran",
       purchaseUploadDesc:
         "Catat tagihan pemasok, jasa, isi ulang Kas Kecil, atau isi ulang kartu prabayar kendaraan. Lampirkan tagihan bila ini faktur pemasok.",
@@ -2975,25 +3070,25 @@ export const id = {
       advanceCashKindPetty: "Kas Kecil",
       advanceCashKindPrepaid: "Kartu Prabayar",
       advanceCashPettyHint:
-        "Pilih karyawan yang menerima uang ini. Saldo Kas Kecil karyawan itu bertambah. Kartu prabayar diisi ulang lewat Kendaraan → Kartu Prabayar.",
+        "Pilih karyawan yang menerima uang ini. Saldo Kas Kecil karyawan itu bertambah. Kartu diisi ulang lewat Kartu Prabayar.",
       pettyCashRecipient: "Siapa Yang Menerima Isi Ulang",
       pettyCashRecipientPlaceholder: "Pilih karyawan",
       pettyCashRecipientRequired: "Pilih karyawan yang menerima Kas Kecil ini.",
       pettyCashHoldersOnly:
         "Uang muka kas kecil hanya untuk pemegang Kas Kecil yang sudah ada.",
       advanceCashPrepaidHint:
-        "Isi ulang kartu prabayar kendaraan lewat Kendaraan → Kartu Prabayar. Pengeluaran BBM, tol, dan parkir dicatat di Kas Uang Muka → Kartu.",
+        "Isi ulang Kartu Kendaraan atau Kartu Prabayar di Kartu Prabayar. Pengeluaran BBM, tol, dan parkir dicatat di Kas Uang Muka → Kartu.",
       prepaidCard: "Kartu Prabayar",
       prepaidCardRequired: "Pilih kartu prabayar yang akan diisi ulang.",
       prepaidCardEmpty: "Tambah kartu prabayar di Kas Uang Muka terlebih dahulu.",
       prepaidCardHint:
-        "Isi ulang ini menambah saldo kartu. Kartu Kendaraan tetap di Kendaraan. Kartu Prabayar adalah Kantor Pusat.",
+        "Isi ulang ini menambah saldo kartu. Pakai Kartu Prabayar untuk Kartu Kendaraan dan Kartu Prabayar Kantor Pusat.",
       purchaseCategoryOpenCard: "Kartu Prabayar",
       purchaseCategoryGovernment: "Pemerintah",
       purchaseCategoryBankLoan: "Pinjaman",
       purchaseCategoryEmployee: "Pembayaran Karyawan",
       purchaseCategoryHint:
-        "Produk menjadi stok gudang. Kendaraan dibeli di dalam negeri dan dicatat di Inventaris → Kendaraan. Isi ulang Kartu Kendaraan lewat Kendaraan → Kartu Prabayar. Isi ulang Kartu Prabayar di Kartu Prabayar. Jasa, Kas Kecil, Pemerintah, Pinjaman, dan Pembayaran Karyawan bukan stok.",
+        "Produk menjadi stok gudang. Kendaraan dibeli di dalam negeri dan dicatat di Inventaris → Kendaraan. Isi ulang Kartu Kendaraan atau Kartu Prabayar di Kartu Prabayar. Jasa, Kas Kecil, Pemerintah, Pinjaman, dan Pembayaran Karyawan bukan stok.",
       employeePaymentKind: "Jenis Pembayaran",
       employeePaymentKindHint:
         "Catat Internal Payroll, THR, atau kasbon yang dibayar sebelum gajian.",
@@ -3543,9 +3638,9 @@ export const id = {
       purchaseMarkPaid: "Tandai Lunas",
       purchaseMarkPaidTitle: "Tandai Pembelian Lunas",
       purchaseMarkPaidDesc:
-        "Unggah bukti pembayaran untuk mencatat kapan tagihan pemasok ini dilunasi dan menutup AP.",
+        "Masukkan tanggal uang keluar dari bank, pilih bank, dan unggah bukti. Ini menutup AP.",
       purchaseMarkPaidHint:
-        "Lampirkan bukti transfer atau konfirmasi pembayaran. Ini menutup utang.",
+        "Tanggal bayar adalah hari uang keluar dari rekening. Unduhan Excel tidak menandai tagihan lunas.",
       purchaseMarkPaidImportDesc:
         "Isi Kurs Bank dan biaya bank untuk transfer ini. Biaya gudang tetap pada Kurs Pencatatan. Jika Kurs Bank berbeda, Head Office mencatat selisih kurs.",
       purchaseMarkPaidBankRate: "Kurs Bank",
@@ -3634,9 +3729,28 @@ export const id = {
       paymentReceived2: "Diterima",
       paymentReceivedDialogTitle: "Catat pembayaran diterima",
       paymentReceivedDialogDesc:
-        "Unggah bukti pembayaran, lalu konfirmasi. Membersihkan invoice jatuh tempo; proyek tetap aktif untuk bulan berikutnya.",
+        "Masukkan tanggal klien benar-benar membayar, unggah bukti, lalu konfirmasi. Membersihkan invoice jatuh tempo; proyek tetap aktif untuk bulan berikutnya.",
       paymentReceivedDialogDescHistory:
-        "Unggah bukti pembayaran, lalu konfirmasi. Saat semua invoice lunas, proyek pindah ke Selesai.",
+        "Masukkan tanggal klien benar-benar membayar, unggah bukti, lalu konfirmasi. Saat semua invoice lunas, proyek pindah ke Selesai.",
+      paidAtRequired: "Masukkan tanggal uang keluar dari bank.",
+      paidAt: "Tanggal Dibayar",
+      paidAtHint: "Tanggal uang keluar dari bank atau laci tunai.",
+      clientPaidAtRequired: "Masukkan tanggal klien benar-benar membayar.",
+      taxInvoiceIssuedAt: "Tanggal Terbit Faktur Pajak",
+      taxInvoiceIssuedAtHint: "Tanggal terbit pada faktur, bukan tanggal unggah.",
+      taxInvoiceIssuedAtRequired: "Masukkan tanggal terbit faktur pajak.",
+      returnCash: "Kembalikan Tunai",
+      returnCashTitle: "Kembalikan Tunai Ke Bank",
+      returnCashDesc:
+        "Kas tunai berkurang dan rekening perusahaan yang dipilih bertambah. Ini bukan beban.",
+      returnCashAmount: "Jumlah",
+      returnCashAmountRequired: "Masukkan jumlah tunai yang dikembalikan.",
+      returnCashDate: "Tanggal Dikembalikan",
+      returnCashDateRequired: "Masukkan tanggal tunai kembali ke bank.",
+      returnCashBank: "Dikembalikan Ke Bank",
+      returnCashConfirm: "Kembalikan Tunai",
+      returnCashInsufficient: "Kas tunai tidak cukup untuk pengembalian ini.",
+      moduleNotRelevant: "Modul ini tidak relevan untuk Anda.",
       taxInvoiceSentDialogTitle: "Unggah Faktur Pajak",
       taxInvoiceSentDialogDesc:
         "Unggah faktur pajak, lalu konfirmasi. Dapat dilakukan sebelum atau sesudah pembayaran dicatat.",
@@ -3864,6 +3978,8 @@ export const id = {
       paidOn: "Lunas {date}",
       proofUploadedOn: "Bukti diunggah {date}",
       downloadPdf: "PDF",
+      needsDocuments: "Perlu Dokumen",
+      recordPeriod: "Catat Periode",
       viewProof: "Lihat bukti",
       awaitingVerification: "Menunggu verifikasi",
       reconcile: "Rekonsiliasi",
@@ -3878,6 +3994,10 @@ export const id = {
       submitPaymentFailed: "Gagal mengirim pembayaran untuk verifikasi.",
       rejectPaymentFailed: "Gagal menolak bukti pembayaran.",
       compileInvoiceFailed: "Gagal mengompilasi invoice.",
+      progressReportsRequiredBeforeReview:
+        "Kirim setidaknya satu laporan progres sebelum mengirim ini ke klien.",
+      remainderNeedsProgressReview:
+        "Invoice sisa diterbitkan setelah Anda mengirim laporan progres dan klien menyetujui — alur yang sama dengan pekerjaan tanpa uang muka.",
       mutualApprovalBeforeInvoice:
         "Kirim periode penagihan ini untuk review klien dan HO (rekonsiliasi atau Ajukan Persetujuan) sebelum menerbitkan invoice.",
       reviewPendingBeforeInvoice:
@@ -3890,6 +4010,40 @@ export const id = {
       filterResultsFor: '{count} hasil untuk "{query}"',
       filterResultsInFor: '{count} hasil di {type} untuk "{query}"',
       breadcrumbAria: "Breadcrumb"
+    },
+    taxRates: {
+      title: "Tarif Pajak",
+      button: "Tarif Pajak",
+      heading: "Tarif Pajak",
+      hint: "Setiap pajak di ERP membaca tabel ini pada tanggal berlakunya. Persen baru hanya berlaku dari tanggal itu ke depan. Bulan sebelumnya tetap memakai tarif lama.",
+      addType: "Tambah Jenis Pajak",
+      addTypeTitle: "Tambah Jenis Pajak",
+      addTypeDesc: "Jenis ini lalu muncul di tempat kita membebankan pajak, dengan persen yang Anda tetapkan.",
+      addRate: "Sesuaikan Tarif",
+      addRateTitle: "Sesuaikan Tarif · {name}",
+      addRateDesc: "Tetapkan persen dan tanggal mulai berlaku. Dokumen sebelum tanggal itu tetap memakai tarif sebelumnya.",
+      saveType: "Simpan Jenis Pajak",
+      saveRate: "Simpan Tarif",
+      saveFailed: "Tidak dapat menyimpan tarif pajak.",
+      columnType: "Jenis Pajak",
+      columnRate: "Tarif",
+      columnFrom: "Berlaku Dari",
+      columnApplies: "Dipakai Untuk",
+      appliesClient: "Tagihan Klien",
+      appliesCorporate: "PPh Badan",
+      appliesHint: "Tagihan Klien muncul di pekerjaan dan invoice. PPh Badan adalah baris pajak penghasilan pada laba rugi.",
+      typeName: "Nama Jenis Pajak",
+      typeNamePlaceholder: "mis. Pajak Jasa Daerah",
+      effectiveFrom: "Berlaku Dari",
+      effectiveFromHint: "Tanggal pertama persen ini berlaku. Pilih hari ini kecuali aturannya sudah berubah di tanggal sebelumnya.",
+      note: "Catatan",
+      history: "Riwayat Tarif",
+      noRate: "Belum Ada Tarif",
+      noRateHint: "Tambah tarif dengan tanggal berlaku sebelum jenis ini bisa dipilih di pekerjaan.",
+      fromDate: "Dari {date}",
+      missing: "Tambah tarif pajak ini di Tarif Pajak terlebih dahulu.",
+      currentRate: "Tarif saat ini {percent} dari Tarif Pajak.",
+      followsTable: "Persen diambil dari Tarif Pajak pada tanggal dokumen. Ubah di sana, bukan di formulir ini.",
     },
     vat: {
       period: "Periode",
@@ -3911,6 +4065,30 @@ export const id = {
       creditBroughtForwardYearHint:
         "Sisa PPN masukan di akhir tahun setelah setiap bulan disetor. Dibawa ke tahun berikutnya. Tidak pernah minus.",
       taxReportDownload: "Unduh Laporan Pajak",
+      taxInvoiceReportDownload: "Unduh Faktur Pajak Tertunda",
+      taxInvoiceReportTitle: "Laporan Faktur Pajak Tertunda",
+      taxInvoiceReportHint:
+        "Dokumen pajak yang masih harus diterbitkan atau diunggah. Baris ini tidak masuk laporan pajak.",
+      taxInvoiceReportHintOutput:
+        "Faktur PPN keluaran yang masih harus dibuat di Core Tax, lalu diunggah.",
+      taxInvoiceReportHintInput:
+        "Faktur pajak pemasok yang masih harus diunggah.",
+      taxInvoiceReportHintIncome:
+        "Dokumen PPh dibayar di muka yang masih harus diunggah.",
+      taxInvoiceReportHintOther:
+        "Dokumen pajak lain yang masih harus diterbitkan atau diunggah.",
+      taxInvoiceReportGeneratedOn: "Dibuat {date}",
+      taxInvoiceReportColClient: "Klien",
+      taxInvoiceReportColNpwp: "NPWP / ID",
+      taxInvoiceReportColBillingFor: "Penagihan Untuk",
+      taxInvoiceReportColDpp: "DPP",
+      taxInvoiceReportColPpn: "PPN",
+      taxInvoiceReportEmpty: "Tidak ada faktur pajak tertunda untuk pilihan ini.",
+      taxInvoiceReportFileName: "Faktur-Pajak-Tertunda.pdf",
+      taxInvoiceReportFileNameOutput: "PPN-Keluaran-Tertunda.pdf",
+      taxInvoiceReportFileNameInput: "PPN-Masukan-Tertunda.pdf",
+      taxInvoiceReportFileNameIncome: "PPh-Tertunda.pdf",
+      taxInvoiceReportFileNameOther: "Pajak-Lain-Tertunda.pdf",
       taxReportTitle: "Laporan Pajak",
       taxReportHint:
         "PPN keluaran, PPN masukan, kredit PPN dibawa ke depan, PPh dibayar di muka, dan pajak lain untuk periode yang dipilih.",
@@ -3928,6 +4106,7 @@ export const id = {
       taxReportPeriodMonth: "{month} {year}",
       taxReportPeriodYear: "{year}",
       tabs: {
+        all: "Semua Pajak",
         output: "PPN Keluaran",
         input: "PPN Masukan",
         income: "Pajak Penghasilan",
@@ -3938,10 +4117,9 @@ export const id = {
       inputSourceService: "Jasa",
       inputSourceVehicle: "Kendaraan",
       inputSourceHandling: "Biaya Handling",
-      pendingCount: "{count} Menunggu",
       outputTitle: "PPN Keluaran",
       outputDesc:
-        "Periode invoice klien yang membutuhkan faktur pajak pada bulan ini.",
+        "Faktur pajak klien yang sudah diterbitkan dan dibukukan bulan ini.",
       inputTitle: "PPN Masukan",
       inputDesc:
         "PPN Masukan bulan ini, menurut sumber: barang, barang impor, dan biaya handling. PPN impor dikreditkan dari pembayaran Bea Cukai. PPN handling dikreditkan dari faktur pajak handler.",
@@ -3955,7 +4133,7 @@ export const id = {
       otherRemittanceTotalHint: "Pasal 21 dan Pasal 23 yang dibayar bulan ini",
       otherExpenseTotal: "Beban Pajak Lain",
       otherExpenseTotalHint: "Pasal 4(2), bea meterai, dan pajak lain bulan ini",
-      incomeTitle: "PPh Badan Dibayar Di Muka",
+      incomeTitle: "Kredit Pajak Penghasilan Badan",
       incomeDesc:
         "PPh Pasal 22 impor serta PPh Pasal 25 / 29 yang dibayar dengan ID Billing. Jumlah ini mengurangi PPh Badan pada SPT Tahunan.",
       incomeImportTotal: "PPh Pasal 22 Impor",
@@ -3992,10 +4170,10 @@ export const id = {
       fakturPending: "Menunggu",
       emptyOutput: "Tidak Ada PPN Keluaran",
       emptyOutputDesc:
-        "Tidak ada periode faktur pajak klien pada bulan ini.",
+        "Tidak ada faktur pajak klien yang sudah diterbitkan pada bulan ini.",
       emptyInput: "Tidak Ada PPN Masukan",
       emptyInputDesc:
-        "Tidak ada pembelian pemasok dengan PPN pada bulan ini.",
+        "Tidak ada faktur pajak pemasok yang sudah diterbitkan pada bulan ini.",
       invoicePeriodFallback: "Periode Invoice",
       soldOffSale: "Sold Off",
       governmentClient: "Pemerintah",
@@ -4081,7 +4259,7 @@ export const id = {
       title: "Laporan Keuangan",
       downloadReport: "Unduh Laporan Keuangan",
       reportHint:
-        "Setiap baris uang masuk dan uang keluar untuk periode yang dipilih, plus Piutang Usaha dan Utang Usaha.",
+        "Laba rugi untuk periode yang dipilih: pendapatan, harga pokok penjualan, Head Office, beban keuangan, dan pajak penghasilan badan, plus Piutang Usaha dan Utang Usaha.",
       reportTotal: "Total",
       reportDate: "Tanggal",
       reportSource: "Sumber",
@@ -4125,6 +4303,7 @@ export const id = {
         payrollAdjustment: "Penyesuaian Gaji",
         loanDraw: "Penarikan Pinjaman",
         loanReturn: "Pengembalian Pinjaman",
+        cashWithdraw: "Ambil Tunai",
         receivable: "Piutang Usaha",
         payable: "Utang Usaha"
       },
@@ -4135,14 +4314,37 @@ export const id = {
       filterReportGeneral: "General",
       filterBank: "Rekening Bank",
       filterBankAll: "Semua Bank",
+      filterBankCash: "Kas Tunai",
       transferReport: "Laporan Transfer",
       filterBankUnassigned: "Belum Ditentukan",
       rangeHint:
-        "Pendapatan memakai periode kalender. Upah memakai jendela 16–15 untuk Staf Proyek dan 26–25 untuk Head Office, dicatat saat uang keluar. Tagihan pemasok yang belum dibayar adalah Utang Usaha, bukan beban.",
-      periodNet: "Laba Periode",
+        "Pendapatan memakai periode kalender. Upah memakai jendela 16–15 untuk Staf Proyek dan 26–25 untuk Head Office, dicatat saat uang keluar. Aset tidak masuk laporan ini sampai dijual. Tagihan pemasok yang belum dibayar adalah Utang Usaha, bukan beban.",
+      periodNet: "Laba Bersih",
+      pnlTitle: "Laba Rugi",
+      pnlHint:
+        "Pendapatan pekerjaan adalah DPP. Harga pokok penjualan adalah bahan habis pakai dan upah di pekerjaan. Pembelian aset dan kendaraan tetap aset perusahaan. Pajak penghasilan badan mengikuti tarif PPh Badan di Tarif Pajak untuk setiap tanggal dalam periode.",
+      pnlRevenue: "Pendapatan",
+      pnlCostOfSales: "Harga Pokok Penjualan",
+      pnlGrossProfit: "Laba Kotor",
+      pnlOtherIncome: "Pendapatan Lain",
+      pnlHeadOffice: "Head Office",
+      pnlOperatingProfit: "Laba Usaha",
+      pnlFinanceCosts: "Beban Keuangan",
+      pnlProfitBeforeTax: "Laba Sebelum Pajak",
+      pnlIncomeTax: "Pajak Penghasilan ({percent}%)",
+      pnlIncomeTaxMixed: "Pajak Penghasilan",
+      pnlNetProfit: "Laba Bersih",
+      pnlClientTotal: "Total Klien",
+      pnlSubcategoryTotal: "Total Jenis",
+      pnlTreeTitle: "Pendapatan Per Pekerjaan",
+      pnlTreeHint:
+        "Setiap pekerjaan menampilkan pendapatan, harga pokok penjualan, dan laba kotor. Head Office berada setelah semua klien, bukan di dalam pekerjaan.",
+      pnlEmptyTree: "Tidak ada pendapatan atau harga pokok penjualan pada periode ini.",
+      pnlGroupContract: "Kontrak {name}",
+      pnlGroupOneTime: "Satu Kali {name}",
       netPosition: "Posisi Bersih",
       netPositionHint:
-        "Laba periode dikurangi Utang Usaha. Penarikan pinjaman tetap di halaman Pinjaman. Itu pendanaan, bukan pendapatan.",
+        "Laba bersih dikurangi Utang Usaha. Penarikan pinjaman tetap di halaman Pinjaman. Itu pendanaan, bukan pendapatan.",
       loanInterestDueThisPeriod: "Bunga Pinjaman Dibayar",
       loanInterestDueThisPeriodHint:
         "Bunga yang Anda catat di Pinjaman pada periode ini. Itu beban. Penarikan tetap di halaman Pinjaman.",
@@ -4172,9 +4374,20 @@ export const id = {
       companyMoneyInHint:
         "Jumlah rekonsiliasi yang disetujui atau invoice, pajak dikeluarkan dengan membagi, plus deposit karyawan yang hangus. Deposit ditahan bukan pendapatan.",
       companyMoneyOutHint:
-        "Stok terpakai di pekerjaan, tagihan pemasok saat dibayar, Penggajian Internal, pengeluaran parkir, biaya Head Office, isi ulang Kas Kecil, isi ulang kartu prabayar, dan deposit karyawan yang dikembalikan.",
+        "Bahan habis pakai di pekerjaan, tagihan pemasok saat dibayar, Penggajian Internal, pengeluaran parkir, biaya Head Office, isi ulang Kas Kecil, isi ulang kartu prabayar, dan beban yang dibayar dari Kas Tunai. Membeli atau mengeluarkan aset bukan beban. Mengambil tunai dari bank bukan beban.",
+      companyMoneyInCashHint:
+        "Pendapatan klien tidak masuk ke Kas Tunai. Mengambil tunai dari bank menambah laci, bukan pendapatan.",
+      companyMoneyOutCashHint:
+        "Hanya beban yang dibayar dari Kas Tunai pada periode ini. Tunai yang belum dipakai tetap di Kas Tunai sampai dibelanjakan.",
+      cashAtHand: "Kas Tunai",
+      cashAtHandHint:
+        "Uang tunai yang sudah diambil dari rekening perusahaan dan belum dipakai. Saldo ini tetap ada seperti rekening bank sampai Anda membayar pengeluaran dengan Tunai. Lokasi simpan tidak dicatat.",
+      cashAtHandWithdraw: "Diambil Dari Bank",
+      cashAtHandSpend: "Dibayar Dari Tunai",
+      cashAtHandDeposit: "Dikembalikan Ke Bank",
       stockInWarehouse: "Nilai Persediaan",
-      stockInWarehouseHint: "Nilai barang yang masih di gudang. Belum dibebankan ke pekerjaan.",
+      stockInWarehouseHint:
+        "Nilai bahan habis pakai yang masih di gudang. Peralatan adalah aset perusahaan di mana pun berada, bukan biaya persediaan.",
       headOfficeOverhead: "Head Office",
       headOfficeOverheadPeriodHint:
         "Standby Wage Head Office, pembelian Internal yang dibayar periode ini, stok yang dipakai di Head Office atau Gudang Internal, dan selisih kurs impor.",
@@ -4192,9 +4405,9 @@ export const id = {
       depositsKept: "Deposit Karyawan Hangus",
       depositsKeptHint:
         "Pendapatan Head Office saat resign tidak sesuai prosedur.",
-      jobHistoryTitle: "Klien Dan Pekerjaan",
+      jobHistoryTitle: "Pendapatan Per Pekerjaan",
       jobHistoryDesc:
-        "Buka pekerjaan apa pun, termasuk yang sudah selesai. Total bulanan perusahaan tetap menghitung uang bertanggal bulan ini.",
+        "Pekerjaan dikelompokkan menurut jenis, lalu klien. Laba kotor adalah pendapatan dikurangi harga pokok penjualan. Head Office tidak dibebankan ke klien.",
       sameDaySplitNote:
         "Bekerja di {count} lokasi hari ini — gaji harian dibagi merata.",
       doubleShiftNote: "Shift ganda — dua tarif harian untuk hari ini.",
@@ -4202,15 +4415,21 @@ export const id = {
       withProjects: "Dengan Proyek",
       totalContractValue: "Total Nilai Kontrak",
       acrossClients: "Lintas Klien",
-      totalProfit: "Total Laba",
+      totalProfit: "Laba Kotor",
       detail: {
-        periodNet: "Rincian Laba Periode",
+        periodNet: "Rincian Laba Bersih",
         netPosition: "Rincian Posisi Bersih",
         moneyIn: "Rincian Pendapatan",
-        moneyOut: "Rincian Beban",
+        moneyOut: "Rincian Harga Pokok Penjualan",
         ar: "Rincian Piutang Usaha",
         ap: "Rincian Utang Usaha",
         warehouse: "Rincian Nilai Persediaan",
+        cashAtHand: "Rincian Kas Tunai",
+        cashAtHandHelp:
+          "Tunai yang belum dipakai tetap di sini seperti saldo bank. Pilih Kas Tunai pada Rekening Bank untuk melihat hanya laci ini. Membayar pengeluaran dengan tunai menguranginya dan mencatat beban itu dibayar dengan Tunai. Mengambil tunai bukan laba rugi sampai uang itu dipakai.",
+        cashAtHandEmpty: "Belum ada kas tunai.",
+        cashAtHandEmptyDesc:
+          "Gunakan Ambil Tunai di Pengeluaran untuk menarik dari rekening perusahaan.",
         overhead: "Rincian Head Office",
         deposits: "Rincian Deposit Karyawan Ditahan",
         depositsReturned: "Rincian Deposit Karyawan Dikembalikan",
@@ -4230,12 +4449,16 @@ export const id = {
         overheadRateDifferenceExpense: "Beban Selisih Kurs Impor",
         overheadRateDifferenceIncome: "Pendapatan Selisih Kurs Impor",
         warehouseHelp:
-          "Barang di gudang adalah aset, bukan beban, sampai dikeluarkan ke pekerjaan.",
+          "Bahan habis pakai di gudang adalah aset sampai dikeluarkan ke pekerjaan. Peralatan tetap aset perusahaan saat dikeluarkan — itu hanya mencatat di mana aset itu berada.",
         openInventory: "Buka Inventaris",
         moneyInHelp:
           "Pendapatan termasuk deposit karyawan yang hangus dan pendapatan Head Office saat Kurs Bank impor lebih rendah dari Kurs Pencatatan.",
         moneyOutHelp:
-          "Beban termasuk biaya Head Office, isi ulang Kas Kecil, isi ulang kartu prabayar, deposit karyawan yang dikembalikan, dan beban Head Office saat Kurs Bank impor lebih tinggi dari Kurs Pencatatan.",
+          "Beban termasuk biaya Head Office, isi ulang Kas Kecil, isi ulang kartu prabayar, deposit karyawan yang dikembalikan, beban yang dibayar dari Kas Tunai, dan beban Head Office saat Kurs Bank impor lebih tinggi dari Kurs Pencatatan. Mengambil tunai dari bank bukan beban pada Semua Bank.",
+        moneyInCashHelp:
+          "Kas Tunai tidak menerima pendapatan klien. Mengambil tunai dari bank bukan pendapatan.",
+        moneyOutCashHelp:
+          "Hanya beban yang dibayar dengan Tunai pada periode ini. Tunai yang belum dipakai tetap di Kas Tunai dan bukan beban sampai dibelanjakan.",
         overheadHelp:
           "Standby Wage Head Office, pembelian Internal yang dibayar periode ini, stok yang dipakai situs Internal, dan selisih kurs impor yang dicatat ke Head Office.",
         depositsHelp:
@@ -4245,33 +4468,37 @@ export const id = {
         depositsKeptHelp:
           "Pendapatan Head Office saat resign tidak sesuai prosedur dan deposit ditahan perusahaan.",
         netPositionHelp:
-          "Laba periode dikurangi utang pemasok dan pinjaman yang masih terutang. Penarikan pinjaman bukan pendapatan. Piutang adalah yang masih terutang klien."
+          "Laba bersih dikurangi utang pemasok. Penarikan pinjaman bukan pendapatan. Piutang adalah yang masih terutang klien."
       },
       contractValueHint: "Jumlah harga kontrak proyek.",
       spendingHint:
-        "Stok terpakai di pekerjaan, pembelian proyek, dan hari CICO Penggajian Internal di sini.",
+        "Bahan habis pakai di pekerjaan dan hari CICO Penggajian Internal di sini. Peralatan yang dikeluarkan ke lokasi bukan biaya.",
       moneyIn: "Pendapatan",
       moneyInHint:
         "Jumlah rekonsiliasi yang disetujui, atau jumlah invoice, setelah pajak dikeluarkan dengan membagi.",
-      moneyOut: "Beban",
+      moneyOut: "Harga Pokok Penjualan",
       moneyOutHint:
-        "Stok terpakai, pembelian proyek, dan Penggajian Internal yang dialokasikan ke pekerjaan ini.",
-      moneyOutBreakdownTitle: "Rincian Beban",
+        "Bahan habis pakai, jasa yang ditagihkan ke pekerjaan, dan Penggajian Internal yang dialokasikan ke pekerjaan ini. Bukan peralatan.",
+      moneyOutBreakdownTitle: "Rincian Harga Pokok Penjualan",
       moneyOutBreakdownDesc:
-        "Stok terpakai di pekerjaan ini plus Penggajian Internal (upah harian × hari CICO lengkap). Kerja multi-lokasi di hari yang sama membagi gaji harian merata.",
-      inventoryOut: "Inventaris",
+        "Bahan habis pakai di pekerjaan ini, jasa yang ditagihkan, belanja kas kecil, dan Penggajian Internal (upah harian × hari CICO lengkap). Peralatan yang dikeluarkan ke sini hanya lokasi.",
+      inventoryOut: "Bahan Habis Pakai",
+      jobPurchasesOut: "Jasa Dan Kas Kecil",
+      parkingDealOut: "Kesepakatan Parkir",
+      incidentsOut: "Insiden",
       wagesOut: "Gaji",
-      moneyOutTotal: "Total Beban",
-      profit: "Laba",
-      profitHint: "Pendapatan − Beban",
+      moneyOutTotal: "Total Harga Pokok Penjualan",
+      profit: "Laba Kotor",
+      profitHint: "Pendapatan − Harga Pokok Penjualan",
       margin: "Margin",
-      marginHint: "Laba ÷ Pendapatan",
+      marginHint: "Laba Kotor ÷ Pendapatan",
       contractValue: "Nilai Kontrak",
       paymentsTitle: "Pembayaran Diterima",
       paymentsDesc:
         "Periode invoice berstatus Dibayar setelah konfirmasi pembayaran.",
-      inventoryTitle: "Pengeluaran Inventaris",
-      inventoryDesc: "Stok non-void yang dikeluarkan ke proyek ini.",
+      inventoryTitle: "Bahan Habis Pakai Terpakai",
+      inventoryDesc:
+        "Bahan habis pakai non-void yang dikeluarkan ke proyek ini. Peralatan yang dikeluarkan ke sini bukan biaya.",
       wagesTitle: "Gaji Per Karyawan",
       wagesDesc:
         "Angka yang sama dengan Penggajian Internal: upah harian (gaji bulanan ÷ 26) × hari check-in dan check-out lengkap. Hari shift ganda dihitung dua hari dibayar. Jika seseorang bekerja di beberapa lokasi pada hari yang sama, gaji hari itu dibagi merata dan dicatat di baris.",
@@ -4284,9 +4511,9 @@ export const id = {
       emptyPayments: "Belum Ada Pembayaran Terkonfirmasi",
       emptyPaymentsDesc:
         "Invoice yang dibayar untuk proyek ini akan muncul di sini setelah pembayaran dikonfirmasi.",
-      emptyInventory: "Belum Ada Pengeluaran Inventaris",
+      emptyInventory: "Belum Ada Bahan Habis Pakai",
       emptyInventoryDesc:
-        "Stok yang dikeluarkan ke proyek ini akan muncul di sini sebagai uang keluar.",
+        "Bahan kimia dan bahan habis pakai yang dikeluarkan ke proyek ini muncul di sini sebagai harga pokok penjualan.",
       emptyWages: "Belum Ada Hari Dibayar",
       emptyWagesDesc:
         "Biaya gaji muncul di sini ketika ada check-in dan check-out lengkap di pekerjaan ini.",
@@ -4315,10 +4542,12 @@ export const id = {
         client: "Klien",
         project: "Proyek",
         contractValue: "Nilai Kontrak",
-        spending: "Beban",
+        spending: "Harga Pokok Penjualan",
         moneyIn: "Pendapatan",
+        costOfSales: "Harga Pokok Penjualan",
+        grossProfit: "Laba Kotor",
         receivable: "Piutang Usaha",
-        profit: "Laba",
+        profit: "Laba Kotor",
         period: "Periode",
         paidAt: "Dibayar Pada",
         amount: "Jumlah",
@@ -4668,7 +4897,7 @@ export const id = {
       prepaidCreateFailed: "Tidak dapat menyimpan kartu ini.",
       prepaidEmptyTitle: "Belum Ada Kartu",
       prepaidEmptyDesc:
-        "Tambah kartu ke daftar. Isi ulang Kartu Kendaraan di Pengeluaran → Kendaraan → Kartu Prabayar, atau Kartu Prabayar di Pengeluaran → Kartu Prabayar.",
+        "Tambah kartu ke daftar. Isi ulang kartu apa pun di Pengeluaran → Kartu Prabayar.",
       prepaidSpend: "Catat Pengeluaran",
       prepaidSpendDesc: "Unggah nota BBM, tol, atau parkir.",
       prepaidSpendConfirm: "Debit Kartu",
@@ -4842,6 +5071,8 @@ export const id = {
       clientInvalid: "Pilih klien yang valid.",
       transferFromRequired: "Pilih Kas Kecil karyawan mana yang ditransfer.",
       transferSameEmployee: "Pilih karyawan lain yang menerima Kas Kecil ini.",
+      transferNeedsPettyModule:
+        "Penerima harus punya modul Kas Kecil untuk menerima transfer float.",
       transferInsufficient: "Saldo Kas Kecil tidak cukup untuk transfer sebesar itu.",
       amountInvalid: "Masukkan jumlah yang valid.",
       wageSelectRequired: "Pilih upah paruh waktu yang akan dibayar.",
@@ -4916,7 +5147,10 @@ export const id = {
       chargeType: "Dibebankan Ke",
       chargeTypeClient: "Klien",
       chargeTypeProject: "Proyek",
-      chargeTypeRequired: "Pilih Klien atau Proyek.",
+      chargeTypeHeadOffice: "Kantor Pusat",
+      chargeTypeRequired: "Pilih Proyek, Klien, atau Kantor Pusat.",
+      chargeTypeHeadOfficeHint:
+        "Belanja ini ke Kantor Pusat, bukan ke pekerjaan. Kas kecil hanya float — setiap belanja tetap harus punya tujuan.",
       client: "Klien",
       clientPlaceholder: "Pilih klien",
       clientHint:
@@ -4997,6 +5231,9 @@ export const id = {
       shiftsAgainstBase: "{worked} dari {base} shift",
       doubleShiftCount: "{count} shift ganda",
       surplusShifts: "{count} shift surplus — tambah lembur untuk membayarnya",
+      suggestedOvertime:
+        "Usulan lembur {amount} ({count} × upah harian). Tambah baris Lembur sebelum Generate Excel.",
+      surplusShiftUnpaid: "Surplus — tambah lembur",
       emptyTitle: "Karyawan Tidak Ditemukan",
       emptyDesc:
         "Tidak ada staf RGS aktif dengan gaji pokok, dan tidak ada hari CICO lengkap di periode ini.",
@@ -5350,6 +5587,8 @@ export const id = {
         "Tidak ada proyek atau laporan foto untuk tanggal ini. Staf cleaning harus mengunggah foto lokasi untuk setiap proyek cleaning yang ditugaskan (termasuk Internal) selama shift.",
       emptyForDate: "Tidak ada laporan progress untuk tanggal ini.",
       emptyForMonth: "Tidak ada laporan progress untuk bulan ini.",
+      emptyForCatchUpPeriod:
+        "Siklus ini ditagih sebelum ruang kerja ini dipakai, jadi kemajuan lapangan tidak dicatat di sini. Tidak ada laporan kemajuan untuk tanggal ini.",
       selectProject: "Pilih Proyek",
       serviceArea: "Area Layanan",
       serviceAreaPlaceholder: "mis. Lobby, Lantai 3",
@@ -6952,7 +7191,7 @@ export const id = {
       documentTitle: "Panduan Sistem",
       documentKind: "Buku panduan operasional RGS ONE",
       forPosition: "Untuk Jabatan {position}",
-      forClient: "Panduan Sistem untuk {client}",
+      forClient: "Panduan Sistem Klien",
       generatedOn: "Diterbitkan {date}",
       contents: "Daftar isi",
       howToRead: "Cara memakai buku ini",
@@ -7093,6 +7332,7 @@ export const id = {
     updatePassword: "Perbarui kata sandi",
     backToLogin: "Kembali ke masuk",
     welcomeBack: "Selamat Datang Kembali",
+    welcomeGate: "Selamat Datang",
     signInSubtitle:
       "Masuk untuk mengelola ruang kerja, proyek, dan operasi bisnis Anda.",
     username: "Nama pengguna",

@@ -69,7 +69,7 @@ import {
 import { useT } from "@/lib/i18n/use-t";
 import { formatContractPrice } from "@/lib/project-billing";
 import { formatHoursWorked } from "@/lib/shift-pay";
-import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
+import { chipScrollRowClassName, pageToolbarRowClassName } from "@/components/ui/chip-scroll-row";
 import { cn } from "@/lib/utils";
 
 export type PayrollRow = {
@@ -140,6 +140,7 @@ function fileNameFromDisposition(header: string | null): string | null {
 }
 
 function canEditDayPay(day: PayrollDayRow) {
+  if (day.unpaidSurplus) return false;
   if (day.absent || day.onLeave || day.off) return false;
   return (
     day.needsPayDecision === true ||
@@ -393,7 +394,7 @@ export default function PayrollPanel({
   return (
     <div className="space-y-6">
       <SectionCard>
-        <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div className={pageToolbarRowClassName("mb-5")}>
           <div className="min-w-0">
             <h2 className="text-lg font-semibold text-text">
               {t("pages.payroll.periodTitle")}
@@ -472,7 +473,7 @@ export default function PayrollPanel({
             ) : null}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="w-full min-w-0">
             <Select
               value={selectedKey}
               onValueChange={(value) => {
@@ -484,7 +485,7 @@ export default function PayrollPanel({
               <SelectTrigger
                 className={cn(
                   employeeSelectTriggerClass,
-                  "h-auto min-h-8 w-full min-w-0 max-w-full py-1.5 sm:w-auto"
+                  "h-auto min-h-8 w-full min-w-0 max-w-full py-1.5"
                 )}
                 aria-label={t("pages.payroll.periodPicker")}
               >
@@ -548,7 +549,7 @@ export default function PayrollPanel({
               {totalBpjsTk > 0 ? formatContractPrice(totalBpjsTk) : "—"}
             </p>
           </div>
-          <div className={`rounded-xl border px-3 py-2.5 col-span-2 lg:col-span-1 ${cardTintWash.warning}`}>
+          <div className={`rounded-xl border px-3 py-2.5 sm:col-span-2 lg:col-span-1 ${cardTintWash.warning}`}>
             <p className="text-xs font-semibold uppercase tracking-wide text-subtle">
               {t("pages.payroll.totalNetPay")}
             </p>
@@ -641,7 +642,7 @@ export default function PayrollPanel({
                 key={row.employeeId}
                 className="p-4 sm:p-5"
               >
-                <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
                   <div className="min-w-0 flex-1">
                     <p className="min-w-0 break-words font-medium text-text">
                       {row.firstName} {row.lastName}
@@ -667,6 +668,16 @@ export default function PayrollPanel({
                               count: row.surplusShifts ?? 0,
                             })}`
                           : ""}
+                      </p>
+                    ) : null}
+                    {(row.surplusShifts ?? 0) > 0 && !row.cicoExempt ? (
+                      <p className="mt-1 text-xs text-muted">
+                        {t("pages.payroll.suggestedOvertime", {
+                          amount: formatContractPrice(
+                            (row.surplusShifts ?? 0) * row.dailyRate
+                          ),
+                          count: row.surplusShifts ?? 0,
+                        })}
                       </p>
                     ) : null}
                     {row.depositStatus && row.depositStatus !== "NONE" ? (
@@ -844,7 +855,9 @@ export default function PayrollPanel({
                                     : "—"}
                               </td>
                               <td className="px-4 py-3.5 tabular-nums font-semibold text-text">
-                                {day.payAmount != null
+                                {day.unpaidSurplus
+                                  ? t("pages.payroll.surplusShiftUnpaid")
+                                  : day.payAmount != null
                                   ? formatContractPrice(day.payAmount)
                                   : "—"}
                               </td>

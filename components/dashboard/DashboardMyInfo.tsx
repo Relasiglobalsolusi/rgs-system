@@ -166,7 +166,7 @@ export default function DashboardMyInfo({
             <ul className="mt-3 space-y-3">
               {data.jobs.map((job) => (
                 <li key={job.id} className="border-b border-border pb-3 last:border-0 last:pb-0">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
                     <p className="min-w-0 truncate text-sm font-medium text-text">
                       {job.projectName}
                     </p>

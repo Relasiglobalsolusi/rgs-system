@@ -10,7 +10,7 @@ import {
 } from "@/lib/finance-period";
 import {
   FINANCIAL_REPORT_ALL_BANKS,
-  bankAccountWhere,
+  purchasePaidFromBankWhere,
 } from "@/lib/financial-report-query";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
           companyId: session.user.companyId,
           paidAt: { not: null, gte: start, lt: endExclusive },
           reversedAt: null,
-          ...bankAccountWhere(bank),
+          ...purchasePaidFromBankWhere(bank),
           ...(clientId
             ? { project: { clientId } }
             : {}),
@@ -116,7 +116,9 @@ export async function GET(request: NextRequest) {
           : payment.key === "overdue"
             ? t("pages.billing.vendorStatusOverdue")
             : t("pages.billing.vendorStatusOpen"),
-        payFromLabel: invoice.bankAccount
+        payFromLabel: invoice.paidWithCash
+          ? t("pages.billing.purchasePayFromCash")
+          : invoice.bankAccount
           ? formatBankAccountOptionLabel(invoice.bankAccount)
           : null,
         payToLabel: payTo,

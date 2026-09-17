@@ -2,18 +2,21 @@
 
 import { useRouter } from "next/navigation";
 import { FormEvent, useState, useTransition } from "react";
-import { signIn } from "next-auth/react";
+import { signIn, getSession } from "next-auth/react";
 import { ArrowRight, LockKeyhole, Mail, UserRound } from "lucide-react";
 
 import { setInitialPassword } from "@/app/first-login/actions";
 import AuthLogo from "@/components/auth/AuthLogo";
+import { useEnterApp } from "@/components/auth/useEnterApp";
 import BackLink from "@/components/ui/BackLink";
 import { useT } from "@/lib/i18n/use-t";
 import { resetSidebarCollapse } from "@/lib/sidebar-collapse";
+import { cn } from "@/lib/utils";
 
 export default function FirstLoginForm() {
   const { t } = useT();
   const router = useRouter();
+  const { phase, enterApp } = useEnterApp();
 
   const [username, setUsername] = useState("");
   const [recoveryEmail, setRecoveryEmail] = useState("");
@@ -85,8 +88,11 @@ export default function FirstLoginForm() {
         }
 
         resetSidebarCollapse();
-        router.push("/dashboard");
-        router.refresh();
+        const session = await getSession();
+        await enterApp(
+          "/dashboard",
+          session?.user?.name?.trim() || username.trim()
+        );
       } catch {
         setErrorMessage(t("auth.setupFailed"));
       }
@@ -94,8 +100,13 @@ export default function FirstLoginForm() {
   }
 
   return (
-    <main className="auth-surface auth-shell">
-      <div className="mx-auto flex min-h-screen w-full max-w-lg items-center px-5 py-8 sm:px-6 sm:py-12">
+    <main
+      className={cn(
+        "auth-surface auth-shell",
+        phase !== "idle" && "auth-shell-leaving"
+      )}
+    >
+      <div className="auth-login-stage mx-auto flex min-h-screen w-full max-w-lg items-center px-5 py-8 sm:px-6 sm:py-12">
         <div className="w-full">
           <div className="mb-8 flex justify-center">
             <AuthLogo />
@@ -222,7 +233,7 @@ export default function FirstLoginForm() {
 
             <button
               type="submit"
-              disabled={pending}
+              disabled={pending || phase !== "idle"}
               className="flex h-14 w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(37,99,235,0.18)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {pending ? t("auth.settingUp") : t("auth.saveAndSignIn")}

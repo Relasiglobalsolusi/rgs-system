@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
 
@@ -13,7 +13,10 @@ import {
   listVehiclesForExpense,
   listVendorBankAccountsForExpense,
 } from "@/app/billing/purchase-invoices/actions";
+import { getTaxRatesForPicker } from "@/app/billing/tax-invoices/rates/actions";
+import { getCompanyCashAtHand } from "@/app/billing/cash-actions";
 import CompanyBankAccountField from "@/components/company-details/CompanyBankAccountField";
+import PurchasePaymentMethodField from "@/components/billing/PurchasePaymentMethodField";
 import type { CompanyBankAccountOption } from "@/lib/company-bank-accounts";
 import PurchaseCatalogItemPicker from "@/components/billing/PurchaseCatalogItemPicker";
 import PurchaseLoanFields, {
@@ -99,12 +102,15 @@ import {
   isCashPaymentTerms,
 } from "@/lib/invoice-period";
 import {
-  DEFAULT_PRODUCT_PPN_RATE_PERCENT,
   parsePpnRatePercent,
   ppnRateFromPercent,
   splitInclusiveVat,
 } from "@/lib/vat";
 import { todayDateInput } from "@/lib/project-contract";
+import {
+  purchaseAllowsCashPayment,
+  type PurchasePaymentMethod,
+} from "@/lib/company-cash";
 import { vendorMatchesPurchaseOrigin } from "@/lib/vendor-type";
 import { formatContractPrice, parseContractPrice } from "@/lib/project-billing";
 import { cn } from "@/lib/utils";
@@ -115,9 +121,15 @@ import {
   commercialTaxIncludesVat,
   commercialTaxRequiresOtherName,
   commercialTaxRequiresRatePercent,
-  defaultCommercialNonVatRatePercent,
   type CommercialTaxKind,
 } from "@/lib/commercial-tax";
+import {
+  TAX_RATE_CODE,
+  formatTaxRatePercent,
+  isCustomTaxRateType,
+  pphTaxCodeFromChargedKind,
+  type TaxRatePickerRow,
+} from "@/lib/tax-rate-codes";
 import {
   governmentTaxKindLabelKey,
   governmentTaxKindPickerOptions,
@@ -232,6 +244,8 @@ function PurchaseInvoiceUploadDialogInner({
   const [includedTaxKind, setIncludedTaxKind] = useState<
     CommercialTaxKind | ""
   >("");
+  const [taxRateCode, setTaxRateCode] = useState("");
+  const [pickerRates, setPickerRates] = useState<TaxRatePickerRow[]>([]);
   const [pphRatePercent, setPphRatePercent] = useState("");
   const [otherTaxName, setOtherTaxName] = useState("");
   const [purchasePurpose, setPurchasePurpose] = useState<
@@ -258,9 +272,7 @@ function PurchaseInvoiceUploadDialogInner({
   const [importDraft, setImportDraft] = useState<PurchaseImportDraft>(
     emptyPurchaseImportDraft
   );
-  const [ppnRatePercent, setPpnRatePercent] = useState(
-    String(DEFAULT_PRODUCT_PPN_RATE_PERCENT)
-  );
+  const [ppnRatePercent, setPpnRatePercent] = useState("");
   const [invoiceDate, setInvoiceDate] = useState(todayDateInput);
   const [invoiceRef, setInvoiceRef] = useState("");
   const [bpjsYear, setBpjsYear] = useState(() =>
@@ -286,6 +298,9 @@ function PurchaseInvoiceUploadDialogInner({
     []
   );
   const [bankAccountId, setBankAccountId] = useState("");
+  const [paymentMethod, setPaymentMethod] =
+    useState<PurchasePaymentMethod>("BANK");
+  const [cashAtHand, setCashAtHand] = useState(0);
   const [vendorChoice, setVendorChoice] = useState("");
   const [governmentTaxKind, setGovernmentTaxKind] =
     useState<GovernmentTaxKindChoice>("PPN");
@@ -388,8 +403,7 @@ function PurchaseInvoiceUploadDialogInner({
     : inventoryVehicles;
   const isVehicleOtherCost = isVehicle && vehicleExpenseKind === "OTHER";
   const isOpenCardPrepaid = purchaseCategory === "OPEN_CARD";
-  const isVehiclePrepaid = isVehicle && vehicleExpenseKind === "PREPAID_CARD";
-  const isPrepaidTopUp = isVehiclePrepaid || isOpenCardPrepaid;
+  const isPrepaidTopUp = isOpenCardPrepaid;
   const isBankLoan = purchaseCategory === "BANK_LOAN";
   const isEmployeePayment = purchaseCategory === "EMPLOYEE_PAYMENT";
   const isShareholderLoan = isBankLoan && loanSource === "SHAREHOLDER";
@@ -436,15 +450,21 @@ function PurchaseInvoiceUploadDialogInner({
     purchaseOrigin === "IMPORT" &&
     !isFreeOfCharge;
   const usesImportFlow = isImport || isFocImport;
+  const cashAllowed =
+    !isFreeOfCharge &&
+    purchaseAllowsCashPayment({
+      origin: usesImportFlow ? "IMPORT" : purchaseOrigin,
+      purchaseCategory,
+      vehicleExpenseKind,
+      openCardTopUp: isOpenCardPrepaid,
+    });
   const supplierVendors = vendors.filter((vendor) =>
     vendorMatchesPurchaseOrigin(
       vendor.vendorType,
       usesImportFlow ? "IMPORT" : "LOCAL"
     )
   );
-  const requireCatalogLines =
-    (purchaseCategory === "PRODUCT" || isVehiclePurchase) &&
-    !isVehiclePrepaid;
+  const requireCatalogLines = purchaseCategory === "PRODUCT" || isVehiclePurchase;
   const pickerCatalogItems = catalogItems.filter((item) =>
     isVehiclePurchase
       ? isVehicleItemType(item.itemType)
@@ -625,6 +645,9 @@ function PurchaseInvoiceUploadDialogInner({
         setBankAccountId((current) => current || accounts[0]?.id || "");
       })
       .catch(() => setBankAccounts([]));
+    getCompanyCashAtHand()
+      .then(setCashAtHand)
+      .catch(() => setCashAtHand(0));
     listEmployeesForExpense()
       .then((payload) => {
         setExpenseEmployees(payload.employees);
@@ -653,6 +676,19 @@ function PurchaseInvoiceUploadDialogInner({
   }, [open]);
 
   useEffect(() => {
+    if (!cashAllowed && paymentMethod === "CASH") {
+      setPaymentMethod("BANK");
+    }
+  }, [cashAllowed, paymentMethod]);
+
+  useEffect(() => {
+    if (vehicleExpenseKind === "PREPAID_CARD") {
+      setVehicleExpenseKind("");
+      setPrepaidCardId("");
+    }
+  }, [vehicleExpenseKind]);
+
+  useEffect(() => {
     if (!open) {
       setPending(false);
       setError(null);
@@ -660,6 +696,7 @@ function PurchaseInvoiceUploadDialogInner({
       setTaxFile(null);
       setIncludesPpn("No");
       setIncludedTaxKind("");
+      setTaxRateCode("");
       setPphRatePercent("");
       setOtherTaxName("");
       setPurchasePurpose("STOCK");
@@ -668,7 +705,7 @@ function PurchaseInvoiceUploadDialogInner({
       setPickingLineKey(null);
       setPurchaseOrigin("LOCAL");
       setImportDraft(emptyPurchaseImportDraft());
-      setPpnRatePercent(String(DEFAULT_PRODUCT_PPN_RATE_PERCENT));
+      setPpnRatePercent("");
       setFreeOfCharge("No");
       setFreeOfChargeReason("");
       setHasInvoice("Yes");
@@ -693,6 +730,7 @@ function PurchaseInvoiceUploadDialogInner({
       setTransferFee("");
       setVendorChoice("");
       setBankAccountId("");
+      setPaymentMethod("BANK");
       setGovernmentTaxKind("PPN");
       setBpjsYear(Number(todayDateInput().slice(0, 4)));
       setBpjsMonth(Number(todayDateInput().slice(5, 7)));
@@ -716,6 +754,48 @@ function PurchaseInvoiceUploadDialogInner({
       setPrepaidCardId("");
     }
   }, [open]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getTaxRatesForPicker(invoiceDate)
+      .then((rows) => {
+        if (cancelled) return;
+        setPickerRates(rows);
+        const ppn = rows.find((row) => row.code === TAX_RATE_CODE.PPN);
+        if (ppn) {
+          setPpnRatePercent(String(ppn.ratePercent));
+          setImportDraft((current) =>
+            current.ppnRatePercent
+              ? current
+              : { ...current, ppnRatePercent: String(ppn.ratePercent) }
+          );
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setPickerRates([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [invoiceDate, open]);
+
+  const customChargeTypes = useMemo(
+    () =>
+      pickerRates.filter(
+        (row) =>
+          row.appliesTo === "CLIENT_CHARGE" && isCustomTaxRateType(row)
+      ),
+    [pickerRates]
+  );
+  const pickerPpn = pickerRates.find((row) => row.code === TAX_RATE_CODE.PPN);
+  const pickerPph = useMemo(() => {
+    const code = pphTaxCodeFromChargedKind(
+      includedTaxKind || null,
+      taxRateCode
+    );
+    if (!code) return null;
+    return pickerRates.find((row) => row.code === code) ?? null;
+  }, [includedTaxKind, pickerRates, taxRateCode]);
 
   const selectedLoan =
     loanFacilities.find((row) => row.id === loanFacilityId) ?? null;
@@ -897,26 +977,15 @@ function PurchaseInvoiceUploadDialogInner({
       if (commercialTaxRequiresOtherName(includedTaxKind)) {
         if (!otherTaxName.trim()) {
           setError(t("pages.billing.otherTaxNameRequired"));
-      return;
-    }
+          return;
+        }
         formData.set("otherTaxName", otherTaxName.trim());
       } else {
         formData.delete("otherTaxName");
       }
-      if (commercialTaxRequiresRatePercent(includedTaxKind)) {
-        const parsedPphRate = parsePpnRatePercent(pphRatePercent);
-        if (parsedPphRate == null) {
-          setError(
-            includedTaxKind === "OTHER"
-              ? t("pages.billing.otherTaxRateRequired")
-              : t("pages.billing.purchasePphRateRequired")
-          );
-          return;
-        }
-        formData.set("pphRatePercent", String(parsedPphRate));
-      } else {
-        formData.delete("pphRatePercent");
-      }
+      formData.delete("pphRatePercent");
+      if (taxRateCode) formData.set("taxRateCode", taxRateCode);
+      else formData.delete("taxRateCode");
     } else {
       formData.delete("includedTaxKind");
       formData.delete("otherTaxName");
@@ -1087,14 +1156,9 @@ function PurchaseInvoiceUploadDialogInner({
           return;
         }
         formData.set("prepaidCardId", prepaidCardId);
-        if (isOpenCardPrepaid) {
-          formData.set("openCardTopUp", "1");
-          formData.set("purchaseCategory", "SERVICE");
-          formData.set("purchasePurpose", "INTERNAL");
-        } else {
-          formData.set("vehicleExpenseKind", "PREPAID_CARD");
-          formData.set("purchaseCategory", "VEHICLE");
-        }
+        formData.set("openCardTopUp", "1");
+        formData.set("purchaseCategory", "SERVICE");
+        formData.set("purchasePurpose", "INTERNAL");
         if (!documentFile || documentFile.size === 0) {
           setError(t("pages.loans.proofRequired"));
           return;
@@ -1372,19 +1436,12 @@ function PurchaseInvoiceUploadDialogInner({
 
     if (usesImportFlow) {
       if (importDraft.ppnApplied) {
-        const importPpnRate =
-          parsePpnRatePercent(importDraft.ppnRatePercent) ??
-          DEFAULT_PRODUCT_PPN_RATE_PERCENT;
-        formData.set("ppnRatePercent", String(importPpnRate));
+        formData.delete("ppnRatePercent");
       } else {
         formData.delete("ppnRatePercent");
       }
     } else if (withPpn) {
-      if (parsedRate == null) {
-        setError(t("pages.billing.purchasePpnRateRequired"));
-        return;
-      }
-      formData.set("ppnRatePercent", String(parsedRate));
+      formData.delete("ppnRatePercent");
     } else {
       formData.delete("ppnRatePercent");
     }
@@ -1413,13 +1470,20 @@ function PurchaseInvoiceUploadDialogInner({
       formData.delete("taxInvoiceSerialVerified");
     }
 
-    if (bankAccounts.length > 0 && !bankAccountId) {
-      setError(t("pages.billing.purchaseBankAccountRequired"));
-      return;
+    if (paymentMethod === "CASH") {
+      formData.set("paymentMethod", "CASH");
+      formData.delete("bankAccountId");
+      formData.delete("transferFeeIdr");
+    } else {
+      formData.set("paymentMethod", "BANK");
+      if (bankAccounts.length > 0 && !bankAccountId) {
+        setError(t("pages.billing.purchaseBankAccountRequired"));
+        return;
+      }
+      formData.set("bankAccountId", bankAccountId);
     }
-    formData.set("bankAccountId", bankAccountId);
 
-    if (isVehicle && !isVehiclePrepaid) {
+    if (isVehicle) {
       if (!vehicleExpenseKind) {
         setError(t("pages.billing.vehicleExpenseKindRequired"));
         return;
@@ -1662,16 +1726,12 @@ function PurchaseInvoiceUploadDialogInner({
                 <div
                   role="radiogroup"
                   aria-labelledby="vehicle-expense-kind-label"
-                  className={cn("mt-2", choiceGridClassForCount(6))}
+                  className={cn("mt-2", choiceGridClassForCount(5))}
                 >
                   {(
                     [
                       ["PURCHASE", t("pages.billing.vehicleExpenseKindPurchase")],
-                    [
-                      "PREPAID_CARD",
-                      t("pages.billing.vehicleExpenseKindPrepaid"),
-                    ],
-                    ["SERVICING", t("pages.billing.vehicleExpenseKindServicing")],
+                      ["SERVICING", t("pages.billing.vehicleExpenseKindServicing")],
                       [
                         "MODIFICATION",
                         t("pages.billing.vehicleExpenseKindModification"),
@@ -1727,9 +1787,7 @@ function PurchaseInvoiceUploadDialogInner({
                   {t("pages.billing.prepaidCard")}
                   <span className="text-red-400"> *</span>
                 </label>
-                {prepaidCards.filter((card) =>
-                  isOpenCardPrepaid ? card.kind === "OPEN" : card.kind === "VEHICLE"
-                ).length === 0 ? (
+                {prepaidCards.length === 0 ? (
                   <p className={employeeDialogHintClass}>
                     {t("pages.billing.prepaidCardEmpty")}
                   </p>
@@ -1759,13 +1817,7 @@ function PurchaseInvoiceUploadDialogInner({
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      {prepaidCards
-                        .filter((card) =>
-                          isOpenCardPrepaid
-                            ? card.kind === "OPEN"
-                            : card.kind === "VEHICLE"
-                        )
-                        .map((card) => (
+                      {prepaidCards.map((card) => (
                         <SelectItem key={card.id} value={card.id}>
                           {card.kind === "OPEN"
                             ? `${formatPrepaidCardNumber(card.cardNumber)}${
@@ -2162,7 +2214,8 @@ function PurchaseInvoiceUploadDialogInner({
             isBankLoan ||
             isEmployeePayment ||
             isFreeOfCharge ||
-            isImport ? null : (
+            isImport ||
+            paymentMethod === "CASH" ? null : (
               <PaymentTermsField
                 className="sm:col-span-2"
                 value={paymentTermsDays}
@@ -2312,17 +2365,55 @@ function PurchaseInvoiceUploadDialogInner({
               </div>
             ) : null}
 
-            <CompanyBankAccountField
-              className="sm:col-span-2"
-              accounts={bankAccounts}
-              value={bankAccountId}
-              onChange={setBankAccountId}
-              label={t("pages.billing.purchaseBankAccount")}
-              hint={t("pages.billing.purchaseBankAccountHint")}
-              disabled={busy}
-            />
+            {cashAllowed ? (
+              <PurchasePaymentMethodField
+                value={paymentMethod}
+                onChange={(value) => {
+                  setPaymentMethod(value);
+                  if (value === "CASH") setPaymentTermsDays(0);
+                }}
+                cashAtHand={cashAtHand}
+                disabled={busy}
+              />
+            ) : null}
 
-            {usesImportFlow || isBpjsGovernment ? null : (
+            {paymentMethod === "CASH" ? (
+              <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
+                <label
+                  className={employeeDialogLabelClass}
+                  htmlFor="purchase-paid-at"
+                >
+                  {t("pages.billing.paidAt")}
+                  <span className="text-red-400"> *</span>
+                </label>
+                <Input
+                  id="purchase-paid-at"
+                  name="paidAt"
+                  type="date"
+                  required
+                  defaultValue={todayDateInput()}
+                  className={employeeInputClass}
+                  disabled={busy}
+                />
+                <p className={employeeDialogHintClass}>
+                  {t("pages.billing.paidAtHint")}
+                </p>
+              </div>
+            ) : null}
+
+            {paymentMethod === "CASH" ? null : (
+              <CompanyBankAccountField
+                className="sm:col-span-2"
+                accounts={bankAccounts}
+                value={bankAccountId}
+                onChange={setBankAccountId}
+                label={t("pages.billing.purchaseBankAccount")}
+                hint={t("pages.billing.purchaseBankAccountHint")}
+                disabled={busy}
+              />
+            )}
+
+            {usesImportFlow || isBpjsGovernment || paymentMethod === "CASH" ? null : (
               <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
                 <label
                   htmlFor="purchase-transfer-fee"
@@ -3816,14 +3907,19 @@ function PurchaseInvoiceUploadDialogInner({
                 name="includedTaxKind"
                 className="sm:col-span-2"
                 value={includedTaxKind}
+                taxRateCode={taxRateCode}
+                extraTypes={customChargeTypes}
+                onTaxRateCodeChange={(code) => {
+                  setTaxRateCode(code);
+                  const row = customChargeTypes.find((item) => item.code === code);
+                  if (row) setOtherTaxName(row.name);
+                }}
                 onChange={(next) => {
                   setIncludedTaxKind(next);
-                  if (next && commercialTaxIncludesVat(next) && !ppnRatePercent.trim()) {
-                    setPpnRatePercent(String(DEFAULT_PRODUCT_PPN_RATE_PERCENT));
+                  if (next !== "OTHER") {
+                    setTaxRateCode("");
+                    setOtherTaxName("");
                   }
-                  const nextRate = defaultCommercialNonVatRatePercent(next || null);
-                  setPphRatePercent(nextRate != null ? String(nextRate) : "");
-                  if (next !== "OTHER") setOtherTaxName("");
                   if (!next || !commercialTaxIncludesVat(next)) {
                     setTaxFile(null);
                   }
@@ -3837,6 +3933,7 @@ function PurchaseInvoiceUploadDialogInner({
 
             {taxIncluded &&
             kindNeedsOtherName &&
+            !taxRateCode &&
             !isPettyCash &&
             !isPrepaidTopUp &&
             !isImport ? (
@@ -3870,34 +3967,12 @@ function PurchaseInvoiceUploadDialogInner({
             !isPrepaidTopUp &&
             !isImport ? (
               <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
-                <label
-                  htmlFor="purchase-pph-rate"
-                  className={employeeDialogLabelClass}
-                >
-                  {includedTaxKind === "OTHER"
-                    ? t("pages.billing.otherTaxRate")
-                    : t("pages.billing.purchasePphRate")}
-                  <span className="text-red-400"> *</span>
-                </label>
-                <Input
-                  id="purchase-pph-rate"
-                  name="pphRatePercent"
-                  required
-                  disabled={busy}
-                  inputMode="decimal"
-                  value={pphRatePercent}
-                  onChange={(event) => setPphRatePercent(event.target.value)}
-                  placeholder={
-                    includedTaxKind === "OTHER"
-                      ? t("pages.billing.otherTaxRatePlaceholder")
-                      : t("pages.billing.purchasePphRatePlaceholder")
-                  }
-                  className={employeeInputClass}
-                />
                 <p className={employeeDialogHintClass}>
-                  {includedTaxKind === "OTHER"
-                    ? t("pages.billing.otherTaxRateHint")
-                    : t("pages.billing.purchasePphRateHint")}
+                  {pickerPph
+                    ? t("pages.taxRates.currentRate", {
+                        percent: formatTaxRatePercent(pickerPph.ratePercent),
+                      })
+                    : t("pages.taxRates.followsTable")}
                 </p>
               </div>
             ) : null}
@@ -3905,26 +3980,12 @@ function PurchaseInvoiceUploadDialogInner({
             {withPpn && !isPettyCash && !isPrepaidTopUp && !isImport ? (
               <>
                 <div className={cn(employeeDialogFieldClass, "sm:col-span-2")}>
-                  <label
-                    htmlFor="purchase-ppn-rate"
-                    className={employeeDialogLabelClass}
-                  >
-                    {t("pages.billing.purchasePpnRate")}
-                    <span className="text-red-400"> *</span>
-                  </label>
-                  <Input
-                    id="purchase-ppn-rate"
-                    name="ppnRatePercent"
-                    required
-                    disabled={busy}
-                    inputMode="decimal"
-                    value={ppnRatePercent}
-                    onChange={(event) => setPpnRatePercent(event.target.value)}
-                    placeholder={t("pages.billing.purchasePpnRatePlaceholder")}
-                    className={employeeInputClass}
-                  />
                   <p className={employeeDialogHintClass}>
-                    {t("pages.billing.purchasePpnRateHint")}
+                    {pickerPpn
+                      ? t("pages.taxRates.currentRate", {
+                          percent: formatTaxRatePercent(pickerPpn.ratePercent),
+                        })
+                      : t("pages.taxRates.followsTable")}
                   </p>
                   {vatPreview ? (
                     <p className={cn(employeeDialogHintClass, "mt-1")}>

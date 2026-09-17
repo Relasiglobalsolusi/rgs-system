@@ -75,6 +75,7 @@ export const BILLING_CHIP_LINES = {
   verifyingPayment: ["Verifying", "Payment"],
   readyToReconcile: ["Ready to", "Reconcile"],
   readyToInvoice: ["Ready to", "Invoice"],
+  awaitingProgress: ["Awaiting", "Progress"],
   awaitingClientReview: ["Awaiting", "Client"],
   taxInvoiceDue: ["Tax Document", "Pending"],
   taxInvoiceDone: ["Tax Document", "Uploaded"],
@@ -372,11 +373,57 @@ export function clampInvoicingDay(day: number | null | undefined): number {
 }
 
 /** UTC month name, e.g. "July". */
-function utcMonthLong(date: Date): string {
+export function utcMonthLong(date: Date): string {
   return date.toLocaleDateString(DISPLAY_LOCALE, {
     month: "long",
     timeZone: "UTC",
   });
+}
+
+/** Invoice copy: "July Period". */
+export function formatInvoiceMonthPeriodTitle(periodStart: Date): string {
+  return `${utcMonthLong(toUtcDateOnly(periodStart))} Period`;
+}
+
+/**
+ * Inclusive calendar days in a UTC date-only range (12 Jun–30 Jun = 19).
+ */
+export function inclusiveUtcDays(periodStart: Date, periodEnd: Date): number {
+  return Math.max(1, utcDayDiff(periodStart, periodEnd) + 1);
+}
+
+/**
+ * First-period stub exclusive: monthly rate ÷ 30 × inclusive days.
+ */
+export function stubExclusiveFromMonthlyRate(
+  monthlyExclusive: number,
+  periodStart: Date,
+  periodEnd: Date
+): number {
+  if (!(monthlyExclusive > 0)) return 0;
+  const days = inclusiveUtcDays(periodStart, periodEnd);
+  return Math.round((monthlyExclusive / 30) * days * 100) / 100;
+}
+
+/**
+ * Unique row key so a down payment and remainder can share calendar dates.
+ * Remainder is still issued only after progress → client approve.
+ * `isDownPayment` defaults false (ordinary monthly / completion / milestone).
+ */
+export function projectInvoicePeriodUniqueWhere(input: {
+  projectId: string;
+  periodStart: Date;
+  periodEnd: Date;
+  isDownPayment?: boolean;
+}) {
+  return {
+    projectId_periodStart_periodEnd_isDownPayment: {
+      projectId: input.projectId,
+      periodStart: input.periodStart,
+      periodEnd: input.periodEnd,
+      isDownPayment: Boolean(input.isDownPayment),
+    },
+  };
 }
 
 /**
@@ -599,10 +646,22 @@ export function firstMonthlyPeriodBounds(
 ): { periodStart: Date; periodEnd: Date; label: string } {
   const start = toUtcDateOnly(contractStart);
   if (basis === "CALENDAR_MONTH") {
-    return monthPeriodBounds(start);
+    const month = monthPeriodBounds(start);
+    if (start.getTime() === month.periodStart.getTime()) return month;
+    return {
+      periodStart: start,
+      periodEnd: month.periodEnd,
+      label: formatInvoicePeriodDateRange(start, month.periodEnd),
+    };
   }
   const days = resolveBillingCycleDays(start, cycle?.fromDay, cycle?.toDay);
-  return customDayCycleContaining(days.fromDay, days.toDay, start);
+  const containing = customDayCycleContaining(days.fromDay, days.toDay, start);
+  if (start.getTime() <= containing.periodStart.getTime()) return containing;
+  return {
+    periodStart: start,
+    periodEnd: containing.periodEnd,
+    label: formatInvoicePeriodDateRange(start, containing.periodEnd),
+  };
 }
 
 /** Previous calendar month relative to `ref`. */

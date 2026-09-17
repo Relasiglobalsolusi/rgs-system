@@ -3,7 +3,12 @@ import { getLocale, type AppLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
 import { isContractSubCategory } from "@/lib/project-contract";
 import { isServiceProjectSubCategory } from "@/lib/project-subcategory";
-import { formatInvoicePeriodDateRange } from "@/lib/invoice-period";
+import {
+  addUtcDays,
+  formatInvoiceMonthPeriodTitle,
+  formatInvoicePeriodDateRange,
+  toUtcDateOnly,
+} from "@/lib/invoice-period";
 
 export const BILLING_MODES = [
   "MONTHLY",
@@ -14,6 +19,11 @@ export const BILLING_MODES = [
 
 /** Canonical stored/display label for on-completion invoices (one per project). */
 export const COMPLETION_INVOICE_LABEL = "Completion Invoice";
+/** Canonical stored label for the pre-work down payment invoice. */
+export const DOWN_PAYMENT_INVOICE_LABEL = "Down Payment";
+export const DOWN_PAYMENT_PERCENT_MIN = 1;
+export const DOWN_PAYMENT_PERCENT_MAX = 99;
+export const DEFAULT_DOWN_PAYMENT_PERCENT = 30;
 
 /** Billing choices for General / Facade / One-Time Landscaping. */
 export const MILESTONE_ELIGIBLE_BILLING_MODES = [
@@ -43,6 +53,102 @@ export function isMilestoneSubCategory(
     value === "ONE_TIME_LANDSCAPING" ||
     value === "ONE_TIME_SECURITY"
   );
+}
+
+/**
+ * Down payment is for one-shot commercial jobs only: General Cleaning,
+ * Facade Cleaning, one-time landscaping/security, and one-time Maintenance
+ * (or any custom catalog One Time). Monthly contracts, complimentary jobs,
+ * and completed catch-up never take it.
+ */
+export function projectAllowsDownPayment(opts: {
+  subCategory: ProjectSubCategory | string | null | undefined;
+  catalogBillingKind?: "CONTRACT" | "ONE_TIME" | null;
+  isComplimentary?: boolean;
+  catchUpCompleted?: boolean;
+}): boolean {
+  if (opts.isComplimentary || opts.catchUpCompleted) return false;
+  if (opts.catalogBillingKind === "CONTRACT") return false;
+  if (opts.catalogBillingKind === "ONE_TIME") return true;
+  return isMilestoneSubCategory(opts.subCategory);
+}
+
+export function parseDownPaymentPercentFromFormData(
+  formData: FormData
+): number | null {
+  const required = String(formData.get("downPaymentRequired") ?? "").trim();
+  if (required.toLowerCase() !== "yes") return null;
+  const raw = String(formData.get("downPaymentPercent") ?? "").trim();
+  const value = Number(raw);
+  if (
+    !Number.isFinite(value) ||
+    value < DOWN_PAYMENT_PERCENT_MIN ||
+    value > DOWN_PAYMENT_PERCENT_MAX
+  ) {
+    throw new Error(
+      `Enter a down payment percent between ${DOWN_PAYMENT_PERCENT_MIN} and ${DOWN_PAYMENT_PERCENT_MAX}.`
+    );
+  }
+  return Math.round(value * 100) / 100;
+}
+
+export function downPaymentAmountFromContract(
+  contractPrice: number,
+  percent: number
+): number {
+  return Math.round(contractPrice * (percent / 100) * 100) / 100;
+}
+
+export function remainingContractAfterDownPayment(
+  contractPrice: number,
+  percent: number | null | undefined
+): number {
+  if (percent == null || percent <= 0) return contractPrice;
+  return (
+    Math.round(
+      (contractPrice - downPaymentAmountFromContract(contractPrice, percent)) *
+        100
+    ) / 100
+  );
+}
+
+/** Remainder exclusive = contract − DP exclusive already paid. Unpaid DP still uses the percent slice. */
+export function remainderExclusiveAfterDownPayment(opts: {
+  contractPrice: number;
+  downPaymentPercent?: number | null;
+  paidDownPaymentExclusive?: number | null;
+}): number {
+  const paid = opts.paidDownPaymentExclusive ?? 0;
+  if (paid > 0) {
+    return Math.max(
+      0,
+      Math.round((opts.contractPrice - paid) * 100) / 100
+    );
+  }
+  return remainingContractAfterDownPayment(
+    opts.contractPrice,
+    opts.downPaymentPercent
+  );
+}
+
+export function isDownPaymentInvoicePeriod(period: {
+  isDownPayment?: boolean | null;
+  label?: string | null;
+}): boolean {
+  if (period.isDownPayment) return true;
+  return /^down\s*payment$/i.test((period.label ?? "").trim());
+}
+
+export function pickDownPaymentDate(opts: {
+  preferred: Date;
+  notBefore?: Date | null;
+  /** Ignored: DP and remainder may share calendar dates via `isDownPayment` on the unique key. */
+  occupied?: Array<{ start: Date; end: Date }>;
+}): Date {
+  const preferred = toUtcDateOnly(opts.preferred);
+  const floor = opts.notBefore ? toUtcDateOnly(opts.notBefore) : null;
+  if (!floor || preferred.getTime() >= floor.getTime()) return preferred;
+  return floor;
 }
 
 /**
@@ -362,6 +468,7 @@ export type MilestonePeriodForRevision = {
   amount: number | string | null;
   status: string;
   compileNote?: string | null;
+  isDownPayment?: boolean | null;
 };
 
 export type MilestoneAmountRevision = {
@@ -399,35 +506,87 @@ function periodAmountNumber(
  */
 export function recalculateUnpaidMilestoneAmounts(
   periods: MilestonePeriodForRevision[],
-  newContractPrice: number
+  newContractPrice: number,
+  opts?: { downPaymentPercent?: number | null }
 ): MilestoneAmountRevision[] {
   const priced =
     Number.isFinite(newContractPrice) && newContractPrice > 0
       ? newContractPrice
       : 0;
 
+  const downPaymentPercent =
+    opts?.downPaymentPercent != null &&
+    Number.isFinite(opts.downPaymentPercent) &&
+    opts.downPaymentPercent > 0
+      ? opts.downPaymentPercent
+      : null;
+
+  let alreadyPaid = 0;
+  for (const p of periods) {
+    if (p.status === "PAID") {
+      alreadyPaid += periodAmountNumber(p.amount);
+    }
+  }
+  alreadyPaid = Math.round(alreadyPaid * 100) / 100;
+
+  const unpaidDp = periods.filter(
+    (p) =>
+      isDownPaymentInvoicePeriod(p) &&
+      (MILESTONE_UNPAID_STATUSES as readonly string[]).includes(p.status)
+  );
+  const unpaidDpAmount =
+    downPaymentPercent != null
+      ? downPaymentAmountFromContract(priced, downPaymentPercent)
+      : 0;
+  const unpaidDpAllocated = unpaidDp.length > 0 ? unpaidDpAmount : 0;
+
+  const remainingToCollect = Math.max(
+    0,
+    Math.round((priced - alreadyPaid - unpaidDpAllocated) * 100) / 100
+  );
+
+  const revisions: MilestoneAmountRevision[] = [];
+
+  for (const p of unpaidDp) {
+    const amount = unpaidDpAmount;
+    const prevAmount = periodAmountNumber(p.amount);
+    const amountChanged =
+      Math.round(prevAmount * 100) / 100 !== Math.round(amount * 100) / 100;
+    const isIssuedUnpaid =
+      p.status === "AWAITING_PAYMENT" ||
+      p.status === "OVERDUE" ||
+      p.status === "PENDING_VERIFICATION";
+    const needsPdfRefresh = amountChanged && isIssuedUnpaid;
+    let compileNote = p.compileNote ?? null;
+    if (needsPdfRefresh) {
+      const existing = (compileNote ?? "").trim();
+      compileNote = existing.includes(CONTRACT_PRICE_REVISED_NOTE)
+        ? existing
+        : existing
+          ? `${existing} ${CONTRACT_PRICE_REVISED_NOTE}`
+          : CONTRACT_PRICE_REVISED_NOTE;
+    }
+    revisions.push({
+      id: p.id,
+      amount,
+      amountChanged,
+      needsPdfRefresh,
+      compileNote,
+    });
+  }
+
   const milestonePeriods = periods
     .filter(
       (p) =>
-        p.milestonePercent != null && Number.isFinite(p.milestonePercent)
+        !isDownPaymentInvoicePeriod(p) &&
+        p.milestonePercent != null &&
+        Number.isFinite(p.milestonePercent)
     )
     .map((p) => ({
       ...p,
       milestonePercent: p.milestonePercent as number,
     }))
     .sort((a, b) => a.milestonePercent - b.milestonePercent);
-
-  let alreadyPaid = 0;
-  for (const p of milestonePeriods) {
-    if (p.status === "PAID") {
-      alreadyPaid += periodAmountNumber(p.amount);
-    }
-  }
-  alreadyPaid = Math.round(alreadyPaid * 100) / 100;
-  const remainingToCollect = Math.max(
-    0,
-    Math.round((priced - alreadyPaid) * 100) / 100
-  );
 
   type UnpaidRow = {
     id: string;
@@ -457,10 +616,9 @@ export function recalculateUnpaidMilestoneAmounts(
     });
   }
 
-  if (unpaid.length === 0) return [];
+  if (unpaid.length === 0) return revisions;
 
   const weightSum = unpaid.reduce((s, u) => s + u.slice, 0);
-  const revisions: MilestoneAmountRevision[] = [];
   let allocated = 0;
 
   for (let i = 0; i < unpaid.length; i++) {
@@ -612,6 +770,7 @@ export type InvoicePeriodDisplayInput = ProjectTitlePeriod & {
   paidAt?: Date | string | null;
   submittedAt?: Date | string | null;
   dueAt?: Date | string | null;
+  isDownPayment?: boolean | null;
 };
 
 /**
@@ -625,9 +784,26 @@ export function formatInvoicePeriodLabel(
     projectName?: string | null;
     billingMode?: BillingMode | string | null;
     locale?: AppLocale;
+    downPaymentPercent?: number | null;
   }
 ): string {
   const locale = opts?.locale ?? getLocale();
+  const projectName = opts?.projectName?.trim() || "";
+  if (isDownPaymentInvoicePeriod(period)) {
+    const percent = opts?.downPaymentPercent;
+    if (projectName && percent != null && percent > 0) {
+      return translate(locale, "pages.projects.downPayment.invoiceLabelWithPercent", {
+        percent: String(percent),
+        project: projectName,
+      });
+    }
+    if (projectName) {
+      return translate(locale, "pages.projects.downPayment.invoiceLabelForProject", {
+        project: projectName,
+      });
+    }
+    return translate(locale, "pages.projects.downPayment.invoiceLabel");
+  }
   const milestone = formatMilestonePeriodLabel(
     period,
     opts?.projectName,
@@ -639,13 +815,18 @@ export function formatInvoicePeriodLabel(
     opts?.billingMode === "ON_COMPLETION" ||
     isCompletionPeriodLabel(period.label)
   ) {
-    return COMPLETION_INVOICE_LABEL;
+    return projectName
+      ? `${COMPLETION_INVOICE_LABEL} for ${projectName}`
+      : COMPLETION_INVOICE_LABEL;
   }
 
   const start = toPeriodDate(period.periodStart ?? null);
   const end = toPeriodDate(period.periodEnd ?? null);
   if (start && end) {
-    return formatInvoicePeriodDateRange(start, end);
+    const dates = formatInvoicePeriodDateRange(start, end);
+    const monthTitle = formatInvoiceMonthPeriodTitle(start);
+    if (projectName) return `${projectName} · ${monthTitle} · ${dates}`;
+    return `${monthTitle} · ${dates}`;
   }
 
   const label = period.label?.trim();
@@ -667,6 +848,7 @@ export function dedupeOnCompletionPeriods<T extends InvoicePeriodDisplayInput>(
 
   const completionLike = periods.filter(
     (p) =>
+      !isDownPaymentInvoicePeriod(p) &&
       (p.milestonePercent == null || !Number.isFinite(p.milestonePercent)) &&
       (billingMode === "ON_COMPLETION" || isCompletionPeriodLabel(p.label))
   );

@@ -82,7 +82,7 @@ export default function TransferOrderDetailCard({
         className
       )}
     >
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
+      <div className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div className="min-w-0 space-y-2">
           <h3 className="text-base font-semibold tracking-tight text-text">
             {order.project.name}

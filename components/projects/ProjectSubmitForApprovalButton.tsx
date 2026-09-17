@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { StackedChipLabel } from "@/components/ui/StatusBadge";
-import { detailActionBarButtonClassName } from "@/components/projects/detail-action-bar";
+import { detailActionBarInlineButtonClassName } from "@/components/projects/detail-action-bar";
 import NoPortalProgressSentDialog from "@/components/billing/NoPortalProgressSentDialog";
 import { useT } from "@/lib/i18n/use-t";
 import { showRejectionFromError } from "@/components/ui/rejection-notice";
@@ -63,7 +63,7 @@ export default function ProjectSubmitForApprovalButton({
         type="button"
         variant="warningBadge"
         size={buttonSize}
-        className={isBar ? detailActionBarButtonClassName : undefined}
+        className={isBar ? detailActionBarInlineButtonClassName : undefined}
         onClick={handleSubmit}
         disabled={pending}
         aria-label={t("pages.projects.submitForApproval.button")}

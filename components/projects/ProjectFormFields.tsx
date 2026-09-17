@@ -75,8 +75,12 @@ import {
 } from "@/lib/project-contract";
 import {
   DEFAULT_MILESTONE_PAYMENTS,
+  DEFAULT_DOWN_PAYMENT_PERCENT,
   defaultBillingMode,
   isMilestoneSubCategory,
+  projectAllowsDownPayment,
+  DOWN_PAYMENT_PERCENT_MAX,
+  DOWN_PAYMENT_PERCENT_MIN,
   MILESTONE_ELIGIBLE_BILLING_MODES,
   splitEvenlyPercents,
 } from "@/lib/project-billing";
@@ -126,6 +130,7 @@ export type ProjectFormFieldsState = {
   clientId: string;
   chargedTaxKind: CommercialTaxKind | "";
   otherTaxName: string;
+  taxRateCode: string;
   pphRatePercent: string;
   planSumOk: boolean;
   isService: boolean;
@@ -150,7 +155,7 @@ type Props = {
   namePrefix?: string;
   /** Prefix element ids so multiple forms can sit on one page. */
   idPrefix?: string;
-  /** First-month go-live intake. Hidden after books have been open ~31 days. */
+  /** Ongoing / New / Completed intake. Always shown. */
   showCatchUpIntake?: boolean;
   onFormValuesChange?: () => void;
   onStateChange?: (state: ProjectFormFieldsState) => void;
@@ -211,6 +216,7 @@ export default function ProjectFormFields({
   const [chargedTaxKind, setChargedTaxKind] = useState<
     CommercialTaxKind | ""
   >("");
+  const [taxRateCode, setTaxRateCode] = useState("");
   const [pphRatePercent, setPphRatePercent] = useState("");
   const [otherTaxName, setOtherTaxName] = useState("");
   const [npwp, setNpwp] = useState(
@@ -285,6 +291,11 @@ export default function ProjectFormFields({
     useState<YesNoChoice>("No");
   const [internalMultipleVisit, setInternalMultipleVisit] =
     useState<YesNoChoice>("No");
+  const [downPaymentRequired, setDownPaymentRequired] =
+    useState<YesNoChoice>("No");
+  const [downPaymentPercent, setDownPaymentPercent] = useState(
+    String(DEFAULT_DOWN_PAYMENT_PERCENT)
+  );
   const isInternal = isRgsInternalClientFormValue(clientId);
   const isDemo = !isInternal && isDemoChoice === "Yes";
   const isComplimentary = isDemo && isComplimentaryChoice === "Yes";
@@ -322,6 +333,14 @@ export default function ProjectFormFields({
   const selectedCatalogSub = selectedCatalogArea?.subcategories.find(
     (sub) => sub.id === uiSubcategory || sub.id === subcategoryCatalogId
   );
+  const showDownPayment =
+    showBillingFields &&
+    projectAllowsDownPayment({
+      subCategory,
+      catalogBillingKind: selectedCatalogSub?.billingKind ?? null,
+      isComplimentary,
+      catchUpCompleted,
+    });
   const isInternalOneTimeSelection =
     uiSubcategory === ONE_TIME_FORM_VALUE ||
     selectedCatalogSub?.billingKind === "ONE_TIME";
@@ -336,18 +355,27 @@ export default function ProjectFormFields({
   const onStateChangeRef = useRef(onStateChange);
   onStateChangeRef.current = onStateChange;
 
+  const downPaymentPercentValue = Number(downPaymentPercent);
+  const downPaymentOk =
+    !showDownPayment ||
+    downPaymentRequired !== "Yes" ||
+    (Number.isFinite(downPaymentPercentValue) &&
+      downPaymentPercentValue >= DOWN_PAYMENT_PERCENT_MIN &&
+      downPaymentPercentValue <= DOWN_PAYMENT_PERCENT_MAX);
   const planSumOk =
-    !showPaymentPlan ||
-    Math.abs(
-      installmentPercents.reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0) -
-        100
-    ) <= 0.01;
+    downPaymentOk &&
+    (!showPaymentPlan ||
+      Math.abs(
+        installmentPercents.reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0) -
+          100
+      ) <= 0.01);
 
   const controlledSignature = JSON.stringify({
     clientId,
     chargedTaxKind,
-    pphRatePercent,
     otherTaxName,
+    taxRateCode,
+    pphRatePercent,
     npwp,
     initialStatus,
     projectOngoing,
@@ -366,6 +394,8 @@ export default function ProjectFormFields({
     visitWindows,
     isDemo,
     isComplimentary,
+    downPaymentRequired,
+    downPaymentPercent,
   });
 
   useLayoutEffect(() => {
@@ -373,6 +403,7 @@ export default function ProjectFormFields({
       clientId,
       chargedTaxKind,
       otherTaxName,
+      taxRateCode,
       pphRatePercent,
       planSumOk,
       isService,
@@ -390,6 +421,7 @@ export default function ProjectFormFields({
     clientId,
     chargedTaxKind,
     otherTaxName,
+    taxRateCode,
     pphRatePercent,
     planSumOk,
     isService,
@@ -755,30 +787,6 @@ export default function ProjectFormFields({
           <p className="text-xs text-subtle">
             {t("pages.projects.catchUp.projectOngoingHint")}
           </p>
-          {catchUpStarted ? (
-            <div className={employeeDialogFieldClass}>
-              <label
-                className="text-sm font-medium text-text"
-                htmlFor={idOf("catchUpPeriodsDone")}
-              >
-                {t("pages.projects.catchUp.periodsDone")}
-                <span className="text-red-400"> *</span>
-              </label>
-              <Input
-                id={idOf("catchUpPeriodsDone")}
-                name={nameOf("catchUpPeriodsDone")}
-                type="number"
-                min={1}
-                max={120}
-                step={1}
-                required
-                className={employeeInputClass}
-              />
-              <p className="text-xs text-subtle">
-                {t("pages.projects.catchUp.periodsDoneHint")}
-              </p>
-            </div>
-          ) : null}
         </div>
       ) : (
         <input type="hidden" name={nameOf("projectOngoing")} value="No" />
@@ -876,7 +884,6 @@ export default function ProjectFormFields({
           value={initialStatus}
           options={initialStatusOptions}
           onChange={setInitialStatus}
-          columns={2}
         />
       ) : null}
 
@@ -982,7 +989,6 @@ export default function ProjectFormFields({
           }
           handleServiceAreaChange(value as ProjectServiceAreaValue);
         }}
-        columns={2}
         spanLastWhenOdd
       />
 
@@ -1039,7 +1045,6 @@ export default function ProjectFormFields({
               }
               handleUiSubcategoryChange(value);
             }}
-            columns={2}
             spanLastWhenOdd
           />
         </>
@@ -1100,7 +1105,6 @@ export default function ProjectFormFields({
             }
             handleUiSubcategoryChange(value);
           }}
-          columns={2}
         />
       ) : null}
 
@@ -1156,7 +1160,6 @@ export default function ProjectFormFields({
             }
             handleUiSubcategoryChange(value);
           }}
-          columns={2}
         />
       ) : null}
 
@@ -1172,8 +1175,67 @@ export default function ProjectFormFields({
             label: catalogDisplayName(sub, locale),
           }))}
           onChange={handleCustomSubcategoryChange}
-          columns={2}
         />
+      ) : null}
+
+      {showDownPayment ? (
+        <div className={employeeDialogFieldClass}>
+          <label
+            id={idOf("down-payment-required-label")}
+            className={employeeDialogLabelClass}
+          >
+            {t("pages.projects.downPayment.label")}
+          </label>
+          <YesNoChoiceCards
+            id={idOf("down-payment-required")}
+            labelledBy={idOf("down-payment-required-label")}
+            value={downPaymentRequired}
+            onChange={(next) => {
+              setDownPaymentRequired(next);
+              if (next === "Yes" && !downPaymentPercent.trim()) {
+                setDownPaymentPercent(String(DEFAULT_DOWN_PAYMENT_PERCENT));
+              }
+              onFormValuesChange?.();
+            }}
+          />
+          <p className={employeeDialogHintClass}>
+            {t("pages.projects.downPayment.hint")}
+          </p>
+          <input
+            type="hidden"
+            name={nameOf("downPaymentRequired")}
+            value={downPaymentRequired === "Yes" ? "yes" : "no"}
+          />
+        </div>
+      ) : null}
+
+      {showDownPayment && downPaymentRequired === "Yes" ? (
+        <div className={employeeDialogFieldClass}>
+          <label
+            htmlFor={idOf("down-payment-percent")}
+            className={employeeDialogLabelClass}
+          >
+            {t("pages.projects.downPayment.percentLabel")}
+          </label>
+          <Input
+            id={idOf("down-payment-percent")}
+            name={nameOf("downPaymentPercent")}
+            type="number"
+            min={DOWN_PAYMENT_PERCENT_MIN}
+            max={DOWN_PAYMENT_PERCENT_MAX}
+            step="0.01"
+            required
+            value={downPaymentPercent}
+            onChange={(event) => {
+              setDownPaymentPercent(event.target.value);
+              onFormValuesChange?.();
+            }}
+            className={employeeInputClass}
+          />
+          <p className={employeeDialogHintClass}>
+            {t("pages.projects.downPayment.percentHint")}
+          </p>
+        </div>
       ) : null}
 
       {showBillingFields && isMilestoneEligible && !catchUpCompleted ? (
@@ -1206,6 +1268,9 @@ export default function ProjectFormFields({
           installmentPercents={installmentPercents}
           onPaymentCountChange={setPaymentCount}
           onInstallmentPercentsChange={setInstallmentPercents}
+          percentOfRemaining={
+            showDownPayment && downPaymentRequired === "Yes"
+          }
           namePrefix={namePrefix}
           idPrefix={idPrefix}
         />
@@ -1282,12 +1347,17 @@ export default function ProjectFormFields({
       <ProjectChargedTaxFields
         id={idOf("charged-tax-kind")}
         name={nameOf("chargedTaxKind")}
+        taxRateCodeName={nameOf("taxRateCode")}
         value={chargedTaxKind}
+        taxRateCode={taxRateCode}
+        asOf={startDate}
         onChange={(next) => {
           setChargedTaxKind(next);
           if (next !== "OTHER") setOtherTaxName("");
           onFormValuesChange?.();
         }}
+        onTaxRateCodeChange={setTaxRateCode}
+        onOtherTaxName={setOtherTaxName}
         onRatePrefill={setPphRatePercent}
       />
 
@@ -1310,7 +1380,7 @@ export default function ProjectFormFields({
         </label>
       </div>
 
-      {chargedTaxKind && commercialTaxRequiresOtherName(chargedTaxKind) ? (
+      {chargedTaxKind && commercialTaxRequiresOtherName(chargedTaxKind) && !taxRateCode ? (
         <div className={employeeDialogFieldClass}>
           <label
             htmlFor={idOf("other-tax-name")}
@@ -1335,40 +1405,17 @@ export default function ProjectFormFields({
             {t("pages.billing.otherTaxNameHint")}
           </p>
         </div>
+      ) : chargedTaxKind && commercialTaxRequiresOtherName(chargedTaxKind) ? (
+        <input type="hidden" name={nameOf("otherTaxName")} value={otherTaxName} />
       ) : null}
 
       {chargedTaxKind && commercialTaxRequiresRatePercent(chargedTaxKind) ? (
         <div className={employeeDialogFieldClass}>
-          <label
-            htmlFor={idOf("pph-rate")}
-            className="text-sm font-medium text-text"
-          >
-            {chargedTaxKind === "OTHER"
-              ? t("pages.billing.otherTaxRate")
-              : t("pages.projects.pphRatePercent")}
-            <span className="text-red-400"> *</span>
-          </label>
-          <Input
-            id={idOf("pph-rate")}
-            name={nameOf("pphRatePercent")}
-            required
-            inputMode="decimal"
-            value={pphRatePercent}
-            onChange={(event) => {
-              setPphRatePercent(event.target.value);
-              onFormValuesChange?.();
-            }}
-            placeholder={
-              chargedTaxKind === "OTHER"
-                ? t("pages.billing.otherTaxRatePlaceholder")
-                : t("pages.projects.pphRatePercentPlaceholder")
-            }
-            className={employeeInputClass}
-          />
+          {pphRatePercent ? (
+            <input type="hidden" name={nameOf("pphRatePercent")} value={pphRatePercent} />
+          ) : null}
           <p className="text-xs text-subtle">
-            {chargedTaxKind === "OTHER"
-              ? t("pages.billing.otherTaxRateHint")
-              : t("pages.projects.pphRatePercentHint")}
+            {t("pages.taxRates.followsTable")}
           </p>
         </div>
       ) : null}

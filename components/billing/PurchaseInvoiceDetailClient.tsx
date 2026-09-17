@@ -48,6 +48,8 @@ type Props = {
   importDutiesBillingId?: string | null;
   isImport?: boolean;
   needsImportBankRate?: boolean;
+  allowsCash?: boolean;
+  amount?: number | null;
   invoiceCurrency?: string | null;
   invoiceForeignAmount?: number | null;
   bookingRate?: number | null;
@@ -74,6 +76,8 @@ export default function PurchaseInvoiceDetailClient({
   importDutiesBillingId = null,
   isImport = false,
   needsImportBankRate = false,
+  allowsCash = false,
+  amount = null,
   invoiceCurrency = null,
   invoiceForeignAmount = null,
   bookingRate = null,
@@ -123,7 +127,7 @@ export default function PurchaseInvoiceDetailClient({
           return (
             <div
               key={doc.kind}
-              className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-border bg-elevated px-4 py-3"
+              className="flex flex-col gap-3 rounded-xl border border-border bg-elevated px-4 py-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between"
             >
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-text">{title}</p>
@@ -286,6 +290,8 @@ export default function PurchaseInvoiceDetailClient({
           supplierName={supplierName}
           invoiceRef={invoiceRef}
           needsImportBankRate={needsImportBankRate}
+          allowsCash={allowsCash}
+          amount={amount}
           invoiceCurrency={invoiceCurrency}
           invoiceForeignAmount={invoiceForeignAmount}
           bookingRate={bookingRate}

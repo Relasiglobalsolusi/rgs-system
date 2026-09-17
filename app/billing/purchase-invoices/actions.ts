@@ -24,6 +24,11 @@ import {
   parseFormCompanyBankAccountId,
 } from "@/lib/company-bank-accounts";
 import {
+  parsePurchasePaymentMethod,
+  purchaseAllowsCashPayment,
+  recordCashSpend,
+} from "@/lib/company-cash";
+import {
   parseRequiredVehiclePlate,
   parseRequiredVehicleYear,
   parseVehicleCondition,
@@ -145,6 +150,42 @@ import {
 import { purchaseNeedsImportBankRate } from "@/lib/purchase-amount-display";
 import { todayDateInput } from "@/lib/project-contract";
 import { setPurchaseHandlingHasTaxInvoice } from "@/lib/review-amount-fields";
+import {
+  isTaxRateMissing,
+  lookupChargedPphRate,
+  requirePpnRatePercent,
+  requireTaxRatePercent,
+  TAX_RATE_CODE,
+} from "@/lib/tax-rates";
+
+async function withTableImportRates(
+  companyId: string,
+  asOf: Date,
+  payload: ImportFormPayload
+): Promise<ImportFormPayload> {
+  const next = { ...payload };
+  try {
+    if (next.ppnApplied && !(next.ppnRatePercent && next.ppnRatePercent > 0)) {
+      next.ppnRatePercent = await requirePpnRatePercent(companyId, asOf);
+    }
+    if (
+      next.pph22Applied &&
+      !(next.pph22RatePercent && next.pph22RatePercent > 0)
+    ) {
+      next.pph22RatePercent = await requireTaxRatePercent(
+        companyId,
+        TAX_RATE_CODE.PPH_22,
+        asOf
+      );
+    }
+  } catch (error) {
+    if (isTaxRateMissing(error)) {
+      throw new Error("Add this tax rate under Tax Rates first.");
+    }
+    throw error;
+  }
+  return next;
+}
 
 type PurchaseLineInput = {
   itemId?: string;
@@ -826,24 +867,52 @@ async function savePurchaseTaxInvoiceFile(
 export async function createPurchaseInvoice(formData: FormData) {
   const session = await requirePurchaseManageAccess();
   const locale = await getServerLocale();
-  const bankAccountId = await parseFormCompanyBankAccountId(
-    formData,
-    session.user.companyId,
-    {
-      requiredWhenAccountsExist: true,
-      requiredMessage: translate(
-        locale,
-        "pages.billing.purchaseBankAccountRequired"
-      ),
-    }
-  );
-
-  const transferFeeIdr = parseOptionalAmount(
-    String(formData.get("transferFeeIdr") ?? "")
-  );
   const purchaseCategoryRawEarly = String(formData.get("purchaseCategory") ?? "")
     .trim()
     .toUpperCase();
+  const paidWithCash =
+    parsePurchasePaymentMethod(formData.get("paymentMethod")) === "CASH";
+  if (paidWithCash) {
+    const vehicleExpenseKindEarly = String(
+      formData.get("vehicleExpenseKind") ?? ""
+    )
+      .trim()
+      .toUpperCase();
+    const openCardTopUpEarly =
+      String(formData.get("openCardTopUp") ?? "") === "1";
+    const originEarly = String(formData.get("purchaseOrigin") ?? "LOCAL")
+      .trim()
+      .toUpperCase();
+    if (
+      !purchaseAllowsCashPayment({
+        origin: originEarly,
+        purchaseCategory: purchaseCategoryRawEarly,
+        vehicleExpenseKind: vehicleExpenseKindEarly,
+        openCardTopUp: openCardTopUpEarly,
+      })
+    ) {
+      throw new Error(
+        translate(locale, "pages.billing.purchaseCashNotAllowed")
+      );
+    }
+  }
+  const bankAccountId = paidWithCash
+    ? null
+    : await parseFormCompanyBankAccountId(
+        formData,
+        session.user.companyId,
+        {
+          requiredWhenAccountsExist: true,
+          requiredMessage: translate(
+            locale,
+            "pages.billing.purchaseBankAccountRequired"
+          ),
+        }
+      );
+
+  const transferFeeIdr = paidWithCash
+    ? null
+    : parseOptionalAmount(String(formData.get("transferFeeIdr") ?? ""));
   if (purchaseCategoryRawEarly === "PETTY_CASH") {
     if (session.user.vendorId) {
       throw new Error("Petty Cash top-ups are recorded by Head Office only.");
@@ -929,7 +998,7 @@ export async function createPurchaseInvoice(formData: FormData) {
           includesPpn: false,
           purchaseCategory: "PETTY_CASH",
           purpose: "PETTY_CASH",
-          paidAt: new Date(),
+          paidAt: invoiceDate,
           bankAccountId,
           createdById: session.user.id,
           transferFeeIdr,
@@ -963,12 +1032,14 @@ export async function createPurchaseInvoice(formData: FormData) {
   const vehicleExpenseKindEarly = String(formData.get("vehicleExpenseKind") ?? "")
     .trim()
     .toUpperCase();
-  const openCardTopUpEarly = String(formData.get("openCardTopUp") ?? "") === "1";
   if (
-    (purchaseCategoryRawEarly === "VEHICLE" &&
-      vehicleExpenseKindEarly === "PREPAID_CARD") ||
-    openCardTopUpEarly
+    purchaseCategoryRawEarly === "VEHICLE" &&
+    vehicleExpenseKindEarly === "PREPAID_CARD"
   ) {
+    throw new Error("Top up cards under Prepaid Card, not Vehicle.");
+  }
+  const openCardTopUpEarly = String(formData.get("openCardTopUp") ?? "") === "1";
+  if (openCardTopUpEarly) {
     if (session.user.vendorId) {
       throw new Error("Prepaid card top-ups are recorded by Head Office only.");
     }
@@ -993,16 +1064,6 @@ export async function createPurchaseInvoice(formData: FormData) {
     });
     if (!selectedCard) {
       throw new Error("Choose the prepaid card to top up.");
-    }
-    if (openCardTopUpEarly && selectedCard.kind !== "OPEN") {
-      throw new Error("Choose a Prepaid Card to top up.");
-    }
-    if (
-      purchaseCategoryRawEarly === "VEHICLE" &&
-      vehicleExpenseKindEarly === "PREPAID_CARD" &&
-      selectedCard.kind !== "VEHICLE"
-    ) {
-      throw new Error("Choose a Vehicle Card to top up.");
     }
     const isOpen = selectedCard.kind === "OPEN";
     const invoiceRef = nextPettyCashTopUpRef().replace(
@@ -1037,7 +1098,7 @@ export async function createPurchaseInvoice(formData: FormData) {
           includesPpn: false,
           purchaseCategory: isOpen ? "SERVICE" : "VEHICLE",
           purpose: isOpen ? "INTERNAL" : "STOCK",
-          paidAt: new Date(),
+          paidAt: invoiceDate,
           bankAccountId,
           createdById: session.user.id,
           transferFeeIdr,
@@ -1162,7 +1223,7 @@ export async function createPurchaseInvoice(formData: FormData) {
           governmentOperatingAmount,
           purpose: "INTERNAL",
           origin: "LOCAL",
-          paidAt: new Date(),
+          paidAt: invoiceDate,
           bankAccountId,
           createdById: session.user.id,
           transferFeeIdr,
@@ -1445,7 +1506,7 @@ export async function createPurchaseInvoice(formData: FormData) {
           employeeId: employeePaymentKind === "CASH_ADVANCE" ? employeeId : null,
           purpose: "INTERNAL",
           origin: "LOCAL",
-          paidAt: new Date(),
+          paidAt: invoiceDate,
           bankAccountId,
           createdById: session.user.id,
           transferFeeIdr,
@@ -1623,8 +1684,7 @@ export async function createPurchaseInvoice(formData: FormData) {
     freeOfCharge || purchaseCategory === "VEHICLE"
       ? 0
       : parsePurchasePaymentTermsDays(formData);
-  const invoicePaidNow =
-    freeOfCharge || isCashPaymentTerms(paymentTermsDays);
+  const invoicePaidNow = freeOfCharge || paidWithCash;
   const importFulfillment =
     origin === "IMPORT"
       ? parseImportFulfillment(formData.get("importFulfillment"))
@@ -1696,6 +1756,13 @@ export async function createPurchaseInvoice(formData: FormData) {
       requireCustomsRates: recordingImportArrivalNow,
       requireBankRate: !freeOfCharge && !hasCustomsFees,
     });
+    importPayload = await withTableImportRates(
+      session.user.companyId,
+      /^\d{4}-\d{2}-\d{2}$/.test(invoiceDateRaw)
+        ? taxInvoiceDateToUtcDate(invoiceDateRaw)
+        : new Date(),
+      importPayload
+    );
     if (!isCashPaymentTerms(paymentTermsDays)) {
       importPayload = {
         ...importPayload,
@@ -1749,9 +1816,10 @@ export async function createPurchaseInvoice(formData: FormData) {
         includedTaxKind
       );
       if (commercialTaxRequiresRatePercent(includedTaxKind)) {
-        pphRatePercentValue = parseCommercialPphRatePercent(
-          formData.get("pphRatePercent")
-        );
+        const pphRaw = String(formData.get("pphRatePercent") ?? "").trim();
+        if (pphRaw) {
+          pphRatePercentValue = parseCommercialPphRatePercent(pphRaw);
+        }
       }
     } else {
       includesPpn = false;
@@ -1885,6 +1953,38 @@ export async function createPurchaseInvoice(formData: FormData) {
   }
 
   const invoiceDate = taxInvoiceDateToUtcDate(invoiceDateRaw);
+  if (
+    origin !== "IMPORT" &&
+    includedTaxKind &&
+    commercialTaxRequiresRatePercent(includedTaxKind) &&
+    pphRatePercentValue == null
+  ) {
+    try {
+      pphRatePercentValue = await lookupChargedPphRate({
+        companyId: session.user.companyId,
+        chargedTaxKind: includedTaxKind,
+        taxRateCode: String(formData.get("taxRateCode") ?? "").trim() || null,
+        asOf: invoiceDate,
+      });
+    } catch (error) {
+      if (isTaxRateMissing(error)) {
+        throw new Error("Add this tax rate under Tax Rates first.");
+      }
+      throw error;
+    }
+    if (pphRatePercentValue == null) {
+      throw new Error("Add this tax rate under Tax Rates first.");
+    }
+  }
+  const paidAtRaw = String(formData.get("paidAt") ?? "").trim();
+  const paidAtDate =
+    invoicePaidNow && !freeOfCharge
+      ? /^\d{4}-\d{2}-\d{2}$/.test(paidAtRaw)
+        ? taxInvoiceDateToUtcDate(paidAtRaw)
+        : invoiceDate
+      : invoicePaidNow
+        ? invoiceDate
+        : null;
 
   let lineTotal = 0;
   if (lines.length > 0) {
@@ -1945,6 +2045,19 @@ export async function createPurchaseInvoice(formData: FormData) {
   if (invoiceAmount == null) {
     throw new Error("Enter a valid amount.");
   }
+  if (paidWithCash && invoicePaidNow && invoiceAmount > 0) {
+    if (
+      !purchaseAllowsCashPayment({
+        origin,
+        purchaseCategory,
+        vehicleExpenseKind: vehicleExpenseKindRaw,
+      })
+    ) {
+      throw new Error(
+        translate(locale, "pages.billing.purchaseCashNotAllowed")
+      );
+    }
+  }
 
   let ppnRatePercent: number | null = null;
   if (includesPpn) {
@@ -1953,7 +2066,17 @@ export async function createPurchaseInvoice(formData: FormData) {
         ? importResult.ppnRatePercent
         : parsePpnRatePercent(ppnRateRaw);
     if (ppnRatePercent == null) {
-      throw new Error("Enter the tax rate percent for this purchase.");
+      try {
+        ppnRatePercent = await requirePpnRatePercent(
+          session.user.companyId,
+          invoiceDate
+        );
+      } catch (error) {
+        if (isTaxRateMissing(error)) {
+          throw new Error("Add this tax rate under Tax Rates first.");
+        }
+        throw error;
+      }
     }
     if (origin !== "IMPORT") {
       assertInclusiveCreditableTax(
@@ -2249,11 +2372,14 @@ export async function createPurchaseInvoice(formData: FormData) {
           purpose,
           projectId,
           paymentTermsDays,
-          paidAt: invoicePaidNow ? new Date() : null,
+          paidAt: paidAtDate,
           paidById: invoicePaidNow ? session.user.id : null,
-          bankAccountId,
+          bankAccountId: paidWithCash ? null : bankAccountId,
+          paidWithCash: Boolean(
+            !freeOfCharge && invoicePaidNow && paidWithCash && invoiceAmount > 0
+          ),
           vendorBankAccountId,
-          transferFeeIdr,
+          transferFeeIdr: paidWithCash ? null : transferFeeIdr,
           origin,
           invoiceCurrency: hasCustomsFees
             ? null
@@ -2600,6 +2726,24 @@ export async function createPurchaseInvoice(formData: FormData) {
           origin,
         },
       });
+      if (invoicePaidNow && paidWithCash && invoiceAmount > 0) {
+        try {
+          await recordCashSpend(tx, {
+            companyId: session.user.companyId,
+            amount: invoiceAmount,
+            occurredAt: invoice.paidAt ?? invoiceDate,
+            purchaseInvoiceId: invoice.id,
+            userId: session.user.id,
+          });
+        } catch (error) {
+          if (error instanceof Error && error.message === "INSUFFICIENT_CASH") {
+            throw new Error(
+              translate(locale, "pages.billing.purchaseCashInsufficient")
+            );
+          }
+          throw error;
+        }
+      }
       return invoice.id;
     });
     if (origin === "IMPORT") {
@@ -2850,17 +2994,21 @@ export async function markPurchaseInvoicePaid(formData: FormData) {
     typeMessage: translate(locale, "pages.billing.paymentProofImageOrPdf"),
   });
 
-  const bankAccountId = await parseFormCompanyBankAccountId(
-    formData,
-    session.user.companyId,
-    {
-      requiredWhenAccountsExist: true,
-      requiredMessage: translate(
-        locale,
-        "pages.billing.purchaseBankAccountRequired"
-      ),
-    }
-  );
+  const paidWithCash =
+    parsePurchasePaymentMethod(formData.get("paymentMethod")) === "CASH";
+  const bankAccountId = paidWithCash
+    ? null
+    : await parseFormCompanyBankAccountId(
+        formData,
+        session.user.companyId,
+        {
+          requiredWhenAccountsExist: true,
+          requiredMessage: translate(
+            locale,
+            "pages.billing.purchaseBankAccountRequired"
+          ),
+        }
+      );
 
   const invoice = await prisma.purchaseInvoice.findFirst({
     where: {
@@ -2893,6 +3041,7 @@ export async function markPurchaseInvoicePaid(formData: FormData) {
       insuranceRateToIdr: true,
       amount: true,
       purchaseCategory: true,
+      vehicleExpenseKind: true,
       loanFacilityId: true,
       loanInterestPeriod: true,
     },
@@ -2910,6 +3059,19 @@ export async function markPurchaseInvoicePaid(formData: FormData) {
     throw new Error(
       translate(locale, "pages.billing.purchaseMarkPaidAlreadyPaid")
     );
+  }
+  if (paidWithCash) {
+    if (
+      !purchaseAllowsCashPayment({
+        origin: invoice.origin,
+        purchaseCategory: invoice.purchaseCategory,
+        vehicleExpenseKind: invoice.vehicleExpenseKind,
+      })
+    ) {
+      throw new Error(
+        translate(locale, "pages.billing.purchaseCashNotAllowed")
+      );
+    }
   }
 
   const needsImportBankRate = purchaseNeedsImportBankRate(invoice);
@@ -2991,7 +3153,11 @@ export async function markPurchaseInvoicePaid(formData: FormData) {
     };
   }
 
-  const paidAt = new Date();
+  const paidAtRaw = String(formData.get("paidAt") ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(paidAtRaw)) {
+    throw new Error(translate(locale, "pages.billing.paidAtRequired"));
+  }
+  const paidAt = taxInvoiceDateToUtcDate(paidAtRaw);
   const paymentProofPath = await saveAndAppendUploads(
     invoice.paymentProofPath,
     proofs,
@@ -3007,31 +3173,53 @@ export async function markPurchaseInvoicePaid(formData: FormData) {
   );
 
   try {
-    await prisma.purchaseInvoice.update({
-      where: { id: invoice.id },
-      data: {
-        paidAt,
-        paymentProofPath,
-        paidById: session.user.id,
-        bankAccountId,
-        paymentManualReason: parseOptionalManualVerifyReason(
-          formData.get("manualReason")
-        ),
-        ...(invoice.origin === "IMPORT"
-          ? {}
-          : {
-              transferFeeIdr: parseOptionalAmount(
-                String(formData.get("transferFeeIdr") ?? "")
-              ),
-            }),
-        importPaidItems:
-          invoice.origin === "IMPORT"
-            ? invoice.importDutiesPaidAt
-              ? "BOTH"
-              : "INVOICE"
-            : invoice.importPaidItems,
-        ...importPaymentUpdate,
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.purchaseInvoice.update({
+        where: { id: invoice.id },
+        data: {
+          paidAt,
+          paymentProofPath,
+          paidById: session.user.id,
+          bankAccountId: paidWithCash ? null : bankAccountId,
+          paidWithCash,
+          paymentManualReason: parseOptionalManualVerifyReason(
+            formData.get("manualReason")
+          ),
+          ...(invoice.origin === "IMPORT" || paidWithCash
+            ? {}
+            : {
+                transferFeeIdr: parseOptionalAmount(
+                  String(formData.get("transferFeeIdr") ?? "")
+                ),
+              }),
+          importPaidItems:
+            invoice.origin === "IMPORT"
+              ? invoice.importDutiesPaidAt
+                ? "BOTH"
+                : "INVOICE"
+              : invoice.importPaidItems,
+          ...importPaymentUpdate,
+        },
+      });
+      if (paidWithCash) {
+        const spendAmount = decimalToNumber(invoice.amount) ?? 0;
+        try {
+          await recordCashSpend(tx, {
+            companyId: session.user.companyId,
+            amount: spendAmount,
+            occurredAt: paidAt,
+            purchaseInvoiceId: invoice.id,
+            userId: session.user.id,
+          });
+        } catch (error) {
+          if (error instanceof Error && error.message === "INSUFFICIENT_CASH") {
+            throw new Error(
+              translate(locale, "pages.billing.purchaseCashInsufficient")
+            );
+          }
+          throw error;
+        }
+      }
     });
   } catch (error) {
     await deleteLocalUpload(paymentProofPath);
@@ -3149,10 +3337,14 @@ export async function markImportDutiesPaid(formData: FormData) {
     throw new Error("Import duties are already marked paid.");
   }
 
-  const payload = parseImportFormPayload(importJsonRaw, {
-    requireCustomsRates: true,
-    requireBankRate: false,
-  });
+  const payload = await withTableImportRates(
+    session.user.companyId,
+    invoice.invoiceDate,
+    parseImportFormPayload(importJsonRaw, {
+      requireCustomsRates: true,
+      requireBankRate: false,
+    })
+  );
   const locked = lockImportArrivalPayload(invoice, payload);
   const importResult = calculateImportLandedCost(
     invoice.importFulfillment === "OUTSOURCED"

@@ -111,6 +111,17 @@ export default async function ProgressPage({
 
   const staffScope = Boolean(employee && !isViewerFeed);
 
+  if (!isViewerFeed && !employee) {
+    return (
+      <AppShell titleKey="pages.progress.title">
+        <EmptyState
+          titleKey="pages.progress.title"
+          descriptionKey="pages.billing.moduleNotRelevant"
+        />
+      </AppShell>
+    );
+  }
+
   // ── Manager / Client: project picker or Instagram-style feed ─────────────
   if (isViewerFeed) {
     const projects = await prisma.project.findMany({

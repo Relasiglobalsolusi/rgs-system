@@ -89,6 +89,7 @@ import {
   dedupeOnCompletionPeriods,
   formatContractPrice,
   formatInvoicePeriodLabel,
+  isDownPaymentInvoicePeriod,
   isMilestoneSubCategory,
   usesInvoicePeriods,
 } from "@/lib/project-billing";
@@ -131,7 +132,6 @@ import ContractExtensionsHistory from "@/components/projects/ContractExtensionsH
 import ProjectBankAccountRow from "@/components/projects/ProjectBankAccountRow";
 import ProjectDetailActionBar from "@/components/projects/ProjectDetailActionBar";
 import { listCompanyBankAccountOptions } from "@/lib/company-bank-accounts";
-import { catchUpAsOfDate, loadBooksOpenDate } from "@/lib/books-open";
 import { listCatchUpIntakePages } from "@/lib/project-catch-up-periods";
 import ProjectEquipmentPicker, {
   type AssignedEquipmentAsset,
@@ -429,10 +429,7 @@ export default async function ProjectDetailPage({
           basis: project.billingPeriodBasis,
           fromDay: project.billingCycleStartDay,
           toDay: project.billingCycleEndDay,
-          asOf: catchUpAsOfDate(
-            await loadBooksOpenDate(project.companyId),
-            jakartaTodayAsUtcDateOnly()
-          ),
+          asOf: jakartaTodayAsUtcDateOnly(),
           existingPeriods: project.invoicePeriods,
         })
       : [];
@@ -619,17 +616,34 @@ export default async function ProjectDetailPage({
   const invoicePeriodsForDisplay = dedupeOnCompletionPeriods(
     project.invoicePeriods,
     project.billingMode
+  ).filter(
+    (period) =>
+      !isClientPortalUser(permissionUser) ||
+      !period.isCatchUp ||
+      Boolean(period.invoicePdfPath)
   );
   const paymentsReceivedCount = invoicePeriodsForDisplay.filter(
     (period) => period.status === "PAID"
   ).length;
   const paymentsTotalCount = invoicePeriodsForDisplay.length;
-  const downPaymentPeriod = [...invoicePeriodsForDisplay]
+  const hasDownPaymentInvoice = invoicePeriodsForDisplay.some((period) =>
+    isDownPaymentInvoicePeriod(period)
+  );
+  const recordedDownPayment = invoicePeriodsForDisplay.find(
+    (period) =>
+      isDownPaymentInvoicePeriod(period) && period.status === "PAID"
+  );
+  const firstPaidPeriod = [...invoicePeriodsForDisplay]
     .filter((period) => period.status === "PAID" && period.paidAt)
     .sort(
       (left, right) =>
         (left.paidAt?.getTime() ?? 0) - (right.paidAt?.getTime() ?? 0)
     )[0];
+  const downPaymentPeriod =
+    recordedDownPayment ??
+    (isMilestoneSubCategory(project.subCategory) && !hasDownPaymentInvoice
+      ? firstPaidPeriod
+      : undefined);
   const locale = await getServerLocale();
   const t = createTranslator(locale);
   const displayLocale = locale === "id" ? "id-ID" : "en-GB";
@@ -795,6 +809,7 @@ export default async function ProjectDetailPage({
         canMoveBackToPlanning={canMoveBackToPlanning}
         moveBackBlockedByCollection={moveBackBlockedByCollection}
         billingHref={billingHref}
+        hasDownPaymentInvoice={hasDownPaymentInvoice}
         hasPortalAccess={project.client?.hasPortalAccess !== false}
         projectId={project.id}
         projectName={project.name}
@@ -832,6 +847,7 @@ export default async function ProjectDetailPage({
           isDemo: Boolean(projectDemoFlags.isDemo),
           isComplimentary: Boolean(projectDemoFlags.isComplimentary),
           pphRatePercent: decimalToNumber(project.pphRatePercent),
+          taxRateCode: project.taxRateCode,
           otherTaxName: project.otherTaxName,
           contractPrice: contractPriceNum,
           setupCost: decimalToNumber(project.setupCost),
@@ -870,7 +886,7 @@ export default async function ProjectDetailPage({
         catalog={serviceCatalog}
         bankAccounts={bankAccounts}
         catchUpHub={
-          catchUpPages.length > 0
+          catchUpPages.some((page) => page.kind === "job")
             ? {
                 projectId: project.id,
                 remaining: catchUpPages.filter((page) => !page.recorded).length,
@@ -1305,7 +1321,9 @@ export default async function ProjectDetailPage({
             />
           ) : null}
 
-          {!isInternal && opensBillingPeriods && !inPlanning ? (
+          {!isInternal &&
+          opensBillingPeriods &&
+          (!inPlanning || hasDownPaymentInvoice) ? (
             <SectionCard className={sectionCardClassName}>
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <h3 className={sectionTitleClassName}>

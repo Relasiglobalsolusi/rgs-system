@@ -3,9 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/project-billing";
 import { jakartaYearMonth, utcRangeForJakartaMonth } from "@/lib/vat";
 import {
-  bankAccountWhere,
   FINANCIAL_REPORT_ALL_BANKS,
   matchesBankAccount,
+  purchaseBankAccountWhere,
 } from "@/lib/financial-report-query";
 
 export const DEFAULT_PARKING_CASUAL_TAX_PERCENT = 10;
@@ -63,9 +63,8 @@ export function parkingLogCreditDate(log: {
   creditedAt?: Date | null;
   year: number;
   month: number;
-}): Date {
-  if (log.creditedAt) return log.creditedAt;
-  return new Date(Date.UTC(log.year, log.month - 1, 1));
+}): Date | null {
+  return log.creditedAt ?? null;
 }
 
 export function parkingPeriodKey(year: number, month: number): string {
@@ -163,7 +162,7 @@ export async function getProjectPurchaseOutflowsByProjectIds(
       projectId: { in: projectIds },
       purpose: "PROJECT",
       reversedAt: null,
-      ...bankAccountWhere(bank),
+      ...purchaseBankAccountWhere(bank),
       paidAt: {
         not: null,
         ...(from ? { gte: from } : {}),
@@ -358,6 +357,7 @@ export async function computeParkingProjectTotals(
     for (const log of project.parkingMonthlyLogs) {
       if (!matchesBankAccount(log.bankAccountId, bank)) continue;
       const credited = parkingLogCreditDate(log);
+      if (!credited) continue;
       if (
         (from && credited.getTime() < from.getTime()) ||
         (toExclusive && credited.getTime() >= toExclusive.getTime())

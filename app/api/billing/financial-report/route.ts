@@ -6,11 +6,13 @@ import {
   buildFinancialReportPdfBuffer,
   loadFinancialReportPdfData,
 } from "@/lib/financial-report-pdf";
+import { groupFinancialReportPnlTree } from "@/lib/financial-report-pnl";
 import { parseFinancialReportSelection } from "@/lib/financial-report-query";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
 import { canAccess } from "@/lib/permissions";
 import { toPermissionUser } from "@/lib/session";
+import { getFinancialReportClients } from "@/app/billing/financial-report/actions";
 
 export async function GET(request: NextRequest) {
   const session = await getCurrentSession();
@@ -38,13 +40,15 @@ export async function GET(request: NextRequest) {
       : `${t(`pages.reports.months.${selection.month}`)} ${selection.year}`;
 
   try {
-    const [data, company] = await Promise.all([
+    const [data, company, clients] = await Promise.all([
       loadFinancialReportPdfData(session.user.companyId, selection, locale),
       loadCompanyForPdf(session.user.companyId),
+      getFinancialReportClients(selection),
     ]);
 
     const buffer = await buildFinancialReportPdfBuffer({
       ...data,
+      tree: groupFinancialReportPnlTree(clients),
       periodLabel,
       company,
       locale,

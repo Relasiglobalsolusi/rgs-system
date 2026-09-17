@@ -17,6 +17,7 @@ import {
 import AuthLanguageSwitcher from "@/components/auth/AuthLanguageSwitcher";
 import AuthThemeSwitcher from "@/components/auth/AuthThemeSwitcher";
 import AuthLogo from "@/components/auth/AuthLogo";
+import { useEnterApp } from "@/components/auth/useEnterApp";
 import {
   EmployeeDialogShell,
   EmployeePrimaryButton,
@@ -27,6 +28,7 @@ import { AUTH_ACTIVE_SESSION_CODE, AUTH_SESSION_REPLACED_REASON } from "@/lib/au
 import { RGS_ONE_SLOGAN } from "@/lib/brand";
 import { useT } from "@/lib/i18n/use-t";
 import { resetSidebarCollapse } from "@/lib/sidebar-collapse";
+import { cn } from "@/lib/utils";
 
 export default function LoginPage() {
   return (
@@ -51,6 +53,7 @@ function LoginContent() {
   const { t } = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { phase, enterApp } = useEnterApp();
 
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
   const resetSuccess = searchParams.get("reset") === "success";
@@ -98,14 +101,17 @@ function LoginContent() {
     setActiveSessionOpen(false);
     resetSidebarCollapse();
     const session = await getSession();
+    const nextName =
+      session?.user?.name?.trim() || username.trim() || t("auth.welcomeGate");
     if (session?.user?.mustSetPassword) {
       router.push("/set-password");
+      router.refresh();
     } else if (session?.user?.mustSetRecoveryEmail) {
       router.push("/set-recovery-email");
+      router.refresh();
     } else {
-      router.push(callbackUrl);
+      await enterApp(callbackUrl, nextName);
     }
-    router.refresh();
   }
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
@@ -138,23 +144,29 @@ function LoginContent() {
   }
 
   return (
-    <main className="auth-surface auth-shell">
-      <div className="grid min-h-screen lg:grid-cols-[0.88fr_1.12fr]">
+    <main
+      className={cn(
+        "auth-surface auth-shell",
+        phase !== "idle" && "auth-shell-leaving"
+      )}
+    >
+      <div className="auth-login-stage grid min-h-screen lg:grid-cols-[0.88fr_1.12fr]">
         <section className="auth-form-panel flex min-h-screen items-center border-r px-5 py-8 sm:px-10 sm:py-12 lg:px-14 xl:px-20">
           <div className="mx-auto w-full max-w-[31.875rem]">
             <div className="mb-10">
               <AuthLogo variant="hero" />
 
-              <div className="mt-5 flex min-w-0 items-center gap-3 sm:gap-4">
-                <span className="auth-tagline-rule hidden h-0.5 w-14 shrink-0 sm:block" />
-
-                <span
-                  className="auth-text-subtle min-w-0 text-pretty text-[12px] font-medium uppercase tracking-[0.08em] sm:text-[13px] sm:tracking-[0.3em]"
-                  lang="en"
-                  translate="no"
-                >
-                  {RGS_ONE_SLOGAN}
-                </span>
+              <div className="auth-tagline-row mt-5">
+                <div className="auth-tagline-lockup">
+                  <span className="auth-tagline-rule h-0.5 w-14 shrink-0" />
+                  <span
+                    className="auth-tagline-copy auth-text-subtle"
+                    lang="en"
+                    translate="no"
+                  >
+                    {RGS_ONE_SLOGAN}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -277,7 +289,7 @@ function LoginContent() {
 
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || phase !== "idle"}
                   className="flex h-14 w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(37,99,235,0.18)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {loading ? t("auth.signingIn") : t("auth.signIn")}
@@ -366,14 +378,14 @@ function LoginContent() {
           footer={
             <div className="flex w-full flex-col gap-3 sm:flex-row sm:justify-end">
               <EmployeeSecondaryButton
-                disabled={loading}
+                disabled={loading || phase !== "idle"}
                 onClick={() => setActiveSessionOpen(false)}
               >
                 {t("common.actions.cancel")}
               </EmployeeSecondaryButton>
               <EmployeePrimaryButton
                 type="button"
-                disabled={loading}
+                disabled={loading || phase !== "idle"}
                 onClick={() => {
                   void handleCloseOtherSession();
                 }}

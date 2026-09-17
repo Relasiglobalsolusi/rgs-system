@@ -872,7 +872,7 @@ function CardDetail({
   return (
     <div className="space-y-5">
     <SectionCard className="space-y-4 p-5 sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div className="min-w-0">
           <Button
             type="button"

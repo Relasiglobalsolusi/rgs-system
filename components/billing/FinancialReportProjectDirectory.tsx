@@ -128,7 +128,7 @@ export default function FinancialReportProjectDirectory({
         width: "8.5rem",
         align: "right",
         className: "min-w-[8.5rem] tabular-nums",
-        render: (project) => formatContractPrice(project.moneyIn),
+        render: (project) => formatContractPrice(project.revenue),
       },
       {
         key: "receivable",
@@ -140,21 +140,21 @@ export default function FinancialReportProjectDirectory({
       },
       {
         key: "spending",
-        title: t("pages.financialReport.columns.spending"),
+        title: t("pages.financialReport.columns.costOfSales"),
         width: "8.5rem",
         align: "right",
         className: "min-w-[8.5rem] tabular-nums",
-        render: (project) => formatContractPrice(project.moneyOut),
+        render: (project) => formatContractPrice(project.costOfSales),
       },
       {
         key: "profit",
-        title: t("pages.financialReport.columns.profit"),
+        title: t("pages.financialReport.columns.grossProfit"),
         width: "8.5rem",
         align: "right",
         className: "min-w-[8.5rem] tabular-nums",
         render: (project) => (
-          <span className={project.profit < 0 ? "text-danger" : "text-text"}>
-            {formatContractPrice(project.profit)}
+          <span className={project.grossProfit < 0 ? "text-danger" : "text-text"}>
+            {formatContractPrice(project.grossProfit)}
           </span>
         ),
       },

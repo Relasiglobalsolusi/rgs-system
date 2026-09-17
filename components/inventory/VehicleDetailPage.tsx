@@ -385,7 +385,7 @@ export default function VehicleDetailPage({
 
       {leaseProgress ? (
         <SectionCard>
-          <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
             <div>
               <p className="text-sm font-semibold text-text">
                 {t("pages.inventory.vehicles.leaseTitle")}

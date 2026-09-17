@@ -2,11 +2,15 @@ import { redirect } from "next/navigation";
 import { ShoppingBag, CircleDollarSign, Wallet, AlertTriangle, Ship } from "lucide-react";
 
 import ExpenseReportDownloadButton from "@/components/billing/ExpenseReportDownloadButton";
+import ApReportDownloadButton from "@/components/billing/ApReportDownloadButton";
+import ApBcaTransferDialog from "@/components/billing/ApBcaTransferDialog";
 import PurchaseInvoicePeriodControl from "@/components/billing/PurchaseInvoicePeriodControl";
 import PurchaseInvoiceTable, {
   type PurchaseInvoiceTableRow,
 } from "@/components/billing/PurchaseInvoiceTable";
 import PurchaseInvoiceUploadDialog from "@/components/billing/PurchaseInvoiceUploadDialog";
+import ReturnCashDialog from "@/components/billing/ReturnCashDialog";
+import TakeCashDialog from "@/components/billing/TakeCashDialog";
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/ui/EmptyState";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
@@ -21,6 +25,7 @@ import {
 } from "@/lib/invoice-period";
 import { getPurchaseRecordChips, getPurchaseRecordStatus } from "@/lib/purchase-record-status";
 import { canAccess } from "@/lib/permissions";
+import { canTakeCompanyCash } from "@/app/billing/cash-actions";
 import { prisma } from "@/lib/prisma";
 import {
   decimalToNumber,
@@ -79,6 +84,7 @@ export default async function PurchaseInvoicesPage({
   const canManage =
     canAccess(user, "purchaseInvoices") || canAccess(user, "projects");
   const canUpload = canManage && purchaseView !== "payments";
+  const allowTakeCash = await canTakeCompanyCash();
 
   const [invoices, vendors, catalogItemsRaw, projectsRaw, loanFacilities] = await Promise.all([
     prisma.purchaseInvoice.findMany({
@@ -194,7 +200,9 @@ export default async function PurchaseInvoicesPage({
       amountLabel: formatPurchaseListedAmount(invoice),
       origin: invoice.origin,
       purchaseCategory: invoice.purchaseCategory,
-      payFromLabel: invoice.bankAccount
+      payFromLabel: invoice.paidWithCash
+        ? t("pages.billing.purchasePayFromCash")
+        : invoice.bankAccount
         ? formatBankAccountOptionLabel(invoice.bankAccount)
         : null,
       payToLabel: invoice.vendorBankAccount
@@ -247,7 +255,7 @@ export default async function PurchaseInvoicesPage({
 
   return (
     <AppShell titleKey={titleKey}>
-      <div className="mb-5 flex flex-wrap items-end gap-3">
+      <div className="mb-5 space-y-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/30 bg-card-tint-emerald text-primary-dark">
@@ -270,29 +278,47 @@ export default async function PurchaseInvoicesPage({
           month={month}
           day={day}
           view={purchaseView}
-          action={
-            <ExpenseReportDownloadButton
-              year={year}
-              month={month}
-              day={day}
-              view={purchaseView}
-            />
-          }
         />
-        {canUpload ? (
-          <div className="ml-auto shrink-0">
-            <PurchaseInvoiceUploadDialog
-              vendors={vendors}
-              catalogItems={catalogItems}
-              projects={projectsRaw.map((project) => ({
-                id: project.id,
-                name: project.name,
-                clientName: project.client?.name ?? null,
+
+        <div className="flex flex-wrap items-center gap-2">
+          <ExpenseReportDownloadButton
+            year={year}
+            month={month}
+            day={day}
+            view={purchaseView}
+          />
+          <ApReportDownloadButton year={year} month={month} day={day} />
+          <ApBcaTransferDialog
+            bills={rows
+              .filter(
+                (row) =>
+                  !row.freeOfCharge &&
+                  row.paymentStatus !== "paid"
+              )
+              .map((row) => ({
+                id: row.id,
+                supplierName: row.supplierName,
+                invoiceRef: row.invoiceRef,
+                amountLabel: row.amountLabel,
               }))}
-              loanFacilities={loanFacilities}
-            />
-          </div>
-        ) : null}
+          />
+          {canUpload ? (
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+              {allowTakeCash ? <TakeCashDialog /> : null}
+              <ReturnCashDialog />
+              <PurchaseInvoiceUploadDialog
+                vendors={vendors}
+                catalogItems={catalogItems}
+                projects={projectsRaw.map((project) => ({
+                  id: project.id,
+                  name: project.name,
+                  clientName: project.client?.name ?? null,
+                }))}
+                loanFacilities={loanFacilities}
+              />
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {purchaseView ? null : (

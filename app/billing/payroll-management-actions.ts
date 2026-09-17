@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 
 import { parseDateInput } from "@/lib/invoice-period";
+import { catchUpAsOfDate, loadBooksOpenDate } from "@/lib/books-open";
 import { INTERNAL_PAYROLL_WORKING_DAYS_DIVISOR } from "@/lib/internal-payroll-month";
 import { dayShiftHours } from "@/lib/internal-payroll-days";
 import { hoursMeetShift } from "@/lib/shift-pay";
@@ -17,8 +18,8 @@ import {
   periodMoneyNumbers,
   payrollManagementWindowForCutoffMonth,
   resolvePayrollManagementFeePercent,
-  resolvePayrollManagementTaxPercent,
 } from "@/lib/payroll-management";
+import { isTaxRateMissing, requirePpnRatePercent } from "@/lib/tax-rates";
 import {
   attachPayrollReviewCicoExempt,
   loadPayrollManagementReview,
@@ -70,12 +71,38 @@ function payrollCutoffDays(project: {
   return { startDay, endDay };
 }
 
-function projectPayrollTaxPercent(project: {
-  payrollTaxPercent?: Parameters<typeof decimalToNumber>[0];
-}) {
-  return resolvePayrollManagementTaxPercent(
-    decimalToNumber(project.payrollTaxPercent)
-  );
+function payrollManagementTaxAsOf(
+  project: {
+    payrollCutoffStartDay?: number | null;
+    payrollCutoffEndDay?: number | null;
+    startDate?: Date | null;
+    endDate?: Date | null;
+  },
+  year: number,
+  month: number
+) {
+  const { endDay } = payrollCutoffDays(project);
+  return payrollManagementWindowForCutoffMonth({
+    year,
+    month,
+    cutoffDay: endDay,
+    contractStart: project.startDate,
+    contractEnd: project.endDate,
+  }).start;
+}
+
+async function projectPayrollTaxPercent(
+  companyId: string,
+  asOf: Date
+) {
+  try {
+    return await requirePpnRatePercent(companyId, asOf);
+  } catch (error) {
+    if (isTaxRateMissing(error)) {
+      throw new Error("Add this tax rate under Tax Rates first.");
+    }
+    throw error;
+  }
 }
 
 function revalidatePayrollPaths(clientId: string | null, projectId: string) {
@@ -157,7 +184,6 @@ export async function getPayrollManagementWorkspace(
   const feePercent =
     payrollManagementFeePercent(decimalToNumber(project.serviceFeePercent)) ??
     0;
-  const taxPercent = projectPayrollTaxPercent(project);
   const { startDay, endDay } = payrollCutoffDays(project);
   const window = payrollManagementWindowForCutoffMonth({
     year,
@@ -166,6 +192,10 @@ export async function getPayrollManagementWorkspace(
     contractStart: project.startDate,
     contractEnd: project.endDate,
   });
+  const taxPercent = await projectPayrollTaxPercent(
+    session.user.companyId,
+    window.start
+  );
   const period = await prisma.payrollManagementPeriod.findUnique({
     where: {
       projectId_year_month: { projectId, year, month },
@@ -307,7 +337,10 @@ async function syncPayrollManagementPeriodFromCico(options: {
   const feePercent = resolvePayrollManagementFeePercent(
     decimalToNumber(project.serviceFeePercent)
   );
-  const taxPercent = projectPayrollTaxPercent(project);
+  const taxPercent = await projectPayrollTaxPercent(
+    options.companyId,
+    payrollManagementTaxAsOf(project, options.year, options.month)
+  );
   const shouldWriteLines =
     options.replaceLines || !existing || existing.lines.length === 0;
   const lines = shouldWriteLines
@@ -602,7 +635,10 @@ export async function lockPayrollManagementPeriodForExport(options: {
     contractEnd: project.endDate,
   });
 
-  const taxPercent = projectPayrollTaxPercent(project);
+  const taxPercent = await projectPayrollTaxPercent(
+    options.companyId,
+    payrollManagementTaxAsOf(project, options.year, options.month)
+  );
   const totals = computePayrollManagementTotals(
     existing.lines.map((line) => ({
       amount: decimalToNumber(line.amount) ?? 0,
@@ -649,6 +685,7 @@ async function sendPayrollManagementPeriodToClient(options: {
   year: number;
   month: number;
   userId: string;
+  companyId: string;
 }) {
   const { endDay } = payrollCutoffDays(options.project);
   const window = payrollManagementWindowForCutoffMonth({
@@ -662,16 +699,25 @@ async function sendPayrollManagementPeriodToClient(options: {
     throw new Error("This cutoff month is outside the contract.");
   }
   const amount = decimalToNumber(options.period.clientBillAmount) ?? 0;
+  if (!options.period.invoicePeriodId) {
+    const asOf = catchUpAsOfDate(await loadBooksOpenDate(options.companyId));
+    if (window.start.getTime() < asOf.getTime()) {
+      throw new Error(
+        "This payroll window starts before books-open. Record it on Catch-Up Periods."
+      );
+    }
+  }
   const invoicePeriod = options.period.invoicePeriodId
     ? await prisma.projectInvoicePeriod.findUnique({
         where: { id: options.period.invoicePeriodId },
       })
     : await prisma.projectInvoicePeriod.upsert({
         where: {
-          projectId_periodStart_periodEnd: {
+          projectId_periodStart_periodEnd_isDownPayment: {
             projectId: options.project.id,
             periodStart: window.start,
             periodEnd: window.end,
+          isDownPayment: false,
           },
         },
         update: {
@@ -775,7 +821,10 @@ export async function sendPayrollManagementPeriodToClientAction(
   const feePercent = resolvePayrollManagementFeePercent(
     decimalToNumber(project.serviceFeePercent)
   );
-  const taxPercent = projectPayrollTaxPercent(project);
+  const taxPercent = await projectPayrollTaxPercent(
+    session.user.companyId,
+    payrollManagementTaxAsOf(project, year, month)
+  );
   const totals = computePayrollManagementTotals(
     existing.lines.map((line) => ({
       amount: decimalToNumber(line.amount) ?? 0,
@@ -795,12 +844,14 @@ export async function sendPayrollManagementPeriodToClientAction(
     include: { lines: { orderBy: { sortOrder: "asc" } } },
   });
 
+  if (!session.user.companyId) throw new Error("Company not found.");
   await sendPayrollManagementPeriodToClient({
     project,
     period: existing,
     year,
     month,
     userId: session.user.id,
+    companyId: session.user.companyId,
   });
   revalidatePayrollPaths(project.clientId, projectId);
 }
@@ -834,6 +885,10 @@ export async function savePayrollManagementPeriod(formData: FormData) {
       clientId: true,
       serviceFeePercent: true,
       payrollTaxPercent: true,
+      payrollCutoffStartDay: true,
+      payrollCutoffEndDay: true,
+      startDate: true,
+      endDate: true,
     },
   });
   if (!project) throw new Error("Payroll Management project not found.");
@@ -847,7 +902,10 @@ export async function savePayrollManagementPeriod(formData: FormData) {
   const feePercent = resolvePayrollManagementFeePercent(
     decimalToNumber(project.serviceFeePercent)
   );
-  const taxPercent = projectPayrollTaxPercent(project);
+  const taxPercent = await projectPayrollTaxPercent(
+    session.user.companyId,
+    payrollManagementTaxAsOf(project, year, month)
+  );
   const totals = computePayrollManagementTotals(lines, feePercent, taxPercent);
   const status = lines.length > 0 ? "WAGES_ENTERED" : "DRAFT";
 

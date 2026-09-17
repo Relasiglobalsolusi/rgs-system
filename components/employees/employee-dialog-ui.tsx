@@ -62,7 +62,7 @@ export const employeeDialogChoiceGridClass = "grid grid-cols-1 gap-2 sm:grid-col
 /** 2 → two columns, 3 → three columns, 4 → two-by-two, odd leftover spans full width. */
 export function choiceGridClassForCount(count: number) {
   if (count <= 1) return "grid grid-cols-1 gap-2";
-  if (count === 3) return "grid grid-cols-1 gap-2 sm:grid-cols-3";
+  if (count === 3) return "grid grid-cols-1 gap-2 md:grid-cols-3";
   return "grid grid-cols-1 gap-2 sm:grid-cols-2";
 }
 
@@ -216,14 +216,15 @@ export function EmployeeDialogShell({
   compactHeader = true,
 }: EmployeeDialogShellProps) {
   // Caps stay inside the viewport on phones; sm/md are confirms, lg/xl are forms.
+  // Repeat the same cap at `sm:` so it beats DialogContent's default `sm:max-w-sm`.
   const widthClass =
     maxWidth === "sm"
-      ? "max-w-[min(24rem,calc(100%-2rem))]"
+      ? "max-w-[min(24rem,calc(100%-2rem))] sm:max-w-[min(24rem,calc(100%-2rem))]"
       : maxWidth === "md"
-        ? "max-w-[min(32rem,calc(100%-2rem))]"
+        ? "max-w-[min(32rem,calc(100%-2rem))] sm:max-w-[min(32rem,calc(100%-2rem))]"
         : maxWidth === "lg"
-          ? "max-w-[min(72rem,calc(100%-2rem))]"
-          : "max-w-[min(80rem,calc(100%-2rem))]";
+          ? "max-w-[min(72rem,calc(100%-2rem))] sm:max-w-[min(72rem,calc(100%-2rem))]"
+          : "max-w-[min(80rem,calc(100%-2rem))] sm:max-w-[min(80rem,calc(100%-2rem))]";
 
   const isFormPanel = maxWidth === "lg" || maxWidth === "xl";
 
@@ -286,7 +287,7 @@ export function EmployeeDialogShell({
           // and prevents section margins from visually collapsing into the strip.
           "min-h-0 flex-1 overflow-x-hidden overflow-y-auto",
           employeeDialogInsetClass,
-          isFormPanel ? "pt-3 pb-14" : "pb-8"
+          isFormPanel ? "pt-3 pb-28 sm:pb-14" : "pb-8"
         )}
       >
         {children}

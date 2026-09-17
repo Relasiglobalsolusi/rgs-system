@@ -16,23 +16,24 @@ import {
   parseRequiredTaxInvoiceSerial,
   requireTaxInvoiceSerialVerified,
 } from "@/lib/tax-invoice-serial";
-import { DEFAULT_PRODUCT_PPN_RATE_PERCENT } from "@/lib/vat";
+import { isTaxRateMissing, requirePpnRatePercent } from "@/lib/tax-rates";
 import {
   commercialTaxIncludesIncomeTax,
   exclusivePricePlusChargedTax,
-  invoiceGrossFromExclusivePrice,
 } from "@/lib/commercial-tax";
 import {
-  COMPLETION_INVOICE_LABEL,
   decimalToNumber,
   formatContractPrice,
   formatMilestoneScheduleLabel,
-  isCompletionPeriodLabel,
+  isDownPaymentInvoicePeriod,
   isMilestoneSubCategory,
   maxMilestonePercent,
   parseContractPrice,
   recalculateUnpaidMilestoneAmounts,
+  remainingContractAfterDownPayment,
+  remainderExclusiveAfterDownPayment,
   usesInvoicePeriods,
+  formatInvoicePeriodLabel,
 } from "@/lib/project-billing";
 import { catchUpAsOfDate, loadBooksOpenDate } from "@/lib/books-open";
 import { catchUpHistoryMissing } from "@/lib/catch-up-close";
@@ -59,6 +60,7 @@ import {
   matchingCustomDayCycleIndex,
   monthPeriodBounds,
   previousMonthPeriodBounds,
+  projectInvoicePeriodUniqueWhere,
   resolveBillingCycleDays,
   resolveCustomDayCycleIndex,
   toUtcDateOnly,
@@ -83,6 +85,7 @@ import {
   parseManualVerifyReason,
   parseOptionalManualVerifyReason,
 } from "@/lib/in-house-document-verify";
+import { taxInvoiceDateToUtcDate } from "@/lib/payment-document-verify";
 
 const COMPANY_BANK_SELECT = COMPANY_IDENTITY_SELECT;
 
@@ -205,14 +208,17 @@ async function requireTaxDocumentManageAccess() {
 async function assertCanIssueCommercialInvoice(
   period: {
     clientReviewStatus: string | null | undefined;
+    isDownPayment?: boolean | null;
+    label?: string | null;
   },
   projectStatus: string,
-  opts: { approvedReview: boolean }
+  opts: { approvedReview: boolean; billingMode?: string | null }
 ) {
   const locale = await getServerLocale();
   if (
     !canIssueCommercialInvoiceForProject(period, projectStatus, {
       approvedReview: opts.approvedReview,
+      billingMode: opts.billingMode,
     })
   ) {
     const awaitingReview =
@@ -309,13 +315,11 @@ async function getOrCreatePeriod(
   });
   const asOf = catchUpAsOfDate(await loadBooksOpenDate(project?.companyId));
   const existing = await prisma.projectInvoicePeriod.findUnique({
-    where: {
-      projectId_periodStart_periodEnd: {
-        projectId,
-        periodStart,
-        periodEnd,
-      },
-    },
+    where: projectInvoicePeriodUniqueWhere({
+      projectId,
+      periodStart,
+      periodEnd,
+    }),
   });
   if (existing) {
     const emptyLiveBeforeBooksOpen =
@@ -628,6 +632,22 @@ async function ensureNextContractCycleAfter(
   );
 }
 
+async function ppnRateStamp(
+  companyId: string,
+  asOf: Date,
+  requiresTaxInvoice: boolean | null | undefined
+): Promise<{ ppnRatePercent: number } | Record<string, never>> {
+  if (!requiresTaxInvoice) return {};
+  try {
+    return { ppnRatePercent: await requirePpnRatePercent(companyId, asOf) };
+  } catch (error) {
+    if (isTaxRateMissing(error)) {
+      throw new Error("Add this tax rate under Tax Rates first.");
+    }
+    throw error;
+  }
+}
+
 async function deliverInvoice(_opts: {
   projectName: string;
   client: unknown;
@@ -686,6 +706,7 @@ async function compileInvoicePeriodInner(
 
   if (!period) throw new Error("Invoice period not found.");
   await assertLiveBillingAllowed(period);
+  const isDownPayment = isDownPaymentInvoicePeriod(period);
   if (!period.taxInvoiceDoneAt) {
     throw new Error(
       "A tax invoice must be on this period before the client invoice can go out."
@@ -702,6 +723,7 @@ async function compileInvoicePeriodInner(
     throw new Error("This period has already been invoiced.");
   }
   if (
+    !isDownPayment &&
     period.project.billingMode !== "MONTHLY" &&
     period.project.billingMode !== "ON_COMPLETION"
   ) {
@@ -710,6 +732,7 @@ async function compileInvoicePeriodInner(
     );
   }
   if (
+    !isDownPayment &&
     period.project.billingMode === "MONTHLY" &&
     !period.reconciledAt &&
     period.project.subCategory !== "PAYROLL_MANAGEMENT"
@@ -721,7 +744,7 @@ async function compileInvoicePeriodInner(
   await assertCanIssueCommercialInvoice(
     period,
     period.project.status,
-    opts
+    { ...opts, billingMode: period.project.billingMode }
   );
 
   await prisma.projectInvoicePeriod.update({
@@ -730,9 +753,9 @@ async function compileInvoicePeriodInner(
   });
 
   try {
-    // Only this project's progress reports whose reportDate falls in the period
-    // (anniversary cycle for MONTHLY). Nothing else is included.
-    const reports = await prisma.progressReport.findMany({
+    const reports = isDownPayment
+      ? []
+      : await prisma.progressReport.findMany({
       where: {
         projectId: period.projectId,
         reportDate: {
@@ -804,7 +827,11 @@ async function compileInvoicePeriodInner(
         null,
       clientNpwp: period.project.client?.npwp ?? null,
       location: period.project.location,
-      periodLabel: period.label ?? "Billing period",
+      periodLabel: formatInvoicePeriodLabel(period, {
+        projectName: period.project.name,
+        billingMode: period.project.billingMode,
+        downPaymentPercent: decimalToNumber(period.project.downPaymentPercent),
+      }),
       periodStart: period.periodStart,
       periodEnd: period.periodEnd,
       reports,
@@ -824,7 +851,9 @@ async function compileInvoicePeriodInner(
       isGovernmentContract: period.project.isGovernmentContract,
       company: invoiceBank.company,
       title:
-        period.project.subCategory === "PAYROLL_MANAGEMENT"
+        isDownPayment
+          ? "Down Payment Invoice"
+          : period.project.subCategory === "PAYROLL_MANAGEMENT"
           ? "Payroll Management Invoice"
           : period.project.billingMode === "ON_COMPLETION"
             ? "Completion Invoice"
@@ -832,16 +861,20 @@ async function compileInvoicePeriodInner(
     });
 
     await prisma.$transaction([
-      prisma.progressReport.updateMany({
-        where: {
-          projectId: period.projectId,
-          reportDate: {
-            gte: period.periodStart,
-            lte: period.periodEnd,
-          },
-        },
-        data: { invoicePeriodId: periodId },
-      }),
+      ...(isDownPayment
+        ? []
+        : [
+            prisma.progressReport.updateMany({
+              where: {
+                projectId: period.projectId,
+                reportDate: {
+                  gte: period.periodStart,
+                  lte: period.periodEnd,
+                },
+              },
+              data: { invoicePeriodId: periodId },
+            }),
+          ]),
       prisma.projectInvoicePeriod.update({
         where: { id: periodId },
         data: {
@@ -851,11 +884,17 @@ async function compileInvoicePeriodInner(
           submittedAt,
           dueAt,
           compiledById: session.user.id,
-          compileNote: `Compiled ${reports.length} progress report(s) for this project/location in ${period.label ?? "the period"}. Combined invoice + proof PDF generated.`,
+          compileNote: isDownPayment
+            ? "Down payment invoice issued."
+            : `Compiled ${reports.length} progress report(s) for this project/location in ${period.label ?? "the period"}. Combined invoice + proof PDF generated.`,
           bankAccountId: invoiceBank.bankAccountId,
           ...(invoiceAmount != null ? { amount: invoiceAmount } : {}),
           ...(period.project.requiresTaxInvoice && period.ppnRatePercent == null
-            ? { ppnRatePercent: DEFAULT_PRODUCT_PPN_RATE_PERCENT }
+            ? await ppnRateStamp(
+                session.user.companyId,
+                period.periodStart,
+                true
+              )
             : {}),
           taxInvoiceRequired: period.project.requiresTaxInvoice,
         },
@@ -864,7 +903,9 @@ async function compileInvoicePeriodInner(
 
     // One-shot GC/Facade: client approve already released crew. Stay In Progress
     // until the last invoice is marked paid — do not complete on invoice issue.
-    if (period.project.status === "PLANNED") {
+    if (isDownPayment) {
+      // Down payment can go out while the job is still in Planning.
+    } else if (period.project.status === "PLANNED") {
       await prisma.project.update({
         where: { id: period.projectId },
         data: { status: "IN_PROGRESS" },
@@ -981,8 +1022,8 @@ export async function updateProjectContractPrice(formData: FormData) {
       requiresTaxInvoice: true,
       pphRatePercent: true,
       isGovernmentContract: true,
+      downPaymentPercent: true,
       invoicePeriods: {
-        where: { milestonePercent: { not: null } },
         orderBy: { milestonePercent: "asc" },
         select: {
           id: true,
@@ -990,6 +1031,7 @@ export async function updateProjectContractPrice(formData: FormData) {
           amount: true,
           status: true,
           compileNote: true,
+          isDownPayment: true,
         },
       },
     },
@@ -1013,17 +1055,9 @@ export async function updateProjectContractPrice(formData: FormData) {
     });
 
     if (
-      project.billingMode === "MILESTONE" &&
       isMilestoneSubCategory(project.subCategory) &&
       project.invoicePeriods.length > 0
     ) {
-      const billedTotal =
-        invoiceGrossFromExclusivePrice(contractPrice, {
-          chargedTaxKind: project.chargedTaxKind,
-          requiresTaxInvoice: project.requiresTaxInvoice,
-          pphRatePercent: decimalToNumber(project.pphRatePercent),
-          isGovernmentContract: project.isGovernmentContract,
-        }) ?? contractPrice;
       const revisions = recalculateUnpaidMilestoneAmounts(
         project.invoicePeriods.map((p) => ({
           id: p.id,
@@ -1031,8 +1065,10 @@ export async function updateProjectContractPrice(formData: FormData) {
           amount: decimalToNumber(p.amount),
           status: p.status,
           compileNote: p.compileNote,
+          isDownPayment: isDownPaymentInvoicePeriod(p),
         })),
-        billedTotal
+        contractPrice,
+        { downPaymentPercent: decimalToNumber(project.downPaymentPercent) }
       );
 
       for (const rev of revisions) {
@@ -1044,6 +1080,31 @@ export async function updateProjectContractPrice(formData: FormData) {
             ...(rev.needsPdfRefresh ? { compileNote: rev.compileNote } : {}),
           },
         });
+      }
+
+      if (project.billingMode === "ON_COMPLETION") {
+        const paidDp = project.invoicePeriods
+          .filter((p) => isDownPaymentInvoicePeriod(p) && p.status === "PAID")
+          .reduce((sum, p) => sum + (decimalToNumber(p.amount) ?? 0), 0);
+        const remainder = remainderExclusiveAfterDownPayment({
+          contractPrice,
+          downPaymentPercent: decimalToNumber(project.downPaymentPercent),
+          paidDownPaymentExclusive: paidDp,
+        });
+        const unpaidCompletion = project.invoicePeriods.filter(
+          (p) =>
+            !isDownPaymentInvoicePeriod(p) &&
+            p.milestonePercent == null &&
+            ["ONGOING", "COMPILING", "AWAITING_PAYMENT", "OVERDUE", "PENDING_VERIFICATION"].includes(
+              p.status
+            )
+        );
+        for (const period of unpaidCompletion) {
+          await tx.projectInvoicePeriod.update({
+            where: { id: period.id },
+            data: { amount: remainder },
+          });
+        }
       }
     }
   });
@@ -1125,7 +1186,7 @@ async function issueMilestonePeriodInner(
   await assertCanIssueCommercialInvoice(
     period,
     project.status,
-    opts
+    { ...opts, billingMode: project.billingMode }
   );
 
   const milestonePercent = period.milestonePercent;
@@ -1328,9 +1389,11 @@ async function issueMilestonePeriodInner(
           compileNote: `${label} — ${amountLabel}. Compiled ${reports.length} report(s).`,
           bankAccountId: invoiceBank.bankAccountId,
           taxInvoiceRequired: project.requiresTaxInvoice,
-          ...(project.requiresTaxInvoice
-            ? { ppnRatePercent: DEFAULT_PRODUCT_PPN_RATE_PERCENT }
-            : {}),
+          ...(await ppnRateStamp(
+            session.user.companyId,
+            period.periodStart,
+            project.requiresTaxInvoice
+          )),
         },
       }),
     ]);
@@ -1538,13 +1601,11 @@ async function ensureAdHocMilestonePeriod(
 
   let safeEnd = periodEnd;
   const collision = await prisma.projectInvoicePeriod.findUnique({
-    where: {
-      projectId_periodStart_periodEnd: {
-        projectId,
-        periodStart,
-        periodEnd: safeEnd,
-      },
-    },
+    where: projectInvoicePeriodUniqueWhere({
+      projectId,
+      periodStart,
+      periodEnd: safeEnd,
+    }),
   });
   if (collision) {
     safeEnd = new Date(
@@ -1560,7 +1621,7 @@ async function ensureAdHocMilestonePeriod(
     await assertCanIssueCommercialInvoice(
       { clientReviewStatus: "NONE" },
       project.status,
-      { approvedReview: false }
+      { approvedReview: false, billingMode: project.billingMode }
     );
   }
 
@@ -1726,9 +1787,11 @@ async function createMilestoneInvoice(formData: FormData) {
         compileNote: `${formatMilestoneScheduleLabel(milestonePercent)} — ${amountLabel}. Compiled ${reports.length} report(s).`,
         bankAccountId: invoiceBank.bankAccountId,
         taxInvoiceRequired: project.requiresTaxInvoice,
-        ...(project.requiresTaxInvoice
-          ? { ppnRatePercent: DEFAULT_PRODUCT_PPN_RATE_PERCENT }
-          : {}),
+        ...(await ppnRateStamp(
+          session.user.companyId,
+          periodStart,
+          project.requiresTaxInvoice
+        )),
       },
     }),
   ]);
@@ -1941,9 +2004,15 @@ async function catchUpBacklogOpen(projectId: string): Promise<boolean> {
  */
 async function applyInvoicePeriodPaid(
   period: MarkPaidPeriod,
-  opts?: { verifiedById?: string; paymentManualReason?: string }
+  opts?: {
+    verifiedById?: string;
+    paymentManualReason?: string;
+    paidAt?: Date;
+  }
 ) {
-  const paidAt = new Date();
+  const paidAt = opts?.paidAt ?? taxInvoiceDateToUtcDate(
+    new Date().toISOString().slice(0, 10)
+  );
   await prisma.projectInvoicePeriod.update({
     where: { id: period.id },
     data: {
@@ -2009,6 +2078,7 @@ async function applyInvoicePeriodPaid(
         where: {
           projectId: project.id,
           status: "ONGOING",
+          isDownPayment: false,
         },
       });
       // Last invoice collected: crew/equipment leave the live pool. Keep
@@ -2123,10 +2193,17 @@ export async function markInvoicePeriodPaid(formData: FormData) {
     },
   });
 
+  const paidAtRaw = String(formData.get("paidAt") ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(paidAtRaw)) {
+    throw new Error("Enter the date the client actually paid.");
+  }
+  const paidAt = taxInvoiceDateToUtcDate(paidAtRaw);
+
   const reason = parseManualVerifyReason(formData.get("manualReason"));
   return applyInvoicePeriodPaid(period, {
     verifiedById: session.user.id,
     paymentManualReason: reason,
+    paidAt,
   });
 }
 
@@ -2346,12 +2423,17 @@ export async function markTaxInvoiceDone(formData: FormData) {
     throw new Error("Tax Invoice already marked sent.");
   }
 
-  const { parsePpnRatePercent } = await import("@/lib/vat");
-  const ppnRateRaw = String(formData.get("ppnRatePercent") ?? "").trim();
-  const ppnRatePercent = parsePpnRatePercent(ppnRateRaw);
-  if (ppnRatePercent == null) {
-    throw new Error("Enter a valid output PPN rate percent.");
+  const issuedRaw = String(formData.get("taxInvoiceIssuedAt") ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(issuedRaw)) {
+    throw new Error("Enter the tax invoice issued date.");
   }
+  const taxInvoiceIssuedAt = taxInvoiceDateToUtcDate(issuedRaw);
+  const ppnStamp = await ppnRateStamp(
+    session.user.companyId,
+    taxInvoiceIssuedAt,
+    true
+  );
+  const ppnRatePercent = ppnStamp.ppnRatePercent;
   requireTaxInvoiceSerialVerified(formData.get("taxInvoiceSerialVerified"));
   const taxInvoiceSerial = parseRequiredTaxInvoiceSerial(
     formData.get("taxInvoiceSerial")
@@ -2423,6 +2505,7 @@ export async function markTaxInvoiceDone(formData: FormData) {
     data: {
       taxInvoiceRequired: true,
       taxInvoiceDoneAt: uploadedAt,
+      taxInvoiceIssuedAt,
       taxInvoiceDoneById: session.user.id,
       taxInvoiceManualReason: reason,
       ppnRatePercent,
@@ -2932,6 +3015,8 @@ export async function issueInvoicesForFinishedProject(projectId: string): Promis
         select: {
           id: true,
           status: true,
+          label: true,
+          isDownPayment: true,
           milestonePercent: true,
           periodStart: true,
         },
@@ -3025,81 +3110,25 @@ export async function issueInvoicesForFinishedProject(projectId: string): Promis
       }
     }
   } else if (project.billingMode === "ON_COMPLETION") {
-    // One completion invoice only — reuse any open seed/legacy row instead of
-    // creating a second period with different dates ("On completion" vs
-    // "Completion invoice").
+    // Remainder is not issued at finish. Same flow as a job without DP:
+    // Submit for Approval (progress report) → client approves → invoice.
     const issuedStatuses = [
       "AWAITING_PAYMENT",
       "PAID",
       "OVERDUE",
-      "COMPILING",
+      "PENDING_VERIFICATION",
     ] as const;
-    const hasIssued = project.invoicePeriods.some((p) =>
-      (issuedStatuses as readonly string[]).includes(p.status)
+    const hasIssued = project.invoicePeriods.some(
+      (p) =>
+        !isDownPaymentInvoicePeriod(p) &&
+        (issuedStatuses as readonly string[]).includes(p.status)
     );
 
     if (!hasIssued) {
-      const today = toUtcDateOnly(new Date());
-      const openPeriods = await prisma.projectInvoicePeriod.findMany({
-        where: {
-          projectId,
-          status: { in: ["ONGOING", "COMPILING"] },
-          milestonePercent: null,
-        },
-        orderBy: { periodStart: "asc" },
-        select: {
-          id: true,
-          label: true,
-          reportCount: true,
-          invoicePdfPath: true,
-        },
-      });
-
-      const preferred =
-        openPeriods.find((p) => isCompletionPeriodLabel(p.label)) ??
-        openPeriods[0] ??
-        null;
-
-      let targetId: string;
-      if (preferred) {
-        await prisma.projectInvoicePeriod.update({
-          where: { id: preferred.id },
-          data: { label: COMPLETION_INVOICE_LABEL },
-        });
-        targetId = preferred.id;
-      } else {
-        const periodStart = project.startDate
-          ? toUtcDateOnly(project.startDate)
-          : today;
-        const periodEnd =
-          today.getTime() < periodStart.getTime() ? periodStart : today;
-        const created = await getOrCreatePeriod(
-          projectId,
-          periodStart,
-          periodEnd,
-          COMPLETION_INVOICE_LABEL
-        );
-        if (!created) {
-          throw new Error(
-            "This billing window starts before books-open. Record it as catch-up."
-          );
-        }
-        targetId = created.id;
-      }
-
-      await compileInvoicePeriod(targetId);
-      compiled = 1;
-
-      // Drop leftover open completion duplicates (no PDF / not the target).
-      for (const period of openPeriods) {
-        if (period.id === targetId) continue;
-        if (period.invoicePdfPath) continue;
-        try {
-          await prisma.projectInvoicePeriod.delete({ where: { id: period.id } });
-        } catch {
-          // Keep if FK-protected (reports attached); display dedupe covers UI.
-        }
-      }
+      const locale = await getServerLocale();
+      throw new Error(
+        translate(locale, "pages.billing.remainderNeedsProgressReview")
+      );
     }
   } else if (project.billingMode === "MULTI_VISIT") {
     // Each visit is invoiced only after that visit is approved.
@@ -3112,37 +3141,10 @@ export async function issueInvoicesForFinishedProject(projectId: string): Promis
     );
 
     if (priorMax < 100) {
-      const contractPrice = decimalToNumber(project.contractPrice);
-      if (contractPrice == null || contractPrice <= 0) {
-        throw new Error(
-          "Set a contract price in Invoice and Billing before finishing this project."
-        );
-      }
-
-      // Issue remaining scheduled ONGOING milestones in order through 100%.
-      const remaining = [...project.invoicePeriods]
-        .filter(
-          (p) =>
-            p.milestonePercent != null &&
-            (p.status === "ONGOING" || p.status === "COMPILING") &&
-            p.milestonePercent > priorMax
-        )
-        .sort(
-          (a, b) => (a.milestonePercent ?? 0) - (b.milestonePercent ?? 0)
-        );
-
-      if (remaining.length > 0) {
-        for (const period of remaining) {
-          await issueMilestonePeriod(period.id);
-          compiled += 1;
-        }
-      } else {
-        const formData = new FormData();
-        formData.set("projectId", projectId);
-        formData.set("milestonePercent", "100");
-        await createMilestoneInvoice(formData);
-        compiled = 1;
-      }
+      const locale = await getServerLocale();
+      throw new Error(
+        translate(locale, "pages.billing.remainderNeedsProgressReview")
+      );
     }
   } else {
     throw new Error(`Unsupported billing mode: ${project.billingMode}`);

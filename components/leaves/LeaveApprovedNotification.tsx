@@ -74,7 +74,7 @@ export default function LeaveApprovedNotification({ approvals }: Props) {
 
   return (
     <SectionCard className="mb-6 border-emerald-500/25 bg-card-tint-emerald">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" />
           <div className="min-w-0">

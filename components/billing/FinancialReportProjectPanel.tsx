@@ -263,20 +263,40 @@ export default function FinancialReportProjectPanel({ detail }: Props) {
           </div>
           <div className="rounded-lg border border-border/70 bg-surface-muted/40 px-4 py-3">
             <dt className="text-sm text-subtle">
+              {t("pages.financialReport.jobPurchasesOut")}
+            </dt>
+            <dd className="mt-1 text-lg font-semibold tabular-nums text-text">
+              {formatContractPrice(detail.purchasesOut)}
+            </dd>
+          </div>
+          <div className="rounded-lg border border-border/70 bg-surface-muted/40 px-4 py-3">
+            <dt className="text-sm text-subtle">
               {t("pages.financialReport.wagesOut")}
             </dt>
             <dd className="mt-1 text-lg font-semibold tabular-nums text-text">
               {formatContractPrice(detail.wagesOut)}
             </dd>
           </div>
-          <div className="rounded-lg border border-border/70 bg-surface-muted/40 px-4 py-3">
-            <dt className="text-sm text-subtle">
-              {t("pages.financialReport.payRecovery")}
-            </dt>
-            <dd className="mt-1 text-lg font-semibold tabular-nums text-text">
-              {formatContractPrice(detail.payRecoveryOut)}
-            </dd>
-          </div>
+          {detail.parkingDealOut > 0 ? (
+            <div className="rounded-lg border border-border/70 bg-surface-muted/40 px-4 py-3">
+              <dt className="text-sm text-subtle">
+                {t("pages.financialReport.parkingDealOut")}
+              </dt>
+              <dd className="mt-1 text-lg font-semibold tabular-nums text-text">
+                {formatContractPrice(detail.parkingDealOut)}
+              </dd>
+            </div>
+          ) : null}
+          {detail.incidentsOut > 0 ? (
+            <div className="rounded-lg border border-border/70 bg-surface-muted/40 px-4 py-3">
+              <dt className="text-sm text-subtle">
+                {t("pages.financialReport.incidentsOut")}
+              </dt>
+              <dd className="mt-1 text-lg font-semibold tabular-nums text-text">
+                {formatContractPrice(detail.incidentsOut)}
+              </dd>
+            </div>
+          ) : null}
           <div className="rounded-lg border border-border/70 bg-surface-muted/40 px-4 py-3">
             <dt className="text-sm text-subtle">
               {t("pages.financialReport.moneyOutTotal")}

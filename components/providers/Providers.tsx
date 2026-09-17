@@ -3,6 +3,7 @@
 import type { Session } from "next-auth";
 import type { ReactNode } from "react";
 
+import { AuthArrivalProvider } from "@/components/auth/AuthArrivalProvider";
 import { LocaleProvider } from "@/components/providers/LocaleProvider";
 import { SessionProvider } from "@/components/providers/SessionProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
@@ -24,11 +25,13 @@ export function Providers({
     <SessionProvider session={session}>
       <ThemeProvider>
         <LocaleProvider initialLocale={initialLocale}>
-          <ConfirmProvider>
-            {children}
-            <RejectionNoticeHost />
-            <Toaster />
-          </ConfirmProvider>
+          <AuthArrivalProvider>
+            <ConfirmProvider>
+              {children}
+              <RejectionNoticeHost />
+              <Toaster />
+            </ConfirmProvider>
+          </AuthArrivalProvider>
         </LocaleProvider>
       </ThemeProvider>
     </SessionProvider>

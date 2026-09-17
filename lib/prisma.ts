@@ -2,7 +2,6 @@ import { PrismaClient } from "@prisma/client";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
-  prismaStaleRetried?: boolean;
 };
 
 function createPrismaClient() {
@@ -20,7 +19,9 @@ function hasCurrentModels(client: PrismaClient | undefined): client is PrismaCli
       client.pettyCashEntry &&
       client.projectServiceAreaCatalog &&
       client.projectSubcategoryCatalog &&
-      client.bpjsRemittance
+      client.bpjsRemittance &&
+      client.companyCashMovement &&
+      client.taxRateType
   );
 }
 
@@ -29,10 +30,9 @@ function getPrisma(): PrismaClient {
   if (hasCurrentModels(existing)) {
     return existing;
   }
-  if (existing && !globalForPrisma.prismaStaleRetried) {
-    void (existing as PrismaClient).$disconnect();
+  if (existing) {
+    void existing.$disconnect();
     globalForPrisma.prisma = undefined;
-    globalForPrisma.prismaStaleRetried = true;
   }
   if (!globalForPrisma.prisma) {
     globalForPrisma.prisma = createPrismaClient();

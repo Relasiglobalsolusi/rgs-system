@@ -159,6 +159,7 @@ type Project = {
   isDemo?: boolean;
   isComplimentary?: boolean;
   pphRatePercent?: number | null;
+  taxRateCode?: string | null;
   otherTaxName?: string | null;
   contractPrice?: number | null;
   setupCost?: number | null;
@@ -350,6 +351,9 @@ export default function ProjectEditDialog({
   const [pphRatePercent, setPphRatePercent] = useState(() =>
     project.pphRatePercent != null ? String(project.pphRatePercent) : ""
   );
+  const [taxRateCode, setTaxRateCode] = useState(
+    () => project.taxRateCode ?? ""
+  );
   const [otherTaxName, setOtherTaxName] = useState(
     () => project.otherTaxName ?? ""
   );
@@ -424,6 +428,7 @@ export default function ProjectEditDialog({
         clientId,
         chargedTaxKind,
         pphRatePercent,
+        taxRateCode,
         otherTaxName,
         npwp,
         subCategory,
@@ -444,6 +449,7 @@ export default function ProjectEditDialog({
       clientId,
       chargedTaxKind,
       pphRatePercent,
+      taxRateCode,
       otherTaxName,
       npwp,
       subCategory,
@@ -517,6 +523,7 @@ export default function ProjectEditDialog({
     setPphRatePercent(
       project.pphRatePercent != null ? String(project.pphRatePercent) : ""
     );
+    setTaxRateCode(project.taxRateCode ?? "");
     setOtherTaxName(project.otherTaxName ?? "");
     setIsDemoChoice(project.isDemo ? "Yes" : "No");
     setIsComplimentaryChoice(project.isComplimentary ? "Yes" : "No");
@@ -705,23 +712,10 @@ export default function ProjectEditDialog({
       if (
         !isComplimentary &&
         resolvedTaxKind === "OTHER" &&
-        !otherTaxName.trim()
+        !otherTaxName.trim() &&
+        !taxRateCode.trim()
       ) {
         showRejection({ reasons: t("pages.billing.otherTaxNameRequired") });
-        return;
-      }
-      if (
-        !isComplimentary &&
-        resolvedTaxKind &&
-        commercialTaxRequiresRatePercent(resolvedTaxKind) &&
-        !pphRatePercent.trim()
-      ) {
-        showRejection({
-          reasons:
-            resolvedTaxKind === "OTHER"
-              ? t("pages.billing.otherTaxRateRequired")
-              : t("pages.projects.pphRatePercentRequired"),
-        });
         return;
       }
       formData.set("clientId", clientId);
@@ -748,6 +742,11 @@ export default function ProjectEditDialog({
           formData.set("pphRatePercent", pphRatePercent);
         } else {
           formData.delete("pphRatePercent");
+        }
+        if (taxRateCode.trim()) {
+          formData.set("taxRateCode", taxRateCode.trim());
+        } else {
+          formData.delete("taxRateCode");
         }
         if (commercialTaxRequiresOtherName(resolvedTaxKind)) {
           formData.set("otherTaxName", otherTaxName.trim());
@@ -1001,7 +1000,6 @@ export default function ProjectEditDialog({
                   }
                   handleServiceAreaChange(value as ProjectServiceAreaValue);
                 }}
-                columns={2}
                 spanLastWhenOdd
               />
             ) : null}
@@ -1017,7 +1015,6 @@ export default function ProjectEditDialog({
                   },
                 ]}
                 onChange={() => undefined}
-                columns={2}
               />
             ) : null}
 
@@ -1111,7 +1108,6 @@ export default function ProjectEditDialog({
                     }
                     handleUiSubcategoryChange(value);
                   }}
-                  columns={2}
                   spanLastWhenOdd
                 />
               </>
@@ -1136,7 +1132,6 @@ export default function ProjectEditDialog({
                     : []),
                 ]}
                 onChange={handleUiSubcategoryChange}
-                columns={2}
               />
             ) : null}
 
@@ -1159,7 +1154,6 @@ export default function ProjectEditDialog({
                     : []),
                 ]}
                 onChange={handleUiSubcategoryChange}
-                columns={2}
               />
             ) : null}
 
@@ -1191,7 +1185,6 @@ export default function ProjectEditDialog({
                     })
                   );
                 }}
-                columns={2}
               />
             ) : null}
 
@@ -1263,10 +1256,14 @@ export default function ProjectEditDialog({
                 id={`edit-project-charged-tax-${project.id}`}
                 name="chargedTaxKind"
                 value={chargedTaxKind}
+                taxRateCode={taxRateCode}
+                asOf={startDate}
                 onChange={(next) => {
                   setChargedTaxKind(next);
                   if (next !== "OTHER") setOtherTaxName("");
                 }}
+                onTaxRateCodeChange={setTaxRateCode}
+                onOtherTaxName={setOtherTaxName}
                 onRatePrefill={setPphRatePercent}
               />
             ) : null}
@@ -1297,7 +1294,8 @@ export default function ProjectEditDialog({
             {!isInternal &&
             showBillingFields &&
             chargedTaxKind &&
-            commercialTaxRequiresOtherName(chargedTaxKind) ? (
+            commercialTaxRequiresOtherName(chargedTaxKind) &&
+            !taxRateCode ? (
               <div className={employeeDialogFieldClass}>
                 <label
                   htmlFor={`edit-project-other-tax-${project.id}`}
@@ -1319,6 +1317,9 @@ export default function ProjectEditDialog({
                   {t("pages.billing.otherTaxNameHint")}
                 </p>
               </div>
+            ) : chargedTaxKind &&
+              commercialTaxRequiresOtherName(chargedTaxKind) ? (
+              <input type="hidden" name="otherTaxName" value={otherTaxName} />
             ) : null}
 
             {!isInternal &&
@@ -1326,33 +1327,15 @@ export default function ProjectEditDialog({
             chargedTaxKind &&
             commercialTaxRequiresRatePercent(chargedTaxKind) ? (
               <div className={employeeDialogFieldClass}>
-                <label
-                  htmlFor={`edit-project-pph-rate-${project.id}`}
-                  className="text-sm font-medium text-text"
-                >
-                  {chargedTaxKind === "OTHER"
-                    ? t("pages.billing.otherTaxRate")
-                    : t("pages.projects.pphRatePercent")}
-                  <span className="text-red-400"> *</span>
-                </label>
-                <Input
-                  id={`edit-project-pph-rate-${project.id}`}
-                  name="pphRatePercent"
-                  required
-                  inputMode="decimal"
-                  value={pphRatePercent}
-                  onChange={(event) => setPphRatePercent(event.target.value)}
-                  placeholder={
-                    chargedTaxKind === "OTHER"
-                      ? t("pages.billing.otherTaxRatePlaceholder")
-                      : t("pages.projects.pphRatePercentPlaceholder")
-                  }
-                  className={employeeInputClass}
-                />
+                {pphRatePercent ? (
+                  <input
+                    type="hidden"
+                    name="pphRatePercent"
+                    value={pphRatePercent}
+                  />
+                ) : null}
                 <p className="text-xs text-subtle">
-                  {chargedTaxKind === "OTHER"
-                    ? t("pages.billing.otherTaxRateHint")
-                    : t("pages.projects.pphRatePercentHint")}
+                  {t("pages.taxRates.followsTable")}
                 </p>
               </div>
             ) : null}

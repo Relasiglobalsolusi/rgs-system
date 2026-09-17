@@ -225,8 +225,7 @@ export default function VendorFormFields({
               ]}
               onChange={(value) =>
                 handleVendorTypeChange(value as VendorTypeValue)
-              }
-              columns={3}
+              }
             />
             <input type="hidden" name={nameOf("vendorType")} value={vendorType} />
           </div>

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import {
   FINANCIAL_REPORT_ALL_BANKS,
+  FINANCIAL_REPORT_CASH,
   FINANCIAL_REPORT_GENERAL_SCOPE,
   FINANCIAL_REPORT_UNASSIGNED_BANK,
   FINANCIAL_REPORT_YEARLY_MONTH,
@@ -235,6 +236,9 @@ export default function FinancialReportFilters({
                   if (!value || value === FINANCIAL_REPORT_ALL_BANKS) {
                     return t("pages.financialReport.filterBankAll");
                   }
+                  if (value === FINANCIAL_REPORT_CASH) {
+                    return t("pages.financialReport.filterBankCash");
+                  }
                   if (value === FINANCIAL_REPORT_UNASSIGNED_BANK) {
                     return t("pages.financialReport.filterBankUnassigned");
                   }
@@ -248,6 +252,9 @@ export default function FinancialReportFilters({
             <SelectContent>
               <SelectItem value={FINANCIAL_REPORT_ALL_BANKS}>
                 {t("pages.financialReport.filterBankAll")}
+              </SelectItem>
+              <SelectItem value={FINANCIAL_REPORT_CASH}>
+                {t("pages.financialReport.filterBankCash")}
               </SelectItem>
               <SelectItem value={FINANCIAL_REPORT_UNASSIGNED_BANK}>
                 {t("pages.financialReport.filterBankUnassigned")}

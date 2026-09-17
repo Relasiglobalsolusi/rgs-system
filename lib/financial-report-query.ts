@@ -8,19 +8,26 @@ export const FINANCIAL_REPORT_GENERAL_SCOPE = "general";
 export const FINANCIAL_REPORT_YEARLY_MONTH = "yearly";
 export const FINANCIAL_REPORT_ALL_BANKS = "all";
 export const FINANCIAL_REPORT_UNASSIGNED_BANK = "unassigned";
+export const FINANCIAL_REPORT_CASH = "cash";
 
 export type FinancialReportBankScope =
   | { kind: "all" }
   | { kind: "unassigned" }
+  | { kind: "cash" }
   | { kind: "account"; id: string };
 
 export type FinancialReportSelection = {
   year: number;
   /** 1–12 for one calendar month; null means the whole year. */
   month: number | null;
-  /** `all`, `unassigned`, or a CompanyBankAccount id. */
+  /** `all`, `unassigned`, `cash`, or a CompanyBankAccount id. */
   bank?: string;
 };
+
+export type FinancialReportBankAccountWhere =
+  | Record<string, never>
+  | { bankAccountId: string | null }
+  | { bankAccountId: { in: string[] } };
 
 export function parseFinancialReportBankScope(
   raw: string | null | undefined
@@ -28,21 +35,44 @@ export function parseFinancialReportBankScope(
   const value = raw?.trim() || FINANCIAL_REPORT_ALL_BANKS;
   if (value === FINANCIAL_REPORT_ALL_BANKS) return { kind: "all" };
   if (value === FINANCIAL_REPORT_UNASSIGNED_BANK) return { kind: "unassigned" };
+  if (value === FINANCIAL_REPORT_CASH) return { kind: "cash" };
   return { kind: "account", id: value };
 }
 
 export function bankAccountWhere(
   bank: string
-): { bankAccountId?: string | null } {
+): FinancialReportBankAccountWhere {
   const scope = parseFinancialReportBankScope(bank);
   if (scope.kind === "all") return {};
   if (scope.kind === "unassigned") return { bankAccountId: null };
+  /** Cash is not a bank row — bank-tagged income/outflow must not leak in. */
+  if (scope.kind === "cash") return { bankAccountId: { in: [] } };
   return { bankAccountId: scope.id };
 }
 
-/** True when the report is narrowed to one bank (including unassigned). */
+/** Vendor bills paid from a company bank (never Cash At Hand). */
+export function purchasePaidFromBankWhere(bank: string) {
+  return { paidWithCash: false as const, ...bankAccountWhere(bank) };
+}
+
+/**
+ * P&L purchase filter. All banks includes cash spends. Cash is only those
+ * spends. One bank (or Unassigned) is that bank's outflow only.
+ */
+export function purchaseBankAccountWhere(bank: string) {
+  const scope = parseFinancialReportBankScope(bank);
+  if (scope.kind === "all") return {};
+  if (scope.kind === "cash") return { paidWithCash: true as const };
+  return purchasePaidFromBankWhere(bank);
+}
+
+/** True when the report is narrowed to one bank, Unassigned, or Cash. */
 export function isSingleBankSelection(bank?: string | null): boolean {
   return parseFinancialReportBankScope(bank).kind !== "all";
+}
+
+export function isCashBankSelection(bank?: string | null): boolean {
+  return parseFinancialReportBankScope(bank).kind === "cash";
 }
 
 export function matchesBankAccount(
@@ -51,6 +81,7 @@ export function matchesBankAccount(
 ): boolean {
   const scope = parseFinancialReportBankScope(bank);
   if (scope.kind === "all") return true;
+  if (scope.kind === "cash") return false;
   if (scope.kind === "unassigned") return bankAccountId == null;
   return bankAccountId === scope.id;
 }

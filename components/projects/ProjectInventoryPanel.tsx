@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import SectionCard from "@/components/ui/SectionCard";
+import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import { formatDisplayDate } from "@/lib/format-date";
 import { formatInventoryQtyWithUnit } from "@/lib/inventory";
 import { useT } from "@/lib/i18n/use-t";
@@ -103,7 +104,7 @@ export default function ProjectInventoryPanel({
               {t("pages.projects.detail.inventoryIssueFromInventoryOnly")}
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className={chipScrollRowClassName()}>
             {canViewInventoryModule ? (
               <Link
                 href="/inventory?tab=issues"

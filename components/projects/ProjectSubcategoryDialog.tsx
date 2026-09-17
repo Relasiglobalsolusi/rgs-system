@@ -130,8 +130,7 @@ export default function ProjectSubcategoryDialog({
                 ]}
                 onChange={(value) =>
                   setBillingKind(value as "CONTRACT" | "ONE_TIME")
-                }
-                columns={2}
+                }
               />
             ) : (
               <input type="hidden" name="billingKind" value="CONTRACT" />

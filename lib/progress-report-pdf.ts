@@ -124,6 +124,9 @@ function chargeDescriptionFor(input: CompilePdfInput): string {
       label: input.periodLabel,
     });
   }
+  if (input.periodLabel.includes(input.projectName)) {
+    return input.periodLabel;
+  }
   return `${input.projectName} — ${input.periodLabel}`;
 }
 

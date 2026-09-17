@@ -161,7 +161,7 @@ export default function InventoryStockItemDetailDialog({
       >
         <div className="space-y-3">
           <SectionCard className="overflow-hidden p-0">
-            <div className="flex flex-wrap items-start justify-between gap-4 px-4 py-4 sm:px-5">
+            <div className="flex flex-col gap-4 px-4 py-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:px-5">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-xl font-semibold tracking-tight text-text">

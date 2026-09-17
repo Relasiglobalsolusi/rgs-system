@@ -5,7 +5,6 @@ import AppShell from "@/components/layout/AppShell";
 import BackLink from "@/components/ui/BackLink";
 import SectionCard from "@/components/ui/SectionCard";
 import { buttonVariants } from "@/components/ui/button";
-import { catchUpAsOfDate, loadBooksOpenDate } from "@/lib/books-open";
 import { intakeKindOf } from "@/lib/catch-up-intake";
 import { formatDisplayDate } from "@/lib/format-date";
 import { getServerLocale } from "@/lib/i18n/locale";
@@ -73,15 +72,12 @@ export default async function ProjectCatchUpHubPage({
         basis: project.billingPeriodBasis,
         fromDay: project.billingCycleStartDay,
         toDay: project.billingCycleEndDay,
-        asOf: catchUpAsOfDate(
-          await loadBooksOpenDate(project.companyId),
-          jakartaTodayAsUtcDateOnly()
-        ),
+        asOf: jakartaTodayAsUtcDateOnly(),
         existingPeriods: project.invoicePeriods,
       })
     : [];
 
-  if (pages.length === 0) {
+  if (pages.length === 0 || pages.every((page) => page.kind === "period")) {
     redirect(projectDetailHref(project.id));
   }
 

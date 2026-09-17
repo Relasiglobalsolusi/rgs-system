@@ -12,10 +12,15 @@ import {
 } from "@/lib/leave-employment-status";
 import { deleteLocalUpload, saveUpload } from "@/lib/upload";
 import {
+  catchUpAsOfDate,
+  loadBooksOpenDate,
+} from "@/lib/books-open";
+import {
   customDayCyclePeriodBounds,
   formatDateInput,
   monthPeriodBounds,
   parseDateInput,
+  projectInvoicePeriodUniqueWhere,
   resolveBillingCycleDays,
   resolveCustomDayCycleIndex,
   toUtcDateOnly,
@@ -151,6 +156,7 @@ async function ensureOngoingPeriod(projectId: string, reportDate: Date) {
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     select: {
+      companyId: true,
       billingMode: true,
       startDate: true,
       subCategory: true,
@@ -192,16 +198,19 @@ async function ensureOngoingPeriod(projectId: string, reportDate: Date) {
         );
 
   const existing = await prisma.projectInvoicePeriod.findUnique({
-    where: {
-      projectId_periodStart_periodEnd: {
-        projectId,
-        periodStart,
-        periodEnd,
-      },
-    },
+    where: projectInvoicePeriodUniqueWhere({
+      projectId,
+      periodStart,
+      periodEnd,
+    }),
   });
 
   if (existing) return existing;
+
+  const asOf = catchUpAsOfDate(await loadBooksOpenDate(project.companyId));
+  if (periodStart.getTime() < asOf.getTime()) {
+    return null;
+  }
 
   return prisma.projectInvoicePeriod.create({
     data: {

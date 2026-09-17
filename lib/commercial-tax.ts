@@ -33,6 +33,7 @@ export const COMMERCIAL_TAX_KIND_OPTIONS = [
   "PPH_4_2",
   "PPN_AND_PPH_4_2",
   "PPH_22",
+  "PPH_26",
   "PBB",
   "STAMP_DUTY",
 ] as const satisfies readonly CommercialTaxKind[];
@@ -120,7 +121,12 @@ export function commercialTaxRequiresTaxInvoice(
 }
 
 /** Project form: Charge VAT? + Charge PPh? → stored chargedTaxKind. */
-export type ProjectPphKind = "PPH_23" | "PPH_4_2" | "PPH_21" | "PPH_22";
+export type ProjectPphKind =
+  | "PPH_23"
+  | "PPH_4_2"
+  | "PPH_21"
+  | "PPH_22"
+  | "PPH_26";
 
 export function isProjectPphKind(
   value: string | null | undefined
@@ -129,7 +135,8 @@ export function isProjectPphKind(
     value === "PPH_23" ||
     value === "PPH_4_2" ||
     value === "PPH_21" ||
-    value === "PPH_22"
+    value === "PPH_22" ||
+    value === "PPH_26"
   );
 }
 
@@ -138,9 +145,16 @@ export function chargedTaxKindFromVatPph(input: {
   chargePph: boolean;
   pphKind?: string | null;
 }): CommercialTaxKind | "" {
+  if (!input.chargePph && !input.chargeVat) return "";
+  if (input.pphKind && !isProjectPphKind(input.pphKind)) {
+    if (input.chargePph) return "OTHER";
+    return input.chargeVat ? "PPN" : "";
+  }
   const pph = isProjectPphKind(input.pphKind) ? input.pphKind : "PPH_23";
   if (input.chargeVat && input.chargePph) {
-    return pph === "PPH_4_2" ? "PPN_AND_PPH_4_2" : "PPN_AND_PPH_23";
+    if (pph === "PPH_4_2") return "PPN_AND_PPH_4_2";
+    if (pph === "PPH_23") return "PPN_AND_PPH_23";
+    return "OTHER";
   }
   if (input.chargeVat) return "PPN";
   if (input.chargePph) return pph;
@@ -150,11 +164,14 @@ export function chargedTaxKindFromVatPph(input: {
 export function vatPphFromChargedTaxKind(kind: CommercialTaxKind | "" | null) {
   const resolved = kind || null;
   const chargeVat = commercialTaxIncludesVat(resolved);
-  const chargePph = commercialTaxIncludesIncomeTax(resolved);
-  let pphKind: ProjectPphKind = "PPH_23";
+  const chargePph =
+    commercialTaxIncludesIncomeTax(resolved) || resolved === "OTHER";
+  let pphKind: ProjectPphKind | string = "PPH_23";
   if (kind === "PPH_4_2" || kind === "PPN_AND_PPH_4_2") pphKind = "PPH_4_2";
   else if (kind === "PPH_21") pphKind = "PPH_21";
   else if (kind === "PPH_22") pphKind = "PPH_22";
+  else if (kind === "PPH_26") pphKind = "PPH_26";
+  else if (kind === "OTHER") pphKind = "OTHER";
   return { chargeVat, chargePph, pphKind };
 }
 
@@ -243,15 +260,20 @@ export function parseProjectChargedTax(formData: FormData): {
   requiresTaxInvoice: boolean;
   pphRatePercent: number | null;
   otherTaxName: string | null;
+  taxRateCode: string | null;
 } {
   const chargedTaxKind = parseCommercialTaxKind(formData.get("chargedTaxKind"));
+  const taxRateCodeRaw = String(formData.get("taxRateCode") ?? "").trim().toUpperCase();
+  const pphRaw = String(formData.get("pphRatePercent") ?? "").trim();
   return {
     chargedTaxKind,
     requiresTaxInvoice: commercialTaxRequiresTaxInvoice(chargedTaxKind),
-    pphRatePercent: commercialTaxRequiresRatePercent(chargedTaxKind)
-      ? parseCommercialPphRatePercent(formData.get("pphRatePercent"))
-      : null,
+    pphRatePercent:
+      commercialTaxRequiresRatePercent(chargedTaxKind) && pphRaw
+        ? parseCommercialPphRatePercent(pphRaw)
+        : null,
     otherTaxName: parseOtherTaxName(formData.get("otherTaxName"), chargedTaxKind),
+    taxRateCode: taxRateCodeRaw || null,
   };
 }
 

@@ -38,6 +38,7 @@ import {
   SAMPLE_VENDORS,
   seedSampleVendors,
 } from "./seed-vendors";
+import { ensureCompanyTaxRates } from "../lib/tax-rates";
 
 const prisma = new PrismaClient();
 
@@ -87,6 +88,8 @@ async function main() {
       website: "https://www.rgs.co.id",
     },
   });
+
+  await ensureCompanyTaxRates(company.id);
 
   // Workforce departments: Corporate / Warehouse / Operations (EmployeeCategory).
   // Legacy Department (CLN) is unused — org/numbering uses EmployeeCategory.
@@ -892,10 +895,11 @@ async function main() {
 
   await prisma.projectInvoicePeriod.upsert({
     where: {
-      projectId_periodStart_periodEnd: {
+      projectId_periodStart_periodEnd_isDownPayment: {
         projectId: project1.id,
         periodStart: project1Cycle1.periodStart,
         periodEnd: project1Cycle1.periodEnd,
+      isDownPayment: false,
       },
     },
     update: {
@@ -931,10 +935,11 @@ async function main() {
 
   await prisma.projectInvoicePeriod.upsert({
     where: {
-      projectId_periodStart_periodEnd: {
+      projectId_periodStart_periodEnd_isDownPayment: {
         projectId: project1.id,
         periodStart: project1Cycle2.periodStart,
         periodEnd: project1Cycle2.periodEnd,
+      isDownPayment: false,
       },
     },
     update: {
@@ -966,10 +971,11 @@ async function main() {
       const isFirst = i === 0;
       await prisma.projectInvoicePeriod.upsert({
         where: {
-          projectId_periodStart_periodEnd: {
+          projectId_periodStart_periodEnd_isDownPayment: {
             projectId: project2.id,
             periodStart,
             periodEnd,
+            isDownPayment: false,
           },
         },
         update: {
@@ -1022,10 +1028,11 @@ async function main() {
 
   await prisma.projectInvoicePeriod.upsert({
     where: {
-      projectId_periodStart_periodEnd: {
+      projectId_periodStart_periodEnd_isDownPayment: {
         projectId: project3.id,
         periodStart: julyStart,
         periodEnd: julyEnd,
+        isDownPayment: false,
       },
     },
     update: {
@@ -1056,10 +1063,11 @@ async function main() {
       const isFirst = i === 0;
       await prisma.projectInvoicePeriod.upsert({
         where: {
-          projectId_periodStart_periodEnd: {
+          projectId_periodStart_periodEnd_isDownPayment: {
             projectId: project4.id,
             periodStart,
             periodEnd,
+            isDownPayment: false,
           },
         },
         update: {
@@ -1112,10 +1120,11 @@ async function main() {
 
   await prisma.projectInvoicePeriod.upsert({
     where: {
-      projectId_periodStart_periodEnd: {
+      projectId_periodStart_periodEnd_isDownPayment: {
         projectId: project5.id,
         periodStart: utcDate(2026, 7, 5),
         periodEnd: utcDate(2026, 7, 31),
+        isDownPayment: false,
       },
     },
     update: {

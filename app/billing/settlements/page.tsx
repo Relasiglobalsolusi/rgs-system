@@ -34,6 +34,7 @@ import {
   formatPurchaseListedAmount,
   purchaseNeedsImportBankRate,
 } from "@/lib/purchase-amount-display";
+import { purchaseAllowsCashPayment } from "@/lib/company-cash";
 import { requireFinanceChild, toPermissionUser } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
@@ -153,6 +154,12 @@ export default async function SettlementsPage() {
         invoiceRef: invoice.invoiceRef,
         amountLabel: formatPurchaseListedAmount(invoice),
         needsImportBankRate: purchaseNeedsImportBankRate(invoice),
+        allowsCash: purchaseAllowsCashPayment({
+          origin: invoice.origin,
+          purchaseCategory: invoice.purchaseCategory,
+          vehicleExpenseKind: invoice.vehicleExpenseKind,
+        }),
+        amount: decimalToNumber(invoice.amount),
         invoiceCurrency: invoice.invoiceCurrency,
         invoiceForeignAmount: decimalToNumber(invoice.invoiceForeignAmount),
         bookingRate: decimalToNumber(invoice.exchangeRateToIdr),
@@ -379,6 +386,8 @@ export default async function SettlementsPage() {
                             supplierName={row.supplierName}
                             invoiceRef={row.invoiceRef}
                             needsImportBankRate={row.needsImportBankRate}
+                            allowsCash={row.allowsCash}
+                            amount={row.amount}
                             invoiceCurrency={row.invoiceCurrency}
                             invoiceForeignAmount={row.invoiceForeignAmount}
                             bookingRate={row.bookingRate}

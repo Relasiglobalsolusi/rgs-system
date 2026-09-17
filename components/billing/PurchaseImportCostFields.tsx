@@ -108,7 +108,7 @@ export function emptyPurchaseImportDraft(): PurchaseImportDraft {
     ppnbmRatePercent: "",
     ppnbmAmountIdr: "",
     ppnApplied: true,
-    ppnRatePercent: String(DEFAULT_PRODUCT_PPN_RATE_PERCENT),
+    ppnRatePercent: "",
     ppnAmountIdr: "",
     pph22Applied: true,
     pph22Basis: "API",
@@ -1503,16 +1503,9 @@ export default function PurchaseImportCostFields({
           hint={t("pages.billing.purchaseImportPpnHint")}
           onChange={(ppnApplied) => patch({ ppnApplied })}
         >
-          <MoneyField
-            id="purchase-import-ppn-rate"
-            label={t("pages.billing.purchaseImportRatePercent")}
-            value={draft.ppnRatePercent}
-            placeholder={String(DEFAULT_PRODUCT_PPN_RATE_PERCENT)}
-            disabled={disabled}
-            onChange={(ppnRatePercent) =>
-              patch({ ppnRatePercent, ppnAmountIdr: "" })
-            }
-          />
+          <p className={employeeDialogHintClass}>
+            {t("pages.taxRates.followsTable")}
+          </p>
           <MoneyField
             id="purchase-import-ppn-amount"
             label={t("pages.billing.purchaseImportPaidAmount")}

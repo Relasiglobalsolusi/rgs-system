@@ -5,7 +5,6 @@ import type { ProjectStatus, ProjectSubCategory } from "@prisma/client";
 
 import {
   isLiveInvoiceIncome,
-  LIVE_PROJECT_EXPENSE_WHERE,
   liveInvoiceIncomeWhereFor,
   loadBooksOpenDate,
 } from "@/lib/books-open";
@@ -13,8 +12,6 @@ import {
   getPayrollManagementTotalsByProjectIds,
   getProjectPnlAdjustments,
   getProjectWageCostsByProjectIds,
-  getSoldOffIncome,
-  getSoldOffIncomeByClientIds,
   listProjectWageCosts,
   commercialPeriodGross,
   recognizedIncomeAmount,
@@ -49,10 +46,7 @@ import {
   computeParkingProjectTotals,
   getProjectPurchaseOutflowsByProjectIds,
 } from "@/lib/parking-economics";
-import {
-  getClientPettyCashOutflowsByClientIds,
-  getProjectPettyCashOutflowsByProjectIds,
-} from "@/lib/petty-cash";
+import { getProjectPettyCashOutflowsByProjectIds } from "@/lib/petty-cash";
 import {
   excludeEquipmentFromProjectInventoryCost,
   getProjectInventoryCost,
@@ -61,7 +55,6 @@ import {
 } from "@/lib/inventory";
 import {
   listProjectLostStockPayRecovery,
-  sumProjectDepositReturns,
   type LostStockPayRecoveryRow,
 } from "@/lib/internal-payroll-month";
 import { prisma } from "@/lib/prisma";
@@ -69,6 +62,11 @@ import { isGcFacadeAwaitingPayment } from "@/lib/project-awaiting-payment";
 import { canViewFinancialReport } from "@/lib/project-access";
 import { decimalToNumber } from "@/lib/project-billing";
 import { requireFinanceChild, toPermissionUser } from "@/lib/session";
+import { isEquipmentItemType } from "@/lib/equipment-asset";
+import {
+  projectJobPnl,
+  type FinancialReportPnlProjectNode,
+} from "@/lib/financial-report-pnl";
 
 export type FinancialReportScopeClient = {
   id: string;
@@ -87,13 +85,18 @@ export type FinancialReportClientRow = {
   name: string;
   projectCount: number;
   totalContractValue: number;
+  revenue: number;
+  costOfSales: number;
+  grossProfit: number;
+  /** @deprecated alias of revenue */
   totalMoneyIn: number;
-  /** Inventory issues + assigned-employee wage cost + project purchases / parking / PM. */
+  /** @deprecated alias of costOfSales */
   totalSpending: number;
-  /** Money in − money out. */
+  /** @deprecated alias of grossProfit */
   profit: number;
   soldOffIncome: number;
   clientsOwe: OwedBucket;
+  projects: FinancialReportPnlProjectNode[];
 };
 
 export type FinancialReportCompanyTotals = FinancialReportOverview;
@@ -105,12 +108,14 @@ export type FinancialReportProjectRow = {
   status: ProjectStatus;
   subCategory: ProjectSubCategory;
   contractValue: number | null;
+  revenue: number;
+  costOfSales: number;
+  grossProfit: number;
   moneyIn: number;
-  /** Inventory issues + assigned-employee wage cost + project purchases. */
+  /** Consumables used on the job + wages + tagged services. Not equipment. */
   moneyOut: number;
   inventoryOut: number;
   wagesOut: number;
-  /** Money in − money out. */
   profit: number;
   awaitingPayment?: boolean;
   clientsOwe: OwedBucket;
@@ -134,12 +139,17 @@ export type FinancialReportProjectDetail = {
   status: ProjectStatus;
   subCategory: ProjectSubCategory;
   contractValue: number | null;
+  revenue: number;
+  costOfSales: number;
+  grossProfit: number;
   moneyIn: number;
-  /** Inventory + wages. */
+  /** Consumables + wages. Equipment issued here is location only. */
   moneyOut: number;
   inventoryOut: number;
   wagesOut: number;
-  /** Money in − money out. */
+  purchasesOut: number;
+  incidentsOut: number;
+  parkingDealOut: number;
   profit: number;
   marginPercent: number | null;
   paidLines: FinancialReportPaidLine[];
@@ -343,8 +353,11 @@ export async function getFinancialReportClients(
         where: FINANCIAL_REPORT_PROJECT_WHERE,
         select: {
           id: true,
-          contractPrice: true,
+          name: true,
+          location: true,
+          status: true,
           subCategory: true,
+          contractPrice: true,
           invoicePeriods: {
             where: {
               status: "PAID",
@@ -372,10 +385,8 @@ export async function getFinancialReportClients(
     purchasesByProject,
     parkingByProject,
     payrollByProject,
-    soldOffByClient,
     adjustmentsByProject,
     owedByClient,
-    pettyByClient,
   ] = await Promise.all([
     inventoryCostByProjectIds(
       companyId,
@@ -407,13 +418,6 @@ export async function getFinancialReportClients(
       calendar.from,
       calendar.toExclusive
     ),
-    getSoldOffIncomeByClientIds(
-      companyId,
-      clientIds,
-      calendar.from,
-      calendar.toExclusive,
-      bank
-    ),
     getProjectPnlAdjustments(companyId, projectIds, {
       year: selection.year,
       month: selection.month,
@@ -422,70 +426,61 @@ export async function getFinancialReportClients(
       bank,
     }),
     getClientsOwedByClientIds(companyId, clientIds),
-    getClientPettyCashOutflowsByClientIds(
-      prisma,
-      companyId,
-      singleBank ? [] : clientIds,
-      calendar.from,
-      calendar.toExclusive
-    ).catch(() => new Map<string, number>()),
   ]);
 
   return clients
     .map((client) => {
       let totalContractValue = 0;
-      let totalMoneyIn = soldOffByClient.get(client.id) ?? 0;
-      let totalSpending = pettyByClient.get(client.id) ?? 0;
+      const projects: FinancialReportPnlProjectNode[] = [];
 
       for (const project of client.projects) {
-        totalContractValue += decimalToNumber(project.contractPrice) ?? 0;
+        const contractValue = decimalToNumber(project.contractPrice) ?? 0;
+        totalContractValue += contractValue;
         const purchasesOut = purchasesByProject.get(project.id) ?? 0;
-        const adj = adjustmentsByProject.get(project.id);
-        const depositReturned = singleBank ? 0 : adj?.depositReturned ?? 0;
-        const keptDeposit = singleBank ? 0 : adj?.keptDeposit ?? 0;
-        const payRecovery = singleBank ? 0 : adj?.payRecovery ?? 0;
-        const incidents = adj?.incidents ?? 0;
-        if (project.subCategory === "PARKING") {
-          const parking = parkingByProject.get(project.id);
-          totalMoneyIn += (parking?.moneyIn ?? 0) + keptDeposit + payRecovery;
-          totalSpending +=
-            (parking?.dealOut ?? 0) +
-            purchasesOut +
-            (wagesByProject.get(project.id) ?? 0) +
-            depositReturned +
-            incidents;
-          continue;
-        }
-        if (project.subCategory === "PAYROLL_MANAGEMENT") {
-          if (singleBank) continue;
-          const payroll = payrollByProject.get(project.id);
-          totalMoneyIn += (payroll?.moneyIn ?? 0) + keptDeposit + payRecovery;
-          totalSpending +=
-            (payroll?.moneyOut ?? 0) + depositReturned + incidents;
-          continue;
-        }
-        totalMoneyIn +=
-          sumPaidForProject(project.invoicePeriods) +
-          keptDeposit +
-          payRecovery;
-        totalSpending +=
-          (inventoryByProject.get(project.id) ?? 0) +
-          (wagesByProject.get(project.id) ?? 0) +
-          purchasesOut +
-          depositReturned +
-          incidents;
+        const incidents = adjustmentsByProject.get(project.id)?.incidents ?? 0;
+        const job = projectJobPnl({
+          subCategory: project.subCategory,
+          paidInvoiceRevenue: sumPaidForProject(project.invoicePeriods),
+          inventoryOut: inventoryByProject.get(project.id) ?? 0,
+          wagesOut: wagesByProject.get(project.id) ?? 0,
+          purchasesOut,
+          parking: parkingByProject.get(project.id) ?? null,
+          payroll: singleBank
+            ? { moneyIn: 0, moneyOut: 0 }
+            : payrollByProject.get(project.id) ?? null,
+          incidents,
+        });
+        projects.push({
+          id: project.id,
+          name: project.name,
+          location: project.location,
+          status: project.status,
+          subCategory: project.subCategory,
+          contractValue,
+          revenue: job.revenue,
+          costOfSales: job.costOfSales,
+          grossProfit: job.grossProfit,
+        });
       }
+
+      const revenue = projects.reduce((sum, row) => sum + row.revenue, 0);
+      const costOfSales = projects.reduce((sum, row) => sum + row.costOfSales, 0);
+      const grossProfit = revenue - costOfSales;
 
       return {
         id: client.id,
         name: client.name,
-        projectCount: client.projects.length,
+        projectCount: projects.length,
         totalContractValue,
-        totalMoneyIn,
-        totalSpending,
-        profit: totalMoneyIn - totalSpending,
-        soldOffIncome: soldOffByClient.get(client.id) ?? 0,
+        revenue,
+        costOfSales,
+        grossProfit,
+        totalMoneyIn: revenue,
+        totalSpending: costOfSales,
+        profit: grossProfit,
+        soldOffIncome: 0,
         clientsOwe: owedByClient.get(client.id) ?? { unpaid: 0, overdue: 0 },
+        projects,
       };
     })
     .filter((row) => row.projectCount > 0);
@@ -516,6 +511,9 @@ export async function getFinancialReportClientProjects(
 ): Promise<{
   clientName: string;
   totalContractValue: number;
+  revenue: number;
+  costOfSales: number;
+  grossProfit: number;
   totalMoneyIn: number;
   totalSpending: number;
   profit: number;
@@ -578,11 +576,9 @@ export async function getFinancialReportClientProjects(
     purchasesByProject,
     parkingByProject,
     payrollByProject,
-    clientSoldOff,
     adjustmentsByProject,
     clientsOwe,
     vendorsOwe,
-    clientPetty,
   ] = await Promise.all([
     inventoryCostByProjectIds(
       companyId,
@@ -614,13 +610,6 @@ export async function getFinancialReportClientProjects(
       calendar.from,
       calendar.toExclusive
     ),
-    getSoldOffIncome({
-      companyId,
-      clientId,
-      from: calendar.from,
-      toExclusive: calendar.toExclusive,
-      bank,
-    }),
     getProjectPnlAdjustments(companyId, projectIds, {
       year: selection.year,
       month: selection.month,
@@ -630,28 +619,15 @@ export async function getFinancialReportClientProjects(
     }),
     getClientsOwed(companyId, clientId),
     getVendorsOwed(companyId, clientId),
-    getClientPettyCashOutflowsByClientIds(
-      prisma,
-      companyId,
-      singleBank ? [] : [clientId],
-      calendar.from,
-      calendar.toExclusive
-    ).catch(() => new Map<string, number>()),
   ]);
 
   let totalContractValue = 0;
-  let totalMoneyIn = clientSoldOff;
-  let totalSpending = clientPetty.get(clientId) ?? 0;
 
   const projects: FinancialReportProjectRow[] = client.projects.map(
     (project) => {
       const contractValue = decimalToNumber(project.contractPrice);
       const purchasesOut = purchasesByProject.get(project.id) ?? 0;
-      const adj = adjustmentsByProject.get(project.id);
-      const depositReturned = singleBank ? 0 : adj?.depositReturned ?? 0;
-      const keptDeposit = singleBank ? 0 : adj?.keptDeposit ?? 0;
-      const payRecovery = singleBank ? 0 : adj?.payRecovery ?? 0;
-      const incidents = adj?.incidents ?? 0;
+      const incidents = adjustmentsByProject.get(project.id)?.incidents ?? 0;
       const paidPeriods = project.invoicePeriods.filter((period) => {
         if (period.status !== "PAID") return false;
         if (!period.paidAt) return false;
@@ -680,77 +656,21 @@ export async function getFinancialReportClientProjects(
         project.invoicePeriods,
         project
       );
-      let moneyIn = sumPaidForProject(paidPeriods);
-      let inventoryOut = inventoryByProject.get(project.id) ?? 0;
-      let wagesOut = wagesByProject.get(project.id) ?? 0;
-      if (project.subCategory === "PARKING") {
-        const parking = parkingByProject.get(project.id);
-        moneyIn = parking?.moneyIn ?? 0;
-        inventoryOut = purchasesOut;
-        wagesOut = wagesByProject.get(project.id) ?? 0;
-        moneyIn += keptDeposit + payRecovery;
-        const moneyOut =
-          (parking?.dealOut ?? 0) +
-          purchasesOut +
-          wagesOut +
-          depositReturned +
-          incidents;
-        totalContractValue += contractValue ?? 0;
-        totalMoneyIn += moneyIn;
-        totalSpending += moneyOut;
-        return {
-          id: project.id,
-          name: project.name,
-          location: project.location,
-          status: project.status,
-          subCategory: project.subCategory,
-          contractValue,
-          moneyIn,
-          moneyOut,
-          inventoryOut,
-          wagesOut,
-          profit: moneyIn - moneyOut,
-          awaitingPayment,
-          clientsOwe: clientsOweForProject,
-        };
-      }
-      if (project.subCategory === "PAYROLL_MANAGEMENT") {
-        const payroll = singleBank
+      const inventoryOut = inventoryByProject.get(project.id) ?? 0;
+      const wagesOut = wagesByProject.get(project.id) ?? 0;
+      const job = projectJobPnl({
+        subCategory: project.subCategory,
+        paidInvoiceRevenue: sumPaidForProject(paidPeriods),
+        inventoryOut,
+        wagesOut,
+        purchasesOut,
+        parking: parkingByProject.get(project.id) ?? null,
+        payroll: singleBank
           ? { moneyIn: 0, moneyOut: 0 }
-          : payrollByProject.get(project.id);
-        moneyIn = payroll?.moneyIn ?? 0;
-        wagesOut = payroll?.moneyOut ?? 0;
-        inventoryOut = 0;
-        moneyIn += keptDeposit + payRecovery;
-        const moneyOut = wagesOut + depositReturned + incidents;
-        totalContractValue += contractValue ?? 0;
-        totalMoneyIn += moneyIn;
-        totalSpending += moneyOut;
-        return {
-          id: project.id,
-          name: project.name,
-          location: project.location,
-          status: project.status,
-          subCategory: project.subCategory,
-          contractValue,
-          moneyIn,
-          moneyOut,
-          inventoryOut,
-          wagesOut,
-          profit: moneyIn - moneyOut,
-          awaitingPayment,
-          clientsOwe: clientsOweForProject,
-        };
-      }
-      moneyIn += keptDeposit + payRecovery;
-      const moneyOut =
-        inventoryOut + wagesOut + purchasesOut + depositReturned + incidents;
+          : payrollByProject.get(project.id) ?? null,
+        incidents,
+      });
       totalContractValue += contractValue ?? 0;
-      totalMoneyIn += moneyIn;
-      totalSpending += moneyOut;
-
-      const profit = moneyIn - moneyOut;
-
       return {
         id: project.id,
         name: project.name,
@@ -758,27 +678,39 @@ export async function getFinancialReportClientProjects(
         status: project.status,
         subCategory: project.subCategory,
         contractValue,
-        moneyIn,
-        moneyOut,
-        inventoryOut,
-        wagesOut,
-        profit,
+        revenue: job.revenue,
+        costOfSales: job.costOfSales,
+        grossProfit: job.grossProfit,
+        moneyIn: job.revenue,
+        moneyOut: job.costOfSales,
+        inventoryOut:
+          project.subCategory === "PARKING" ? purchasesOut : inventoryOut,
+        wagesOut:
+          project.subCategory === "PAYROLL_MANAGEMENT"
+            ? job.costOfSales - incidents
+            : wagesOut,
+        profit: job.grossProfit,
         awaitingPayment,
         clientsOwe: clientsOweForProject,
       };
     }
   );
 
-  const profit = totalMoneyIn - totalSpending;
+  const revenue = projects.reduce((sum, row) => sum + row.revenue, 0);
+  const costOfSales = projects.reduce((sum, row) => sum + row.costOfSales, 0);
+  const grossProfit = revenue - costOfSales;
   return {
     clientName: client.name,
     totalContractValue,
-    totalMoneyIn,
-    totalSpending,
-    profit,
+    revenue,
+    costOfSales,
+    grossProfit,
+    totalMoneyIn: revenue,
+    totalSpending: costOfSales,
+    profit: grossProfit,
     clientsOwe,
     vendorsOwe,
-    netPosition: profit - vendorsOwe.unpaid,
+    netPosition: grossProfit - vendorsOwe.unpaid,
     projects,
   };
 }
@@ -851,7 +783,6 @@ export async function getFinancialReportProjectDetail(
     })
   );
 
-  let moneyIn = paidLines.reduce((sum, line) => sum + line.amount, 0);
   const [
     inventoryOutBase,
     inventoryIssues,
@@ -860,10 +791,7 @@ export async function getFinancialReportProjectDetail(
     parkingByProject,
     payrollByProject,
     payRecoveryLines,
-    depositReturned,
-    keptDepositIn,
     incidentAgg,
-    incidentIncomeAgg,
     clientsOwe,
   ] = await Promise.all([
     getProjectInventoryCost(project.id, {
@@ -901,14 +829,8 @@ export async function getFinancialReportProjectDetail(
       calendar.toExclusive
     ),
     listProjectLostStockPayRecovery(project.id, companyId),
-    sumProjectDepositReturns(project.id, companyId, {
-      year: selection.year,
-      month: selection.month,
-    }),
-    Promise.resolve(0),
     prisma.projectExpense.aggregate({
       where: {
-        ...LIVE_PROJECT_EXPENSE_WHERE,
         projectId: project.id,
         amount: { gt: 0 },
         incurredAt: { gte: calendar.from, lt: calendar.toExclusive },
@@ -916,18 +838,9 @@ export async function getFinancialReportProjectDetail(
       },
       _sum: { amount: true },
     }),
-    prisma.projectExpense.aggregate({
-      where: {
-        ...LIVE_PROJECT_EXPENSE_WHERE,
-        projectId: project.id,
-        amount: { lt: 0 },
-        incurredAt: { gte: calendar.from, lt: calendar.toExclusive },
-        ...bankAccountWhere(bank),
-      },
-      _sum: { amount: true },
-    }),
     getClientsOwed(companyId, clientId, project.id, { includeCatchUp: true }),
   ]);
+
   let inventoryOut = singleBank ? 0 : inventoryOutBase;
   let wagesOut = singleBank
     ? 0
@@ -944,28 +857,23 @@ export async function getFinancialReportProjectDetail(
     0
   );
   const incidentOut = decimalToNumber(incidentAgg._sum.amount) ?? 0;
-  const incidentIncome = Math.abs(
-    decimalToNumber(incidentIncomeAgg._sum.amount) ?? 0
-  );
-  moneyIn += incidentIncome;
-  let moneyOut =
-    inventoryOut + wagesOut + purchasesOut + (singleBank ? 0 : depositReturned) + incidentOut;
-  if (project.subCategory === "PARKING") {
-    const parking = parkingByProject.get(project.id);
-    moneyIn = parking?.moneyIn ?? 0;
-    inventoryOut = purchasesOut;
-    moneyOut = (parking?.dealOut ?? 0) + purchasesOut + wagesOut + incidentOut;
-  } else if (project.subCategory === "PAYROLL_MANAGEMENT") {
-    const payroll = singleBank
+  const parkingDealOut = parkingByProject.get(project.id)?.dealOut ?? 0;
+  const job = projectJobPnl({
+    subCategory: project.subCategory,
+    paidInvoiceRevenue: paidLines.reduce((sum, line) => sum + line.amount, 0),
+    inventoryOut,
+    wagesOut,
+    purchasesOut,
+    parking: parkingByProject.get(project.id) ?? null,
+    payroll: singleBank
       ? { moneyIn: 0, moneyOut: 0 }
-      : payrollByProject.get(project.id);
-    moneyIn = payroll?.moneyIn ?? 0;
+      : payrollByProject.get(project.id) ?? null,
+    incidents: incidentOut,
+  });
+  if (project.subCategory === "PAYROLL_MANAGEMENT") {
     inventoryOut = 0;
-    wagesOut = payroll?.moneyOut ?? 0;
-    moneyOut = wagesOut + incidentOut;
+    wagesOut = job.costOfSales - incidentOut;
   }
-  moneyIn += singleBank ? 0 : keptDepositIn + payRecoveryOut;
-  const profit = moneyIn - moneyOut;
 
   return {
     clientId: project.clientId,
@@ -976,17 +884,26 @@ export async function getFinancialReportProjectDetail(
     status: project.status,
     subCategory: project.subCategory,
     contractValue,
-    moneyIn,
-    moneyOut,
+    revenue: job.revenue,
+    costOfSales: job.costOfSales,
+    grossProfit: job.grossProfit,
+    moneyIn: job.revenue,
+    moneyOut: job.costOfSales,
     inventoryOut,
     wagesOut,
-    profit,
-    marginPercent: profitMarginPercent(moneyIn, profit),
+    purchasesOut,
+    incidentsOut: incidentOut,
+    parkingDealOut,
+    profit: job.grossProfit,
+    marginPercent: profitMarginPercent(job.revenue, job.grossProfit),
     paidLines,
-    inventoryIssues,
+    inventoryIssues: inventoryIssues.filter(
+      (row) => !isEquipmentItemType(row.item.itemType)
+    ),
     wageLines,
     payRecoveryLines: periodPayRecovery,
     payRecoveryOut,
     clientsOwe,
   };
 }
+

@@ -701,6 +701,7 @@ export async function loadInternalPayrollMonth(options: {
             doubleShifts: doubleShiftsForEmployee,
             decisions,
             dailyRate,
+            maxPaidShifts: INTERNAL_PAYROLL_WORKING_DAYS_DIVISOR,
           });
       const daysWorked = paid.daysWorked;
       const wage = paid.wage;

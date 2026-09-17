@@ -377,6 +377,13 @@ enum LoanMovementKind {
   REPAYMENT
 }
 
+/// Company drawer cash: taken from a bank, or spent on an expense.
+enum CompanyCashMovementKind {
+  WITHDRAW
+  SPEND
+  DEPOSIT
+}
+
 /// How the stored interest percent is quoted. Monthly 1 = 1% this month. Annual 12 = 1% this month.
 enum LoanInterestBasis {
   MONTHLY
@@ -560,7 +567,7 @@ model Company {
   cashAtBankOpening     Decimal?  @db.Decimal(14, 2)
   cashAtBankOpeningAsOf DateTime? @db.Date
 
-  /// First calendar day this ERP is live. Before this, catch-up / history is recorded only.
+  /// Optional future go-live cut. Unused for intake and period bounds; kept on the company record.
   booksOpenDate DateTime? @db.Date
 
   /// Company BPJS Kesehatan virtual account (prefilled on government expenses).
@@ -581,6 +588,7 @@ model Company {
   projects            Project[]
   invoiceCompilations InvoiceCompilation[]
   purchaseInvoices    PurchaseInvoice[]
+  cashMovements       CompanyCashMovement[]
   thrPayments         ThrPayment[]
   inventoryItems      InventoryItem[]
   inventoryPurchases  InventoryPurchase[]
@@ -605,6 +613,7 @@ model Company {
   loanFacilities      LoanFacility[]
   bpjsRemittances     BpjsRemittance[]
   projectServiceAreas ProjectServiceAreaCatalog[]
+  taxRateTypes        TaxRateType[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -627,6 +636,7 @@ model CompanyBankAccount {
   invoicePeriods ProjectInvoicePeriod[]
   inventorySales InventorySale[]
   purchaseInvoices PurchaseInvoice[]
+  cashWithdrawals  CompanyCashMovement[]
   loanFacilities   LoanFacility[]
   loanMovements    LoanMovement[]
   prepaidCardEntries PrepaidCardEntry[]
@@ -922,6 +932,7 @@ model User {
   createdPettyCashEntries   PettyCashEntry[] @relation("PettyCashEntryCreator")
   createdLoanFacilities     LoanFacility[]   @relation("LoanFacilityCreator")
   createdLoanMovements      LoanMovement[]   @relation("LoanMovementCreator")
+  createdCompanyCashMovements CompanyCashMovement[] @relation("CompanyCashMovementCreator")
   createdBpjsRemittances    BpjsRemittance[] @relation("BpjsRemittanceCreator")
   assignedDoubleShifts      DoubleShiftAssignment[] @relation("DoubleShiftAssignedBy")
   createdFactoryReturns     EquipmentFactoryReturn[] @relation("FactoryReturnCreator")
@@ -1123,6 +1134,9 @@ model Project {
   invoicingDay Int          @default(1)
   /// Total / monthly contract value (IDR). Cleaning: set in billing. Security: monthly service fee at create.
   contractPrice Decimal?    @db.Decimal(14, 2)
+  /// Percent of exclusive contract price billed as a Down Payment invoice
+  /// before work. One-time jobs only (GC, Facade, landscaping, security, maintenance).
+  downPaymentPercent Decimal? @db.Decimal(5, 2)
   billingMode BillingMode   @default(MONTHLY)
   status      ProjectStatus @default(PLANNED)
   subCategory ProjectSubCategory @default(REGULAR_CLEANING)
@@ -1150,6 +1164,8 @@ model Project {
   chargedTaxKind CommercialTaxKind?
   /// Article 23 / 4-2 / other non-VAT rate when chargedTaxKind needs a percent.
   pphRatePercent Decimal? @db.Decimal(5, 2)
+  /// Tax Rates table code when chargedTaxKind is OTHER.
+  taxRateCode String?
   /// Required when chargedTaxKind = OTHER.
   otherTaxName String?
   /// Parking: one-time initial setup cost (IDR).
@@ -1562,6 +1578,9 @@ model PurchaseInvoice {
   /// Company bank this purchase is paid from, or will be paid from.
   bankAccountId String?
   bankAccount   CompanyBankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  /// True when the supplier was paid from Cash At Hand, not a company bank.
+  paidWithCash Boolean @default(false)
+  cashSpend    CompanyCashMovement?
 
   /// Vendor bank this purchase is paid to.
   vendorBankAccountId String?
@@ -1612,11 +1631,44 @@ model PurchaseInvoice {
   @@index([employeeId])
   @@index([taxInvoiceSerial])
   @@index([bankAccountId])
+  @@index([companyId, paidWithCash])
   @@index([taxInvoiceDocumentHash])
   @@index([taxInvoiceIssuedAt, amount])
   @@index([projectId])
   @@index([companyId, purpose])
   @@index([prepaidCardId])
+}
+
+/// Hard cash taken from a company bank and held until spent. Location is not recorded.
+model CompanyCashMovement {
+  id String @id @default(cuid())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  kind       CompanyCashMovementKind
+  amount     Decimal                 @db.Decimal(14, 2)
+  occurredAt DateTime                @db.Date
+
+  /// Bank the cash was withdrawn from or returned to. Required on WITHDRAW and DEPOSIT.
+  bankAccountId String?
+  bankAccount   CompanyBankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+
+  /// Expense this cash paid. Required on SPEND.
+  purchaseInvoiceId String?          @unique
+  purchaseInvoice   PurchaseInvoice? @relation(fields: [purchaseInvoiceId], references: [id], onDelete: SetNull)
+
+  note String?
+
+  createdById String?
+  createdBy   User? @relation("CompanyCashMovementCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  reversedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([companyId, occurredAt])
+  @@index([companyId, kind, reversedAt])
+  @@index([bankAccountId])
 }
 
 /// Bank or shareholder facility. Draws are funding in. Returns reduce the payable.
@@ -2258,6 +2310,8 @@ model ProjectInvoicePeriod {
   bankAccount      CompanyBankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
   /// Cumulative project progress % this milestone represents (e.g. 30, 60, 100).
   milestonePercent Float?
+  /// First invoice on a one-time job, issued before Submit for Approval.
+  isDownPayment Boolean @default(false)
 
   invoicePdfPath String?
   reportCount    Int     @default(0)
@@ -2340,7 +2394,7 @@ model ProjectInvoicePeriod {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([projectId, periodStart, periodEnd])
+  @@unique([projectId, periodStart, periodEnd, isDownPayment])
   @@index([projectId, status])
   @@index([clientReviewStatus])
   @@index([taxInvoiceRequired, taxInvoiceDoneAt])
@@ -3359,4 +3413,45 @@ model PayrollManagementDayDecision {
 
   @@unique([periodId, employeeId, workDate])
   @@index([employeeId, workDate])
+}
+
+enum TaxRateAppliesTo {
+  CLIENT_CHARGE
+  CORPORATE
+}
+
+/// Company tax type (PPN, PPh Badan, PPh 23, or a custom type).
+model TaxRateType {
+  id             String           @id @default(cuid())
+  companyId      String
+  company        Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// Stable key: PPN, PPH_BADAN, PPH_23, or a custom slug.
+  code           String
+  name           String
+  appliesTo      TaxRateAppliesTo
+  /// Optional map onto CommercialTaxKind (PPN, PPH_23, OTHER, …).
+  commercialKind String?
+  isSystem       Boolean          @default(false)
+  archivedAt     DateTime?
+  versions       TaxRateVersion[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([companyId, code])
+  @@index([companyId, appliesTo])
+}
+
+/// One published percent, in force from effectiveFrom until the next version.
+model TaxRateVersion {
+  id            String      @id @default(cuid())
+  typeId        String
+  type          TaxRateType @relation(fields: [typeId], references: [id], onDelete: Cascade)
+  ratePercent   Decimal     @db.Decimal(7, 4)
+  effectiveFrom DateTime    @db.Date
+  note          String?
+  createdById   String?
+  createdAt     DateTime    @default(now())
+
+  @@unique([typeId, effectiveFrom])
+  @@index([typeId, effectiveFrom])
 }

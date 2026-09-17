@@ -44,7 +44,10 @@ import {
   toDateInputValue,
   todayDateInput,
 } from "@/lib/project-contract";
-import { detailActionBarButtonClassName } from "@/components/projects/detail-action-bar";
+import {
+  detailActionBarButtonClassName,
+  detailActionBarInlineButtonClassName,
+} from "@/components/projects/detail-action-bar";
 import { useT } from "@/lib/i18n/use-t";
 import { isServiceProjectSubCategory } from "@/lib/project-subcategory";
 import { PROJECT_LIST_VIEW_PATHS } from "@/lib/project-status";
@@ -495,7 +498,7 @@ export function ProjectReturnToPlanningBlockedChip({
       aria-label={blockedNote}
       className={cn(
         isBadge && "whitespace-normal",
-        isBar && detailActionBarButtonClassName,
+        isBar && detailActionBarInlineButtonClassName,
         className
       )}
     >
@@ -536,7 +539,7 @@ export function ProjectReturnToPlanningButton({
       onClick={moveBackToPlanning}
       className={cn(
         isBadge && "whitespace-normal",
-        isBar && detailActionBarButtonClassName
+        isBar && detailActionBarInlineButtonClassName
       )}
     >
       {isBadge ? (

@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useMemo, useTransition } from "react";
 import { ArrowDownLeft, ArrowUpRight, Scale, Wallet } from "lucide-react";
 
-import { FinancePeriodToolbar } from "@/components/billing/finance-toolbar";
+import { FinancePeriodToolbar, financeToolbarActionClass } from "@/components/billing/finance-toolbar";
+import TaxInvoiceReportDownloadButton from "@/components/billing/TaxInvoiceReportDownloadButton";
 import TaxReportDownloadButton from "@/components/billing/TaxReportDownloadButton";
 
 import { employeeSelectTriggerClass } from "@/components/employees/employee-dialog-ui";
@@ -31,16 +32,16 @@ import { localeToBcp47 } from "@/lib/i18n/locale";
 import { useT } from "@/lib/i18n/use-t";
 import { formatContractPrice } from "@/lib/project-billing";
 import { formatTaxInvoiceSerial } from "@/lib/tax-invoice-serial";
+import {
+  TAX_REPORT_VIEWS,
+  type TaxReportView,
+} from "@/lib/tax-report-view";
 import { cn } from "@/lib/utils";
 import { DEFAULT_INCLUSIVE_PPN_RATE } from "@/lib/vat";
 import type {
   IncomeTaxCreditRow,
   VatLedgerRow,
 } from "@/lib/vat-ledger";
-
-export type { IncomeTaxCreditRow, VatLedgerRow };
-
-type TaxReportView = "output" | "input" | "income" | "other";
 
 type Props = {
   year: number;
@@ -52,8 +53,6 @@ type Props = {
   creditBroughtForward?: number;
   outputRows: VatLedgerRow[];
   inputRows: VatLedgerRow[];
-  outputPending: number;
-  inputPending: number;
   incomeRows?: IncomeTaxCreditRow[];
   incomeImportTotal?: number;
   incomeInstallmentTotal?: number;
@@ -66,6 +65,17 @@ type Props = {
   hideOutputLink?: boolean;
 };
 
+function withFromParam(href: string, view: TaxReportView): string {
+  const queryIndex = href.indexOf("?");
+  const path = queryIndex === -1 ? href : href.slice(0, queryIndex);
+  const params = new URLSearchParams(
+    queryIndex === -1 ? "" : href.slice(queryIndex + 1)
+  );
+  params.set("from", view);
+  const query = params.toString();
+  return query ? `${path}?${query}` : path;
+}
+
 export default function VatReportPanel({
   year,
   month,
@@ -75,8 +85,6 @@ export default function VatReportPanel({
   net,
   outputRows,
   inputRows,
-  outputPending,
-  inputPending,
   creditBroughtForward = 0,
   incomeRows = [],
   incomeImportTotal = 0,
@@ -91,10 +99,11 @@ export default function VatReportPanel({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const bcp47 = localeToBcp47(locale);
-  const rows = view === "output" ? outputRows : inputRows;
   const incomeCreditTotal = incomeImportTotal + incomeInstallmentTotal;
+  const isAll = view === "all";
   const isIncome = view === "income";
   const isOther = view === "other";
+  const showVatStats = isAll || view === "output" || view === "input";
   const wholeYear = month == null;
   const ratePct = Math.round(DEFAULT_INCLUSIVE_PPN_RATE * 100);
   const monthOptions = useMemo(
@@ -126,11 +135,15 @@ export default function VatReportPanel({
     ).toString()}`;
   }
 
-  const columns: DataTableColumn<VatLedgerRow>[] = [
+  function openRow(href: string) {
+    router.push(withFromParam(href, view));
+  }
+
+  const vatColumns = (kind: "output" | "input"): DataTableColumn<VatLedgerRow>[] => [
     {
       key: "party",
       title:
-        view === "output"
+        kind === "output"
           ? t("pages.vat.columns.client")
           : t("pages.vat.columns.vendor"),
       width: "14rem",
@@ -203,7 +216,9 @@ export default function VatReportPanel({
     },
   ];
 
-  const incomeColumns: DataTableColumn<IncomeTaxCreditRow>[] = [
+  const amountColumns = (
+    amountKind: "income" | "other"
+  ): DataTableColumn<IncomeTaxCreditRow>[] => [
     {
       key: "source",
       title: t("pages.vat.columns.source"),
@@ -229,9 +244,10 @@ export default function VatReportPanel({
     },
     {
       key: "credit",
-      title: isOther
-        ? t("pages.vat.columns.amount")
-        : t("pages.vat.columns.credit"),
+      title:
+        amountKind === "other"
+          ? t("pages.vat.columns.amount")
+          : t("pages.vat.columns.credit"),
       width: "10rem",
       align: "right",
       className: "min-w-[10rem] tabular-nums font-medium text-text",
@@ -253,12 +269,152 @@ export default function VatReportPanel({
     },
   ];
 
+  function renderVatSection(kind: "output" | "input") {
+    const rows = kind === "output" ? outputRows : inputRows;
+    return (
+      <SectionCard key={kind}>
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-text">
+              {kind === "output"
+                ? t("pages.vat.outputTitle")
+                : t("pages.vat.inputTitle")}
+            </h2>
+            <p className="mt-1 text-sm text-subtle">
+              {kind === "output"
+                ? t("pages.vat.outputDesc")
+                : t("pages.vat.inputDesc")}
+            </p>
+          </div>
+          {!hideOutputLink || kind === "input" ? (
+            <Link
+              href={
+                kind === "output"
+                  ? "/billing/tax-invoices"
+                  : "/billing/purchase-invoices?view=tax"
+              }
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            >
+              {kind === "output"
+                ? t("pages.vat.openTaxInvoices")
+                : t("pages.vat.openPurchases")}
+            </Link>
+          ) : null}
+        </div>
+        {rows.length === 0 ? (
+          <EmptyState
+            title={
+              kind === "output"
+                ? t("pages.vat.emptyOutput")
+                : t("pages.vat.emptyInput")
+            }
+            description={
+              kind === "output"
+                ? t("pages.vat.emptyOutputDesc")
+                : t("pages.vat.emptyInputDesc")
+            }
+          />
+        ) : (
+          <DataTable
+            columns={vatColumns(kind)}
+            data={rows}
+            getRowKey={(row) => row.id}
+            onRowClick={(row) => openRow(row.href)}
+          />
+        )}
+      </SectionCard>
+    );
+  }
+
+  function renderAmountSection(kind: "income" | "other") {
+    const rows = kind === "other" ? otherRows : incomeRows;
+    return (
+      <SectionCard key={kind}>
+        <div className="mb-4">
+          <h2 className="text-base font-semibold text-text">
+            {kind === "other"
+              ? t("pages.vat.otherTitle")
+              : t("pages.vat.incomeTitle")}
+          </h2>
+          <p className="mt-1 text-sm text-subtle">
+            {kind === "other"
+              ? t("pages.vat.otherDesc")
+              : t("pages.vat.incomeDesc")}
+          </p>
+        </div>
+        {rows.length === 0 ? (
+          <EmptyState
+            title={
+              kind === "other"
+                ? t("pages.vat.emptyOther")
+                : t("pages.vat.emptyIncome")
+            }
+            description={
+              kind === "other"
+                ? t("pages.vat.emptyOtherDesc")
+                : t("pages.vat.emptyIncomeDesc")
+            }
+          />
+        ) : (
+          <DataTable
+            columns={amountColumns(kind)}
+            data={rows}
+            getRowKey={(row) => row.id}
+            onRowClick={(row) => openRow(row.href)}
+          />
+        )}
+      </SectionCard>
+    );
+  }
+
+  const hint = isAll
+    ? t("pages.vat.taxReportHint")
+    : isIncome
+      ? t("pages.vat.incomeDesc")
+      : isOther
+        ? t("pages.vat.otherDesc")
+        : t("pages.vat.rateHint", { rate: ratePct });
+
   return (
     <div className="space-y-6">
+      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+        <div className={chipScrollRowClassName("min-w-0 sm:flex-1")}>
+          {TAX_REPORT_VIEWS.map((tab) => (
+            <DirectoryFilterTab
+              key={tab}
+              href={periodHref(tab)}
+              active={view === tab}
+              count={
+                tab === "all"
+                  ? outputRows.length +
+                    inputRows.length +
+                    incomeRows.length +
+                    otherRows.length
+                  : tab === "output"
+                    ? outputRows.length
+                    : tab === "input"
+                      ? inputRows.length
+                      : tab === "income"
+                        ? incomeRows.length
+                        : otherRows.length
+              }
+            >
+              {t(`pages.vat.tabs.${tab}`)}
+            </DirectoryFilterTab>
+          ))}
+        </div>
+        <TaxInvoiceReportDownloadButton view={view} />
+        <Link
+          href="/billing/tax-invoices/rates"
+          className={financeToolbarActionClass}
+        >
+          {t("pages.taxRates.button")}
+        </Link>
+      </div>
+
       <div className="space-y-3">
         <FinancePeriodToolbar
           label={t("pages.vat.period")}
-          action={<TaxReportDownloadButton year={year} month={month} />}
           className={cn(pending && "pointer-events-none opacity-70")}
         >
             <Select
@@ -317,14 +473,14 @@ export default function VatReportPanel({
                 ))}
               </SelectContent>
             </Select>
+            <TaxReportDownloadButton
+              year={year}
+              month={month}
+              view={view}
+              className="w-auto"
+            />
         </FinancePeriodToolbar>
-        <p className="max-w-xl text-sm text-subtle">
-          {isIncome
-            ? t("pages.vat.incomeDesc")
-            : isOther
-              ? t("pages.vat.otherDesc")
-              : t("pages.vat.rateHint", { rate: ratePct })}
-        </p>
+        <p className="max-w-xl text-sm text-subtle">{hint}</p>
       </div>
 
       {isOther ? (
@@ -375,7 +531,7 @@ export default function VatReportPanel({
             accent="primary"
           />
         </DirectoryStatGrid>
-      ) : (
+      ) : showVatStats ? (
       <DirectoryStatGrid>
         <DirectoryStatCard
           title={t("pages.vat.outputTotal")}
@@ -422,125 +578,24 @@ export default function VatReportPanel({
           accent={creditBroughtForward > 0 ? "success" : "primary"}
         />
       </DirectoryStatGrid>
-      )}
+      ) : null}
 
-      <div className={chipScrollRowClassName()}>
-        <DirectoryFilterTab
-          href={periodHref("output")}
-          active={view === "output"}
-          count={outputRows.length}
-        >
-          {t("pages.vat.tabs.output")}
-          {outputPending > 0
-            ? ` · ${t("pages.vat.pendingCount", { count: outputPending })}`
-            : null}
-        </DirectoryFilterTab>
-        <DirectoryFilterTab
-          href={periodHref("input")}
-          active={view === "input"}
-          count={inputRows.length}
-        >
-          {t("pages.vat.tabs.input")}
-          {inputPending > 0
-            ? ` · ${t("pages.vat.pendingCount", { count: inputPending })}`
-            : null}
-        </DirectoryFilterTab>
-        <DirectoryFilterTab
-          href={periodHref("income")}
-          active={view === "income"}
-          count={incomeRows.length}
-        >
-          {t("pages.vat.tabs.income")}
-        </DirectoryFilterTab>
-        <DirectoryFilterTab
-          href={periodHref("other")}
-          active={view === "other"}
-          count={otherRows.length}
-        >
-          {t("pages.vat.tabs.other")}
-        </DirectoryFilterTab>
-      </div>
-
-      <SectionCard>
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold text-text">
-              {view === "output"
-                ? t("pages.vat.outputTitle")
-                : view === "income"
-                  ? t("pages.vat.incomeTitle")
-                  : view === "other"
-                    ? t("pages.vat.otherTitle")
-                    : t("pages.vat.inputTitle")}
-            </h2>
-            <p className="mt-1 text-sm text-subtle">
-              {view === "output"
-                ? t("pages.vat.outputDesc")
-                : view === "income"
-                  ? t("pages.vat.incomeDesc")
-                  : view === "other"
-                    ? t("pages.vat.otherDesc")
-                    : t("pages.vat.inputDesc")}
-            </p>
-          </div>
-          {!isIncome && !isOther && (!hideOutputLink || view === "input") ? (
-            <Link
-              href={
-                view === "output"
-                  ? "/billing/tax-invoices"
-                  : "/billing/purchase-invoices?view=tax"
-              }
-              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-            >
-              {view === "output"
-                ? t("pages.vat.openTaxInvoices")
-                : t("pages.vat.openPurchases")}
-            </Link>
-          ) : null}
+      {isAll ? (
+        <div className="space-y-6">
+          {renderVatSection("output")}
+          {renderVatSection("input")}
+          {renderAmountSection("income")}
+          {renderAmountSection("other")}
         </div>
-
-        {isIncome || isOther ? (
-          (isOther ? otherRows : incomeRows).length === 0 ? (
-            <EmptyState
-              title={
-                isOther ? t("pages.vat.emptyOther") : t("pages.vat.emptyIncome")
-              }
-              description={
-                isOther
-                  ? t("pages.vat.emptyOtherDesc")
-                  : t("pages.vat.emptyIncomeDesc")
-              }
-            />
-          ) : (
-            <DataTable
-              columns={incomeColumns}
-              data={isOther ? otherRows : incomeRows}
-              getRowKey={(row) => row.id}
-              onRowClick={(row) => router.push(row.href)}
-            />
-          )
-        ) : rows.length === 0 ? (
-          <EmptyState
-            title={
-              view === "output"
-                ? t("pages.vat.emptyOutput")
-                : t("pages.vat.emptyInput")
-            }
-            description={
-              view === "output"
-                ? t("pages.vat.emptyOutputDesc")
-                : t("pages.vat.emptyInputDesc")
-            }
-          />
-        ) : (
-          <DataTable
-            columns={columns}
-            data={rows}
-            getRowKey={(row) => row.id}
-            onRowClick={(row) => router.push(row.href)}
-          />
-        )}
-      </SectionCard>
+      ) : view === "output" ? (
+        renderVatSection("output")
+      ) : view === "input" ? (
+        renderVatSection("input")
+      ) : view === "income" ? (
+        renderAmountSection("income")
+      ) : (
+        renderAmountSection("other")
+      )}
     </div>
   );
 }

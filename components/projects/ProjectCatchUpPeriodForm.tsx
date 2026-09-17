@@ -24,26 +24,37 @@ export default function ProjectCatchUpPeriodForm({
   projectId,
   target,
   bankAccounts,
+  suggestedExclusive,
+  periodId,
 }: {
   projectId: string;
   target: CatchUpCompleteTarget;
   bankAccounts: CompanyBankAccountOption[];
+  suggestedExclusive?: number | null;
+  periodId?: string | null;
 }) {
   const { t } = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [staffTotal, setStaffTotal] = useState("");
   const [materialTotal, setMaterialTotal] = useState("");
+  const [paid, setPaid] = useState(false);
 
   function submit(formData: FormData) {
     formData.set("projectId", projectId);
     formData.set("periodStart", target.periodStart);
     formData.set("periodEnd", target.periodEnd);
     formData.set("completeKind", target.kind);
+    if (paid) formData.set("catchUpPaid", "1");
     startTransition(async () => {
       try {
-        await completeCatchUpPeriod(formData);
-        router.push(`/projects/${projectId}/catch-up`);
+        const result = await completeCatchUpPeriod(formData);
+        const nextId = result?.periodId ?? periodId ?? null;
+        router.push(
+          nextId
+            ? `/projects/${projectId}/periods/${nextId}`
+            : `/projects/${projectId}`
+        );
         router.refresh();
       } catch (error) {
         showRejectionFromError(error, t("pages.projects.catchUp.failed"));
@@ -69,26 +80,43 @@ export default function ProjectCatchUpPeriodForm({
           name="clientAmount"
           className={employeeInputClass}
           required
+          defaultValue={
+            suggestedExclusive && suggestedExclusive > 0
+              ? suggestedExclusive
+              : undefined
+          }
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <FileDropField
-          id="catch-up-invoice"
-          name="catchUpInvoice"
-          label={t("pages.projects.catchUp.invoice")}
-          required
-          multiple
-        />
-        <FileDropField
-          id="catch-up-tax"
-          name="catchUpTaxInvoice"
-          label={t("pages.projects.catchUp.taxInvoice")}
-          required
-          multiple
-        />
-      </div>
+      <FileDropField
+        id="catch-up-tax"
+        name="catchUpTaxInvoice"
+        label={t("pages.projects.catchUp.taxInvoice")}
+        required
+        multiple
+      />
+      <p className={employeeDialogHintClass}>
+        {t("pages.projects.catchUp.invoiceHint")}{" "}
+        {t("pages.projects.catchUp.taxInvoiceHint")}
+      </p>
 
+      <label className="flex items-start gap-2 text-sm text-text">
+        <input
+          type="checkbox"
+          className="mt-1"
+          checked={paid}
+          onChange={(event) => setPaid(event.target.checked)}
+        />
+        <span>
+          {t("pages.projects.catchUp.paymentReceived")}
+          <span className={`mt-1 block ${employeeDialogHintClass}`}>
+            {t("pages.projects.catchUp.paymentHint")}
+          </span>
+        </span>
+      </label>
+
+      {paid ? (
+      <>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className={employeeDialogFieldClass}>
           <label className={employeeDialogLabelClass} htmlFor="catch-up-paid-at">
@@ -132,6 +160,8 @@ export default function ProjectCatchUpPeriodForm({
         required
         multiple
       />
+      </>
+      ) : null}
 
       <div className={employeeDialogFieldClass}>
         <label className={employeeDialogLabelClass} htmlFor="catch-up-staff-total">

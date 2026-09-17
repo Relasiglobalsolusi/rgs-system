@@ -19,6 +19,7 @@ import { buttonVariants } from "@/components/ui/button";
 import {
   financialReportCalendarRange,
   financialReportQueryString,
+  isCashBankSelection,
   parseFinancialReportSelection,
 } from "@/lib/financial-report-query";
 import {
@@ -36,6 +37,7 @@ import { formatHiredAtLabel, formatTenure } from "@/lib/format-tenure";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
 import { prisma } from "@/lib/prisma";
+import { listCompanyCashMovements } from "@/lib/company-cash";
 import { decimalToNumber, formatContractPrice } from "@/lib/project-billing";
 import { requireFinanceChild } from "@/lib/session";
 import { UNPAID_INVOICE_STATUSES } from "@/lib/billing";
@@ -54,6 +56,7 @@ const METRICS = [
   "ar",
   "ap",
   "warehouse",
+  "cashAtHand",
   "overhead",
   "deposits",
   "depositsReturned",
@@ -113,12 +116,13 @@ export default async function FinancialReportDetailPage({
     metric === "periodNet" || metric === "moneyIn" || metric === "moneyOut";
 
   const calendar = financialReportCalendarRange(selection);
+  const cashBasis = isCashBankSelection(selection.bank);
   const showImportRateDifference =
     metric === "periodNet" ||
     metric === "moneyIn" ||
     metric === "moneyOut" ||
     metric === "overhead";
-  const [company, clients, scopeClients, bankAccounts, importRateRows] =
+  const [company, clients, scopeClients, bankAccounts, importRateRows, cashMovements] =
     await Promise.all([
     getFinancialReportDetailTotals(selection, metric),
     needsClientDirectory
@@ -134,6 +138,12 @@ export default async function FinancialReportDetailPage({
           selection.bank
         )
       : Promise.resolve([]),
+    metric === "cashAtHand"
+      ? listCompanyCashMovements(prisma, session.user.companyId, {
+          from: calendar.from,
+          toExclusive: calendar.toExclusive,
+        })
+      : Promise.resolve([]),
   ]);
 
   const depositMetric =
@@ -148,7 +158,6 @@ export default async function FinancialReportDetailPage({
           where: {
             project: { companyId: session.user.companyId },
             status: { in: [...UNPAID_INVOICE_STATUSES] },
-            isCatchUp: false,
           },
           select: {
             id: true,
@@ -369,6 +378,14 @@ export default async function FinancialReportDetailPage({
             accent="info"
           />
         ) : null}
+        {metric === "cashAtHand" ? (
+          <DirectoryStatCard
+            title={t("pages.financialReport.cashAtHand")}
+            value={formatContractPrice(company.cashAtHand)}
+            subtitle={t("pages.financialReport.cashAtHandHint")}
+            accent="info"
+          />
+        ) : null}
         {metric === "overhead" ? (
           <>
             <DirectoryStatCard
@@ -427,6 +444,17 @@ export default async function FinancialReportDetailPage({
         ) : null}
       </DirectoryStatGrid>
 
+      {metric === "moneyIn" && cashBasis ? (
+        <p className="mb-4 text-sm text-subtle">
+          {t("pages.financialReport.detail.moneyInCashHelp")}
+        </p>
+      ) : null}
+      {metric === "moneyOut" && cashBasis ? (
+        <p className="mb-4 text-sm text-subtle">
+          {t("pages.financialReport.detail.moneyOutCashHelp")}
+        </p>
+      ) : null}
+
       {metric === "periodNet" || metric === "moneyIn" || metric === "moneyOut" ? (
         <FinancialReportClientDirectory
           clients={clients}
@@ -480,6 +508,81 @@ export default async function FinancialReportDetailPage({
           >
             {t("pages.financialReport.detail.openInventory")}
           </Link>
+        </SectionCard>
+      ) : null}
+
+      {metric === "cashAtHand" ? (
+        <SectionCard>
+          <p className="text-sm text-subtle">
+            {t("pages.financialReport.detail.cashAtHandHelp")}
+          </p>
+          {cashMovements.length === 0 ? (
+            <div className="mt-4">
+              <p className="text-sm font-medium text-text">
+                {t("pages.financialReport.detail.cashAtHandEmpty")}
+              </p>
+              <p className="mt-1 text-sm text-subtle">
+                {t("pages.financialReport.detail.cashAtHandEmptyDesc")}
+              </p>
+              <Link
+                href="/billing/purchase-invoices"
+                className={cn(buttonVariants({ variant: "default", size: "sm" }), "mt-4")}
+              >
+                {t("pages.billing.takeCash")}
+              </Link>
+            </div>
+          ) : (
+            <ul className="mt-3 divide-y divide-border">
+              {cashMovements.map((row) => (
+                <li
+                  key={row.id}
+                  className="flex flex-wrap items-center justify-between gap-2 py-2.5"
+                >
+                  <div>
+                    {row.kind === "SPEND" && row.purchaseInvoiceId ? (
+                      <Link
+                        href={`/billing/purchase-invoices/${row.purchaseInvoiceId}`}
+                        className="text-sm font-medium text-text hover:underline"
+                      >
+                        {t("pages.financialReport.cashAtHandSpend")}
+                      </Link>
+                    ) : (
+                      <p className="text-sm font-medium text-text">
+                        {row.kind === "DEPOSIT"
+                          ? t("pages.financialReport.cashAtHandDeposit")
+                          : row.kind === "SPEND"
+                            ? t("pages.financialReport.cashAtHandSpend")
+                            : t("pages.financialReport.cashAtHandWithdraw")}
+                      </p>
+                    )}
+                    <p className="text-xs text-subtle">
+                      {formatDisplayDate(row.occurredAt)}
+                      {(row.kind === "WITHDRAW" || row.kind === "DEPOSIT") &&
+                      row.bankLabel
+                        ? ` · ${row.bankLabel}`
+                        : ""}
+                      {row.kind === "SPEND"
+                        ? ` · ${row.supplierName ?? ""}${
+                            row.invoiceRef ? ` · ${row.invoiceRef}` : ""
+                          }`
+                        : ""}
+                      {row.note ? ` · ${row.note}` : ""}
+                    </p>
+                  </div>
+                  <p
+                    className={
+                      row.kind === "SPEND" || row.kind === "DEPOSIT"
+                        ? "text-sm font-medium tabular-nums text-warning"
+                        : "text-sm font-medium tabular-nums text-success"
+                    }
+                  >
+                    {row.kind === "SPEND" || row.kind === "DEPOSIT" ? "−" : "+"}
+                    {formatContractPrice(row.amount)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
         </SectionCard>
       ) : null}
 

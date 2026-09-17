@@ -17,8 +17,9 @@ import type { AppLocale } from "@/lib/i18n/locale";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
 import { prisma } from "@/lib/prisma";
-import { canAccess, isOwnerAccount } from "@/lib/permissions";
+import { canAccess, getAdvanceCashAccess, isOwnerAccount } from "@/lib/permissions";
 import { requireAdvanceCashPettyAccess, toPermissionUser } from "@/lib/session";
+import { parseModuleOverrides } from "@/lib/module-overrides";
 import { formFiles, saveAndSerializeUploads } from "@/lib/upload-paths";
 const UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 const UPLOAD_MIME = new Set([
@@ -126,7 +127,11 @@ export async function recordPettyCashSpend(formData: FormData) {
   }
   await requireActiveEmployee(session.user.companyId, holderEmployeeId, locale);
 
-  if (chargeType !== "client" && chargeType !== "project") {
+  if (
+    chargeType !== "client" &&
+    chargeType !== "project" &&
+    chargeType !== "headOffice"
+  ) {
     throw new Error(pettyCashMessage(locale, "chargeTypeRequired"));
   }
 
@@ -148,7 +153,7 @@ export async function recordPettyCashSpend(formData: FormData) {
       throw new Error(pettyCashMessage(locale, "projectInvalid"));
     }
     projectId = project.id;
-  } else {
+  } else if (chargeType === "client") {
     if (!clientIdRaw) {
       throw new Error(pettyCashMessage(locale, "clientRequired"));
     }
@@ -268,6 +273,39 @@ export async function transferPettyCash(formData: FormData) {
     requireActiveEmployee(session.user.companyId, fromEmployeeId, locale),
     requireActiveEmployee(session.user.companyId, toRaw, locale),
   ]);
+
+  const recipientUser = await prisma.user.findFirst({
+    where: { employee: { id: toEmployee.id } },
+    select: {
+      role: true,
+      username: true,
+      clientId: true,
+      vendorId: true,
+      moduleOverrides: true,
+      employee: {
+        select: {
+          employeeNo: true,
+          employeeType: true,
+          jobPosition: {
+            select: { slug: true, name: true, defaultModuleAccess: true },
+          },
+        },
+      },
+    },
+  });
+  if (
+    !recipientUser ||
+    !getAdvanceCashAccess(
+      toPermissionUser({
+        user: {
+          ...recipientUser,
+          moduleOverrides: parseModuleOverrides(recipientUser.moduleOverrides),
+        },
+      })
+    ).petty
+  ) {
+    throw new Error(pettyCashMessage(locale, "transferNeedsPettyModule"));
+  }
 
   const fromName = formatEmployeeName(fromEmployee);
   const toName = formatEmployeeName(toEmployee);

@@ -10,10 +10,8 @@ import {
   toDecimal,
 } from "@/lib/inventory";
 import { lockInventoryItemRow } from "@/lib/inventory-access";
-import {
-  isPrepaidCardTopUpInvoice,
-  unwindPrepaidTopUpFromInvoice,
-} from "@/lib/advance-cash-expense";
+import { isPrepaidCardTopUpInvoice, unwindPrepaidTopUpFromInvoice } from "@/lib/advance-cash-expense";
+import { reverseCashSpendForPurchase } from "@/lib/company-cash";
 import { decimalToNumber } from "@/lib/project-billing";
 import { voidOdometerReadingForSource } from "@/lib/vehicle-odometer";
 
@@ -213,6 +211,8 @@ export async function unwindAndReversePurchaseInvoice(
   if (isPrepaidCardTopUpInvoice(invoice)) {
     await unwindPrepaidTopUpFromInvoice(tx, invoice);
   }
+
+  await reverseCashSpendForPurchase(tx, invoice.id);
 
   await voidOdometerReadingForSource(tx, {
     purchaseInvoiceId: invoice.id,

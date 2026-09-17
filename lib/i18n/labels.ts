@@ -148,6 +148,7 @@ export function localizeBillingChipLines(
     | "verifyingPayment"
     | "readyToReconcile"
     | "readyToInvoice"
+    | "awaitingProgress"
     | "awaitingClientReview"
     | "taxInvoiceDue"
     | "taxInvoiceDone"

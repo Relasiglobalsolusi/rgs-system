@@ -194,20 +194,11 @@ export default function ServiceCommercialFields({
           </p>
         </div>
         <div className={employeeDialogFieldClass}>
-          <label className="text-sm font-medium text-text">
+          <p className="text-sm font-medium text-text">
             {t("pages.projects.serviceCommercial.payrollTaxPercent")}
-          </label>
-          <Input
-            name={nameOf("payrollTaxPercent")}
-            type="number"
-            min={0}
-            max={100}
-            step="0.01"
-            defaultValue={percentDefault(defaults?.payrollTaxPercent ?? 11)}
-            className={employeeInputClass}
-          />
+          </p>
           <p className={employeeDialogHintClass}>
-            {t("pages.projects.serviceCommercial.payrollTaxPercentHint")}
+            {t("pages.taxRates.followsTable")}
           </p>
         </div>
         <div className={employeeDialogFieldClass}>

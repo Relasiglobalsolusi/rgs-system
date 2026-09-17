@@ -39,7 +39,7 @@ const UNPAID_STATUSES = UNPAID_INVOICE_STATUSES;
  * Projects.
  */
 export function isProjectFullyPaid(
-  periods: { status: string }[],
+  periods: { status: string; isDownPayment?: boolean | null }[],
   subCategory?: string | null
 ): boolean {
   if (periods.length === 0) {
@@ -47,9 +47,23 @@ export function isProjectFullyPaid(
   }
   const hasPaid = periods.some((p) => p.status === "PAID");
   if (!hasPaid) return false;
-  return !periods.some((p) =>
-    (OPEN_COLLECTION_STATUSES as readonly string[]).includes(p.status)
-  );
+  const unpaidIssued = periods.some((p) => {
+    if (p.status === "PAID") return false;
+    if (
+      (OPEN_COLLECTION_STATUSES as readonly string[]).includes(p.status)
+    ) {
+      return true;
+    }
+    if (
+      "isDownPayment" in p &&
+      (p as { isDownPayment?: boolean | null }).isDownPayment &&
+      p.status !== "PAID"
+    ) {
+      return true;
+    }
+    return false;
+  });
+  return !unpaidIssued;
 }
 
 /** Prisma: COMPLETED contract with all issued invoices collected. */

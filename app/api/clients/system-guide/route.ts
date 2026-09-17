@@ -105,7 +105,9 @@ export async function POST(request: NextRequest) {
       modules,
     });
     const buffer = await buildSystemGuidePdfBuffer({ guide, company });
-    const filename = systemGuideFilename(coverName, locale);
+    const filename = clientId
+      ? systemGuideFilename(coverName, locale)
+      : t("pages.clients.systemGuideFileName");
 
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,

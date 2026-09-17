@@ -569,6 +569,53 @@ export async function getProjectPettyCashOutflowsByProjectIds(
   return totals;
 }
 
+/**
+ * Posted spend / part-time pay for the P&L.
+ * Commercial job spend is cost of sales. Internal, client-only, and untagged
+ * spend is Head Office. Top-ups stay off the P&L (float funding, not expense).
+ */
+export async function sumPettyCashPnlOutflows(
+  db: PettyCashDb,
+  companyId: string,
+  from?: Date,
+  toExclusive?: Date
+): Promise<{ costOfSales: number; headOffice: number }> {
+  const empty = { costOfSales: 0, headOffice: 0 };
+  const entries = pettyCashDelegate(db);
+  if (!entries) return empty;
+  const dateFilter =
+    from || toExclusive
+      ? {
+          entryDate: {
+            ...(from ? { gte: from } : {}),
+            ...(toExclusive ? { lt: toExclusive } : {}),
+          },
+        }
+      : {};
+  const postedOutflow = {
+    companyId,
+    status: "POSTED" as const,
+    kind: { in: [...OUTFLOW_KINDS] },
+    ...dateFilter,
+  };
+  const [jobAgg, allAgg] = await Promise.all([
+    entries.aggregate({
+      where: {
+        ...postedOutflow,
+        project: { subCategory: { not: "INTERNAL" } },
+      },
+      _sum: { amount: true },
+    }),
+    entries.aggregate({
+      where: postedOutflow,
+      _sum: { amount: true },
+    }),
+  ]);
+  const costOfSales = decimalToNumber(jobAgg._sum.amount) ?? 0;
+  const all = decimalToNumber(allAgg._sum.amount) ?? 0;
+  return { costOfSales, headOffice: Math.max(0, all - costOfSales) };
+}
+
 export async function getClientPettyCashOutflowsByClientIds(
   db: PettyCashDb,
   companyId: string,

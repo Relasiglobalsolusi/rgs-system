@@ -19,9 +19,12 @@ import {
   decimalToNumber,
   formatContractPrice,
   formatMilestoneScheduleLabel,
+  isDownPaymentInvoicePeriod,
   isMilestoneSubCategory,
   parseContractPrice,
 } from "@/lib/project-billing";
+import { getServerLocale } from "@/lib/i18n/locale";
+import { translate } from "@/lib/i18n/translate";
 import { addUtcDays } from "@/lib/invoice-period";
 import {
   assertLiveBillingAllowed,
@@ -144,6 +147,11 @@ export async function sendPeriodForClientReview(
 
   if (!period) throw new Error("Billing period not found.");
   await assertLiveBillingAllowed(period);
+  if (isDownPaymentInvoicePeriod(period)) {
+    throw new Error(
+      "Down payment invoices do not go through progress review."
+    );
+  }
   if (
     period.status !== "ONGOING" &&
     period.status !== "COMPILING" &&
@@ -314,6 +322,12 @@ export async function sendPeriodForClientReview(
           });
 
     const uniqueReports = reports;
+    if (uniqueReports.length === 0) {
+      const locale = await getServerLocale();
+      throw new Error(
+        translate(locale, "pages.billing.progressReportsRequiredBeforeReview")
+      );
+    }
 
     const amount =
       decimalToNumber(period.amount) ?? decimalToNumber(project.contractPrice);

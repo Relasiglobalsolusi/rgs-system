@@ -41,7 +41,7 @@ export default function TaxFileActions({
         {files.map((file) => (
           <div
             key={file.id}
-            className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-border bg-elevated px-4 py-3"
+            className="flex flex-col gap-3 rounded-xl border border-border bg-elevated px-4 py-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between"
           >
             <div className="min-w-0">
               <p className="text-sm font-semibold text-text">{file.title}</p>

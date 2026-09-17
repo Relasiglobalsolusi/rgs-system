@@ -69,6 +69,7 @@ export default async function FinancialReportPage({
         company={company}
         queryString={queryString}
         clients={clients}
+        bank={selection.bank}
       />
       <FinancialReportClientDirectory
         clients={clients}

@@ -60,15 +60,10 @@ export type VatTaxWorkspace = {
   month: number | null;
   outputRows: VatLedgerRow[];
   inputRows: VatLedgerRow[];
-  yearOutputRows: VatLedgerRow[];
-  yearInputRows: VatLedgerRow[];
   outputTotal: number;
   inputTotal: number;
   net: number;
-  yearNet: number;
   creditBroughtForward: number;
-  outputPending: number;
-  inputPending: number;
   incomeRows: IncomeTaxCreditRow[];
   incomeImportTotal: number;
   incomeInstallmentTotal: number;
@@ -128,6 +123,7 @@ export async function loadVatTaxWorkspace(options: {
           taxInvoiceIssuedAt: true,
           taxInvoiceDoneAt: true,
           withholdingSlipPath: true,
+          withholdingSlipUploadedAt: true,
           project: {
             select: {
               id: true,
@@ -193,6 +189,7 @@ export async function loadVatTaxWorkspace(options: {
           taxInvoiceFilePath: true,
           taxInvoiceSerial: true,
           taxInvoiceIssuedAt: true,
+          taxInvoiceUploadedAt: true,
           vendor: { select: { id: true, name: true } },
         },
         orderBy: [{ taxInvoiceIssuedAt: "desc" }, { invoiceDate: "desc" }],
@@ -292,7 +289,8 @@ export async function loadVatTaxWorkspace(options: {
       }),
     ]);
 
-  const allOutputRows: VatLedgerRow[] = periods.map((period) => {
+  const allOutputRows: VatLedgerRow[] = [];
+  for (const period of periods) {
     const exclusive = periodCommercialAmount(period);
     const tax = exclusivePricePlusChargedTax({
       exclusiveAmount: exclusive,
@@ -304,13 +302,17 @@ export async function loadVatTaxWorkspace(options: {
     const government = Boolean(period.project.isGovernmentContract);
     const governmentVat =
       government && commercialTaxIncludesVat(period.project.chargedTaxKind);
+    const issuedAt = period.taxInvoiceIssuedAt ?? period.taxInvoiceDoneAt;
     const fakturReady = Boolean(
       period.taxInvoiceDocumentPath || period.taxInvoiceDoneAt
     );
+    if (!fakturReady || !issuedAt) {
+      continue;
+    }
     const storedRatePercent = decimalToNumber(period.ppnRatePercent);
     const rateLabel =
       storedRatePercent != null ? `${storedRatePercent}%` : null;
-    return {
+    allOutputRows.push({
       id: period.id,
       partyName: period.project.client?.name ?? "—",
       detail: [
@@ -321,22 +323,24 @@ export async function loadVatTaxWorkspace(options: {
       ]
         .filter(Boolean)
         .join(" · "),
-      date: (period.taxInvoiceIssuedAt ?? period.dueAt ?? period.periodEnd)
-        .toISOString(),
+      date: issuedAt.toISOString(),
       gross: tax.gross,
       dpp: tax.exclusive,
       ppn: tax.ppn,
       taxInvoiceSerial: period.taxInvoiceSerial,
-      fakturReady,
+      fakturReady: true,
       href: `/billing/tax-invoices/period/${period.id}`,
       remittanceExcluded: governmentVat,
-    };
-  });
+    });
+  }
 
   for (const sale of sales) {
     const dpp = decimalToNumber(sale.subtotal) ?? 0;
     const ppn = decimalToNumber(sale.taxAmount) ?? 0;
     if (ppn <= 0) continue;
+    if (!sale.buyerIdentityDocUrl) {
+      continue;
+    }
     const ratePercent = decimalToNumber(sale.taxRatePercent);
     allOutputRows.push({
       id: sale.id,
@@ -353,7 +357,7 @@ export async function loadVatTaxWorkspace(options: {
       dpp,
       ppn,
       taxInvoiceSerial: null,
-      fakturReady: Boolean(sale.buyerIdentityDocUrl),
+      fakturReady: true,
       href: `/billing/sales`,
     });
   }
@@ -376,40 +380,45 @@ export async function loadVatTaxWorkspace(options: {
       ? Math.max(0, handlingPaid - handlingDpp)
       : 0;
     const date = (
-      purchase.taxInvoiceIssuedAt ?? purchase.invoiceDate
+      purchase.taxInvoiceIssuedAt ??
+      purchase.taxInvoiceUploadedAt ??
+      purchase.invoiceDate
     ).toISOString();
     const href = `/billing/tax-invoices/purchase/${purchase.id}`;
     const vendorName = purchase.vendor?.name ?? purchase.supplierName;
 
     if (split.ppn > 0) {
-      const sourceLabel =
-        purchase.origin === "IMPORT"
-          ? t("pages.vat.inputSourceImport")
-          : purchase.purchaseCategory === "SERVICE"
-            ? t("pages.vat.inputSourceService")
-            : purchase.purchaseCategory === "VEHICLE"
-              ? t("pages.vat.inputSourceVehicle")
-              : t("pages.vat.inputSourceItems");
-      const rateLabel =
-        storedRatePercent != null ? `${storedRatePercent}%` : null;
-      allInputRows.push({
-        id: `${purchase.id}-goods`,
-        partyName: vendorName,
-        detail: [purchase.invoiceRef, sourceLabel, rateLabel]
-          .filter(Boolean)
-          .join(" · "),
-        date,
-        gross: split.gross,
-        dpp: split.dpp,
-        ppn: split.ppn,
-        taxInvoiceSerial: purchase.taxInvoiceSerial,
-        fakturReady:
-          purchase.origin === "IMPORT" || Boolean(purchase.taxInvoiceFilePath),
-        href,
-      });
+      const goodsIssued =
+        purchase.origin === "IMPORT" || Boolean(purchase.taxInvoiceFilePath);
+      if (goodsIssued) {
+        const sourceLabel =
+          purchase.origin === "IMPORT"
+            ? t("pages.vat.inputSourceImport")
+            : purchase.purchaseCategory === "SERVICE"
+              ? t("pages.vat.inputSourceService")
+              : purchase.purchaseCategory === "VEHICLE"
+                ? t("pages.vat.inputSourceVehicle")
+                : t("pages.vat.inputSourceItems");
+        const rateLabel =
+          storedRatePercent != null ? `${storedRatePercent}%` : null;
+        allInputRows.push({
+          id: `${purchase.id}-goods`,
+          partyName: vendorName,
+          detail: [purchase.invoiceRef, sourceLabel, rateLabel]
+            .filter(Boolean)
+            .join(" · "),
+          date,
+          gross: split.gross,
+          dpp: split.dpp,
+          ppn: split.ppn,
+          taxInvoiceSerial: purchase.taxInvoiceSerial,
+          fakturReady: true,
+          href,
+        });
+      }
     }
 
-    if (handlingPpn > 0) {
+    if (handlingPpn > 0 && purchase.taxInvoiceFilePath) {
       allInputRows.push({
         id: `${purchase.id}-handling`,
         partyName: purchase.handlingVendor?.name ?? vendorName,
@@ -421,7 +430,7 @@ export async function loadVatTaxWorkspace(options: {
         dpp: handlingDpp,
         ppn: handlingPpn,
         taxInvoiceSerial: purchase.taxInvoiceSerial,
-        fakturReady: Boolean(purchase.taxInvoiceFilePath),
+        fakturReady: true,
         href,
       });
     }
@@ -453,9 +462,6 @@ export async function loadVatTaxWorkspace(options: {
   const outputTotal = remitOutput(outputRows);
   const inputTotal = inputRows.reduce((sum, row) => sum + row.ppn, 0);
   const net = inputTotal - outputTotal;
-  const yearNet =
-    yearInputRows.reduce((sum, row) => sum + row.ppn, 0) -
-    remitOutput(yearOutputRows);
   const creditBroughtForward = broughtForwardVatCredit(
     allOutputRows.filter((row) => !row.remittanceExcluded),
     allInputRows,
@@ -471,6 +477,12 @@ export async function loadVatTaxWorkspace(options: {
       ? decimalToNumber(purchase.pph22AmountIdr) ?? 0
       : decimalToNumber(purchase.amount) ?? 0;
     if (amount <= 0) continue;
+    const documentReady = Boolean(
+      isImportCredit
+        ? purchase.importDutiesFilePath || purchase.filePath
+        : purchase.filePath
+    );
+    if (!documentReady) continue;
     incomeRows.push({
       id: purchase.id,
       source: isImportCredit
@@ -492,17 +504,17 @@ export async function loadVatTaxWorkspace(options: {
       date: purchase.invoiceDate.toISOString(),
       amount,
       href: `/billing/tax-invoices/purchase/${purchase.id}?from=income`,
-      documentReady: Boolean(
-        isImportCredit
-          ? purchase.importDutiesFilePath || purchase.filePath
-          : purchase.filePath
-      ),
+      documentReady: true,
     });
   }
 
   const projectPphRows: IncomeTaxCreditRow[] = [];
   for (const period of periods) {
-    const date = period.taxInvoiceIssuedAt ?? period.dueAt ?? period.periodEnd;
+    const date =
+      period.withholdingSlipUploadedAt ??
+      period.taxInvoiceIssuedAt ??
+      period.dueAt ??
+      period.periodEnd;
     if (date < start || date >= endExclusive) continue;
     const exclusive = periodCommercialAmount(period);
     const tax = exclusivePricePlusChargedTax({
@@ -513,6 +525,7 @@ export async function loadVatTaxWorkspace(options: {
       ppnRatePercent: decimalToNumber(period.ppnRatePercent),
     });
     if (tax.pph <= 0 || period.project.isGovernmentContract) continue;
+    if (!period.withholdingSlipPath) continue;
     projectPphRows.push({
       id: `project-pph-${period.id}`,
       source: t("pages.vat.remittanceSourceProject"),
@@ -522,7 +535,7 @@ export async function loadVatTaxWorkspace(options: {
       date: date.toISOString(),
       amount: tax.pph,
       href: `/billing/tax-invoices/period/${period.id}?from=other`,
-      documentReady: Boolean(period.withholdingSlipPath),
+      documentReady: true,
     });
   }
 
@@ -537,7 +550,9 @@ export async function loadVatTaxWorkspace(options: {
     ...projectPphRows,
     ...otherPurchases.flatMap((purchase) => {
     const amount = decimalToNumber(purchase.amount) ?? 0;
-    if (amount <= 0 || !purchase.governmentTaxKind) return [];
+    if (amount <= 0 || !purchase.governmentTaxKind || !purchase.filePath) {
+      return [];
+    }
     return [
       {
         id: purchase.id,
@@ -548,7 +563,7 @@ export async function loadVatTaxWorkspace(options: {
         date: purchase.invoiceDate.toISOString(),
         amount,
         href: `/billing/tax-invoices/purchase/${purchase.id}?from=other`,
-        documentReady: Boolean(purchase.filePath),
+        documentReady: true,
       },
     ];
   }),
@@ -570,15 +585,10 @@ export async function loadVatTaxWorkspace(options: {
     month,
     outputRows,
     inputRows,
-    yearOutputRows,
-    yearInputRows,
     outputTotal,
     inputTotal,
     net,
-    yearNet,
     creditBroughtForward,
-    outputPending: outputRows.filter((row) => !row.fakturReady).length,
-    inputPending: inputRows.filter((row) => !row.fakturReady).length,
     incomeRows,
     incomeImportTotal,
     incomeInstallmentTotal,

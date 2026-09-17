@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { chipScrollRowClassName, pageToolbarRowClassName } from "@/components/ui/chip-scroll-row";
 import { useT } from "@/lib/i18n/use-t";
 import { localizeSubCategory } from "@/lib/i18n/labels";
 import type { ProjectSubCategory } from "@prisma/client";
@@ -51,7 +52,7 @@ export default function ProjectsListHeader({
         );
 
   return (
-    <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+    <div className={pageToolbarRowClassName("mb-5")}>
       <div className="min-w-0">
         <h2 className="text-lg font-semibold text-text">{title}</h2>
         <p className="mt-1 text-xs text-muted">
@@ -71,7 +72,11 @@ export default function ProjectsListHeader({
         </p>
       </div>
       {actions ? (
-        <div className="flex flex-wrap items-center justify-end gap-4">
+        <div
+          className={chipScrollRowClassName(
+            "w-full sm:w-auto sm:max-w-full sm:justify-end"
+          )}
+        >
           {actions}
         </div>
       ) : null}

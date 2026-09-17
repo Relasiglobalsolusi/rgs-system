@@ -1,7 +1,5 @@
 import type { EmploymentType } from "@prisma/client";
 
-import { LIVE_PROJECT_EXPENSE_WHERE } from "@/lib/books-open";
-
 import {
   bankAccountWhere,
   FINANCIAL_REPORT_ALL_BANKS,
@@ -28,11 +26,14 @@ import { decimalToNumber } from "@/lib/project-billing";
  *   income is DPP. Contract price is the agreed job value shown separately —
  *   never copied onto every period.
  * - Accounts payable: unpaid vendor bills (what we owe). Not a P&L expense.
- * - Money out: stock issued to a project (ISSUE_TO_PROJECT, not equipment);
- *   PROJECT / INTERNAL vendor bills when paid; Internal Payroll wages;
- *   parking deal outflows; Payroll Management wages RGS actually paid.
- * - STOCK purchases stay warehouse assets until issued. Paying the vendor
- *   only clears AP.
+ * - Money out / cost of sales: consumables issued to a project
+ *   (ISSUE_TO_PROJECT, never equipment); PROJECT vendor bills when paid;
+ *   Internal Payroll wages; parking deal outflows; Payroll Management wages
+ *   RGS actually paid.
+ * - Equipment and vehicle purchases are company assets, not P&L expense.
+ *   Issuing an asset only tracks where it sits.
+ * - STOCK purchases stay warehouse assets until a consumable is issued.
+ *   Paying the vendor only clears AP.
  * - Wages match Internal Payroll: daily rate = monthly pay ÷ 26; company pay =
  *   daily rate × complete check-in+check-out days (one paid day per calendar day).
  *   Same-day multi-site work splits that one daily rate equally (1/N).
@@ -344,7 +345,6 @@ export async function getProjectPnlAdjustments(
     prisma.projectExpense.groupBy({
       by: ["projectId"],
       where: {
-        ...LIVE_PROJECT_EXPENSE_WHERE,
         projectId: { in: projectIds },
         ...(incurredAt ? { incurredAt } : {}),
         ...bankAccountWhere(bank),

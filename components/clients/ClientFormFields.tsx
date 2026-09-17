@@ -227,8 +227,7 @@ export default function ClientFormFields({
               ]}
               onChange={(value) =>
                 handleClientTypeChange(value as "COMPANY" | "INDIVIDUAL")
-              }
-              columns={2}
+              }
             />
             <input type="hidden" name={nameOf("clientType")} value={clientType} />
           </div>

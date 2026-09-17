@@ -36,6 +36,7 @@ import {
   purchaseNeedsImportBankRate,
 } from "@/lib/purchase-amount-display";
 import { formatBankAccountOptionLabel } from "@/lib/company-bank-accounts";
+import { purchaseAllowsCashPayment } from "@/lib/company-cash";
 import { formatVendorBankAccountLabel } from "@/lib/vendor-bank-accounts";
 import { listPurchaseDocumentSlots } from "@/lib/purchase-invoice-documents";
 import { formatTaxInvoiceSerial } from "@/lib/tax-invoice-serial";
@@ -611,7 +612,9 @@ export default async function PurchaseInvoiceDetailPage({
                   {t("pages.billing.payFromAccount")}
                 </th>
                 <td className={metaValueClassName}>
-                  {invoice.bankAccount
+                  {invoice.paidWithCash
+                    ? t("pages.billing.purchasePayFromCash")
+                    : invoice.bankAccount
                     ? formatBankAccountOptionLabel(invoice.bankAccount)
                     : t("pages.billing.payFromPending")}
                 </td>
@@ -1346,6 +1349,12 @@ export default async function PurchaseInvoiceDetailPage({
               canMarkPaid={canManage && !invoice.reversedAt}
               isPaid={isPaid}
               needsImportBankRate={purchaseNeedsImportBankRate(invoice)}
+              allowsCash={purchaseAllowsCashPayment({
+                origin: invoice.origin,
+                purchaseCategory: invoice.purchaseCategory,
+                vehicleExpenseKind: invoice.vehicleExpenseKind,
+              })}
+              amount={decimalToNumber(invoice.amount)}
               invoiceCurrency={invoice.invoiceCurrency}
               invoiceForeignAmount={invoiceForeignAmount}
               bookingRate={bankRate}

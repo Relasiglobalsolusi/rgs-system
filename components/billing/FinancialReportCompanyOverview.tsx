@@ -3,13 +3,13 @@
 import {
   Banknote,
   Building2,
+  HandCoins,
   HeartPulse,
   Landmark,
   Package,
   Scale,
   Shield,
   ShieldPlus,
-  TrendingDown,
   TrendingUp,
   Wallet,
 } from "lucide-react";
@@ -18,6 +18,7 @@ import type {
   FinancialReportClientRow,
   FinancialReportCompanyTotals,
 } from "@/app/billing/financial-report/actions";
+import FinancialReportPnlStatement from "@/components/billing/FinancialReportPnlStatement";
 import DirectoryStatCard from "@/components/ui/DirectoryStatCard";
 import DirectoryStatGrid from "@/components/ui/DirectoryStatGrid";
 import { useT } from "@/lib/i18n/use-t";
@@ -27,6 +28,7 @@ type Props = {
   company: FinancialReportCompanyTotals;
   queryString?: string;
   clients?: FinancialReportClientRow[];
+  bank?: string;
 };
 
 export default function FinancialReportCompanyOverview({
@@ -35,7 +37,6 @@ export default function FinancialReportCompanyOverview({
   clients = [],
 }: Props) {
   const { t } = useT();
-  const pair = company.period;
   const detail = (metric: string) =>
     `/billing/financial-report/detail?metric=${metric}${
       queryString ? `&${queryString}` : ""
@@ -44,12 +45,13 @@ export default function FinancialReportCompanyOverview({
   const directory = {
     clients: clients.length,
     contractValue: clients.reduce((sum, row) => sum + row.totalContractValue, 0),
-    profit: clients.reduce((sum, row) => sum + row.profit, 0),
+    profit: clients.reduce((sum, row) => sum + row.grossProfit, 0),
   };
 
   return (
     <div className="mb-6 space-y-2">
       <p className="text-sm text-subtle">{t("pages.financialReport.rangeHint")}</p>
+      <FinancialReportPnlStatement pnl={company.pnl} />
       <DirectoryStatGrid gapClassName="gap-2">
         <DirectoryStatCard
           compact
@@ -60,26 +62,6 @@ export default function FinancialReportCompanyOverview({
           icon={<Scale size={16} />}
           accent={company.netPosition < 0 ? "danger" : "success"}
           href={detail("netPosition")}
-        />
-        <DirectoryStatCard
-          compact
-          tinted
-          title={t("pages.financialReport.moneyIn")}
-          value={formatContractPrice(pair.moneyIn)}
-          subtitle={t("pages.financialReport.companyMoneyInHint")}
-          icon={<Wallet size={16} />}
-          accent="success"
-          href={detail("moneyIn")}
-        />
-        <DirectoryStatCard
-          compact
-          tinted
-          title={t("pages.financialReport.moneyOut")}
-          value={formatContractPrice(pair.moneyOut)}
-          subtitle={t("pages.financialReport.companyMoneyOutHint")}
-          icon={<TrendingDown size={16} />}
-          accent="warning"
-          href={detail("moneyOut")}
         />
         <DirectoryStatCard
           compact
@@ -134,22 +116,22 @@ export default function FinancialReportCompanyOverview({
         <DirectoryStatCard
           compact
           tinted
-          title={t("pages.financialReport.loanInterestDueThisPeriod")}
-          value={formatContractPrice(company.loanInterestDue)}
-          subtitle={t("pages.financialReport.loanInterestDueThisPeriodHint")}
-          icon={<Landmark size={16} />}
-          accent={company.loanInterestDue > 0 ? "warning" : "muted"}
-          href={detail("loanInterestDue")}
-        />
-        <DirectoryStatCard
-          compact
-          tinted
           title={t("pages.financialReport.stockInWarehouse")}
           value={formatContractPrice(company.warehouseStockValue)}
           subtitle={t("pages.financialReport.stockInWarehouseHint")}
           icon={<Package size={16} />}
           accent="info"
           href={detail("warehouse")}
+        />
+        <DirectoryStatCard
+          compact
+          tinted
+          title={t("pages.financialReport.cashAtHand")}
+          value={formatContractPrice(company.cashAtHand)}
+          subtitle={t("pages.financialReport.cashAtHandHint")}
+          icon={<HandCoins size={16} />}
+          accent="info"
+          href={detail("cashAtHand")}
         />
         <DirectoryStatCard
           compact

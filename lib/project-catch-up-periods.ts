@@ -139,7 +139,38 @@ export function firstLiveMonthlyPeriod(opts: {
   });
 }
 
-/** Billing cycles whose period start is before `asOf` (books-open). */
+/**
+ * First monthly cycle to open as live billing: the contract's first period
+ * when it starts on/after books-open, otherwise the first cycle that does.
+ */
+export function liveMonthlyPeriodBounds(opts: {
+  contractStart: Date;
+  asOf: Date;
+  basis: BillingPeriodBasis | null | undefined;
+  fromDay?: number | null;
+  toDay?: number | null;
+}): { periodStart: Date; periodEnd: Date; label: string } {
+  const first = firstMonthlyPeriodBounds(opts.basis, opts.contractStart, {
+    fromDay: opts.fromDay,
+    toDay: opts.toDay,
+  });
+  if (first.periodStart.getTime() >= toUtcDateOnly(opts.asOf).getTime()) {
+    return first;
+  }
+  const live = firstLiveMonthlyPeriod({
+    asOf: opts.asOf,
+    basis: opts.basis,
+    fromDay: opts.fromDay,
+    toDay: opts.toDay,
+  });
+  return {
+    periodStart: parseDraftDate(live.periodStart),
+    periodEnd: parseDraftDate(live.periodEnd),
+    label: live.label,
+  };
+}
+
+/** Billing cycles whose period end is before `asOf` (fully finished). */
 export function listHistoricalCatchUpPeriods(opts: {
   startDate: Date;
   endDate?: Date | null;
@@ -164,7 +195,7 @@ export function listHistoricalCatchUpPeriods(opts: {
     basis: opts.basis,
     fromDay: opts.fromDay,
     toDay: opts.toDay,
-  }).filter((period) => period.periodStart < asOfKey);
+  }).filter((period) => period.periodEnd < asOfKey);
 }
 
 function parseDraftDate(value: string): Date {
@@ -175,6 +206,12 @@ export function isRecordedCatchUpPeriod(
   period: ExistingCatchUpPeriod
 ): boolean {
   return Boolean(period.isCatchUp && period.invoicePdfPath);
+}
+
+export function isUnrecordedCatchUpPeriod(
+  period: ExistingCatchUpPeriod
+): boolean {
+  return Boolean(period.isCatchUp && !period.invoicePdfPath);
 }
 
 export type CatchUpIntakePage = CatchUpCompleteTarget & {

@@ -451,15 +451,15 @@ export default function ProjectTable({
         width: equalCol?.width ?? "11rem",
         share: equalCol?.share ?? 1,
         className: equalCol
-          ? `${equalCol.className} overflow-visible`
-          : "min-w-[11rem] overflow-visible whitespace-nowrap",
+          ? `${equalCol.className} overflow-hidden`
+          : "min-w-[11rem] overflow-hidden",
         render: (row) => {
           const showOpsCounts =
             !isPlanningProjectStatus(row.project.status) &&
             !isDirectoryPeriodRow(row.rowKind);
           return (
-            <div className="text-left">
-              <p className="whitespace-nowrap text-muted">{row.timeline}</p>
+            <div className="min-w-0 text-left">
+              <p className="text-pretty break-words text-muted">{row.timeline}</p>
               {showOpsCounts ? (
                 canManage ? (
                   <p className="mt-0.5 text-sm text-subtle">
@@ -490,8 +490,8 @@ export default function ProjectTable({
         share: equalCol?.share ?? 1,
         cellAlign: "center",
         className: equalCol
-          ? `${equalCol.className} overflow-visible`
-          : "min-w-[10rem] overflow-visible whitespace-nowrap",
+          ? `${equalCol.className} overflow-hidden`
+          : "min-w-[10rem] overflow-hidden",
         render: (row) => {
           const typeLines =
             localizeSubCategoryChipLines(row.project.subCategory, locale) ??
@@ -501,7 +501,7 @@ export default function ProjectTable({
               status="success"
               compact
               lines={typeLines ?? undefined}
-              className="!w-[7.5rem] !min-w-[7.5rem] !max-w-[7.5rem]"
+              className="max-w-full"
             >
               {typeLines
                 ? undefined

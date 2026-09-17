@@ -24,6 +24,11 @@ function isBareRoute(pathname: string) {
   );
 }
 
+function moduleSegment(pathname: string) {
+  const segment = pathname.split("/").filter(Boolean)[0];
+  return segment || "app";
+}
+
 type Props = {
   children: ReactNode;
   showChangeSecurityCode?: boolean;
@@ -40,13 +45,20 @@ export default function AppChrome({
     return <>{children}</>;
   }
 
+  const moduleKey = moduleSegment(pathname);
+
   return (
     <main className="min-h-dvh w-full overflow-x-hidden bg-background text-text lg:h-dvh lg:overflow-hidden">
       <MultiProjectUnlockActivity enabled={showChangeSecurityCode} />
       <div className="flex min-h-dvh w-full min-w-0 lg:h-full">
         <Sidebar showChangeSecurityCode={showChangeSecurityCode} />
-        <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col">
-          {children}
+        <div className="relative flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
+          <div
+            key={moduleKey}
+            className="page-module-enter flex min-h-0 min-w-0 w-full flex-1 flex-col"
+          >
+            {children}
+          </div>
         </div>
       </div>
     </main>

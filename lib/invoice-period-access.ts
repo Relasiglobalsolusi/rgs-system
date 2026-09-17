@@ -15,7 +15,11 @@ export async function assertLiveBillingAllowed(period: {
   periodStart: Date;
   project: { companyId: string };
 }) {
-  if (period.isCatchUp) return;
+  if (period.isCatchUp) {
+    throw new Error(
+      "This cycle is recorded from existing documents, not live billing."
+    );
+  }
   const asOf = catchUpAsOfDate(
     await loadBooksOpenDate(period.project.companyId)
   );

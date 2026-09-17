@@ -84,8 +84,16 @@ export default async function FinancialReportClientPage({
         />
         <DirectoryStatCard
           compact
+          title={t("pages.financialReport.moneyIn")}
+          value={formatContractPrice(data.revenue)}
+          subtitle={t("pages.financialReport.moneyInHint")}
+          icon={<Wallet size={16} />}
+          accent="success"
+        />
+        <DirectoryStatCard
+          compact
           title={t("pages.financialReport.moneyOut")}
-          value={formatContractPrice(data.totalSpending)}
+          value={formatContractPrice(data.costOfSales)}
           subtitle={t("pages.financialReport.spendingHint")}
           icon={<Package size={16} />}
           accent="warning"
@@ -93,10 +101,10 @@ export default async function FinancialReportClientPage({
         <DirectoryStatCard
           compact
           title={t("pages.financialReport.profit")}
-          value={formatContractPrice(data.profit)}
+          value={formatContractPrice(data.grossProfit)}
           subtitle={t("pages.financialReport.profitHint")}
           icon={<TrendingUp size={16} />}
-          accent={data.profit < 0 ? "danger" : "success"}
+          accent={data.grossProfit < 0 ? "danger" : "success"}
         />
         <DirectoryStatCard
           compact

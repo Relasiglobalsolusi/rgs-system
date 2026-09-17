@@ -1,4 +1,5 @@
 import type { ClientReviewStatus } from "@prisma/client";
+import { isDownPaymentInvoicePeriod } from "@/lib/project-billing";
 
 /** Periods waiting on the client portal (Approve / Revise). */
 export const CLIENT_PENDING_REVIEW_STATUSES: ClientReviewStatus[] = [
@@ -53,17 +54,44 @@ export function isActiveInvoiceApprovalWorkflow(
 }
 
 /**
+ * GC / Facade / one-time remainder: progress report → client approves → invoice.
+ * Down payment skips this. Monthly Regular uses reconcile, not this path.
+ */
+export function remainderRequiresProgressClientReview(
+  billingMode: string | null | undefined
+): boolean {
+  return (
+    billingMode === "ON_COMPLETION" ||
+    billingMode === "MILESTONE" ||
+    billingMode === "MULTI_VISIT"
+  );
+}
+
+/**
  * True when an active project may issue a commercial invoice (client + HO agreed).
- * End-contract / COMPLETED paths are not active workflows and skip this gate.
+ * Down payment may issue immediately. Remainder on one-time jobs always waits
+ * for progress → client approve, even if the job is already COMPLETED.
+ * Monthly Regular end-contract / COMPLETED still skips this gate.
  */
 export function canIssueCommercialInvoiceForProject(
   period: {
     clientReviewStatus: ClientReviewStatus | string | null | undefined;
+    isDownPayment?: boolean | null;
+    label?: string | null;
   },
   projectStatus: string | null | undefined,
-  opts: { approvedReview?: boolean } = {}
+  opts: {
+    approvedReview?: boolean;
+    billingMode?: string | null;
+  } = {}
 ): boolean {
+  if (isDownPaymentInvoicePeriod(period)) {
+    return true;
+  }
   if (opts.approvedReview) {
+    return canIssueInvoiceAfterReview(period.clientReviewStatus);
+  }
+  if (remainderRequiresProgressClientReview(opts.billingMode)) {
     return canIssueInvoiceAfterReview(period.clientReviewStatus);
   }
   if (!isActiveInvoiceApprovalWorkflow(projectStatus)) {

@@ -73,6 +73,7 @@ type EditProject = {
   isDemo?: boolean;
   isComplimentary?: boolean;
   pphRatePercent?: number | null;
+  taxRateCode?: string | null;
   otherTaxName?: string | null;
   contractPrice?: number | null;
   setupCost?: number | null;
@@ -115,6 +116,8 @@ type Props = {
   canMoveBackToPlanning: boolean;
   moveBackBlockedByCollection: boolean;
   billingHref: string | null;
+  /** Show Manage Billing in Planning when a down payment invoice exists. */
+  hasDownPaymentInvoice?: boolean;
   projectId: string;
   projectName: string;
   subCategory: ProjectSubCategory;
@@ -149,6 +152,7 @@ export default function ProjectDetailActionBar({
   canMoveBackToPlanning,
   moveBackBlockedByCollection,
   billingHref,
+  hasDownPaymentInvoice = false,
   projectId,
   projectName,
   subCategory,
@@ -173,7 +177,10 @@ export default function ProjectDetailActionBar({
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  const showBilling = canManage && !inPlanning && Boolean(billingHref);
+  const showBilling =
+    canManage &&
+    Boolean(billingHref) &&
+    (!inPlanning || hasDownPaymentInvoice);
   const showEdit = canManage && editProject.status !== "COMPLETED";
   const showEndContract = canEndContract;
   const showDelete = canDelete || Boolean(deleteBlockedReason);
@@ -212,7 +219,7 @@ export default function ProjectDetailActionBar({
       {hasTopActions ? (
         <div className="mb-5 flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           {showWorkflow ? (
-            <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-1 sm:pr-2">
+            <div className="flex w-full min-w-0 flex-wrap items-center gap-3 sm:flex-1 sm:pr-2">
               {showStart ? (
                 <ProjectStartButton
                   projectId={projectId}

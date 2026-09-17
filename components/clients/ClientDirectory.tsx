@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Building2, ListPlus, Trash2 } from "lucide-react";
+import { Building2, FileDown, ListPlus, Trash2 } from "lucide-react";
 
 import ClientBulkActionDialog from "@/components/clients/ClientBulkActionDialog";
 import ClientBulkCreateDialog from "@/components/clients/ClientBulkCreateDialog";
@@ -239,8 +239,15 @@ export default function ClientDirectory({
               icon={<ListPlus className="h-3.5 w-3.5 shrink-0" />}
               onClick={() => setBulkImportOpen(true)}
             />
+            <DirectoryAddButton
+              label={t("pages.clients.downloadLoginIds")}
+              icon={<FileDown className="h-3.5 w-3.5 shrink-0" />}
+              onClick={() => {
+                window.location.assign("/api/clients/login-ids");
+              }}
+            />
             <ClientModuleAccessButton />
-            <ClientSystemGuideButton clients={activeClients} />
+            <ClientSystemGuideButton />
           </div>
         ) : null}
       </div>

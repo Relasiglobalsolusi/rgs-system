@@ -270,6 +270,8 @@ export default async function BillingProjectPage({
                         reviewReportPdfPath: p.reviewReportPdfPath,
                         hoReviewNote: p.hoReviewNote,
                         hoReviewProofPath: p.hoReviewProofPath,
+                        isDownPayment: p.isDownPayment,
+                        isCatchUp: p.isCatchUp,
                       }))}
                     />
                   </SectionCard>
@@ -397,6 +399,8 @@ export default async function BillingProjectPage({
             reviewReportPdfPath: p.reviewReportPdfPath,
             hoReviewNote: p.hoReviewNote,
             hoReviewProofPath: p.hoReviewProofPath,
+            isDownPayment: p.isDownPayment,
+            isCatchUp: p.isCatchUp,
           }))}
         />
       </SectionCard>

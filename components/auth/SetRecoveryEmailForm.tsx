@@ -1,13 +1,15 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useState, useTransition } from "react";
 import { useSession } from "next-auth/react";
 import { ArrowRight, Mail } from "lucide-react";
 
 import { setRecoveryEmail } from "@/app/set-recovery-email/actions";
 import AuthLogo from "@/components/auth/AuthLogo";
+import { useEnterApp } from "@/components/auth/useEnterApp";
 import { useT } from "@/lib/i18n/use-t";
+import { cn } from "@/lib/utils";
 
 type Props = {
   username: string;
@@ -16,9 +18,9 @@ type Props = {
 
 function SetRecoveryEmailContent({ username, displayName }: Props) {
   const { t } = useT();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { update } = useSession();
+  const { phase, enterApp } = useEnterApp();
 
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
 
@@ -48,8 +50,7 @@ function SetRecoveryEmailContent({ username, displayName }: Props) {
 
         if (result.status === "not_required") {
           await update({ mustSetRecoveryEmail: false });
-          router.push(callbackUrl);
-          router.refresh();
+          await enterApp(callbackUrl, displayName);
           return;
         }
 
@@ -59,8 +60,7 @@ function SetRecoveryEmailContent({ username, displayName }: Props) {
         }
 
         await update({ mustSetRecoveryEmail: false });
-        router.push(callbackUrl);
-        router.refresh();
+        await enterApp(callbackUrl, displayName);
       } catch {
         setErrorMessage(t("auth.saveRecoveryFailed"));
       }
@@ -68,8 +68,13 @@ function SetRecoveryEmailContent({ username, displayName }: Props) {
   }
 
   return (
-    <main className="auth-surface auth-shell">
-      <div className="mx-auto flex min-h-screen w-full max-w-lg items-center px-5 py-8 sm:px-6 sm:py-12">
+    <main
+      className={cn(
+        "auth-surface auth-shell",
+        phase !== "idle" && "auth-shell-leaving"
+      )}
+    >
+      <div className="auth-login-stage mx-auto flex min-h-screen w-full max-w-lg items-center px-5 py-8 sm:px-6 sm:py-12">
         <div className="w-full">
           <div className="mb-8">
             <AuthLogo />
@@ -120,7 +125,7 @@ function SetRecoveryEmailContent({ username, displayName }: Props) {
 
             <button
               type="submit"
-              disabled={pending}
+              disabled={pending || phase !== "idle"}
               className="flex h-14 w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(37,99,235,0.18)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {pending ? t("common.actions.saving") : t("auth.saveAndContinue")}

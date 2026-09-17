@@ -117,10 +117,11 @@ async function ensurePaidPeriod(
     : null;
   return prisma.projectInvoicePeriod.upsert({
     where: {
-      projectId_periodStart_periodEnd: {
+      projectId_periodStart_periodEnd_isDownPayment: {
         projectId: opts.projectId,
         periodStart: opts.periodStart,
         periodEnd: opts.periodEnd,
+      isDownPayment: false,
       },
     },
     update: {

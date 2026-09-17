@@ -19,6 +19,7 @@ import {
   financialReportWageRange,
   matchesBankAccount,
   prismaDateFilter,
+  purchaseBankAccountWhere,
   type FinancialReportSelection,
 } from "@/lib/financial-report-query";
 import { formatDisplayDate } from "@/lib/format-date";
@@ -29,6 +30,13 @@ import {
 } from "@/lib/i18n/locale";
 import { translate } from "@/lib/i18n/translate";
 import { excludeEquipmentFromProjectInventoryCost } from "@/lib/inventory";
+import {
+  emptyFinancialReportPnlStairs,
+  financialReportPnlGroupTitle,
+  type FinancialReportPnlStairs,
+  type FinancialReportPnlSubcategoryGroup,
+} from "@/lib/financial-report-pnl";
+import { isCapitalVehicleExpenseKind } from "@/lib/vehicle-expense";
 import {
   allocateLockedCompanyWages,
   listLockedPayrollRunsInRange,
@@ -107,6 +115,7 @@ export type FinancialReportSource =
   | "payrollAdjustment"
   | "loanDraw"
   | "loanReturn"
+  | "cashWithdraw"
   | "receivable"
   | "payable";
 
@@ -122,8 +131,11 @@ export type FinancialReportPdfInput = {
   periodNet: number;
   moneyIn: number;
   moneyOut: number;
+  pnl: FinancialReportPnlStairs;
+  tree: FinancialReportPnlSubcategoryGroup[];
   arUnpaid: number;
   apUnpaid: number;
+  cashAtHand: number;
   moneyInLines: FinancialReportPdfLine[];
   moneyOutLines: FinancialReportPdfLine[];
   fundingLines: FinancialReportPdfLine[];
@@ -181,6 +193,7 @@ const PURCHASE_SELECT = {
   project: { select: { name: true } },
   prepaidCard: { select: { cardNumber: true, kind: true } },
   employee: { select: { firstName: true, lastName: true } },
+  paidWithCash: true,
 } as const;
 
 function inUtcRange(
@@ -286,6 +299,7 @@ function pushPurchaseLines(
     project: { name: string } | null;
     prepaidCard?: { cardNumber: string; kind: string } | null;
     employee?: { firstName: string; lastName: string } | null;
+    paidWithCash?: boolean;
   } & Parameters<typeof purchaseAmount>[0]>,
   options?: {
     locale?: AppLocale;
@@ -294,6 +308,7 @@ function pushPurchaseLines(
 ) {
   const locale = options?.locale ?? DEFAULT_LOCALE;
   for (const invoice of invoices) {
+    if (isCapitalVehicleExpenseKind(invoice.vehicleExpenseKind)) continue;
     const amount = purchaseAmount(invoice);
     if (amount === 0) continue;
     const source = purchaseLineSource(invoice);
@@ -329,6 +344,9 @@ function pushPurchaseLines(
               null,
           })
         : null;
+    const cashLabel = invoice.paidWithCash
+      ? translate(locale, "pages.financialReport.filterBankCash")
+      : null;
     target.push({
       date: invoice.paidAt,
       source,
@@ -340,11 +358,12 @@ function pushPurchaseLines(
           : source === "pettyCashTopUp"
             ? joinDetail(holderName, invoice.invoiceRef)
             : vehicleDetail
-              ? joinDetail(vehicleDetail, invoice.invoiceRef)
+              ? joinDetail(vehicleDetail, invoice.invoiceRef, cashLabel)
               : joinDetail(
                   invoice.supplierName,
                   invoice.invoiceRef,
-                  invoice.project?.name
+                  invoice.project?.name,
+                  cashLabel
                 ),
       amount,
     });
@@ -396,6 +415,7 @@ async function listParkingLines(
     for (const log of logs.filter((row) => row.projectId === project.id)) {
       if (!matchesBankAccount(log.bankAccountId, bank)) continue;
       const credited = parkingLogCreditDate(log);
+      if (!credited) continue;
       if (!inUtcRange(credited, from, toExclusive)) continue;
       const casual = decimalToNumber(log.revenueAmount) ?? 0;
       const memberRevenue = parkingMemberRevenue(deal);
@@ -583,7 +603,7 @@ export async function loadFinancialReportPdfData(
         companyId,
         origin: "IMPORT",
         reversedAt: null,
-        ...bankAccountWhere(bank),
+        ...purchaseBankAccountWhere(bank),
         paidAt: {
           not: null,
           ...(calendar.from ? { gte: calendar.from } : {}),
@@ -605,7 +625,7 @@ export async function loadFinancialReportPdfData(
         purpose: "PROJECT",
         purchaseCategory: { not: "VEHICLE" },
         reversedAt: null,
-        ...bankAccountWhere(bank),
+        ...purchaseBankAccountWhere(bank),
         paidAt: {
           not: null,
           ...(calendar.from ? { gte: calendar.from } : {}),
@@ -621,7 +641,7 @@ export async function loadFinancialReportPdfData(
         purpose: "INTERNAL",
         purchaseCategory: { not: "VEHICLE" },
         reversedAt: null,
-        ...bankAccountWhere(bank),
+        ...purchaseBankAccountWhere(bank),
         paidAt: {
           not: null,
           ...(calendar.from ? { gte: calendar.from } : {}),
@@ -716,7 +736,7 @@ export async function loadFinancialReportPdfData(
         companyId,
         purchaseCategory: "VEHICLE",
         reversedAt: null,
-        ...bankAccountWhere(bank),
+        ...purchaseBankAccountWhere(bank),
         paidAt: {
           not: null,
           ...(calendar.from ? { gte: calendar.from } : {}),
@@ -769,7 +789,6 @@ export async function loadFinancialReportPdfData(
       where: {
         project: { companyId, subCategory: { not: "INTERNAL" } },
         status: { in: [...OUTSTANDING_INVOICE_STATUSES] },
-        isCatchUp: false,
       },
       select: {
         dueAt: true,
@@ -802,7 +821,7 @@ export async function loadFinancialReportPdfData(
         companyId,
         purpose: "PETTY_CASH",
         reversedAt: null,
-        ...bankAccountWhere(bank),
+        ...purchaseBankAccountWhere(bank),
         paidAt: {
           not: null,
           ...(calendar.from ? { gte: calendar.from } : {}),
@@ -1126,11 +1145,14 @@ export async function loadFinancialReportPdfData(
   }));
 
   return {
-    periodNet: overview.period.net,
+    periodNet: overview.pnl.netProfit,
     moneyIn: overview.period.moneyIn,
     moneyOut: overview.period.moneyOut,
+    pnl: overview.pnl,
+    tree: [],
     arUnpaid: overview.clientsOwe.unpaid,
     apUnpaid: overview.vendorsOwe.unpaid,
+    cashAtHand: overview.cashAtHand,
     moneyInLines: sortLines(moneyInLines.filter((row) => row.amount !== 0)),
     moneyOutLines: sortLines(moneyOutLines.filter((row) => row.amount !== 0)),
     fundingLines: sortLines(fundingLines.filter((row) => row.amount !== 0)),
@@ -1181,22 +1203,44 @@ function ensureSpace(doc: PdfDoc, needed: number, onNewPage?: () => void) {
 
 function drawSummary(doc: PdfDoc, input: FinancialReportPdfInput) {
   const locale = input.locale ?? DEFAULT_LOCALE;
-  const lines = [
-    [translate(locale, "pages.financialReport.periodNet"), input.periodNet, input.periodNet >= 0 ? BRAND.income : BRAND.expense],
-    [translate(locale, "pages.financialReport.moneyIn"), input.moneyIn, BRAND.income],
-    [translate(locale, "pages.financialReport.moneyOut"), input.moneyOut, BRAND.expense],
-    [translate(locale, "pages.financialReport.clientsStillOwe"), input.arUnpaid, BRAND.income],
-    [translate(locale, "pages.financialReport.weStillOweVendors"), input.apUnpaid, BRAND.expense],
-  ] as const;
+  const pnl = input.pnl ?? emptyFinancialReportPnlStairs();
+  const lines: Array<[string, number, boolean]> = [
+    [translate(locale, "pages.financialReport.pnlRevenue"), pnl.revenue, false],
+    [translate(locale, "pages.financialReport.pnlCostOfSales"), pnl.costOfSales, false],
+    [translate(locale, "pages.financialReport.pnlGrossProfit"), pnl.grossProfit, true],
+    [translate(locale, "pages.financialReport.pnlOtherIncome"), pnl.otherIncome, false],
+    [translate(locale, "pages.financialReport.pnlHeadOffice"), pnl.headOffice, false],
+    [translate(locale, "pages.financialReport.pnlOperatingProfit"), pnl.operatingProfit, true],
+    [translate(locale, "pages.financialReport.pnlFinanceCosts"), pnl.financeCosts, false],
+    [translate(locale, "pages.financialReport.pnlProfitBeforeTax"), pnl.profitBeforeTax, true],
+    [
+      pnl.incomeTaxRatePercent != null
+        ? translate(locale, "pages.financialReport.pnlIncomeTax", {
+            percent: pnl.incomeTaxRatePercent,
+          })
+        : translate(locale, "pages.financialReport.pnlIncomeTaxMixed"),
+      pnl.incomeTax,
+      false,
+    ],
+    [translate(locale, "pages.financialReport.pnlNetProfit"), pnl.netProfit, true],
+    [translate(locale, "pages.financialReport.clientsStillOwe"), input.arUnpaid, false],
+    [translate(locale, "pages.financialReport.weStillOweVendors"), input.apUnpaid, false],
+    [translate(locale, "pages.financialReport.cashAtHand"), input.cashAtHand, false],
+  ];
 
-  for (const [label, value, color] of lines) {
+  for (const [label, value, bold] of lines) {
     ensureSpace(doc, SUMMARY_ROW_H);
     const y = doc.y;
-    doc.font("Helvetica").fontSize(9).fillColor(BRAND.body).text(label, PAGE_MARGIN, y, {
-      width: CONTENT_WIDTH - 160,
-    });
+    const color = value < 0 ? BRAND.expense : bold ? BRAND.ink : BRAND.body;
     doc
-      .font("Helvetica-Bold")
+      .font(bold ? "Helvetica-Bold" : "Helvetica")
+      .fontSize(9)
+      .fillColor(BRAND.body)
+      .text(label, PAGE_MARGIN, y, {
+        width: CONTENT_WIDTH - 160,
+      });
+    doc
+      .font(bold ? "Helvetica-Bold" : "Helvetica")
       .fontSize(9)
       .fillColor(color)
       .text(formatContractPrice(value), PAGE_MARGIN + CONTENT_WIDTH - 160, y, {
@@ -1204,6 +1248,110 @@ function drawSummary(doc: PdfDoc, input: FinancialReportPdfInput) {
         align: "right",
       });
     doc.y = y + SUMMARY_ROW_H;
+  }
+  doc.moveDown(0.6);
+}
+
+function drawPnlTree(doc: PdfDoc, input: FinancialReportPdfInput) {
+  const locale = input.locale ?? DEFAULT_LOCALE;
+  const tree = input.tree ?? [];
+  drawSectionTitle(
+    doc,
+    translate(locale, "pages.financialReport.pnlTreeTitle"),
+    translate(locale, "pages.financialReport.pnlTreeHint")
+  );
+  if (tree.length === 0) {
+    doc
+      .font("Helvetica")
+      .fontSize(9)
+      .fillColor(BRAND.body)
+      .text(translate(locale, "pages.financialReport.pnlEmptyTree"), PAGE_MARGIN, doc.y, {
+        width: CONTENT_WIDTH,
+      });
+    doc.moveDown(1);
+    return;
+  }
+
+  const colW = {
+    label: CONTENT_WIDTH - 240,
+    rev: 80,
+    cos: 80,
+    gp: 80,
+  };
+
+  const drawCols = (
+    label: string,
+    revenue: number,
+    costOfSales: number,
+    grossProfit: number,
+    opts: { indent?: number; bold?: boolean; header?: boolean }
+  ) => {
+    ensureSpace(doc, 16);
+    const y = doc.y;
+    const indent = opts.indent ?? 0;
+    doc
+      .font(opts.bold || opts.header ? "Helvetica-Bold" : "Helvetica")
+      .fontSize(opts.header ? 9 : 8)
+      .fillColor(opts.header ? BRAND.ink : BRAND.body)
+      .text(label, PAGE_MARGIN + indent, y, {
+        width: colW.label - indent,
+        lineBreak: false,
+        ellipsis: true,
+      });
+    if (!opts.header) {
+      const amounts = [
+        { x: PAGE_MARGIN + colW.label, v: revenue },
+        { x: PAGE_MARGIN + colW.label + colW.rev, v: costOfSales },
+        { x: PAGE_MARGIN + colW.label + colW.rev + colW.cos, v: grossProfit },
+      ];
+      for (const cell of amounts) {
+        doc
+          .fillColor(cell.v < 0 ? BRAND.expense : BRAND.ink)
+          .text(formatContractPrice(cell.v), cell.x, y, {
+            width: 80,
+            align: "right",
+            lineBreak: false,
+          });
+      }
+    } else {
+      const headers = [
+        { x: PAGE_MARGIN + colW.label, t: translate(locale, "pages.financialReport.pnlRevenue") },
+        {
+          x: PAGE_MARGIN + colW.label + colW.rev,
+          t: translate(locale, "pages.financialReport.pnlCostOfSales"),
+        },
+        {
+          x: PAGE_MARGIN + colW.label + colW.rev + colW.cos,
+          t: translate(locale, "pages.financialReport.pnlGrossProfit"),
+        },
+      ];
+      for (const cell of headers) {
+        doc.text(cell.t, cell.x, y, {
+          width: 80,
+          align: "right",
+          lineBreak: false,
+        });
+      }
+    }
+    doc.y = y + 16;
+  };
+
+  drawCols("", 0, 0, 0, { header: true });
+  for (const group of tree) {
+    drawCols(financialReportPnlGroupTitle(group.key, locale), group.revenue, group.costOfSales, group.grossProfit, {
+      bold: true,
+    });
+    for (const client of group.clients) {
+      drawCols(client.name, client.revenue, client.costOfSales, client.grossProfit, {
+        indent: 10,
+        bold: true,
+      });
+      for (const project of client.projects) {
+        drawCols(project.name, project.revenue, project.costOfSales, project.grossProfit, {
+          indent: 20,
+        });
+      }
+    }
   }
   doc.moveDown(0.6);
 }
@@ -1368,6 +1516,7 @@ export async function buildFinancialReportPdfBuffer(
     const titleY = drawLetterheadHeader(doc, logoBuffer, letterhead);
     drawTitleBlock(doc, input, titleY);
     drawSummary(doc, input);
+    drawPnlTree(doc, input);
 
     drawSectionTitle(doc, translate(locale, "pages.financialReport.moneyIn"));
     drawAmountTable(

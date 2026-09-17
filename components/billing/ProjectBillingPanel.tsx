@@ -5,6 +5,7 @@ import {
   showRejectionFromError,
 } from "@/components/ui/rejection-notice";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Fragment,
   useState,
@@ -43,6 +44,7 @@ import { firstStoredPath } from "@/lib/stored-paths";
 import ContractPriceEditor from "@/components/billing/ContractPriceEditor";
 import { flexibleBadgeChipClassName } from "@/components/ui/trash-action-buttons";
 import { cn } from "@/lib/utils";
+import { isUnrecordedCatchUpPeriod } from "@/lib/project-catch-up-periods";
 import {
   invoicePeriodElementId,
   projectPeriodHref,
@@ -58,6 +60,7 @@ import {
   formatInvoicePeriodLabel,
   formatMilestonePeriodLabel,
   dedupeOnCompletionPeriods,
+  isDownPaymentInvoicePeriod,
   maxMilestonePercent,
 } from "@/lib/project-billing";
 import {
@@ -106,6 +109,8 @@ export type BillingPeriodRow = {
   reviewReportPdfPath?: string | null;
   hoReviewNote?: string | null;
   hoReviewProofPath?: string | null;
+  isDownPayment?: boolean | null;
+  isCatchUp?: boolean | null;
 };
 
 type Props = {
@@ -186,22 +191,25 @@ export default function ProjectBillingPanel({
   const isMonthly = billingMode === "MONTHLY";
   const isMilestone = billingMode === "MILESTONE";
   const price = contractPrice;
-  const periods = useMemo(
-    () => dedupeOnCompletionPeriods(periodsProp, billingMode),
-    [periodsProp, billingMode]
-  );
+  const periods = useMemo(() => {
+    const rows = dedupeOnCompletionPeriods(periodsProp, billingMode);
+    if (!isClientPortal) return rows;
+    return rows.filter((period) => !isUnrecordedCatchUpPeriod(period));
+  }, [periodsProp, billingMode, isClientPortal]);
   const dueToInvoiceCount = useMemo(() => {
     if (!isMonthly) return 0;
     const now = new Date();
-    return periods.filter((p) =>
-      isMonthlyPeriodAwaitingReconcile(
-        {
-          status: p.status,
-          periodEnd: new Date(p.periodEnd),
-          reconciledAt: p.reconciledAt,
-        },
-        now
-      )
+    return periods.filter(
+      (p) =>
+        !isUnrecordedCatchUpPeriod(p) &&
+        isMonthlyPeriodAwaitingReconcile(
+          {
+            status: p.status,
+            periodEnd: new Date(p.periodEnd),
+            reconciledAt: p.reconciledAt,
+          },
+          now
+        )
     ).length;
   }, [isMonthly, periods]);
 
@@ -590,11 +598,27 @@ export default function ProjectBillingPanel({
                   paymentTermsDays,
                 });
                 const amount = period.amount ?? price;
+                const isDownPayment = isDownPaymentInvoicePeriod(period);
                 const isNextReady =
+                  !isDownPayment &&
                   isMilestone &&
                   nextMilestone?.id === period.id &&
                   (period.status === "ONGOING" || period.status === "COMPILING");
+                const canIssueDownPayment =
+                  canManage &&
+                  isDownPayment &&
+                  (period.status === "ONGOING" ||
+                    period.status === "COMPILING") &&
+                  Boolean(period.taxInvoiceDoneAt);
+                const downPaymentNeedsTax =
+                  canManage &&
+                  isDownPayment &&
+                  !period.taxInvoiceDoneAt &&
+                  (period.status === "ONGOING" ||
+                    period.status === "COMPILING");
+                const needsHistoricalCapture = isUnrecordedCatchUpPeriod(period);
                 const monthlyAwaitingReconcile =
+                  !needsHistoricalCapture &&
                   isMonthly &&
                   isMonthlyPeriodAwaitingReconcile({
                     status: period.status,
@@ -692,17 +716,23 @@ export default function ProjectBillingPanel({
                     <td className="px-4 py-3.5 text-center">
                       <ChipCell>
                       <div className="inline-flex max-w-full flex-col items-center gap-1.5 sm:flex-row sm:flex-wrap sm:justify-center">
-                        {isMilestone &&
+                        {(isMilestone || billingMode === "ON_COMPLETION") &&
+                        !isDownPayment &&
+                        !needsHistoricalCapture &&
                         (period.status === "ONGOING" ||
                           period.status === "COMPILING") ? (
                           <StatusBadge
                             status="pending"
                             compact
                             lines={localizeBillingChipLines(
-                              "readyToInvoice",
+                              "awaitingProgress",
                               locale
                             )}
                           />
+                        ) : needsHistoricalCapture ? (
+                          <StatusBadge status="pending" compact>
+                            {t("pages.billing.needsDocuments")}
+                          </StatusBadge>
                         ) : monthlyAwaitingReconcile ? (
                           <StatusBadge
                             status="warning"
@@ -822,6 +852,20 @@ export default function ProjectBillingPanel({
                     >
                       <ChipCell>
                       <div className="inline-flex max-w-full flex-col items-center justify-center gap-2">
+                        {canManage && needsHistoricalCapture ? (
+                          <Link
+                            href={projectPeriodHref(projectId, period.id)}
+                            className={cn(
+                              buttonVariants({
+                                variant: "successBadge",
+                                size: "badge",
+                              }),
+                              flexibleBadgeChipClassName
+                            )}
+                          >
+                            {t("pages.billing.recordPeriod")}
+                          </Link>
+                        ) : null}
                         <div className="hidden max-w-full flex-wrap items-center justify-center gap-2 has-[>*]:inline-flex">
                           {firstStoredPath(period.paymentProofPath) && (
                             <a
@@ -931,6 +975,40 @@ export default function ProjectBillingPanel({
                               )}
                             </Button>
                           )}
+                          {downPaymentNeedsTax ? (
+                            <TaxInvoiceDoneButton
+                              periodId={period.id}
+                              projectName={projectName}
+                              periodLabel={
+                                formatInvoicePeriodLabel(period, {
+                                  projectName,
+                                  billingMode,
+                                  locale,
+                                }) ||
+                                period.label ||
+                                t("pages.billing.billingPeriod")
+                              }
+                              showWithholdingSlip={commercialTaxIncludesIncomeTax(
+                                chargedTaxKind || null
+                              )}
+                            />
+                          ) : null}
+                          {canIssueDownPayment ? (
+                            <Button
+                              size="badge"
+                              variant="successBadge"
+                              className={flexibleBadgeChipClassName}
+                              disabled={pending}
+                              onClick={() =>
+                                run(
+                                  () => compileInvoicePeriod(period.id),
+                                  t("pages.billing.compileInvoiceFailed")
+                                )
+                              }
+                            >
+                              {t("pages.projects.downPayment.issueInvoice")}
+                            </Button>
+                          ) : null}
                           {canManage &&
                             period.status === "AWAITING_CLIENT_REVIEW" &&
                             period.clientReviewStatus === "CLIENT_APPROVED" && (
@@ -1086,7 +1164,9 @@ export default function ProjectBillingPanel({
                                 {t("pages.billing.downloadPdf")}
                               </a>
                             )}
-                            {canManage && period.status !== "PAID" && (
+                            {canManage &&
+                              period.status !== "PAID" &&
+                              !period.isCatchUp && (
                               <Button
                                 size="badge"
                                 variant="destructiveBadge"

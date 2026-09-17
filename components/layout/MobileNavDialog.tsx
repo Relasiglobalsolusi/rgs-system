@@ -80,8 +80,9 @@ export default function MobileNavDialog({
       <Dialog skipUnsavedGuard open={open} onOpenChange={setOpen}>
         <DialogContent
           showCloseButton={false}
+          overlayClassName="bg-black/70"
           className={cn(
-            "fixed inset-y-0 left-0 top-0 z-50 flex h-dvh max-h-dvh w-[min(100vw-3rem,20rem)] max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-visible rounded-none border-y-0 border-l-0 border-r border-border bg-panel p-0 text-text shadow-[12px_0_40px_-16px_rgba(0,0,0,0.65)] sm:max-w-none",
+            "sidebar-surface fixed inset-y-0 left-0 top-0 z-50 flex h-dvh max-h-dvh w-[min(100vw-3rem,20rem)] max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-visible rounded-none border-y-0 border-l-0 border-r border-border bg-[#0c1420] p-0 text-text shadow-[12px_0_40px_-16px_rgba(0,0,0,0.65)] sm:max-w-none",
             "pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]",
             "data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-left-5 data-open:zoom-in-100 data-open:duration-300",
             "data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-left-5 data-closed:zoom-out-100 data-closed:duration-200"

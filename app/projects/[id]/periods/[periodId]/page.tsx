@@ -38,6 +38,9 @@ import {
 } from "@/lib/i18n/labels";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
+import { listCompanyBankAccountOptions } from "@/lib/company-bank-accounts";
+import { formatDateInput, stubExclusiveFromMonthlyRate } from "@/lib/invoice-period";
+import { isUnrecordedCatchUpPeriod } from "@/lib/project-catch-up-periods";
 import {
   projectBillingHref,
   projectDetailHref,
@@ -45,6 +48,7 @@ import {
 import { isInternalProjectSubCategory } from "@/lib/project-subcategory";
 import { isAwaitingClientAction } from "@/lib/client-billing-review";
 import HoOfflineClientReviewPanel from "@/components/billing/HoOfflineClientReviewPanel";
+import ProjectCatchUpPeriodForm from "@/components/projects/ProjectCatchUpPeriodForm";
 
 import AppShell from "@/components/layout/AppShell";
 import BackLink from "@/components/ui/BackLink";
@@ -172,6 +176,14 @@ export default async function ProjectPeriodPage({
   const canOpenProgress = canAccess(permissionUser, "progress");
   const canManage =
     canManageProjects(permissionUser) && !isClientPortalUser(permissionUser);
+  if (isClientPortalUser(permissionUser) && isUnrecordedCatchUpPeriod(period)) {
+    redirect(projectDetailHref(project.id));
+  }
+  const needsHistoricalCapture =
+    canManage && isUnrecordedCatchUpPeriod(period);
+  const bankAccounts = needsHistoricalCapture
+    ? await listCompanyBankAccountOptions(project.companyId)
+    : [];
   const showOfflineHoReview =
     canManage &&
     project.client?.hasPortalAccess === false &&
@@ -204,54 +216,58 @@ export default async function ProjectPeriodPage({
             });
 
   const why: string[] = [];
-  if (!period.submittedAt && !issuedInvoice) {
-    why.push(t("pages.projects.periodPage.emptyInvoiceDates"));
-  }
-  if (monthlyAwaitingReconcile) {
-    why.push(t("pages.projects.periodPage.reconcileWhy"));
-  } else if (pendingApproval) {
-    if (period.clientReviewStatus === "CLIENT_REVISED") {
-      why.push(t("pages.projects.periodPage.pendingApprovalClientRevised"));
-    } else if (period.clientReviewStatus === "HO_REJECTED_REVISION") {
-      why.push(t("pages.projects.periodPage.pendingApprovalHoRejected"));
-    } else if (project.client?.hasPortalAccess === false) {
-      why.push(t("pages.projects.periodPage.pendingApprovalNoPortalWhy"));
-    } else {
-      why.push(t("pages.projects.periodPage.pendingApprovalWhy"));
+  if (isUnrecordedCatchUpPeriod(period)) {
+    why.push(t("pages.projects.periodPage.historicalRecordWhy"));
+  } else {
+    if (!period.submittedAt && !issuedInvoice) {
+      why.push(t("pages.projects.periodPage.emptyInvoiceDates"));
     }
-  } else if (period.status === "ONGOING") {
-    why.push(t("pages.projects.periodPage.ongoingWhy"));
-  } else if (period.status === "COMPILING") {
-    why.push(t("pages.projects.periodPage.compilingWhy"));
-  } else if (period.status === "PENDING_VERIFICATION") {
-    why.push(t("pages.projects.periodPage.verifyingWhy"));
-  } else if (period.status === "PAID") {
-    why.push(
-      t("pages.projects.periodPage.paidWhy", {
-        date: period.paidAt ? formatDisplayDate(period.paidAt) : "—",
-      })
-    );
-  } else if (display.key === "LATE" || period.status === "OVERDUE") {
-    why.push(
-      t("pages.projects.periodPage.overdueWhy", {
-        date: display.dueAt
-          ? formatDisplayDate(display.dueAt, { timeZone: "UTC" })
-          : "—",
-      })
-    );
-  } else if (period.status === "AWAITING_PAYMENT") {
-    why.push(
-      t("pages.projects.periodPage.awaitingPaymentWhy", {
-        date: display.dueAt
-          ? formatDisplayDate(display.dueAt, { timeZone: "UTC" })
-          : "—",
-      })
-    );
-  }
-  if (taxPending) {
-    why.push(t("pages.projects.periodPage.taxPendingWhy"));
-  } else if (period.taxInvoiceRequired && period.taxInvoiceDoneAt) {
-    why.push(t("pages.projects.periodPage.taxDoneWhy"));
+    if (monthlyAwaitingReconcile) {
+      why.push(t("pages.projects.periodPage.reconcileWhy"));
+    } else if (pendingApproval) {
+      if (period.clientReviewStatus === "CLIENT_REVISED") {
+        why.push(t("pages.projects.periodPage.pendingApprovalClientRevised"));
+      } else if (period.clientReviewStatus === "HO_REJECTED_REVISION") {
+        why.push(t("pages.projects.periodPage.pendingApprovalHoRejected"));
+      } else if (project.client?.hasPortalAccess === false) {
+        why.push(t("pages.projects.periodPage.pendingApprovalNoPortalWhy"));
+      } else {
+        why.push(t("pages.projects.periodPage.pendingApprovalWhy"));
+      }
+    } else if (period.status === "ONGOING") {
+      why.push(t("pages.projects.periodPage.ongoingWhy"));
+    } else if (period.status === "COMPILING") {
+      why.push(t("pages.projects.periodPage.compilingWhy"));
+    } else if (period.status === "PENDING_VERIFICATION") {
+      why.push(t("pages.projects.periodPage.verifyingWhy"));
+    } else if (period.status === "PAID") {
+      why.push(
+        t("pages.projects.periodPage.paidWhy", {
+          date: period.paidAt ? formatDisplayDate(period.paidAt) : "—",
+        })
+      );
+    } else if (display.key === "LATE" || period.status === "OVERDUE") {
+      why.push(
+        t("pages.projects.periodPage.overdueWhy", {
+          date: display.dueAt
+            ? formatDisplayDate(display.dueAt, { timeZone: "UTC" })
+            : "—",
+        })
+      );
+    } else if (period.status === "AWAITING_PAYMENT") {
+      why.push(
+        t("pages.projects.periodPage.awaitingPaymentWhy", {
+          date: display.dueAt
+            ? formatDisplayDate(display.dueAt, { timeZone: "UTC" })
+            : "—",
+        })
+      );
+    }
+    if (taxPending) {
+      why.push(t("pages.projects.periodPage.taxPendingWhy"));
+    } else if (period.taxInvoiceRequired && period.taxInvoiceDoneAt) {
+      why.push(t("pages.projects.periodPage.taxDoneWhy"));
+    }
   }
 
   const documents = [
@@ -319,7 +335,7 @@ export default async function ProjectPeriodPage({
             {t("pages.projects.periodPage.openBilling")}
           </Link>
         ) : null}
-        {canOpenProgress ? (
+        {canOpenProgress && !period.isCatchUp ? (
           <Link
             href={`/progress?projectId=${project.id}`}
             className={buttonVariants({
@@ -399,6 +415,39 @@ export default async function ProjectPeriodPage({
             ) : null}
           </div>
         </SectionCard>
+
+        {needsHistoricalCapture ? (
+          <SectionCard className={sectionCardClassName}>
+            <h3 className={sectionTitleClassName}>
+              {t("pages.projects.catchUp.dialogTitlePeriod", {
+                label: periodLabel,
+              })}
+            </h3>
+            <p className="mt-1 mb-6 text-sm text-subtle">
+              {t("pages.projects.catchUp.pageHint")}
+            </p>
+            <ProjectCatchUpPeriodForm
+              projectId={project.id}
+              periodId={period.id}
+              target={{
+                kind: "period",
+                ordinal: 1,
+                periodStart: formatDateInput(period.periodStart),
+                periodEnd: formatDateInput(period.periodEnd),
+                label: period.label || periodLabel,
+                closesProject: false,
+              }}
+              bankAccounts={bankAccounts}
+              suggestedExclusive={
+                stubExclusiveFromMonthlyRate(
+                  contractPriceNum ?? 0,
+                  period.periodStart,
+                  period.periodEnd
+                ) || periodAmount
+              }
+            />
+          </SectionCard>
+        ) : null}
 
         {showOfflineHoReview ? (
           <SectionCard className={sectionCardClassName}>
@@ -503,20 +552,25 @@ export default async function ProjectPeriodPage({
           </div>
         </SectionCard>
 
+        {!needsHistoricalCapture ? (
         <SectionCard className={sectionCardClassName}>
           <h3 className={sectionTitleClassName}>
             {t("pages.projects.periodPage.reportsTitle")}
           </h3>
           <p className="mt-2 text-sm leading-relaxed text-muted">
-            {t("pages.projects.periodPage.reportsHint", {
-              count: reportCount,
-            })}
+            {period.isCatchUp
+              ? t("pages.projects.periodPage.reportsEmptyCatchUp")
+              : t("pages.projects.periodPage.reportsHint", {
+                  count: reportCount,
+                })}
           </p>
 
           {reports.length === 0 ? (
-            <p className="mt-4 text-sm text-subtle">
-              {t("pages.projects.periodPage.reportsEmpty")}
-            </p>
+            period.isCatchUp ? null : (
+              <p className="mt-4 text-sm text-subtle">
+                {t("pages.projects.periodPage.reportsEmpty")}
+              </p>
+            )
           ) : (
             <div className="mt-4 space-y-3">
               {reports.map((report) => {
@@ -587,7 +641,9 @@ export default async function ProjectPeriodPage({
             </div>
           )}
         </SectionCard>
+        ) : null}
 
+        {!needsHistoricalCapture ? (
         <SectionCard className={sectionCardClassName}>
           <h3 className={sectionTitleClassName}>
             {t("pages.projects.periodPage.documentsTitle")}
@@ -655,6 +711,7 @@ export default async function ProjectPeriodPage({
             </div>
           ) : null}
         </SectionCard>
+        ) : null}
       </div>
     </AppShell>
   );

@@ -11,6 +11,7 @@ import { createTranslator } from "@/lib/i18n/translate";
 import { canAccess } from "@/lib/permissions";
 import { toPermissionUser } from "@/lib/session";
 import { buildTaxReportPdfBuffer } from "@/lib/tax-report-pdf";
+import { parseTaxReportView } from "@/lib/tax-report-view";
 import { loadVatTaxWorkspace } from "@/lib/vat-ledger";
 
 export async function GET(request: NextRequest) {
@@ -36,6 +37,7 @@ export async function GET(request: NextRequest) {
   });
   const year = period.year;
   const month = period.month;
+  const view = parseTaxReportView(request.nextUrl.searchParams.get("view"));
 
   try {
     const locale = await getServerLocale();
@@ -60,6 +62,7 @@ export async function GET(request: NextRequest) {
 
     const buffer = await buildTaxReportPdfBuffer({
       periodLabel,
+      view,
       outputTotal: workspace.outputTotal,
       inputTotal: workspace.inputTotal,
       net: workspace.net,

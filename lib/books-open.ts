@@ -1,11 +1,12 @@
-import { addUtcDays, toUtcDateOnly } from "@/lib/invoice-period";
+import { toUtcDateOnly } from "@/lib/invoice-period";
 import { jakartaTodayAsUtcDateOnly } from "@/lib/leave-employment-status";
 import { prisma } from "@/lib/prisma";
 
-/** Show the Add Project ongoing/completed pills until this many days after go-live. */
+/** Kept for a possible future go-live window. Add Project pills stay available. */
 export const CATCH_UP_INTAKE_DAYS = 31;
 
-export const LIVE_PROJECT_EXPENSE_WHERE = { isCatchUp: false } as const;
+/** Catch-up staff and material totals count on company P&L. */
+export const LIVE_PROJECT_EXPENSE_WHERE = {} as const;
 
 export async function loadBooksOpenDate(
   companyId?: string | null
@@ -18,20 +19,15 @@ export async function loadBooksOpenDate(
   return company?.booksOpenDate ?? null;
 }
 
-/** Add Project pills only. Closing this does not delete typed-in projects. */
+/** Add Project pills stay available. `booksOpenDate` is unused until a future go-live cut. */
 export function isCatchUpIntakeOpen(
-  booksOpenDate: Date | null | undefined,
-  today: Date = jakartaTodayAsUtcDateOnly()
+  _booksOpenDate?: Date | null,
+  _today?: Date
 ): boolean {
-  if (!booksOpenDate) return true;
-  const lastDay = addUtcDays(
-    toUtcDateOnly(booksOpenDate),
-    CATCH_UP_INTAKE_DAYS
-  );
-  return toUtcDateOnly(today).getTime() <= lastDay.getTime();
+  return true;
 }
 
-/** Boundary for historical vs current billing cycles. */
+/** Live-writer boundary if `booksOpenDate` is set later. Intake does not use this. */
 export function catchUpAsOfDate(
   booksOpenDate: Date | null | undefined,
   today: Date = jakartaTodayAsUtcDateOnly()
@@ -40,19 +36,28 @@ export function catchUpAsOfDate(
   return toUtcDateOnly(booksOpenDate);
 }
 
-/** Catch-up never lands on live P&L. It still counts on that project's own report. */
+/** Live writers must not open a cycle whose start is before books-open (or today if unset). */
+export function periodStartsBeforeBooksOpen(
+  periodStart: Date,
+  booksOpenDate: Date | null | undefined
+): boolean {
+  return (
+    toUtcDateOnly(periodStart).getTime() <
+    catchUpAsOfDate(booksOpenDate).getTime()
+  );
+}
+
+/** Paid invoices count on P&L by paid date, including recorded historical cycles. */
 export function isLiveInvoiceIncome(opts: {
   isCatchUp?: boolean | null;
   paidAt?: Date | null;
   booksOpenDate?: Date | null;
 }): boolean {
-  if (!opts.paidAt) return false;
-  if (opts.isCatchUp) return false;
-  return true;
+  return Boolean(opts.paidAt);
 }
 
 export function liveInvoiceIncomeWhere(_booksOpenDate?: Date | null) {
-  return { isCatchUp: false };
+  return {};
 }
 
 export async function liveInvoiceIncomeWhereFor(companyId: string) {

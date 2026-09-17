@@ -27,6 +27,7 @@ import {
   commercialTaxIncludesVat,
 } from "@/lib/commercial-tax";
 import { formatTaxInvoiceSerial } from "@/lib/tax-invoice-serial";
+import { parseTaxReportView } from "@/lib/tax-report-view";
 import {
   DEFAULT_INCLUSIVE_PPN_RATE,
   ppnRateFromPercent,
@@ -51,10 +52,7 @@ export default async function OutputTaxDetailPage({
   const t = createTranslator(locale);
   const { periodId } = await params;
   const query = await searchParams;
-  const backView =
-    query.from === "income" || query.from === "other" || query.from === "input"
-      ? query.from
-      : "output";
+  const backView = parseTaxReportView(query.from, "output");
 
   if (session.user.clientId || session.user.vendorId) {
     redirect("/billing");

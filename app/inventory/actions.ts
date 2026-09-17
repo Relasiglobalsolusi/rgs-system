@@ -1374,7 +1374,6 @@ export async function reverseInventoryWriteOff(formData: FormData) {
       }
 
       const currentStock = inventoryQtyFromDecimal(locked.currentStock);
-      const newStock = normalizeInventoryQty(currentStock + restoreQty);
 
       const voided = await tx.inventoryMovement.updateMany({
         where: { id: movement.id, voidedAt: null, type: "WRITE_OFF" },
@@ -1387,12 +1386,10 @@ export async function reverseInventoryWriteOff(formData: FormData) {
         throw new Error(translate(locale, "pages.inventory.writeOffAlreadyReversed"));
       }
 
-      await tx.inventoryItem.update({
-        where: { id: movement.itemId },
-        data: { currentStock: toDecimal(newStock) },
-      });
-
       if (isEquipmentItemType(movement.item.itemType)) {
+        const availableBefore = await tx.equipmentAsset.count({
+          where: { itemId: movement.itemId, status: "AVAILABLE" },
+        });
         await restoreEquipmentAssetsForWriteOff(
           tx,
           company.id,
@@ -1401,6 +1398,30 @@ export async function reverseInventoryWriteOff(formData: FormData) {
           restoreQty,
           movement.notes
         );
+        const availableAfter = await tx.equipmentAsset.count({
+          where: { itemId: movement.itemId, status: "AVAILABLE" },
+        });
+        await tx.inventoryItem.update({
+          where: { id: movement.itemId },
+          data: {
+            currentStock: toDecimal(
+              nextOnHandAfterAvailableChange(
+                currentStock,
+                availableBefore,
+                availableAfter
+              )
+            ),
+          },
+        });
+      } else {
+        await tx.inventoryItem.update({
+          where: { id: movement.itemId },
+          data: {
+            currentStock: toDecimal(
+              normalizeInventoryQty(currentStock + restoreQty)
+            ),
+          },
+        });
       }
     });
 

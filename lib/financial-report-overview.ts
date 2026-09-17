@@ -14,8 +14,10 @@ import {
   financialReportCalendarRange,
   financialReportWageRange,
   isSingleBankSelection,
+  purchaseBankAccountWhere,
   type FinancialReportSelection,
 } from "@/lib/financial-report-query";
+import { companyCashBalance } from "@/lib/company-cash";
 import {
   getSecurityDepositSnapshot,
   sumInternalPayrollNetAdjustment,
@@ -40,7 +42,19 @@ import {
   type BpjsPayableTotals,
 } from "@/lib/financial-report-bpjs";
 import { operatingPurchaseAmount } from "@/lib/purchase-operating-cost";
+import { sumPettyCashPnlOutflows } from "@/lib/petty-cash";
 import { sumLoanInterestDue } from "@/lib/loan-facility-query";
+import {
+  buildFinancialReportPnlStairs,
+  emptyFinancialReportPnlStairs,
+  type FinancialReportPnlStairs,
+} from "@/lib/financial-report-pnl";
+import {
+  corporateIncomeTaxOnProfitBeforeTax,
+  CORPORATE_INCOME_TAX_RATE_PERCENT,
+} from "@/lib/corporate-income-tax";
+import { isCapitalVehicleExpenseKind } from "@/lib/vehicle-expense";
+import { listTaxRateSlices, TAX_RATE_CODE } from "@/lib/tax-rates";
 
 export const FINANCIAL_REPORT_JOB_STATUSES = [
   "IN_PROGRESS",
@@ -73,16 +87,19 @@ export type OverheadBreakdown = {
 export type FinancialReportOverview = {
   selection: FinancialReportSelection;
   period: MoneyPair;
+  pnl: FinancialReportPnlStairs;
   clientsOwe: OwedBucket;
   vendorsOwe: OwedBucket;
-  /** Period profit minus outstanding accounts payable. */
+  /** Net profit minus outstanding accounts payable. */
   netPosition: number;
   warehouseStockValue: number;
   overhead: OverheadBreakdown;
   deposits: SecurityDepositSnapshot;
   bpjsPayable: BpjsPayableTotals;
-  /** Interest to pay this month on active loans. Shown as a reminder, not funding. */
+  /** Interest recorded on Loan this period. Finance cost on the P&L. */
   loanInterestDue: number;
+  /** Hard cash withdrawn from a company bank and not yet spent. */
+  cashAtHand: number;
 };
 
 function pair(moneyIn: number, moneyOut: number): MoneyPair {
@@ -181,7 +198,7 @@ export async function getClientsOwed(
   companyId: string,
   clientId?: string | null,
   projectId?: string | null,
-  options?: { includeCatchUp?: boolean }
+  _options?: { includeCatchUp?: boolean }
 ): Promise<OwedBucket> {
   const periods = await prisma.projectInvoicePeriod.findMany({
     where: {
@@ -192,7 +209,6 @@ export async function getClientsOwed(
         ...(projectId ? { id: projectId } : {}),
       },
       status: { in: [...OUTSTANDING_INVOICE_STATUSES] },
-      ...(options?.includeCatchUp ? {} : { isCatchUp: false }),
     },
     select: {
       status: true,
@@ -239,7 +255,6 @@ export async function getClientsOwedByClientIds(
         subCategory: { not: "INTERNAL" },
       },
       status: { in: [...OUTSTANDING_INVOICE_STATUSES] },
-      isCatchUp: false,
     },
     select: {
       status: true,
@@ -348,7 +363,7 @@ async function sumPurchases(
       ...("purpose" in filter ? { purchaseCategory: { not: "VEHICLE" } } : {}),
       reversedAt: null,
       employeePaymentKind: { not: "INTERNAL_PAYROLL" },
-      ...bankAccountWhere(bank),
+      ...purchaseBankAccountWhere(bank),
       paidAt: {
         not: null,
         ...(from ? { gte: from } : {}),
@@ -360,6 +375,7 @@ async function sumPurchases(
       supplierName: true,
       invoiceRef: true,
       purchaseCategory: true,
+      vehicleExpenseKind: true,
       governmentTaxKind: true,
       governmentOperatingAmount: true,
       origin: true,
@@ -376,6 +392,12 @@ async function sumPurchases(
     },
   });
   return invoices.reduce((sum, invoice) => {
+    if (
+      invoice.purchaseCategory === "VEHICLE" &&
+      isCapitalVehicleExpenseKind(invoice.vehicleExpenseKind)
+    ) {
+      return sum;
+    }
     return (
       sum +
       operatingPurchaseAmount({
@@ -484,7 +506,7 @@ async function sumImportRateDifferences(
       companyId,
       origin: "IMPORT",
       reversedAt: null,
-      ...bankAccountWhere(bank),
+      ...purchaseBankAccountWhere(bank),
       paidAt: {
         not: null,
         ...(from ? { gte: from } : {}),
@@ -515,7 +537,7 @@ export async function listImportRateDifferences(
       companyId,
       origin: "IMPORT",
       reversedAt: null,
-      ...bankAccountWhere(bank),
+      ...purchaseBankAccountWhere(bank),
       paidAt: {
         not: null,
         ...(from ? { gte: from } : {}),
@@ -715,11 +737,21 @@ async function periodPnl(
   wageFrom?: Date,
   wageToExclusive?: Date,
   bank = FINANCIAL_REPORT_ALL_BANKS
-): Promise<{ pair: MoneyPair; overhead: OverheadBreakdown }> {
+): Promise<{
+  pair: MoneyPair;
+  overhead: OverheadBreakdown;
+  pnlBase: {
+    revenue: number;
+    costOfSales: number;
+    otherIncome: number;
+    headOffice: number;
+  };
+}> {
   const wageRange = {
     from: wageFrom ?? from,
     toExclusive: wageToExclusive ?? toExclusive,
   };
+  const singleBank = isSingleBankSelection(bank);
   const [
     paidIn,
     soldOff,
@@ -734,9 +766,9 @@ async function periodPnl(
     keptIncome,
     thrPaid,
     incidentExpenses,
-    vehiclePurchases,
+    vehicleOperating,
     importFx,
-    pettyCashTopUps,
+    pettyPnl,
     prepaidReturns,
   ] = await Promise.all([
     sumPaidInvoices(companyId, from, toExclusive, bank),
@@ -768,7 +800,11 @@ async function periodPnl(
     sumProjectExpenses(companyId, from, toExclusive, bank),
     sumPurchases(companyId, { purchaseCategory: "VEHICLE" }, from, toExclusive, bank),
     sumImportRateDifferences(companyId, from, toExclusive, bank),
-    sumPurchases(companyId, { purpose: "PETTY_CASH" }, from, toExclusive, bank),
+    singleBank
+      ? Promise.resolve({ costOfSales: 0, headOffice: 0 })
+      : sumPettyCashPnlOutflows(prisma, companyId, from, toExclusive).catch(
+          () => ({ costOfSales: 0, headOffice: 0 })
+        ),
     prisma.prepaidCardLossRecovery.aggregate({
       where: {
         loss: { companyId },
@@ -801,7 +837,7 @@ async function periodPnl(
         sum + rows.reduce((rowSum, row) => rowSum + row.wageCost, 0),
       0
     );
-  const overheadPurchases = internalPurchases + pettyCashTopUps;
+  const overheadPurchases = internalPurchases + pettyPnl.headOffice;
   const overhead: OverheadBreakdown = {
     wages: overheadWages,
     internalPurchases: overheadPurchases,
@@ -833,31 +869,35 @@ async function periodPnl(
         })
       )._sum.refundAmount
     ) ?? 0;
-  const singleBank = isSingleBankSelection(bank);
-  const moneyIn =
-    paidIn +
-    soldOff +
-    parking.moneyIn +
-    (singleBank ? 0 : payroll.moneyIn + keptIncome) +
-    importFx.income +
-    prepaidReturnIn +
-    factoryRefundIn +
-    incidentExpenses.income;
-  const moneyOut =
+  const revenue =
+    paidIn + parking.moneyIn + (singleBank ? 0 : payroll.moneyIn);
+  const costOfSales =
     (singleBank ? 0 : inventoryOut) +
     projectPurchases +
     (singleBank ? 0 : commercialWages) +
     (singleBank ? 0 : payroll.moneyOut) +
     parking.dealOut +
+    incidentExpenses.expense +
+    pettyPnl.costOfSales;
+  const otherIncome =
+    soldOff +
+    (singleBank ? 0 : keptIncome) +
+    importFx.income +
+    prepaidReturnIn +
+    factoryRefundIn +
+    incidentExpenses.income;
+  const headOffice =
     (singleBank
       ? overhead.internalPurchases + overhead.importRateDifferenceExpense
-      : overhead.total) +
-    (singleBank ? 0 : payrollNetAdj) +
-    (singleBank ? 0 : thrPaid) +
-    incidentExpenses.expense +
-    vehiclePurchases;
+      : overhead.total + payrollNetAdj + thrPaid) + vehicleOperating;
+  const moneyIn = revenue + otherIncome;
+  const moneyOut = costOfSales + headOffice;
 
-  return { pair: pair(moneyIn, moneyOut), overhead };
+  return {
+    pair: pair(moneyIn, moneyOut),
+    overhead,
+    pnlBase: { revenue, costOfSales, otherIncome, headOffice },
+  };
 }
 
 function emptyOverview(
@@ -867,6 +907,7 @@ function emptyOverview(
   return {
     selection,
     period: { moneyIn: 0, moneyOut: 0, net: 0 },
+    pnl: emptyFinancialReportPnlStairs(),
     clientsOwe: { unpaid: 0, overdue: 0 },
     vendorsOwe: { unpaid: 0, overdue: 0 },
     netPosition: 0,
@@ -885,6 +926,7 @@ function emptyOverview(
       ketenagakerjaan: { companyTotal: 0, employeeCount: 0 },
     },
     loanInterestDue: 0,
+    cashAtHand: 0,
     ...patch,
   };
 }
@@ -904,6 +946,8 @@ export async function getFinancialReportOverviewData(
     deposits,
     bpjsPayable,
     loanInterestDue,
+    cashAtHand,
+    taxSlices,
   ] =
     await Promise.all([
       periodPnl(
@@ -920,19 +964,79 @@ export async function getFinancialReportOverviewData(
       getSecurityDepositSnapshot(companyId),
       getBpjsPayableTotals(companyId),
       sumLoanInterestDue(companyId, calendar.from, calendar.toExclusive),
+      companyCashBalance(prisma, companyId).catch(() => 0),
+      listTaxRateSlices(
+        companyId,
+        TAX_RATE_CODE.PPH_BADAN,
+        calendar.from,
+        calendar.toExclusive
+      ),
     ]);
+
+  const uniqueRates = [
+    ...new Set(taxSlices.map((slice) => slice.ratePercent)),
+  ];
+  let incomeTax: number | undefined;
+  let incomeTaxRatePercent: number | null =
+    uniqueRates.length === 1
+      ? uniqueRates[0]
+      : uniqueRates.length === 0
+        ? CORPORATE_INCOME_TAX_RATE_PERCENT
+        : null;
+
+  if (taxSlices.length > 1) {
+    incomeTax = 0;
+    for (const slice of taxSlices) {
+      const slicePeriod = await periodPnl(
+        companyId,
+        slice.from,
+        slice.toExclusive,
+        slice.from,
+        slice.toExclusive,
+        bank
+      );
+      const sliceFinance = await sumLoanInterestDue(
+        companyId,
+        slice.from,
+        slice.toExclusive
+      );
+      const sliceStairs = buildFinancialReportPnlStairs({
+        ...slicePeriod.pnlBase,
+        financeCosts: sliceFinance,
+        incomeTax: 0,
+        incomeTaxRatePercent: 0,
+      });
+      incomeTax += corporateIncomeTaxOnProfitBeforeTax(
+        sliceStairs.profitBeforeTax,
+        slice.ratePercent / 100
+      );
+    }
+  }
+
+  const pnl = buildFinancialReportPnlStairs({
+    ...period.pnlBase,
+    financeCosts: loanInterestDue,
+    incomeTaxRatePercent,
+    ...(incomeTax != null ? { incomeTax } : {}),
+  });
 
   return {
     selection,
-    period: period.pair,
+    period: {
+      moneyIn: pnl.revenue + pnl.otherIncome,
+      moneyOut: pnl.costOfSales + pnl.headOffice + pnl.financeCosts,
+      net: pnl.netProfit,
+    },
+    pnl,
     clientsOwe,
     vendorsOwe,
-    netPosition: period.pair.net - vendorsOwe.unpaid,
+    netPosition: pnl.netProfit - vendorsOwe.unpaid,
     warehouseStockValue,
     overhead: period.overhead,
     deposits,
     bpjsPayable,
     loanInterestDue,
+    cashAtHand,
   };
 }
 
@@ -953,6 +1057,10 @@ export async function getFinancialReportDetailOverview(
   if (metric === "warehouse") {
     const warehouseStockValue = await getWarehouseStockValue(companyId);
     return emptyOverview(selection, { warehouseStockValue });
+  }
+  if (metric === "cashAtHand") {
+    const cashAtHand = await companyCashBalance(prisma, companyId).catch(() => 0);
+    return emptyOverview(selection, { cashAtHand });
   }
   if (metric === "ar") {
     const clientsOwe = await getClientsOwed(companyId);

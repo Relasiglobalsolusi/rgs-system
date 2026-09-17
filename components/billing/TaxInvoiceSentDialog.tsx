@@ -12,10 +12,7 @@ import { FileDropField } from "@/components/ui/FileDropField";
 import { Input } from "@/components/ui/input";
 import { showMissingRequiredFields } from "@/components/ui/rejection-notice";
 import { useT } from "@/lib/i18n/use-t";
-import {
-  DEFAULT_PRODUCT_PPN_RATE_PERCENT,
-  parsePpnRatePercent,
-} from "@/lib/vat";
+import { todayDateInput } from "@/lib/project-contract";
 
 type Props = {
   open: boolean;
@@ -35,7 +32,6 @@ export default function TaxInvoiceSentDialog({
   periodId,
   projectName,
   periodLabel,
-  defaultPpnRatePercent,
   showWithholdingSlip,
   onSuccess,
 }: Props) {
@@ -43,9 +39,7 @@ export default function TaxInvoiceSentDialog({
   const [taxFile, setTaxFile] = useState<File | null>(null);
   const [withholdingFile, setWithholdingFile] = useState<File | null>(null);
   const serialAssist = useTaxInvoiceSerialAssist(taxFile);
-  const [ppnRatePercent, setPpnRatePercent] = useState(
-    String(defaultPpnRatePercent ?? DEFAULT_PRODUCT_PPN_RATE_PERCENT)
-  );
+  const [issuedAt, setIssuedAt] = useState(todayDateInput);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,16 +47,13 @@ export default function TaxInvoiceSentDialog({
     if (!open) {
       setTaxFile(null);
       setWithholdingFile(null);
-      setPpnRatePercent(
-        String(defaultPpnRatePercent ?? DEFAULT_PRODUCT_PPN_RATE_PERCENT)
-      );
+      setIssuedAt(todayDateInput());
       setPending(false);
       setError(null);
     }
-  }, [open, defaultPpnRatePercent]);
+  }, [open]);
 
-  const parsedRate = parsePpnRatePercent(ppnRatePercent);
-  const canSubmit = Boolean(taxFile && taxFile.size > 0 && parsedRate != null);
+  const canSubmit = Boolean(taxFile && taxFile.size > 0 && issuedAt);
 
   const displayLabel =
     periodLabel &&
@@ -79,8 +70,8 @@ export default function TaxInvoiceSentDialog({
       setError(t("pages.billing.chooseTaxInvoiceDocument"));
       return;
     }
-    if (parsedRate == null) {
-      setError(t("pages.billing.purchasePpnRateRequired"));
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(issuedAt)) {
+      setError(t("pages.billing.taxInvoiceIssuedAtRequired"));
       return;
     }
     if (
@@ -101,7 +92,7 @@ export default function TaxInvoiceSentDialog({
       const formData = new FormData();
       formData.set("periodId", periodId);
       formData.set("taxInvoiceDocument", taxFile);
-      formData.set("ppnRatePercent", String(parsedRate));
+      formData.set("taxInvoiceIssuedAt", issuedAt);
       formData.set("taxInvoiceSerial", serialAssist.serial);
       formData.set(
         "taxInvoiceSerialVerified",
@@ -143,6 +134,25 @@ export default function TaxInvoiceSentDialog({
       pendingLabel={t("pages.billing.paymentVerifyChecking")}
       onSubmit={handleSubmit}
     >
+      <div className="space-y-2">
+        <label
+          htmlFor={`tax-issued-at-${periodId}`}
+          className="text-sm font-semibold text-text"
+        >
+          {t("pages.billing.taxInvoiceIssuedAt")}
+          <span className="text-red-400"> *</span>
+        </label>
+        <Input
+          id={`tax-issued-at-${periodId}`}
+          type="date"
+          disabled={pending}
+          value={issuedAt}
+          onChange={(event) => setIssuedAt(event.target.value)}
+        />
+        <p className="text-xs text-muted">
+          {t("pages.billing.taxInvoiceIssuedAtHint")}
+        </p>
+      </div>
       <TaxInvoiceNumberFields
         id={`tax-serial-${periodId}`}
         serial={serialAssist.serial}
@@ -162,27 +172,7 @@ export default function TaxInvoiceSentDialog({
           accept="image/*,application/pdf"
         />
       ) : null}
-      <div className="space-y-2">
-        <label
-          htmlFor={`tax-ppn-rate-${periodId}`}
-          className="text-sm font-semibold text-text"
-        >
-          {t("pages.billing.purchasePpnRate")}
-          <span className="text-red-400"> *</span>
-        </label>
-        <Input
-          id={`tax-ppn-rate-${periodId}`}
-          name="ppnRatePercent"
-          inputMode="decimal"
-          disabled={pending}
-          value={ppnRatePercent}
-          onChange={(event) => setPpnRatePercent(event.target.value)}
-          placeholder={t("pages.billing.purchasePpnRatePlaceholder")}
-        />
-        <p className="text-xs text-muted">
-          {t("pages.billing.outputPpnRateHint")}
-        </p>
-      </div>
+      <p className="text-xs text-muted">{t("pages.taxRates.followsTable")}</p>
     </BillingDocumentVerifyDialog>
   );
 }

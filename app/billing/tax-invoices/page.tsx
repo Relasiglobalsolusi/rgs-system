@@ -7,6 +7,7 @@ import { parseFinancePeriod } from "@/lib/finance-period";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { createTranslator } from "@/lib/i18n/translate";
 import { requireFinanceChild } from "@/lib/session";
+import { parseTaxReportView } from "@/lib/tax-report-view";
 import { loadVatTaxWorkspace } from "@/lib/vat-ledger";
 
 type SearchParams = Promise<{
@@ -33,14 +34,7 @@ export default async function TaxInvoicesPage({
 
   const params = await searchParams;
   const { year, month } = parseFinancePeriod(params);
-  const view =
-    params.view === "input"
-      ? "input"
-      : params.view === "income"
-        ? "income"
-        : params.view === "other"
-          ? "other"
-          : "output";
+  const view = parseTaxReportView(params.view);
 
   const workspace = await loadVatTaxWorkspace({
     companyId: session.user.companyId,
@@ -62,8 +56,6 @@ export default async function TaxInvoicesPage({
         creditBroughtForward={workspace.creditBroughtForward}
         outputRows={workspace.outputRows}
         inputRows={workspace.inputRows}
-        outputPending={workspace.outputPending}
-        inputPending={workspace.inputPending}
         incomeRows={workspace.incomeRows}
         incomeImportTotal={workspace.incomeImportTotal}
         incomeInstallmentTotal={workspace.incomeInstallmentTotal}

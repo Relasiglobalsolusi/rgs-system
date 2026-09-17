@@ -8,7 +8,9 @@ import {
   listPurchasePayoutBankAccounts,
   markPurchaseInvoicePaid,
 } from "@/app/billing/purchase-invoices/actions";
+import { getCompanyCashAtHand } from "@/app/billing/cash-actions";
 import BillingDocumentVerifyDialog from "@/components/billing/BillingDocumentVerifyDialog";
+import PurchasePaymentMethodField from "@/components/billing/PurchasePaymentMethodField";
 import CompanyBankAccountField from "@/components/company-details/CompanyBankAccountField";
 import {
   employeeDialogFieldClass,
@@ -19,9 +21,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import type { CompanyBankAccountOption } from "@/lib/company-bank-accounts";
+import type { PurchasePaymentMethod } from "@/lib/company-cash";
 import { formatImportForeignAmount, parseImportDecimal } from "@/lib/import-landed-cost";
 import { useT } from "@/lib/i18n/use-t";
 import { formatContractPrice } from "@/lib/project-billing";
+import { todayDateInput } from "@/lib/project-contract";
 
 type Props = {
   open: boolean;
@@ -33,6 +37,8 @@ type Props = {
   invoiceCurrency?: string | null;
   invoiceForeignAmount?: number | null;
   bookingRate?: number | null;
+  allowsCash?: boolean;
+  amount?: number | null;
   onSuccess?: () => void;
 };
 
@@ -46,6 +52,8 @@ export default function PurchaseMarkPaidDialog({
   invoiceCurrency,
   invoiceForeignAmount,
   bookingRate = null,
+  allowsCash = false,
+  amount = null,
   onSuccess,
 }: Props) {
   const { t } = useT();
@@ -55,21 +63,27 @@ export default function PurchaseMarkPaidDialog({
     []
   );
   const [bankAccountId, setBankAccountId] = useState("");
+  const [paymentMethod, setPaymentMethod] =
+    useState<PurchasePaymentMethod>("BANK");
+  const [cashAtHand, setCashAtHand] = useState(0);
   const [importBankRate, setImportBankRate] = useState("");
   const [importBankCharge, setImportBankCharge] = useState("");
   const [importTelexFee, setImportTelexFee] = useState("");
   const [transferFee, setTransferFee] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [paidAt, setPaidAt] = useState(todayDateInput);
 
   useEffect(() => {
     if (!open) {
       setProofFiles([]);
       setBankAccountId("");
+      setPaymentMethod("BANK");
       setImportBankRate("");
       setImportBankCharge("");
       setImportTelexFee("");
       setTransferFee("");
+      setPaidAt(todayDateInput());
       setPending(false);
       setError(null);
       return;
@@ -84,15 +98,26 @@ export default function PurchaseMarkPaidDialog({
       .catch(() => {
         if (!cancelled) setBankAccounts([]);
       });
+    if (allowsCash) {
+      getCompanyCashAtHand()
+        .then((balance) => {
+          if (!cancelled) setCashAtHand(balance);
+        })
+        .catch(() => {
+          if (!cancelled) setCashAtHand(0);
+        });
+    }
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, allowsCash]);
 
+  const payingWithCash = allowsCash && paymentMethod === "CASH";
   const bankRateNumber = parseImportDecimal(importBankRate);
   const canSubmit = Boolean(
     proofFiles.length > 0 &&
-      (bankAccounts.length === 0 || bankAccountId) &&
+      paidAt &&
+      (payingWithCash || bankAccounts.length === 0 || bankAccountId) &&
       (!needsImportBankRate || (bankRateNumber != null && bankRateNumber > 0))
   );
 
@@ -104,8 +129,16 @@ export default function PurchaseMarkPaidDialog({
       setError(t("pages.billing.choosePaymentProof"));
       return;
     }
-    if (bankAccounts.length > 0 && !bankAccountId) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(paidAt)) {
+      setError(t("pages.billing.paidAtRequired"));
+      return;
+    }
+    if (!payingWithCash && bankAccounts.length > 0 && !bankAccountId) {
       setError(t("pages.billing.purchaseBankAccountRequired"));
+      return;
+    }
+    if (payingWithCash && amount != null && amount > cashAtHand) {
+      setError(t("pages.billing.purchaseCashInsufficient"));
       return;
     }
     if (needsImportBankRate && (bankRateNumber == null || bankRateNumber <= 0)) {
@@ -115,15 +148,19 @@ export default function PurchaseMarkPaidDialog({
 
     const formData = new FormData();
     formData.set("purchaseInvoiceId", purchaseInvoiceId);
+    formData.set("paidAt", paidAt);
     for (const file of proofFiles) {
       formData.append("paymentProof", file);
     }
-    formData.set("bankAccountId", bankAccountId);
-    if (needsImportBankRate) {
+    formData.set("paymentMethod", payingWithCash ? "CASH" : "BANK");
+    if (!payingWithCash) {
+      formData.set("bankAccountId", bankAccountId);
+    }
+    if (!payingWithCash && needsImportBankRate) {
       formData.set("importBankRate", importBankRate.trim());
       formData.set("importBankCharge", importBankCharge.trim());
       formData.set("importTelexFee", importTelexFee.trim());
-    } else {
+    } else if (!payingWithCash) {
       formData.set("transferFeeIdr", transferFee.trim());
     }
 
@@ -179,15 +216,45 @@ export default function PurchaseMarkPaidDialog({
       pendingLabel={t("pages.billing.purchaseMarkPaidPending")}
       onSubmit={handleSubmit}
     >
-      <CompanyBankAccountField
-        accounts={bankAccounts}
-        value={bankAccountId}
-        onChange={setBankAccountId}
-        label={t("pages.billing.purchaseBankAccount")}
-        hint={t("pages.billing.purchaseBankAccountHint")}
-        disabled={pending}
-      />
-      {needsImportBankRate ? (
+      <div className={employeeDialogFieldClass}>
+        <label
+          htmlFor={`purchase-paid-at-${purchaseInvoiceId}`}
+          className={employeeDialogLabelClass}
+        >
+          {t("pages.billing.purchasePaidAt")}
+          <span className="text-red-400"> *</span>
+        </label>
+        <p className={employeeDialogHintClass}>
+          {t("pages.billing.paidAtRequired")}
+        </p>
+        <Input
+          id={`purchase-paid-at-${purchaseInvoiceId}`}
+          type="date"
+          required
+          value={paidAt}
+          onChange={(event) => setPaidAt(event.target.value)}
+          className={employeeInputClass}
+        />
+      </div>
+      {allowsCash ? (
+        <PurchasePaymentMethodField
+          value={paymentMethod}
+          onChange={setPaymentMethod}
+          cashAtHand={cashAtHand}
+          disabled={pending}
+        />
+      ) : null}
+      {payingWithCash ? null : (
+        <CompanyBankAccountField
+          accounts={bankAccounts}
+          value={bankAccountId}
+          onChange={setBankAccountId}
+          label={t("pages.billing.purchaseBankAccount")}
+          hint={t("pages.billing.purchaseBankAccountHint")}
+          disabled={pending}
+        />
+      )}
+      {payingWithCash ? null : needsImportBankRate ? (
         <div className="space-y-3">
           {factoryAmountLabel ? (
             <p className={employeeDialogHintClass}>

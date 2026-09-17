@@ -38,6 +38,7 @@ export type PayrollDayRow = {
   needsPayDecision?: boolean;
   payDecision?: ShiftPayDecisionStatus | null;
   payAmount?: number | null;
+  unpaidSurplus?: boolean;
   /** Approved leave covers this Jakarta work day — unpaid, not Absent. */
   onLeave?: boolean;
   /**
@@ -327,6 +328,7 @@ export function buildPayrollEmployeeDays(
   }
 
   const rows: PayrollDayRow[] = [];
+  let paidDays = 0;
   for (const day of eachUtcDayInPayrollPeriod(year, month, run)) {
     const dateKey = jakartaWorkDateKey(day);
     if (dateKey > todayKey) continue;
@@ -381,6 +383,22 @@ export function buildPayrollEmployeeDays(
       decision,
     });
 
+    let leadPayAmount: number | null =
+      resolved.wage > 0 ? resolved.wage : null;
+    let unpaidSurplus = false;
+    if (resolved.daysWorked > 0 && resolved.wage > 0) {
+      const remaining = Math.max(0, PAID_SHIFT_CAP - paidDays);
+      if (remaining <= 0) {
+        leadPayAmount = null;
+        unpaidSurplus = true;
+      } else {
+        const payableDays = Math.min(resolved.daysWorked, remaining);
+        leadPayAmount = (resolved.wage / resolved.daysWorked) * payableDays;
+        unpaidSurplus = payableDays < resolved.daysWorked;
+        paidDays += payableDays;
+      }
+    }
+
     sessions.forEach((attendance, index) => {
       const complete = Boolean(attendance.checkIn && attendance.checkOut);
       const isLead = index === 0;
@@ -405,7 +423,8 @@ export function buildPayrollEmployeeDays(
         requiredHours: isLead ? resolved.requiredHours : null,
         needsPayDecision: isLead ? resolved.needsDecision : false,
         payDecision: isLead ? decision?.status ?? null : null,
-        payAmount: isLead && resolved.wage > 0 ? resolved.wage : null,
+        payAmount: isLead ? leadPayAmount : null,
+        unpaidSurplus: isLead ? unpaidSurplus : false,
       });
     });
   }

@@ -67,6 +67,16 @@ export default async function CicoPage() {
   }
   const employee = await getEmployeeForUser(session.user.id);
 
+  if (!employee && !canViewCicoAdminPreview(permissionUser, employee)) {
+    return (
+      <AppShell titleKey="pages.cico.title">
+        <SectionCard>
+          <p className="text-subtle">{t("pages.billing.moduleNotRelevant")}</p>
+        </SectionCard>
+      </AppShell>
+    );
+  }
+
   if (canViewCicoAdminPreview(permissionUser, employee)) {
     const companyId = session.user.companyId;
     const todayInput = formatDateInput(toUtcDateOnly(new Date()));

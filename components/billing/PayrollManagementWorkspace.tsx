@@ -412,7 +412,7 @@ export default function PayrollManagementWorkspace({
   return (
     <div className="space-y-6">
       <SectionCard>
-        <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div className="mb-5 flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
           <div>
             <h3 className="text-lg font-semibold text-text">
               {t("pages.billing.payrollMgmt.periodTitle")}
@@ -484,7 +484,7 @@ export default function PayrollManagementWorkspace({
       </SectionCard>
 
       <SectionCard>
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
           <div>
             <h3 className="text-lg font-semibold text-text">
               {t("pages.billing.payrollMgmt.reviewTitle")}

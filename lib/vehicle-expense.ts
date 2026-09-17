@@ -28,6 +28,14 @@ export function isVehicleOperatingExpenseKind(
   return (VEHICLE_OPERATING_EXPENSE_KINDS as readonly string[]).includes(value);
 }
 
+/** Buying the car (or the down payment) is a company asset, not P&L expense. */
+export function isCapitalVehicleExpenseKind(
+  value: string | null | undefined
+): boolean {
+  const raw = String(value ?? "").trim().toUpperCase();
+  return raw === "PURCHASE" || raw === "DOWN_PAYMENT";
+}
+
 export function parseVehicleExpenseKind(
   value: string
 ): VehicleExpenseKindValue | null {

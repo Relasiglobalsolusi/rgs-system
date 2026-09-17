@@ -55,8 +55,7 @@ export default function BillingPeriodBasisFields({
         ]}
         onChange={(value) =>
           onBillingPeriodBasisChange(value as BillingPeriodBasis)
-        }
-        columns={2}
+        }
       />
       <p className="text-xs text-subtle">
         {t("pages.projects.billingPeriodBasisHelp")}

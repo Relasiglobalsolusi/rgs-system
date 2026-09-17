@@ -103,7 +103,7 @@ export default function ProjectVisitCrewSection({
               key={visit.id}
               className="rounded-xl border border-border bg-inset p-4"
             >
-              <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-text">
                     {t("pages.projects.visitN", { n: visit.visitIndex })}

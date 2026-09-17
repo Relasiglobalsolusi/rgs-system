@@ -5,7 +5,15 @@ import { Banknote } from "lucide-react";
 
 import { markInvoicePeriodPaid } from "@/app/projects/invoice-actions";
 import BillingDocumentVerifyDialog from "@/components/billing/BillingDocumentVerifyDialog";
+import {
+  employeeDialogFieldClass,
+  employeeDialogHintClass,
+  employeeDialogLabelClass,
+  employeeInputClass,
+} from "@/components/employees/employee-dialog-ui";
+import { Input } from "@/components/ui/input";
 import { useT } from "@/lib/i18n/use-t";
+import { todayDateInput } from "@/lib/project-contract";
 
 type Props = {
   open: boolean;
@@ -27,6 +35,7 @@ export default function PaymentReceivedDialog({
   const { t } = useT();
   const [proofFiles, setProofFiles] = useState<File[]>([]);
   const [reason, setReason] = useState("");
+  const [paidAt, setPaidAt] = useState(todayDateInput);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,12 +43,13 @@ export default function PaymentReceivedDialog({
     if (!open) {
       setProofFiles([]);
       setReason("");
+      setPaidAt(todayDateInput());
       setPending(false);
       setError(null);
     }
   }, [open]);
 
-  const canSubmit = Boolean(proofFiles.length > 0 && reason.trim());
+  const canSubmit = Boolean(proofFiles.length > 0 && reason.trim() && paidAt);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -50,10 +60,16 @@ export default function PaymentReceivedDialog({
       return;
     }
 
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(paidAt)) {
+      setError(t("pages.billing.clientPaidAtRequired"));
+      return;
+    }
+
     setPending(true);
     try {
       const formData = new FormData();
       formData.set("periodId", periodId);
+      formData.set("paidAt", paidAt);
       for (const file of proofFiles) {
         formData.append("paymentProof", file);
       }
@@ -100,6 +116,24 @@ export default function PaymentReceivedDialog({
       confirmLabel={t("pages.billing.confirmPaymentReceived")}
       pendingLabel={t("pages.billing.paymentVerifyChecking")}
       onSubmit={handleSubmit}
-    />
+    >
+      <div className={employeeDialogFieldClass}>
+        <label htmlFor={`client-paid-at-${periodId}`} className={employeeDialogLabelClass}>
+          {t("pages.billing.purchasePaidAt")}
+          <span className="text-red-400"> *</span>
+        </label>
+        <p className={employeeDialogHintClass}>
+          {t("pages.billing.clientPaidAtRequired")}
+        </p>
+        <Input
+          id={`client-paid-at-${periodId}`}
+          type="date"
+          required
+          value={paidAt}
+          onChange={(event) => setPaidAt(event.target.value)}
+          className={employeeInputClass}
+        />
+      </div>
+    </BillingDocumentVerifyDialog>
   );
 }

@@ -30,6 +30,8 @@ type Props = {
   namePrefix?: string;
   /** Prefix element ids so multiple plans can sit on one page. */
   idPrefix?: string;
+  /** When a down payment is taken first, remaining installments are 100% of the remainder. */
+  percentOfRemaining?: boolean;
 };
 
 export default function MilestonePaymentPlanFields({
@@ -40,6 +42,7 @@ export default function MilestonePaymentPlanFields({
   contractPrice = null,
   namePrefix = "",
   idPrefix = "",
+  percentOfRemaining = false,
 }: Props) {
   const { t } = useT();
   const nameOf = (field: string) =>
@@ -125,7 +128,11 @@ export default function MilestonePaymentPlanFields({
 
       <div className="space-y-2">
         <p className="text-xs font-medium uppercase tracking-wider text-subtle">
-          {t("pages.projects.paymentPlan.eachPaymentPercent")}
+          {t(
+            percentOfRemaining
+              ? "pages.projects.paymentPlan.eachPaymentPercentRemaining"
+              : "pages.projects.paymentPlan.eachPaymentPercent"
+          )}
         </p>
         <div className="grid gap-2 sm:grid-cols-2">
           {installmentPercents.map((_pct, index) => (

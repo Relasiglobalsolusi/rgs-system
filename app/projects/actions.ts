@@ -43,6 +43,14 @@ import {
   isMilestoneSubCategory,
   parseContractPrice,
   parseMilestoneInstallmentsFromFormData,
+  parseDownPaymentPercentFromFormData,
+  projectAllowsDownPayment,
+  remainingContractAfterDownPayment,
+  remainderExclusiveAfterDownPayment,
+  downPaymentAmountFromContract,
+  pickDownPaymentDate,
+  DOWN_PAYMENT_INVOICE_LABEL,
+  isDownPaymentInvoicePeriod,
   splitEvenlyPercents,
   usesInvoicePeriods,
   decimalToNumber,
@@ -54,13 +62,14 @@ import {
 } from "@/lib/project-shifts";
 import {
   clampInvoicingDay,
-  firstMonthlyPeriodBounds,
   invoicingDayFromContractStart,
   invoicingDayFromCycleToDay,
   isMonthlyPeriodAwaitingReconcile,
   parseBillingPeriodBasis,
   parseCustomBillingCycleDays,
   PAYMENT_TERMS_DAYS_OPTIONS,
+  projectInvoicePeriodUniqueWhere,
+  stubExclusiveFromMonthlyRate,
   snapToFullPeriodEnd,
   addUtcDays,
   parseDateInput,
@@ -70,6 +79,7 @@ import {
 } from "@/lib/invoice-period";
 import { snapDateToCutoffDay } from "@/lib/payroll-management";
 import { parseProjectChargedTax } from "@/lib/commercial-tax";
+import { isTaxRateMissing, lookupChargedPphRate } from "@/lib/tax-rates";
 import { parseFormCompanyBankAccountId } from "@/lib/company-bank-accounts";
 import { toActionError } from "@/lib/prisma-errors";
 import { parseServiceArea } from "@/lib/service-area";
@@ -83,8 +93,8 @@ import {
 } from "@/lib/upload-paths";
 import {
   catchUpAsOfDate,
-  isCatchUpIntakeOpen,
   loadBooksOpenDate,
+  periodStartsBeforeBooksOpen,
 } from "@/lib/books-open";
 import {
   closeCatchUpIntake,
@@ -94,15 +104,15 @@ import {
 } from "@/lib/catch-up-intake";
 import {
   parseCatchUpKind,
-  parseCatchUpPeriodsDone,
   persistCompleteCatchUpPeriod,
   prepareCompleteCatchUpPeriod,
   assertCompleteTargetMatchesForm,
 } from "@/lib/project-catch-up";
 import {
-  firstLiveMonthlyPeriod,
   listCatchUpIntakePages,
   listHistoricalCatchUpPeriods,
+  currentMonthlyCatchUpPeriod,
+  liveMonthlyPeriodBounds,
   resolveCatchUpCompleteTarget,
   usesMonthlyCatchUpPeriods,
 } from "@/lib/project-catch-up-periods";
@@ -584,6 +594,7 @@ async function resolveSubCategoryAndServiceArea(
       serviceArea: catalogSub.area.systemArea,
       areaCatalogId: catalogSub.areaId,
       subcategoryCatalogId: catalogSub.id,
+      catalogBillingKind: catalogSub.billingKind,
     };
   }
 
@@ -594,6 +605,7 @@ async function resolveSubCategoryAndServiceArea(
       serviceArea,
       areaCatalogId: areaCatalogId || null,
       subcategoryCatalogId: null,
+      catalogBillingKind: null,
     };
   }
 
@@ -604,6 +616,7 @@ async function resolveSubCategoryAndServiceArea(
       serviceArea: "CLEANING" as const,
       areaCatalogId: areaCatalogId || null,
       subcategoryCatalogId: null,
+      catalogBillingKind: "ONE_TIME" as const,
     };
   }
   const allowed = allowedSubCategoriesForServiceArea(serviceArea);
@@ -615,6 +628,7 @@ async function resolveSubCategoryAndServiceArea(
     serviceArea: serviceAreaForSubCategory(subCategory),
     areaCatalogId: areaCatalogId || null,
     subcategoryCatalogId: null,
+    catalogBillingKind: null,
   };
 }
 
@@ -784,7 +798,7 @@ function parseServiceCommercialFields(
         parsePercentField(formData, "payrollTaxPercent", {
           required: false,
           label: "Payroll tax %",
-        }) ?? 11,
+        }) ?? null,
     };
   }
 
@@ -836,6 +850,7 @@ async function createMilestoneSchedulePeriods(
     installmentPercents: number[];
     contractPrice?: number | null;
     bankAccountId?: string | null;
+    dateOffsetDays?: number;
   }
 ) {
   const schedule = buildMilestoneSchedule(
@@ -845,13 +860,14 @@ async function createMilestoneSchedulePeriods(
   const base = opts.startDate
     ? toUtcDateOnly(opts.startDate)
     : toUtcDateOnly(new Date());
+  const offset = opts.dateOffsetDays ?? 0;
 
   for (const row of schedule) {
     const periodStart = new Date(
       Date.UTC(
         base.getUTCFullYear(),
         base.getUTCMonth(),
-        base.getUTCDate() + row.index
+        base.getUTCDate() + offset + row.index
       )
     );
     const periodEnd = periodStart;
@@ -867,6 +883,61 @@ async function createMilestoneSchedulePeriods(
         bankAccountId: opts.bankAccountId ?? null,
       },
     });
+  }
+}
+
+async function createDownPaymentPeriod(
+  tx: Prisma.TransactionClient,
+  opts: {
+    projectId: string;
+    percent: number;
+    contractPrice: number;
+    startDate: Date | null;
+    bankAccountId?: string | null;
+    notBefore?: Date | null;
+    occupied?: Array<{ start: Date; end: Date }>;
+    taxInvoiceRequired?: boolean;
+  }
+) {
+  const amount = downPaymentAmountFromContract(opts.contractPrice, opts.percent);
+  if (amount <= 0) return;
+  const asOf = opts.notBefore ?? toUtcDateOnly(new Date());
+  const preferred = opts.startDate
+    ? addUtcDays(toUtcDateOnly(opts.startDate), -1)
+    : asOf;
+  let day = pickDownPaymentDate({
+    preferred,
+    notBefore: asOf,
+    occupied: opts.occupied,
+  });
+
+  for (let attempt = 0; attempt < 90; attempt += 1) {
+    try {
+      await tx.projectInvoicePeriod.create({
+        data: {
+          projectId: opts.projectId,
+          periodStart: day,
+          periodEnd: day,
+          label: DOWN_PAYMENT_INVOICE_LABEL,
+          status: "ONGOING",
+          amount,
+          isDownPayment: true,
+          taxInvoiceRequired: Boolean(opts.taxInvoiceRequired),
+          bankAccountId: opts.bankAccountId ?? null,
+        },
+      });
+      return;
+    } catch (error) {
+      const code =
+        error instanceof Prisma.PrismaClientKnownRequestError
+          ? error.code
+          : "";
+      if (code !== "P2002") throw error;
+      day = addUtcDays(day, -1);
+      if (opts.notBefore && day.getTime() < toUtcDateOnly(opts.notBefore).getTime()) {
+        day = addUtcDays(toUtcDateOnly(opts.notBefore), attempt + 1);
+      }
+    }
   }
 }
 
@@ -1029,7 +1100,8 @@ export async function createProject(formData: FormData) {
       formData,
       companyId
     );
-    const { serviceArea, areaCatalogId, subcategoryCatalogId } = resolvedArea;
+    const { serviceArea, areaCatalogId, subcategoryCatalogId, catalogBillingKind } =
+      resolvedArea;
     let { subCategory } = resolvedArea;
     if (isDemo) {
       if (serviceArea === "CLEANING" && !isCleaningOneTimeType(subCategory)) {
@@ -1093,21 +1165,10 @@ export async function createProject(formData: FormData) {
 
     // Default Planning (waiting for work order). Explicit "In Progress" starts ops immediately.
     const booksOpenDate = await loadBooksOpenDate(session.user.companyId);
-    const catchUpKind = isCatchUpIntakeOpen(booksOpenDate)
-      ? parseCatchUpKind(formData)
-      : "NONE";
+    const catchUpKind = parseCatchUpKind(formData);
     if (catchUpKind === "COMPLETED" && !isMilestoneSubCategory(subCategory)) {
       throw new Error(
         "Completed is only for one-time jobs such as General Cleaning and Facade."
-      );
-    }
-    if (
-      catchUpKind === "ONGOING" &&
-      usesMonthlyCatchUpPeriods(subCategory, billingMode) &&
-      parseCatchUpPeriodsDone(formData) == null
-    ) {
-      throw new Error(
-        "Enter how many billing periods are already done."
       );
     }
     const initialStatusRaw = String(formData.get("initialStatus") ?? "").trim();
@@ -1196,28 +1257,6 @@ export async function createProject(formData: FormData) {
       }
     }
 
-    if (
-      catchUpKind === "ONGOING" &&
-      usesMonthlyCatchUpPeriods(subCategory, billingMode) &&
-      startDate
-    ) {
-      const periodsDone = parseCatchUpPeriodsDone(formData);
-      const asOf = catchUpAsOfDate(booksOpenDate);
-      const historical = listHistoricalCatchUpPeriods({
-        startDate,
-        endDate,
-        asOf,
-        basis: billingPeriodBasis,
-        fromDay: billingCycleStartDay,
-        toDay: billingCycleEndDay,
-      });
-      if (periodsDone !== historical.length) {
-        throw new Error(
-          `Periods Already Done must be ${historical.length} — every billing cycle that starts before ${formatDateInput(asOf)}. You entered ${periodsDone ?? 0}.`
-        );
-      }
-    }
-
     const company = await prisma.company.findFirst();
     if (!company) throw new Error("Company not found.");
 
@@ -1248,19 +1287,34 @@ export async function createProject(formData: FormData) {
       );
     }
 
-    const {
-      chargedTaxKind,
-      requiresTaxInvoice,
-      pphRatePercent,
-      otherTaxName,
-    } = isComplimentary
+    const parsedTax = isComplimentary
       ? {
           chargedTaxKind: null,
           requiresTaxInvoice: false,
-          pphRatePercent: null,
-          otherTaxName: null,
+          pphRatePercent: null as number | null,
+          otherTaxName: null as string | null,
+          taxRateCode: null as string | null,
         }
       : parseProjectChargedTax(formData);
+    const chargedTaxKind = parsedTax.chargedTaxKind;
+    const requiresTaxInvoice = parsedTax.requiresTaxInvoice;
+    const otherTaxName = parsedTax.otherTaxName;
+    let pphRatePercent = parsedTax.pphRatePercent;
+    if (!isComplimentary) {
+      try {
+        pphRatePercent = await lookupChargedPphRate({
+          companyId: company.id,
+          chargedTaxKind,
+          taxRateCode: parsedTax.taxRateCode,
+          asOf: startDate ?? estimatedStartDate ?? new Date(),
+        });
+      } catch (error) {
+        if (isTaxRateMissing(error)) {
+          throw new Error("Add this tax rate under Tax Rates first.");
+        }
+        throw error;
+      }
+    }
     const paymentTermsDays =
       isComplimentary || subCategory === "PARKING"
         ? null
@@ -1288,6 +1342,22 @@ export async function createProject(formData: FormData) {
             "contractPrice",
             "Contract price"
           );
+    const downPaymentPercent =
+      !isComplimentary &&
+      contractPrice != null &&
+      contractPrice > 0 &&
+      projectAllowsDownPayment({
+        subCategory,
+        catalogBillingKind,
+        isComplimentary,
+        catchUpCompleted: catchUpKind === "COMPLETED",
+      })
+        ? parseDownPaymentPercentFromFormData(formData)
+        : null;
+    const remainingAfterDownPayment =
+      downPaymentPercent != null && contractPrice != null
+        ? remainingContractAfterDownPayment(contractPrice, downPaymentPercent)
+        : contractPrice;
     if (subCategory === "PAYROLL_MANAGEMENT" && endDate) {
       const cutoff = serviceFields?.payrollCutoffEndDay;
       if (cutoff != null) {
@@ -1315,6 +1385,7 @@ export async function createProject(formData: FormData) {
           billingCycleStartDay,
           billingCycleEndDay,
           contractPrice,
+          downPaymentPercent,
           setupCost: serviceFields?.setupCost ?? null,
           profitSharePercent: serviceFields?.profitSharePercent ?? null,
           monthlyClientFee: serviceFields?.monthlyClientFee ?? null,
@@ -1334,6 +1405,7 @@ export async function createProject(formData: FormData) {
           requiresTaxInvoice,
           chargedTaxKind,
           pphRatePercent,
+          taxRateCode: parsedTax.taxRateCode,
           otherTaxName,
           isGovernmentContract:
             !isComplimentary &&
@@ -1364,28 +1436,64 @@ export async function createProject(formData: FormData) {
 
       await syncProjectShifts(tx, created.id, shiftCount, shiftWindows);
 
-      if (billingMode === "MILESTONE" && catchUpKind !== "COMPLETED") {
-        await createMilestoneSchedulePeriods(tx, {
-          projectId: created.id,
-          // Prefer real start; fall back to estimate for schedule anchoring.
-          startDate: startDate ?? estimatedStartDate,
-          installmentPercents: milestoneInstallments ?? [100],
-          contractPrice,
-          bankAccountId,
+      const jobStart = startDate ?? estimatedStartDate;
+      const jobEnd = endDate;
+      const downPaymentOccupied: Array<{ start: Date; end: Date }> = [];
+      if (jobStart && jobEnd) {
+        downPaymentOccupied.push({ start: jobStart, end: jobEnd });
+      } else if (jobStart) {
+        downPaymentOccupied.push({ start: jobStart, end: jobStart });
+      }
+
+      const visitPlan =
+        billingMode === "MULTI_VISIT" &&
+        !isComplimentary &&
+        catchUpKind !== "COMPLETED"
+          ? parseProjectVisitsFromForm(
+              formData,
+              remainingAfterDownPayment ?? null
+            )
+          : [];
+      for (const visit of visitPlan) {
+        downPaymentOccupied.push({
+          start: visit.startDate,
+          end: visit.endDate,
         });
       }
 
       if (
-        billingMode === "MULTI_VISIT" &&
-        !isComplimentary &&
+        downPaymentPercent != null &&
+        contractPrice != null &&
+        contractPrice > 0 &&
         catchUpKind !== "COMPLETED"
       ) {
-        const visits = parseProjectVisitsFromForm(
-          formData,
-          serviceFields?.contractPrice ?? null
-        );
+        await createDownPaymentPeriod(tx, {
+          projectId: created.id,
+          percent: downPaymentPercent,
+          contractPrice,
+          startDate: jobStart,
+          bankAccountId,
+          notBefore: catchUpAsOfDate(booksOpenDate),
+          occupied: downPaymentOccupied,
+          taxInvoiceRequired: requiresTaxInvoice,
+        });
+      }
+
+      if (billingMode === "MILESTONE" && catchUpKind !== "COMPLETED") {
+        await createMilestoneSchedulePeriods(tx, {
+          projectId: created.id,
+          // Prefer real start; fall back to estimate for schedule anchoring.
+          startDate: jobStart,
+          installmentPercents: milestoneInstallments ?? [100],
+          contractPrice: remainingAfterDownPayment,
+          bankAccountId,
+          dateOffsetDays: 0,
+        });
+      }
+
+      if (visitPlan.length > 0) {
         await tx.projectVisit.createMany({
-          data: visits.map((visit) => ({
+          data: visitPlan.map((visit) => ({
             projectId: created.id,
             visitIndex: visit.visitIndex,
             startDate: visit.startDate,
@@ -1393,7 +1501,7 @@ export async function createProject(formData: FormData) {
             amount: visit.amount,
           })),
         });
-        const lastVisitEnd = visits[visits.length - 1]?.endDate;
+        const lastVisitEnd = visitPlan[visitPlan.length - 1]?.endDate;
         if (lastVisitEnd && !endDate) {
           await tx.project.update({
             where: { id: created.id },
@@ -1402,9 +1510,8 @@ export async function createProject(formData: FormData) {
         }
       }
 
-      // Regular + Security In Progress: open the live billing period.
-      // Ongoing catch-up opens the first cycle that starts on or after books-open.
-      // New projects still open the first cycle from the contract start.
+      // Regular + Security In Progress: open finished historical cycles when
+      // Ongoing, plus the cycle that contains today (live CICO).
       if (
         !isComplimentary &&
         !isPlanning &&
@@ -1412,46 +1519,91 @@ export async function createProject(formData: FormData) {
         billingMode === "MONTHLY" &&
         startDate
       ) {
-        const current =
-          catchUpKind === "ONGOING"
-            ? firstLiveMonthlyPeriod({
-                asOf: catchUpAsOfDate(booksOpenDate),
-                basis: billingPeriodBasis,
-                fromDay: billingCycleStartDay,
-                toDay: billingCycleEndDay,
-              })
-            : null;
-        const first = current
-          ? {
-              periodStart: parseDateInput(current.periodStart),
-              periodEnd: parseDateInput(current.periodEnd),
-              label: current.label,
-            }
-          : firstMonthlyPeriodBounds(
-              billingPeriodBasis,
-              toUtcDateOnly(startDate),
-              { fromDay: billingCycleStartDay, toDay: billingCycleEndDay }
-            );
+        const asOf = jakartaTodayAsUtcDateOnly();
+        const cycle = {
+          basis: billingPeriodBasis,
+          fromDay: billingCycleStartDay,
+          toDay: billingCycleEndDay,
+        };
+        if (catchUpKind === "ONGOING") {
+          const historical = listHistoricalCatchUpPeriods({
+            startDate,
+            endDate,
+            asOf,
+            ...cycle,
+          });
+          for (const draft of historical) {
+            const periodStart = parseDateInput(draft.periodStart);
+            const periodEnd = parseDateInput(draft.periodEnd);
+            await tx.projectInvoicePeriod.upsert({
+              where: {
+                projectId_periodStart_periodEnd_isDownPayment: {
+                  projectId: created.id,
+                  periodStart,
+                  periodEnd,
+                  isDownPayment: false,
+                },
+              },
+              update: { label: draft.label, isCatchUp: true },
+              create: {
+                projectId: created.id,
+                periodStart,
+                periodEnd,
+                label: draft.label,
+                status: "ONGOING",
+                isCatchUp: true,
+                taxInvoiceRequired: true,
+                bankAccountId,
+                amount:
+                  contractPrice != null
+                    ? stubExclusiveFromMonthlyRate(
+                        contractPrice,
+                        periodStart,
+                        periodEnd
+                      )
+                    : undefined,
+              },
+            });
+          }
+        }
+
+        const current = currentMonthlyCatchUpPeriod({
+          asOf,
+          ...cycle,
+        });
+        const currentStart = parseDateInput(current.periodStart);
+        const currentEnd = parseDateInput(current.periodEnd);
         const liveStartsAfterContract =
           endDate != null &&
-          first.periodStart.getTime() > toUtcDateOnly(endDate).getTime();
-        if (!liveStartsAfterContract) {
+          currentStart.getTime() > toUtcDateOnly(endDate).getTime();
+        const liveStartsBeforeContract =
+          currentEnd.getTime() < toUtcDateOnly(startDate).getTime();
+        if (!liveStartsAfterContract && !liveStartsBeforeContract) {
           await tx.projectInvoicePeriod.upsert({
             where: {
-              projectId_periodStart_periodEnd: {
+              projectId_periodStart_periodEnd_isDownPayment: {
                 projectId: created.id,
-                periodStart: first.periodStart,
-                periodEnd: first.periodEnd,
+                periodStart: currentStart,
+                periodEnd: currentEnd,
+                isDownPayment: false,
               },
             },
-            update: { label: first.label },
+            update: { label: current.label },
             create: {
               projectId: created.id,
-              periodStart: first.periodStart,
-              periodEnd: first.periodEnd,
-              label: first.label,
+              periodStart: currentStart,
+              periodEnd: currentEnd,
+              label: current.label,
               status: "ONGOING",
               bankAccountId,
+              amount:
+                contractPrice != null
+                  ? stubExclusiveFromMonthlyRate(
+                      contractPrice,
+                      currentStart,
+                      currentEnd
+                    )
+                  : undefined,
             },
           });
         }
@@ -1506,6 +1658,7 @@ export async function createProject(formData: FormData) {
     return {
       id: created.id,
       catchUp: isCatchUpIntakeKind(catchUpKind),
+      catchUpKind: isCatchUpIntakeKind(catchUpKind) ? catchUpKind : "NONE",
     };
   } catch (error) {
     throw toActionError(error, "Failed to create project.");
@@ -1584,6 +1737,8 @@ export async function completeCatchUpPeriod(formData: FormData) {
       where: { id: projectId, companyId: session.user.companyId },
       include: {
         catchUpIntake: { select: { kind: true } },
+        client: true,
+        company: true,
         invoicePeriods: {
           select: {
             periodStart: true,
@@ -1599,8 +1754,7 @@ export async function completeCatchUpPeriod(formData: FormData) {
     await assertSessionCanWriteProject(session, project);
 
     const intakeKind = intakeKindOf(project);
-    const booksOpenDate = await loadBooksOpenDate(session.user.companyId);
-    const asOf = catchUpAsOfDate(booksOpenDate, jakartaTodayAsUtcDateOnly());
+    const asOf = jakartaTodayAsUtcDateOnly();
     const pages = listCatchUpIntakePages({
       catchUpKind: intakeKind,
       status: project.status,
@@ -1636,28 +1790,102 @@ export async function completeCatchUpPeriod(formData: FormData) {
       formData,
       target,
     });
+    if (!plan.invoicePath) {
+      const { generateInvoicePeriodPdf } = await import(
+        "@/lib/progress-report-pdf"
+      );
+      const { overlayInvoiceCompanyBank } = await import(
+        "@/lib/company-bank-accounts"
+      );
+      const { exclusivePricePlusChargedTax } = await import(
+        "@/lib/commercial-tax"
+      );
+      const { formatInvoicePeriodLabel, formatContractPrice } = await import(
+        "@/lib/project-billing"
+      );
+      const periodStart = parseDateInput(plan.target.periodStart);
+      const periodEnd = parseDateInput(plan.target.periodEnd);
+      const tax = exclusivePricePlusChargedTax({
+        exclusiveAmount: plan.clientAmount,
+        chargedTaxKind: project.chargedTaxKind,
+        requiresTaxInvoice: project.requiresTaxInvoice,
+        pphRatePercent: decimalToNumber(project.pphRatePercent),
+        isGovernmentContract: project.isGovernmentContract,
+      });
+      const invoiceBank = await overlayInvoiceCompanyBank({
+        companyId: project.companyId,
+        company: project.company,
+        periodBankAccountId: plan.payment.bankAccountId,
+        projectBankAccountId: project.bankAccountId,
+      });
+      plan.invoicePath = await generateInvoicePeriodPdf({
+        projectName: project.name,
+        clientName: project.client?.name ?? null,
+        clientAddress: project.client?.address ?? null,
+        clientEmail:
+          project.client?.contactPersonEmail?.trim() ||
+          project.client?.email ||
+          null,
+        clientPhone:
+          project.client?.contactPersonPhone?.trim() ||
+          project.client?.phone ||
+          null,
+        clientNpwp: project.client?.npwp ?? null,
+        location: project.location,
+        periodLabel: formatInvoicePeriodLabel(
+          {
+            periodStart,
+            periodEnd,
+            label: plan.target.label,
+          },
+          {
+            projectName: project.name,
+            billingMode: project.billingMode,
+          }
+        ),
+        periodStart,
+        periodEnd,
+        reports: [],
+        amountLabel: formatContractPrice(tax.gross),
+        taxBreakdown: {
+          dpp: tax.exclusive,
+          ppn: tax.ppn,
+          pph: tax.pph,
+          gross: tax.gross,
+        },
+        company: invoiceBank.company,
+        title:
+          project.billingMode === "ON_COMPLETION"
+            ? "Completion Invoice"
+            : "Monthly Progress Invoice",
+      });
+    }
     const bankAccountId =
       plan.payment.bankAccountId ?? project.bankAccountId;
-    if (!bankAccountId) {
+    if (plan.payment.paid && !bankAccountId) {
       throw new Error("Choose the bank that received payment.");
     }
-    const bank = await prisma.companyBankAccount.findFirst({
-      where: { id: bankAccountId, companyId: session.user.companyId },
-      select: { id: true },
-    });
-    if (!bank) {
+    const bank = bankAccountId
+      ? await prisma.companyBankAccount.findFirst({
+          where: { id: bankAccountId, companyId: session.user.companyId },
+          select: { id: true },
+        })
+      : null;
+    if (plan.payment.paid && !bank) {
       throw new Error("Choose the bank that received payment.");
     }
 
+    let savedPeriodId = "";
     await prisma.$transaction(async (tx) => {
-      await persistCompleteCatchUpPeriod(tx, {
+      const saved = await persistCompleteCatchUpPeriod(tx, {
         projectId,
         plan,
-        bankAccountId: bank.id,
+        bankAccountId: bank?.id ?? project.bankAccountId,
         paymentTermsDays: project.paymentTermsDays,
         companyId: session.user.companyId,
         userId: session.user.id,
       });
+      savedPeriodId = saved.id;
       const existingAfter = [
         ...project.invoicePeriods,
         {
@@ -1686,7 +1914,11 @@ export async function completeCatchUpPeriod(formData: FormData) {
             existingPeriods: existingAfter,
           })
         : null;
-      const closesNow = target.closesProject && !moreTargets;
+      const closesNow =
+        target.closesProject &&
+        !moreTargets &&
+        plan.payment.paid &&
+        Boolean(plan.taxPath);
       if (!moreTargets) {
         await closeCatchUpIntake(tx, projectId, {
           completeProject: closesNow,
@@ -1703,6 +1935,7 @@ export async function completeCatchUpPeriod(formData: FormData) {
       projectId,
       clientId: project.clientId,
     });
+    return { periodId: savedPeriodId };
   } catch (error) {
     throw toActionError(
       error,
@@ -2051,19 +2284,34 @@ export async function updateProject(id: string, formData: FormData) {
       }
     }
 
-    const {
-      chargedTaxKind,
-      requiresTaxInvoice,
-      pphRatePercent,
-      otherTaxName,
-    } = isComplimentary
+    const parsedTax = isComplimentary
       ? {
           chargedTaxKind: null,
           requiresTaxInvoice: false,
-          pphRatePercent: null,
-          otherTaxName: null,
+          pphRatePercent: null as number | null,
+          otherTaxName: null as string | null,
+          taxRateCode: null as string | null,
         }
       : parseProjectChargedTax(formData);
+    const chargedTaxKind = parsedTax.chargedTaxKind;
+    const requiresTaxInvoice = parsedTax.requiresTaxInvoice;
+    const otherTaxName = parsedTax.otherTaxName;
+    let pphRatePercent = parsedTax.pphRatePercent;
+    if (!isComplimentary) {
+      try {
+        pphRatePercent = await lookupChargedPphRate({
+          companyId: existing.companyId,
+          chargedTaxKind,
+          taxRateCode: parsedTax.taxRateCode,
+          asOf: startDate ?? existing.startDate ?? new Date(),
+        });
+      } catch (error) {
+        if (isTaxRateMissing(error)) {
+          throw new Error("Add this tax rate under Tax Rates first.");
+        }
+        throw error;
+      }
+    }
 
     const paymentTermsDays =
       isComplimentary || subCategory === "PARKING"
@@ -2153,6 +2401,7 @@ export async function updateProject(id: string, formData: FormData) {
           requiresTaxInvoice,
           chargedTaxKind,
           pphRatePercent,
+          taxRateCode: parsedTax.taxRateCode,
           otherTaxName,
           isGovernmentContract:
             !isComplimentary &&
@@ -2759,6 +3008,8 @@ export async function startProject(
       payrollCutoffEndDay: true,
       serviceArea: true,
       areaCatalogId: true,
+      contractPrice: true,
+      companyId: true,
     },
   });
   if (!project) {
@@ -2896,20 +3147,28 @@ export async function startProject(
       usesInvoicePeriods(project.subCategory) &&
       project.billingMode === "MONTHLY"
     ) {
-      const first = firstMonthlyPeriodBounds(
-        billingPeriodBasis,
+      const booksOpenDate = await loadBooksOpenDate(companyId);
+      const first = liveMonthlyPeriodBounds({
         contractStart,
-        {
-          fromDay: project.billingCycleStartDay,
-          toDay: project.billingCycleEndDay,
-        }
-      );
+        asOf: catchUpAsOfDate(booksOpenDate),
+        basis: billingPeriodBasis,
+        fromDay: project.billingCycleStartDay,
+        toDay: project.billingCycleEndDay,
+      });
+      if (
+        periodStartsBeforeBooksOpen(first.periodStart, booksOpenDate) ||
+        (endDate &&
+          first.periodStart.getTime() > toUtcDateOnly(endDate).getTime())
+      ) {
+        // Historical cycles are catch-up pages, not live billing.
+      } else {
       await tx.projectInvoicePeriod.upsert({
         where: {
-          projectId_periodStart_periodEnd: {
+          projectId_periodStart_periodEnd_isDownPayment: {
             projectId: id,
             periodStart: first.periodStart,
             periodEnd: first.periodEnd,
+          isDownPayment: false,
           },
         },
         update: { label: first.label },
@@ -2919,8 +3178,14 @@ export async function startProject(
           periodEnd: first.periodEnd,
           label: first.label,
           status: "ONGOING",
+          amount: stubExclusiveFromMonthlyRate(
+            decimalToNumber(project.contractPrice) ?? 0,
+            first.periodStart,
+            first.periodEnd
+          ) || undefined,
         },
       });
+      }
     }
 
     // Assign staff when provided; "Assign staff later" leaves existing assignments.
@@ -3266,18 +3531,29 @@ export async function submitProjectForApproval(projectId: string) {
         clientId: true,
         serviceArea: true,
         contractPrice: true,
+        downPaymentPercent: true,
         catchUpKind: true,
         invoicePeriods: {
           where: {
-            status: { in: ["ONGOING", "COMPILING", "AWAITING_CLIENT_REVIEW"] },
+            OR: [
+              {
+                status: {
+                  in: ["ONGOING", "COMPILING", "AWAITING_CLIENT_REVIEW"],
+                },
+              },
+              { isDownPayment: true, status: "PAID" },
+            ],
           },
           orderBy: { periodStart: "asc" },
           select: {
             id: true,
             status: true,
+            label: true,
+            isDownPayment: true,
             milestonePercent: true,
             periodStart: true,
             periodEnd: true,
+            amount: true,
           },
         },
       },
@@ -3317,6 +3593,7 @@ export async function submitProjectForApproval(projectId: string) {
     }
 
     const today = toUtcDateOnly(new Date());
+    const booksOpenDate = await loadBooksOpenDate(session.user.companyId);
 
     // Find or create the invoice period to attach this review to.
     let periodId: string;
@@ -3334,12 +3611,18 @@ export async function submitProjectForApproval(projectId: string) {
           translate(locale, "pages.projects.submitForApproval.visitWindowNotStarted")
         );
       }
+      if (periodStartsBeforeBooksOpen(nextVisit.startDate, booksOpenDate)) {
+        throw new Error(
+          "This visit started before books-open. Record it on Catch-Up Periods."
+        );
+      }
       const created = await prisma.projectInvoicePeriod.upsert({
         where: {
-          projectId_periodStart_periodEnd: {
+          projectId_periodStart_periodEnd_isDownPayment: {
             projectId: project.id,
             periodStart: nextVisit.startDate,
             periodEnd: nextVisit.endDate,
+          isDownPayment: false,
           },
         },
         update: {
@@ -3361,14 +3644,19 @@ export async function submitProjectForApproval(projectId: string) {
       });
       periodId = created.id;
     } else if (project.billingMode === "MILESTONE") {
-      // Milestone: use the first ongoing milestone period.
+      // Milestone: use the first ongoing milestone period (never the down payment).
       const ongoingMilestone = project.invoicePeriods.find(
-        (p) => p.status === "ONGOING"
+        (p) => p.status === "ONGOING" && !isDownPaymentInvoicePeriod(p)
       );
       if (!ongoingMilestone) {
         const periodStart = project.startDate
           ? toUtcDateOnly(project.startDate)
           : today;
+        if (periodStartsBeforeBooksOpen(periodStart, booksOpenDate)) {
+          throw new Error(
+            "This job started before books-open. Record it on Catch-Up Periods."
+          );
+        }
         const created = await prisma.projectInvoicePeriod.create({
           data: {
             projectId: project.id,
@@ -3378,7 +3666,10 @@ export async function submitProjectForApproval(projectId: string) {
               : periodStart,
             label: "Milestone 1",
             status: "ONGOING",
-            amount: decimalToNumber(project.contractPrice) ?? 0,
+        amount: remainingContractAfterDownPayment(
+              decimalToNumber(project.contractPrice) ?? 0,
+              decimalToNumber(project.downPaymentPercent)
+            ),
             milestonePercent: 100,
           },
         });
@@ -3388,8 +3679,18 @@ export async function submitProjectForApproval(projectId: string) {
       }
     } else {
       // ON_COMPLETION: find or create a single completion period.
+      const paidDp = project.invoicePeriods
+        .filter((p) => isDownPaymentInvoicePeriod(p) && p.status === "PAID")
+        .reduce((sum, p) => sum + (decimalToNumber(p.amount) ?? 0), 0);
+      const remainderAmount = remainderExclusiveAfterDownPayment({
+        contractPrice: decimalToNumber(project.contractPrice) ?? 0,
+        downPaymentPercent: decimalToNumber(project.downPaymentPercent),
+        paidDownPaymentExclusive: paidDp,
+      });
       const existing = project.invoicePeriods.find(
-        (p) => p.status === "ONGOING" || p.status === "COMPILING"
+        (p) =>
+          (p.status === "ONGOING" || p.status === "COMPILING") &&
+          !isDownPaymentInvoicePeriod(p)
       );
 
       if (existing) {
@@ -3397,13 +3698,23 @@ export async function submitProjectForApproval(projectId: string) {
         // Ensure label matches completion period convention.
         await prisma.projectInvoicePeriod.update({
           where: { id: existing.id },
-          data: { label: "Completion" },
+          data: {
+            label: "Completion",
+            ...(project.downPaymentPercent != null
+              ? { amount: remainderAmount }
+              : {}),
+          },
         });
       } else {
-        const periodStart = project.startDate
+        let periodStart = project.startDate
           ? toUtcDateOnly(project.startDate)
           : today;
-        const periodEnd =
+        if (periodStartsBeforeBooksOpen(periodStart, booksOpenDate)) {
+          throw new Error(
+            "This job started before books-open. Record it on Catch-Up Periods."
+          );
+        }
+        let periodEnd =
           project.endDate
             ? toUtcDateOnly(project.endDate)
             : today.getTime() >= periodStart.getTime()
@@ -3412,19 +3723,28 @@ export async function submitProjectForApproval(projectId: string) {
 
         const created = await prisma.projectInvoicePeriod.upsert({
           where: {
-            projectId_periodStart_periodEnd: {
+            projectId_periodStart_periodEnd_isDownPayment: {
               projectId: project.id,
               periodStart,
               periodEnd,
+              isDownPayment: false,
             },
           },
-          update: { label: "Completion" },
+          update: {
+            label: "Completion",
+            ...(project.downPaymentPercent != null
+              ? { amount: remainderAmount }
+              : {}),
+          },
           create: {
             projectId: project.id,
             periodStart,
             periodEnd,
             label: "Completion",
             status: "ONGOING",
+            ...(project.downPaymentPercent != null
+              ? { amount: remainderAmount }
+              : {}),
           },
         });
         periodId = created.id;
@@ -3543,6 +3863,7 @@ async function prepareLastContractPeriod(options: {
   projectId: string;
   startDate: Date;
   lastDay: Date;
+  companyId?: string | null;
 }): Promise<string> {
   const periods = await prisma.projectInvoicePeriod.findMany({
     where: { projectId: options.projectId },
@@ -3602,13 +3923,17 @@ async function prepareLastContractPeriod(options: {
   if (periodStart.getTime() > options.lastDay.getTime()) {
     throw new Error("Last day is before the current billing period.");
   }
+  if (periodStartsBeforeBooksOpen(periodStart, await loadBooksOpenDate(options.companyId))) {
+    return previous?.id ?? "";
+  }
 
   const created = await prisma.projectInvoicePeriod.upsert({
     where: {
-      projectId_periodStart_periodEnd: {
+      projectId_periodStart_periodEnd_isDownPayment: {
         projectId: options.projectId,
         periodStart,
         periodEnd: options.lastDay,
+      isDownPayment: false,
       },
     },
     update: { label: "Final period", status: "ONGOING" },
@@ -3632,6 +3957,7 @@ async function endContractCycleEarly(
     endDate: Date | null;
     subCategory: string;
     contractPrice: Parameters<typeof decimalToNumber>[0];
+    companyId?: string | null;
     billingPeriodBasis?: string | null;
     billingCycleStartDay?: number | null;
     billingCycleEndDay?: number | null;
@@ -3687,6 +4013,7 @@ async function endContractCycleEarly(
       projectId: project.id,
       startDate: start,
       lastDay: last,
+      companyId: project.companyId,
     });
   }
 
@@ -3738,6 +4065,8 @@ export async function renewProjectContract(id: string, formData: FormData) {
       billingCycleStartDay: true,
       billingCycleEndDay: true,
       serviceArea: true,
+      contractPrice: true,
+      companyId: true,
     },
   });
   if (!project) throw new Error("Project not found.");
@@ -3783,20 +4112,25 @@ export async function renewProjectContract(id: string, formData: FormData) {
   });
 
   if (usesInvoicePeriods(project.subCategory)) {
-    const first = firstMonthlyPeriodBounds(
-      project.billingPeriodBasis,
-      nextStart,
-      {
-        fromDay: project.billingCycleStartDay,
-        toDay: project.billingCycleEndDay,
-      }
-    );
+    const booksOpenDate = await loadBooksOpenDate(project.companyId);
+    const first = liveMonthlyPeriodBounds({
+      contractStart: nextStart,
+      asOf: catchUpAsOfDate(booksOpenDate),
+      basis: project.billingPeriodBasis,
+      fromDay: project.billingCycleStartDay,
+      toDay: project.billingCycleEndDay,
+    });
+    if (
+      !periodStartsBeforeBooksOpen(first.periodStart, booksOpenDate) &&
+      first.periodStart.getTime() <= nextEnd.getTime()
+    ) {
     await prisma.projectInvoicePeriod.upsert({
       where: {
-        projectId_periodStart_periodEnd: {
+        projectId_periodStart_periodEnd_isDownPayment: {
           projectId: id,
           periodStart: first.periodStart,
           periodEnd: first.periodEnd,
+        isDownPayment: false,
         },
       },
       update: { label: first.label, status: "ONGOING" },
@@ -3806,8 +4140,15 @@ export async function renewProjectContract(id: string, formData: FormData) {
         periodEnd: first.periodEnd,
         label: first.label,
         status: "ONGOING",
+        amount:
+          stubExclusiveFromMonthlyRate(
+            decimalToNumber(project.contractPrice) ?? 0,
+            first.periodStart,
+            first.periodEnd
+          ) || undefined,
       },
     });
+    }
   }
 
   revalidateAfterProjectLifecycle({

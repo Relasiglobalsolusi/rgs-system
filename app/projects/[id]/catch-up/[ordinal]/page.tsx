@@ -5,7 +5,6 @@ import ProjectCatchUpPeriodForm from "@/components/projects/ProjectCatchUpPeriod
 import AppShell from "@/components/layout/AppShell";
 import BackLink from "@/components/ui/BackLink";
 import SectionCard from "@/components/ui/SectionCard";
-import { catchUpAsOfDate, loadBooksOpenDate } from "@/lib/books-open";
 import { intakeKindOf } from "@/lib/catch-up-intake";
 import { listCompanyBankAccountOptions } from "@/lib/company-bank-accounts";
 import { formatDisplayDate } from "@/lib/format-date";
@@ -27,7 +26,7 @@ import { projectDetailHref } from "@/lib/project-directory-rows";
 import { PROJECT_LIST_VIEW_PATHS } from "@/lib/project-status";
 import { requireSession, toPermissionUser } from "@/lib/session";
 import { firstStoredPath, parseStoredPaths } from "@/lib/stored-paths";
-import { parseDateInput } from "@/lib/invoice-period";
+import { parseDateInput, stubExclusiveFromMonthlyRate } from "@/lib/invoice-period";
 
 export default async function ProjectCatchUpPeriodPage({
   params,
@@ -94,16 +93,22 @@ export default async function ProjectCatchUpPeriodPage({
         basis: project.billingPeriodBasis,
         fromDay: project.billingCycleStartDay,
         toDay: project.billingCycleEndDay,
-        asOf: catchUpAsOfDate(
-          await loadBooksOpenDate(project.companyId),
-          jakartaTodayAsUtcDateOnly()
-        ),
+        asOf: jakartaTodayAsUtcDateOnly(),
         existingPeriods: project.invoicePeriods,
       })
     : [];
   const page = catchUpPageByOrdinal(pages, ordinal);
   if (!page) {
-    redirect(`/projects/${project.id}/catch-up`);
+    redirect(projectDetailHref(project.id));
+  }
+
+  const matchingPeriod = project.invoicePeriods.find(
+    (period) =>
+      catchUpPeriodKey(period.periodStart, period.periodEnd) ===
+      catchUpPeriodKey(page.periodStart, page.periodEnd)
+  );
+  if (page.kind === "period" && matchingPeriod) {
+    redirect(`/projects/${project.id}/periods/${matchingPeriod.id}`);
   }
 
   const recordedPeriod = project.invoicePeriods.find(
@@ -140,8 +145,8 @@ export default async function ProjectCatchUpPeriodPage({
 
   return (
     <AppShell title={title}>
-      <BackLink href={`/projects/${project.id}/catch-up`}>
-        {t("pages.projects.catchUp.backToHub")}
+      <BackLink href={projectDetailHref(project.id)}>
+        {t("pages.projects.catchUp.backToProject")}
       </BackLink>
       <SectionCard className="mt-4">
         <h1 className="text-lg font-semibold text-text">{title}</h1>
@@ -232,6 +237,15 @@ export default async function ProjectCatchUpPeriodPage({
               projectId={project.id}
               target={page}
               bankAccounts={bankAccounts}
+              suggestedExclusive={
+                page.kind === "job"
+                  ? decimalToNumber(project.contractPrice)
+                  : stubExclusiveFromMonthlyRate(
+                      decimalToNumber(project.contractPrice) ?? 0,
+                      parseDateInput(page.periodStart),
+                      parseDateInput(page.periodEnd)
+                    )
+              }
             />
           </div>
         )}

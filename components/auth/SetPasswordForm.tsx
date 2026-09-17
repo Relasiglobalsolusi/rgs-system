@@ -1,13 +1,15 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useState, useTransition } from "react";
 import { useSession } from "next-auth/react";
 import { ArrowRight, LockKeyhole, Mail, UserRound } from "lucide-react";
 
 import { setPassword } from "@/app/set-password/actions";
 import AuthLogo from "@/components/auth/AuthLogo";
+import { useEnterApp } from "@/components/auth/useEnterApp";
 import { useT } from "@/lib/i18n/use-t";
+import { cn } from "@/lib/utils";
 
 type Props = {
   username: string;
@@ -21,9 +23,9 @@ function SetPasswordContent({
   requireRecoveryEmail = false,
 }: Props) {
   const { t } = useT();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { update } = useSession();
+  const { phase, enterApp } = useEnterApp();
 
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
 
@@ -69,8 +71,7 @@ function SetPasswordContent({
         }
 
         if (result.status === "not_required") {
-          router.push(callbackUrl);
-          router.refresh();
+          await enterApp(callbackUrl, displayName);
           return;
         }
 
@@ -83,8 +84,7 @@ function SetPasswordContent({
           mustSetPassword: false,
           mustSetRecoveryEmail: false,
         });
-        router.push(callbackUrl);
-        router.refresh();
+        await enterApp(callbackUrl, displayName);
       } catch {
         setErrorMessage(t("auth.savePasswordFailed"));
       }
@@ -92,8 +92,13 @@ function SetPasswordContent({
   }
 
   return (
-    <main className="auth-surface auth-shell">
-      <div className="mx-auto flex min-h-screen w-full max-w-lg items-center px-5 py-8 sm:px-6 sm:py-12">
+    <main
+      className={cn(
+        "auth-surface auth-shell",
+        phase !== "idle" && "auth-shell-leaving"
+      )}
+    >
+      <div className="auth-login-stage mx-auto flex min-h-screen w-full max-w-lg items-center px-5 py-8 sm:px-6 sm:py-12">
         <div className="w-full">
           <div className="mb-8 flex justify-center">
             <AuthLogo />
@@ -224,7 +229,7 @@ function SetPasswordContent({
 
             <button
               type="submit"
-              disabled={pending}
+              disabled={pending || phase !== "idle"}
               className="flex h-14 w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(37,99,235,0.18)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {pending

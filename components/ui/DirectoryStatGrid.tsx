@@ -21,10 +21,10 @@ function planDirectoryStatRows(count: number): number[] {
 
 const colsClass: Record<number, string> = {
   1: "grid-cols-1",
-  2: "grid-cols-1 min-[400px]:grid-cols-2",
+  2: "grid-cols-1 sm:grid-cols-2",
   3: "grid-cols-1 sm:grid-cols-3",
-  4: "grid-cols-1 min-[400px]:grid-cols-2 xl:grid-cols-4",
-  6: "grid-cols-1 min-[400px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-6",
+  4: "grid-cols-1 sm:grid-cols-2 xl:grid-cols-4",
+  6: "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6",
 };
 
 type Props = {

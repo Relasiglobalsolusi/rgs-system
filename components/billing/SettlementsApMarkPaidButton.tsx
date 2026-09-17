@@ -14,6 +14,8 @@ type Props = {
   supplierName: string;
   invoiceRef: string;
   needsImportBankRate?: boolean;
+  allowsCash?: boolean;
+  amount?: number | null;
   invoiceCurrency?: string | null;
   invoiceForeignAmount?: number | null;
   bookingRate?: number | null;
@@ -24,6 +26,8 @@ export default function SettlementsApMarkPaidButton({
   supplierName,
   invoiceRef,
   needsImportBankRate = false,
+  allowsCash = false,
+  amount = null,
   invoiceCurrency = null,
   invoiceForeignAmount = null,
   bookingRate = null,
@@ -49,6 +53,8 @@ export default function SettlementsApMarkPaidButton({
         supplierName={supplierName}
         invoiceRef={invoiceRef}
         needsImportBankRate={needsImportBankRate}
+        allowsCash={allowsCash}
+        amount={amount}
         invoiceCurrency={invoiceCurrency}
         invoiceForeignAmount={invoiceForeignAmount}
         bookingRate={bookingRate}

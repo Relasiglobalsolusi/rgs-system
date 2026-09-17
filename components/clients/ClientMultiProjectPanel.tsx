@@ -462,8 +462,7 @@ export default function ClientMultiProjectPanel({
                   );
                 }
               });
-            }}
-            columns={2}
+            }}
           />
         </div>
       ) : null}

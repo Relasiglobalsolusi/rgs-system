@@ -308,6 +308,8 @@ export const en = {
       readyToReconcile2: "Reconcile",
       readyToInvoice1: "Ready to",
       readyToInvoice2: "Invoice",
+      awaitingProgress1: "Awaiting",
+      awaitingProgress2: "Progress",
       awaitingClientReview1: "Pending",
       awaitingClientReview2: "Approval",
       taxInvoiceDue1: "Tax Document",
@@ -816,7 +818,11 @@ export const en = {
         projectOngoingHint:
           "Choose this first. New Project is a job starting in this ERP. Ongoing started before this ERP and is still running. Completed is a one-time job that already finished, such as General Cleaning or Facade.",
         invoice: "Invoice",
+        invoiceHint:
+          "The ERP generates this period’s invoice. You can download it from the period after you save.",
         taxInvoice: "Tax Invoice",
+        taxInvoiceHint:
+          "Required to save this period. Upload the tax invoice here.",
         paymentReceived: "Payment Received",
         paymentHint:
           "Leave unchecked if the client has not paid. You can add proof later.",
@@ -841,7 +847,7 @@ export const en = {
         ordinalEighth: "Eighth",
         ordinalNinth: "Ninth",
         ordinalTenth: "Tenth",
-        dialogTitlePeriod: "Complete {label}",
+        dialogTitlePeriod: "Record {label}",
         dialogTitleJob: "Complete Job",
         dialogHint:
           "Record what this period already cost, then how much the client pays. This does not take warehouse stock or invent CICO.",
@@ -864,10 +870,10 @@ export const en = {
         employee: "Employee",
         clientPays: "How Much The Client Pays",
         clientPaysHint:
-          "The invoice amount for this period. Payment is not assumed.",
+          "Suggested from the monthly rate for these dates. You can still type a different amount.",
         savePeriod: "Save Period",
         saveJob: "Complete Job",
-        failed: "Could not complete this catch-up.",
+        failed: "Could not save this period.",
         periodAlreadyExists: "This period already exists. Please recheck.",
         periodAlreadyCompleted: "This period is already completed.",
         periodsDone: "Periods Already Done",
@@ -896,7 +902,7 @@ export const en = {
         readOnlyHint:
           "This catch-up period is recorded. It stays on this project’s own income and cost report and is not live billing.",
         pageHint:
-          "Record the client invoice, tax invoice, payment, staff total, and material totals for this period.",
+          "Enter how much the client pays, upload the tax invoice, and add payment and cost documents if you have them. The invoice is generated when you save.",
         openHub: "Catch-Up Periods",
         openHub1: "Catch-Up",
         openHub2: "Periods"
@@ -1136,6 +1142,8 @@ export const en = {
         defaultHint:
           "Default {count} × 25% → labels 25 / 50 / 75 / 100",
         eachPaymentPercent: "Each payment (% of contract)",
+        eachPaymentPercentRemaining:
+          "Each Payment (% of Remaining After Down Payment)",
         paymentPercentAria: "Payment {n} percent",
         totalReadyToSave: "Total {sum}% — ready to save",
         totalMustEqual100: "Total {sum}% — must equal 100%",
@@ -1147,6 +1155,17 @@ export const en = {
           "Fix percentages so they sum to 100% to preview the schedule.",
         scheduleLockedNote:
           "Payment milestone schedule is set when the project is created and is not edited here. Invoice periods from Invoice and Billing."
+      },
+      downPayment: {
+        label: "Down Payment Required",
+        hint:
+          "A separate down payment invoice, with its own tax invoice and payment proof, can be issued as soon as the job exists. The remainder is invoiced only after you submit a progress report, the client approves, then the remaining invoice goes out — the same flow as a job without down payment.",
+        percentLabel: "Down Payment Percent",
+        percentHint: "Percent of the exclusive contract price (1–99).",
+        invoiceLabel: "Down Payment",
+        invoiceLabelForProject: "Down Payment for {project}",
+        invoiceLabelWithPercent: "Down Payment {percent}% for {project}",
+        issueInvoice: "Issue Down Payment"
       },
       planningEstimate: "Planning estimate:",
       moveDialogContract:
@@ -1313,6 +1332,10 @@ export const en = {
         reportsHint:
           "The list shows “{count} reports” because these field reports fall in this cycle.",
         reportsEmpty: "No progress reports fall in these dates yet.",
+        reportsEmptyCatchUp:
+          "This cycle was billed before this workspace was in use, so field progress was not recorded here. There is no progress report for these dates.",
+        historicalRecordWhy:
+          "Record the billing documents for this cycle. The invoice is generated here. A tax invoice is required to save.",
         photoCountOne: "{count} photo",
         photoCountOther: "{count} photos",
         noNotes: "No notes",
@@ -1486,11 +1509,20 @@ export const en = {
         "Each line is a full client record. There are no shared terms.",
       editClient: "Edit Client",
       searchPlaceholder: "Search clients...",
-      downloadSystemGuide: "Download System Guide",
+      downloadSystemGuide: "Download Client System Guide",
       downloadingSystemGuide: "Downloading...",
       downloadSystemGuideFailed: "Could not download the system guide.",
       downloadSystemGuideEmpty:
         "Turn on at least one client portal module before downloading the system guide.",
+      downloadLoginIds: "Download Login IDs",
+      loginIdExport: {
+        reportTitle: "Client Login IDs",
+        generatedOn: "Generated {date}",
+        colName: "Client Name",
+        colLoginId: "Login ID",
+        fileName: "Client-Login-IDs.pdf",
+        empty: "No clients to list."
+      },
       manageModuleAccess: "Manage Module Access",
       manageModuleAccessDescription:
         "Choose which modules every client portal can open.",
@@ -1499,11 +1531,8 @@ export const en = {
       moduleAccessEmpty: "Turn on at least one module for client portals.",
       moduleAccessLoadFailed: "Could not load client module access.",
       moduleAccessSaveFailed: "Could not save client module access.",
-      systemGuidePickClient: "Select a Client",
-      systemGuideForClient: "System Guide For",
-      systemGuidePickDescription:
-        "This handbook follows the client portal modules that are currently saved. It only describes what a client can do. Choose which client name appears on the first page.",
       systemGuidePortalLabel: "Client Portal",
+      systemGuideFileName: "Client-System-Guide.pdf",
       deleted: "Deleted",
       active: "Active",
       activeSubtitle: "Client organizations currently enabled",
@@ -2762,19 +2791,56 @@ export const en = {
       purchasePeriod: "Period",
       expenseReportDownload: "Download Expense Report",
       expenseReportTitle: "Expense Report",
-      expenseReportHint: "Expenses by invoice date for the selected period.",
-      expenseReportDate: "Expense Date",
+      expenseReportHint: "Paid expenses by paid date for the selected period.",
+      expenseReportHintGrouped:
+        "Paid income and expenses by paid date, grouped by subcategory and project. Tax on income is listed under each payment. Net is DPP minus expenses.",
+      expenseReportDate: "Date",
+      expenseReportKind: "Type",
+      expenseReportDetail: "Detail",
+      expenseReportIncome: "Income",
+      expenseReportExpense: "Expense",
+      expenseReportPpn: "PPN",
+      expenseReportPph: "PPh",
+      expenseReportGross: "Total Due",
+      expenseReportProjectNet: "Project Net",
+      expenseReportGroupNet: "Subcategory Net",
+      expenseReportIncomeTotal: "Income (DPP)",
+      expenseReportExpenseTotal: "Expenses",
+      expenseReportCompanyNet: "Company Net",
+      expenseReportUnassigned: "Head Office / Unassigned",
+      expenseReportStaffCost: "Staff Cost",
+      expenseReportMaterialCost: "Material Cost",
       expenseReportReference: "Invoice",
       expenseReportStatus: "Status",
       expenseReportAmount: "Amount",
       expenseReportTotal: "Total",
-      expenseReportEmpty: "No expenses have an invoice date in this period.",
+      expenseReportEmpty: "No expenses have been paid in this period.",
+      expenseReportEmptyGrouped: "No paid income or expenses in this period.",
       expenseReportPeriodMonth: "{month} {year}",
       expenseReportPeriodDay: "{day} {month} {year}",
       expenseReportPeriodYear: "{year}",
       expenseReportPayFrom: "Paid From",
       expenseReportPayTo: "Paid To",
       expenseReportBanks: "From {from} · To {to}",
+      apReportDownload: "Download Accounts Payable Report",
+      apReportTitle: "Accounts Payable Report",
+      apReportHint:
+        "Unpaid supplier bills due in this period, plus overdue bills from earlier months, grouped by due-date month.",
+      apReportDueDate: "Due Date",
+      apReportEmpty: "No unpaid bills are due in this period, and nothing is overdue from earlier months.",
+      apReportMonthGroup: "Due In {month}",
+      apReportMonthTotal: "Month Total",
+      apReportTotal: "Total Payable",
+      apBcaDownload: "Download Bulk Transfer",
+      apBcaTitle: "Bulk Transfer",
+      apBcaDesc:
+        "Tick unpaid bills. This does not mark bills paid. Choose the sending bank below.",
+      apBcaBank: "Sending Bank",
+      apBcaBankHint: "The bulk-transfer file is built for this bank.",
+      apBcaBankBca: "BCA",
+      apBcaEmpty: "No unpaid bills to include.",
+      apBcaConfirm: "Download Bulk Transfer",
+      apBcaSelectRequired: "Tick at least one unpaid bill.",
       purchaseCardTotal: "Total Expenses",
       purchaseCardUnpaid: "Unpaid",
       purchaseCardUnpaidHint: "Still in Accounts Payable",
@@ -2786,6 +2852,35 @@ export const en = {
       purchaseEmptyPeriodDesc:
         "No expenses have a date in the selected month. Try another period or add an expense.",
       purchaseUpload: "Add Expense",
+      takeCash: "Take Cash",
+      takeCashTitle: "Take Cash",
+      takeCashDesc:
+        "Deduct a company bank and hold the cash. Where you keep it is not recorded. Spending it later is an expense.",
+      takeCashAmount: "Amount",
+      takeCashAmountRequired: "Enter how much cash to take.",
+      takeCashDate: "Date Taken",
+      takeCashDateRequired: "Enter the date the cash left the bank.",
+      takeCashBank: "Taken From Bank",
+      takeCashBankHint: "The company bank this cash is withdrawn from.",
+      takeCashNote: "Note",
+      takeCashNotePlaceholder: "Optional. For example ATM or teller.",
+      takeCashNoteHint: "Optional. The cash location is not stored.",
+      takeCashBalance: "Cash at hand now {amount}.",
+      takeCashConfirm: "Take Cash",
+      takeCashPending: "Saving…",
+      takeCashFailed: "Failed to take cash.",
+      purchasePaymentMethod: "Payment Method",
+      purchasePaymentMethodBank: "Bank",
+      purchasePaymentMethodCash: "Cash",
+      purchasePaymentMethodBankHint:
+        "Pay from a company bank account.",
+      purchasePaymentMethodCashHint:
+        "Pay from Cash At Hand. Balance now {amount}.",
+      purchaseCashNotAllowed:
+        "This expense cannot be paid from Cash At Hand. Use a company bank.",
+      purchaseCashInsufficient:
+        "Not enough cash at hand. Take cash from a company bank first.",
+      purchasePayFromCash: "Cash At Hand",
       purchaseUploadTitle: "Add Expense",
       purchaseUploadDesc:
         "Record a supplier bill, a service, a Petty Cash top-up, or a Vehicle prepaid card top-up. Attach the bill when it is a vendor invoice.",
@@ -2946,24 +3041,24 @@ export const en = {
       advanceCashKindPetty: "Petty Cash",
       advanceCashKindPrepaid: "Prepaid Card",
       advanceCashPettyHint:
-        "Choose which employee receives this cash. That employee's Petty Cash balance goes up. Prepaid cards are topped up under Vehicle → Prepaid Card.",
+        "Choose which employee receives this cash. That employee's Petty Cash balance goes up. Cards are topped up under Prepaid Card.",
       pettyCashRecipient: "Who Receives This Top Up",
       pettyCashRecipientPlaceholder: "Select employee",
       pettyCashRecipientRequired: "Select which employee receives this Petty Cash.",
       pettyCashHoldersOnly:
         "Advance Cash is only for existing Petty Cash holders.",
       advanceCashPrepaidHint:
-        "Top up a vehicle prepaid card under Vehicle → Prepaid Card. Fuel, toll, and parking spends are recorded under Advance Cash → Cards.",
+        "Top up a Vehicle Card or Prepaid Card here under Prepaid Card. Fuel, toll, and parking spends are recorded under Advance Cash → Cards.",
       prepaidCard: "Prepaid Card",
       prepaidCardRequired: "Choose the prepaid card to top up.",
       prepaidCardEmpty: "Add a prepaid card under Advance Cash first.",
-      prepaidCardHint: "This top-up adds to that Card’s balance. Vehicle Cards stay under Vehicle. Prepaid Cards are Head Office.",
+      prepaidCardHint: "This top-up adds to that Card’s balance. Use Prepaid Card for Vehicle Cards and Head Office Prepaid Cards.",
       purchaseCategoryOpenCard: "Prepaid Card",
       purchaseCategoryGovernment: "Government",
       purchaseCategoryBankLoan: "Loan",
       purchaseCategoryEmployee: "Employee Payments",
       purchaseCategoryHint:
-        "A product becomes warehouse stock. A vehicle is bought locally and recorded under Inventory → Vehicles. Top up a Vehicle Card under Vehicle → Prepaid Card. Top up a Prepaid Card here under Prepaid Card. Service, Petty Cash, Government, Loan, and Employee Payments are not stock.",
+        "A product becomes warehouse stock. A vehicle is bought locally and recorded under Inventory → Vehicles. Top up a Vehicle Card or Prepaid Card here under Prepaid Card. Service, Petty Cash, Government, Loan, and Employee Payments are not stock.",
       employeePaymentKind: "Payment Type",
       employeePaymentKindHint:
         "Record Internal Payroll, THR, or a cash advance paid before payday.",
@@ -3510,9 +3605,9 @@ export const en = {
       purchaseMarkPaid: "Mark Paid",
       purchaseMarkPaidTitle: "Mark Purchase Paid",
       purchaseMarkPaidDesc:
-        "Upload proof of payment to record when this supplier bill was paid and close AP.",
+        "Enter the date money left the bank, choose the bank, and upload proof. This closes AP.",
       purchaseMarkPaidHint:
-        "Attach the transfer receipt or payment confirmation. This closes the payable.",
+        "Paid date is the day the money left the account. Excel download does not mark bills paid.",
       purchaseMarkPaidImportDesc:
         "Enter the Bank Rate and any bank fees for this transfer. Warehouse cost stays on the Booking Rate. If the Bank Rate is different, Head Office books the rate difference.",
       purchaseMarkPaidBankRate: "Bank Rate",
@@ -3600,9 +3695,28 @@ export const en = {
       paymentReceived2: "Received",
       paymentReceivedDialogTitle: "Record payment received",
       paymentReceivedDialogDesc:
-        "Upload proof of payment, then confirm. Clears the due invoice; the project stays active for future months.",
+        "Enter the date the client actually paid, upload proof, then confirm. Clears the due invoice; the project stays active for future months.",
       paymentReceivedDialogDescHistory:
-        "Upload proof of payment, then confirm. When all invoices are paid, the project moves to Completed.",
+        "Enter the date the client actually paid, upload proof, then confirm. When all invoices are paid, the project moves to Completed.",
+      paidAtRequired: "Enter the date the money left the bank.",
+      paidAt: "Paid Date",
+      paidAtHint: "The date the money left the bank or cash drawer.",
+      clientPaidAtRequired: "Enter the date the client actually paid.",
+      taxInvoiceIssuedAt: "Tax Invoice Issued Date",
+      taxInvoiceIssuedAtHint: "The issued date printed on the faktur, not the upload date.",
+      taxInvoiceIssuedAtRequired: "Enter the tax invoice issued date.",
+      returnCash: "Return Cash",
+      returnCashTitle: "Return Cash To Bank",
+      returnCashDesc:
+        "Cash at hand goes down and the chosen company bank goes up. This is not an expense.",
+      returnCashAmount: "Amount",
+      returnCashAmountRequired: "Enter the cash amount to return.",
+      returnCashDate: "Date Returned",
+      returnCashDateRequired: "Enter the date cash went back to the bank.",
+      returnCashBank: "Returned To Bank",
+      returnCashConfirm: "Return Cash",
+      returnCashInsufficient: "Cash at hand is not enough for this return.",
+      moduleNotRelevant: "This module is not relevant for you.",
       taxInvoiceSentDialogTitle: "Upload Tax Invoice",
       taxInvoiceSentDialogDesc:
         "Upload the tax invoice, then confirm. Can be done before or after payment is recorded.",
@@ -3827,6 +3941,8 @@ export const en = {
       paidOn: "Paid {date}",
       proofUploadedOn: "Proof uploaded {date}",
       downloadPdf: "PDF",
+      needsDocuments: "Needs Documents",
+      recordPeriod: "Record Period",
       viewProof: "View proof",
       awaitingVerification: "Awaiting verification",
       reconcile: "Reconcile",
@@ -3844,6 +3960,10 @@ export const en = {
       submitPaymentFailed: "Failed to submit payment for verification.",
       rejectPaymentFailed: "Failed to reject payment proof.",
       compileInvoiceFailed: "Failed to compile invoice.",
+      progressReportsRequiredBeforeReview:
+        "Submit at least one progress report before sending this to the client.",
+      remainderNeedsProgressReview:
+        "The remaining invoice is issued after you submit a progress report and the client approves — the same flow as a job without down payment.",
       mutualApprovalBeforeInvoice:
         "Send this billing period for client and HO review (reconcile or Submit for Approval) before issuing the invoice.",
       reviewPendingBeforeInvoice:
@@ -3856,6 +3976,40 @@ export const en = {
       filterResultsFor: '{count} results for "{query}"',
       filterResultsInFor: '{count} results in {type} for "{query}"',
       breadcrumbAria: "Breadcrumb"
+    },
+    taxRates: {
+      title: "Tax Rates",
+      button: "Tax Rates",
+      heading: "Tax Rates",
+      hint: "Every tax in the ERP reads this table on the date it applies. A new percent only affects that date forward. Earlier months keep the old rate.",
+      addType: "Add Tax Type",
+      addTypeTitle: "Add Tax Type",
+      addTypeDesc: "This type then appears wherever we charge tax, with the percent you set.",
+      addRate: "Adjust Rate",
+      addRateTitle: "Adjust Rate · {name}",
+      addRateDesc: "Set the percent and the first date it applies. Documents before that date keep the previous rate.",
+      saveType: "Save Tax Type",
+      saveRate: "Save Rate",
+      saveFailed: "Could not save the tax rate.",
+      columnType: "Tax Type",
+      columnRate: "Rate",
+      columnFrom: "Effective From",
+      columnApplies: "Used For",
+      appliesClient: "Client Charge",
+      appliesCorporate: "Corporate Income Tax",
+      appliesHint: "Client Charge appears on jobs and invoices. Corporate Income Tax is the P&L PPh Badan line.",
+      typeName: "Tax Type Name",
+      typeNamePlaceholder: "e.g. Regional Service Tax",
+      effectiveFrom: "Effective From",
+      effectiveFromHint: "The first date this percent applies. Choose today unless the law already changed on an earlier date.",
+      note: "Note",
+      history: "Rate History",
+      noRate: "No Rate Yet",
+      noRateHint: "Add a rate with an effective date before this type can be chosen on a job.",
+      fromDate: "From {date}",
+      missing: "Add this tax rate under Tax Rates first.",
+      currentRate: "Current rate {percent} from Tax Rates.",
+      followsTable: "The percent comes from Tax Rates on the document date. Change it there, not on this form.",
     },
     vat: {
       period: "Period",
@@ -3877,6 +4031,30 @@ export const en = {
       creditBroughtForwardYearHint:
         "Unused input VAT left at year end after each month was settled. Carried into next year. This is never a minus.",
       taxReportDownload: "Download Tax Report",
+      taxInvoiceReportDownload: "Download Pending Tax Invoices",
+      taxInvoiceReportTitle: "Pending Tax Invoices Report",
+      taxInvoiceReportHint:
+        "Tax documents still waiting to be issued or uploaded. These lines are not booked on the tax report.",
+      taxInvoiceReportHintOutput:
+        "Output VAT tax invoices still waiting to be issued in Core Tax, then uploaded.",
+      taxInvoiceReportHintInput:
+        "Supplier tax invoices still waiting to be uploaded.",
+      taxInvoiceReportHintIncome:
+        "Prepaid income tax documents still waiting to be uploaded.",
+      taxInvoiceReportHintOther:
+        "Other tax documents still waiting to be issued or uploaded.",
+      taxInvoiceReportGeneratedOn: "Generated {date}",
+      taxInvoiceReportColClient: "Client",
+      taxInvoiceReportColNpwp: "NPWP / ID",
+      taxInvoiceReportColBillingFor: "Billing For",
+      taxInvoiceReportColDpp: "DPP",
+      taxInvoiceReportColPpn: "VAT",
+      taxInvoiceReportEmpty: "No pending tax invoices for this selection.",
+      taxInvoiceReportFileName: "Pending-Tax-Invoices.pdf",
+      taxInvoiceReportFileNameOutput: "Pending-Output-VAT.pdf",
+      taxInvoiceReportFileNameInput: "Pending-Input-VAT.pdf",
+      taxInvoiceReportFileNameIncome: "Pending-Income-Tax.pdf",
+      taxInvoiceReportFileNameOther: "Pending-Other-Tax.pdf",
       taxReportTitle: "Tax Report",
       taxReportHint:
         "Output VAT, input VAT, brought-forward VAT credit, prepaid income tax, and other tax for the selected period.",
@@ -3894,6 +4072,7 @@ export const en = {
       taxReportPeriodMonth: "{month} {year}",
       taxReportPeriodYear: "{year}",
       tabs: {
+        all: "All Tax",
         output: "Output VAT",
         input: "Input VAT",
         income: "Income Tax",
@@ -3904,10 +4083,9 @@ export const en = {
       inputSourceService: "Service",
       inputSourceVehicle: "Vehicle",
       inputSourceHandling: "Handling Fee",
-      pendingCount: "{count} Pending",
       outputTitle: "Output VAT (PPN Keluaran)",
       outputDesc:
-        "Client invoice periods that require a tax invoice in this month.",
+        "Issued client tax invoices booked in this month.",
       inputTitle: "Input VAT (PPN Masukan)",
       inputDesc:
         "Input VAT this month, by source: items, imported goods, and handling fee. Import VAT is credited from the customs payment. Handling-fee VAT is credited from the handler's tax invoice.",
@@ -3921,7 +4099,7 @@ export const en = {
       otherRemittanceTotalHint: "Article 21 and Article 23 paid this month",
       otherExpenseTotal: "Other Tax Expense",
       otherExpenseTotalHint: "Article 4(2), stamp duty, and other tax this month",
-      incomeTitle: "Prepaid Corporate Income Tax",
+      incomeTitle: "Corporate Income Tax Credit",
       incomeDesc:
         "Income Tax Article 22 on imports and Corporate Income Tax Article 25 / 29 paid with a Billing ID. These reduce the company tax you owe when you file the annual return.",
       incomeImportTotal: "Import Income Tax Article 22",
@@ -3971,10 +4149,10 @@ export const en = {
       fakturPending: "Pending",
       emptyOutput: "No Output VAT",
       emptyOutputDesc:
-        "No client tax-invoice periods fall in this month.",
+        "No issued client tax invoices fall in this month.",
       emptyInput: "No Input VAT",
       emptyInputDesc:
-        "No supplier purchases with PPN fall in this month.",
+        "No issued supplier tax invoices fall in this month.",
       invoicePeriodFallback: "Invoice Period",
       soldOffSale: "Sold Off",
       governmentClient: "Government",
@@ -4045,7 +4223,7 @@ export const en = {
       title: "Financial Report",
       downloadReport: "Download Financial Report",
       reportHint:
-        "Every money-in and money-out line for the selected period, plus Accounts Receivable and Accounts Payable.",
+        "Profit and loss for the selected period: revenue, cost of sales, Head Office, finance costs, and corporate income tax, plus Accounts Receivable and Accounts Payable.",
       reportTotal: "Total",
       reportDate: "Date",
       reportSource: "Source",
@@ -4088,6 +4266,7 @@ export const en = {
         payrollAdjustment: "Payroll Adjustment",
         loanDraw: "Loan Draw",
         loanReturn: "Loan Return",
+        cashWithdraw: "Take Cash",
         receivable: "Accounts Receivable",
         payable: "Accounts Payable"
       },
@@ -4098,14 +4277,37 @@ export const en = {
       filterReportGeneral: "General",
       filterBank: "Bank Account",
       filterBankAll: "All Banks",
+      filterBankCash: "Cash",
       filterBankUnassigned: "Unassigned",
       transferReport: "Transfer Report",
       rangeHint:
-        "Income uses the calendar period. Wages use the 16th–15th window for Project Staff and the 26th–25th window for Head Office, booked when the money leaves. Unpaid vendor bills are Accounts Payable, not expenses.",
-      periodNet: "Period Profit",
+        "Income uses the calendar period. Wages use the 16th–15th window for Project Staff and the 26th–25th window for Head Office, booked when the money leaves. Assets stay off this statement until sold. Unpaid vendor bills are Accounts Payable, not expenses.",
+      periodNet: "Net Profit",
+      pnlTitle: "Profit And Loss",
+      pnlHint:
+        "Job revenue is exclusive DPP. Cost of sales is consumables and wages used on jobs. Equipment and vehicle purchases stay company assets. Corporate income tax follows the PPh Badan rate in Tax Rates for each date in the period.",
+      pnlRevenue: "Revenue",
+      pnlCostOfSales: "Cost Of Sales",
+      pnlGrossProfit: "Gross Profit",
+      pnlOtherIncome: "Other Income",
+      pnlHeadOffice: "Head Office",
+      pnlOperatingProfit: "Operating Profit",
+      pnlFinanceCosts: "Finance Costs",
+      pnlProfitBeforeTax: "Profit Before Tax",
+      pnlIncomeTax: "Income Tax ({percent}%)",
+      pnlIncomeTaxMixed: "Income Tax",
+      pnlNetProfit: "Net Profit",
+      pnlClientTotal: "Client Total",
+      pnlSubcategoryTotal: "Type Total",
+      pnlTreeTitle: "Revenue By Job",
+      pnlTreeHint:
+        "Each job shows revenue, cost of sales, and gross profit. Head Office sits after every client, not inside a job.",
+      pnlEmptyTree: "No job revenue or cost of sales falls in this period.",
+      pnlGroupContract: "Contract {name}",
+      pnlGroupOneTime: "One Time {name}",
       netPosition: "Net Position",
       netPositionHint:
-        "Period profit minus Accounts Payable. Loan draws stay on the Loan page. They are funding, not revenue.",
+        "Net profit minus Accounts Payable. Loan draws stay on the Loan page. They are funding, not revenue.",
       loanInterestDueThisPeriod: "Loan Interest Paid",
       loanInterestDueThisPeriodHint:
         "Interest you recorded on Loan this period. It is an expense. Draws stay on the Loan page.",
@@ -4135,9 +4337,20 @@ export const en = {
       companyMoneyInHint:
         "Approved or invoiced amounts after tax is taken out by dividing, plus retained employee deposits. Held deposits are not income.",
       companyMoneyOutHint:
-        "Stock used on jobs, vendor bills when paid, Internal Payroll, parking outflows, Head Office costs, Petty Cash top-ups, prepaid card top-ups, and refunded employee deposits.",
+        "Consumables used on jobs, vendor bills when paid, Internal Payroll, parking outflows, Head Office costs, Petty Cash top-ups, prepaid card top-ups, and expenses paid from Cash At Hand. Buying or issuing an asset is not an expense. Taking cash from a bank is not an expense.",
+      companyMoneyInCashHint:
+        "Client income is not received into Cash At Hand. Taking cash from a bank adds to the drawer, not to revenue.",
+      companyMoneyOutCashHint:
+        "Only expenses paid from Cash At Hand this period. Unspent cash stays on Cash At Hand until it is spent.",
+      cashAtHand: "Cash At Hand",
+      cashAtHandHint:
+        "Hard cash already taken from a company bank and not yet spent. It stays here like a bank balance until you pay an expense with Cash. Location is not recorded.",
+      cashAtHandWithdraw: "Taken From Bank",
+      cashAtHandSpend: "Paid From Cash",
+      cashAtHandDeposit: "Returned To Bank",
       stockInWarehouse: "Inventory Value",
-      stockInWarehouseHint: "Value of goods on hand. Not yet charged to a job.",
+      stockInWarehouseHint:
+        "Value of consumable goods on hand. Equipment is a company asset wherever it sits, not inventory cost.",
       headOfficeOverhead: "Head Office",
       headOfficeOverheadPeriodHint:
         "Head Office Standby Wage, Internal purchases paid this period, stock used on Internal Head Office or Warehouse, and import rate differences.",
@@ -4155,9 +4368,9 @@ export const en = {
       depositsKept: "Employee Deposits Retained",
       depositsKeptHint:
         "Head Office income when resignation is not according to procedure.",
-      jobHistoryTitle: "Clients And Jobs",
+      jobHistoryTitle: "Revenue By Job",
       jobHistoryDesc:
-        "Open any job, including completed work. Company monthly totals still count money dated this month.",
+        "Jobs grouped by type, then client. Gross profit is job revenue minus cost of sales. Head Office is not charged to a client.",
       sameDaySplitNote:
         "Worked {count} sites today — day's pay split equally.",
       doubleShiftNote: "Double shift — two daily rates for this day.",
@@ -4165,15 +4378,21 @@ export const en = {
       withProjects: "With Projects",
       totalContractValue: "Total Contract Value",
       acrossClients: "Across Clients",
-      totalProfit: "Total Profit",
+      totalProfit: "Gross Profit",
       detail: {
-        periodNet: "Period Profit Detail",
+        periodNet: "Net Profit Detail",
         netPosition: "Net Position Detail",
         moneyIn: "Revenue Detail",
-        moneyOut: "Expenses Detail",
+        moneyOut: "Cost Of Sales Detail",
         ar: "Accounts Receivable Detail",
         ap: "Accounts Payable Detail",
         warehouse: "Inventory Value Detail",
+        cashAtHand: "Cash At Hand Detail",
+        cashAtHandHelp:
+          "Unspent cash stays here like a bank balance. Choose Cash under Bank Account to see only this drawer. Spending an expense from cash reduces it and books that spend as an expense paid with Cash. Taking cash is not profit or loss until that cash is spent.",
+        cashAtHandEmpty: "No cash at hand yet.",
+        cashAtHandEmptyDesc:
+          "Use Take Cash on Expenses to withdraw from a company bank.",
         overhead: "Head Office Detail",
         deposits: "Employee Deposits Held Detail",
         depositsReturned: "Employee Deposits Refunded Detail",
@@ -4193,12 +4412,16 @@ export const en = {
         overheadRateDifferenceExpense: "Import Rate Difference Expense",
         overheadRateDifferenceIncome: "Import Rate Difference Income",
         warehouseHelp:
-          "Goods still in the warehouse are assets, not expenses, until they are issued to a job.",
+          "Consumables in the warehouse are assets until issued to a job. Equipment stays a company asset when issued — that move only tracks where it sits.",
         openInventory: "Open Inventory",
         moneyInHelp:
           "Revenue includes retained employee deposits and Head Office income when an import Bank Rate is lower than the Booking Rate.",
         moneyOutHelp:
-          "Expenses include Head Office costs, Petty Cash top-ups, prepaid card top-ups, refunded employee deposits, and Head Office expense when an import Bank Rate is higher than the Booking Rate.",
+          "Expenses include Head Office costs, Petty Cash top-ups, prepaid card top-ups, refunded employee deposits, expenses paid from Cash At Hand, and Head Office expense when an import Bank Rate is higher than the Booking Rate. Taking cash from a bank is not an expense on All Banks.",
+        moneyInCashHelp:
+          "Cash At Hand does not receive client income. Taking cash from a bank is not revenue.",
+        moneyOutCashHelp:
+          "Only expenses paid with Cash this period. Unspent cash stays on Cash At Hand and is not an expense until it is spent.",
         overheadHelp:
           "Head Office Standby Wage, Internal purchases paid this period, stock used on Internal sites, and import rate differences booked to Head Office.",
         depositsHelp:
@@ -4208,30 +4431,33 @@ export const en = {
         depositsKeptHelp:
           "Head Office income when resignation is not according to procedure and the deposit is retained.",
         netPositionHelp:
-          "Period profit minus unpaid vendor bills and outstanding loans. Loan draws are not revenue. Accounts Receivable is what clients still owe."
+          "Net profit minus unpaid vendor bills. Loan draws are not revenue. Accounts Receivable is what clients still owe."
       },
       contractValueHint: "Sum of project contract prices.",
-      spendingHint: "Stock used on the job, project purchases, and Internal Payroll days clocked here.",
+      spendingHint: "Consumables used on the job and Internal Payroll days clocked here. Equipment issued to the site is not a cost.",
       moneyIn: "Revenue",
       moneyInHint:
         "Approved reconciliation amount, or the invoice amount, after tax is taken out by dividing.",
-      moneyOut: "Expenses",
-      moneyOutHint: "Stock used, project purchases, and Internal Payroll allocated to this job.",
-      moneyOutBreakdownTitle: "Expense Breakdown",
+      moneyOut: "Cost Of Sales",
+      moneyOutHint: "Consumables used, tagged job services, and Internal Payroll allocated to this job. Not equipment.",
+      moneyOutBreakdownTitle: "Cost Of Sales Breakdown",
       moneyOutBreakdownDesc:
-        "Stock used on this job plus Internal Payroll (daily rate × complete CICO days). Same-day multi-site work splits that day's pay equally.",
-      inventoryOut: "Inventory",
+        "Consumables used on this job, tagged services, petty cash spend, and Internal Payroll (daily rate × complete CICO days). Equipment issued here is location only.",
+      inventoryOut: "Consumables",
+      jobPurchasesOut: "Services And Petty Cash",
+      parkingDealOut: "Parking Deal",
+      incidentsOut: "Incidents",
       wagesOut: "Wages",
-      moneyOutTotal: "Total Expenses",
-      profit: "Profit",
-      profitHint: "Revenue − Expenses",
+      moneyOutTotal: "Total Cost Of Sales",
+      profit: "Gross Profit",
+      profitHint: "Revenue − Cost Of Sales",
       margin: "Margin",
-      marginHint: "Profit ÷ Revenue",
+      marginHint: "Gross Profit ÷ Revenue",
       contractValue: "Contract Value",
       paymentsTitle: "Payments Received",
       paymentsDesc: "Invoice periods marked Paid after payment confirmation.",
-      inventoryTitle: "Inventory Issues",
-      inventoryDesc: "Non-voided stock issued to this project.",
+      inventoryTitle: "Consumables Used",
+      inventoryDesc: "Non-voided consumables issued to this project. Equipment issued here is not a cost.",
       wagesTitle: "Wages By Employee",
       wagesDesc:
         "Same numbers as Internal Payroll: daily rate (monthly pay ÷ 26) × complete check-in and check-out days. A double-shift day counts as two paid days. If someone worked several sites on one day, that day's pay is split equally and noted on the line.",
@@ -4243,9 +4469,9 @@ export const en = {
       emptyPayments: "No Confirmed Payments",
       emptyPaymentsDesc:
         "Paid invoices for this project will appear here after payment is confirmed.",
-      emptyInventory: "No Inventory Issues",
+      emptyInventory: "No Consumables Issued",
       emptyInventoryDesc:
-        "Stock issued to this project will appear here as money out.",
+        "Chemicals and other consumables issued to this project appear here as cost of sales.",
       emptyWages: "No Paid Days",
       emptyWagesDesc:
         "Wage cost appears here when someone has a complete check-in and check-out on this job.",
@@ -4274,10 +4500,12 @@ export const en = {
         client: "Client",
         project: "Project",
         contractValue: "Contract Value",
-        spending: "Expenses",
+        spending: "Cost Of Sales",
         moneyIn: "Revenue",
+        costOfSales: "Cost Of Sales",
+        grossProfit: "Gross Profit",
         receivable: "Accounts Receivable",
-        profit: "Profit",
+        profit: "Gross Profit",
         period: "Period",
         paidAt: "Paid At",
         amount: "Amount",
@@ -4626,7 +4854,7 @@ export const en = {
       prepaidCreateFailed: "Could not save this Card.",
       prepaidEmptyTitle: "No Cards Yet",
       prepaidEmptyDesc:
-        "Add a Card to the list. Top up a Vehicle Card under Expenses → Vehicle → Prepaid Card, or a Prepaid Card under Expenses → Prepaid Card.",
+        "Add a Card to the list. Top up any card under Expenses → Prepaid Card.",
       prepaidSpend: "Record Spend",
       prepaidSpendDesc: "Upload the fuel, toll, or parking bill.",
       prepaidSpendConfirm: "Debit Card",
@@ -4800,6 +5028,8 @@ export const en = {
       clientInvalid: "Select a valid client.",
       transferFromRequired: "Choose whose Petty Cash to transfer from.",
       transferSameEmployee: "Choose a different employee to receive this Petty Cash.",
+      transferNeedsPettyModule:
+        "The recipient must have the Petty Cash module to receive a float transfer.",
       transferInsufficient: "There is not enough Petty Cash to transfer that amount.",
       amountInvalid: "Enter a valid amount.",
       wageSelectRequired: "Select the part-time wage to pay.",
@@ -4874,7 +5104,10 @@ export const en = {
       chargeType: "Charge To",
       chargeTypeClient: "Client",
       chargeTypeProject: "Project",
-      chargeTypeRequired: "Choose Client or Project.",
+      chargeTypeHeadOffice: "Head Office",
+      chargeTypeRequired: "Choose Project, Client, or Head Office.",
+      chargeTypeHeadOfficeHint:
+        "This spend is Head Office, not a job. Petty cash is only the float — every spend still needs a destination.",
       client: "Client",
       clientPlaceholder: "Select client",
       clientHint:
@@ -4956,6 +5189,9 @@ export const en = {
       shiftsAgainstBase: "{worked} of {base} shifts",
       doubleShiftCount: "{count} double shifts",
       surplusShifts: "{count} surplus shifts — add overtime to pay them",
+      suggestedOvertime:
+        "Suggested overtime {amount} ({count} × daily rate). Add an Overtime line before Generate Excel.",
+      surplusShiftUnpaid: "Surplus — add overtime",
       emptyTitle: "No Employees Found",
       emptyDesc:
         "No active RGS staff with base pay, and no complete CICO days in this period.",
@@ -5299,6 +5535,8 @@ export const en = {
         "No projects or photo reports for this date. Cleaning staff should upload site photos for each assigned cleaning project (including Internal) while on shift.",
       emptyForDate: "No progress reports for this date.",
       emptyForMonth: "No progress reports for this month.",
+      emptyForCatchUpPeriod:
+        "This cycle was billed before this workspace was in use, so field progress was not recorded here. There is no progress report for these dates.",
       selectProject: "Select Project",
       serviceArea: "Service Area",
       serviceAreaPlaceholder: "e.g. Lobby, Floor 3",
@@ -6880,7 +7118,7 @@ export const en = {
       documentTitle: "System Guide",
       documentKind: "RGS ONE operating handbook",
       forPosition: "For the {position} Position",
-      forClient: "System Guide for {client}",
+      forClient: "Client System Guide",
       generatedOn: "Issued {date}",
       contents: "Contents",
       howToRead: "How to use this handbook",
@@ -7020,6 +7258,7 @@ export const en = {
     updatePassword: "Update password",
     backToLogin: "Back to login",
     welcomeBack: "Welcome Back",
+    welcomeGate: "Welcome",
     signInSubtitle:
       "Sign in to manage your workspace, projects, and business operations.",
     username: "Username",

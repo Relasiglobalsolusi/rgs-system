@@ -23,6 +23,7 @@ import { listPurchaseDocumentSlots } from "@/lib/purchase-invoice-documents";
 import { canAccess } from "@/lib/permissions";
 import { requireFinanceChild, toPermissionUser } from "@/lib/session";
 import { formatTaxInvoiceSerial } from "@/lib/tax-invoice-serial";
+import { parseTaxReportView } from "@/lib/tax-report-view";
 
 const sectionTitleClassName = "text-base font-semibold tracking-tight text-text";
 
@@ -42,10 +43,7 @@ export default async function PurchaseTaxDetailPage({
   const t = createTranslator(locale);
   const { purchaseId } = await params;
   const query = await searchParams;
-  const backView =
-    query.from === "income" || query.from === "other" || query.from === "output"
-      ? query.from
-      : "input";
+  const backView = parseTaxReportView(query.from, "input");
 
   if (session.user.clientId || session.user.vendorId) {
     redirect("/billing");

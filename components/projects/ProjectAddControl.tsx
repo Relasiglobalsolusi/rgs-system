@@ -8,7 +8,6 @@ import ProjectDialog from "@/components/projects/ProjectDialog";
 import type { ProjectStaffEmployee } from "@/components/projects/ProjectStaffPicker";
 import type { ProjectTeamOption } from "@/components/projects/ProjectTeamPicker";
 import DirectoryAddButton from "@/components/ui/DirectoryAddButton";
-import { chipScrollRowClassName } from "@/components/ui/chip-scroll-row";
 import { useT } from "@/lib/i18n/use-t";
 import type { CompanyBankAccountOption } from "@/lib/company-bank-accounts";
 import type { ProjectCatalogAreaDTO } from "@/lib/project-service-catalog";
@@ -47,18 +46,16 @@ export default function ProjectAddControl({
 
   return (
     <>
-      <div className={chipScrollRowClassName("justify-end")}>
-        <DirectoryAddButton
-          label={t("pages.projects.addProject")}
-          onClick={() => setCreateOpen(true)}
-        />
-        <DirectoryAddButton
-          label={t("common.actions.addBulk")}
-          variant="infoBadge"
-          icon={<ListPlus className="h-3.5 w-3.5 shrink-0" />}
-          onClick={() => setBulkCreateOpen(true)}
-        />
-      </div>
+      <DirectoryAddButton
+        label={t("pages.projects.addProject")}
+        onClick={() => setCreateOpen(true)}
+      />
+      <DirectoryAddButton
+        label={t("common.actions.addBulk")}
+        variant="infoBadge"
+        icon={<ListPlus className="h-3.5 w-3.5 shrink-0" />}
+        onClick={() => setBulkCreateOpen(true)}
+      />
 
       <ProjectDialog
         employees={employees}

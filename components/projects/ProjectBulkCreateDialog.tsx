@@ -27,7 +27,6 @@ import {
 import { Dialog } from "@/components/ui/dialog";
 import { bulkLineField, createBulkLineKey } from "@/lib/bulk-create";
 import {
-  commercialTaxRequiresRatePercent,
   isCommercialTaxKind,
 } from "@/lib/commercial-tax";
 import { useT } from "@/lib/i18n/use-t";
@@ -163,29 +162,13 @@ export default function ProjectBulkCreateDialog({
       if (
         !isComplimentary &&
         resolvedTaxKind === "OTHER" &&
-        !String(formData.get(bulkLineField(index, "otherTaxName")) ?? "").trim()
+        !String(formData.get(bulkLineField(index, "otherTaxName")) ?? "").trim() &&
+        !String(formData.get(bulkLineField(index, "taxRateCode")) ?? "").trim()
       ) {
         showRejection({
           reasons: t("bulkCreate.lineError", {
             n: String(index + 1),
             message: t("pages.billing.otherTaxNameRequired"),
-          }),
-        });
-        return;
-      }
-      if (
-        !isComplimentary &&
-        resolvedTaxKind &&
-        commercialTaxRequiresRatePercent(resolvedTaxKind) &&
-        !String(formData.get(bulkLineField(index, "pphRatePercent")) ?? "").trim()
-      ) {
-        showRejection({
-          reasons: t("bulkCreate.lineError", {
-            n: String(index + 1),
-            message:
-              resolvedTaxKind === "OTHER"
-                ? t("pages.billing.otherTaxRateRequired")
-                : t("pages.projects.pphRatePercentRequired"),
           }),
         });
         return;

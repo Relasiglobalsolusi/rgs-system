@@ -45,7 +45,7 @@ type ClientOption = {
   name: string;
 };
 
-type ChargeType = "client" | "project";
+type ChargeType = "client" | "project" | "headOffice";
 
 export default function PettyCashSpendDialog({
   projects,
@@ -293,7 +293,23 @@ export default function PettyCashSpendDialog({
                 >
                   {t("pages.pettyCash.chargeTypeClient")}
                 </DirectoryFilterTab>
+                <DirectoryFilterTab
+                  size="sm"
+                  active={chargeType === "headOffice"}
+                  onClick={() => {
+                    setChargeType("headOffice");
+                    setProjectId("");
+                    setClientId("");
+                  }}
+                >
+                  {t("pages.pettyCash.chargeTypeHeadOffice")}
+                </DirectoryFilterTab>
               </div>
+              {chargeType === "headOffice" ? (
+                <p className={employeeDialogHintClass}>
+                  {t("pages.pettyCash.chargeTypeHeadOfficeHint")}
+                </p>
+              ) : null}
             </div>
 
             {chargeType === "project" ? (

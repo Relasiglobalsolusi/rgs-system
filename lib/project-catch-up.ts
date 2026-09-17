@@ -37,8 +37,8 @@ export type PreparedCatchUpExpense = {
 export type PreparedCatchUpComplete = {
   target: CatchUpCompleteTarget;
   clientAmount: number;
-  invoicePath: string;
-  taxPath: string;
+  invoicePath: string | null;
+  taxPath: string | null;
   payment: {
     paid: boolean;
     amount: number | null;
@@ -49,33 +49,21 @@ export type PreparedCatchUpComplete = {
   expenses: PreparedCatchUpExpense[];
 };
 
-async function requireCatchUpDocuments(
+async function requireCatchUpTaxInvoice(
   formData: FormData,
-  invoiceName: string,
   taxName: string
-): Promise<{ invoicePath: string; taxPath: string }> {
-  const invoices = formFiles(formData, invoiceName);
+): Promise<string> {
   const taxes = formFiles(formData, taxName);
-  if (invoices.length === 0) {
-    throw new Error("Upload the invoice.");
-  }
   if (taxes.length === 0) {
     throw new Error("Upload the tax invoice.");
   }
-  const invoicePath = await saveAndSerializeUploads(
-    invoices,
-    "uploads/invoices",
-    { fileBaseName: "catch-up-invoice" }
-  );
-  const taxPath = await saveAndSerializeUploads(
-    taxes,
-    "uploads/tax-invoices",
-    { fileBaseName: "catch-up-tax-invoice" }
-  );
-  if (!invoicePath || !taxPath) {
-    throw new Error("Upload the invoice and the tax invoice.");
+  const taxPath = await saveAndSerializeUploads(taxes, "uploads/tax-invoices", {
+    fileBaseName: "catch-up-tax-invoice",
+  });
+  if (!taxPath) {
+    throw new Error("Upload the tax invoice.");
   }
-  return { invoicePath, taxPath };
+  return taxPath;
 }
 
 async function requireUploads(
@@ -127,44 +115,53 @@ export async function prepareCompleteCatchUpPeriod(opts: {
     throw new Error("Enter how much the client pays.");
   }
 
-  const docs = await requireCatchUpDocuments(
+  const taxPath = await requireCatchUpTaxInvoice(
     opts.formData,
-    "catchUpInvoice",
     "catchUpTaxInvoice"
   );
 
-  const paidAtRaw = String(opts.formData.get("catchUpPaidAt") ?? "").trim();
-  if (!paidAtRaw) {
-    throw new Error("Enter the paid date.");
-  }
-  let paidAt: Date;
-  try {
-    paidAt = parseDateInput(paidAtRaw);
-  } catch {
-    throw new Error("Enter the paid date.");
-  }
+  const paidRequested =
+    String(opts.formData.get("catchUpPaid") ?? "").trim() === "1" ||
+    String(opts.formData.get("catchUpPaidAt") ?? "").trim() !== "";
 
-  const bankAccountId =
-    String(opts.formData.get("catchUpBankAccountId") ?? "").trim() ||
-    String(opts.formData.get("bankAccountId") ?? "").trim() ||
-    null;
-  if (!bankAccountId) {
-    throw new Error("Choose the bank that received payment.");
-  }
+  let paidAt: Date | null = null;
+  let bankAccountId: string | null = null;
+  let received: number | null = null;
+  let proofPath: string | null = null;
 
-  const received =
-    parseContractPrice(String(opts.formData.get("catchUpPaymentAmount") ?? "")) ??
-    clientAmount;
-  if (received == null || received <= 0) {
-    throw new Error("Enter how much was received.");
+  if (paidRequested) {
+    const paidAtRaw = String(opts.formData.get("catchUpPaidAt") ?? "").trim();
+    if (!paidAtRaw) {
+      throw new Error("Enter the paid date.");
+    }
+    try {
+      paidAt = parseDateInput(paidAtRaw);
+    } catch {
+      throw new Error("Enter the paid date.");
+    }
+
+    bankAccountId =
+      String(opts.formData.get("catchUpBankAccountId") ?? "").trim() ||
+      String(opts.formData.get("bankAccountId") ?? "").trim() ||
+      null;
+    if (!bankAccountId) {
+      throw new Error("Choose the bank that received payment.");
+    }
+
+    received =
+      parseContractPrice(String(opts.formData.get("catchUpPaymentAmount") ?? "")) ??
+      clientAmount;
+    if (received == null || received <= 0) {
+      throw new Error("Enter how much was received.");
+    }
+    proofPath = await requireUploads(
+      opts.formData,
+      "catchUpPaymentProof",
+      "uploads/payment-proofs",
+      "catch-up-payment",
+      "Upload payment proof."
+    );
   }
-  const proofPath = await requireUploads(
-    opts.formData,
-    "catchUpPaymentProof",
-    "uploads/payment-proofs",
-    "catch-up-payment",
-    "Upload payment proof."
-  );
 
   const staffTotal = parseMoneyOrZero(
     opts.formData,
@@ -220,10 +217,10 @@ export async function prepareCompleteCatchUpPeriod(opts: {
           : opts.target.label,
     },
     clientAmount,
-    invoicePath: docs.invoicePath,
-    taxPath: docs.taxPath,
+    invoicePath: null,
+    taxPath,
     payment: {
-      paid: true,
+      paid: paidRequested,
       amount: received,
       proofPath,
       paidAt,
@@ -243,16 +240,23 @@ export async function persistCompleteCatchUpPeriod(
     companyId: string;
     userId: string;
   }
-): Promise<void> {
+): Promise<{ id: string }> {
+  if (!opts.plan.invoicePath) {
+    throw new Error("Invoice could not be generated.");
+  }
+  if (!opts.plan.taxPath) {
+    throw new Error("Upload the tax invoice.");
+  }
   const now = new Date();
   const periodStart = parseDateInput(opts.plan.target.periodStart);
   const periodEnd = parseDateInput(opts.plan.target.periodEnd);
   const existing = await tx.projectInvoicePeriod.findUnique({
     where: {
-      projectId_periodStart_periodEnd: {
+      projectId_periodStart_periodEnd_isDownPayment: {
         projectId: opts.projectId,
         periodStart,
         periodEnd,
+        isDownPayment: false,
       },
     },
     select: {
@@ -292,26 +296,29 @@ export async function persistCompleteCatchUpPeriod(
     paymentVerifiedAt: opts.plan.payment.paid ? now : null,
     taxInvoiceRequired: true,
     taxInvoiceDocumentPath: opts.plan.taxPath,
-    taxInvoiceDocumentUploadedAt: now,
-    taxInvoiceDoneAt: now,
+    taxInvoiceDocumentUploadedAt: opts.plan.taxPath ? now : null,
+    taxInvoiceDoneAt: opts.plan.taxPath ? now : null,
+    taxInvoiceIssuedAt: opts.plan.taxPath
+      ? opts.plan.payment.paidAt ?? periodEnd
+      : null,
     isCatchUp: true,
   } as const;
 
-  if (existing) {
-    await tx.projectInvoicePeriod.update({
-      where: { id: existing.id },
-      data: periodData,
-    });
-  } else {
-    await tx.projectInvoicePeriod.create({
-      data: {
-        projectId: opts.projectId,
-        periodStart,
-        periodEnd,
-        ...periodData,
-      },
-    });
-  }
+  const saved = existing
+    ? await tx.projectInvoicePeriod.update({
+        where: { id: existing.id },
+        data: periodData,
+        select: { id: true },
+      })
+    : await tx.projectInvoicePeriod.create({
+        data: {
+          projectId: opts.projectId,
+          periodStart,
+          periodEnd,
+          ...periodData,
+        },
+        select: { id: true },
+      });
 
   for (const expense of opts.plan.expenses) {
     await tx.projectExpense.create({
@@ -329,6 +336,8 @@ export async function persistCompleteCatchUpPeriod(
       },
     });
   }
+
+  return { id: saved.id };
 }
 
 export function assertCompleteTargetMatchesForm(

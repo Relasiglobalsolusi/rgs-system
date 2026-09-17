@@ -1,8 +1,4 @@
 import { intakeKindOf } from "@/lib/catch-up-intake";
-import {
-  catchUpAsOfDate,
-  loadBooksOpenDate,
-} from "@/lib/books-open";
 import { jakartaTodayAsUtcDateOnly } from "@/lib/leave-employment-status";
 import {
   isRecordedCatchUpPeriod,
@@ -45,7 +41,6 @@ export async function catchUpHistoryMissing(
   const kind = intake ?? (recordedCatchUp ? "ONGOING" : null);
   if (!kind) return false;
 
-  const booksOpenDate = await loadBooksOpenDate(project.companyId);
   const target = resolveCatchUpCompleteTarget({
     catchUpKind: kind,
     // The question is whether pages remain, not what the job's status is now.
@@ -59,7 +54,7 @@ export async function catchUpHistoryMissing(
     basis: project.billingPeriodBasis as never,
     fromDay: project.billingCycleStartDay,
     toDay: project.billingCycleEndDay,
-    asOf: catchUpAsOfDate(booksOpenDate, jakartaTodayAsUtcDateOnly()),
+    asOf: jakartaTodayAsUtcDateOnly(),
     existingPeriods: project.invoicePeriods,
   });
   return Boolean(target);
