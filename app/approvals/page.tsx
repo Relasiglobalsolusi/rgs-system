@@ -14,6 +14,13 @@ import { getServerLocale, localeToBcp47 } from "@/lib/i18n/locale";
 import { formatEmployeeName } from "@/lib/employee-user-link";
 import { listPendingPayrollUnlockRequests } from "@/lib/payroll-unlock-request";
 import { formatDisplayDateTime } from "@/lib/format-date";
+import {
+  materialRequestProjectSelect,
+  toMaterialRequestProjectView,
+} from "@/lib/material-request-detail";
+import { titleCaseWords } from "@/lib/text-case";
+
+import type { ReactNode } from "react";
 
 import AppShell from "@/components/layout/AppShell";
 import SectionCard from "@/components/ui/SectionCard";
@@ -87,12 +94,13 @@ export default async function ApprovalsPage() {
           ...(projectWhere ? { project: projectWhere } : {}),
         },
         include: {
-          project: { select: { id: true, name: true } },
+          project: { select: materialRequestProjectSelect },
           requestedBy: {
             select: {
               firstName: true,
               lastName: true,
               employeeNo: true,
+              position: true,
             },
           },
           lines: {
@@ -252,12 +260,16 @@ export default async function ApprovalsPage() {
                   reviewNote: request.reviewNote,
                   createdAt: request.createdAt,
                   reviewedAt: request.reviewedAt,
-                  project: request.project,
+                  project: toMaterialRequestProjectView(request.project, locale),
                   requestedByName: formatEmployeeName(request.requestedBy),
                   requestedByNo: request.requestedBy.employeeNo,
+                  requestedByPosition: request.requestedBy.position
+                    ? titleCaseWords(request.requestedBy.position)
+                    : null,
                   lines: request.lines.map((line) => ({
                     id: line.id,
                     quantity: inventoryQtyFromDecimal(line.quantity),
+                    notes: line.notes,
                     item: {
                       sku: line.item.sku,
                       name: line.item.name,

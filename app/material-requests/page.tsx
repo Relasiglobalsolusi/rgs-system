@@ -11,6 +11,10 @@ import { findOpenCicoAttendance } from "@/lib/cico-attendance";
 import { createTranslator } from "@/lib/i18n/translate";
 import { getServerLocale } from "@/lib/i18n/locale";
 import { inventoryQtyFromDecimal } from "@/lib/inventory";
+import {
+  materialRequestProjectSelect,
+  toMaterialRequestProjectView,
+} from "@/lib/material-request-detail";
 import { prisma } from "@/lib/prisma";
 import { requireModule } from "@/lib/session";
 
@@ -57,7 +61,7 @@ export default async function MaterialRequestsPage() {
       ? await prisma.materialRequest.findMany({
           where: { companyId, requestedById: employee.id },
           include: {
-            project: { select: { id: true, name: true } },
+            project: { select: materialRequestProjectSelect },
             reviewedBy: { select: { name: true, username: true } },
             lines: {
               include: {
@@ -148,7 +152,7 @@ export default async function MaterialRequestsPage() {
                   reviewNote: request.reviewNote,
                   createdAt: request.createdAt,
                   reviewedAt: request.reviewedAt,
-                  project: request.project,
+                  project: toMaterialRequestProjectView(request.project, locale),
                   reviewedByName:
                     request.reviewedBy?.name ||
                     request.reviewedBy?.username ||
@@ -156,6 +160,7 @@ export default async function MaterialRequestsPage() {
                   lines: request.lines.map((line) => ({
                     id: line.id,
                     quantity: inventoryQtyFromDecimal(line.quantity),
+                    notes: line.notes,
                     item: {
                       sku: line.item.sku,
                       name: line.item.name,

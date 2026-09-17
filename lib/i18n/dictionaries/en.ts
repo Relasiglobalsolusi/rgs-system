@@ -6156,11 +6156,17 @@ export const en = {
         qty: "Quantity Requested",
         onHand: "On Hand",
         stock: "Stock",
+        project: "Project",
+        client: "Client",
+        location: "Location",
+        serviceArea: "Service Area",
+        subcategory: "Subcategory",
+        submitted: "Submitted",
         requester: "Requester",
         reviewed: "Reviewed",
         notes: "Notes",
-        reviewNote: "Review note",
-        requestedItems: "Requested items"
+        reviewNote: "Review Note",
+        requestedItems: "Requested Items"
       }
     },
     transferOrders: {

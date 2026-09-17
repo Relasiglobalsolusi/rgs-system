@@ -88,7 +88,7 @@ export default function ApprovalActions({ id, type }: Props) {
 
   return (
     <>
-      <div className="flex flex-wrap items-center justify-center gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <Button
           size="badgeFlex"
           variant="successBadge"

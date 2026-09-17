@@ -24,9 +24,17 @@ export type MaterialRequestDetailView = {
   reviewNote: string | null;
   createdAt: string | Date;
   reviewedAt: string | Date | null;
-  project: { id: string; name: string };
+  project: {
+    id: string;
+    name: string;
+    location?: string | null;
+    clientName?: string | null;
+    serviceAreaName?: string | null;
+    subcategoryName?: string | null;
+  };
   requestedByName?: string | null;
   requestedByNo?: string | null;
+  requestedByPosition?: string | null;
   reviewedByName?: string | null;
   lines: MaterialFlowLineView[];
   transferOrder?: {
@@ -81,11 +89,16 @@ export default function MaterialRequestDetailCard({
             {request.project.name}
           </h3>
           <p className="text-sm text-subtle">
-            {t("pages.materialRequests.lineCount", { count: lineCount })}
-            {" · "}
-            {t("pages.materialRequests.submittedOn", {
-              date: formatDisplayDate(request.createdAt),
-            })}
+            {[
+              request.project.clientName,
+              request.project.location,
+              t("pages.materialRequests.lineCount", { count: lineCount }),
+              t("pages.materialRequests.submittedOn", {
+                date: formatDisplayDate(request.createdAt),
+              }),
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -107,12 +120,49 @@ export default function MaterialRequestDetailCard({
       </div>
 
       <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <MetaRow
+          label={t("pages.materialRequests.columns.project")}
+          value={request.project.name}
+        />
+        {request.project.clientName ? (
+          <MetaRow
+            label={t("pages.materialRequests.columns.client")}
+            value={request.project.clientName}
+          />
+        ) : null}
+        {request.project.location ? (
+          <MetaRow
+            label={t("pages.materialRequests.columns.location")}
+            value={request.project.location}
+          />
+        ) : null}
+        {request.project.serviceAreaName ? (
+          <MetaRow
+            label={t("pages.materialRequests.columns.serviceArea")}
+            value={request.project.serviceAreaName}
+          />
+        ) : null}
+        {request.project.subcategoryName ? (
+          <MetaRow
+            label={t("pages.materialRequests.columns.subcategory")}
+            value={request.project.subcategoryName}
+          />
+        ) : null}
+        <MetaRow
+          label={t("pages.materialRequests.columns.submitted")}
+          value={formatDisplayDateTime(request.createdAt)}
+        />
         {request.requestedByName ? (
           <MetaRow
             label={t("pages.materialRequests.columns.requester")}
             value={
               <span>
                 <span className="font-medium">{request.requestedByName}</span>
+                {request.requestedByPosition ? (
+                  <span className="mt-0.5 block text-xs text-subtle">
+                    {request.requestedByPosition}
+                  </span>
+                ) : null}
                 {request.requestedByNo ? (
                   <span className="mt-0.5 block text-xs text-subtle">
                     {request.requestedByNo}
@@ -151,12 +201,10 @@ export default function MaterialRequestDetailCard({
             value={formatDisplayDateTime(to.receivedAt)}
           />
         ) : null}
-        {request.notes ? (
-          <MetaRow
-            label={t("pages.materialRequests.columns.notes")}
-            value={request.notes}
-          />
-        ) : null}
+        <MetaRow
+          label={t("pages.materialRequests.columns.notes")}
+          value={request.notes || t("common.labels.na")}
+        />
         {request.reviewNote ? (
           <MetaRow
             label={t("pages.materialRequests.columns.reviewNote")}

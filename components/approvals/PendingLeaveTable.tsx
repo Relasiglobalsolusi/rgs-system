@@ -1,13 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import type { ReactNode } from "react";
 
 import ApprovalActions from "@/components/approvals/ApprovalActions";
 import LeaveTypeLabel from "@/components/leaves/LeaveTypeLabel";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
-import UploadedFilesLink from "@/components/ui/UploadedFilesLink";
+import SectionCard from "@/components/ui/SectionCard";
 import StatusBadge from "@/components/ui/StatusBadge";
-import { STATUS_COLUMN_WIDTH } from "@/components/ui/trash-action-buttons";
+import UploadedFilesLink from "@/components/ui/UploadedFilesLink";
 import { formatDisplayDate } from "@/lib/format-date";
 import { useT } from "@/lib/i18n/use-t";
 
@@ -26,78 +25,79 @@ type Props = {
   data: PendingLeaveRow[];
 };
 
+function MetaRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: ReactNode;
+}) {
+  if (value == null || value === "") return null;
+  return (
+    <div className="min-w-0">
+      <dt className="text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-subtle">
+        {label}
+      </dt>
+      <dd className="mt-1 text-sm text-text">{value}</dd>
+    </div>
+  );
+}
+
 export default function PendingLeaveTable({ data }: Props) {
   const { t } = useT();
 
-  const columns = useMemo<DataTableColumn<PendingLeaveRow>[]>(
-    () => [
-      {
-        key: "employee",
-        title: t("pages.approvals.columns.employee"),
-        width: "10rem",
-        share: 2,
-        render: (row) => (
-          <div className="min-w-0">
-            <p className="font-medium text-text">
-              {row.employee.firstName} {row.employee.lastName}
-            </p>
-            <p className="text-sm text-subtle">{row.employee.employeeNo}</p>
+  return (
+    <div className="space-y-4">
+      {data.map((row) => (
+        <SectionCard key={row.id} className="p-4 sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+            <div className="min-w-0 space-y-1">
+              <h3 className="text-base font-semibold tracking-tight text-text">
+                {row.employee.firstName} {row.employee.lastName}
+              </h3>
+              <p className="text-sm text-subtle">{row.employee.employeeNo}</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge
+                status={row.type === "SICK" ? "warning" : "active"}
+                compact
+              >
+                <LeaveTypeLabel type={row.type} />
+              </StatusBadge>
+            </div>
           </div>
-        ),
-      },
-      {
-        key: "type",
-        title: t("pages.approvals.columns.type"),
-        width: STATUS_COLUMN_WIDTH,
-        cellAlign: "center",
-        render: (row) => (
-          <StatusBadge status={row.type === "SICK" ? "warning" : "active"}>
-            <LeaveTypeLabel type={row.type} />
-          </StatusBadge>
-        ),
-      },
-      {
-        key: "dates",
-        title: t("pages.approvals.period"),
-        width: "12rem",
-        render: (row) => (
-          <span className="text-muted">
-            {formatDisplayDate(row.startDate)} –{" "}
-            {formatDisplayDate(row.endDate)}
-          </span>
-        ),
-      },
-      {
-        key: "reason",
-        title: t("pages.approvals.columns.reason"),
-        share: 2,
-        render: (row) => (
-          <span className="min-w-0 text-sm leading-6 text-text">{row.reason}</span>
-        ),
-      },
-      {
-        key: "proof",
-        title: t("pages.approvals.proof"),
-        width: "5rem",
-        cellAlign: "center",
-        render: (row) =>
-          row.proofUrl ? (
-            <UploadedFilesLink value={row.proofUrl} />
-          ) : (
-            <span className="text-muted">-</span>
-          ),
-      },
-      {
-        key: "actions",
-        title: t("common.labels.actions"),
-        // Two 7.5rem chips + gap-2. Sick leave asks about deduction after Approve.
-        width: "19rem",
-        cellAlign: "center",
-        render: (row) => <ApprovalActions id={row.id} type={row.type} />,
-      },
-    ],
-    [t]
-  );
 
-  return <DataTable columns={columns} data={data} />;
+          <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <MetaRow
+              label={t("pages.approvals.period")}
+              value={
+                <span>
+                  {formatDisplayDate(row.startDate)} –{" "}
+                  {formatDisplayDate(row.endDate)}
+                </span>
+              }
+            />
+            <MetaRow
+              label={t("pages.approvals.columns.reason")}
+              value={row.reason}
+            />
+            <MetaRow
+              label={t("pages.approvals.proof")}
+              value={
+                row.proofUrl ? (
+                  <UploadedFilesLink value={row.proofUrl} />
+                ) : (
+                  <span className="text-muted">-</span>
+                )
+              }
+            />
+          </dl>
+
+          <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
+            <ApprovalActions id={row.id} type={row.type} />
+          </div>
+        </SectionCard>
+      ))}
+    </div>
+  );
 }

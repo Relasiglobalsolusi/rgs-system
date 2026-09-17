@@ -6215,11 +6215,17 @@ export const id = {
         qty: "Kuantitas Diminta",
         onHand: "Stok Gudang",
         stock: "Stok",
+        project: "Proyek",
+        client: "Klien",
+        location: "Lokasi",
+        serviceArea: "Area Layanan",
+        subcategory: "Subkategori",
+        submitted: "Dikirim",
         requester: "Pemohon",
         reviewed: "Ditinjau",
         notes: "Catatan",
-        reviewNote: "Catatan tinjauan",
-        requestedItems: "Item yang diminta"
+        reviewNote: "Catatan Tinjauan",
+        requestedItems: "Item Yang Diminta"
       }
     },
     transferOrders: {

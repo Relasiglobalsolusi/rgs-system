@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 export type MaterialFlowLineView = {
   id: string;
   quantity: number;
+  notes?: string | null;
   item: {
     sku: string;
     name: string;
@@ -87,7 +88,12 @@ export default function MaterialRequestLinesTable({
             return (
               <tr key={line.id} className="border-t border-border">
                 <td className={cn(cellPad, "font-medium text-text")}>
-                  {line.item.name}
+                  <span className="block">{line.item.name}</span>
+                  {line.notes ? (
+                    <span className="mt-0.5 block text-xs font-normal text-subtle">
+                      {line.notes}
+                    </span>
+                  ) : null}
                 </td>
                 <td
                   className={cn(
