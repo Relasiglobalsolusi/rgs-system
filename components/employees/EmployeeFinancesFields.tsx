@@ -23,7 +23,7 @@ import {
   isDailyPaidPartTime,
   type EmployeeBpjsInput,
 } from "@/lib/employee-bpjs";
-import { defaultCicoExemptForPosition } from "@/lib/employee-payroll-run";
+import { defaultCicoExemptForPosition, defaultProgressExemptForPosition } from "@/lib/employee-payroll-run";
 import { useT } from "@/lib/i18n/use-t";
 import { formatContractPrice } from "@/lib/project-billing";
 import { cn } from "@/lib/utils";
@@ -152,7 +152,9 @@ export default function EmployeeFinancesFields({
       : defaultCicoExemptForPosition(jobPosition)
   );
   const [progressExempt, setProgressExempt] = useState(() =>
-    Boolean(defaults?.progressExempt)
+    defaults?.progressExempt !== undefined
+      ? Boolean(defaults.progressExempt)
+      : defaultProgressExemptForPosition(jobPosition)
   );
   const [overtimeEnabled, setOvertimeEnabled] = useState(() =>
     Boolean(defaults?.overtimeEnabled)
@@ -188,6 +190,11 @@ export default function EmployeeFinancesFields({
     if (defaults?.cicoExempt !== undefined) return;
     setCicoExempt(defaultCicoExemptForPosition(jobPosition));
   }, [defaults?.cicoExempt, jobPosition]);
+
+  useEffect(() => {
+    if (defaults?.progressExempt !== undefined) return;
+    setProgressExempt(defaultProgressExemptForPosition(jobPosition));
+  }, [defaults?.progressExempt, jobPosition]);
 
   const input: EmployeeBpjsInput = useMemo(() => {
     const basePay = Number(basePayDigits || "0");

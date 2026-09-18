@@ -5455,7 +5455,7 @@ export const en = {
     progress: {
       title: "Progress Report",
       description:
-        "Site photo reports for cleaning staff (Cleaning Staff, GC Staff, In-House Cleaning). Upload while on shift — check-out is blocked until at least one report is submitted for the project.",
+        "Site photo reports for staff who clock CICO. Upload while on shift — check-out is blocked until at least one report is submitted, unless Exempt From Progress Report is on for that employee.",
       chooseProject: "Choose Project",
       chooseProjectHintClient:
         "Open a project to view notes and photos for your sites. The start date shows which month reports begin.",
@@ -5509,9 +5509,9 @@ export const en = {
       feedReportCountOther: "{count} Progress Reports",
       myReportsTitle: "My Progress Reports",
       myReportsHint:
-        "Upload Progress Reports while working. Cleaning staff must submit at least one Progress Report before CICO check-out.",
+        "Upload Progress Reports while working. Check-out is blocked until at least one report is submitted, unless Exempt From Progress Report is on.",
       myReportsHintViewOnly:
-        "Progress Reports for cleaning staff on this project. Check-in and check-out do not require a Progress Report for your position.",
+        "You can read Progress Reports here. Check-out does not wait for a report because Exempt From Progress Report is on for this employee.",
       checkInRequiredMessage:
         "Check in via CICO for your project before submitting a Progress Report.",
       onLeaveMessage:
@@ -5520,9 +5520,9 @@ export const en = {
       editReport: "Edit Progress Report",
       dialogTitle: "Progress Report",
       dialogDescription:
-        "Cleaning staff: select your project, service area, and notes, then upload site photos. You may submit multiple reports per project and day. Project, Service Area, Notes, and at least one photo are required.",
+        "Select your project, service area, and notes, then upload site photos. You may submit multiple reports per project and day. Project, Service Area, Notes, and at least one photo are required.",
       dialogDescriptionCicoLocked:
-        "Cleaning staff: select your service area and notes, then upload site photos for today's open CICO work day. Project, Service Area, Notes, and at least one photo are required.",
+        "Select your service area and notes, then upload site photos for today's open CICO work day. Project, Service Area, Notes, and at least one photo are required.",
       editDialogTitle: "Edit Progress Report",
       editDialogDescription:
         "Update the service area, notes, or photos for this progress report. The report date cannot be changed. Keep or add at least one photo.",
@@ -5532,7 +5532,7 @@ export const en = {
       saveChanges: "Save Changes",
       emptyTitle: "No Progress Reports",
       emptyDescription:
-        "No projects or photo reports for this date. Cleaning staff should upload site photos for each assigned cleaning project (including Internal) while on shift.",
+        "No projects or photo reports for this date. Staff who clock CICO should upload site photos for each assigned project (including Internal) while on shift.",
       emptyForDate: "No progress reports for this date.",
       emptyForMonth: "No progress reports for this month.",
       emptyForCatchUpPeriod:
@@ -5585,9 +5585,8 @@ export const en = {
         backupWindow:
           "This backup assignment is only active on the dates the operations manager set.",
         cleaningOnly:
-          "Progress reports are only for cleaning projects (Regular, General, Facade, or Internal).",
-        cleaningPositionOnly:
-          "Progress reports are only for cleaning staff positions (Cleaning Staff, GC Staff, or In-House Cleaning Staff).",
+          "Progress reports are for Cleaning, Landscaping, Security, and Parking sites. Payroll Management does not use Progress Reports.",
+        cleaningPositionOnly: "This employee is exempt from Progress Report.",
         inProgressOnly:
           "Progress reports are only for In Progress projects (work order received).",
         reportNotFound: "Progress report not found.",
@@ -5632,13 +5631,13 @@ export const en = {
       activeOnlyMessage:
         "CICO is only available for Active staff. Contact Head Office if your status should be updated.",
       onProjectOnlyMessage:
-        "Field CICO is available while you are On Project and assigned to a cleaning site. In-House Cleaning Staff: assign them to the Internal Head Office or Warehouse project first. Warehouse Supervisor and Corporate desk staff use office CICO.",
+        "Field CICO is available while you are On Project and assigned to a site. In-House Cleaning Staff: assign them to the Internal Head Office or Warehouse project first. Warehouse Supervisor and Corporate desk staff use office CICO.",
       errors: {
         notAssigned: "You are not assigned to this project.",
         backupWindow:
           "This backup assignment is only active on the dates the operations manager set.",
         cleaningOnly:
-          "CICO is only for cleaning projects (Regular, General, Facade, or Internal).",
+          "CICO is for assigned field sites (Cleaning, Landscaping, Security, Parking, Payroll Management, or Internal).",
         inProgressOnly:
           "Check-in is only available for In Progress projects (work order received).",
         noSiteLocation: "This project has no site location configured yet.",
@@ -5655,7 +5654,7 @@ export const en = {
         cicoExemptBlocked:
           "This person is Exempt From CICO and does not check in or check out.",
         onProjectOnly:
-          "Check-in is only available while you are assigned to an In Progress cleaning project (On Project).",
+          "Check-in is only available while you are assigned to an In Progress field site (On Project).",
         selectProject: "Select a project to check in.",
         alreadyCheckedIn: "Already checked in at this site today.",
         mustCheckOutBeforeNextSite:
@@ -5696,7 +5695,7 @@ export const en = {
       projectSite: "Project Site",
       selectProject: "Select Project",
       noProjectsAssigned:
-        "No cleaning projects assigned. Ask your manager to assign you to a Regular, General, or Facade Cleaning site.",
+        "No field sites assigned. Ask your manager to assign you to a site.",
       checkingInAt: "Checking in at",
       mustBeWithinMeters: "Must be within {meters} m of this site.",
       yourShift: "Your Shift:",
@@ -5725,9 +5724,9 @@ export const en = {
         "A Progress Report is required to check out. Please upload it and retry CICO.",
       uploadProgressNow: "Upload Progress Report",
       footerNote:
-        "CICO for Active On Project cleaning staff at assigned cleaning sites (including Internal). You must be within the project site, and on-site photos are required, to check in or check out. Check-out also requires at least one Progress Report for this shift day.",
+        "You must be within the project site, and on-site photos are required, to check in or check out. Check-out also requires at least one Progress Report for this shift day unless Exempt From Progress Report is on for this employee.",
       footerNoteCheckInOnly:
-        "You must be within the project site, and on-site photos are required, to check in or check out. A Progress Report is not required for your position.",
+        "You must be within the project site, and on-site photos are required, to check in or check out. A Progress Report is not required because Exempt From Progress Report is on for this employee.",
       chooseImageFile: "Please choose an image file for your on-site photo.",
       photoRequiredAlert:
         "A check-in photo is required. Take a photo that shows you at this project site.",
@@ -5762,7 +5761,7 @@ export const en = {
       adminPreview: {
         bannerTitle: "Preview Mode — Check-In Disabled",
         bannerBody:
-          "Head Office accounts can review today's CICO activity and the field worker layout here. Operational check-in and check-out remain for Active On Project cleaning staff only.",
+          "Head Office accounts can review today's CICO activity and the field worker layout here. Operational check-in and check-out remain for Active On Project field staff.",
         fieldBannerTitle: "Admin Field Preview",
         fieldBannerBody:
           "You are using CICO as if assigned to this project. Real attendance may be recorded on your linked employee profile.",
@@ -5778,11 +5777,11 @@ export const en = {
           "Sample project layout — controls are disabled for Head Office accounts.",
         fieldWorkerFlow: "Field CICO",
         fieldWorkerFlowHint:
-          "Select an In Progress project, then check in at site. You must be within the project site and take a photo; Progress Report before check-out applies only for cleaning staff positions.",
+          "Select an In Progress project, then check in at site. You must be within the project site and take a photo.",
         controlsDisabled:
           "Check-in, check-out, and photo upload are disabled in preview mode.",
         noSampleProject:
-          "No In Progress cleaning project with a site location is available for preview.",
+          "No In Progress field project with a site location is available for preview.",
         noSelectableProject:
           "No In Progress project with a site location is available. Add coordinates to a project first.",
         noEmployeeProfile:

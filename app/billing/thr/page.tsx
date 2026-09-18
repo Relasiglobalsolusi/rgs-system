@@ -89,7 +89,7 @@ export default async function ThrPage({
           titleKey="pages.thr.directoryTitle"
           descriptionKey="pages.thr.directoryDesc"
         />
-        <div className="flex justify-end">
+        <div className="flex justify-start">
           <ThrYearControl
             year={targetYear}
             action={

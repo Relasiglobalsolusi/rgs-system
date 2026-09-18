@@ -6,7 +6,6 @@ import {
   canSubmitFieldProgressReport,
   requiresCicoProgressReport,
 } from "@/lib/cico-access";
-import { isSecurityStaffPosition } from "@/lib/positions";
 import { getOpenCicoProgressLock } from "@/lib/cico-attendance";
 import {
   PROGRESS_ELIGIBLE_PROJECT_SUB_CATEGORIES,
@@ -390,13 +389,11 @@ export default async function ProgressPage({
     name: project.name,
     subCategory: project.subCategory,
   }));
-  const assignedSecurityProjects = assignedProjects.filter(
-    (p) => p.subCategory === "SECURITY"
+  const assignedProgressProjects = assignedProjects.filter((p) =>
+    (PROGRESS_ELIGIBLE_PROJECT_SUB_CATEGORIES as readonly string[]).includes(
+      p.subCategory
+    )
   );
-  const assignedCleaningOnlyProjects = assignedProjects.filter(
-    (p) => p.subCategory !== "SECURITY"
-  );
-  const isSecurityStaff = isSecurityStaffPosition(employee?.jobPosition ?? {});
 
   const openCicoLock = employee
     ? await getOpenCicoProgressLock(employee.id)
@@ -414,31 +411,22 @@ export default async function ProgressPage({
         }
       : null;
 
-  // Cleaning: need open CICO. Security staff: anytime on assigned Security projects.
-  const canSubmitSecurityAnytime =
+  const canSubmit =
     Boolean(employee) &&
     !isClient &&
     employee?.status === "ACTIVE" &&
+    Boolean(openCicoProject) &&
     employee?.placement === "ON_PROJECT" &&
-    isSecurityStaff &&
-    assignedSecurityProjects.length > 0;
-  const canSubmit =
-    (Boolean(employee) &&
-      !isClient &&
-      employee?.status === "ACTIVE" &&
-      Boolean(openCicoProject) &&
-      employee?.placement === "ON_PROJECT" &&
-      canSubmitFieldProgressReport(employee)) ||
-    canSubmitSecurityAnytime;
+    canSubmitFieldProgressReport(employee);
   const showCheckInRequired =
     Boolean(employee) &&
     !isClient &&
     employee?.status === "ACTIVE" &&
-    assignedCleaningOnlyProjects.length > 0 &&
+    assignedProgressProjects.length > 0 &&
     employee?.placement === "ON_PROJECT" &&
     requiresCicoProgressReport(employee) &&
     !openCicoProject;
-  // Clients + managers: view feed only. Cleaning + Security staff submit/edit their own.
+  // Clients + managers: view feed only. Field CICO staff submit/edit their own.
   const canEditReports =
     !isViewerFeed &&
     employee?.status === "ACTIVE" &&
@@ -517,16 +505,6 @@ export default async function ProgressPage({
               projectId: openCicoProject.id,
               workDate: openCicoProject.workDate,
             }}
-            triggerLabel={t("pages.progress.submitReport")}
-          />
-        ) : canSubmitSecurityAnytime ? (
-          <ProgressDialog
-            projects={assignedSecurityProjects.map((p) => ({
-              id: p.id,
-              name: p.name,
-            }))}
-            defaultProjectId={assignedSecurityProjects[0]?.id}
-            allowWithoutCico
             triggerLabel={t("pages.progress.submitReport")}
           />
         ) : null}

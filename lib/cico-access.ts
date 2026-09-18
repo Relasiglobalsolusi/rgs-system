@@ -8,10 +8,6 @@ import {
 } from "@/lib/permissions";
 import { isEmployeeActiveForOperations } from "@/lib/leave-employment-status";
 import { canUseOfficeCico } from "@/lib/office-cico";
-import {
-  isCleaningStaffPosition,
-  isSecurityStaffPosition,
-} from "@/lib/positions";
 
 type CicoEmployee = Pick<
   Employee,
@@ -20,6 +16,7 @@ type CicoEmployee = Pick<
   | "placement"
   | "employeeType"
   | "internalHomeSite"
+  | "cicoExempt"
   | "progressExempt"
 > & {
   jobPosition?: { name?: string | null; slug?: string | null } | null;
@@ -33,6 +30,7 @@ export function isCicoFieldEligible(
   employee: CicoEmployee | null | undefined
 ): boolean {
   if (!employee) return false;
+  if (employee.cicoExempt) return false;
   if (employee.archivedFromDirectory) return false;
   if (!isEmployeeActiveForOperations(employee.status)) return false;
   if (employee.placement !== "ON_PROJECT") return false;
@@ -40,41 +38,31 @@ export function isCicoFieldEligible(
   return true;
 }
 
-/** Field CICO or HO/Warehouse office clock. */
+/** Field CICO or HO/Warehouse office clock. Exempt From CICO skips both. */
 export function isCicoOperationalEligible(
   employee: CicoEmployee | null | undefined
 ): boolean {
+  if (!employee || employee.cicoExempt) return false;
   return isCicoFieldEligible(employee) || canUseOfficeCico(employee);
 }
 
-/**
- * Progress before checkout — cleaning staff positions only
- * (Cleaning Staff, GC Staff, In-House Cleaning Staff).
- * Security progress is a separate service requirement (not a CICO gate).
- */
+/** Progress before checkout: on-project staff who are not CICO- or progress-exempt. */
 export function requiresCicoProgressReport(
   employee: CicoEmployee | null | undefined
 ): boolean {
   if (!employee) return false;
+  if (employee.cicoExempt) return false;
   if (employee.progressExempt) return false;
-  return isCleaningStaffPosition(employee.jobPosition ?? {});
+  return employee.placement === "ON_PROJECT";
 }
 
 /**
- * Who may submit field progress photos:
- * cleaning positions, or Security staff (on Security projects — anytime, no
- * forced interval; managers handle cadence offline).
- * Progress-exempt employees (including Technician) cannot submit.
+ * Who may submit field progress photos. Same employee flags as checkout.
  */
 export function canSubmitFieldProgressReport(
   employee: CicoEmployee | null | undefined
 ): boolean {
-  if (!employee) return false;
-  if (employee.progressExempt) return false;
-  const position = employee.jobPosition ?? {};
-  return (
-    isCleaningStaffPosition(position) || isSecurityStaffPosition(position)
-  );
+  return requiresCicoProgressReport(employee);
 }
 
 export { canUseOfficeCico };

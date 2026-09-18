@@ -92,7 +92,7 @@ type Props = {
   hasProgressReport: boolean;
   /** YYYY-MM-DD for Progress Report submit default. */
   workDate: string;
-  /** Cleaning staff positions only — Progress Report before check-out. */
+  /** From the employee record: not Exempt From Progress Report. */
   requiresProgress?: boolean;
 };
 

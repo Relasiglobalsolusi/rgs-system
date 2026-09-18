@@ -30,7 +30,7 @@ export function FinancePeriodToolbar({
       <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         {children}
         {action ? (
-          <div className="flex flex-wrap items-center justify-end gap-2 sm:ml-auto">
+          <div className="flex flex-wrap items-center justify-start gap-2">
             {action}
           </div>
         ) : null}

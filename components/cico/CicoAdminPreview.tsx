@@ -43,7 +43,7 @@ type Props = {
   todayRecord?: TodayRecord | null;
   todaySessions?: TodayRecord[];
   hasProgressReport?: boolean;
-  /** Cleaning positions only — matches operational CICO checkout gate. */
+  /** From the employee record: not Exempt From Progress Report. */
   requiresProgress?: boolean;
   hasEmployeeProfile?: boolean;
 };

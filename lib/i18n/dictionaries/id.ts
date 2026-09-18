@@ -5507,7 +5507,7 @@ export const id = {
     progress: {
       title: "Laporan Progress",
       description:
-        "Laporan foto lokasi untuk staf cleaning (Cleaning Staff, GC Staff, In-House Cleaning). Unggah selama shift — check-out diblokir sampai minimal satu laporan dikirim untuk proyek.",
+        "Laporan foto lokasi untuk staf yang CICO. Unggah selama shift — check-out diblokir sampai minimal satu laporan dikirim, kecuali Bebas Laporan Progress aktif pada karyawan itu.",
       chooseProject: "Pilih Proyek",
       chooseProjectHintClient:
         "Buka proyek untuk melihat catatan dan foto lokasi Anda. Tanggal mulai menunjukkan bulan laporan pertama.",
@@ -5561,9 +5561,9 @@ export const id = {
       feedReportCountOther: "{count} Laporan Progress",
       myReportsTitle: "Laporan Progress Saya",
       myReportsHint:
-        "Unggah Laporan Progress saat bekerja. Staf cleaning harus mengirim minimal satu Laporan Progress sebelum check-out CICO.",
+        "Unggah Laporan Progress saat bekerja. Check-out diblokir sampai minimal satu laporan dikirim, kecuali Bebas Laporan Progress aktif.",
       myReportsHintViewOnly:
-        "Laporan Progress untuk staf cleaning pada proyek ini. Check-in dan check-out tidak memerlukan Laporan Progress untuk jabatan Anda.",
+        "Anda dapat membaca Laporan Progress di sini. Check-out tidak menunggu laporan karena Bebas Laporan Progress aktif pada karyawan ini.",
       checkInRequiredMessage:
         "Check in melalui CICO untuk proyek Anda sebelum mengirim Laporan Progress.",
       onLeaveMessage:
@@ -5572,9 +5572,9 @@ export const id = {
       editReport: "Ubah Laporan Progress",
       dialogTitle: "Laporan Progress",
       dialogDescription:
-        "Staf cleaning: pilih proyek, area layanan, dan catatan, lalu unggah foto lokasi. Anda boleh mengirim beberapa laporan per proyek dan hari. Proyek, Area Layanan, Catatan, dan minimal satu foto wajib diisi.",
+        "Pilih proyek, area layanan, dan catatan, lalu unggah foto lokasi. Anda boleh mengirim beberapa laporan per proyek dan hari. Proyek, Area Layanan, Catatan, dan minimal satu foto wajib diisi.",
       dialogDescriptionCicoLocked:
-        "Staf cleaning: pilih area layanan dan catatan, lalu unggah foto lokasi untuk hari kerja CICO yang sedang terbuka. Proyek, Area Layanan, Catatan, dan minimal satu foto wajib diisi.",
+        "Pilih area layanan dan catatan, lalu unggah foto lokasi untuk hari kerja CICO yang sedang terbuka. Proyek, Area Layanan, Catatan, dan minimal satu foto wajib diisi.",
       editDialogTitle: "Ubah Laporan Progress",
       editDialogDescription:
         "Perbarui area layanan, catatan, atau foto untuk laporan progress ini. Tanggal laporan tidak dapat diubah. Pertahankan atau tambahkan minimal satu foto.",
@@ -5584,7 +5584,7 @@ export const id = {
       saveChanges: "Simpan Perubahan",
       emptyTitle: "Belum Ada Laporan Progress",
       emptyDescription:
-        "Tidak ada proyek atau laporan foto untuk tanggal ini. Staf cleaning harus mengunggah foto lokasi untuk setiap proyek cleaning yang ditugaskan (termasuk Internal) selama shift.",
+        "Tidak ada proyek atau laporan foto untuk tanggal ini. Staf yang CICO harus mengunggah foto lokasi untuk setiap proyek yang ditugaskan (termasuk Internal) selama shift.",
       emptyForDate: "Tidak ada laporan progress untuk tanggal ini.",
       emptyForMonth: "Tidak ada laporan progress untuk bulan ini.",
       emptyForCatchUpPeriod:
@@ -5638,9 +5638,9 @@ export const id = {
         backupWindow:
           "Penugasan cadangan ini hanya aktif pada tanggal yang ditetapkan manajer operasional.",
         cleaningOnly:
-          "Laporan progress hanya untuk proyek cleaning (Rutin, General, Fasad, atau Internal).",
+          "Laporan progress untuk lokasi Cleaning, Landscaping, Security, dan Parking. Payroll Management tidak memakai Laporan Progress.",
         cleaningPositionOnly:
-          "Laporan progress hanya untuk jabatan staf cleaning (Cleaning Staff, GC Staff, atau In-House Cleaning Staff).",
+          "Karyawan ini dibebaskan dari Laporan Progress.",
         inProgressOnly:
           "Laporan progress hanya untuk proyek Sedang Berjalan (perintah kerja diterima).",
         reportNotFound: "Laporan progress tidak ditemukan.",
@@ -5685,13 +5685,13 @@ export const id = {
       activeOnlyMessage:
         "CICO hanya tersedia untuk staf Aktif. Hubungi Kantor Pusat jika status Anda perlu diperbarui.",
       onProjectOnlyMessage:
-        "CICO lapangan tersedia saat Anda Di Proyek dan ditugaskan ke lokasi cleaning. In-House Cleaning Staff: tugaskan dulu ke proyek Internal Head Office atau Warehouse. Warehouse Supervisor dan staf meja Corporate memakai CICO kantor.",
+        "CICO lapangan tersedia saat Anda Di Proyek dan ditugaskan ke lokasi. In-House Cleaning Staff: tugaskan dulu ke proyek Internal Head Office atau Warehouse. Warehouse Supervisor dan staf meja Corporate memakai CICO kantor.",
       errors: {
         notAssigned: "Anda tidak ditugaskan ke proyek ini.",
         backupWindow:
           "Penugasan cadangan ini hanya aktif pada tanggal yang ditetapkan manajer operasional.",
         cleaningOnly:
-          "CICO hanya untuk proyek cleaning (Rutin, General, Fasad, atau Internal).",
+          "CICO untuk lokasi lapangan yang ditugaskan (Cleaning, Landscaping, Security, Parking, Payroll Management, atau Internal).",
         inProgressOnly:
           "Check-in hanya tersedia untuk proyek Sedang Berjalan (perintah kerja diterima).",
         noSiteLocation: "Proyek ini belum memiliki lokasi situs yang dikonfigurasi.",
@@ -5708,7 +5708,7 @@ export const id = {
         cicoExemptBlocked:
           "Orang ini Bebas CICO dan tidak check-in atau check-out.",
         onProjectOnly:
-          "Check-in hanya tersedia saat Anda ditugaskan ke proyek cleaning Sedang Berjalan (Di Proyek).",
+          "Check-in hanya tersedia saat Anda ditugaskan ke lokasi lapangan Sedang Berjalan (Di Proyek).",
         selectProject: "Pilih proyek untuk check-in.",
         alreadyCheckedIn: "Sudah check-in di lokasi ini hari ini.",
         mustCheckOutBeforeNextSite:
@@ -5750,7 +5750,7 @@ export const id = {
       projectSite: "Lokasi Proyek",
       selectProject: "Pilih Proyek",
       noProjectsAssigned:
-        "Belum ada proyek cleaning yang ditugaskan. Minta manajer menugaskan Anda ke lokasi Pembersihan Rutin, General, atau Fasad.",
+        "Belum ada lokasi lapangan yang ditugaskan. Minta manajer menugaskan Anda ke sebuah lokasi.",
       checkingInAt: "Check-in di",
       mustBeWithinMeters: "Harus berada dalam {meters} m dari lokasi ini.",
       yourShift: "Shift Anda:",
@@ -5779,9 +5779,9 @@ export const id = {
         "Laporan Progress wajib untuk check-out. Silakan unggah lalu coba CICO lagi.",
       uploadProgressNow: "Unggah Laporan Progress",
       footerNote:
-        "CICO untuk staf cleaning Aktif Di Proyek pada lokasi cleaning yang ditugaskan (termasuk Internal). Anda harus berada di lokasi proyek, dan foto di lokasi wajib, untuk Check-In atau Check-Out. Check-out juga membutuhkan minimal satu Laporan Progress untuk hari shift ini.",
+        "Anda harus berada di lokasi proyek, dan foto di lokasi wajib, untuk Check-In atau Check-Out. Check-out juga membutuhkan minimal satu Laporan Progress untuk hari shift ini kecuali Bebas Laporan Progress aktif pada karyawan ini.",
       footerNoteCheckInOnly:
-        "Anda harus berada di lokasi proyek, dan foto di lokasi wajib, untuk Check-In atau Check-Out. Laporan Progress tidak wajib untuk jabatan Anda.",
+        "Anda harus berada di lokasi proyek, dan foto di lokasi wajib, untuk Check-In atau Check-Out. Laporan Progress tidak wajib karena Bebas Laporan Progress aktif pada karyawan ini.",
       chooseImageFile: "Pilih file gambar untuk foto di lokasi Anda.",
       photoRequiredAlert:
         "Foto check-in wajib. Ambil foto yang menunjukkan Anda di lokasi proyek ini.",
@@ -5816,7 +5816,7 @@ export const id = {
       adminPreview: {
         bannerTitle: "Mode Pratinjau — Check-In Dinonaktifkan",
         bannerBody:
-          "Akun Kantor Pusat dapat meninjau aktivitas CICO hari ini dan tampilan staf lapangan di sini. Check-in dan check-out operasional tetap hanya untuk staf cleaning Aktif Di Proyek.",
+          "Akun Kantor Pusat dapat meninjau aktivitas CICO hari ini dan tampilan staf lapangan di sini. Check-in dan check-out operasional tetap untuk staf lapangan Aktif Di Proyek.",
         fieldBannerTitle: "Pratinjau CICO Admin Lapangan",
         fieldBannerBody:
           "Anda menggunakan CICO seolah ditugaskan ke proyek ini. Kehadiran nyata dapat tercatat pada profil karyawan yang terhubung.",
@@ -5832,11 +5832,11 @@ export const id = {
           "Contoh tampilan proyek — kontrol dinonaktifkan untuk akun Kantor Pusat.",
         fieldWorkerFlow: "CICO Lapangan",
         fieldWorkerFlowHint:
-          "Pilih proyek Sedang Berjalan, lalu check-in di lokasi. Anda harus berada di lokasi proyek dan mengambil foto; Laporan Progress sebelum check-out hanya untuk jabatan staf cleaning.",
+          "Pilih proyek Sedang Berjalan, lalu check-in di lokasi. Anda harus berada di lokasi proyek dan mengambil foto.",
         controlsDisabled:
           "Check-in, check-out, dan unggah foto dinonaktifkan dalam mode pratinjau.",
         noSampleProject:
-          "Tidak ada proyek cleaning Sedang Berjalan dengan lokasi situs untuk pratinjau.",
+          "Tidak ada proyek lapangan Sedang Berjalan dengan lokasi situs untuk pratinjau.",
         noSelectableProject:
           "Tidak ada proyek Sedang Berjalan dengan lokasi situs. Tambahkan koordinat proyek terlebih dahulu.",
         noEmployeeProfile:

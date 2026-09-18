@@ -14,9 +14,17 @@ Nginx terminates HTTPS (certbot). Do not change `one` DNS away from this IP with
 
 ## Update ERP only
 
+Vicko does **not** use GitHub as the human deploy path. The VPS often cannot
+reach GitHub, so `git pull origin main` is not the live path.
+
+Preferred: commit locally → git bundle or source tarball → `scp` to the VPS →
+unpack → `git reset --hard` to that commit (keep `.env` and `public/uploads`) →
+then build. Restore dirty generated files first if checkout is blocked
+(`package-lock.json`, `next-env.d.ts`).
+
 ```bash
 cd /var/www/rgs-system
-git pull --ff-only origin main
+# After code is already on this box at the shipped commit:
 npm install
 npx prisma generate
 # Schema sync: prefer migrate deploy; if history is messy (P3005 / many "not applied"),

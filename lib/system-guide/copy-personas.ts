@@ -838,7 +838,7 @@ export const SYSTEM_GUIDE_PERSONA_COPY: Partial<
         steps: [
           "Open Progress Report, then open My Progress Reports.",
           "Click Submit Progress Report. Type the Service Area, write what was done, and add at least one photo (JPG, PNG, WebP, or GIF, up to 10 MB each).",
-          "Contract Security can submit without an open CICO. One Time Security still needs Check In first.",
+          "Check in via CICO first. Check-out is blocked until at least one Progress Report is submitted for this shift day.",
           "If you made a mistake, open Edit on your own report the same day (Jakarta time). After that day ends, the report is locked.",
         ],
         remember: [
@@ -852,7 +852,7 @@ export const SYSTEM_GUIDE_PERSONA_COPY: Partial<
         steps: [
           "Buka Laporan Progress, lalu buka Laporan Progress Saya.",
           "Klik Kirim Laporan Progress. Isi Area Layanan, tulis pekerjaan hari itu, dan tambahkan minimal satu foto (JPG, PNG, WebP, atau GIF, maksimal 10 MB per file).",
-          "Security kontrak dapat mengirim tanpa CICO terbuka. Security sekali tetap perlu Check In dulu.",
+          "Check in melalui CICO dulu. Check-out diblokir sampai minimal satu Laporan Progress dikirim untuk hari shift ini.",
           "Jika ada kesalahan, buka Ubah pada laporan Anda sendiri di hari yang sama (waktu Jakarta). Setelah hari itu berakhir, laporan terkunci.",
         ],
         remember: [
@@ -869,7 +869,8 @@ export const SYSTEM_GUIDE_PERSONA_COPY: Partial<
           "Open CICO. If more than one site is listed, use Select Project.",
           "Be at the site. Allow location. Take a Check-In Photo with Take / Upload Photo.",
           "Tap Check In. You must be inside the site radius.",
-          "Work the shift. Take a Check-Out Photo, then tap Check Out.",
+          "Work the shift. If you are not Exempt From Progress Report, submit at least one Progress Report before Check Out.",
+          "Take a Check-Out Photo, then tap Check Out.",
           "If you leave before shift end, confirm Checking Out Before Shift End. There is no typed reason.",
           "Check Out of the current site before you Check In at another site.",
         ],
@@ -885,7 +886,8 @@ export const SYSTEM_GUIDE_PERSONA_COPY: Partial<
           "Buka CICO. Jika ada lebih dari satu lokasi, pakai Pilih Proyek.",
           "Berada di lokasi. Izinkan lokasi. Ambil Foto Check-In dengan Ambil / Unggah Foto.",
           "Ketuk Check In. Anda harus berada dalam radius lokasi.",
-          "Jalankan shift. Ambil Foto Check-Out, lalu ketuk Check Out.",
+          "Jalankan shift. Jika Anda tidak Bebas Laporan Progress, kirim minimal satu Laporan Progress sebelum Check Out.",
+          "Ambil Foto Check-Out, lalu ketuk Check Out.",
           "Jika pulang sebelum akhir shift, konfirmasi Check-Out Sebelum Akhir Shift. Tidak ada kolom alasan.",
           "Check Out dari lokasi saat ini sebelum Check In di lokasi lain.",
         ],

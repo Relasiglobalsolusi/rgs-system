@@ -85,19 +85,19 @@ export const LANDSCAPING_PROJECT_SUB_CATEGORIES = [
  * Cleaning (+ Internal), Landscaping, and Security. No forced interval / SOP scheduler —
  * staff may report whenever; managers set expectations offline.
  *
- * Parking / Payroll Management: CICO yes, progress no.
+ * Payroll Management: CICO yes, progress no.
  */
 export const PROGRESS_ELIGIBLE_PROJECT_SUB_CATEGORIES = [
   ...CLEANING_PROJECT_SUB_CATEGORIES,
   ...LANDSCAPING_PROJECT_SUB_CATEGORIES,
   "SECURITY",
   "ONE_TIME_SECURITY",
+  "PARKING",
 ] as const satisfies readonly ProjectSubCategory[];
 
 /** Assigned staff may check in here (includes jobs that do not use progress). */
 export const FIELD_CICO_ELIGIBLE_PROJECT_SUB_CATEGORIES = [
   ...PROGRESS_ELIGIBLE_PROJECT_SUB_CATEGORIES,
-  "PARKING",
   "PAYROLL_MANAGEMENT",
 ] as const satisfies readonly ProjectSubCategory[];
 

@@ -2,6 +2,7 @@ import type { PayrollRunKind } from "@/lib/internal-payroll-period";
 import {
   isDirectorPosition,
   isOperationsManagerPosition,
+  isTechnicianPosition,
 } from "@/lib/positions";
 
 type PositionLike = { slug?: string | null; name?: string | null } | null;
@@ -55,6 +56,11 @@ export function resolvePayrollRunForEmployee(input: {
 export function defaultCicoExemptForPosition(position: PositionLike): boolean {
   const row = position ?? {};
   return isDirectorPosition(row) || isOperationsManagerPosition(row);
+}
+
+/** Technician clocks CICO but does not file a Progress Report. */
+export function defaultProgressExemptForPosition(position: PositionLike): boolean {
+  return isTechnicianPosition(position ?? {});
 }
 
 /** Desk leadership who still clock in are never flagged late or early. */

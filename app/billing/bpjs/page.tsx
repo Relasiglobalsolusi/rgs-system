@@ -70,7 +70,7 @@ export default async function BpjsPage({
           titleKey="pages.bpjs.title"
           descriptionKey="pages.bpjs.description"
         />
-        <div className="flex justify-end">
+        <div className="flex justify-start">
           <BpjsPeriodControl
             year={year}
             month={month}

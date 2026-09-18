@@ -241,8 +241,9 @@ export function isFieldCleaningStaffPosition(position: {
 }
 
 /**
- * Cleaning crew positions that require a Progress Report before CICO check-out.
- * Cleaning Staff, GC Staff, In-House Cleaning Staff — position only.
+ * Cleaning crew job titles (Cleaning Staff, GC Staff, In-House Cleaning Staff).
+ * CICO and Progress Report before check-out follow the employee flags set on
+ * Add Employee, not this helper.
  */
 export function isCleaningStaffPosition(position: {
   slug?: string | null;

@@ -68,11 +68,12 @@ Secrets live only in: VPS `/var/www/rgs-system/.env` and local `.env` (gitignore
 
 ## How to deploy updates to production
 
-On the VPS (as root):
+Vicko does **not** use GitHub as the human deploy path. The VPS often cannot
+reach GitHub. Ship a local commit over SSH (git bundle or source tarball +
+`scp`), keep `.env` and `public/uploads`, then:
 
 ```bash
 cd /var/www/rgs-system
-git pull --ff-only origin main
 npm install
 npx prisma generate
 # Schema: try migrate deploy first. Prod migration history is messy (many

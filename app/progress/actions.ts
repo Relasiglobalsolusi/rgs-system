@@ -239,7 +239,6 @@ export async function createProgressReport(formData: FormData) {
     throw await progressError("onProjectOnly");
   }
 
-  // Cleaning positions + Security staff (Security projects). Not a CICO checkout gate.
   if (!canSubmitFieldProgressReport(employee)) {
     throw await progressError("cleaningPositionOnly");
   }
@@ -313,10 +312,7 @@ export async function createProgressReport(formData: FormData) {
     throw await progressError("inProgressOnly");
   }
 
-  // Cleaning: open CICO required. Security: anytime (separate service requirement).
-  if (assignment.project.subCategory !== "SECURITY") {
-    await assertOpenCicoRequiredForCreate(employee.id, projectId, reportDate);
-  }
+  await assertOpenCicoRequiredForCreate(employee.id, projectId, reportDate);
   await assertCanCreateProgressReport(employee, projectId, reportDate);
 
   const period = isRgsInternalProject(assignment.project)

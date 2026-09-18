@@ -28,6 +28,7 @@ import { findOpenCicoAttendance } from "@/lib/cico-attendance";
 import {
   isFieldCicoEligibleProjectSubCategory,
   isInternalProjectSubCategory,
+  isProgressEligibleProjectSubCategory,
 } from "@/lib/project-subcategory";
 import { isProjectOpenForSiteWork } from "@/lib/project-status";
 import {
@@ -118,6 +119,7 @@ type CicoCheckInEmployee = {
   internalHomeSite: InternalHomeSite;
   status: EmploymentStatus;
   archivedFromDirectory: boolean;
+  cicoExempt: boolean;
   progressExempt: boolean;
   jobPosition?: { name?: string | null; slug?: string | null } | null;
 };
@@ -528,10 +530,10 @@ export async function checkOut(formData: FormData) {
     throw await cicoError("mustCheckInFirst");
   }
 
-  // Progress required for cleaning positions — not on Payroll Management jobs.
+  // Progress required for field CICO roles — not on Payroll Management jobs.
   if (
     requiresCicoProgressReport(employee) &&
-    existing.project?.subCategory !== "PAYROLL_MANAGEMENT"
+    isProgressEligibleProjectSubCategory(existing.project?.subCategory)
   ) {
     const hasProgress = await hasProgressReportForWorkDay(
       employee.id,
