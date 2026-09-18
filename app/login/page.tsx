@@ -17,7 +17,6 @@ import {
 import AuthLanguageSwitcher from "@/components/auth/AuthLanguageSwitcher";
 import AuthThemeSwitcher from "@/components/auth/AuthThemeSwitcher";
 import AuthLogo from "@/components/auth/AuthLogo";
-import AuthViewportFit from "@/components/auth/AuthViewportFit";
 import { useEnterApp } from "@/components/auth/useEnterApp";
 import {
   EmployeeDialogShell,
@@ -151,9 +150,9 @@ function LoginContent() {
         phase !== "idle" && "auth-shell-leaving"
       )}
     >
-      <div className="auth-login-stage grid lg:grid-cols-[0.88fr_1.12fr]">
-        <section className="auth-form-panel flex h-full min-h-0 items-center overflow-hidden border-r px-5 py-8 sm:px-10 sm:py-12 lg:px-14 xl:px-20">
-          <AuthViewportFit className="mx-auto w-full max-w-[31.875rem]">
+      <div className="auth-login-stage grid min-h-screen lg:grid-cols-[0.88fr_1.12fr]">
+        <section className="auth-form-panel flex min-h-screen items-center border-r px-5 py-8 sm:px-10 sm:py-12 lg:px-14 xl:px-20">
+          <div className="mx-auto w-full max-w-[31.875rem]">
             <div className="mb-10">
               <AuthLogo variant="hero" />
 
@@ -317,10 +316,10 @@ function LoginContent() {
                 <span>{t("auth.version", { version: "1.0" })}</span>
               </div>
             </div>
-          </AuthViewportFit>
+          </div>
         </section>
 
-        <section className="auth-hero-panel relative hidden h-full min-h-0 items-center overflow-hidden px-14 py-14 lg:flex xl:px-24">
+        <section className="auth-hero-panel relative hidden min-h-screen items-center overflow-hidden px-14 py-14 lg:flex xl:px-24">
           <div
             aria-hidden="true"
             className="auth-hero-glow-a pointer-events-none absolute right-0 top-1/2 h-[520px] w-[520px] -translate-y-1/2 translate-x-1/4 rounded-full blur-3xl motion-safe:animate-pulse"
@@ -331,7 +330,7 @@ function LoginContent() {
             className="auth-hero-glow-b pointer-events-none absolute -left-8 top-20 h-[300px] w-[300px] rounded-full blur-3xl motion-safe:animate-pulse [animation-delay:2s]"
           />
 
-          <AuthViewportFit className="relative mx-auto w-full max-w-xl">
+          <div className="relative mx-auto w-full max-w-xl">
             <span className="auth-hero-kicker text-[11px] font-medium uppercase tracking-[0.3em]">
               {t("auth.heroKicker")}
             </span>
@@ -359,7 +358,7 @@ function LoginContent() {
                 </li>
               ))}
             </ul>
-          </AuthViewportFit>
+          </div>
         </section>
       </div>
 
