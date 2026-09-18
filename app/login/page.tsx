@@ -17,6 +17,7 @@ import {
 import AuthLanguageSwitcher from "@/components/auth/AuthLanguageSwitcher";
 import AuthThemeSwitcher from "@/components/auth/AuthThemeSwitcher";
 import AuthLogo from "@/components/auth/AuthLogo";
+import AuthViewportFit from "@/components/auth/AuthViewportFit";
 import { useEnterApp } from "@/components/auth/useEnterApp";
 import {
   EmployeeDialogShell,
@@ -150,13 +151,13 @@ function LoginContent() {
         phase !== "idle" && "auth-shell-leaving"
       )}
     >
-      <div className="auth-login-stage grid min-h-screen lg:grid-cols-[0.88fr_1.12fr]">
-        <section className="auth-form-panel flex min-h-screen items-center border-r px-5 py-8 sm:px-10 sm:py-12 lg:px-14 xl:px-20">
-          <div className="mx-auto w-full max-w-[31.875rem]">
-            <div className="mb-10">
+      <div className="auth-login-stage grid lg:grid-cols-[0.88fr_1.12fr]">
+        <section className="auth-form-panel flex items-center overflow-hidden border-r">
+          <AuthViewportFit className="auth-login-stack">
+            <div className="auth-login-brand">
               <AuthLogo variant="hero" />
 
-              <div className="auth-tagline-row mt-5">
+              <div className="auth-tagline-row">
                 <div className="auth-tagline-lockup">
                   <span className="auth-tagline-rule h-0.5 w-14 shrink-0" />
                   <span
@@ -170,23 +171,23 @@ function LoginContent() {
               </div>
             </div>
 
-            <div className="mb-8">
+            <div className="auth-login-intro">
               <div className="auth-lang-bar">
                 <AuthThemeSwitcher />
                 <AuthLanguageSwitcher />
               </div>
 
-              <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+              <h1 className="font-semibold tracking-tight">
                 {t("auth.welcomeBack")}
               </h1>
 
-              <p className="auth-text-muted mt-3 max-w-md text-sm leading-6">
+              <p className="auth-text-muted max-w-md leading-6">
                 {t("auth.signInSubtitle")}
               </p>
             </div>
 
             <form method="post" action="/login" noValidate onSubmit={handleLogin}>
-              <div className="space-y-5">
+              <div className="auth-login-form">
                 {resetSuccess && (
                   <div role="status" className="auth-alert-success rounded-xl px-4 py-3 text-sm">
                     {t("auth.passwordUpdated")}
@@ -230,7 +231,7 @@ function LoginContent() {
                       placeholder={t("auth.username")}
                       value={username}
                       onChange={(event) => setUsername(event.target.value)}
-                      className="auth-field-input h-14 w-full min-w-0 flex-1 border-0 bg-transparent px-3 text-sm shadow-none outline-none ring-0"
+                      className="auth-field-input w-full min-w-0 flex-1 border-0 bg-transparent px-3 text-sm shadow-none outline-none ring-0"
                     />
                   </div>
                 </div>
@@ -261,7 +262,7 @@ function LoginContent() {
                       placeholder={t("auth.enterPassword")}
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
-                      className="auth-field-input h-14 w-full min-w-0 flex-1 border-0 bg-transparent px-3 text-sm shadow-none outline-none ring-0"
+                      className="auth-field-input w-full min-w-0 flex-1 border-0 bg-transparent px-3 text-sm shadow-none outline-none ring-0"
                     />
 
                     <button
@@ -290,7 +291,7 @@ function LoginContent() {
                 <button
                   type="submit"
                   disabled={loading || phase !== "idle"}
-                  className="flex h-14 w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(37,99,235,0.18)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="auth-login-submit flex w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(37,99,235,0.18)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {loading ? t("auth.signingIn") : t("auth.signIn")}
                   {!loading && <ArrowRight size={18} />}
@@ -298,7 +299,7 @@ function LoginContent() {
               </div>
             </form>
 
-            <div className="auth-divider mt-8 border-t pt-6">
+            <div className="auth-divider auth-login-foot border-t">
               <div className="auth-text-muted flex flex-col items-center gap-3 text-sm">
                 <div className="flex items-center gap-2">
                   <ShieldCheck size={19} className="text-accent-cyan" />
@@ -310,16 +311,16 @@ function LoginContent() {
                 </Link>
               </div>
 
-              <div className="auth-text-footer mt-8 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-xs">
+              <div className="auth-text-footer flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-xs">
                 <span>RGS ONE</span>
                 <span>{t("auth.enterpriseEdition")}</span>
                 <span>{t("auth.version", { version: "1.0" })}</span>
               </div>
             </div>
-          </div>
+          </AuthViewportFit>
         </section>
 
-        <section className="auth-hero-panel relative hidden min-h-screen items-center overflow-hidden px-14 py-14 lg:flex xl:px-24">
+        <section className="auth-hero-panel relative hidden items-center overflow-hidden lg:flex">
           <div
             aria-hidden="true"
             className="auth-hero-glow-a pointer-events-none absolute right-0 top-1/2 h-[520px] w-[520px] -translate-y-1/2 translate-x-1/4 rounded-full blur-3xl motion-safe:animate-pulse"
@@ -330,12 +331,12 @@ function LoginContent() {
             className="auth-hero-glow-b pointer-events-none absolute -left-8 top-20 h-[300px] w-[300px] rounded-full blur-3xl motion-safe:animate-pulse [animation-delay:2s]"
           />
 
-          <div className="relative mx-auto w-full max-w-xl">
+          <AuthViewportFit className="auth-hero-copy">
             <span className="auth-hero-kicker text-[11px] font-medium uppercase tracking-[0.3em]">
               {t("auth.heroKicker")}
             </span>
 
-            <h2 className="mt-6 text-[2.75rem] font-semibold leading-[1.12] tracking-tight xl:text-5xl">
+            <h2 className="font-semibold tracking-tight">
               {t("auth.heroTitle")}{" "}
               <br />
               <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400 bg-clip-text text-transparent">
@@ -343,22 +344,22 @@ function LoginContent() {
               </span>
             </h2>
 
-            <p className="auth-text-muted mt-6 max-w-md text-base leading-7">
+            <p className="auth-text-muted max-w-md leading-7">
               {t("auth.heroSubtitle")}
             </p>
 
-            <ul className="mt-14 space-y-5">
+            <ul className="space-y-5">
               {highlights.map((item) => (
                 <li key={item} className="flex items-center gap-4">
                   <span className="auth-hero-dot h-1.5 w-1.5 shrink-0 rounded-full shadow-[0_0_10px_rgba(34,211,238,0.5)]" />
 
-                  <span className="auth-text-muted text-sm tracking-wide">
+                  <span className="auth-text-muted tracking-wide">
                     {item}
                   </span>
                 </li>
               ))}
             </ul>
-          </div>
+          </AuthViewportFit>
         </section>
       </div>
 
