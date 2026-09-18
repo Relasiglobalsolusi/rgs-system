@@ -25,7 +25,7 @@ export default function AuthLogo({
         priority
         imageClassName={cn(
           "h-auto object-contain",
-          isHero ? "max-w-full" : "w-48"
+          isHero ? "w-full" : "w-48"
         )}
       />
     </div>
